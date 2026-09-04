@@ -684,6 +684,15 @@ route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
     operatorId: principal.actor,
     title: parsed.data.title,
     brand: parsed.data.brand,
+    description: parsed.data.description,
+    bulletPoints: parsed.data.bulletPoints,
+    weight: parsed.data.weight,
+    dimensions: parsed.data.dimensions,
+    primaryImage: parsed.data.primaryImage,
+    additionalImages: parsed.data.additionalImages,
+    fieldSources: parsed.data.fieldSources,
+    imageApprovals: parsed.data.imageApprovals,
+    familyReferenceText: parsed.data.familyReferenceText,
     familyReferenceUrl: parsed.data.familyReferenceUrl,
     familyPageOnlyConfirmed: parsed.data.familyPageOnlyConfirmed,
     overrideDistributorReason: parsed.data.overrideDistributorReason,
@@ -741,8 +750,13 @@ route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
 /**
  * GET /api/onboarding/items/:id/manual-evidence
  * Parent #101: read model for the active manual attestation (null when none).
+ * Ticket #104 adds an optional read-only `distributorReference` carrying the
+ * item's qualified distributor-record scalars (title/brand/description/
+ * weight/dimensions) for side-by-side consultation while transcribing.
+ * Display-only: the UI never auto-fills from it and submit never links to
+ * it (no generation id, no attempt ids leave this endpoint).
  */
-route.get('/onboarding/items/:id/manual-evidence', (c) => {
+route.get('/onboarding/items/:id/manual-evidence', async (c) => {
   const workspace = findWorkspace();
   if (!workspace) {
     return c.json({ error: 'No active workspace loaded' }, 400);
@@ -756,8 +770,45 @@ route.get('/onboarding/items/:id/manual-evidence', (c) => {
   if (!item) {
     return c.json({ error: 'Item not found', code: 'item_not_found' }, 404);
   }
-  return c.json({ itemId, attestation: getActiveManualEvidenceAttestationForItem(itemId) });
+  return c.json({
+    itemId,
+    attestation: getActiveManualEvidenceAttestationForItem(itemId),
+    distributorReference: await readDistributorReferenceForManualEvidence(itemId),
+  });
 });
+
+/**
+ * Read-only distributor scalars for manual-evidence side-by-side display
+ * (ticket #104). Returns display strings only — never generation/attempt
+ * ids, so the UI cannot link or auto-fill from them.
+ */
+async function readDistributorReferenceForManualEvidence(itemId: string): Promise<Record<string, string> | null> {
+  let row: { extraction_data_json: string | null } | undefined;
+  try {
+    // Dynamic import matches the submit/withdraw handlers above.
+    const repo = await import('../../db/repositories/onboarding-extraction-repo');
+    row = repo.findDistributorRecordExtraction(itemId);
+  } catch {
+    return null;
+  }
+  if (!row?.extraction_data_json) return null;
+  let data: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(row.extraction_data_json);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    data = parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const pick = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim().slice(0, 500) : null;
+  const out: Record<string, string> = {};
+  for (const field of ['title', 'brand', 'description', 'weight', 'dimensions'] as const) {
+    const value = pick(data[field]);
+    if (value !== null) out[field] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 /**
  * GET /api/onboarding/metrics?batchId=<id>

@@ -14,18 +14,25 @@ import * as crypto from 'node:crypto';
 const now = () => new Date().toISOString();
 
 /**
- * Manual-evidence entries (parent #101, ticket #103 thin slice).
+ * Manual-evidence entries (parent #101, ticket #104 full set).
  *
- * Builds operator-manual evidence for the supplied fields ONLY (thin slice:
- * title + brand; never family-page facts, never synthesized copy). Every
- * entry carries source `operator_manual`, low reliability (manual
- * transcription requires Review), a NULL source URL, and attestation
- * metadata. Pure helper — unit-tested in isolation and wired into both the
- * frozen and live evidence paths below.
+ * Builds operator-manual evidence for the supplied fields ONLY (title,
+ * brand, description, bullets, weight, dimensions, approved images; never
+ * family-page facts, never synthesized copy). Every entry carries source
+ * `operator_manual`, low reliability (manual transcription requires
+ * Review), a NULL source URL, and attestation metadata. Pure helper —
+ * unit-tested in isolation and wired into both the frozen and live
+ * evidence paths below.
  */
 export interface ManualEvidenceEntryInput {
   title?: string | null;
   brand?: string | null;
+  description?: string | null;
+  bulletPoints?: string[] | null;
+  weight?: string | null;
+  dimensions?: string | null;
+  primaryImage?: string | null;
+  additionalImages?: string[] | null;
   attestationId: string;
   fieldProvenance: Record<string, string>;
   manualReferenceUrl: string | null;
@@ -62,6 +69,83 @@ export function buildManualEvidenceEntries(
       sourceField: 'brand',
       snippet: input.brand.slice(0, 300),
       value: input.brand,
+      metadata,
+    });
+  }
+  if (input.description && input.description.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'description',
+      snippet: input.description.slice(0, 500),
+      value: input.description,
+      metadata,
+    });
+  }
+  for (const bullet of input.bulletPoints ?? []) {
+    if (!bullet || !String(bullet).trim()) continue;
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'bullet_point',
+      snippet: String(bullet).slice(0, 300),
+      value: String(bullet),
+      metadata,
+    });
+  }
+  if (input.weight && input.weight.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'weight',
+      snippet: input.weight.slice(0, 300),
+      value: input.weight,
+      metadata,
+    });
+  }
+  if (input.dimensions && input.dimensions.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'dimensions',
+      snippet: input.dimensions.slice(0, 300),
+      value: input.dimensions,
+      metadata,
+    });
+  }
+  // Operator-approved images only: submit-time rights approvals are
+  // enforced by the service and re-verified by the review gate. The URLs
+  // are operator-supplied evidence, never distributor candidates.
+  if (input.primaryImage && input.primaryImage.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'primary_image',
+      snippet: input.primaryImage.slice(0, 300),
+      value: input.primaryImage,
+      metadata,
+    });
+  }
+  for (const image of input.additionalImages ?? []) {
+    if (!image || !String(image).trim()) continue;
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'additional_image',
+      snippet: String(image).slice(0, 300),
+      value: String(image),
       metadata,
     });
   }
@@ -121,10 +205,10 @@ function executeFrozenEvidenceExtraction(
   // for distributor sources, and nothing is ever labeled
   // `official_product_page` for them.
   // Parent #101 (manual-evidence route): operator-transcribed members emit
-  // ONLY operator-manual evidence (title + brand in the thin slice) with a
-  // NULL classification URL and the attestation id in metadata. The
-  // automated and distributor branches below are byte-identical for all
-  // non-manual members; the review gate re-verifies the attestation join.
+  // ONLY operator-manual evidence (full set in ticket #104) with a NULL
+  // classification URL and the attestation id in metadata. The automated
+  // and distributor branches below are byte-identical for all non-manual
+  // members; the review gate re-verifies the attestation join.
   const isManualEvidence = frozen.extractionMethod === 'manual_evidence_v1';
   if (isManualEvidence) {
     const manualExt = frozen.extraction as typeof frozen.extraction & {
@@ -134,6 +218,12 @@ function executeFrozenEvidenceExtraction(
     for (const entry of buildManualEvidenceEntries({
       title: ext.title,
       brand: ext.brand,
+      description: ext.description,
+      bulletPoints: ext.bulletPoints,
+      weight: ext.weight,
+      dimensions: (ext as { dimensions?: string | null }).dimensions ?? null,
+      primaryImage: ext.primaryImage,
+      additionalImages: ext.additionalImages,
       attestationId: manualExt.manualEvidenceAttestationId ?? 'unknown',
       fieldProvenance: ext.fieldProvenance ?? {},
       manualReferenceUrl: manualExt.manualReferenceUrl ?? null,
@@ -466,7 +556,7 @@ export const evidenceExtractionStage: StageDefinition = {
     }
 
     // Parent #101 (manual-evidence route): operator-transcribed rows emit
-    // ONLY operator-manual evidence (thin slice: title + brand) with a NULL
+    // ONLY operator-manual evidence (full set in ticket #104) with a NULL
     // URL and attestation metadata. Early return mirrors the distributor
     // branch above: manual rows carry no automated artifacts, and their
     // fields must never be labeled `official_product_page`.
@@ -478,9 +568,17 @@ export const evidenceExtractionStage: StageDefinition = {
       (extData as { extractionMethod?: unknown }).extractionMethod === 'manual_evidence_v1' ||
       (itemRow as { extraction_method?: unknown }).extraction_method === 'manual_evidence_v1';
     if (liveManualMethod || liveManualAttestationId) {
+      const asString = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+      const asStringList = (value: unknown): string[] | null => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : null);
       const liveManualEntries = buildManualEvidenceEntries({
-        title: typeof extData.title === 'string' ? extData.title : null,
-        brand: typeof extData.brand === 'string' ? extData.brand : null,
+        title: asString(extData.title),
+        brand: asString(extData.brand),
+        description: asString(extData.description),
+        bulletPoints: asStringList(extData.bulletPoints),
+        weight: asString(extData.weight),
+        dimensions: asString((extData as { dimensions?: unknown }).dimensions),
+        primaryImage: asString(extData.primaryImage),
+        additionalImages: asStringList(extData.additionalImages),
         attestationId: liveManualAttestationId ?? 'unknown',
         fieldProvenance:
           extData.fieldProvenance && typeof extData.fieldProvenance === 'object'

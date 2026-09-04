@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { convertToLbs } from '../weight-converter';
+import { MANUAL_EVIDENCE_FIELD_NAMES } from '../../onboarding/manual-evidence-eligibility';
 import {
   ClassificationConfigSnapshotRefSchema,
   ClassificationEvidenceSchema,
@@ -755,12 +756,14 @@ export const ApproveDistributorImageRequestSchema = z.object({
 });
 export type ApproveDistributorImageRequest = z.infer<typeof ApproveDistributorImageRequestSchema>;
 
-// ─── Manual-evidence extraction route (parent #101, ticket #103 thin slice) ───
+// ─── Manual-evidence extraction route (parent #101, ticket #104 full set) ───
 // Strict request shapes: the server derives ALL provenance (sourceType,
 // identityStatus, confidence, fieldProvenance, hashes, attestation link) and
 // rejects any client-supplied provenance — this schema is closed so an
-// attempt to smuggle provenance fails validation. Thin-slice field set:
-// title (required) + brand (optional); later tickets extend the fields.
+// attempt to smuggle provenance fails validation. Full field set: title
+// (required) + brand/description/bullets/weight/dimensions/images
+// (optional) with per-field source kinds, per-image rights approvals, and an
+// optional pasted family-reference text snapshot (inheritance guard input).
 /** Three-part operator attestation for one manual-evidence submission. */
 export const ManualEvidenceAttestationInputSchema = z
   .object({
@@ -772,18 +775,54 @@ export const ManualEvidenceAttestationInputSchema = z
   .strict();
 export type ManualEvidenceAttestationInput = z.infer<typeof ManualEvidenceAttestationInputSchema>;
 
+/** Per-image rights approval for one operator-supplied manual image. */
+export const ManualEvidenceImageApprovalInputSchema = z
+  .object({
+    imageUrl: z.string().url().max(2000),
+    rightsAttested: z.literal(true),
+  })
+  .strict();
+export type ManualEvidenceImageApprovalInput = z.infer<typeof ManualEvidenceImageApprovalInputSchema>;
+
 /** Operator submission of manual evidence for one profile-blocked item. */
 export const SubmitManualEvidenceRequestSchema = z
   .object({
     itemId: z.string().min(1).max(128),
     title: z.string().min(1).max(500),
     brand: z.string().max(256).nullable().default(null),
+    description: z.string().max(4000).nullable().default(null),
+    bulletPoints: z.array(z.string().max(500)).max(10).default(() => []),
+    weight: z.string().max(256).nullable().default(null),
+    dimensions: z.string().max(256).nullable().default(null),
+    primaryImage: z.string().url().max(2000).nullable().default(null),
+    additionalImages: z.array(z.string().url().max(2000)).max(10).default(() => []),
+    /** Per-field source kinds; absent fields default to operator_transcription server-side. */
+    fieldSources: z.record(z.string(), ManualEvidenceSourceKindEnum).default(() => ({})),
+    /** Per-image rights approvals; every submitted image URL needs one. */
+    imageApprovals: z.array(ManualEvidenceImageApprovalInputSchema).max(12).default(() => []),
+    /**
+     * Operator-pasted family page text (optional, reference only). Stored
+     * server-side as the inheritance-guard snapshot: the review gate
+     * refuses manual fields that match it. Never trusted evidence.
+     */
+    familyReferenceText: z.string().max(8000).nullable().default(null),
     familyReferenceUrl: z.string().url().max(2000).nullable().default(null),
     familyPageOnlyConfirmed: z.boolean().default(false),
     overrideDistributorReason: z.string().max(500).nullable().default(null),
     attestation: ManualEvidenceAttestationInputSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    for (const key of Object.keys(data.fieldSources)) {
+      if (!(MANUAL_EVIDENCE_FIELD_NAMES as readonly string[]).includes(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Unknown manual-evidence field in fieldSources: '${key}'.`,
+          path: ['fieldSources', key],
+        });
+      }
+    }
+  });
 export type SubmitManualEvidenceRequest = z.infer<typeof SubmitManualEvidenceRequestSchema>;
 
 /** Operator withdrawal of manual evidence for one item. */

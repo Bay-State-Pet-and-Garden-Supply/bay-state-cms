@@ -11,6 +11,112 @@ const PROFILE_BLOCKED_RE = /^No extractor profile for\s+(\S+)/i;
 
 export const MANUAL_EVIDENCE_METHOD = 'manual_evidence_v1' as const;
 
+/**
+ * Full manual fact set (parent #101, ticket #104). The canonical per-field
+ * keys for operator-transcribed manual evidence. The request schema, the
+ * submit service, the attestation checklist, and the review-gate hash check
+ * all derive from this one tuple — a single spelling per concept.
+ */
+export const MANUAL_EVIDENCE_FIELD_NAMES = [
+  'title',
+  'brand',
+  'description',
+  'bulletPoints',
+  'weight',
+  'dimensions',
+  'primaryImage',
+  'additionalImages',
+] as const;
+
+export type ManualEvidenceFieldName = (typeof MANUAL_EVIDENCE_FIELD_NAMES)[number];
+
+/** Raw per-field values for one manual-evidence submission (pre-canonicalization). */
+export interface ManualEvidenceFieldPayload {
+  title?: string | null;
+  brand?: string | null;
+  description?: string | null;
+  bulletPoints?: string[] | null;
+  weight?: string | null;
+  dimensions?: string | null;
+  primaryImage?: string | null;
+  additionalImages?: string[] | null;
+}
+
+function canonicalScalar(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function canonicalStringList(values: string[] | null | undefined): string[] | null {
+  if (!Array.isArray(values)) return null;
+  const cleaned = values
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * Canonical per-field value map for one manual-evidence submission.
+ *
+ * The SAME builder runs at submit time (checklist + value hashes) and at
+ * gate time (rebuilt from the stored extraction payload for the hash-match
+ * check), so the two always agree: trimmed scalars, trimmed non-empty
+ * string lists, populated fields only. Pure — DB-free.
+ */
+export function buildManualEvidenceFieldValues(
+  payload: ManualEvidenceFieldPayload,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of MANUAL_EVIDENCE_FIELD_NAMES) {
+    if (field === 'bulletPoints' || field === 'additionalImages') {
+      const list = canonicalStringList(payload[field]);
+      if (list !== null) out[field] = list;
+      continue;
+    }
+    const scalar = canonicalScalar(payload[field]);
+    if (scalar !== null) out[field] = scalar;
+  }
+  return out;
+}
+
+/** Normalize operator text for comparison: trim, collapse whitespace, casefold. */
+export function normalizeManualEvidenceText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * Minimum normalized value length for the containment arm of the
+ * inheritance check. Short values ("Treats", "Beef") appear on family
+ * pages by coincidence; only non-trivial copied spans fire. Normalized
+ * equality fires at any length.
+ */
+export const MANUAL_EVIDENCE_INHERITANCE_CONTAINMENT_MIN_LENGTH = 24;
+
+/**
+ * Family-inheritance suspicion (parent #101, ticket #104).
+ *
+ * True when a manual field value, normalized, either EQUALS the stored
+ * family-reference snapshot text or — for non-trivial values — is CONTAINED
+ * in it. The snapshot is operator-pasted reference text stored at submit
+ * time; the gate never fetches the network. Pure — DB-free.
+ */
+export function isManualFieldValueInherited(
+  fieldValue: string | null | undefined,
+  snapshotText: string | null | undefined,
+): boolean {
+  if (typeof fieldValue !== 'string' || typeof snapshotText !== 'string') return false;
+  const normalizedValue = normalizeManualEvidenceText(fieldValue);
+  const normalizedSnapshot = normalizeManualEvidenceText(snapshotText);
+  if (!normalizedValue || !normalizedSnapshot) return false;
+  if (normalizedValue === normalizedSnapshot) return true;
+  return (
+    normalizedValue.length >= MANUAL_EVIDENCE_INHERITANCE_CONTAINMENT_MIN_LENGTH &&
+    normalizedSnapshot.includes(normalizedValue)
+  );
+}
+
 /** True when the failure message is the worker's missing-profile signature. */
 export function isManualEvidenceProfileBlockedError(errorMessage: string | null | undefined): boolean {
   if (!errorMessage) return false;

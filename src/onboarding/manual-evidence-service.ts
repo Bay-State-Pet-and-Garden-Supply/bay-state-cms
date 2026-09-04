@@ -15,14 +15,17 @@ import { findProfileByDomain as defaultFindProfileByDomain } from '../db/reposit
 import { ExtractionDataSchema } from '../shared/schemas/onboarding';
 
 /**
- * Manual-evidence extraction route (parent #101, ticket #103 thin slice).
+ * Manual-evidence extraction route (parent #101, ticket #104 full set).
  *
  * The single audited operator path from `extraction/failed` (profile-blocked
- * or triaged family-page-only) to `extraction/completed`. Thin-slice field
- * set: title (required) + brand (optional). The family page URL is a
- * reference-only attachment — never the extraction source. The automated
- * worker never calls this module (no auto-degradation by construction:
- * every entry requires an explicit operator id + attestation).
+ * or triaged family-page-only) to `extraction/completed`. Full field set:
+ * title (required) + brand/description/bullets/weight/dimensions/images
+ * (optional) with per-field source kinds, per-image rights approvals, and
+ * an optional pasted family-reference text snapshot (inheritance guard).
+ * The family page URL/text are reference-only attachments — never the
+ * extraction source. The automated worker never calls this module
+ * (no auto-degradation by construction: every entry requires an explicit
+ * operator id + attestation).
  */
 
 import { MANUAL_EVIDENCE_METHOD } from './manual-evidence-eligibility';
@@ -41,6 +44,8 @@ export type ManualEvidenceRejectCode =
   | 'distributor_record_exists'
   | 'manual_title_missing'
   | 'manual_attestation_incomplete'
+  | 'manual_field_invalid'
+  | 'manual_image_rights_missing'
   | 'invalid_reference_url'
   | 'concurrent_state_change'
   | 'no_manual_evidence_to_withdraw';
@@ -62,6 +67,18 @@ export interface SubmitManualEvidenceInput {
   operatorId: string;
   title: string;
   brand?: string | null;
+  description?: string | null;
+  bulletPoints?: string[] | null;
+  weight?: string | null;
+  dimensions?: string | null;
+  primaryImage?: string | null;
+  additionalImages?: string[] | null;
+  /** Per-field source kinds; absent fields default to operator_transcription. */
+  fieldSources?: Record<string, string> | null;
+  /** Per-image rights approvals; every submitted image URL needs one. */
+  imageApprovals?: Array<{ imageUrl: string; rightsAttested: boolean }> | null;
+  /** Operator-pasted family page text snapshot (optional, reference only). */
+  familyReferenceText?: string | null;
   familyReferenceUrl?: string | null;
   /** Operator-confirmed family-page-only triage for non-profile failures. */
   familyPageOnlyConfirmed?: boolean;
@@ -87,12 +104,16 @@ export interface ManualEvidenceDeps {
 
 const defaultDeps: ManualEvidenceDeps = { findProfileByDomain: defaultFindProfileByDomain };
 
+import { convertToLbs } from '../shared/weight-converter';
 import {
+  MANUAL_EVIDENCE_FIELD_NAMES,
+  buildManualEvidenceFieldValues,
   deriveManualEvidenceIdentityStatus,
   isManualEvidenceEligible,
   isManualEvidenceProfileBlockedError,
   resolveManualEvidenceDomain,
 } from './manual-evidence-eligibility';
+import { ManualEvidenceSourceKindEnum } from '../shared/schemas/onboarding';
 
 export {
   deriveManualEvidenceIdentityStatus,
@@ -201,6 +222,95 @@ export function submitManualEvidence(
     return { ok: false, code: 'manual_title_missing', reason: 'A per-SKU title is required for manual evidence.' };
   }
   const brand = (input.brand ?? '').trim() || null;
+  const descriptionRaw = (input.description ?? '').trim() || null;
+  if (descriptionRaw !== null && descriptionRaw.length > 4000) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'The manual description exceeds 4000 characters.' };
+  }
+  const description = descriptionRaw;
+  const rawBullets = input.bulletPoints ?? [];
+  if (!Array.isArray(rawBullets)) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'Manual bullet points must be an array of strings.' };
+  }
+  const bulletPoints = rawBullets
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (bulletPoints.length > 10) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'Manual evidence allows at most 10 bullet points.' };
+  }
+  for (const bullet of bulletPoints) {
+    if (bullet.length > 500) {
+      return { ok: false, code: 'manual_field_invalid', reason: 'A manual bullet point exceeds 500 characters.' };
+    }
+  }
+  // Weight is canonicalized to lbs (ticket #104, plan §6): an unparseable
+  // weight omits the field instead of persisting raw text.
+  const weightRaw = (input.weight ?? '').trim() || null;
+  const weight = weightRaw !== null ? convertToLbs(weightRaw) : null;
+  const dimensions = (input.dimensions ?? '').trim() || null;
+  if (dimensions !== null && dimensions.length > 256) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'Manual dimensions exceed 256 characters.' };
+  }
+  const primaryImage = (input.primaryImage ?? '').trim() || null;
+  if (primaryImage !== null && !isHttpUrl(primaryImage)) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'The manual primary image must be an http(s) URL.' };
+  }
+  const rawAdditional = input.additionalImages ?? [];
+  if (!Array.isArray(rawAdditional)) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'Manual additional images must be an array of URLs.' };
+  }
+  const additionalImages = rawAdditional
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (additionalImages.length > 10) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'Manual evidence allows at most 10 additional images.' };
+  }
+  for (const imageUrl of additionalImages) {
+    if (!isHttpUrl(imageUrl)) {
+      return { ok: false, code: 'manual_field_invalid', reason: 'Every manual image must be an http(s) URL.' };
+    }
+  }
+  // Per-field source kinds default to operator transcription. Unknown
+  // fields and unknown kinds fail closed (the strict request schema
+  // rejects unknown keys at HTTP; this guards direct service callers).
+  const fieldSourcesInput = input.fieldSources ?? {};
+  const fieldSources: Record<string, { sourceKind: 'operator_transcription' | 'packaging_photo' | 'distributor_sheet' | 'brand_family_reference' }> = {};
+  for (const [field, kind] of Object.entries(fieldSourcesInput)) {
+    if (!(MANUAL_EVIDENCE_FIELD_NAMES as readonly string[]).includes(field)) {
+      return { ok: false, code: 'manual_field_invalid', reason: `Unknown manual-evidence field in fieldSources: '${field}'.` };
+    }
+    const parsedKind = ManualEvidenceSourceKindEnum.safeParse(kind);
+    if (!parsedKind.success) {
+      return { ok: false, code: 'manual_field_invalid', reason: `Invalid source kind for manual field '${field}'.` };
+    }
+    fieldSources[field] = { sourceKind: parsedKind.data };
+  }
+  // Per-image rights (ticket #104): every submitted image URL needs a
+  // matching rights approval. A `distributor_sheet` source kind never
+  // creates distributor linkage — linkage lives only in sourcing
+  // generations/attempt ids, which this route never writes (the repo
+  // throws when they are present on a manual row).
+  const submittedImages = [...(primaryImage ? [primaryImage] : []), ...additionalImages];
+  const imageApprovalsInput = input.imageApprovals ?? [];
+  const approvedUrls = new Set(
+    imageApprovalsInput
+      .filter((entry) => entry && entry.rightsAttested === true && typeof entry.imageUrl === 'string')
+      .map((entry) => entry.imageUrl.trim()),
+  );
+  for (const imageUrl of submittedImages) {
+    if (!approvedUrls.has(imageUrl)) {
+      return {
+        ok: false,
+        code: 'manual_image_rights_missing',
+        reason: 'Every manual image requires a per-image rights approval before it can be submitted.',
+      };
+    }
+  }
+  const familyReferenceTextRaw = (input.familyReferenceText ?? '').trim() || null;
+  if (familyReferenceTextRaw !== null && familyReferenceTextRaw.length > 8000) {
+    return { ok: false, code: 'manual_field_invalid', reason: 'The family reference text exceeds 8000 characters.' };
+  }
   const familyReferenceUrl = (input.familyReferenceUrl ?? '').trim() || null;
   if (familyReferenceUrl !== null && !isHttpUrl(familyReferenceUrl)) {
     return { ok: false, code: 'invalid_reference_url', reason: 'The family reference URL must be an http(s) URL.' };
@@ -242,12 +352,21 @@ export function submitManualEvidence(
   }
 
   const identityStatus = deriveManualEvidenceIdentityStatus(familyReferenceUrl !== null);
-  const fieldValues: Record<string, unknown> = { title };
-  if (brand !== null) fieldValues.brand = brand;
-  const fieldSources: Record<string, { sourceKind: 'operator_transcription'; referenceUrl?: string | null }> = {
-    title: { sourceKind: 'operator_transcription' },
-  };
-  if (brand !== null) fieldSources.brand = { sourceKind: 'operator_transcription' };
+  // Canonical field map shared with the gate hash check (ticket #104):
+  // trimmed scalars, trimmed non-empty lists, populated fields only.
+  const fieldValues = buildManualEvidenceFieldValues({
+    title,
+    brand,
+    description,
+    bulletPoints,
+    weight,
+    dimensions,
+    primaryImage,
+    additionalImages,
+  });
+  for (const field of Object.keys(fieldValues)) {
+    if (!fieldSources[field]) fieldSources[field] = { sourceKind: 'operator_transcription' };
+  }
   const notesParts: string[] = [];
   if ((attestation.notes ?? '').trim()) notesParts.push(attestation.notes!.trim());
   if (overrideReason) notesParts.push(`distributor override: ${overrideReason}`);
@@ -261,6 +380,8 @@ export function submitManualEvidence(
       fieldValues,
       fieldSources,
       familyReferenceUrl,
+      imageRights: submittedImages.map((imageUrl) => ({ imageUrl })),
+      familyReferenceText: familyReferenceTextRaw,
       notes: notesParts.length > 0 ? notesParts.join('\n') : null,
     });
     const extractionData = ExtractionDataSchema.parse({
@@ -269,6 +390,12 @@ export function submitManualEvidence(
       confidence: 0,
       title,
       brand,
+      description,
+      bulletPoints,
+      weight,
+      dimensions,
+      primaryImage,
+      additionalImages,
       fieldProvenance: Object.fromEntries(Object.keys(fieldValues).map((field) => [field, 'user'])),
       identityStatus,
       identityReasons: [

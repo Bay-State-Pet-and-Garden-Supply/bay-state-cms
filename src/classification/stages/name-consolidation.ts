@@ -235,6 +235,11 @@ export const nameConsolidationStage: StageDefinition = {
     }
 
     const webTitle = evidenceValue(input.evidence, 'title', 'official_product_page');
+    // Parent #101 (manual-evidence route, ticket #104): the
+    // operator-transcribed per-SKU title is an eligible title signal with
+    // source `manual`. It never bypasses synthesis or cohort validation —
+    // it only participates as one more input to the shared consolidator.
+    const manualTitle = evidenceValue(input.evidence, 'name', 'operator_manual');
     const ocrTitle = evidenceValue(input.evidence, 'name', 'visual_product_evidence');
     const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
     const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
@@ -252,10 +257,10 @@ export const nameConsolidationStage: StageDefinition = {
 
     // Consider distributor titles as valid signals for availability
     const hasDistributorTitles = distributorSignals.titles.length > 0;
-    if (!spreadsheetName && !webTitle && !ocrTitle && !hasDistributorTitles) {
+    if (!spreadsheetName && !webTitle && !ocrTitle && !manualTitle && !hasDistributorTitles) {
       return {
         status: 'abstained',
-        reason: 'No title signals available from evidence (no spreadsheet name, web title, OCR title, or distributor titles).',
+        reason: 'No title signals available from evidence (no spreadsheet name, web title, OCR title, manual title, or distributor titles).',
       };
     }
 
@@ -278,6 +283,7 @@ export const nameConsolidationStage: StageDefinition = {
           rawRegisterName: rawRegisterName ?? undefined,
           brandHint: brandHint ?? undefined,
           webTitle: webTitle ?? undefined,
+          manualTitle: manualTitle ?? undefined,
           ocrTitle: ocrTitle ?? undefined,
           ocrWeight: ocrWeight ?? undefined,
           ocrSize: ocrSize ?? undefined,
@@ -320,6 +326,7 @@ export const nameConsolidationStage: StageDefinition = {
               spreadsheetName: spreadsheetName ?? null,
               rawRegisterName: rawRegisterName ?? null,
               webTitle: webTitle ?? null,
+              manualTitle: manualTitle ?? null,
               ocrTitle: ocrTitle ?? null,
               ocrWeight: ocrWeight ?? null,
               ocrSize: ocrSize ?? null,
@@ -336,10 +343,12 @@ export const nameConsolidationStage: StageDefinition = {
     } catch (err: any) {
       console.error(`[NameConsolidation] Failed to consolidate title: ${err.message}`);
 
-      // Fallback: use best available signal (including distributor titles)
+      // Fallback: use best available signal (including distributor titles
+      // and the operator-verified manual title). Non-manual items carry no
+      // manual signal, so their fallback order is byte-identical.
       const bestDistributorTitle = distributorSignals.titles[0]?.title ?? null;
-      const fallback = ocrTitle ?? webTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
-      const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (bestDistributorTitle ? 'web' : 'web'));
+      const fallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
+      const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (manualTitle ? 'manual' : (bestDistributorTitle ? 'web' : 'web')));
 
       return {
         status: 'succeeded',
@@ -358,6 +367,7 @@ export const nameConsolidationStage: StageDefinition = {
               spreadsheetName: spreadsheetName ?? null,
               rawRegisterName: rawRegisterName ?? null,
               webTitle: webTitle ?? null,
+              manualTitle: manualTitle ?? null,
               ocrTitle: ocrTitle ?? null,
               ocrWeight: ocrWeight ?? null,
               ocrSize: ocrSize ?? null,

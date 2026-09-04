@@ -5661,6 +5661,48 @@ export function runMigrations(): void {
     console.log('[Migrations] Manual-evidence foundation migration complete (v1, additive).');
   }
 
+  // Parent #101 (manual-evidence route, ticket #104 full set): v2 adds two
+  // nullable attestation columns — per-image rights approvals JSON and the
+  // operator-pasted family-reference text snapshot (inheritance guard).
+  // Additive only: existing rows read NULL (no approvals, no snapshot).
+  const manualEvidenceV2Version = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('manual_evidence_schema_version') as { value: string } | undefined;
+  if (manualEvidenceV2Version && manualEvidenceV2Version.value === '1') {
+    console.log('[Migrations] Running manual-evidence full-set migration (additive, v2)...');
+    db.transaction(() => {
+      const attCols = db.query('PRAGMA table_info(onboarding_manual_evidence_attestations)').all() as Array<{ name: string }>;
+      if (!attCols.some((c) => c.name === 'image_rights_json')) {
+        db.exec('ALTER TABLE onboarding_manual_evidence_attestations ADD COLUMN image_rights_json TEXT;');
+      }
+      if (!attCols.some((c) => c.name === 'family_reference_text')) {
+        db.exec('ALTER TABLE onboarding_manual_evidence_attestations ADD COLUMN family_reference_text TEXT;');
+      }
+      // Verification (fail boot on violation, never silently repair):
+      // stored image-rights JSON must parse as an array; the snapshot must
+      // fit its bound.
+      const badRights = db.query(`
+        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+        WHERE image_rights_json IS NOT NULL
+          AND (json_valid(image_rights_json) != 1
+            OR json_type(image_rights_json) != 'array'
+            OR length(image_rights_json) > 20000)
+      `).get() as { cnt: number };
+      if (badRights.cnt > 0) {
+        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with invalid image_rights_json');
+      }
+      const badSnapshot = db.query(`
+        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+        WHERE family_reference_text IS NOT NULL AND length(family_reference_text) > 8000
+      `).get() as { cnt: number };
+      if (badSnapshot.cnt > 0) {
+        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with oversized family_reference_text');
+      }
+      db.exec("UPDATE app_meta SET value = '2' WHERE key = 'manual_evidence_schema_version';");
+    })();
+    console.log('[Migrations] Manual-evidence full-set migration complete (v2, additive).');
+  }
+
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as
     | { value: string }
     | undefined;

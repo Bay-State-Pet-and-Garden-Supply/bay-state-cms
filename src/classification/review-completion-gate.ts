@@ -1,4 +1,13 @@
 import { getDb } from '../db/connection';
+import {
+  getManualEvidenceAttestation,
+  parseManualEvidenceImageRights,
+  verifyManualEvidenceAttestationHash,
+} from '../db/repositories/onboarding-manual-evidence-repo';
+import {
+  buildManualEvidenceFieldValues,
+  isManualFieldValueInherited,
+} from '../onboarding/manual-evidence-eligibility';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { isUniversalAttribute } from './applicability-evaluator';
 import {
@@ -81,24 +90,27 @@ export interface ReviewCompletionGateInput {
 }
 
 /**
- * Manual-evidence review backstop (parent #101, ticket #103 thin slice).
+ * Manual-evidence review backstop (parent #101, ticket #104 full set).
  *
  * Read-only, fail-closed: when the item's LATEST extraction row is an
- * operator manual-evidence row (`manual_evidence_v1`), an ACTIVE (never
- * superseded) attestation must exist for the item and its id must match the
- * row's attestation link. Returns a `manual_attestation_missing` refusal
- * otherwise. Returns null for non-manual rows and for fully attested manual
- * rows (later tickets add hash-mismatch, inheritance, and image-rights
- * refusals). Exported for isolated unit testing.
+ * operator manual-evidence row (`manual_evidence_v1`), the gate applies
+ * four additive refusals in order — missing/withdrawn attestation
+ * (`manual_attestation_missing`), checklist hash mismatch vs the stored
+ * extraction payload (`manual_attestation_incomplete`), any manual field
+ * matching the stored family-reference snapshot
+ * (`manual_family_inheritance_suspected`), and manual images without
+ * per-image rights approvals (`manual_image_rights_missing`). Returns null
+ * for non-manual rows and for fully attested manual rows. Exported for
+ * isolated unit testing.
  */
 export function validateManualEvidenceForReview(itemId: string): ReviewCompletionGateResult | null {
   const db = getDb();
-  let latest: { extraction_method: string; manual_attestation_id: string | null } | undefined;
+  let latest: { extraction_method: string; manual_attestation_id: string | null; extraction_data_json: string | null } | undefined;
   try {
     latest = db.query(
-      `SELECT extraction_method, manual_attestation_id FROM onboarding_extractions
+      `SELECT extraction_method, manual_attestation_id, extraction_data_json FROM onboarding_extractions
        WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-    ).get(itemId) as { extraction_method: string; manual_attestation_id: string | null } | undefined;
+    ).get(itemId) as { extraction_method: string; manual_attestation_id: string | null; extraction_data_json: string | null } | undefined;
   } catch {
     // Pre-foundation databases (no attestation store): manual rows cannot
     // exist (their insert requires the same columns), so there is nothing
@@ -129,6 +141,107 @@ export function validateManualEvidenceForReview(itemId: string): ReviewCompletio
       code: 'manual_attestation_missing',
       reason: 'Manual evidence attestation is missing or was withdrawn; the item cannot be review-ready.',
     };
+  }
+  // Rebuild the canonical field map from the STORED extraction payload
+  // with the same builder the submit path used, then re-verify the
+  // checklist hashes: any post-submit payload edit fails closed.
+  let payload: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(String(latest.extraction_data_json ?? 'null'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+    payload = parsed as Record<string, unknown>;
+  } catch {
+    return {
+      ok: false,
+      code: 'manual_attestation_incomplete',
+      reason: 'Manual evidence extraction payload is corrupt; the item cannot be review-ready.',
+    };
+  }
+  const payloadFieldValues = buildManualEvidenceFieldValues({
+    title: typeof payload.title === 'string' ? payload.title : null,
+    brand: typeof payload.brand === 'string' ? payload.brand : null,
+    description: typeof payload.description === 'string' ? payload.description : null,
+    bulletPoints: Array.isArray(payload.bulletPoints) ? (payload.bulletPoints as string[]) : null,
+    weight: typeof payload.weight === 'string' ? payload.weight : null,
+    dimensions: typeof payload.dimensions === 'string' ? payload.dimensions : null,
+    primaryImage: typeof payload.primaryImage === 'string' ? payload.primaryImage : null,
+    additionalImages: Array.isArray(payload.additionalImages) ? (payload.additionalImages as string[]) : null,
+  });
+  let hashesMatch: boolean;
+  try {
+    hashesMatch = verifyManualEvidenceAttestationHash(attestationId, payloadFieldValues);
+  } catch {
+    return {
+      ok: false,
+      code: 'manual_attestation_missing',
+      reason: 'Manual evidence attestation is missing or was withdrawn; the item cannot be review-ready.',
+    };
+  }
+  if (!hashesMatch) {
+    return {
+      ok: false,
+      code: 'manual_attestation_incomplete',
+      reason: 'Manual evidence fields do not match the signed attestation checklist; the item cannot be review-ready.',
+    };
+  }
+  const attestationRow = getManualEvidenceAttestation(attestationId);
+  // Family-inheritance suspicion (ticket #104): any manual text field
+  // matching the operator-pasted family-reference snapshot means the
+  // operator copied family copy instead of transcribing per-SKU facts.
+  // No snapshot stored → nothing to compare → the check passes.
+  const snapshot = attestationRow?.family_reference_text ?? null;
+  if (typeof snapshot === 'string' && snapshot.trim().length > 0) {
+    const textFields: string[] = [];
+    for (const field of ['title', 'brand', 'description', 'weight', 'dimensions'] as const) {
+      const value = payloadFieldValues[field];
+      if (typeof value === 'string') textFields.push(value);
+    }
+    const bullets = payloadFieldValues.bulletPoints;
+    if (Array.isArray(bullets)) {
+      for (const bullet of bullets) {
+        if (typeof bullet === 'string') textFields.push(bullet);
+      }
+    }
+    for (const value of textFields) {
+      if (isManualFieldValueInherited(value, snapshot)) {
+        return {
+          ok: false,
+          code: 'manual_family_inheritance_suspected',
+          reason:
+            'A manual evidence field matches the stored family-reference text; per-SKU facts must be transcribed, not copied from the family page.',
+        };
+      }
+    }
+  }
+  // Image rights (ticket #104): every manual image URL needs a stored
+  // per-image rights approval on the attestation. Images are operator
+  // evidence, never distributor candidates — unattested images block.
+  const payloadImages: string[] = [];
+  if (typeof payloadFieldValues.primaryImage === 'string') payloadImages.push(payloadFieldValues.primaryImage);
+  if (Array.isArray(payloadFieldValues.additionalImages)) {
+    for (const image of payloadFieldValues.additionalImages) {
+      if (typeof image === 'string') payloadImages.push(image);
+    }
+  }
+  if (payloadImages.length > 0) {
+    let approvals: Array<{ imageUrl: string }>;
+    try {
+      approvals = attestationRow ? parseManualEvidenceImageRights(attestationRow) : [];
+    } catch {
+      return {
+        ok: false,
+        code: 'manual_image_rights_missing',
+        reason: 'Manual image rights approvals are corrupt; the item cannot be review-ready.',
+      };
+    }
+    const approvedUrls = new Set(approvals.map((approval) => approval.imageUrl));
+    if (!payloadImages.every((imageUrl) => approvedUrls.has(imageUrl))) {
+      return {
+        ok: false,
+        code: 'manual_image_rights_missing',
+        reason: 'Manual images lack per-image rights approvals; the item cannot be review-ready.',
+      };
+    }
   }
   return null;
 }

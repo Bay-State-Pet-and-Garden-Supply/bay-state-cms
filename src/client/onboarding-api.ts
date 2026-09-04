@@ -344,14 +344,30 @@ export async function fallbackSourcingItemsToDiscovery(
 }
 
 /**
- * Parent #101 (manual-evidence route): operator submission of manual
- * evidence for one profile-blocked item. The client sends ONLY raw fields +
- * booleans + the optional reference-only family URL; the server derives all
- * provenance (sourceType, identityStatus, hashes, attestation link).
+ * Parent #101 (manual-evidence route, ticket #104 full set): operator
+ * submission of manual evidence for one profile-blocked item. The client
+ * sends ONLY raw fields + per-field source kinds + per-image rights +
+ * booleans + optional reference-only family context; the server derives
+ * all provenance (sourceType, identityStatus, hashes, attestation link).
  */
+export type ManualEvidenceFieldSourceKind =
+  | 'operator_transcription'
+  | 'packaging_photo'
+  | 'distributor_sheet'
+  | 'brand_family_reference';
+
 export interface SubmitManualEvidenceBody {
   title: string;
   brand?: string | null;
+  description?: string | null;
+  bulletPoints?: string[];
+  weight?: string | null;
+  dimensions?: string | null;
+  primaryImage?: string | null;
+  additionalImages?: string[];
+  fieldSources?: Record<string, ManualEvidenceFieldSourceKind>;
+  imageApprovals?: Array<{ imageUrl: string; rightsAttested: true }>;
+  familyReferenceText?: string | null;
   familyReferenceUrl?: string | null;
   familyPageOnlyConfirmed?: boolean;
   overrideDistributorReason?: string | null;
@@ -385,8 +401,13 @@ export async function withdrawManualEvidence(
 export async function getManualEvidence(itemId: string): Promise<{
   itemId: string;
   attestation: Record<string, unknown> | null;
+  distributorReference?: Record<string, string> | null;
 }> {
-  return request<{ itemId: string; attestation: Record<string, unknown> | null }>(
+  return request<{
+    itemId: string;
+    attestation: Record<string, unknown> | null;
+    distributorReference?: Record<string, string> | null;
+  }>(
     `/items/${itemId}/manual-evidence`,
   );
 }

@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS onboarding_manual_evidence_attestations (
   family_reference_url TEXT,
   field_checklist_json TEXT NOT NULL,
   value_hashes_json TEXT NOT NULL,
+  image_rights_json TEXT,
+  family_reference_text TEXT,
   superseded_at TEXT,
   created_at TEXT NOT NULL
 );

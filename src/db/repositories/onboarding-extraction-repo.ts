@@ -204,6 +204,22 @@ function validateAndResolveExtractionInput(
     if (payload.manualEvidenceAttestationId !== attestationId) {
       throw new Error('manual_evidence_v1 extraction payload attestation id must match the row attestation link');
     }
+    // A `distributor_sheet` per-field source kind never creates distributor
+    // linkage (ticket #104): manual rows carry no distributor provenance —
+    // linkage lives only in sourcing generations/attempt ids, which the
+    // manual route never writes.
+    if (payload.distributorRecordProvenance !== null && payload.distributorRecordProvenance !== undefined) {
+      throw new Error('manual_evidence_v1 extraction must not carry distributor record provenance');
+    }
+    for (const key of ['distributorProviderIds', 'distributorEvidenceAttemptIds', 'distributorImageCandidates'] as const) {
+      const values = payload[key];
+      if (Array.isArray(values) && values.length > 0) {
+        throw new Error(`manual_evidence_v1 extraction must not carry distributor linkage (${key})`);
+      }
+    }
+    if (payload.distributorProviderId !== null && payload.distributorProviderId !== undefined) {
+      throw new Error('manual_evidence_v1 extraction must not carry a distributor provider id');
+    }
     const provenance = payload.fieldProvenance;
     if (provenance && typeof provenance === 'object' && !Array.isArray(provenance)) {
       for (const value of Object.values(provenance as Record<string, unknown>)) {

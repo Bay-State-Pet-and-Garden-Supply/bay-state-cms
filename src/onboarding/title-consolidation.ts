@@ -30,6 +30,12 @@ export interface TitleSignals {
   webTitle?: string | null;
   /** Title extracted from packaging image OCR */
   ocrTitle?: string | null;
+  /**
+   * Operator-transcribed per-SKU title (parent #101, ticket #104).
+   * Eligible as a deterministic title source when no packaging OCR truth
+   * exists; also fed to the LLM prompt as an operator-verified signal.
+   */
+  manualTitle?: string | null;
   /** Weight extracted from VLM packaging OCR (e.g. "2 oz / 56.7 g") */
   ocrWeight?: string | null;
   /** Size extracted from VLM packaging OCR (e.g. "2 oz") */
@@ -64,7 +70,7 @@ export interface TitleSignals {
 
 export interface TitleResult {
   title: string;
-  source: 'web' | 'ocr' | 'llm';
+  source: 'web' | 'ocr' | 'llm' | 'manual';
   /** Durable model-call IDs that produced this title (issue #17 E). */
   modelCallIds?: string[];
 }
@@ -127,6 +133,15 @@ export async function consolidateProductTitle(
     if (signals.ocrTitle) {
       return { title: signals.ocrTitle, source: 'ocr' };
     }
+    // Parent #101 (manual-evidence route, ticket #104): the
+    // operator-verified per-SKU title is deterministic truth — eligible
+    // below packaging OCR visual truth, above the raw spreadsheet name.
+    // Cohort semantic validation still applies downstream; this changes
+    // only which signal wins, never whether validation runs.
+    const manualTitle = signals.manualTitle?.trim() || null;
+    if (manualTitle) {
+      return { title: manualTitle, source: 'manual' };
+    }
     return { title: signals.name, source: 'web' };
   }
 
@@ -137,6 +152,7 @@ export async function consolidateProductTitle(
       brandHint: signals.brandHint,
       webTitle: signals.webTitle,
       ocrTitle: signals.ocrTitle,
+      manualTitle: signals.manualTitle ?? null,
       ocrWeight: signals.ocrWeight,
       ocrSize: signals.ocrSize,
       ocrCount: signals.ocrCount,

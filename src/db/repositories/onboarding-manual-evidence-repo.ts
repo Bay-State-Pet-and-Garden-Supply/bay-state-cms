@@ -26,6 +26,11 @@ export interface ManualEvidenceFieldChecklistInput {
   referenceUrl?: string | null;
 }
 
+/** One per-image rights approval supplied by the operator for a manual image. */
+export interface ManualEvidenceImageRightInput {
+  imageUrl: string;
+}
+
 export interface CreateManualEvidenceAttestationInput {
   itemId: string;
   batchId?: string | null;
@@ -35,7 +40,28 @@ export interface CreateManualEvidenceAttestationInput {
   /** Per-field source kinds, keyed by the same field names. */
   fieldSources: Record<string, ManualEvidenceFieldChecklistInput>;
   familyReferenceUrl?: string | null;
+  /**
+   * Per-image rights approvals (ticket #104). Every operator-supplied
+   * manual image URL needs one; stored server-derived with
+   * approvalOrigin 'operator_review'. Empty when no images are submitted.
+   */
+  imageRights?: ManualEvidenceImageRightInput[];
+  /**
+   * Operator-pasted family page text snapshot (ticket #104, optional,
+   * reference only). The review gate compares manual fields against it;
+   * never trusted evidence, never fetched from the network.
+   */
+  familyReferenceText?: string | null;
   notes?: string | null;
+}
+
+/** One stored per-image rights approval (server-derived, fail-closed). */
+export interface ManualEvidenceImageRight {
+  imageUrl: string;
+  rightsAttested: true;
+  approvalOrigin: 'operator_review';
+  attestedBy: string;
+  attestedAt: string;
 }
 
 export interface ManualEvidenceAttestationRow {
@@ -47,6 +73,10 @@ export interface ManualEvidenceAttestationRow {
   family_reference_url: string | null;
   field_checklist_json: string;
   value_hashes_json: string;
+  /** JSON array of ManualEvidenceImageRight; null when no images were submitted. */
+  image_rights_json: string | null;
+  /** Operator-pasted family text snapshot; null when not supplied. */
+  family_reference_text: string | null;
   superseded_at: string | null;
   created_at: string;
 }
@@ -146,6 +176,40 @@ export function createManualEvidenceAttestation(
     throw new Error('manual evidence attestation notes exceed 2000 characters');
   }
 
+  // Per-image rights (ticket #104): every URL must be http(s); the approval
+  // rows are server-derived (operator + timestamp + manual origin) so the
+  // client can never smuggle provenance. Empty when no images are submitted.
+  const imageRightsInput = input.imageRights ?? [];
+  const imageRights: ManualEvidenceImageRight[] = [];
+  const rightsStampedAt = new Date().toISOString();
+  for (const entry of imageRightsInput) {
+    const imageUrl = (entry?.imageUrl ?? '').trim();
+    let url: URL;
+    try {
+      url = new URL(imageUrl);
+    } catch {
+      throw new Error('manual evidence image rights has an invalid image URL');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('manual evidence image rights has an invalid image URL');
+    }
+    imageRights.push({
+      imageUrl,
+      rightsAttested: true,
+      approvalOrigin: 'operator_review',
+      attestedBy: operatorId,
+      attestedAt: rightsStampedAt,
+    });
+  }
+
+  // Family-reference text snapshot (ticket #104): bounded reference-only
+  // context for the inheritance guard. Empty collapses to null.
+  const rawSnapshot = (input.familyReferenceText ?? '').trim();
+  const familyReferenceText = rawSnapshot.length > 0 ? rawSnapshot : null;
+  if (familyReferenceText !== null && familyReferenceText.length > 8000) {
+    throw new Error('manual evidence family reference text exceeds 8000 characters');
+  }
+
   const attestationId = randomUUID();
   const now = new Date().toISOString();
   const parsed = ManualEvidenceAttestationSchema.safeParse({
@@ -170,12 +234,14 @@ export function createManualEvidenceAttestation(
 
   const checklistJson = canonicalJsonStringify(checklist);
   const hashesJson = canonicalJsonStringify(valueHashes);
+  const imageRightsJson = imageRights.length > 0 ? canonicalJsonStringify(imageRights) : null;
   db.query(
     `INSERT INTO onboarding_manual_evidence_attestations
       (attestation_id, item_id, batch_id, operator_id, attested_at,
        family_reference_url, field_checklist_json, value_hashes_json,
+       image_rights_json, family_reference_text,
        superseded_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
   ).run(
     attestationId,
     itemId,
@@ -185,6 +251,8 @@ export function createManualEvidenceAttestation(
     familyReferenceUrl,
     checklistJson,
     hashesJson,
+    imageRightsJson,
+    familyReferenceText,
     now,
   );
 
@@ -197,6 +265,8 @@ export function createManualEvidenceAttestation(
     family_reference_url: familyReferenceUrl,
     field_checklist_json: checklistJson,
     value_hashes_json: hashesJson,
+    image_rights_json: imageRightsJson,
+    family_reference_text: familyReferenceText,
     superseded_at: null,
     created_at: now,
   };
@@ -252,6 +322,40 @@ export function supersedeManualEvidenceAttestation(attestationId: string): boole
     )
     .run(now, attestationId) as unknown as { changes: number };
   return (result?.changes ?? 0) > 0;
+}
+
+/**
+ * Parse the stored per-image rights approvals (ticket #104). Returns []
+ * when no images were submitted. Throws on malformed JSON or on entries
+ * that are not rights-attested operator approvals (fail-closed: the gate
+ * refuses rather than promoting unattested images).
+ */
+export function parseManualEvidenceImageRights(
+  row: Pick<ManualEvidenceAttestationRow, 'image_rights_json'>,
+): ManualEvidenceImageRight[] {
+  const raw = row.image_rights_json;
+  if (raw === null || raw === undefined) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('manual evidence image rights has invalid JSON');
+  }
+  if (!Array.isArray(parsed)) throw new Error('manual evidence image rights must be an array');
+  const out: ManualEvidenceImageRight[] = [];
+  for (const entry of parsed) {
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      typeof (entry as { imageUrl?: unknown }).imageUrl !== 'string' ||
+      (entry as { rightsAttested?: unknown }).rightsAttested !== true ||
+      (entry as { approvalOrigin?: unknown }).approvalOrigin !== 'operator_review'
+    ) {
+      throw new Error('manual evidence image rights entry is not an attested operator approval');
+    }
+    out.push(entry as ManualEvidenceImageRight);
+  }
+  return out;
 }
 
 /**

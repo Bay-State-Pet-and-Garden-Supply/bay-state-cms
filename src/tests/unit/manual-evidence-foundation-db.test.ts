@@ -116,10 +116,14 @@ describe('migration adds attestation store without touching behavior', () => {
       name: string;
     }>;
     expect(itemCols.some((c) => c.name === 'manual_reference_url')).toBe(true);
+    // Ticket #104 justification (additive migration, no behavior change to
+    // v1): fresh DBs run v1 then v2 sequentially, so the marker lands on
+    // '2'. The v1 artifacts asserted above (table, columns, two-valued
+    // vocabulary) still hold byte-identical; only the version literal moves.
     const marker = db
       .query('SELECT value FROM app_meta WHERE key = ?')
       .get('manual_evidence_schema_version') as { value: string } | undefined;
-    expect(marker?.value).toBe('1');
+    expect(marker?.value).toBe('2');
     const ddl = db
       .query(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'onboarding_extractions'",

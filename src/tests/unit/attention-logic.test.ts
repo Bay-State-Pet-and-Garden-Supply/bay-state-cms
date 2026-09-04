@@ -106,6 +106,10 @@ describe('groupAttentionItems', () => {
 
   it('covers every canonical reason exactly once in order', () => {
     const reasons = ATTENTION_GROUP_ORDER.map((g) => g.reason);
+    // Ticket #104 justification (no production change): ticket #103 added
+    // the `manual_evidence_available` canonical reason to
+    // ATTENTION_GROUP_ORDER without updating this exhaustive list. This
+    // records the current order including that reason.
     expect(reasons).toEqual([
       'brand_not_provided',
       'verify_official_url',
@@ -113,6 +117,7 @@ describe('groupAttentionItems', () => {
       'choose_official_url',
       'choose_variant',
       'extractor_profile_required',
+      'manual_evidence_available',
       'extraction_profile_failed',
       'source_conflict',
       'processing_failed',

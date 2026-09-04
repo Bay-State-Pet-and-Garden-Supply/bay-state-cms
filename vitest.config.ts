@@ -309,6 +309,13 @@ export default defineConfig({
       // Manual-evidence thin-slice DB suite (ticket #103, parent #101) —
       // bun:sqlite via the repository layer; run under bun test via test:db.
       'src/tests/unit/manual-evidence-thin-slice-db.test.ts',
+      // Manual-evidence full-set DB suite (ticket #104, parent #101) —
+      // bun:sqlite via the repository layer; run under bun test via test:db.
+      'src/tests/unit/manual-evidence-full-set-db.test.ts',
+      // Manual-evidence title-source suite (ticket #104) — own test:db
+      // segment: neighboring suites mock title-consolidation at module
+      // level and bun shares the registry per process.
+      'src/tests/unit/manual-evidence-title-source-db.test.ts',
     ],
   },
 });
