@@ -303,6 +303,9 @@ export default defineConfig({
       'src/tests/unit/page-verifier.test.ts',
       'src/tests/unit/review-queue-adversarial.test.ts',
       'src/tests/unit/review-queue-schema.test.ts',
+      // Manual-evidence foundation DB suite (ticket #102, parent #101) —
+      // bun:sqlite via the repository layer; run under bun test via test:db.
+      'src/tests/unit/manual-evidence-foundation-db.test.ts',
     ],
   },
 });

@@ -148,6 +148,57 @@ export type PackagingOcrData = z.infer<typeof PackagingOcrDataSchema>;
 export const SourceTypeEnum = z.enum(['official_page', 'distributor_record']);
 export type SourceType = z.infer<typeof SourceTypeEnum>;
 
+// ─── Manual-evidence extraction route (parent #101, ticket #102 foundation) ───
+// Additive only. SourceTypeEnum stays two-valued: manual rows are
+// official-brand provenance claimed by the operator (source_type =
+// 'official_page') discriminated by extraction_method + attestation join.
+// No new SourceTypeEnum value (see plan §2; audit in
+// src/tests/unit/manual-evidence-foundation.test.ts).
+
+/** Extraction method literal for operator-transcribed manual evidence rows. */
+export const ManualEvidenceExtractionMethodEnum = z.literal('manual_evidence_v1');
+export type ManualEvidenceExtractionMethod = z.infer<typeof ManualEvidenceExtractionMethodEnum>;
+
+/** Per-field source kind recorded in the manual-evidence attestation checklist. */
+export const ManualEvidenceSourceKindEnum = z.enum([
+  'operator_transcription',
+  'packaging_photo',
+  'distributor_sheet',
+  'brand_family_reference',
+]);
+export type ManualEvidenceSourceKind = z.infer<typeof ManualEvidenceSourceKindEnum>;
+
+/** Bounded ISO timestamp string for attestation records. */
+const ManualEvidenceIsoString = z.string().min(1).max(64);
+
+/** One field entry in the manual-evidence attestation checklist. */
+export const ManualEvidenceFieldChecklistEntrySchema = z.object({
+  valueHash: z.string().regex(/^[a-f0-9]{64}$/),
+  sourceKind: ManualEvidenceSourceKindEnum,
+  referenceUrl: z.string().url().max(2000).nullable().default(null),
+});
+export type ManualEvidenceFieldChecklistEntry = z.infer<typeof ManualEvidenceFieldChecklistEntrySchema>;
+
+/**
+ * Operator attestation for one manual-evidence submission. All strings
+ * bounded; the three boolean attestations must all be true (fail-closed).
+ */
+export const ManualEvidenceAttestationSchema = z.object({
+  attestationId: z.string().min(1).max(128),
+  itemId: z.string().min(1).max(128),
+  batchId: z.string().max(128).nullable().default(null),
+  operatorId: z.string().min(1).max(256),
+  attestedAt: ManualEvidenceIsoString,
+  familyReferenceUrl: z.string().url().max(2000).nullable().default(null),
+  fieldChecklist: z.record(z.string().max(128), ManualEvidenceFieldChecklistEntrySchema),
+  noFamilyInheritanceAttested: z.literal(true),
+  perSkuVerificationAttested: z.literal(true),
+  rightsAttestedForImages: z.literal(true),
+  notes: z.string().max(2000).nullable().default(null),
+  supersededAt: z.string().max(64).nullable().default(null),
+});
+export type ManualEvidenceAttestation = z.infer<typeof ManualEvidenceAttestationSchema>;
+
 export const PipelineStageEnum = z.enum([
   'sourcing',
   'discovery',
@@ -375,6 +426,17 @@ export const ExtractionDataSchema = z.object({
   confidence: z.number().min(0).max(1).default(0),
   fieldProvenance: z.record(z.string(), z.string()).default(() => ({})),
   // Tracks where each field came from: 'json-ld', 'meta', 'html', 'ai', 'user'
+  // Manual-evidence invariant (parent #101, enforced by repo + review gates in
+  // later tickets, never by this schema alone): rows with
+  // extractionMethod 'manual_evidence_v1' must carry sourceType
+  // 'official_page', sourceUrl null (the family page lives only in
+  // manualReferenceUrl, reference-only), every populated field mapped to
+  // 'user' in fieldProvenance, and identityStatus limited to
+  // 'parent_product_only' | 'insufficient_evidence' (never exact/probable).
+  /** Attestation id for manual-evidence rows; null for automated rows. */
+  manualEvidenceAttestationId: z.string().max(128).nullable().default(null),
+  /** Family page URL, reference-only attachment; never read as sourceUrl. */
+  manualReferenceUrl: z.string().url().max(2000).nullable().default(null),
   /**
    * ADR-0031 (extraction-ladder wiring): deterministic identity classification
    * of the extracted page against the requested product. Values match the

@@ -190,3 +190,75 @@ export function getSourcingFlags(): SourcingFlags {
   const base = loadSourcingFlags();
   return runtimeOverride ? applySourcingOverride(base, runtimeOverride) : base;
 }
+
+// ---------------------------------------------------------------------------
+// Manual-evidence extraction route (parent #101, ticket #102 foundation).
+// Fail-closed DEFAULT-OFF: absent, empty, whitespace, malformed, or explicit
+// false values all mean disabled. Only an explicit true|1|yes (trimmed,
+// case-insensitive) enables. Enabling alone changes no behavior until the
+// later manual-evidence tickets land their API/evidence/gate/UI paths.
+// ---------------------------------------------------------------------------
+
+/** Env key for the manual-evidence extraction route. */
+export const MANUAL_EVIDENCE_ENV_KEY = 'BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED';
+
+/** Stable non-secret reason codes for the manual-evidence flag state. */
+export type ManualEvidenceFlagReason =
+  | 'disabled_default' // env key absent; default OFF
+  | 'env_enabled' // explicit true|1|yes
+  | 'env_disabled' // explicit false|0|no
+  | 'malformed_config' // present but empty/whitespace/unparseable
+  | 'override'; // effective state comes from an in-memory override
+
+export interface ManualEvidenceFlags {
+  /** Fail-closed effective state — the value callers must gate on. */
+  enabled: boolean;
+  /** Stable non-secret reason for the effective state. */
+  reason: ManualEvidenceFlagReason;
+}
+
+/** Default flags: OFF. */
+export const DEFAULT_MANUAL_EVIDENCE_FLAGS: ManualEvidenceFlags = {
+  enabled: false,
+  reason: 'disabled_default',
+};
+
+/** Parse the manual-evidence switch. Absent → disabled (default OFF). */
+export function loadManualEvidenceFlags(
+  env: Record<string, string | undefined> = process.env,
+): ManualEvidenceFlags {
+  const raw = env[MANUAL_EVIDENCE_ENV_KEY];
+  if (raw === undefined) return { ...DEFAULT_MANUAL_EVIDENCE_FLAGS };
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return { enabled: true, reason: 'env_enabled' };
+  }
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return { enabled: false, reason: 'env_disabled' };
+  }
+  return { enabled: false, reason: 'malformed_config' };
+}
+
+let manualEvidenceOverride: boolean | null = null;
+
+/** Apply an in-memory override of the manual-evidence flag. Returns the new flags. */
+export function overrideManualEvidenceFlags(next: { enabled: boolean }): ManualEvidenceFlags {
+  manualEvidenceOverride = next.enabled;
+  return getManualEvidenceFlags();
+}
+
+/** Clear any in-memory manual-evidence override. */
+export function resetManualEvidenceFlagsOverride(): void {
+  manualEvidenceOverride = null;
+}
+
+/**
+ * Effective manual-evidence flags: env-derived default merged with the
+ * in-memory override. Read per call so a config change applies without a
+ * redeploy.
+ */
+export function getManualEvidenceFlags(): ManualEvidenceFlags {
+  const base = loadManualEvidenceFlags();
+  if (manualEvidenceOverride === null) return base;
+  return { enabled: manualEvidenceOverride, reason: 'override' };
+}

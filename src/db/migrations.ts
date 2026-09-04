@@ -3855,6 +3855,7 @@ export function runMigrations(): void {
             sourcing_generation_id TEXT,
             accepted_evidence_attempt_ids_json TEXT,
             evidence_hash TEXT,
+            manual_attestation_id TEXT,
             created_at TEXT NOT NULL
           );
         `);
@@ -3864,6 +3865,17 @@ export function runMigrations(): void {
           SELECT id, item_id, source_url, extraction_data_json, extraction_method, confidence, images_json, raw_structured_data_json, created_at
           FROM onboarding_extractions;
         `);
+        // Preserve manual-evidence linkage when rebuilding a table that
+        // already carries it (fresh-vs-upgraded column ORDER must converge;
+        // pre-Amendment shapes never hold manual rows, so this is a no-op
+        // there and a no-data-loss guard everywhere else).
+        if (extNames.has('manual_attestation_id')) {
+          db.exec(`
+            UPDATE onboarding_extractions_new SET manual_attestation_id =
+              (SELECT o.manual_attestation_id FROM onboarding_extractions o
+               WHERE o.id = onboarding_extractions_new.id);
+          `);
+        }
         db.exec('DROP TABLE onboarding_extractions;');
         db.exec('ALTER TABLE onboarding_extractions_new RENAME TO onboarding_extractions;');
         db.exec('CREATE INDEX IF NOT EXISTS idx_onboarding_extractions_item ON onboarding_extractions(item_id);');
@@ -5571,6 +5583,82 @@ export function runMigrations(): void {
       console.error('[Migrations] Imported identity schema migration failed (atomic rollback, marker NOT written):', e);
       throw e;
     }
+  }
+
+  // ── Manual-evidence foundation (parent #101, ticket #102) ───────────────
+  // Additive only, marker-gated, no backfill: attestation table + nullable
+  // reference columns. No behavior change — no writer exists yet, so the
+  // verification queries below must find zero manual-method rows on first
+  // run and refuse boot only on genuine invariant violations.
+  const manualEvidenceVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('manual_evidence_schema_version') as { value: string } | undefined;
+  if (!manualEvidenceVersion) {
+    console.log('[Migrations] Running manual-evidence foundation migration (additive, v1)...');
+    db.transaction(() => {
+      db.exec('PRAGMA defer_foreign_keys = ON');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS onboarding_manual_evidence_attestations (
+          attestation_id TEXT PRIMARY KEY,
+          item_id TEXT NOT NULL REFERENCES onboarding_items(id) ON DELETE CASCADE,
+          batch_id TEXT,
+          operator_id TEXT NOT NULL,
+          attested_at TEXT NOT NULL,
+          family_reference_url TEXT,
+          field_checklist_json TEXT NOT NULL,
+          value_hashes_json TEXT NOT NULL,
+          superseded_at TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+      db.exec('CREATE INDEX IF NOT EXISTS idx_manual_evidence_attestations_item ON onboarding_manual_evidence_attestations(item_id);');
+      const extCols = db.query('PRAGMA table_info(onboarding_extractions)').all() as Array<{ name: string }>;
+      if (!extCols.some((c) => c.name === 'manual_attestation_id')) {
+        db.exec('ALTER TABLE onboarding_extractions ADD COLUMN manual_attestation_id TEXT;');
+      }
+      const itemCols = db.query('PRAGMA table_info(onboarding_items)').all() as Array<{ name: string }>;
+      if (!itemCols.some((c) => c.name === 'manual_reference_url')) {
+        db.exec('ALTER TABLE onboarding_items ADD COLUMN manual_reference_url TEXT;');
+      }
+      // Verification (fail boot on violation, never silently repair):
+      // 1) source_type vocabulary unchanged (two-valued). Parsed from the
+      //    stored DDL so historical spacing variants cannot false-positive.
+      const extDdl = db
+        .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'onboarding_extractions'")
+        .get() as { sql?: string } | undefined;
+      const vocabMatch = extDdl?.sql?.match(/CHECK\s*\(\s*source_type\s+IN\s*\(([^)]+)\)/);
+      const vocabValues = vocabMatch
+        ? vocabMatch[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort()
+        : null;
+      if (vocabValues && JSON.stringify(vocabValues) !== JSON.stringify(['distributor_record', 'official_page'])) {
+        throw new Error('[Migrations] onboarding_extractions source_type vocabulary changed — manual-evidence plan §2 reversal required');
+      }
+      // 2) No manual-method row may carry a source URL, a sourcing
+      //    generation, or a non-official source type (never a fake URL).
+      const badManual = db.query(`
+        SELECT COUNT(*) AS cnt FROM onboarding_extractions
+        WHERE extraction_method = 'manual_evidence_v1'
+          AND (source_url IS NOT NULL
+            OR sourcing_generation_id IS NOT NULL
+            OR source_type != 'official_page'
+            OR manual_attestation_id IS NULL)
+      `).get() as { cnt: number };
+      if (badManual.cnt > 0) {
+        throw new Error('[Migrations] manual_evidence_v1 rows violate NULL-URL/official-page/attestation invariant');
+      }
+      // 3) Attestation checklist/value-hash columns must be non-empty JSON
+      //    objects on every row.
+      const badAtt = db.query(`
+        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+        WHERE field_checklist_json IS NULL OR value_hashes_json IS NULL
+          OR field_checklist_json = '' OR value_hashes_json = ''
+      `).get() as { cnt: number };
+      if (badAtt.cnt > 0) {
+        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with empty checklist/hash JSON');
+      }
+      db.exec("INSERT INTO app_meta (key, value) VALUES ('manual_evidence_schema_version', '1');");
+    })();
+    console.log('[Migrations] Manual-evidence foundation migration complete (v1, additive).');
   }
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as

@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS onboarding_items (
   identity_provenance_hash TEXT,
   row_number INTEGER NOT NULL,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  manual_reference_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS onboarding_sources (
@@ -83,6 +84,22 @@ CREATE TABLE IF NOT EXISTS onboarding_extractions (
   sourcing_generation_id TEXT,
   accepted_evidence_attempt_ids_json TEXT,
   evidence_hash TEXT,
+  manual_attestation_id TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- Manual-evidence attestation store (parent #101, ticket #102 foundation).
+-- One row per operator submission; family_reference_url is reference-only.
+CREATE TABLE IF NOT EXISTS onboarding_manual_evidence_attestations (
+  attestation_id TEXT PRIMARY KEY,
+  item_id TEXT NOT NULL REFERENCES onboarding_items(id) ON DELETE CASCADE,
+  batch_id TEXT,
+  operator_id TEXT NOT NULL,
+  attested_at TEXT NOT NULL,
+  family_reference_url TEXT,
+  field_checklist_json TEXT NOT NULL,
+  value_hashes_json TEXT NOT NULL,
+  superseded_at TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -115,6 +132,7 @@ CREATE INDEX IF NOT EXISTS idx_onboarding_items_status ON onboarding_items(statu
 CREATE INDEX IF NOT EXISTS idx_onboarding_items_upc ON onboarding_items(upc);
 CREATE INDEX IF NOT EXISTS idx_onboarding_sources_item ON onboarding_sources(item_id);
 CREATE INDEX IF NOT EXISTS idx_onboarding_extractions_item ON onboarding_extractions(item_id);
+CREATE INDEX IF NOT EXISTS idx_manual_evidence_attestations_item ON onboarding_manual_evidence_attestations(item_id);
 CREATE INDEX IF NOT EXISTS idx_brand_sites_brand ON brand_sites(brand_name);
 CREATE INDEX IF NOT EXISTS idx_extractor_profiles_domain ON extractor_profiles(domain);
 
