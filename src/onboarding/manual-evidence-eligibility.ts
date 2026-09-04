@@ -12,6 +12,15 @@ const PROFILE_BLOCKED_RE = /^No extractor profile for\s+(\S+)/i;
 export const MANUAL_EVIDENCE_METHOD = 'manual_evidence_v1' as const;
 
 /**
+ * Stable reject code for the profile-retry endpoint (parent #101, ticket
+ * #105 hardening): resetting a manual-completed item to pending would
+ * strand its extraction row + active attestation and silently clobber
+ * operator work. The retry endpoint refuses with this code and directs
+ * the operator to withdraw first; withdraw-then-retry per item still works.
+ */
+export const MANUAL_EVIDENCE_ACTIVE_RETRY_CODE = 'manual_evidence_active_retry_rejected' as const;
+
+/**
  * Full manual fact set (parent #101, ticket #104). The canonical per-field
  * keys for operator-transcribed manual evidence. The request schema, the
  * submit service, the attestation checklist, and the review-gate hash check

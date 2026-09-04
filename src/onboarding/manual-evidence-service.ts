@@ -28,7 +28,9 @@ import { ExtractionDataSchema } from '../shared/schemas/onboarding';
  * operator id + attestation).
  */
 
-import { MANUAL_EVIDENCE_METHOD } from './manual-evidence-eligibility';
+import { MANUAL_EVIDENCE_ACTIVE_RETRY_CODE, MANUAL_EVIDENCE_METHOD } from './manual-evidence-eligibility';
+
+export { MANUAL_EVIDENCE_ACTIVE_RETRY_CODE };
 
 /** Stable fail-closed reject codes for the manual-evidence transition. */
 export type ManualEvidenceRejectCode =
@@ -438,6 +440,18 @@ export function submitManualEvidence(
     }
     throw err;
   }
+}
+
+/**
+ * Whether the item currently holds active manual evidence: its latest
+ * extraction is the manual method with a non-superseded attestation.
+ * Used by the profile-retry endpoint (ticket #105) to refuse resets that
+ * would strand the extraction row + attestation and clobber operator work.
+ */
+export function hasActiveManualEvidence(itemId: string): boolean {
+  const latest = getLatestExtraction(itemId);
+  if (!latest || latest.extraction_method !== MANUAL_EVIDENCE_METHOD) return false;
+  return getActiveManualEvidenceAttestationForItem(itemId) !== null;
 }
 
 /**

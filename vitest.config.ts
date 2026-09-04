@@ -316,6 +316,9 @@ export default defineConfig({
       // segment: neighboring suites mock title-consolidation at module
       // level and bun shares the registry per process.
       'src/tests/unit/manual-evidence-title-source-db.test.ts',
+      // Manual-evidence hardening DB suite (ticket #105, parent #101) —
+      // bun:sqlite via the repository layer; run under bun test via test:db.
+      'src/tests/unit/manual-evidence-hardening-db.test.ts',
     ],
   },
 });

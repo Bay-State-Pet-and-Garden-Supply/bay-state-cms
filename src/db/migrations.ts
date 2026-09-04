@@ -12,6 +12,50 @@ const COHORT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'cohort-migratio
 const DISTRIBUTOR_V2_MIGRATION_PATH = path.resolve(import.meta.dirname, 'distributor-v2-migration.sql');
 const OPERATOR_STATE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'operator-state-migration.sql');
 
+/**
+ * Manual-evidence boot-time invariant verification (parent #101, ticket
+ * #105 hardening). Fail boot on violation, never silently repair. Called
+ * by the foundation migration and exported so the hardening suite can pin
+ * each violation class on fixtures. Accepts any bun:sqlite handle.
+ */
+export function verifyManualEvidenceInvariants(db: ReturnType<typeof getDb>): void {
+  // 1) source_type vocabulary unchanged (two-valued). Parsed from the
+  //    stored DDL so historical spacing variants cannot false-positive.
+  const extDdl = db
+    .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'onboarding_extractions'")
+    .get() as { sql?: string } | undefined;
+  const vocabMatch = extDdl?.sql?.match(/CHECK\s*\(\s*source_type\s+IN\s*\(([^)]+)\)/);
+  const vocabValues = vocabMatch
+    ? vocabMatch[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort()
+    : null;
+  if (vocabValues && JSON.stringify(vocabValues) !== JSON.stringify(['distributor_record', 'official_page'])) {
+    throw new Error('[Migrations] onboarding_extractions source_type vocabulary changed — manual-evidence plan §2 reversal required');
+  }
+  // 2) No manual-method row may carry a source URL, a sourcing
+  //    generation, or a non-official source type (never a fake URL).
+  const badManual = db.query(`
+    SELECT COUNT(*) AS cnt FROM onboarding_extractions
+    WHERE extraction_method = 'manual_evidence_v1'
+      AND (source_url IS NOT NULL
+        OR sourcing_generation_id IS NOT NULL
+        OR source_type != 'official_page'
+        OR manual_attestation_id IS NULL)
+  `).get() as { cnt: number };
+  if (badManual.cnt > 0) {
+    throw new Error('[Migrations] manual_evidence_v1 rows violate NULL-URL/official-page/attestation invariant');
+  }
+  // 3) Attestation checklist/value-hash columns must be non-empty JSON
+  //    objects on every row.
+  const badAtt = db.query(`
+    SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+    WHERE field_checklist_json IS NULL OR value_hashes_json IS NULL
+      OR field_checklist_json = '' OR value_hashes_json = ''
+  `).get() as { cnt: number };
+  if (badAtt.cnt > 0) {
+    throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with empty checklist/hash JSON');
+  }
+}
+
 export function runMigrations(): void {
   const db = getDb();
   const sql = fs.readFileSync(SCHEMA_PATH, 'utf-8');
@@ -5620,42 +5664,10 @@ export function runMigrations(): void {
       if (!itemCols.some((c) => c.name === 'manual_reference_url')) {
         db.exec('ALTER TABLE onboarding_items ADD COLUMN manual_reference_url TEXT;');
       }
-      // Verification (fail boot on violation, never silently repair):
-      // 1) source_type vocabulary unchanged (two-valued). Parsed from the
-      //    stored DDL so historical spacing variants cannot false-positive.
-      const extDdl = db
-        .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'onboarding_extractions'")
-        .get() as { sql?: string } | undefined;
-      const vocabMatch = extDdl?.sql?.match(/CHECK\s*\(\s*source_type\s+IN\s*\(([^)]+)\)/);
-      const vocabValues = vocabMatch
-        ? vocabMatch[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).sort()
-        : null;
-      if (vocabValues && JSON.stringify(vocabValues) !== JSON.stringify(['distributor_record', 'official_page'])) {
-        throw new Error('[Migrations] onboarding_extractions source_type vocabulary changed — manual-evidence plan §2 reversal required');
-      }
-      // 2) No manual-method row may carry a source URL, a sourcing
-      //    generation, or a non-official source type (never a fake URL).
-      const badManual = db.query(`
-        SELECT COUNT(*) AS cnt FROM onboarding_extractions
-        WHERE extraction_method = 'manual_evidence_v1'
-          AND (source_url IS NOT NULL
-            OR sourcing_generation_id IS NOT NULL
-            OR source_type != 'official_page'
-            OR manual_attestation_id IS NULL)
-      `).get() as { cnt: number };
-      if (badManual.cnt > 0) {
-        throw new Error('[Migrations] manual_evidence_v1 rows violate NULL-URL/official-page/attestation invariant');
-      }
-      // 3) Attestation checklist/value-hash columns must be non-empty JSON
-      //    objects on every row.
-      const badAtt = db.query(`
-        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
-        WHERE field_checklist_json IS NULL OR value_hashes_json IS NULL
-          OR field_checklist_json = '' OR value_hashes_json = ''
-      `).get() as { cnt: number };
-      if (badAtt.cnt > 0) {
-        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with empty checklist/hash JSON');
-      }
+      // Verification (fail boot on violation, never silently repair).
+      // Extracted to verifyManualEvidenceInvariants (ticket #105) so the
+      // hardening suite can pin each violation class on fixtures.
+      verifyManualEvidenceInvariants(db);
       db.exec("INSERT INTO app_meta (key, value) VALUES ('manual_evidence_schema_version', '1');");
     })();
     console.log('[Migrations] Manual-evidence foundation migration complete (v1, additive).');

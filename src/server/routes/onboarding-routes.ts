@@ -96,6 +96,10 @@ import {
   updateBrandSiteDomain
 } from '../../db/repositories/brand-site-repo';
 import { assignOfficialDomainForBrand } from '../../onboarding/brand-domain-service';
+import {
+  MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
+  hasActiveManualEvidence,
+} from '../../onboarding/manual-evidence-service';
 import { getBrandDomainBlockers } from '../../onboarding/brand-domain-blockers';
 import {
   listAllProfiles,
@@ -4678,6 +4682,21 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
 
   let accepted = 0;
   for (const itemId of itemIds) {
+    // Ticket #105: resetting a manual-completed item would strand its
+    // extraction row + active attestation and silently clobber operator
+    // work. Refuse and direct the operator to withdraw first; the
+    // withdrawn (failed) item is retryable again per item.
+    if (hasActiveManualEvidence(itemId)) {
+      return c.json(
+        {
+          error: {
+            code: MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
+            message: `Item ${itemId} holds active manual evidence — withdraw it first, then retry.`,
+          },
+        },
+        409,
+      );
+    }
     updateItemStageStatus(itemId, 'pending');
     accepted++;
   }
