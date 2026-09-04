@@ -54,6 +54,33 @@ export function verifyManualEvidenceInvariants(db: ReturnType<typeof getDb>): vo
   if (badAtt.cnt > 0) {
     throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with empty checklist/hash JSON');
   }
+  // 4) v2 row classes (ticket #104 columns, ticket #105 review P1-1):
+  //    stored image-rights JSON must parse as a bounded array; the
+  //    family-reference text snapshot must fit its bound. NULL means the
+  //    row predates v2 (never backfilled) and is always acceptable. The
+  //    whole class is skipped when the v2 columns do not exist yet (v1
+  //    databases verify classes 1–3 only).
+  const attCols = (db.query('PRAGMA table_info(onboarding_manual_evidence_attestations)').all() as Array<{ name: string }>).map((c) => c.name);
+  if (!attCols.includes('image_rights_json') || !attCols.includes('family_reference_text')) {
+    return;
+  }
+  const badRights = db.query(`
+    SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+    WHERE image_rights_json IS NOT NULL
+      AND (json_valid(image_rights_json) != 1
+        OR json_type(image_rights_json) != 'array'
+        OR length(image_rights_json) > 20000)
+  `).get() as { cnt: number };
+  if (badRights.cnt > 0) {
+    throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with invalid image_rights_json');
+  }
+  const badSnapshot = db.query(`
+    SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
+    WHERE family_reference_text IS NOT NULL AND length(family_reference_text) > 8000
+  `).get() as { cnt: number };
+  if (badSnapshot.cnt > 0) {
+    throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with oversized family_reference_text');
+  }
 }
 
 export function runMigrations(): void {
@@ -5690,29 +5717,22 @@ export function runMigrations(): void {
       if (!attCols.some((c) => c.name === 'family_reference_text')) {
         db.exec('ALTER TABLE onboarding_manual_evidence_attestations ADD COLUMN family_reference_text TEXT;');
       }
-      // Verification (fail boot on violation, never silently repair):
-      // stored image-rights JSON must parse as an array; the snapshot must
-      // fit its bound.
-      const badRights = db.query(`
-        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
-        WHERE image_rights_json IS NOT NULL
-          AND (json_valid(image_rights_json) != 1
-            OR json_type(image_rights_json) != 'array'
-            OR length(image_rights_json) > 20000)
-      `).get() as { cnt: number };
-      if (badRights.cnt > 0) {
-        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with invalid image_rights_json');
-      }
-      const badSnapshot = db.query(`
-        SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations
-        WHERE family_reference_text IS NOT NULL AND length(family_reference_text) > 8000
-      `).get() as { cnt: number };
-      if (badSnapshot.cnt > 0) {
-        throw new Error('[Migrations] onboarding_manual_evidence_attestations has rows with oversized family_reference_text');
-      }
+      // Verification (fail boot on violation, never silently repair): the
+      // shared verifier covers classes 1–4 now that the v2 columns exist.
+      verifyManualEvidenceInvariants(db);
       db.exec("UPDATE app_meta SET value = '2' WHERE key = 'manual_evidence_schema_version';");
     })();
     console.log('[Migrations] Manual-evidence full-set migration complete (v2, additive).');
+  }
+
+  // Ticket #105 (review P1-1): enforce the manual-evidence invariants on
+  // every boot once the foundation migration has applied — not only on the
+  // first migration. Fail boot on violation, never silently repair.
+  const manualEvidenceApplied = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('manual_evidence_schema_version') as { value: string } | undefined;
+  if (manualEvidenceApplied) {
+    verifyManualEvidenceInvariants(db);
   }
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as

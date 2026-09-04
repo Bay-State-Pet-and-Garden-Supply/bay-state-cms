@@ -4680,23 +4680,28 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
     }
   }
 
+  // Ticket #105 (review P0-2): pre-scan every item for active manual
+  // evidence BEFORE any write. Resetting a manual-completed item would
+  // strand its extraction row + active attestation and silently clobber
+  // operator work, so refuse the whole batch with zero writes and direct
+  // the operator to withdraw first; the withdrawn (failed) item is
+  // retryable again per item.
+  const activeManualIds = itemIds.filter((itemId) => hasActiveManualEvidence(itemId));
+  if (activeManualIds.length > 0) {
+    return c.json(
+      {
+        error: {
+          code: MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
+          message: `Item ${activeManualIds[0]} holds active manual evidence — withdraw it first, then retry.`,
+          itemIds: activeManualIds,
+        },
+      },
+      409,
+    );
+  }
+
   let accepted = 0;
   for (const itemId of itemIds) {
-    // Ticket #105: resetting a manual-completed item would strand its
-    // extraction row + active attestation and silently clobber operator
-    // work. Refuse and direct the operator to withdraw first; the
-    // withdrawn (failed) item is retryable again per item.
-    if (hasActiveManualEvidence(itemId)) {
-      return c.json(
-        {
-          error: {
-            code: MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
-            message: `Item ${itemId} holds active manual evidence — withdraw it first, then retry.`,
-          },
-        },
-        409,
-      );
-    }
     updateItemStageStatus(itemId, 'pending');
     accepted++;
   }

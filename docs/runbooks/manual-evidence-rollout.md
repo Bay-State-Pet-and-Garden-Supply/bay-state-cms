@@ -110,7 +110,10 @@ enabling in any shared environment; the coverage query must return zero rows.
 
 - Set the key to `false` (or unset it) + restart. New submissions stop
   immediately; existing manual rows stay gated by Review and can be withdrawn
-  per item. No migration rollback is needed (all schema additions additive).
+  per item — withdraw is deliberately NOT flag-gated so the kill-switch can
+  never strand an active-manual item in a state that is neither retryable
+  (retry refuses active-manual items withdraw-first) nor withdrawable.
+  No migration rollback is needed (all schema additions additive).
 - Boot-time verification throws (refuses boot, never repairs) only on genuine
   invariant violations: changed source-type vocabulary, manual rows with a
   URL/generation/non-official type/missing attestation, or attestations with

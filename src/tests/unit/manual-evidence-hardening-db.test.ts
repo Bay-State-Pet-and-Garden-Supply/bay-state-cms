@@ -192,10 +192,67 @@ describe('hardening: boot-time invariant verification', () => {
     expect(() => verifyManualEvidenceInvariants(db)).toThrow(/checklist/);
     db.query(`DELETE FROM onboarding_manual_evidence_attestations WHERE attestation_id = 'attest-hard-bad'`).run();
   });
+
+  test('a manual row with a non-official source type fails boot verification', () => {
+    seedItem('item-hard-badtype');
+    const db = getDb();
+    db.query(
+      `INSERT INTO onboarding_extractions (id, item_id, source_url, extraction_data_json, extraction_method, confidence, source_type, manual_attestation_id, created_at)
+       VALUES ('ext-hard-badtype', 'item-hard-badtype', NULL, '{}', 'manual_evidence_v1', 0, 'distributor_record', 'attest-hard', '2026-09-04T00:00:00.000Z')`,
+    ).run();
+    expect(() => verifyManualEvidenceInvariants(db)).toThrow(/invariant/);
+    db.query(`DELETE FROM onboarding_extractions WHERE id = 'ext-hard-badtype'`).run();
+    expect(() => verifyManualEvidenceInvariants(db)).not.toThrow();
+  });
+
+  test('a manual row with a NULL attestation link fails boot verification', () => {
+    seedItem('item-hard-noatt');
+    const db = getDb();
+    db.query(
+      `INSERT INTO onboarding_extractions (id, item_id, source_url, extraction_data_json, extraction_method, confidence, source_type, manual_attestation_id, created_at)
+       VALUES ('ext-hard-noatt', 'item-hard-noatt', NULL, '{}', 'manual_evidence_v1', 0, 'official_page', NULL, '2026-09-04T00:00:00.000Z')`,
+    ).run();
+    expect(() => verifyManualEvidenceInvariants(db)).toThrow(/invariant/);
+    db.query(`DELETE FROM onboarding_extractions WHERE id = 'ext-hard-noatt'`).run();
+    expect(() => verifyManualEvidenceInvariants(db)).not.toThrow();
+  });
+
+  test('an attestation with invalid image-rights JSON fails boot verification', () => {
+    seedItem('item-hard-badrights');
+    const db = getDb();
+    db.query(
+      `INSERT INTO onboarding_manual_evidence_attestations (attestation_id, item_id, operator_id, attested_at, field_checklist_json, value_hashes_json, image_rights_json, created_at)
+       VALUES ('attest-hard-badrights', 'item-hard-badrights', 'op-1', '2026-09-04T00:00:00.000Z', '{}', '{}', 'not-json', '2026-09-04T00:00:00.000Z')`,
+    ).run();
+    expect(() => verifyManualEvidenceInvariants(db)).toThrow(/image_rights/);
+    db.query(`DELETE FROM onboarding_manual_evidence_attestations WHERE attestation_id = 'attest-hard-badrights'`).run();
+    expect(() => verifyManualEvidenceInvariants(db)).not.toThrow();
+  });
+
+  test('an attestation with an oversized family-reference snapshot fails boot verification', () => {
+    seedItem('item-hard-bigsnap');
+    const db = getDb();
+    const oversized = 'x'.repeat(8001);
+    db.query(
+      `INSERT INTO onboarding_manual_evidence_attestations (attestation_id, item_id, operator_id, attested_at, field_checklist_json, value_hashes_json, family_reference_text, created_at)
+       VALUES ('attest-hard-bigsnap', 'item-hard-bigsnap', 'op-1', '2026-09-04T00:00:00.000Z', '{}', '{}', ?, '2026-09-04T00:00:00.000Z')`,
+    ).run(oversized);
+    expect(() => verifyManualEvidenceInvariants(db)).toThrow(/family_reference_text/);
+    db.query(`DELETE FROM onboarding_manual_evidence_attestations WHERE attestation_id = 'attest-hard-bigsnap'`).run();
+    expect(() => verifyManualEvidenceInvariants(db)).not.toThrow();
+  });
 });
 
 describe('hardening: no backfill — legacy rows are never converted', () => {
   test('migrations create zero manual rows and legacy automated rows verify unchanged', () => {
+    const db = getDb();
+    const countManual = () =>
+      (db.query("SELECT COUNT(*) AS cnt FROM onboarding_extractions WHERE extraction_method = 'manual_evidence_v1'").get() as { cnt: number }).cnt;
+    // Snapshot the manual-row count first: other tests in this file create
+    // manual rows in the shared fixture DB, so the assertion must pin that
+    // THIS legacy seed changes nothing — not merely that the count is
+    // non-negative (which passes vacuously).
+    const manualBefore = countManual();
     seedItem('item-hard-legacy');
     insertExtraction({
       itemId: 'item-hard-legacy',
@@ -205,18 +262,38 @@ describe('hardening: no backfill — legacy rows are never converted', () => {
       extractionDataJson: JSON.stringify({ identityStatus: 'exact_match' }),
       confidence: 0.9,
     } as unknown as Parameters<typeof insertExtraction>[0]);
-    const db = getDb();
     expect(() => verifyManualEvidenceInvariants(db)).not.toThrow();
-    const manual = db.query(
-      "SELECT COUNT(*) AS cnt FROM onboarding_extractions WHERE extraction_method = 'manual_evidence_v1'",
-    ).get() as { cnt: number };
-    // Only rows created by other tests in this file may exist; this legacy
-    // automated row must keep its own method (never converted).
+    // The legacy automated row keeps its own method (never converted) and
+    // the manual-row count is exactly unchanged by the legacy seed.
     const legacy = db.query('SELECT extraction_method FROM onboarding_extractions WHERE item_id = ?').get('item-hard-legacy') as { extraction_method: string };
     expect(legacy.extraction_method).toBe('profile_selector');
-    expect(manual.cnt).toBeGreaterThanOrEqual(0);
+    expect(countManual()).toBe(manualBefore);
     const attestations = db.query('SELECT COUNT(*) AS cnt FROM onboarding_manual_evidence_attestations WHERE item_id = ?').get('item-hard-legacy') as { cnt: number };
     expect(attestations.cnt).toBe(0);
+  });
+});
+
+describe('hardening: kill-switch never strands active-manual items (P0-1)', () => {
+  test('withdraw succeeds with the flag OFF; submit stays gated', () => {
+    seedItem('item-hard-killswitch');
+    const submitted = submitManualEvidence(submitInput('item-hard-killswitch'), noProfile);
+    expect(submitted.ok).toBe(true);
+    expect(hasActiveManualEvidence('item-hard-killswitch')).toBe(true);
+    // Kill switch: new submissions stop, but the operator can still back
+    // out of the in-flight manual row to the fail-closed blocked state.
+    overrideManualEvidenceFlags({ enabled: false });
+    try {
+      const blocked = submitManualEvidence(submitInput('item-hard-killswitch'), noProfile);
+      expect(blocked.ok).toBe(false);
+      if (!blocked.ok) expect(blocked.code).toBe('manual_evidence_disabled');
+      const withdrawn = withdrawManualEvidence({ itemId: 'item-hard-killswitch', workspaceId: 'ws-1', operatorId: OPERATOR });
+      expect(withdrawn.ok).toBe(true);
+    } finally {
+      overrideManualEvidenceFlags({ enabled: true });
+    }
+    expect(hasActiveManualEvidence('item-hard-killswitch')).toBe(false);
+    const restored = getDb().query('SELECT stage_status FROM onboarding_items WHERE id = ?').get('item-hard-killswitch') as { stage_status: string };
+    expect(restored.stage_status).toBe('failed');
   });
 });
 

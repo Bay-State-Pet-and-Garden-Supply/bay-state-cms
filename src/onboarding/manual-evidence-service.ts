@@ -459,13 +459,16 @@ export function hasActiveManualEvidence(itemId: string): boolean {
  * removes the operator-created manual extraction row (the attestation row
  * preserves the audit trail), and restores the item to extraction/failed
  * with the profile-blocked signature so the automated path can retry.
+ *
+ * Deliberately NOT flag-gated (ticket #105 review P0-1): the kill-switch
+ * must never strand active-manual items in a state that is neither
+ * retryable (retry endpoint 409s withdraw-first) nor withdrawable.
+ * Submission stays flag-gated; withdrawal only ever restores the prior
+ * fail-closed blocked state, so it cannot create new manual evidence.
  */
 export function withdrawManualEvidence(
   input: WithdrawManualEvidenceInput,
 ): WithdrawManualEvidenceResult {
-  if (!getManualEvidenceFlags().enabled) {
-    return { ok: false, code: 'manual_evidence_disabled', reason: 'The manual-evidence route is disabled.' };
-  }
   const item = findItemById(input.itemId);
   if (!item) {
     return { ok: false, code: 'item_not_found', reason: `Onboarding item ${input.itemId} not found.` };

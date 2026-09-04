@@ -319,6 +319,9 @@ export default defineConfig({
       // Manual-evidence hardening DB suite (ticket #105, parent #101) —
       // bun:sqlite via the repository layer; run under bun test via test:db.
       'src/tests/unit/manual-evidence-hardening-db.test.ts',
+      // Manual-evidence retry route suite (ticket #105 review P1-2) —
+      // real Hono app + bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/manual-evidence-retry-route.test.ts',
     ],
   },
 });
