@@ -755,6 +755,45 @@ export const ApproveDistributorImageRequestSchema = z.object({
 });
 export type ApproveDistributorImageRequest = z.infer<typeof ApproveDistributorImageRequestSchema>;
 
+// ─── Manual-evidence extraction route (parent #101, ticket #103 thin slice) ───
+// Strict request shapes: the server derives ALL provenance (sourceType,
+// identityStatus, confidence, fieldProvenance, hashes, attestation link) and
+// rejects any client-supplied provenance — this schema is closed so an
+// attempt to smuggle provenance fails validation. Thin-slice field set:
+// title (required) + brand (optional); later tickets extend the fields.
+/** Three-part operator attestation for one manual-evidence submission. */
+export const ManualEvidenceAttestationInputSchema = z
+  .object({
+    noFamilyInheritance: z.literal(true),
+    perSkuVerified: z.literal(true),
+    rightsAttested: z.literal(true),
+    notes: z.string().max(2000).nullable().default(null),
+  })
+  .strict();
+export type ManualEvidenceAttestationInput = z.infer<typeof ManualEvidenceAttestationInputSchema>;
+
+/** Operator submission of manual evidence for one profile-blocked item. */
+export const SubmitManualEvidenceRequestSchema = z
+  .object({
+    itemId: z.string().min(1).max(128),
+    title: z.string().min(1).max(500),
+    brand: z.string().max(256).nullable().default(null),
+    familyReferenceUrl: z.string().url().max(2000).nullable().default(null),
+    familyPageOnlyConfirmed: z.boolean().default(false),
+    overrideDistributorReason: z.string().max(500).nullable().default(null),
+    attestation: ManualEvidenceAttestationInputSchema,
+  })
+  .strict();
+export type SubmitManualEvidenceRequest = z.infer<typeof SubmitManualEvidenceRequestSchema>;
+
+/** Operator withdrawal of manual evidence for one item. */
+export const WithdrawManualEvidenceRequestSchema = z
+  .object({
+    itemId: z.string().min(1).max(128),
+  })
+  .strict();
+export type WithdrawManualEvidenceRequest = z.infer<typeof WithdrawManualEvidenceRequestSchema>;
+
 // ─── Curation Data (Refined taxonomy and packaging mapping) ─────────────────────
 
 /**

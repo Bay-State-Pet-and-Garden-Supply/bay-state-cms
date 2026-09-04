@@ -119,6 +119,12 @@ export const AttentionReasonEnum = z.enum([
   'source_conflict',
   'processing_failed',
   'semantic_validation_blocked',
+  /**
+   * Parent #101 (manual-evidence route): a profile-blocked extraction
+   * failure eligible for operator manual evidence (flag-gated). Additive:
+   * existing consumers fall back to their unknown-reason handling.
+   */
+  'manual_evidence_available',
 ]);
 
 export type AttentionReason = z.infer<typeof AttentionReasonEnum>;
@@ -134,6 +140,12 @@ export const AttentionActionEnum = z.enum([
   'resolve_source_conflict',
   'retry_processing',
   'resolve_semantic_conflict',
+  /**
+   * Parent #101 (manual-evidence route): open the manual-evidence form for
+   * a profile-blocked item. Additive: existing consumers fall back to
+   * their unknown-action handling.
+   */
+  'enter_manual_evidence',
 ]);
 
 export type AttentionAction = z.infer<typeof AttentionActionEnum>;

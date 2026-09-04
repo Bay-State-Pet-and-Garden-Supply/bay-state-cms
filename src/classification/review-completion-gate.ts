@@ -81,6 +81,59 @@ export interface ReviewCompletionGateInput {
 }
 
 /**
+ * Manual-evidence review backstop (parent #101, ticket #103 thin slice).
+ *
+ * Read-only, fail-closed: when the item's LATEST extraction row is an
+ * operator manual-evidence row (`manual_evidence_v1`), an ACTIVE (never
+ * superseded) attestation must exist for the item and its id must match the
+ * row's attestation link. Returns a `manual_attestation_missing` refusal
+ * otherwise. Returns null for non-manual rows and for fully attested manual
+ * rows (later tickets add hash-mismatch, inheritance, and image-rights
+ * refusals). Exported for isolated unit testing.
+ */
+export function validateManualEvidenceForReview(itemId: string): ReviewCompletionGateResult | null {
+  const db = getDb();
+  let latest: { extraction_method: string; manual_attestation_id: string | null } | undefined;
+  try {
+    latest = db.query(
+      `SELECT extraction_method, manual_attestation_id FROM onboarding_extractions
+       WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    ).get(itemId) as { extraction_method: string; manual_attestation_id: string | null } | undefined;
+  } catch {
+    // Pre-foundation databases (no attestation store): manual rows cannot
+    // exist (their insert requires the same columns), so there is nothing
+    // to refuse. Legacy fixtures keep byte-identical behavior.
+    return null;
+  }
+  if (!latest || latest.extraction_method !== 'manual_evidence_v1') return null;
+  const attestationId = latest.manual_attestation_id;
+  if (!attestationId) {
+    return {
+      ok: false,
+      code: 'manual_attestation_missing',
+      reason: 'Manual evidence has no attestation link; the item cannot be review-ready.',
+    };
+  }
+  let active: { attestation_id: string } | undefined;
+  try {
+    active = db.query(
+      `SELECT attestation_id FROM onboarding_manual_evidence_attestations
+       WHERE attestation_id = ? AND item_id = ? AND superseded_at IS NULL LIMIT 1`,
+    ).get(attestationId, itemId) as { attestation_id: string } | undefined;
+  } catch {
+    active = undefined;
+  }
+  if (!active) {
+    return {
+      ok: false,
+      code: 'manual_attestation_missing',
+      reason: 'Manual evidence attestation is missing or was withdrawn; the item cannot be review-ready.',
+    };
+  }
+  return null;
+}
+
+/**
  * Universal Category Page assignment requirement (operator mandate): an
  * onboarding item may never complete Review without at least one Category
  * Page assignment that resolves into the CURRENT active verified Page
@@ -167,6 +220,13 @@ export function validateReviewCompletionGate(
       reason: `Classification run has status "${run.status}". Only completed runs can be reviewed.`,
     };
   }
+
+  // Parent #101 (manual-evidence route, ticket #103 thin slice): a manual
+  // extraction row without an ACTIVE attestation join can never complete
+  // review. Additive check only — automated and distributor rows always
+  // pass through (null) and existing gate precedence is unchanged.
+  const manualEvidenceGate = validateManualEvidenceForReview(input.onboardingItemId);
+  if (manualEvidenceGate) return manualEvidenceGate;
 
   // PR9 C3 (issue #30, DECISION-C) + review round 2 (R2-A): the cohort
   // SEMANTIC validation gate. Two distinct paths:

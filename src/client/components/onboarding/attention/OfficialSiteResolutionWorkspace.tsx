@@ -34,6 +34,7 @@ import { CandidateUrlPanel } from './CandidateUrlPanel';
 import { ExtractorStatusPanel } from './ExtractorStatusPanel';
 import { SemanticConflictPanel } from './SemanticConflictPanel';
 import { ChooseVariantPanel } from './ChooseVariantPanel';
+import { ManualEvidencePanel } from './ManualEvidencePanel';
 import { selectVariant } from '../../../onboarding-api';
 import { domainFromUrl, getAttentionConsequence } from './attention-logic';
 import './attention.css';
@@ -52,6 +53,7 @@ type Phase =
   | 'url' // candidate decision / manual URL
   | 'variant' // choose_variant matrix
   | 'extractor' // extractor status after URL confirmation (or directly)
+  | 'manual' // parent #101: operator manual evidence for family-page-only brands
   | 'conflicts' // distributor evidence conflict decision
   | 'semantic' // Curation blocked by semantic validation findings
   | 'retry' // processing failure
@@ -137,6 +139,8 @@ export function OfficialSiteResolutionWorkspace({
         setPhase('semantic');
       } else if (reason === 'processing_failed') {
         setPhase('retry');
+      } else if (reason === 'manual_evidence_available') {
+        setPhase('manual');
       } else if (
         reason === 'extractor_profile_required' ||
         reason === 'extraction_profile_failed'
@@ -637,6 +641,18 @@ export function OfficialSiteResolutionWorkspace({
             onRetry={() => void handleRetry()}
             onReleaseResult={(result) => {
               setReleaseResult(result);
+              setPhase('done');
+            }}
+          />
+        ) : null}
+
+        {phase === 'manual' ? (
+          <ManualEvidencePanel
+            itemId={itemId}
+            defaultTitle={workState?.name ?? item?.name ?? ''}
+            defaultBrand={workState?.brand ?? item?.brandHint ?? null}
+            onSubmitted={() => {
+              setResolutionNote('Manual evidence submitted — extraction complete, item returns to Review.');
               setPhase('done');
             }}
           />

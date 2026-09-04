@@ -49,7 +49,8 @@ import {
   WorkStateCategoryEnum,
   ReviewStateEnum,
 } from '../../shared/schemas/onboarding-work-state';
-import { SourceTypeEnum } from '../../shared/schemas/onboarding';
+import { SourceTypeEnum, SubmitManualEvidenceRequestSchema } from '../../shared/schemas/onboarding';
+import { getActiveManualEvidenceAttestationForItem } from '../../db/repositories/onboarding-manual-evidence-repo';
 
 const route = new Hono();
 
@@ -647,6 +648,115 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
   });
 
   return c.json({ domain, releasedItemIds: releasedIds, count: releasedIds.length, skippedCount });
+});
+
+/**
+ * POST /api/onboarding/items/:id/submit-manual-evidence
+ * Parent #101 (manual-evidence route, ticket #103 thin slice): audited
+ * operator submission of manual evidence for one profile-blocked item
+ * (`extraction/failed` → `extraction/completed`). Strict body (server
+ * derives all provenance); any authenticated principal may submit, and the
+ * principal actor is recorded as the attesting operator.
+ */
+route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
+  const principal = derivePrincipal(c);
+  if (!principal) {
+    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
+  }
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400);
+  }
+  const parsed = SubmitManualEvidenceRequestSchema.safeParse({ ...(body as Record<string, unknown>), itemId: c.req.param('id') });
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid manual-evidence payload.', issues: parsed.error.issues }, 400);
+  }
+  const { submitManualEvidence } = await import('../../onboarding/manual-evidence-service');
+  const result = submitManualEvidence({
+    itemId: parsed.data.itemId,
+    workspaceId: workspace.id,
+    operatorId: principal.actor,
+    title: parsed.data.title,
+    brand: parsed.data.brand,
+    familyReferenceUrl: parsed.data.familyReferenceUrl,
+    familyPageOnlyConfirmed: parsed.data.familyPageOnlyConfirmed,
+    overrideDistributorReason: parsed.data.overrideDistributorReason,
+    attestation: parsed.data.attestation,
+  });
+  if (!result.ok) {
+    const status = result.code === 'workspace_mismatch' || result.code === 'item_not_found' ? 404 : 422;
+    return c.json({ error: result.reason, code: result.code }, status);
+  }
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: parsed.data.itemId,
+    action: 'submit_manual_evidence',
+    message: `Operator ${principal.actor} submitted manual evidence (attestation ${result.attestationId})`,
+    detailsJson: JSON.stringify({ attestationId: result.attestationId, extractionId: result.extractionId }),
+  });
+  return c.json({ itemId: parsed.data.itemId, attestationId: result.attestationId, extractionId: result.extractionId });
+});
+
+/**
+ * POST /api/onboarding/items/:id/withdraw-manual-evidence
+ * Parent #101: operator withdrawal restores the prior blocked state.
+ */
+route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
+  const principal = derivePrincipal(c);
+  if (!principal) {
+    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
+  }
+  const { withdrawManualEvidence } = await import('../../onboarding/manual-evidence-service');
+  const result = withdrawManualEvidence({
+    itemId: c.req.param('id'),
+    workspaceId: workspace.id,
+    operatorId: principal.actor,
+  });
+  if (!result.ok) {
+    const status = result.code === 'workspace_mismatch' || result.code === 'item_not_found' ? 404 : 422;
+    return c.json({ error: result.reason, code: result.code }, status);
+  }
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: c.req.param('id'),
+    action: 'withdraw_manual_evidence',
+    message: `Operator ${principal.actor} withdrew manual evidence (superseded ${result.supersededAttestationId})`,
+    detailsJson: JSON.stringify({ supersededAttestationId: result.supersededAttestationId }),
+  });
+  return c.json({ itemId: c.req.param('id'), supersededAttestationId: result.supersededAttestationId });
+});
+
+/**
+ * GET /api/onboarding/items/:id/manual-evidence
+ * Parent #101: read model for the active manual attestation (null when none).
+ */
+route.get('/onboarding/items/:id/manual-evidence', (c) => {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
+  const principal = derivePrincipal(c);
+  if (!principal) {
+    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
+  }
+  const itemId = c.req.param('id');
+  const item = findItemById(itemId);
+  if (!item) {
+    return c.json({ error: 'Item not found', code: 'item_not_found' }, 404);
+  }
+  return c.json({ itemId, attestation: getActiveManualEvidenceAttestationForItem(itemId) });
 });
 
 /**

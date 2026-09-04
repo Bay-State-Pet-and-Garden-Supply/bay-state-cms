@@ -204,6 +204,8 @@ describe('Onboarding Repositories CRUD', () => {
       sourcingGenerationId: null,
       acceptedEvidenceAttemptIds: [],
       evidenceHash: null,
+      // Parent #101: attestation link for manual-evidence rows (null here).
+      manualAttestationId: null,
     });
     expect(bindings.get(itemB.id)?.sourceUrl).toBe('https://b.example.com/product');
     expect(bindings.size).toBe(2);

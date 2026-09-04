@@ -556,6 +556,8 @@ function buildExecutionEvidenceProjectionMember(
       additionalImages: Array.isArray(ext.additionalImages) ? ext.additionalImages : [],
       customFields: ext.customFields ?? {},
       fieldProvenance: ext.fieldProvenance ?? {},
+      manualEvidenceAttestationId: (ext as { manualEvidenceAttestationId?: string | null }).manualEvidenceAttestationId ?? null,
+      manualReferenceUrl: (ext as { manualReferenceUrl?: string | null }).manualReferenceUrl ?? null,
       packagingTitle: ext.packagingTitle ?? null,
       distributorSku: ext.distributorSku ?? null,
       /** All accepted attempts' per-distributor reference values (sorted-unique). */

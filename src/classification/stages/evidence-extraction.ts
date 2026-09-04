@@ -14,6 +14,61 @@ import * as crypto from 'node:crypto';
 const now = () => new Date().toISOString();
 
 /**
+ * Manual-evidence entries (parent #101, ticket #103 thin slice).
+ *
+ * Builds operator-manual evidence for the supplied fields ONLY (thin slice:
+ * title + brand; never family-page facts, never synthesized copy). Every
+ * entry carries source `operator_manual`, low reliability (manual
+ * transcription requires Review), a NULL source URL, and attestation
+ * metadata. Pure helper — unit-tested in isolation and wired into both the
+ * frozen and live evidence paths below.
+ */
+export interface ManualEvidenceEntryInput {
+  title?: string | null;
+  brand?: string | null;
+  attestationId: string;
+  fieldProvenance: Record<string, string>;
+  manualReferenceUrl: string | null;
+}
+
+export function buildManualEvidenceEntries(
+  input: ManualEvidenceEntryInput,
+): Array<Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>> {
+  const metadata = {
+    provenance: 'manual_evidence',
+    attestationId: input.attestationId,
+    fieldProvenance: 'user',
+    manualReferenceUrl: input.manualReferenceUrl,
+  };
+  const entries: Array<Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>> = [];
+  if (input.title && input.title.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'name',
+      snippet: input.title.slice(0, 300),
+      value: input.title,
+      metadata,
+    });
+  }
+  if (input.brand && input.brand.trim()) {
+    entries.push({
+      attributeId: null,
+      source: 'operator_manual',
+      reliability: 'low',
+      sourceUrl: null,
+      sourceField: 'brand',
+      snippet: input.brand.slice(0, 300),
+      value: input.brand,
+      metadata,
+    });
+  }
+  return entries;
+}
+
+/**
  * Prepared-cohort (frozen) evidence extraction (issue #30 PR3 M2, amendment 4).
  *
  * When `StageContext` carries the member's frozen execution-evidence
@@ -65,8 +120,29 @@ function executeFrozenEvidenceExtraction(
   // provenance. Description/bullets/search-keywords/copy are NEVER emitted
   // for distributor sources, and nothing is ever labeled
   // `official_product_page` for them.
+  // Parent #101 (manual-evidence route): operator-transcribed members emit
+  // ONLY operator-manual evidence (title + brand in the thin slice) with a
+  // NULL classification URL and the attestation id in metadata. The
+  // automated and distributor branches below are byte-identical for all
+  // non-manual members; the review gate re-verifies the attestation join.
+  const isManualEvidence = frozen.extractionMethod === 'manual_evidence_v1';
+  if (isManualEvidence) {
+    const manualExt = frozen.extraction as typeof frozen.extraction & {
+      manualEvidenceAttestationId?: string | null;
+      manualReferenceUrl?: string | null;
+    };
+    for (const entry of buildManualEvidenceEntries({
+      title: ext.title,
+      brand: ext.brand,
+      attestationId: manualExt.manualEvidenceAttestationId ?? 'unknown',
+      fieldProvenance: ext.fieldProvenance ?? {},
+      manualReferenceUrl: manualExt.manualReferenceUrl ?? null,
+    })) {
+      push(entry);
+    }
+  }
   const isDistributor = frozen.itemSourceType === 'distributor_record' || frozen.extractionSourceType === 'distributor_record';
-  if (isDistributor) {
+  if (!isManualEvidence && isDistributor) {
     const distributorMetadata = {
       provenance: 'distributor_record',
       sourcingGenerationId: frozen.sourcingGenerationId ?? null,
@@ -129,7 +205,9 @@ function executeFrozenEvidenceExtraction(
         push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: item.sourceField, snippet: trimmed.slice(0, 300), value: trimmed, metadata: merchMetadata });
       }
     }
-  } else {
+  } else if (!isManualEvidence) {
+  // Official-page branch: skipped for manual-evidence members (their only
+  // evidence is the operator-manual entries pushed above).
   const pageSource: ClassificationEvidence['source'] = 'official_product_page';
   if (ext.title && ext.title.trim()) {
     push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'name', snippet: ext.title.slice(0, 300), value: ext.title, metadata: { provenance: 'official_product_page' } });
@@ -155,7 +233,7 @@ function executeFrozenEvidenceExtraction(
     if (!value) continue;
     push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: key, snippet: value.slice(0, 300), value, metadata: { provenance: 'product_data' } });
   }
-  }  // end official-page branch (distributor branch above)
+  } // end official-page branch (skipped for manual members via !isManualEvidence above)
 
   // ── Canonical brand resolution from the FROZEN snapshot brands (parity
   //    with the non-cohort path; never a DB read). ────────────────────────
@@ -385,6 +463,43 @@ export const evidenceExtractionStage: StageDefinition = {
         pushMerch('ingredients', extData.ingredients ?? null);
       }
       return { status: 'succeeded', output: { evidence, proposals: [], abstained: false } };
+    }
+
+    // Parent #101 (manual-evidence route): operator-transcribed rows emit
+    // ONLY operator-manual evidence (thin slice: title + brand) with a NULL
+    // URL and attestation metadata. Early return mirrors the distributor
+    // branch above: manual rows carry no automated artifacts, and their
+    // fields must never be labeled `official_product_page`.
+    const liveManualAttestationId =
+      typeof (extData as { manualEvidenceAttestationId?: unknown }).manualEvidenceAttestationId === 'string'
+        ? ((extData as { manualEvidenceAttestationId?: string }).manualEvidenceAttestationId as string)
+        : null;
+    const liveManualMethod =
+      (extData as { extractionMethod?: unknown }).extractionMethod === 'manual_evidence_v1' ||
+      (itemRow as { extraction_method?: unknown }).extraction_method === 'manual_evidence_v1';
+    if (liveManualMethod || liveManualAttestationId) {
+      const liveManualEntries = buildManualEvidenceEntries({
+        title: typeof extData.title === 'string' ? extData.title : null,
+        brand: typeof extData.brand === 'string' ? extData.brand : null,
+        attestationId: liveManualAttestationId ?? 'unknown',
+        fieldProvenance:
+          extData.fieldProvenance && typeof extData.fieldProvenance === 'object'
+            ? (extData.fieldProvenance as Record<string, string>)
+            : {},
+        manualReferenceUrl:
+          typeof (extData as { manualReferenceUrl?: unknown }).manualReferenceUrl === 'string'
+            ? ((extData as { manualReferenceUrl?: string }).manualReferenceUrl as string)
+            : null,
+      });
+      const manualEvidence = liveManualEntries.map((entry) => ({
+        ...entry,
+        id: crypto.randomUUID(),
+        runId: context.runId,
+        stageName: 'evidence_extraction',
+        productSku: input.sku,
+        capturedAt: now(),
+      }) as ClassificationEvidence);
+      return { status: 'succeeded', output: { evidence: manualEvidence, proposals: [], abstained: false } };
     }
 
     // Build per-field inputs with explicit source provenance

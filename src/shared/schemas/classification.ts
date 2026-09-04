@@ -766,6 +766,14 @@ export const EvidenceSourceEnum = z.enum([
    * commerce rights. PI-6 remains the sole path for distributor images.
    */
   'distributor_record',
+  /**
+   * Parent #101 (manual-evidence route): operator-transcribed facts for a
+   * profile-blocked item (extraction_method 'manual_evidence_v1').
+   * Operator provenance ONLY — it is never labeled `official_product_page`,
+   * always low reliability (requires Review), and carries the attestation id
+   * in metadata. Additive: existing consumers ignore the new member.
+   */
+  'operator_manual',
 ]);
 
 export type EvidenceSource = z.infer<typeof EvidenceSourceEnum>;

@@ -62,6 +62,8 @@ function makeMember(overrides: Partial<ExecutionEvidenceProjectionMemberV1> = {}
       additionalImages: ['https://img.example/p1b.jpg'],
       customFields: { flavor: 'chicken' },
       fieldProvenance: { flavor: 'web' },
+      manualEvidenceAttestationId: null,
+      manualReferenceUrl: null,
       packagingTitle: 'PawCo Chicken 5 lb Pouch',
       ocr: {
         outcome: null,

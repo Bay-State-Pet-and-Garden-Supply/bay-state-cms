@@ -43,6 +43,7 @@ export const ATTENTION_GROUP_ORDER: ReadonlyArray<AttentionGroupMeta> = [
   { reason: 'choose_official_url', label: 'Choose the correct product page', chipLabel: 'Choose page' },
   { reason: 'choose_variant', label: 'Choose product variant', chipLabel: 'Choose variant' },
   { reason: 'extractor_profile_required', label: 'Extractor setup required', chipLabel: 'Set up extractor' },
+  { reason: 'manual_evidence_available', label: 'Manual evidence available', chipLabel: 'Enter manually' },
   { reason: 'extraction_profile_failed', label: 'Extraction / profile failure', chipLabel: 'Extraction failed' },
   { reason: 'source_conflict', label: 'Distributor match conflict', chipLabel: 'Conflict' },
   { reason: 'processing_failed', label: 'Processing failure', chipLabel: 'Processing failed' },
@@ -72,6 +73,7 @@ export const ATTENTION_ACTION_LABELS: Record<AttentionAction, string> = {
   resolve_source_conflict: 'Resolve conflict',
   retry_processing: 'Retry',
   resolve_semantic_conflict: 'Review curation findings',
+  enter_manual_evidence: 'Enter manual evidence',
 };
 
 export function getAttentionActionLabel(action: AttentionAction | null | undefined): string {
@@ -103,6 +105,8 @@ export function getAttentionActions(
       return ['setup_extractor_profile'];
     case 'extraction_profile_failed':
       return ['retry_extraction', 'setup_extractor_profile'];
+    case 'manual_evidence_available':
+      return ['enter_manual_evidence'];
     case 'source_conflict':
       return ['resolve_source_conflict'];
     case 'processing_failed':
@@ -135,6 +139,8 @@ export function getAttentionActionConsequence(action: AttentionAction | null | u
       return 'Retry the processing step for this product.';
     case 'resolve_semantic_conflict':
       return 'After the findings are resolved, this family re-runs Curation automatically and the product returns to Review.';
+    case 'enter_manual_evidence':
+      return 'Entering manual evidence completes extraction with a signed attestation; the family page stays reference-only and the item still passes Review.';
     default:
       return 'Resolve the blocker and processing continues automatically.';
   }
@@ -173,6 +179,8 @@ export function getAttentionConsequence(
       return 'Retry processing for this product.';
     case 'semantic_validation_blocked':
       return 'Resolve the findings and re-run Curation for this family; the product returns to Review automatically.';
+    case 'manual_evidence_available':
+      return 'Enter product facts manually with a signed attestation; the family page is reference only and the item still passes Review.';
     default:
       return 'Resolve the blocker and processing continues automatically.';
   }

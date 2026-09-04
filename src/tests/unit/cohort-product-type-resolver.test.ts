@@ -136,6 +136,8 @@ function makeMemberProjection(opts: {
       additionalImages: ['https://img.example.com/p1a.jpg'],
       customFields: { Flavor: 'Chicken' },
       fieldProvenance: { title: 'json-ld' },
+      manualEvidenceAttestationId: null,
+      manualReferenceUrl: null,
       packagingTitle: null,
       ocr: {
         outcome: null,

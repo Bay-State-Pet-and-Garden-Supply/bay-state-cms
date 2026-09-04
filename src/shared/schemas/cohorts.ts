@@ -181,6 +181,13 @@ export const ExecutionEvidenceProjectionMemberSchema = z.object({
     additionalImages: z.array(z.string()),
     customFields: z.record(z.string(), z.string()),
     fieldProvenance: z.record(z.string(), z.string()),
+    /**
+     * Parent #101 (manual-evidence route): attestation link + reference-only
+     * family URL for operator manual-evidence members. Null for automated
+     * members; defaults keep pre-manual snapshots parseable.
+     */
+    manualEvidenceAttestationId: z.string().nullable().default(null),
+    manualReferenceUrl: z.string().nullable().default(null),
     packagingTitle: z.string().nullable(),
     ocr: z.object({
       /** Terminal OCR outcome used by the frozen evidence (may be null when no attempt settled). */

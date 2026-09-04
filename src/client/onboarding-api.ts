@@ -343,6 +343,54 @@ export async function fallbackSourcingItemsToDiscovery(
   });
 }
 
+/**
+ * Parent #101 (manual-evidence route): operator submission of manual
+ * evidence for one profile-blocked item. The client sends ONLY raw fields +
+ * booleans + the optional reference-only family URL; the server derives all
+ * provenance (sourceType, identityStatus, hashes, attestation link).
+ */
+export interface SubmitManualEvidenceBody {
+  title: string;
+  brand?: string | null;
+  familyReferenceUrl?: string | null;
+  familyPageOnlyConfirmed?: boolean;
+  overrideDistributorReason?: string | null;
+  attestation: {
+    noFamilyInheritance: true;
+    perSkuVerified: true;
+    rightsAttested: true;
+    notes?: string | null;
+  };
+}
+
+export async function submitManualEvidence(
+  itemId: string,
+  body: SubmitManualEvidenceBody,
+): Promise<{ itemId: string; attestationId: string; extractionId: string }> {
+  return request<{ itemId: string; attestationId: string; extractionId: string }>(
+    `/items/${itemId}/submit-manual-evidence`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function withdrawManualEvidence(
+  itemId: string,
+): Promise<{ itemId: string; supersededAttestationId: string }> {
+  return request<{ itemId: string; supersededAttestationId: string }>(
+    `/items/${itemId}/withdraw-manual-evidence`,
+    { method: 'POST' },
+  );
+}
+
+export async function getManualEvidence(itemId: string): Promise<{
+  itemId: string;
+  attestation: Record<string, unknown> | null;
+}> {
+  return request<{ itemId: string; attestation: Record<string, unknown> | null }>(
+    `/items/${itemId}/manual-evidence`,
+  );
+}
+
 export async function resetStageItems(
   itemIds: string[],
 ): Promise<{ success: boolean; moved?: string[]; reset?: string[]; skipped?: Array<{ id: string; reason: string }> }> {

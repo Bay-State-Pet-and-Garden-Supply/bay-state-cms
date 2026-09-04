@@ -14,6 +14,9 @@ export interface OnboardingExtractionRow {
   sourcing_generation_id: string | null;
   accepted_evidence_attempt_ids_json: string | null;
   evidence_hash: string | null;
+  /** Attestation link for operator manual-evidence rows; null otherwise. May be
+   *  absent on rows read from pre-foundation databases (treated as null). */
+  manual_attestation_id?: string | null;
   created_at: string;
 }
 
@@ -44,6 +47,16 @@ export type InsertExtractionInput = { itemId: string; extractionDataJson: string
       acceptedEvidenceAttemptIds: string[];
       evidenceHash: string;
     }
+  | {
+      // Operator manual-evidence row (parent #101): official-brand
+      // provenance claimed by the operator — NULL extraction source URL
+      // (never a fabricated per-SKU URL), zero automated confidence, no
+      // sourcing generation, and a required attestation link.
+      sourceType: 'official_page';
+      sourceUrl: null;
+      extractionMethod: 'manual_evidence_v1';
+      manualAttestationId: string;
+    }
 );
 
 const EVIDENCE_HASH_RE = /^[0-9a-f]{64}$/;
@@ -71,6 +84,7 @@ type ExtractionInputWide = {
   sourcingGenerationId?: string | null;
   acceptedEvidenceAttemptIds?: string[];
   evidenceHash?: string;
+  manualAttestationId?: string | null;
 };
 
 /**
@@ -92,14 +106,14 @@ export function insertExtraction(data: InsertExtractionInput): OnboardingExtract
   // this writer.
   const input = data as unknown as ExtractionInputWide;
 
-  const { sourceType, sourceUrl, sourcingGenerationId, acceptedEvidenceAttemptIds, evidenceHash } =
+  const { sourceType, sourceUrl, sourcingGenerationId, acceptedEvidenceAttemptIds, evidenceHash, manualAttestationId } =
     validateAndResolveExtractionInput(input, db);
 
   db.query(
     `INSERT INTO onboarding_extractions
       (id, item_id, source_url, extraction_data_json, extraction_method, confidence, images_json, raw_structured_data_json,
-       source_type, sourcing_generation_id, accepted_evidence_attempt_ids_json, evidence_hash, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       source_type, sourcing_generation_id, accepted_evidence_attempt_ids_json, evidence_hash, manual_attestation_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.itemId,
@@ -113,6 +127,7 @@ export function insertExtraction(data: InsertExtractionInput): OnboardingExtract
     sourcingGenerationId,
     acceptedEvidenceAttemptIds.length > 0 ? JSON.stringify(acceptedEvidenceAttemptIds) : null,
     evidenceHash,
+    manualAttestationId,
     now,
   );
 
@@ -129,6 +144,7 @@ export function insertExtraction(data: InsertExtractionInput): OnboardingExtract
     sourcing_generation_id: sourcingGenerationId,
     accepted_evidence_attempt_ids_json: acceptedEvidenceAttemptIds.length > 0 ? JSON.stringify(acceptedEvidenceAttemptIds) : null,
     evidence_hash: evidenceHash,
+    manual_attestation_id: manualAttestationId,
     created_at: now,
   };
 }
@@ -148,7 +164,64 @@ function validateAndResolveExtractionInput(
   sourcingGenerationId: string | null;
   acceptedEvidenceAttemptIds: string[];
   evidenceHash: string | null;
+  manualAttestationId: string | null;
 } {
+  // Operator manual-evidence rows (parent #101): NULL extraction source URL
+  // (never a fabricated per-SKU URL), official-page provenance, zero
+  // automated confidence, no sourcing generation, required attestation link,
+  // and an identity never stronger than parent-only / insufficient-evidence.
+  if (input.extractionMethod === 'manual_evidence_v1') {
+    if (input.sourceUrl !== null && input.sourceUrl !== undefined) {
+      throw new Error('manual_evidence_v1 extraction requires a NULL source URL (never a fabricated URL)');
+    }
+    if (input.sourceType !== undefined && input.sourceType !== null && input.sourceType !== 'official_page') {
+      throw new Error("manual_evidence_v1 extraction requires source_type 'official_page'");
+    }
+    const attestationId = (input.manualAttestationId ?? '').trim();
+    if (!attestationId) {
+      throw new Error('manual_evidence_v1 extraction requires a manual attestation id');
+    }
+    if (input.sourcingGenerationId) {
+      throw new Error('manual_evidence_v1 extraction must not carry a sourcing generation id');
+    }
+    if (input.evidenceHash) {
+      throw new Error('manual_evidence_v1 extraction must not carry an evidence hash');
+    }
+    let payload: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(input.extractionDataJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      payload = parsed as Record<string, unknown>;
+    } catch {
+      throw new Error('manual_evidence_v1 extraction requires a JSON object extraction payload');
+    }
+    const identityStatus = payload.identityStatus;
+    if (identityStatus !== 'parent_product_only' && identityStatus !== 'insufficient_evidence') {
+      throw new Error(
+        `manual_evidence_v1 extraction requires identityStatus 'parent_product_only' or 'insufficient_evidence' (never exact/probable match, got '${String(identityStatus)}')`,
+      );
+    }
+    if (payload.manualEvidenceAttestationId !== attestationId) {
+      throw new Error('manual_evidence_v1 extraction payload attestation id must match the row attestation link');
+    }
+    const provenance = payload.fieldProvenance;
+    if (provenance && typeof provenance === 'object' && !Array.isArray(provenance)) {
+      for (const value of Object.values(provenance as Record<string, unknown>)) {
+        if (value !== 'user') {
+          throw new Error('manual_evidence_v1 extraction requires per-field provenance \'user\' on every mapped field');
+        }
+      }
+    }
+    return {
+      sourceType: 'official_page',
+      sourceUrl: null,
+      sourcingGenerationId: null,
+      acceptedEvidenceAttemptIds: [],
+      evidenceHash: null,
+      manualAttestationId: attestationId,
+    };
+  }
+
   const isDistributorRecord = input.sourceType === 'distributor_record';
 
   if (isDistributorRecord) {
@@ -186,6 +259,7 @@ function validateAndResolveExtractionInput(
       sourcingGenerationId: input.sourcingGenerationId,
       acceptedEvidenceAttemptIds: [...new Set(input.acceptedEvidenceAttemptIds)].sort(),
       evidenceHash: input.evidenceHash!,
+      manualAttestationId: null,
     };
   }
 
@@ -198,6 +272,7 @@ function validateAndResolveExtractionInput(
     sourcingGenerationId: null,
     acceptedEvidenceAttemptIds: [],
     evidenceHash: null,
+    manualAttestationId: null,
   };
 }
 
@@ -213,9 +288,12 @@ function validateAndResolveExtractionInput(
 export function updateLatestExtractionData(itemId: string, extractionDataJson: string): boolean {
   const db = getDb();
   const row = db
-    .query('SELECT source_type FROM onboarding_extractions WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1')
-    .get(itemId) as { source_type: string | null } | undefined;
+    .query('SELECT source_type, extraction_method FROM onboarding_extractions WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1')
+    .get(itemId) as { source_type: string | null; extraction_method: string } | undefined;
   if (!row || (row.source_type ?? 'official_page') === 'distributor_record') return false;
+  // Parent #101: operator manual-evidence rows are never clobbered by the
+  // board save flow — manual work is edited via withdraw-then-resubmit.
+  if (row.extraction_method === 'manual_evidence_v1') return false;
   db.query(
     `UPDATE onboarding_extractions
      SET extraction_data_json = ?
@@ -264,6 +342,8 @@ export interface ExtractionBinding {
   sourcingGenerationId: string | null;
   acceptedEvidenceAttemptIds: string[];
   evidenceHash: string | null;
+  /** Attestation link for operator manual-evidence rows (parent #101); null otherwise. */
+  manualAttestationId?: string | null;
 }
 
 /**
@@ -298,6 +378,7 @@ export function getLatestExtractionBindingsByItemIds(itemIds: string[]): Map<str
       sourcingGenerationId: row.sourcing_generation_id,
       acceptedEvidenceAttemptIds: safeParseJsonArray(row.accepted_evidence_attempt_ids_json),
       evidenceHash: row.evidence_hash,
+      manualAttestationId: (row as { manual_attestation_id?: string | null }).manual_attestation_id ?? null,
     });
   }
   return bindings;

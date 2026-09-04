@@ -152,6 +152,9 @@ function getLatestExtractionBindingForItem(itemId: string): ExtractionBinding | 
     sourcingGenerationId: row.sourcing_generation_id ?? null,
     acceptedEvidenceAttemptIds: safeParseJsonArray(row.accepted_evidence_attempt_ids_json),
     evidenceHash: row.evidence_hash ?? null,
+    // Parent #101: manual attestation link for manual-evidence rows (the
+    // column is absent on pre-foundation rows — treated as null).
+    manualAttestationId: (row as { manual_attestation_id?: string | null }).manual_attestation_id ?? null,
   };
 }
 
@@ -208,6 +211,14 @@ function isSourceFinalized(item: OnboardingItem, binding: ExtractionBinding | un
     return true;
   }
   const discoveryFinalized = item.stage !== 'discovery' || item.stageStatus === 'completed';
+  // Parent #101 (manual-evidence route): a manual-complete member has a NULL
+  // extraction URL by design (never a fabricated per-SKU URL), so the
+  // persisted-URL requirement can never hold. A manual binding (method +
+  // attestation link, both from the durable row) finalizes exactly like a
+  // URL-bound official source. Non-manual members are byte-identical.
+  if (binding?.extractionMethod === 'manual_evidence_v1') {
+    return binding.sourceUrl === null && (binding.manualAttestationId ?? null) !== null && discoveryFinalized;
+  }
   return Boolean(item.sourceUrl) && discoveryFinalized;
 }
 
@@ -275,6 +286,20 @@ export function sourceProvenanceConsistent(
   // Official source: binding must exist and its URL must match the item URL.
   if (!binding) return false;
   if (binding.sourceType !== 'official_page') return false;
+  // Parent #101 (manual-evidence route): manual bindings carry a NULL URL by
+  // design, so URL matching can never hold. Consistency instead binds the
+  // durable row to the item payload via the attestation link: the row's
+  // attestation id must equal the payload's, and both must be non-null. A
+  // tampered or unattested manual payload stays inconsistent (blocked).
+  if (binding.extractionMethod === 'manual_evidence_v1') {
+    const payloadAttestationId =
+      (item.extractionData as { manualEvidenceAttestationId?: unknown } | null)?.manualEvidenceAttestationId ?? null;
+    return (
+      binding.sourceUrl === null &&
+      (binding.manualAttestationId ?? null) !== null &&
+      binding.manualAttestationId === payloadAttestationId
+    );
+  }
   return normalize(binding.sourceUrl) === normalize(item.sourceUrl);
 }
 

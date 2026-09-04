@@ -94,6 +94,8 @@ function makeMember(overrides: Partial<ExecutionEvidenceProjectionMemberV1> = {}
       additionalImages: [],
       customFields: {},
       fieldProvenance: {},
+      manualEvidenceAttestationId: null,
+      manualReferenceUrl: null,
       packagingTitle: 'Acme Pate Chicken Pouch',
       ocr: {
         outcome: null,

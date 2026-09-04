@@ -306,6 +306,9 @@ export default defineConfig({
       // Manual-evidence foundation DB suite (ticket #102, parent #101) —
       // bun:sqlite via the repository layer; run under bun test via test:db.
       'src/tests/unit/manual-evidence-foundation-db.test.ts',
+      // Manual-evidence thin-slice DB suite (ticket #103, parent #101) —
+      // bun:sqlite via the repository layer; run under bun test via test:db.
+      'src/tests/unit/manual-evidence-thin-slice-db.test.ts',
     ],
   },
 });
