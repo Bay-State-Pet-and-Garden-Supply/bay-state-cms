@@ -4,20 +4,8 @@ import { isValidXmlTagName, escapeCdata } from './multipart-upload';
 import {
   builtInDefaultValue,
   isBuiltInOutputField,
-  SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
 } from './built-in-output-policy';
-
-/**
- * Generate an HTML file name from a product name.
- * Slugifies the name, truncates to 80 chars, adds .html extension.
- */
-function generateFileName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) + '.html';
-}
+import { resolveBaseFileName } from './file-name';
 
 export interface DenormalizedResult {
   xml: string;
@@ -29,7 +17,7 @@ export interface DenormalizedResult {
  * Preserves advanced blocks and unknown elements from original import.
  * Overlays changed core fields and custom fields.
  */
-export function denormalizeProduct(product: Product): DenormalizedResult {
+export function denormalizeProduct(product: Product, opts?: { fileName?: string }): DenormalizedResult {
   const warnings: string[] = [];
   const lines: string[] = [];
 
@@ -182,12 +170,13 @@ export function denormalizeProduct(product: Product): DenormalizedResult {
     }
   }
 
-  // FileName — product detail HTML page name. Preserves explicit customField / preserved value if set;
-  // otherwise generates slugged filename from product name.
-  const fileName = product.customFields['FileName']
-    || (product.shopsite.preserved.unknownElements['FileName'] != null
-        ? String(product.shopsite.preserved.unknownElements['FileName'])
-        : generateFileName(product.core.name));
+  // FileName — product detail HTML page name. Precedence: explicit
+  // override (batch uniquification) → explicit customField / preserved
+  // import value → persisted per-source-URL slug → slugged draft name
+  // (see shopsite/file-name.ts; issue #107). Resolution is normalized:
+  // blank or extensionless stored values fall through instead of exporting
+  // raw, so export, validation, and uniquification always agree.
+  const fileName = opts?.fileName?.trim() ? opts.fileName : resolveBaseFileName(product);
   lines.push(`  <FileName>${escapeXml(fileName)}</FileName>`);
 
   // ProductField mappings from customFields - validate tag names. Custom
