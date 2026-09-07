@@ -10,7 +10,8 @@ import type { Product } from '../shared/types';
  *
  * Resolution precedence (first non-blank wins):
  *   explicit customFields['FileName'] → preserved import value →
- *   persisted per-source-URL slug (core.seo.fileName) → slug of core.name.
+ *   persisted per-source-URL slug (core.seo.fileName) → slug of core.name →
+ *   slug of the SKU (punctuation-only names slug to a bare extension).
  *
  * Batch/catalog uniqueness is enforced separately by `uniquifyFileNames`
  * (Promotion persist + batch XML export) and `findDuplicateFileNames`

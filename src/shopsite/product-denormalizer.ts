@@ -5,7 +5,7 @@ import {
   builtInDefaultValue,
   isBuiltInOutputField,
 } from './built-in-output-policy';
-import { resolveBaseFileName } from './file-name';
+import { resolveBaseFileName, normalizeFileName } from './file-name';
 
 export interface DenormalizedResult {
   xml: string;
@@ -174,9 +174,9 @@ export function denormalizeProduct(product: Product, opts?: { fileName?: string 
   // override (batch uniquification) → explicit customField / preserved
   // import value → persisted per-source-URL slug → slugged draft name
   // (see shopsite/file-name.ts; issue #107). Resolution is normalized:
-  // blank or extensionless stored values fall through instead of exporting
-  // raw, so export, validation, and uniquification always agree.
-  const fileName = opts?.fileName?.trim() ? opts.fileName : resolveBaseFileName(product);
+  // blank or bare-extension values fall through, extensionless values are
+  // healed with .html, so export, validation, and uniquification agree.
+  const fileName = normalizeFileName(opts?.fileName) ?? resolveBaseFileName(product);
   lines.push(`  <FileName>${escapeXml(fileName)}</FileName>`);
 
   // ProductField mappings from customFields - validate tag names. Custom

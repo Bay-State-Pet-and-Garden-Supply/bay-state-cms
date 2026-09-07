@@ -209,9 +209,15 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
 
     const result = validateChangeSet(cs.id);
     expect(result.canApprove).toBe(false);
-    // Change-set-level blockers live on the scope, not on any single item.
+    // The scope blocker is mirrored onto each member item so per-item
+    // review surfaces stay red while the change set cannot approve.
     const scopeCodes = listValidationResults('change_set', cs.id).map(r => r.code);
     expect(scopeCodes).toContain('DUPLICATE_FILENAME');
+    for (const sku of ['DUP-1', 'DUP-2']) {
+      const member = result.items.find(i => i.sku === sku);
+      expect(member, `member entry for ${sku}`).toBeDefined();
+      expect(member!.results.map(r => r.code)).toContain('DUPLICATE_FILENAME');
+    }
   });
 
   it('pre-sync validation passes distinct FileNames without a DUPLICATE_FILENAME code', () => {
@@ -243,8 +249,8 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const result = validateChangeSet(cs.id);
     const codes = result.items.flatMap(i => i.results.map(r => r.code));
     expect(codes).not.toContain('DUPLICATE_FILENAME');
-    // Scope-level blockers never appear on items by construction — assert the
-    // scope surface too so this test cannot pass vacuously.
+    // Assert both the per-item and scope surfaces so this test cannot pass
+    // vacuously on either one.
     const scopeCodes = listValidationResults('change_set', cs.id).map(r => r.code);
     expect(scopeCodes).not.toContain('DUPLICATE_FILENAME');
   });
@@ -294,8 +300,8 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     ] as any;
     const assigned = assignPromotionFileNames(items, tempWorkspaceDir, ((_wp: string, upc: string) => (upc === 'HEALED-1' ? healed : null)) as any);
     // Healed live page keeps its name even though the new extraction disagrees…
-    expect(assigned.get('HEALED-1')).toBe('healed-product-7.html');
+    expect(assigned.get('item-healed')).toBe('healed-product-7.html');
     // …and the sibling whose slug collides with the kept name is suffixed.
-    expect(assigned.get('HEALED-2')).toBe('healed-product-7-2.html');
+    expect(assigned.get('item-new')).toBe('healed-product-7-2.html');
   });
 });

@@ -10,7 +10,7 @@ import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
 import { clearProductPages, assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
-import { normalizeFileName, slugifyFileName, uniquifyFileNames } from '../shopsite/file-name';
+import { normalizeFileName, slugifyFileName, uniquifyFileNames, FILE_NAME_EXTENSION } from '../shopsite/file-name';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
 import {
   getAcceptedProposals,
@@ -538,10 +538,12 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
  * Items that already resolve to a FileName (explicit custom field,
  * preserved import value, or healed name from a prior ShopSite pull living
  * in core.seo.fileName) keep it — live pages are never renamed
- * automatically. All other items are keyed by UPC
- * with the persisted per-source-URL slug when present, else the slugged
- * title, and uniquified against the kept names (ascending UPC order, so
- * reruns reproduce the assignment). Distributor-record items carry no URL
+ * automatically. All other items take the persisted per-source-URL slug
+ * when present, else the slugged title, and are uniquified against the
+ * kept names (ascending UPC order, so reruns reproduce the assignment).
+ * Candidates use disambiguated UPC-plus-id keys and the returned map is
+ * keyed by item id, so duplicate UPCs can never collapse to one name.
+ * Distributor-record items carry no URL
  * slug by design and always take the uniquified name-derived path.
  *
  * Scope note (issue #107): the taken set covers kept names in THIS batch
@@ -559,7 +561,7 @@ export function assignPromotionFileNames(
   workspacePath: string,
   readExisting: typeof readProductFile = readProductFile,
 ): Map<string, string> {
-  const candidates: Array<{ key: string; fileName: string }> = [];
+  const candidates: Array<{ key: string; id: string; fileName: string }> = [];
   const taken: string[] = [];
   const kept = new Map<string, string>();
   for (const item of items) {
@@ -568,17 +570,32 @@ export function assignPromotionFileNames(
       ?? normalizeFileName(existing?.shopsite?.preserved?.unknownElements?.['FileName'])
       ?? normalizeFileName(existing?.core?.seo?.fileName);
     if (keptName) {
-      kept.set(item.upc, keptName);
+      kept.set(item.id, keptName);
       taken.push(keptName);
       continue;
     }
     const finalTitle = item.curationData?.curatedTitle || item.extractionData?.title || item.name;
+    // Mirror the central SKU guard in resolveBaseFileName: punctuation-only
+    // titles slug to a bare extension, which must never enter uniquification.
+    const titleSlug = slugifyFileName(finalTitle || item.upc);
     const base = normalizeFileName(item.extractionData?.seoFileName)
-      ?? slugifyFileName(finalTitle || item.upc);
-    candidates.push({ key: item.upc, fileName: base });
+      ?? (titleSlug !== FILE_NAME_EXTENSION ? titleSlug : slugifyFileName(item.upc));
+    // Disambiguated keys (positional pattern, as in batch XML export):
+    // keys sort UPC-major, preserving ascending-UPC determinism, while the
+    // id suffix keeps duplicate UPCs distinct through uniquification AND
+    // the result map (keyed by item id, so lookups never collapse).
+    candidates.push({ key: `${item.upc}#${item.id ?? candidates.length}`, id: item.id, fileName: base });
   }
-  const assigned = uniquifyFileNames(candidates, taken);
-  for (const [upc, name] of kept) assigned.set(upc, name);
+  const disambiguated = uniquifyFileNames(
+    candidates.map(c => ({ key: c.key, fileName: c.fileName })),
+    taken,
+  );
+  const assigned = new Map<string, string>();
+  for (const c of candidates) {
+    const name = disambiguated.get(c.key);
+    if (name) assigned.set(c.id, name);
+  }
+  for (const [id, name] of kept) assigned.set(id, name);
   return assigned;
 }
 
@@ -1100,7 +1117,7 @@ export async function promoteItems(
       if (!mergedCustomFields['FileName']?.trim()
         && !normalizeFileName(existingApproved?.customFields?.['FileName'])
         && !normalizeFileName(existingApproved?.shopsite?.preserved?.unknownElements?.['FileName'])) {
-        const assigned = assignedFileNames.get(item.upc);
+        const assigned = assignedFileNames.get(item.id);
         if (assigned) mergedCustomFields['FileName'] = assigned;
       }
 
