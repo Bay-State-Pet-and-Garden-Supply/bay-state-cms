@@ -11,7 +11,7 @@ import { getLlmConfigForTask, callLlmForTaskWithProvenance, verifyAndRestoreProt
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { MODEL_CALL_STATUS } from '../classification/model-operation-registry';
 import { recordTerminalPreflight } from '../db/repositories/classification-model-call-repo';
-import { buildPerItemPrompt } from './title-prompt-template';
+import { buildPerItemPrompt, ensureBrandInTitle } from './title-prompt-template';
 import { formatDeterministicTitle } from './cohort-name-coordinator';
 export interface TitleSignals {
   /** Original name from the spreadsheet import (always available) */
@@ -73,6 +73,13 @@ export interface TitleResult {
   source: 'web' | 'ocr' | 'llm' | 'manual';
   /** Durable model-call IDs that produced this title (issue #17 E). */
   modelCallIds?: string[];
+  /** Resolved brand ensured exactly once in the title (issue #108). */
+  brandApplied?: string | null;
+  /**
+   * True when no brand existed in any evidence, so the brand could not be
+   * guaranteed. Callers must hold the item for a manual title (issue #108).
+   */
+  brandUnverified?: boolean;
 }
 
 /**
@@ -118,6 +125,11 @@ export async function consolidateProductTitle(
     preflightRecorded = true;
   }
 
+  // Issue #108: the resolved brand authority for the deterministic
+  // post-step. Every return below funnels through applyBrandGuarantee so
+  // prompt guidance ("include the brand exactly once") is enforced by code.
+  const brand = signals.brandHint?.trim() || null;
+
   // If LLM is not configured, prefer spreadsheet name (has variant tokens like LG, SM, YELLOW)
   // over web title which may strip them. OCR title still wins when available.
   // The attempted-but-unavailable call is still observable (durable row).
@@ -131,7 +143,7 @@ export async function consolidateProductTitle(
       );
     }
     if (signals.ocrTitle) {
-      return { title: signals.ocrTitle, source: 'ocr' };
+      return applyBrandGuarantee({ title: signals.ocrTitle, source: 'ocr' }, brand);
     }
     // Parent #101 (manual-evidence route, ticket #104): the
     // operator-verified per-SKU title is deterministic truth — eligible
@@ -140,9 +152,9 @@ export async function consolidateProductTitle(
     // only which signal wins, never whether validation runs.
     const manualTitle = signals.manualTitle?.trim() || null;
     if (manualTitle) {
-      return { title: manualTitle, source: 'manual' };
+      return applyBrandGuarantee({ title: manualTitle, source: 'manual' }, brand);
     }
-    return { title: signals.name, source: 'web' };
+    return applyBrandGuarantee({ title: signals.name, source: 'web' }, brand);
   }
 
   try {
@@ -183,23 +195,45 @@ export async function consolidateProductTitle(
       if (!guardedTitle || guardedTitle.trim().length === 0) {
         const fallback = formatDeterministicTitle(signals.name, signals.brandHint ?? null);
         console.warn(`[TitleConsolidation] LLM title empty after guard; fallback deterministic: "${fallback}"`);
-        return { title: fallback, source: 'llm', ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}) };
+        return applyBrandGuarantee({ title: fallback, source: 'llm', ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}) }, brand);
       }
       // If guard restored tokens, keep llm source but with restored title —
       // the variant is preserved while provenance stays llm.
       if (guardedTitle !== cleanTitle) {
         console.log(`[TitleConsolidation] Restored variant tokens: "${guardedTitle}" (from raw "${signals.rawRegisterName}")`);
       }
-      return {
+      return applyBrandGuarantee({
         title: guardedTitle,
         source: 'llm',
         ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}),
-      };
+      }, brand);
     }
   } catch (err: any) {
     console.warn(`[TitleConsolidation] LLM title consolidation failed: ${redactTransportText(err.message)}`);
   }
 
   // Fallback: spreadsheet name has the richest variant tokens
-  return { title: signals.name, source: 'web' };
+  return applyBrandGuarantee({ title: signals.name, source: 'web' }, brand);
+}
+
+/**
+ * Deterministic brand post-step (issue #108).
+ *
+ * Applies `ensureBrandInTitle` when a resolved brand exists; otherwise marks
+ * the result unverified so the caller holds the item for a manual title
+ * instead of shipping (or inventing) a brandless name.
+ *
+ * Exported for tests: the live-LLM returns share this exact wrapper, and a
+ * run-bound LLM call cannot be fabricated outside the audited pipeline
+ * (fail-closed plan compatibility), so the wrapper is pinned directly.
+ */
+// fallow-ignore-next-line unused-export — used by tests
+export function applyBrandGuarantee<T extends { title: string; source: TitleResult['source'] }>(
+  result: T,
+  brand: string | null,
+): T & { brandApplied?: string | null; brandUnverified?: boolean } {
+  if (brand) {
+    return { ...result, title: ensureBrandInTitle(result.title, brand), brandApplied: brand };
+  }
+  return { ...result, brandUnverified: true };
 }

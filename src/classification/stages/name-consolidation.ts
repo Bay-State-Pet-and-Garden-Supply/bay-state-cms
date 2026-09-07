@@ -12,6 +12,7 @@
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { consolidateProductTitle } from '../../onboarding/title-consolidation';
+import { ensureBrandInTitle, titleContainsBrand } from '../../onboarding/title-prompt-template';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import { buildModelCallContext } from '../runtime-snapshot';
 import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
@@ -174,6 +175,35 @@ export const nameConsolidationStage: StageDefinition = {
   requires: ['evidence_extraction'],
   evidenceFrom: ['evidence_extraction'],
   execute: async (input: StageInput, context: StageContext): Promise<StageResult> => {
+    // Gather title signals from accumulated evidence
+    // Prefer expected_name (refined during discovery consolidation) over
+    // the raw spreadsheet name, as it represents a more curated identity.
+    const spreadsheetName =
+      evidenceValue(input.evidence, 'expected_name', 'spreadsheet') ??
+      evidenceValue(input.evidence, 'name', 'spreadsheet');
+
+    const webTitle = evidenceValue(input.evidence, 'title', 'official_product_page');
+    // Parent #101 (manual-evidence route, ticket #104): the
+    // operator-transcribed per-SKU title is an eligible title signal with
+    // source `manual`. It never bypasses synthesis or cohort validation —
+    // it only participates as one more input to the shared consolidator.
+    const manualTitle = evidenceValue(input.evidence, 'name', 'operator_manual');
+    const ocrTitle = evidenceValue(input.evidence, 'name', 'visual_product_evidence');
+
+    // Collect distributor title and brand signals from third_party_page evidence
+    const distributorSignals = collectDistributorSignals(input.evidence);
+
+    // Brand hint: prefer spreadsheet → official page → highest-confidence distributor brand.
+    // Computed FIRST (issue #108): every title path below either guarantees
+    // this brand deterministically or abstains when no brand exists anywhere.
+    // The author-visible channels are tracked separately: coordinated titles
+    // are authored from item.brandHint (spreadsheet/official), so only those
+    // channels can contradict a durable title (design B parent-defect check).
+    const spreadsheetBrand = evidenceValue(input.evidence, 'brand', 'spreadsheet');
+    const officialBrand = evidenceValue(input.evidence, 'brand', 'official_product_page');
+    const brandHint = spreadsheetBrand ?? officialBrand ??
+      distributorSignals.brands[0]?.brand ?? null;
+
     // ── Cohort coordination handling ─────────────────────────────────
     // If a pre-computed coordinated title was set by the cohort
     // coordinator, use it directly and skip the per-item LLM call.
@@ -189,6 +219,38 @@ export const nameConsolidationStage: StageDefinition = {
       const preComputedTitle = context.preComputedTitle.trim();
       if (preComputedTitle.length > 0) {
         const source = context.preComputedTitleSource ?? 'llm_cohort';
+        // Issue #108 (design B): coordinated titles are consumed
+        // BYTE-FOR-BYTE — the brand guarantee lives at authorship
+        // (coordinator/fallback writers), never as a member-side mutation,
+        // so durable correspondence (PR9 R2-B) always holds. No brand
+        // anywhere → hold for a manual title.
+        if (!brandHint) {
+          return {
+            status: 'abstained',
+            reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
+          };
+        }
+        if (!titleContainsBrand(preComputedTitle, brandHint)) {
+          // The durable title lacks every known brand. When an
+          // author-visible channel (spreadsheet/official — the authority
+          // coordination authors from) contradicts it, the durable output
+          // is stale or corrupt: fail closed loudly, same philosophy as the
+          // PR8 empty-title throw below. A distributor-only brand against a
+          // brandless durable title is the #110 wiring gap, not a parent
+          // defect: abstain for operator confirmation instead of looping.
+          const authorVisibleBrand = spreadsheetBrand ?? officialBrand;
+          if (authorVisibleBrand && !titleContainsBrand(preComputedTitle, authorVisibleBrand)) {
+            throw new Error(
+              `parent_defect_stale_title: member ${input.sku} (run ${context.runId}) durable coordinated title ` +
+                `("${preComputedTitle}") is missing its author-visible brand "${authorVisibleBrand}" — the parent title output is stale or corrupt; ` +
+                're-run coordination. The member never mutates a durable title.',
+            );
+          }
+          return {
+            status: 'abstained',
+            reason: 'missing_brand: distributor-only brand evidence against a brandless coordinated title needs operator confirmation (see #110) — supply an operator manual title/brand and re-run.',
+          };
+        }
         return {
           status: 'succeeded',
           output: {
@@ -200,7 +262,8 @@ export const nameConsolidationStage: StageDefinition = {
               curatedTitle: preComputedTitle,
               titleSource: source,
               packagingOcrTitle: null,
-              signalsUsed: { source: 'cohort_coordination', sourceType: source },
+              brandApplied: brandHint,
+              signalsUsed: { source: 'cohort_coordination', sourceType: source, brandHint },
             },
           },
         };
@@ -217,41 +280,18 @@ export const nameConsolidationStage: StageDefinition = {
       );
     }
 
-    // Gather title signals from accumulated evidence
-    // Prefer expected_name (refined during discovery consolidation) over
-    // the raw spreadsheet name, as it represents a more curated identity.
-    const spreadsheetName =
-      evidenceValue(input.evidence, 'expected_name', 'spreadsheet') ??
-      evidenceValue(input.evidence, 'name', 'spreadsheet');
-
-    // Always also capture the raw register name (the original unabbreviated
-    // name from the spreadsheet import) so the title consolidation LLM has
-    // the authoritative source of truth for size/weight/count/flavor tokens
-    // that the expected_name might have lost.
+    // Remaining per-item signals (spreadsheet/web/manual/OCR titles and
+    // distributor signals were gathered above, before the cohort branch, so
+    // every path shares one brand authority).
     const rawRegisterName = evidenceValue(input.evidence, 'name', 'spreadsheet');
     // Log when the expected name dropped tokens the raw name had
     if (rawRegisterName && spreadsheetName && rawRegisterName !== spreadsheetName) {
       console.log(`[NameConsolidation] Raw register name differs from expected_name. Raw: "${rawRegisterName}", expected: "${spreadsheetName}"`);
     }
 
-    const webTitle = evidenceValue(input.evidence, 'title', 'official_product_page');
-    // Parent #101 (manual-evidence route, ticket #104): the
-    // operator-transcribed per-SKU title is an eligible title signal with
-    // source `manual`. It never bypasses synthesis or cohort validation —
-    // it only participates as one more input to the shared consolidator.
-    const manualTitle = evidenceValue(input.evidence, 'name', 'operator_manual');
-    const ocrTitle = evidenceValue(input.evidence, 'name', 'visual_product_evidence');
     const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
     const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
     const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
-
-    // Collect distributor title and brand signals from third_party_page evidence
-    const distributorSignals = collectDistributorSignals(input.evidence);
-
-    // Brand hint: prefer spreadsheet → official page → highest-confidence distributor brand
-    const brandHint = evidenceValue(input.evidence, 'brand', 'spreadsheet') ??
-      evidenceValue(input.evidence, 'brand', 'official_product_page') ??
-      distributorSignals.brands[0]?.brand ?? null;
 
     const fallbackName = spreadsheetName ?? webTitle ?? 'Unknown Product';
 
@@ -261,6 +301,17 @@ export const nameConsolidationStage: StageDefinition = {
       return {
         status: 'abstained',
         reason: 'No title signals available from evidence (no spreadsheet name, web title, OCR title, manual title, or distributor titles).',
+      };
+    }
+
+    // Issue #108: no brand in any evidence → hold for a manual title.
+    // The guarantee cannot be verified, and inventing a brand is forbidden —
+    // abstaining surfaces a reviewable_abstention with the coded reason
+    // instead of shipping a brandless name. Skips the LLM call entirely.
+    if (!brandHint) {
+      return {
+        status: 'abstained',
+        reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
       };
     }
 
@@ -306,6 +357,16 @@ export const nameConsolidationStage: StageDefinition = {
           : undefined,
       );
 
+      // Defensive: the consolidator reports brandUnverified when it somehow
+      // produced a title without brand evidence (e.g. mocked consolidator in
+      // tests) — hold rather than ship it.
+      if (result.brandUnverified) {
+        return {
+          status: 'abstained',
+          reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
+        };
+      }
+
       return {
         status: 'succeeded',
         output: {
@@ -318,6 +379,7 @@ export const nameConsolidationStage: StageDefinition = {
           metadata: {
             curatedTitle: result.title,
             titleSource: result.source,
+            brandApplied: result.brandApplied ?? brandHint,
             // Durable model-call IDs that produced this title (issue #17 E):
             // carried in stage metadata so the run's provenance is complete.
             modelCallIds: result.modelCallIds ?? [],
@@ -346,8 +408,11 @@ export const nameConsolidationStage: StageDefinition = {
       // Fallback: use best available signal (including distributor titles
       // and the operator-verified manual title). Non-manual items carry no
       // manual signal, so their fallback order is byte-identical.
+      // Issue #108: brandHint is non-null on this path (missing brand
+      // abstains above), so the fallback gets the same brand guarantee.
       const bestDistributorTitle = distributorSignals.titles[0]?.title ?? null;
-      const fallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
+      const rawFallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
+      const fallback = ensureBrandInTitle(rawFallback, brandHint);
       const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (manualTitle ? 'manual' : (bestDistributorTitle ? 'web' : 'web')));
 
       return {

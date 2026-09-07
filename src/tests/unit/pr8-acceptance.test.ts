@@ -914,7 +914,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3b (DECISION-B): corrupt stored page payload FAILS the member — no partial draft', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map([
       ['100000000001', { output: { status: 'assigned', pages: [{ pageId: 42 }] }, modelCallId: 'x' } as any],
     ]);
@@ -927,7 +927,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3c (DECISION-B): missing page row (no abstained row, no pageCoordinationAbsent marker) FAILS the member — no partial draft', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map();
     prepared.pageCoordinationAbsent = false;
     await expect(
@@ -938,13 +938,16 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3d (DECISION-B): an abstained page output row is a COMPLETE result — the member succeeds with NO pages', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map([
       ['100000000001', { output: { status: 'abstained', reason: 'Cohort page LLM policy denied.' }, modelCallId: null }],
     ]);
     prepared.pageCoordinationAbsent = false;
     const curationData = await curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared);
-    expect(curationData.curatedTitle).toBe('Frozen Coordinated Title');
+    // Issue #108 (design B): the hand-built durable title is a valid
+    // branded parent output, so the member consumes it byte-for-byte (the
+    // page-abstention subject of this test is unaffected).
+    expect(curationData.curatedTitle).toBe('Acme Frozen Coordinated Title');
     expect(curationData.titleSource).toBe('llm_cohort');
     const pageProposals = curationData.classificationProposals.filter(p => p.proposalType === 'category_page');
     expect(pageProposals).toHaveLength(0);
@@ -954,7 +957,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3e (DECISION-B): an attribute-stage failure FAILS the member via the pipeline throw (no partial draft)', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
     // An execution type absent from the frozen snapshot makes
     // `attribute_applicability` fail closed — the pipeline throws and the
     // member fails.
@@ -1210,11 +1213,14 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
         pages: [],
         keywords: 'Acme Purina Pro Plan Dry Dog Food Beef 10 lb., dog-food-dry, Original, description',
       },
+      // Issue #108: the singleton's brandless spreadsheet title now leaves
+      // curation brand-guaranteed (brand evidence is Acme); keywords derive
+      // from the guaranteed title, so the separate brand token drops out.
       '100000000003': {
-        title: 'Purina Pro Plan Adult Dog Food Salmon 5 lb',
+        title: 'Acme Purina Pro Plan Adult Dog Food Salmon 5 lb',
         source: 'web',
         pages: [],
-        keywords: 'Purina Pro Plan Adult Dog Food Salmon 5 lb, Acme, Original, description',
+        keywords: 'Acme Purina Pro Plan Adult Dog Food Salmon 5 lb, Original, description',
       },
     };
     expect(Object.fromEntries(legacyNormalized)).toEqual(FROZEN_LEGACY_BASELINE);

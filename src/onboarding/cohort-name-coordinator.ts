@@ -17,7 +17,7 @@
 import { getLlmConfigForTask, callLlmForTask, callLlmForTaskWithProvenance } from './llm-client';
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { familyGroupingIdentityFor, knownBrandsForBatch } from './product-line-grouper';
-import { buildCohortPrompt, FORMAT_RULES } from './title-prompt-template';
+import { buildCohortPrompt, FORMAT_RULES, ensureBrandInTitle } from './title-prompt-template';
 import type { CohortExecutionTypeContext } from './title-prompt-template';
 import { normalizeTitleAuthorityString, TITLE_AUTHORITY_TRUNCATION } from './cohort-title-hash';
 import { HeartbeatLostError } from '../classification/heartbeat-errors';
@@ -309,18 +309,12 @@ export function formatDeterministicTitle(
   }
   t = t.replace(/\s+/g, ' ').trim();
 
-  // 6. Prefix the brand only when absent; when already present, restore the
-  // configured brand's exact casing rather than retaining distributor ALL CAPS.
+  // 6. Deterministic brand guarantee (issue #108, design B): the resolved
+  // brand appears exactly once — prefixed when absent, casing-restored when
+  // present. Shared with the LLM-path authorship post-step so deterministic
+  // and coordinated titles obey one rule.
   if (brandHint?.trim()) {
-    const brand = brandHint.trim();
-    const brandWords = brand.match(/[a-z0-9]+/gi) ?? [];
-    const flexibleBrand = brandWords
-      .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      .join('[^a-z0-9]+');
-    const prefix = flexibleBrand
-      ? new RegExp(`^${flexibleBrand}(?=\\s|$)`, 'i')
-      : null;
-    t = prefix?.test(t) ? t.replace(prefix, brand) : `${brand} ${t}`;
+    return ensureBrandInTitle(t, brandHint);
   }
 
   return t;
@@ -820,6 +814,17 @@ async function coordinateGroup(
 
   if (!validated) {
     throw new Error('LLM response validation failed (missing UPCs or duplicate titles)');
+  }
+
+  // Issue #108 (design B): deterministic brand guarantee at AUTHORSHIP.
+  // Every coordinated title carries its item's resolved brand exactly once
+  // BEFORE lint + family gate, so validators and durable rows see final
+  // titles. Unknown brand → persisted raw, never invented (the member holds
+  // later via missing_brand abstention or the parent-defect error).
+  const brandByUpc = new Map(items.map(i => [i.upc, i.brandHint?.trim() || null]));
+  for (const [upc, title] of validated) {
+    const itemBrand = brandByUpc.get(upc);
+    if (itemBrand) validated.set(upc, ensureBrandInTitle(title, itemBrand));
   }
 
   // Title Lint (e09 follow-through): normalize mechanically-repairable defects

@@ -184,3 +184,60 @@ ${FORMAT_RULES}
 
 Return ONLY the finalized product name. No parentheses. No quotes. No markdown. No explanation.`;
 }
+
+// ─── Deterministic brand guarantee (issue #108) ────────────────────────────
+//
+// Prompt guidance alone ("Include the brand exactly once") cannot guarantee
+// the brand survives consolidation: with `Brand: "N/A"` the compliant LLM
+// output omits it, and nothing downstream re-checks. These pure helpers are
+// the deterministic post-step applied to EVERY title path (per-item,
+// cohort-coordinated, and fallbacks) so the resolved brand appears exactly
+// once. DB-free by design: importable from vitest-safe modules.
+
+/** Escape a string for literal use inside a RegExp. */
+function escapeRegExpWord(word: string): string {
+  return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Split a brand into alphanumeric words for flexible matching. */
+function brandWords(brand: string): string[] {
+  return brand.match(/[a-z0-9]+/gi) ?? [];
+}
+
+/**
+ * Check whether a title already contains a brand as standalone words.
+ *
+ * Case-insensitive with flexible separators (spaces, hyphens, slashes all
+ * match), but never matches substrings of larger words (`Acme` does not
+ * match `Acmes`). Blank brands or titles never match.
+ */
+export function titleContainsBrand(title: string, brand: string): boolean {
+  if (!title?.trim() || !brand?.trim()) return false;
+  const words = brandWords(brand.trim());
+  if (words.length === 0) return false;
+  const pattern = `(?:^|[^a-z0-9])${words.map(escapeRegExpWord).join('[^a-z0-9]+')}(?=[^a-z0-9]|$)`;
+  return new RegExp(pattern, 'i').test(title);
+}
+
+/**
+ * Ensure the resolved brand appears in a title exactly once.
+ *
+ * - Brand absent → prefix `${brand} ` (never invent placement elsewhere).
+ * - Brand present as prefix → restore the canonical brand casing (fixes
+ *   distributor ALL-CAPS) without touching the rest of the title.
+ * - Brand present elsewhere → normalize that occurrence's casing in place
+ *   and do NOT prefix (prefixing would double the brand).
+ * - Blank brand → title unchanged (caller abstains on missing brand).
+ */
+export function ensureBrandInTitle(title: string, brand: string): string {
+  const cleanBrand = brand?.trim() ?? '';
+  if (!cleanBrand || !title) return title;
+  const words = brandWords(cleanBrand);
+  if (words.length === 0) return title;
+  const core = words.map(escapeRegExpWord).join('[^a-z0-9]+');
+  const prefixRe = new RegExp(`^${core}(?=\\s|$)`, 'i');
+  if (prefixRe.test(title)) return title.replace(prefixRe, cleanBrand);
+  const anywhereRe = new RegExp(`(^|[^a-z0-9])${core}(?=[^a-z0-9]|$)`, 'i');
+  if (anywhereRe.test(title)) return title.replace(anywhereRe, `$1${cleanBrand}`);
+  return `${cleanBrand} ${title}`;
+}

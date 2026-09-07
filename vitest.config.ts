@@ -44,6 +44,11 @@ export default defineConfig({
       'src/tests/unit/review-media-resolution.test.ts',
       'src/tests/unit/durable-approval-promote.test.ts',
       'src/tests/unit/draft-promoter.test.ts',
+      // Brand guarantee uses bun:sqlite via llm-client; runs under bun test.
+      // NOTE: keep isolated from name-consolidation-stage.test.ts — that file
+      // vi.mock()s title-consolidation and bun shares the module registry
+      // per process, so co-running would poison these real-path tests.
+      'src/tests/unit/brand-title-guarantee.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',

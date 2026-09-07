@@ -138,6 +138,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Low Confidence',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.5 },
@@ -172,6 +173,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Per-attempt record
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Same Title',
@@ -201,6 +203,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Flattened record (no attemptId)
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Flattened Title',
@@ -233,6 +236,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Name Title',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
@@ -301,16 +305,20 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     expect(callArgs.distributorBrands).toHaveLength(1);
   });
 
-  it('does not abstain when only distributor titles are available', async () => {
+  it('does not abstain when only distributor signals are available', async () => {
     asMock(consolidateProductTitle).mockResolvedValue({
       title: 'Distributor Only Product',
       source: 'llm',
     });
 
     const evidence: ClassificationEvidence[] = [
-      // No spreadsheet, official, or OCR — only distributor titles
+      // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Distributor Only Product',
+        metadata: { providerId: 'central_pet', attemptId: 'att-1', confidence: 0.9 },
+      }),
+      makeEvidence({
+        source: 'third_party_page', sourceField: 'brand', value: 'Distributor Brand',
         metadata: { providerId: 'central_pet', attemptId: 'att-1', confidence: 0.9 },
       }),
     ];
@@ -331,6 +339,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Non-string value — should be safely ignored
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 12345 as unknown as string,
@@ -364,6 +373,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     const evidence: ClassificationEvidence[] = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: '   ',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
@@ -417,15 +427,51 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     expect(signalsUsed!.distributorBrandCount).toBe(1);
   });
 
-  it('returns preComputedTitle immediately without collecting distributor signals', async () => {
+  it('consumes a branded preComputedTitle byte-for-byte without calling the consolidator', async () => {
     const result = await nameConsolidationStage.execute(
-      makeInput({ evidence: [] }),
-      makeContext({ preComputedTitle: 'Cohort Title', preComputedTitleSource: 'llm_cohort' }),
+      makeInput({ evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' })] }),
+      makeContext({ preComputedTitle: 'Acme Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
     );
 
     expect(result.status).toBe('succeeded');
     if (result.status !== 'succeeded') throw new Error('Expected success');
-    expect(result.output.metadata?.curatedTitle).toBe('Cohort Title');
+    // Design B: durable coordinated titles are final — consumed verbatim.
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Premium Dog Food 5 lb');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws a parent-defect error for a brandless durable title against author-visible brand', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' })],
+        }),
+        makeContext({ runId: 'run-defect-1', preComputedTitle: 'Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains (no throw) for distributor-only brand against a brandless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Premium Dog Food 5 lb' }),
+          makeEvidence({
+            source: 'third_party_page',
+            sourceField: 'brand',
+            value: 'Acme',
+            metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+          }),
+        ],
+      }),
+      makeContext({ preComputedTitle: 'Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
     expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 
@@ -456,11 +502,17 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     asMock(consolidateProductTitle).mockRejectedValue(new Error('LLM error'));
 
     const evidence: ClassificationEvidence[] = [
-      // No spreadsheet, official, or OCR — only distributor titles
+      // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page',
         sourceField: 'name',
         value: 'Distributor Fallback Title',
+        metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
+      }),
+      makeEvidence({
+        source: 'third_party_page',
+        sourceField: 'brand',
+        value: 'Acme',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
       }),
     ];
@@ -472,6 +524,111 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     expect(result.status).toBe('succeeded');
     if (result.status !== 'succeeded') throw new Error('Expected success');
-    expect(result.output.metadata?.curatedTitle).toBe('Distributor Fallback Title');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Distributor Fallback Title');
+  });
+});
+
+// ─── Brand guarantee (issue #108) ───────────────────────────────────────────
+
+describe('nameConsolidationStage — brand guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('abstains missing_brand when no brand exists in any evidence', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Brandless Product',
+      source: 'llm',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Brandless Product' })],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+    // Fail-closed before synthesis: the LLM path is never consulted.
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains when the mocked consolidator reports brandUnverified', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Brandless Product',
+      source: 'llm',
+      brandUnverified: true,
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Brandless Product' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+  });
+
+  it('records brandApplied metadata on success', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget',
+      source: 'llm',
+      brandApplied: 'Acme',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+  });
+
+  it('falls back to the stage brandHint when the consolidator omits brandApplied', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget',
+      source: 'manual',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+  });
+
+  it('abstains missing_brand for a preComputedTitle with no brand evidence at all', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence: [] }),
+      makeContext({ preComputedTitle: 'Cohort Title', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 });
