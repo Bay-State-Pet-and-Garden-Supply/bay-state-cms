@@ -10,6 +10,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // zod v4 ships conditional exports whose CJS build breaks vite-node
+    // externalization (`import { z } from 'zod'` resolves to undefined at
+    // collect). Inlining forces the ESM build through the vite pipeline.
+    server: {
+      deps: {
+        inline: ['zod'],
+      },
+    },
     include: ['src/tests/**/*.test.ts', 'src/tests/**/*.test.tsx'],
     exclude: [
       'node_modules',
@@ -212,13 +220,17 @@ export default defineConfig({
       'src/tests/unit/cohort-freeze.test.ts',
       'src/tests/unit/cohort-worker.test.ts',
       'src/tests/unit/cohort-shadow-observations.test.ts',
+      // Slice 2 cohort-curation seam: bun:sqlite/bun:test, run under bun test (test:db); boundary is Vitest-only
+      'src/tests/unit/cohort-curation-interface.test.ts',
+      'src/tests/unit/cohort-curation-recovery.test.ts',
       'src/tests/unit/classification-cohort-run-repo.test.ts',
       'src/tests/unit/cohort-v6-migration.test.ts',
       // PR6 C1/C2/C4/C6 Bun-only suites (bun:test imports — vitest cannot collect them)
       'src/tests/unit/cohort-output-repo.test.ts',
       'src/tests/unit/cohort-title-hash.test.ts',
       'src/tests/unit/cohort-v7-migration.test.ts',
-      'src/tests/unit/cohort-title-coordinator.test.ts',
+      'src/tests/unit/cohort-curation-titles.test.ts',
+      'src/tests/unit/cohort-curation-pages.test.ts',
       'src/tests/unit/pr6-acceptance.test.ts',
       // PR4 C3 pure resolver (bun:test imports — vitest cannot collect it)
       'src/tests/unit/cohort-product-type-resolver.test.ts',
@@ -232,8 +244,6 @@ export default defineConfig({
       'src/tests/unit/effective-curation-stages.test.ts',
       // PR8 draft-projection stage suite (bun:test imports — vitest cannot collect it)
       'src/tests/unit/draft-projection.test.ts',
-      // PR8 synthesis-ordering guard suite (bun:test imports — vitest cannot collect it)
-      'src/tests/unit/synthesis-ordering-guard.test.ts',
       // PR8 acceptance (bun:test imports — vitest cannot collect it)
       'src/tests/unit/pr8-acceptance.test.ts',
       // PR10 acceptance (bun:test imports — vitest cannot collect it; runs
@@ -322,6 +332,46 @@ export default defineConfig({
       // Manual-evidence retry route suite (ticket #105 review P1-2) —
       // real Hono app + bun:sqlite; run under bun test via test:db.
       'src/tests/unit/manual-evidence-retry-route.test.ts',
+      // Slice 1 v2 stage-read suites — bun:test/bun:sqlite (one imports the
+      // route layer + real Hono app); run under bun test via test:db.
+      // The schema suite is pure (no DB) but its chain (./onboarding →
+      // ./classification) uses zod named imports, which vite-node cannot
+      // resolve (pre-existing toolchain breakage); it runs under Bun too.
+      'src/tests/unit/onboarding-stage-read-routes.test.ts',
+      'src/tests/unit/onboarding-stage-read-query-plan.test.ts',
+      'src/tests/unit/onboarding-stage-read-schema.test.ts',
+      // Slice 2 preparation-read suite — bun:test (imports client pure
+      // modules through the shared schema chain); run under bun test via
+      // test:db, excluded from Vitest per the §6.1 dual-runner gate.
+      'src/tests/unit/onboarding-preparation-read.test.ts',
+      // Slice 4-SERVER Bun suites (route + derivation) — dual-runner gate.
+      'src/tests/unit/onboarding-sse-versioning.test.ts',
+      'src/tests/unit/onboarding-preparation-derive.test.ts',
+      // Slice 5a stage-rename bridge/migration suites — bun:test/bun:sqlite;
+      // run under bun test via test:db (dual-runner gate §6.1).
+      'src/tests/unit/onboarding-stage-migration.test.ts',
+      'src/tests/unit/onboarding-stage-history-compat.test.ts',
+      'src/tests/unit/onboarding-stage-queued-continuation.test.ts',
+      'src/tests/unit/onboarding-stage-rollback-bridge.test.ts',
+      // Slice 5b native-cutover API compat suite — bun:test/bun:sqlite;
+      // run under bun test via test:db (dual-runner gate §6.1).
+      'src/tests/unit/onboarding-stage-api-compat.test.ts',
+      // Slice 5a maintenance-script regression suite — bun:test/bun:sqlite
+      // + spawns the offline maintenance script; run under bun test via
+      // test:db (dual-runner gate §6.1).
+      'src/tests/unit/onboarding-stage-vocabulary-script.test.ts',
+      // Type-first refresh suite (their workstream) — bun:test/bun:sqlite;
+      // run under bun test via test:db (dual-runner gate §6.1).
+      'src/tests/unit/type-dependent-refresh.test.ts',
+      // Type-first curation / accuracy guardrails suites — bun:test/bun:sqlite
+      'src/tests/unit/classification-currentness.test.ts',
+      'src/tests/unit/classification-refresh-repo.test.ts',
+      'src/tests/unit/product-type-verifier.test.ts',
+      'src/tests/unit/proposal-review-service-invalidation.test.ts',
+      'src/tests/unit/repair-system-auto-accept.test.ts',
+      'src/tests/unit/type-change-impact.test.ts',
+      'src/tests/unit/type-first-guardrails-fixes.test.ts',
+      'src/tests/unit/type-review-detail.test.ts',
     ],
   },
 });

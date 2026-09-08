@@ -1,0 +1,17 @@
+{
+  "comment": "Reviewed test-runner classifications (council plan 6.1). vitestSafe files collect under Vitest despite a textual bun mention (verified 2026-09-06; test outcomes owned by respective teams). transitiveBun files fail Vitest collection in the current worktree (verified 2026-09-06) and stay Bun-side until owning teams prove Vitest collection; Slice 0 leaves their registration untouched.",
+  "transitiveBun": {
+    "src/tests/unit/cohort-page-coordinator.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection",
+    "src/tests/unit/manual-evidence-foundation.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection"
+  },
+  "version": 1,
+  "vitestSafe": {
+    "src/tests/unit/domain-profile-state.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/e04s01-curation-determinism.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/e04s02-curation-provenance.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/manual-evidence-full-set.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/profile-test-matrix.test.ts": "guarded dynamic import(try/catch) only, no static bun import; collects under Vitest",
+    "src/tests/unit/profile-versioning.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/test-runner-coverage.test.ts": "guard self-test: bun mentions occur only inside string-literal fixtures, never as imports; must stay Vitest-collectible"
+  }
+}

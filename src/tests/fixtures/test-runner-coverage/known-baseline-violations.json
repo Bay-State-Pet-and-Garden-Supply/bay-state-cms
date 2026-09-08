@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "comment": "Documented-red baseline (Slice 0, verified 2026-09-06): pre-existing runner-registration drift in other in-flight workstreams. The guard reports these but exits nonzero ONLY on violations absent from this ledger. An entry may be removed ONLY when its file gains proper dual registration (explicit vitest.config.ts exclude where collectable + named bun test invocation in test:db); a ledger entry with no matching current violation fails as stale-ledger to force cleanup. Do NOT add new entries for new files \u2014 register new suites properly instead.",
+  "entries": [
+    {
+      "file": "src/tests/unit/catalog-evidence-freshness.test.ts",
+      "code": "missing-test-db",
+      "area": "catalog evidence workstream"
+    },
+    {
+      "file": "src/tests/unit/classification-cohort-run-repo.test.ts",
+      "code": "missing-test-db",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/classification-currentness.test.ts",
+      "code": "missing-test-db",
+      "area": "unattributed in-flight work"
+    },
+    {
+      "file": "src/tests/unit/classification-refresh-repo.test.ts",
+      "code": "missing-test-db",
+      "area": "unattributed in-flight work"
+    },
+    {
+      "file": "src/tests/unit/cohort-page-coordinator.test.ts",
+      "code": "missing-exclude",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/cohort-page-coordinator.test.ts",
+      "code": "missing-test-db",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/cohort-page-prompt.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/cohort-semantic-validator.test.ts",
+      "code": "missing-test-db",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/cohort-v6-migration.test.ts",
+      "code": "missing-test-db",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/curation-target-processor.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/curation-target-product-type-normalization.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/curation-target-ranker-behavior.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/draft-projection.test.ts",
+      "code": "missing-test-db",
+      "area": "cohort curation workstream"
+    },
+    {
+      "file": "src/tests/unit/effective-curation-stages.test.ts",
+      "code": "missing-test-db",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/effective-curation-type.test.ts",
+      "code": "missing-test-db",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/field-mapping-editor.test.ts",
+      "code": "missing-test-db",
+      "area": "taxonomy/mapping workstream"
+    },
+    {
+      "file": "src/tests/unit/field-registry-routes.test.ts",
+      "code": "missing-test-db",
+      "area": "taxonomy/mapping workstream"
+    },
+    {
+      "file": "src/tests/unit/manual-evidence-foundation.test.ts",
+      "code": "missing-exclude",
+      "area": "manual-evidence workstream (#102-#105)"
+    },
+    {
+      "file": "src/tests/unit/manual-evidence-foundation.test.ts",
+      "code": "missing-test-db",
+      "area": "manual-evidence workstream (#102-#105)"
+    },
+    {
+      "file": "src/tests/unit/mapping-validity-sync.test.ts",
+      "code": "missing-test-db",
+      "area": "taxonomy/mapping workstream"
+    },
+    {
+      "file": "src/tests/unit/onboarding-approval-export-ui.test.tsx",
+      "code": "missing-test-db",
+      "area": "onboarding approval/export workstream"
+    },
+    {
+      "file": "src/tests/unit/packaging-ocr-consumer-wiring.test.ts",
+      "code": "missing-test-db",
+      "area": "packaging-OCR workstream"
+    },
+    {
+      "file": "src/tests/unit/product-type-verifier.test.ts",
+      "code": "missing-test-db",
+      "area": "verification/repair workstream"
+    },
+    {
+      "file": "src/tests/unit/proposal-review-service-invalidation.test.ts",
+      "code": "missing-test-db",
+      "area": "verification/repair workstream"
+    },
+    {
+      "file": "src/tests/unit/repair-system-auto-accept.test.ts",
+      "code": "missing-test-db",
+      "area": "verification/repair workstream"
+    },
+    {
+      "file": "src/tests/unit/source-discovery-local-variant.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "sourcing workstream"
+    },
+    {
+      "file": "src/tests/unit/sync-service-labels.test.ts",
+      "code": "missing-test-db",
+      "area": "sync workstream"
+    },
+    {
+      "file": "src/tests/unit/type-change-impact.test.ts",
+      "code": "missing-test-db",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/type-first-guardrails-fixes.test.ts",
+      "code": "missing-test-db",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/type-review-detail.test.ts",
+      "code": "missing-test-db",
+      "area": "type-first curation workstream"
+    }
+  ]
+}

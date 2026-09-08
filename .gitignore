@@ -6,12 +6,13 @@ coverage/
 
 # ── OS / editor noise ─────────────────────────────────────────────────────────
 .DS_Store
+*.code-workspace
+.out-of-scope/
 
 # ── Local data & exports ──────────────────────────────────────────────────────
 .baystate-cms/
 exports/*.zip
 exports/*.xml
-workspaces/
 storage/
 
 # ── Secrets, tokens, environment & databases (security mandate) ───────────────
@@ -25,7 +26,6 @@ storage/
 *.db
 *.db-shm
 *.db-wal
-.recent-workspaces.json
 
 # ── Agent tooling artifacts & working docs ────────────────────────────────────
 .agents/
