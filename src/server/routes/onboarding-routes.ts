@@ -44,6 +44,12 @@ import {
   bulkAssignBrandToItems,
 } from '../../db/repositories/onboarding-item-repo';
 import { analyzeBatchPreflight } from '../../onboarding/preflight-service';
+import {
+  previewBatchFilenames,
+  recordFilenameDecision,
+  filenameGateReason,
+  type FilenamePreviewItem,
+} from '../../onboarding/filename-review';
 import { upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-repo';
 import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
 import { extractDomainAndPattern } from '../../onboarding/brand-hub/normalizeDomain';
@@ -1468,7 +1474,9 @@ route.post('/onboarding/items/review-complete', async (c) => {
     return c.json({ error: 'No active workspace loaded' }, 400);
   }
 
-  const { itemIds, reviewerId } = await c.req.json();
+  const { itemIds, reviewerId, filenameDecisions: rawDecisions } = (await c.req.json()) as {
+    itemIds?: unknown; reviewerId?: unknown; filenameDecisions?: unknown;
+  };
   if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
     return c.json({ error: 'itemIds array is required' }, 400);
   }
@@ -1477,12 +1485,31 @@ route.post('/onboarding/items/review-complete', async (c) => {
     return c.json({ error: 'itemIds must not contain duplicates' }, 400);
   }
 
+  // Issue #109: explicit per-item filename-warning decisions. Validated
+  // manually (this route predates the zod approve schema); anything else
+  // is a 400 with no mutation, matching the route's existing shape.
+  const filenameDecisions: Record<string, 'accept' | 'defer'> = {};
+  if (rawDecisions !== undefined) {
+    if (typeof rawDecisions !== 'object' || rawDecisions === null || Array.isArray(rawDecisions)) {
+      return c.json({ error: 'filenameDecisions must be an object mapping itemId to "accept" or "defer".' }, 400);
+    }
+    for (const [key, value] of Object.entries(rawDecisions)) {
+      if (value !== 'accept' && value !== 'defer') {
+        return c.json({ error: `filenameDecisions["${key}"] must be "accept" or "defer".` }, 400);
+      }
+      filenameDecisions[key] = value;
+    }
+  }
+
   const db = getDb();
   const failures: Array<{ itemId: string; reason: string; blockers?: string[] }> = [];
   const legacyIds: string[] = [];
   const classifiedIds: string[] = [];
+  const deferred: string[] = [];
   const batchIdByItemId = new Map<string, string>();
   const reviewedBy = typeof reviewerId === 'string' && reviewerId.trim() ? reviewerId.trim() : 'operator';
+  // Issue #109: filename preview resolved once per batch (not per item).
+  const filenamePreviewCache = new Map<string, Map<string, FilenamePreviewItem>>();
 
   // ── Phase 1: Validate every item ─────────────────────────────────────
   for (const id of itemIds) {
@@ -1505,6 +1532,36 @@ route.post('/onboarding/items/review-complete', async (c) => {
     if (item.stage !== 'review') {
       failures.push({ itemId: id, reason: `Item is in stage "${item.stage}", not "review"` });
       continue;
+    }
+
+    // Issue #109: filename-warning gate. Explicit decisions are recorded to
+    // Classification History first, deliberately: the decision is audit
+    // trail even when completion is rejected (400). This is safe because
+    // accepts are base-keyed and revalidated on every gate check — a stale
+    // accept can never silently approve later; retitles change the base and
+    // re-warn. Deferrals skip mutation via `deferred`.
+    let preview = filenamePreviewCache.get(item.batchId);
+    if (!preview) {
+      preview = new Map(
+        previewBatchFilenames(workspace.workspacePath, item.batchId, workspace.id).map(p => [p.itemId, p]),
+      );
+      filenamePreviewCache.set(item.batchId, preview);
+    }
+    const previewEntry = preview.get(id);
+    if (previewEntry && previewEntry.warnings.length > 0) {
+      const decision = filenameDecisions[id];
+      if (decision === 'accept' || decision === 'defer') {
+        recordFilenameDecision(workspace.id, item.upc, item.batchId, decision, previewEntry.baseFileName, reviewedBy);
+      }
+      if (decision === 'defer') {
+        deferred.push(id);
+        continue;
+      }
+      const filenameReason = filenameGateReason(previewEntry, workspace.id, item.batchId);
+      if (filenameReason) {
+        failures.push({ itemId: id, reason: filenameReason });
+        continue;
+      }
     }
 
     const runId = item.curationData?.classificationRunId;
@@ -1593,6 +1650,7 @@ route.post('/onboarding/items/review-complete', async (c) => {
     count: itemIds.length,
     legacyCount: legacyIds.length,
     classifiedCount: classifiedIds.length,
+    deferred,
   });
 });
 

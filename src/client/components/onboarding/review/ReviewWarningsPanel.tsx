@@ -5,10 +5,13 @@
  * summary, and source provenance. A blocked finding prevents Looks Good.
  */
 import type { ItemDetailResponse } from '../../../onboarding-api';
+import type { BatchFilenamePreviewItem } from '../../../onboarding-work-api';
 import { warningInfoFromDetail } from './review-logic';
 
 export interface ReviewWarningsPanelProps {
   detail: ItemDetailResponse | null;
+  /** Filename warnings for this draft from the batch preview (issue #109). */
+  filenameWarnings?: BatchFilenamePreviewItem['warnings'];
 }
 
 function evidenceSummary(detail: ItemDetailResponse | null): string[] {
@@ -36,9 +39,10 @@ function evidenceSummary(detail: ItemDetailResponse | null): string[] {
   return lines;
 }
 
-export function ReviewWarningsPanel({ detail }: ReviewWarningsPanelProps) {
+export function ReviewWarningsPanel({ detail, filenameWarnings }: ReviewWarningsPanelProps) {
   const info = warningInfoFromDetail(detail ?? {});
   const evidence = evidenceSummary(detail);
+  const filenameItems = (filenameWarnings ?? []).filter(w => typeof w?.message === 'string' && w.message.length > 0);
 
   return (
     <section className="rv-panel" aria-label="Warnings and provenance">
@@ -61,6 +65,20 @@ export function ReviewWarningsPanel({ detail }: ReviewWarningsPanelProps) {
           </ul>
         ) : (
           <div className="rv-warn-ok">✓ No blocking warnings</div>
+        )}
+
+        {filenameItems.length > 0 && (
+          <div className="rv-blocked">
+            <div className="rv-blocked-title">More-info file name needs a decision</div>
+            <ul className="rv-warn-list">
+              {filenameItems.map((warning, idx) => (
+                <li key={idx}>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{warning.fileName}</span>
+                  {' — '}{warning.message}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <div className="rv-field" style={{ marginTop: '0.875rem' }}>

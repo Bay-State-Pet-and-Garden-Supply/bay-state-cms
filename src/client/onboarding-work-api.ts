@@ -154,14 +154,44 @@ function generateIdempotencyKey(): string {
 export async function approveItems(
   batchId: string,
   itemIds: string[],
-  opts?: { idempotencyKey?: string },
+  opts?: { idempotencyKey?: string; filenameDecisions?: Record<string, 'accept' | 'defer'> },
 ): Promise<ApproveItemsResponse & { receiptId?: string; principal?: string }> {
   const key = opts?.idempotencyKey ?? generateIdempotencyKey();
   return request<ApproveItemsResponse & { receiptId?: string; principal?: string }>(`/batches/${batchId}/approve`, {
     method: 'POST',
     headers: { 'Idempotency-Key': key },
-    body: JSON.stringify({ itemIds }),
+    body: JSON.stringify(
+      opts?.filenameDecisions ? { itemIds, filenameDecisions: opts.filenameDecisions } : { itemIds },
+    ),
   });
+}
+
+/**
+ * Batch filename preview for the Review drawer (issue #109). Deterministic
+ * for a fixed batch state — fetch once per batch review load and cache.
+ */
+export interface BatchFilenamePreviewItem {
+  itemId: string;
+  upc: string;
+  title: string;
+  fileName: string;
+  baseFileName: string;
+  acceptedFileName: string | null;
+  warnings: Array<{
+    code: string;
+    message: string;
+    fileName: string;
+    conflictingUpcs: string[];
+    conflictingTitles: string[];
+    catalogSku?: string | null;
+    catalogTitle?: string | null;
+  }>;
+}
+
+export async function getBatchFilenamePreview(
+  batchId: string,
+): Promise<{ batchId: string; items: BatchFilenamePreviewItem[] }> {
+  return request<{ batchId: string; items: BatchFilenamePreviewItem[] }>(`/batches/${batchId}/filename-preview`);
 }
 
 export interface CreateExportDraftsResponse {
@@ -175,7 +205,6 @@ export interface CreateExportDraftsResponse {
   receiptId: string;
   principal: string;
 }
-
 /**
  * Create export drafts (change set) for approved items. Separate operation
  * from approval with its own idempotency lifecycle (catalog_exporter).

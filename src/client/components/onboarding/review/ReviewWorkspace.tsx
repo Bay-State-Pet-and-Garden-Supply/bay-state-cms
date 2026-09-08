@@ -64,6 +64,8 @@ import {
 } from './review-readiness';
 import { useReviewQueue } from './use-review-queue';
 import { useReviewDetailCache } from './use-review-detail-cache';
+import { useFilenamePreview, warnedPreviewIds } from './use-filename-preview';
+import type { BatchFilenamePreviewItem } from '../../../onboarding-work-api';
 import { ReviewQueue } from './ReviewQueue';
 import { ReviewIdentityPanel } from './ReviewIdentityPanel';
 import { ReviewPagesPanel } from './ReviewPagesPanel';
@@ -152,6 +154,17 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     () => applyQueueFilters(sortedAll, filters, { editedIds, warnedIds }),
     [sortedAll, filters, editedIds, warnedIds],
   );
+
+  // ── Filename preview (issue #109): computed names + collision warnings ─
+  // Fetched once per batch; refreshed on explicit mutation events only.
+  const filenamePreview = useFilenamePreview(batchId);
+  // Stable refresh handle: the hook return object reshapes every render.
+  const refreshFilenamePreview = filenamePreview.refresh;
+
+  // Warned queue ids follow the preview (drives the ⚠ badge + warnings filter).
+  useEffect(() => {
+    setWarnedIds(warnedPreviewIds(filenamePreview.byId));
+  }, [filenamePreview.byId]);
 
   // ── Bounded LRU Detail Cache with Active + Adjacent Prefetch (P1-C) ─────
   const {
@@ -249,8 +262,22 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
   const reviewableSelected = reviewableSelectedIds.length;
 
+  // Issue #109: bulk review can never silently sweep filename-warned items
+  // (bulk carries no per-item decisions) — resolve them individually first.
+  const bulkFilenameWarnedIds = useMemo(
+    () => reviewableSelectedIds.filter(id => warnedIds.has(id)),
+    [reviewableSelectedIds, warnedIds],
+  );
+
   const handleBulkReview = useCallback(async () => {
     if (reviewableSelectedIds.length === 0 || bulkBusy) return;
+    if (bulkFilenameWarnedIds.length > 0) {
+      setBulkError(
+        `${bulkFilenameWarnedIds.length} selected product${bulkFilenameWarnedIds.length === 1 ? ' has' : 's have'} a file-name warning — accept or defer each one individually before bulk review.`,
+      );
+      setBulkConfirmOpen(false);
+      return;
+    }
     setBulkBusy(true);
     setBulkError(null);
     setBulkNotice(null);
@@ -270,7 +297,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
       setBulkBusy(false);
       setBulkConfirmOpen(false);
     }
-  }, [reviewableSelectedIds, bulkBusy, loadQueue]);
+  }, [reviewableSelectedIds, bulkBusy, bulkFilenameWarnedIds, loadQueue]);
 
   const totalCount = counts ? counts.total : rows.length;
   const reviewedCount = counts
@@ -285,6 +312,17 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     () => (currentItemId ? rows.find(i => i.itemId === currentItemId) ?? null : null),
     [rows, currentItemId],
   );
+
+  // ── Filename preview for the inspected item (issue #109) ──────────────
+  const currentPreview: BatchFilenamePreviewItem | null = useMemo(
+    () => (currentItemId ? filenamePreview.byId.get(currentItemId) ?? null : null),
+    [filenamePreview.byId, currentItemId],
+  );
+  const currentFilenameWarnings = currentPreview?.warnings ?? [];
+  const currentHasCatalogCollision = currentFilenameWarnings.some(
+    w => w.code === 'filename_collision_catalog',
+  );
+  const currentIsFilenameWarned = currentFilenameWarnings.length > 0;
 
   const currentInspector: ReviewInspectorItem | null = useMemo(() => {
     if (!currentWorkState) return null;
@@ -313,13 +351,16 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
 
   // ── Actions ──────────────────────────────────────────────────────────────
-  const approveCurrentItem = useCallback(async () => {
+  const approveCurrentItem = useCallback(async (filenameDecision?: 'accept' | 'defer') => {
     if (!currentWorkState) return;
     const id = currentWorkState.itemId;
     setBusyItemIds(prev => new Set(prev).add(id));
     setActionError(null);
     try {
-      await completeReviewStage([id]);
+      await completeReviewStage(
+        [id],
+        filenameDecision ? { filenameDecisions: { [id]: filenameDecision } } : undefined,
+      );
       setRejectedBlockers(null);
       doneIds.current.add(id);
       optimisticUpdateRow(id, { reviewState: 'reviewed' });
@@ -333,6 +374,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         setCurrentItemId(null);
       }
       void loadQueue({ silent: true });
+      refreshFilenamePreview();
     } catch (err) {
       const codes = v2 ? parseBlockersFromRejection(err, id) : [];
       if (codes.length > 0) {
@@ -348,7 +390,42 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         return next;
       });
     }
-  }, [currentWorkState, rows, optimisticUpdateRow, loadQueue, v2]);
+  }, [currentWorkState, rows, optimisticUpdateRow, loadQueue, v2, refreshFilenamePreview]);
+
+  // ── Filename-warning decisions (issue #109) ────────────────────────────
+  // Warned items can never ride plain Looks-Good: Accept records the
+  // decision and approves; Defer records it and moves on unreviewed.
+  const handleAcceptFilename = useCallback(async () => {
+    if (!currentWorkState || !currentIsFilenameWarned || currentHasCatalogCollision) return;
+    await approveCurrentItem('accept');
+  }, [currentWorkState, currentIsFilenameWarned, currentHasCatalogCollision, approveCurrentItem]);
+
+  const handleDeferFilename = useCallback(async () => {
+    if (!currentWorkState || !currentIsFilenameWarned) return;
+    const id = currentWorkState.itemId;
+    setBusyItemIds(prev => new Set(prev).add(id));
+    setActionError(null);
+    try {
+      await completeReviewStage([id], { filenameDecisions: { [id]: 'defer' } });
+      setRejectedBlockers(null);
+      const next = findNextReviewTarget(sortForReview(rows), id, doneIds.current);
+      if (next) {
+        setCurrentItemId(next.itemId);
+      } else {
+        setCurrentItemId(null);
+      }
+      void loadQueue({ silent: true });
+      refreshFilenamePreview();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to defer item');
+    } finally {
+      setBusyItemIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [currentWorkState, currentIsFilenameWarned, rows, loadQueue, refreshFilenamePreview]);
 
   const beginEdit = useCallback(() => {
     if (!currentInspector) return;
@@ -428,6 +505,12 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
 
   const handleLooksGood = useCallback(async () => {
     if (!currentInspector) return;
+    // Issue #109: a filename-warned item can never ride plain Looks-Good
+    // (keyboard shortcut included) — Accept or Defer explicitly.
+    if (currentIsFilenameWarned) {
+      setActionError('Filename warning needs an explicit decision — accept the suffixed name or defer this product.');
+      return;
+    }
     const id = currentInspector.workState.itemId;
     const baseline = baselineRef.current.get(id);
     const current = effectiveGateValues(currentInspector.detail, currentInspector.workState);
@@ -439,7 +522,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     } else {
       await approveCurrentItem();
     }
-  }, [currentInspector, approveCurrentItem, v2, editedIds, readiness]);
+  }, [currentInspector, approveCurrentItem, v2, editedIds, readiness, currentIsFilenameWarned]);
 
   const moveTo = useCallback(
     (dir: 'next' | 'previous') => {
@@ -475,6 +558,8 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
       draftSeedRef.current = null;
       invalidateItem(id);
       void loadQueue({ silent: true });
+      // Retitles change filename bases — recompute the preview.
+      refreshFilenamePreview();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -745,17 +830,21 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                disabled={bulkBusy || reviewableSelected === 0 || selectedBlockedCount > 0}
+                disabled={bulkBusy || reviewableSelected === 0 || selectedBlockedCount > 0 || bulkFilenameWarnedIds.length > 0}
                 title={
-                  selectedBlockedCount > 0
-                    ? `${selectedBlockedCount} of ${reviewableSelected} selected products are missing mandatory fields — fix or deselect them first`
-                    : 'Open the confirmation for the selected products'
+                  bulkFilenameWarnedIds.length > 0
+                    ? `${bulkFilenameWarnedIds.length} selected product${bulkFilenameWarnedIds.length === 1 ? ' has' : 's have'} a file-name warning — accept or defer each one individually first`
+                    : selectedBlockedCount > 0
+                      ? `${selectedBlockedCount} of ${reviewableSelected} selected products are missing mandatory fields — fix or deselect them first`
+                      : 'Open the confirmation for the selected products'
                 }
                 onClick={() => setBulkConfirmOpen(true)}
               >
-                {selectedBlockedCount > 0
-                  ? `Mark reviewed (${reviewableSelected} · ${selectedBlockedCount} blocked)`
-                  : `Mark reviewed (${reviewableSelected})`}
+                {bulkFilenameWarnedIds.length > 0
+                  ? `Mark reviewed (${reviewableSelected} · ${bulkFilenameWarnedIds.length} filename-warned)`
+                  : selectedBlockedCount > 0
+                    ? `Mark reviewed (${reviewableSelected} · ${selectedBlockedCount} blocked)`
+                    : `Mark reviewed (${reviewableSelected})`}
               </button>
             </div>
           )}
@@ -845,7 +934,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                   Detail could not be loaded: {currentInspector.detailError}
                 </div>
               )}
-              <ReviewIdentityPanel workState={currentInspector.workState} detail={currentInspector.detail} />
+              <ReviewIdentityPanel workState={currentInspector.workState} detail={currentInspector.detail} fileName={currentPreview?.fileName ?? null} />
               <ReviewListingPanel
                 workState={currentInspector.workState}
                 detail={currentInspector.detail}
@@ -876,7 +965,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 onDecision={handleDecision}
                 busyDecisionId={busyDecisionId}
               />
-              <ReviewWarningsPanel detail={currentInspector.detail} />
+              <ReviewWarningsPanel detail={currentInspector.detail} filenameWarnings={currentFilenameWarnings} />
               {v2 && (
                 <ReviewReadinessPanel
                   detail={currentInspector.detail}
@@ -893,6 +982,10 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 allReviewed={allReviewed}
                 shortcutKey="G"
                 blockers={v2 ? mergedReadiness?.blockers : undefined}
+                filenameWarned={currentIsFilenameWarned}
+                filenameAcceptable={currentIsFilenameWarned && !currentHasCatalogCollision}
+                onAcceptFilename={() => void handleAcceptFilename()}
+                onDeferFilename={() => void handleDeferFilename()}
                 onLooksGood={() => void handleLooksGood()}
                 onPrevious={() => moveTo('previous')}
                 onNext={() => moveTo('next')}

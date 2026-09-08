@@ -556,6 +556,34 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
  * The optional reader parameter exists for tests; production passes the
  * workspace product-file reader.
  */
+/**
+ * Resolve the base (pre-uniquify) file name promotion will use for an item.
+ *
+ * Single source of truth shared by `assignPromotionFileNames` (persist) and
+ * the Review filename preview (issue #109): an existing workspace product
+ * keeps its effective name; otherwise the persisted per-source-URL slug
+ * wins, else the slugged title (SKU-guarded for punctuation-only names).
+ *
+ * Returns whether the name is kept from live state (`kept: true` — never
+ * renamed, seeds the taken set) or newly derived (`kept: false`).
+ */
+export function resolvePromotionBaseName(
+  item: OnboardingItem,
+  existing: ReturnType<typeof readProductFile>,
+): { name: string; kept: boolean } {
+  const keptName = normalizeFileName(existing?.customFields?.['FileName'])
+    ?? normalizeFileName(existing?.shopsite?.preserved?.unknownElements?.['FileName'])
+    ?? normalizeFileName(existing?.core?.seo?.fileName);
+  if (keptName) return { name: keptName, kept: true };
+  const finalTitle = item.curationData?.curatedTitle || item.extractionData?.title || item.name;
+  // Mirror the central SKU guard in resolveBaseFileName: punctuation-only
+  // titles slug to a bare extension, which must never enter uniquification.
+  const titleSlug = slugifyFileName(finalTitle || item.upc);
+  const base = normalizeFileName(item.extractionData?.seoFileName)
+    ?? (titleSlug !== FILE_NAME_EXTENSION ? titleSlug : slugifyFileName(item.upc));
+  return { name: base, kept: false };
+}
+
 export function assignPromotionFileNames(
   items: OnboardingItem[],
   workspacePath: string,
@@ -566,25 +594,17 @@ export function assignPromotionFileNames(
   const kept = new Map<string, string>();
   for (const item of items) {
     const existing = readExisting(workspacePath, item.upc);
-    const keptName = normalizeFileName(existing?.customFields?.['FileName'])
-      ?? normalizeFileName(existing?.shopsite?.preserved?.unknownElements?.['FileName'])
-      ?? normalizeFileName(existing?.core?.seo?.fileName);
-    if (keptName) {
-      kept.set(item.id, keptName);
-      taken.push(keptName);
+    const base = resolvePromotionBaseName(item, existing);
+    if (base.kept) {
+      kept.set(item.id, base.name);
+      taken.push(base.name);
       continue;
     }
-    const finalTitle = item.curationData?.curatedTitle || item.extractionData?.title || item.name;
-    // Mirror the central SKU guard in resolveBaseFileName: punctuation-only
-    // titles slug to a bare extension, which must never enter uniquification.
-    const titleSlug = slugifyFileName(finalTitle || item.upc);
-    const base = normalizeFileName(item.extractionData?.seoFileName)
-      ?? (titleSlug !== FILE_NAME_EXTENSION ? titleSlug : slugifyFileName(item.upc));
     // Disambiguated keys (positional pattern, as in batch XML export):
     // keys sort UPC-major, preserving ascending-UPC determinism, while the
     // id suffix keeps duplicate UPCs distinct through uniquification AND
     // the result map (keyed by item id, so lookups never collapse).
-    candidates.push({ key: `${item.upc}#${item.id ?? candidates.length}`, id: item.id, fileName: base });
+    candidates.push({ key: `${item.upc}#${item.id ?? candidates.length}`, id: item.id, fileName: base.name });
   }
   const disambiguated = uniquifyFileNames(
     candidates.map(c => ({ key: c.key, fileName: c.fileName })),

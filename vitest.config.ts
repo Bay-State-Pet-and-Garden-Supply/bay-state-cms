@@ -45,6 +45,7 @@ export default defineConfig({
       'src/tests/unit/durable-approval-promote.test.ts',
       'src/tests/unit/draft-promoter.test.ts',
       'src/tests/unit/naming-promotion-filenames.test.ts',
+      'src/tests/unit/filename-review.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',
