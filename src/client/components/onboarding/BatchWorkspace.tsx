@@ -475,15 +475,9 @@ function activeStageLabel(stage: LinearStageId): string {
   }
 }
 
-/**
- * Step 0 retired (#115): the standalone Brand setup view is absorbed into
- * Stage 1 ("Identify & Route Sources"). Retained as a no-op anchor so
- * legacy flag readers keep compiling; the shell no longer gates any brand
- * view on these flags.
-function isBrandSetupAvailable(): boolean {
-  const flags = getOnboardingFeatureFlags();
-  return flags.shellV2Enabled && flags.brandGateV2Enabled;
-}
+// Step 0 retired (#115): the standalone Brand setup view is absorbed into
+// Stage 1 ("Identify & Route Sources"). The former isBrandSetupAvailable
+// anchor is removed; the shell no longer gates any brand view on flags.
 
 /**
  * Slice 4: the ephemeral execution strip mounts only when the shell flag

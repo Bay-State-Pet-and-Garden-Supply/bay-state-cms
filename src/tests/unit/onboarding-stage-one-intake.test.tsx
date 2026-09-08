@@ -238,6 +238,10 @@ describe('Stage 1 intake surface (#116–#119)', () => {
       await new Promise((r) => setTimeout(r, 30));
     });
     expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
+    // Post-save refresh: the drawer input clears and intake references
+    // (blockers) are re-read from the server.
+    expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect((container.querySelector('[data-testid="unmapped-brand-input-Beta"]') as HTMLInputElement)?.value ?? '').toBe('');
   });
 
   it('#117 failed drawer saves keep the input and show an error', async () => {
@@ -309,6 +313,25 @@ describe('Stage 1 intake surface (#116–#119)', () => {
       (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
     });
     expect(container.querySelector('[data-testid="stage-bulk-count"]')?.textContent).toMatch(/4 selected/);
+    // Clear, filter to Missing Brand, then select-all covers only the
+    // visible (filtered) row.
+    await act(async () => {
+      (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="intake-kpi-missing-brand"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
+    });
+    expect(container.querySelector('[data-testid="stage-bulk-count"]')?.textContent).toMatch(/1 selected/);
+    expect(container.querySelector('[data-testid="stage-select-item_1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
+    // Clearing the filter restores all rows.
+    await act(async () => {
+      (container.querySelector('[data-testid="intake-kpi-missing-brand"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="stage-select-item_2"]')).not.toBeNull();
   });
 
   it('#119 rows show brand, domain/profile, and source-route states', async () => {

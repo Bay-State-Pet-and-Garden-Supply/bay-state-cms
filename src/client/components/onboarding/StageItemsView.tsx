@@ -99,13 +99,13 @@ export interface IntakeRowFlags {
 
 /**
  * Derive one row's intake state from server-owned values only: the row's
- * recorded brand/sourceType plus the Brand Hub brand→domain map (authority)
- * and the batch's parked-brand blocker set (fallback while the map loads).
+ * recorded brand/sourceType plus the Brand Hub brand→domain map (authority).
+ * Fail-closed while the map loads: branded rows read as missing-domain
+ * until the server map arrives (the KPI strip shows a loading notice).
  */
 export function deriveIntakeFlags(
   item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
   domainMap: ReadonlyMap<string, string>,
-  parkedBrands?: ReadonlySet<string>,
 ): IntakeRowFlags {
   const brand = item.brand?.trim() ? item.brand.trim() : null;
   const distributorExempt = item.sourceType === 'distributor_record' && !item.domain;
@@ -114,10 +114,6 @@ export function deriveIntakeFlags(
   }
   const key = brandKeyOf(brand);
   const mappedDomain = domainMap.get(key) ?? null;
-  // While the Brand Hub map is still loading, callers pass the batch
-  // parked-brand set so missing-domain counts stay honest; the map itself
-  // remains authoritative once loaded (see effectiveParked below).
-  void parkedBrands;
   const missingDomain = !distributorExempt && mappedDomain === null;
   return {
     missingBrand: false,
@@ -149,11 +145,10 @@ export interface IntakeKpiCounts {
 export function countIntakeKpis(
   items: ReadonlyArray<Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>>,
   domainMap: ReadonlyMap<string, string>,
-  parkedBrands?: ReadonlySet<string>,
 ): IntakeKpiCounts {
   const counts: IntakeKpiCounts = { all: items.length, missingBrand: 0, missingDomain: 0, distributor: 0, ready: 0 };
   for (const item of items) {
-    const flags = deriveIntakeFlags(item, domainMap, parkedBrands);
+    const flags = deriveIntakeFlags(item, domainMap);
     if (flags.missingBrand) counts.missingBrand += 1;
     if (flags.missingDomain) counts.missingDomain += 1;
     if (flags.distributorExempt) counts.distributor += 1;
@@ -167,10 +162,9 @@ export function matchesIntakeFilter(
   item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
   filter: IntakeKpiFilter,
   domainMap: ReadonlyMap<string, string>,
-  parkedBrands?: ReadonlySet<string>,
 ): boolean {
   if (filter === 'all') return true;
-  const flags = deriveIntakeFlags(item, domainMap, parkedBrands);
+  const flags = deriveIntakeFlags(item, domainMap);
   switch (filter) {
     case 'missing-brand': return flags.missingBrand;
     case 'missing-domain': return flags.missingDomain;
@@ -389,6 +383,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setBulkDomain('');
       setRowDomainOpen({});
       setRowDomainErrors({});
+      setRowDomainInputs({});
       await load(null, facetRef.current, queryRef.current);
       await loadIntakeRefs();
     } finally {
@@ -442,30 +437,19 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     [drafts, refreshEpoch, updateDraft],
   );
 
-  // Parked-brand fallback set while brand_sites loads: batch blocker brands
-  // (lowercased) count as unmapped-known, so KPI/table stay honest before
-  // the map arrives. Once loaded, the Brand Hub map is authoritative.
-  const parkedBrands = useMemo(() => {
-    const set = new Set<string>();
-    for (const b of blockers) {
-      if (b.brand?.trim()) set.add(brandKeyOf(b.brand));
-    }
-    return set;
-  }, [blockers]);
-
-  const effectiveDomainMap = brandDomainMap;
-  const effectiveParked = brandSitesLoaded ? undefined : parkedBrands;
-
+  // Brand Hub map is the single authority for KPI/table derivations. While
+  // it loads, derivations are fail-closed (branded rows read as
+  // missing-domain) and the KPI strip shows a loading notice.
   const kpiCounts = useMemo(
-    () => (stage === 'route_sources' ? countIntakeKpis(items, effectiveDomainMap, effectiveParked) : null),
-    [stage, items, effectiveDomainMap, effectiveParked],
+    () => (stage === 'route_sources' ? countIntakeKpis(items, brandDomainMap) : null),
+    [stage, items, brandDomainMap],
   );
 
   const visibleItems = useMemo(
     () => (stage === 'route_sources' && kpiFilter !== 'all'
-      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, effectiveDomainMap, effectiveParked))
+      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, brandDomainMap))
       : items),
-    [stage, items, kpiFilter, effectiveDomainMap, effectiveParked],
+    [stage, items, kpiFilter, brandDomainMap],
   );
 
   const toggleSelect = useCallback((itemId: string) => {
@@ -498,10 +482,10 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     const trimmed = bulkBrand.trim();
     if (!trimmed) return null;
     const canonical = resolveCanonicalBrand(trimmed, brandOptionsRef.current);
-    const domain = effectiveDomainMap.get(brandKeyOf(canonical)) ?? null;
+    const domain = brandDomainMap.get(brandKeyOf(canonical)) ?? null;
     if (!domain) return { canonical, domain: null as string | null, profileReady: false };
     return { canonical, domain, profileReady: profileDomains.has(domainKeyOf(domain)) };
-  }, [bulkBrand, effectiveDomainMap, profileDomains]);
+  }, [bulkBrand, brandDomainMap, profileDomains]);
 
   // Bulk path: the EXISTING assignBrandGroup(batchId, itemIds, brand)
   // client, then — when the operator supplied a quick-add domain — the
@@ -512,7 +496,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     const ids = Object.keys(selected);
     const canonical = resolveCanonicalBrand(overrideValue ?? bulkBrand, brandOptionsRef.current);
     if (!canonical || ids.length === 0 || bulkSaving) return;
-    const domainToAdd = !effectiveDomainMap.has(brandKeyOf(canonical)) ? bulkDomain.trim() : '';
+    const domainToAdd = !brandDomainMap.has(brandKeyOf(canonical)) ? bulkDomain.trim() : '';
     setBulkSaving(true);
     setBulkError(null);
     try {
@@ -529,7 +513,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     } finally {
       setBulkSaving(false);
     }
-  }, [selected, bulkBrand, bulkDomain, bulkSaving, batchId, refreshEpoch, effectiveDomainMap]);
+  }, [selected, bulkBrand, bulkDomain, bulkSaving, batchId, refreshEpoch, brandDomainMap]);
 
   // Resolution drawer save (#117): persist one unmapped brand's domain to
   // Brand Hub, drop the resolved row, and refresh the stage view. Failures
@@ -978,7 +962,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
               const draft = drafts[item.itemId];
               const brandValue = draft?.brand ?? item.brand ?? '';
               const saving = draft?.saving ?? false;
-              const flags = deriveIntakeFlags(item, effectiveDomainMap, effectiveParked);
+              const flags = deriveIntakeFlags(item, brandDomainMap);
               const route = intakeSourceRoute(flags);
               const profileReady = flags.mappedDomain ? profileDomains.has(domainKeyOf(flags.mappedDomain)) : false;
               const rowDomainErr = rowDomainErrors[item.itemId] ?? null;
