@@ -345,6 +345,7 @@ function scoreTypeMatch(evidence: ClassificationEvidence[], options: ResolvedTar
     attributeId: null,
     sourceField: null,
     selectionMode: 'single',
+    includeProductTypeContext: true,
   });
   const text = packet.promptText;
   if (options.length === 0 || !text || text.length < 3) {

@@ -185,6 +185,22 @@ describe('coercePackagingOcrData', () => {
     expect(result!.visibleTextLines).toEqual([]);
     expect(result!.confidenceByField).toEqual({});
     expect(result!.metadata).toBeNull();
+    expect(result!.packagingType).toBeNull();
+    expect(result!.npkRatio).toBeNull();
+    expect(result!.guaranteedAnalysis).toEqual({});
+  });
+
+  it('coerces packagingType, npkRatio, and guaranteedAnalysis', () => {
+    const result = coercePackagingOcrData({
+      productName: 'Lawn Fertilizer 20-5-10',
+      packagingType: 'Bag',
+      npkRatio: '20-5-10',
+      guaranteedAnalysis: { crudeProtein: '28%', crudeFat: '15%' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.packagingType).toBe('Bag');
+    expect(result!.npkRatio).toBe('20-5-10');
+    expect(result!.guaranteedAnalysis).toEqual({ crudeProtein: '28%', crudeFat: '15%' });
   });
 
   it('converts numeric/boolean values to strings', () => {
@@ -282,6 +298,9 @@ describe('mergeOcrResults', () => {
       lifeStage: null,
       breedSize: null,
       productForm: null,
+      packagingType: null,
+      npkRatio: null,
+      guaranteedAnalysis: {},
       healthConcernFunction: [],
       dietaryLabels: [],
       ingredients: [],
@@ -315,6 +334,9 @@ describe('mergeOcrResults', () => {
       lifeStage: null,
       breedSize: null,
       productForm: null,
+      packagingType: null,
+      npkRatio: null,
+      guaranteedAnalysis: {},
       healthConcernFunction: [],
       dietaryLabels: [],
       ingredients: [],

@@ -241,6 +241,10 @@ export const nameConsolidationStage: StageDefinition = {
     // it only participates as one more input to the shared consolidator.
     const manualTitle = evidenceValue(input.evidence, 'name', 'operator_manual');
     const ocrTitle = evidenceValue(input.evidence, 'name', 'visual_product_evidence');
+    const ocrFlavor = evidenceValue(input.evidence, 'flavor', 'visual_product_evidence');
+    const ocrProductForm = evidenceValue(input.evidence, 'productForm', 'visual_product_evidence')
+      ?? evidenceValue(input.evidence, 'food-form', 'visual_product_evidence');
+    const ocrSpecies = evidenceValue(input.evidence, 'species', 'visual_product_evidence');
     const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
     const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
     const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
@@ -285,6 +289,9 @@ export const nameConsolidationStage: StageDefinition = {
           webTitle: webTitle ?? undefined,
           manualTitle: manualTitle ?? undefined,
           ocrTitle: ocrTitle ?? undefined,
+          ocrFlavor: ocrFlavor ?? undefined,
+          ocrProductForm: ocrProductForm ?? undefined,
+          ocrSpecies: ocrSpecies ?? undefined,
           ocrWeight: ocrWeight ?? undefined,
           ocrSize: ocrSize ?? undefined,
           ocrCount: ocrCount ?? undefined,

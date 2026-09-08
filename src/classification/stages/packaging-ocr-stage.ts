@@ -73,6 +73,7 @@ import {
 const OCR_CONTENT_SCALAR_FIELDS = [
   'productName', 'brand', 'upc', 'size', 'weight', 'count',
   'flavorVariety', 'color', 'material', 'lifeStage', 'breedSize', 'productForm',
+  'packagingType', 'npkRatio',
 ] as const;
 
 /** Array OCR fields whose non-empty presence counts as usable content. */
@@ -123,6 +124,7 @@ function computeStageOcrInputHash(params: {
 const SCALAR_OCR_FIELDS = [
   'productName', 'brand', 'upc', 'flavorVariety', 'color', 'material',
   'size', 'weight', 'count', 'lifeStage', 'breedSize', 'productForm',
+  'packagingType', 'npkRatio',
 ] as const;
 
 const AGREEMENT_VALUE_CAP = 200;

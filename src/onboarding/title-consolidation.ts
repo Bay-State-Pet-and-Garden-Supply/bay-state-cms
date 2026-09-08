@@ -36,6 +36,12 @@ export interface TitleSignals {
    * exists; also fed to the LLM prompt as an operator-verified signal.
    */
   manualTitle?: string | null;
+  /** Flavor/Variety extracted from VLM packaging OCR (e.g. "Chicken & Rice") */
+  ocrFlavor?: string | null;
+  /** Product form extracted from VLM packaging OCR (e.g. "Dry Kibble", "Pate") */
+  ocrProductForm?: string | null;
+  /** Target species extracted from VLM packaging OCR (e.g. "Dog", "Cat") */
+  ocrSpecies?: string | null;
   /** Weight extracted from VLM packaging OCR (e.g. "2 oz / 56.7 g") */
   ocrWeight?: string | null;
   /** Size extracted from VLM packaging OCR (e.g. "2 oz") */
@@ -153,6 +159,9 @@ export async function consolidateProductTitle(
       webTitle: signals.webTitle,
       ocrTitle: signals.ocrTitle,
       manualTitle: signals.manualTitle ?? null,
+      ocrFlavor: signals.ocrFlavor,
+      ocrProductForm: signals.ocrProductForm,
+      ocrSpecies: signals.ocrSpecies,
       ocrWeight: signals.ocrWeight,
       ocrSize: signals.ocrSize,
       ocrCount: signals.ocrCount,

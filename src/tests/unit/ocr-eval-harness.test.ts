@@ -256,4 +256,32 @@ describe('evaluateCandidatesAgainstGolden', () => {
     expect(transport.calls).toHaveLength(1);
     expect(result.reports[0]!.parseSuccessRate).toBe(0);
   });
+
+  it('loads packaging-ocr-baystate-golden.json and validates all entries and fields', async () => {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const goldenPath = path.resolve(__dirname, '../../onboarding/ocr-eval/datasets/packaging-ocr-baystate-golden.json');
+    const raw = await fs.readFile(goldenPath, 'utf8');
+    const dataset = loadGoldenDatasetFromJson(raw);
+    expect(dataset.name).toBe('packaging-ocr-baystate-golden');
+    expect(dataset.entries.length).toBeGreaterThanOrEqual(8);
+    expect(dataset.digest).toBeDefined();
+
+    // Verify presence of representative departments
+    const hasDog = dataset.entries.some(e => e.expected.species?.includes('dog'));
+    const hasCat = dataset.entries.some(e => e.expected.species?.includes('cat'));
+    const hasHorse = dataset.entries.some(e => e.expected.species?.includes('horse'));
+    const hasPoultry = dataset.entries.some(e => e.expected.species?.includes('poultry'));
+    const hasBird = dataset.entries.some(e => e.expected.species?.includes('bird'));
+    const hasLawn = dataset.entries.some(e => e.expected.npkRatio === '29-0-3');
+    const hasPackagingType = dataset.entries.some(e => e.expected.packagingType === 'Bag');
+
+    expect(hasDog).toBe(true);
+    expect(hasCat).toBe(true);
+    expect(hasHorse).toBe(true);
+    expect(hasPoultry).toBe(true);
+    expect(hasBird).toBe(true);
+    expect(hasLawn).toBe(true);
+    expect(hasPackagingType).toBe(true);
+  });
 });

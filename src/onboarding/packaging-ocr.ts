@@ -16,6 +16,7 @@ import * as nodePath from 'node:path';
 import { isLoopbackBaseUrl, redactImageUrl, redactTransportText } from '../classification/model-policy-gateway';
 import { getOcrStageFlags } from '../classification/ocr-stage-flags';
 import { isPrivateLanHost } from '../ai/provider-connections';
+import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import {
   OCR_FAILURE_REASON_MESSAGES,
   isTransientOcrFailure,
@@ -71,6 +72,8 @@ Separate printed text from visual inference.
 Field definitions (apply strictly):
 "flavorVariety": the named flavor OR recipe ONLY for EDIBLE products (foods, treats, chews intended to be eaten). Examples: "Chicken Recipe", "Duck Stew", "Peanut Butter". For NON-edible products (litter, toys, grooming, tools), this MUST be null — scent notes, odor-control claims (e.g. "Ammonia Locker", "Odor-Eliminating Carbon", "Beef Scent") and formula names are NOT flavors; put marketing claim phrases like these into "claims" instead.
 "productForm": the physical form of the product itself (e.g. "dry kibble", "wet food", "plush toy", "clumping litter", "shampoo"). Not the product category, not marketing wording.
+"packagingType": primary container package form (e.g. "Bag", "Can", "Box", "Tray", "Pouch", "Bottle", "Jar", "Pail", "Tub", "Individual"). Null when absent.
+"npkRatio": for lawn/plant fertilizer only, the N-P-K nutrient numbers printed on the package (e.g. "10-10-10", "24-0-11"). Null when absent.
 "lifeStage": life-stage wording printed on the package only (e.g. "puppy", "adult", "senior", "kitten"). Null when absent.
 "upc": transcribe the exact UPC/GTIN barcode digits printed on the package (EAN-13/UPC-A, 8-14 digits, digits only after stripping check-spacing). Use null when no barcode is visible or legible. Transcribe ONLY what is printed — never infer from brand or size text.
 "brand": the brand name exactly as printed on the package.
@@ -89,6 +92,8 @@ Field definitions (apply strictly):
   "lifeStage": string | null,
   "breedSize": string | null,
   "productForm": string | null,
+  "packagingType": string | null,
+  "npkRatio": string | null,
   "healthConcernFunction": string[],
   "dietaryLabels": string[],
   "ingredients": string[],
@@ -480,6 +485,15 @@ export function coercePackagingOcrData(
     lifeStage: normalizeString(raw.lifeStage),
     breedSize: normalizeString(raw.breedSize),
     productForm: normalizeString(raw.productForm),
+    packagingType: normalizeString(raw.packagingType),
+    npkRatio: normalizeString(raw.npkRatio),
+    guaranteedAnalysis: raw.guaranteedAnalysis && typeof raw.guaranteedAnalysis === 'object' && !Array.isArray(raw.guaranteedAnalysis)
+      ? Object.fromEntries(
+          Object.entries(raw.guaranteedAnalysis as Record<string, unknown>)
+            .map(([k, v]) => [k, normalizeString(v)])
+            .filter((entry): entry is [string, string] => entry[1] !== null)
+        )
+      : {},
     healthConcernFunction: normalizeArray(raw.healthConcernFunction),
     dietaryLabels: normalizeArray(raw.dietaryLabels),
     ingredients: normalizeArray(raw.ingredients),
@@ -736,7 +750,7 @@ export async function runPackagingOcrAttempt(
   // fetch or model call) and recorded as `policy_denied` — never a false
   // 'local' success row.
   let vlmConfig: VlmConfig | null;
-  let routeLocality: 'local' | 'trusted_lan' | null = null;
+  let routeLocality: 'local' | 'trusted_lan' | 'cloud' | null = null;
   if (runBound) {
     if (!auditCtx) {
       throw new Error(
@@ -775,34 +789,92 @@ export async function runPackagingOcrAttempt(
       );
       return fail('policy_denied', 'Local VLM route denied: supplied route does not match the frozen plan entry.');
     }
-    let isPermittedEndpoint = isLoopbackBaseUrl(frozen.baseUrl);
-    if (!isPermittedEndpoint && (params.snapshot?.modelPolicy?.imageDataSharing === 'trusted_lan_allowed' || params.snapshot?.modelPolicy?.imageDataSharing === 'cloud_allowed')) {
+    let isPermittedEndpoint = false;
+    if (isLoopbackBaseUrl(frozen.baseUrl)) {
+      isPermittedEndpoint = true;
+      routeLocality = 'local';
+    } else {
+      let isLan = false;
       try {
         const host = new URL(frozen.baseUrl).hostname;
-        isPermittedEndpoint = isPrivateLanHost(host);
+        isLan = isPrivateLanHost(host);
       } catch {
-        isPermittedEndpoint = false;
+        isLan = false;
+      }
+      if (isLan) {
+        if (
+          params.snapshot?.modelPolicy?.imageDataSharing === 'trusted_lan_allowed' ||
+          params.snapshot?.modelPolicy?.imageDataSharing === 'cloud_allowed'
+        ) {
+          isPermittedEndpoint = true;
+          routeLocality = 'trusted_lan';
+        }
+      } else {
+        if (params.snapshot?.modelPolicy?.imageDataSharing === 'cloud_allowed') {
+          isPermittedEndpoint = true;
+          routeLocality = 'cloud';
+        }
       }
     }
     if (!isPermittedEndpoint) {
+      const reason = `Local VLM route denied: frozen base URL ${redactImageUrl(frozen.baseUrl)} is not permitted under imageDataSharing policy "${params.snapshot?.modelPolicy?.imageDataSharing}".`;
       recordTerminalPreflight(
         auditCtx,
         planDigest,
         MODEL_CALL_STATUS.policyDenied,
-        `Local VLM route denied: frozen base URL ${redactImageUrl(frozen.baseUrl)} is not loopback or permitted trusted LAN.`,
+        reason,
       );
-      return fail(
-        'policy_denied',
-        `Local VLM route denied: frozen base URL ${redactImageUrl(frozen.baseUrl)} is not loopback or permitted trusted LAN.`,
-      );
+      return fail('policy_denied', reason);
     }
-    vlmConfig = { baseUrl: frozen.baseUrl, model: frozen.model, enabled: true };
-    routeLocality = isLoopbackBaseUrl(frozen.baseUrl) ? 'local' : 'trusted_lan';
+
+    const normalizeUrl = (u: string) => u.replace(/\/+$/, '');
+    const activeVlm = params.vlmConfigOverride ?? getVlmConfig();
+    const matchingConfig =
+      activeVlm && normalizeUrl(activeVlm.baseUrl) === normalizeUrl(frozen.baseUrl)
+        ? activeVlm
+        : null;
+
+    let transport: 'openai-compatible' | 'ollama-native' =
+      matchingConfig?.transport ??
+      (frozen.baseUrl.includes('/v1') || frozen.baseUrl.includes('api.openai.com') ? 'openai-compatible' : 'ollama-native');
+    let credential = matchingConfig?.credential;
+
+    if (!credential) {
+      try {
+        const fullRouting = getFullAiRoutingConfig();
+        for (const conn of Object.values(fullRouting.connections)) {
+          if (normalizeUrl(conn.baseUrl) === normalizeUrl(frozen.baseUrl) && conn.credential) {
+            credential = conn.credential;
+            if (conn.transport) transport = conn.transport;
+            break;
+          }
+        }
+      } catch {
+        // AI routing config lookup is best-effort
+      }
+    }
+
+    vlmConfig = {
+      baseUrl: frozen.baseUrl,
+      model: frozen.model,
+      enabled: true,
+      transport,
+      ...(credential ? { credential } : {}),
+    };
   } else {
     vlmConfig = params.vlmConfigOverride ?? getVlmConfig();
     if (!vlmConfig?.enabled) {
       console.log(`[PackagingOcr] VLM not enabled — skipping OCR for ${sku ?? redactImageUrl(imageUrl ?? '')}`);
       return fail('not_configured', OCR_FAILURE_REASON_MESSAGES.not_configured);
+    }
+    if (isLoopbackBaseUrl(vlmConfig.baseUrl)) {
+      routeLocality = 'local';
+    } else {
+      try {
+        routeLocality = isPrivateLanHost(new URL(vlmConfig.baseUrl).hostname) ? 'trusted_lan' : 'cloud';
+      } catch {
+        routeLocality = null;
+      }
     }
   }
 
@@ -833,12 +905,16 @@ export async function runPackagingOcrAttempt(
   let callId: string | null = null;
   if (auditCtx) {
     const hashes = computePromptHashes(PACKAGING_OCR_PROMPT, '');
+    const provider =
+      vlmConfig?.transport === 'openai-compatible' || vlmConfig?.baseUrl?.includes('openai')
+        ? 'openai'
+        : 'ollama';
     callId = insertModelCallStart({
       runId: auditCtx.runId,
       stageName: auditCtx.stage,
       operation: auditCtx.operation,
       attempt: auditCtx.attempt,
-      provider: 'ollama',
+      provider,
       model: vlmConfig?.model ?? 'unknown',
       locality: routeLocality ?? null,
       snapshotHash: auditCtx.snapshotHash,

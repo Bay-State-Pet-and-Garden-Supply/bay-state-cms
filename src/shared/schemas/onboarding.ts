@@ -112,6 +112,11 @@ export const PackagingOcrDataSchema = z.object({
   productForm: z.string().nullable().default(null),
   healthConcernFunction: z.array(z.string()).default(() => []),
 
+  // Store taxonomy & extra fields (packaging type, fertilizer NPK, guaranteed analysis)
+  packagingType: z.string().nullable().default(null),
+  npkRatio: z.string().nullable().default(null),
+  guaranteedAnalysis: z.record(z.string(), z.string()).default(() => ({})),
+
   // Label / dietary / ingredient data
   dietaryLabels: z.array(z.string()).default(() => []),
   ingredients: z.array(z.string()).default(() => []),

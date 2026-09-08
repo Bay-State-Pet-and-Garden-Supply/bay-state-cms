@@ -803,6 +803,7 @@ async function processTargetInternal(
       selectionMode,
       proposedValue,
       isGroundingSupport: tokenGroundingSupport,
+      includeProductTypeContext: builder.kind === 'product_type',
     });
   const matchingPacket = buildPacket();
   const text = matchingPacket.promptText;
