@@ -6,7 +6,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('@/client/onboarding-api', () => ({
   getBatchPreflight: vi.fn(),
   assignBrandGroup: vi.fn(),
 }));

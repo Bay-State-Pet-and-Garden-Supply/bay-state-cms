@@ -6,7 +6,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('@/client/onboarding-api', () => ({
   getBatches: vi.fn(),
   getBatch: vi.fn(),
   deleteBatch: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock('../../client/onboarding-api', () => ({
   getOnboardingCapabilities: vi.fn(),
 }));
 
-vi.mock('../../client/onboarding-work-api', () => ({
+vi.mock('@/client/onboarding-work-api', () => ({
   getBatchWorkState: vi.fn(),
   getBatchWorkStateCounts: vi.fn(),
   getBatchWorkStateItems: vi.fn(),
@@ -28,6 +28,50 @@ vi.mock('../../client/onboarding-work-api', () => ({
   getWaitingOnFamilyItems: vi.fn(),
   getReadyForReviewItems: vi.fn(),
   getApprovedItems: vi.fn(),
+}));
+
+// Server counts/items for the linear shell (imported by BatchWorkspace via
+// the same module inlet; relative-path mocks do not intercept client API
+// modules in this tree — see the @/ precedent in brand-gate suites).
+const STAGES = [
+  'route_sources',
+  'find_product_page',
+  'collect_details',
+  'prepare_listing',
+  'review_listings',
+  'create_drafts',
+] as const;
+const STATUSES = ['pending', 'in_progress', 'completed', 'failed', 'needs_input', 'skipped'] as const;
+function zeroMatrix() {
+  return Object.fromEntries(STAGES.map((s) => [s, Object.fromEntries(STATUSES.map((st) => [st, 0]))]));
+}
+vi.mock('@/client/onboarding-stage-api', () => ({
+  getStageReadCounts: vi.fn(async () => ({
+    schemaVersion: 2,
+    stageVocabularyVersion: 2,
+    batchId: 'batch-1',
+    filterFingerprint: 'c'.repeat(32),
+    projectionHealth: { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] },
+    matchingTotal: 10,
+    counts: {
+      processing: 10, needs_attention: 0, waiting_on_family: 0, ready_for_review: 0,
+      approved: 0, ready_to_export: 0, completed: 0, skipped: 0,
+    },
+    stageStatusMatrix: { ...zeroMatrix(), route_sources: { pending: 10, in_progress: 0, completed: 0, failed: 0, needs_input: 0, skipped: 0 } },
+  })),
+  getStageReadItems: vi.fn(async () => ({
+    schemaVersion: 2,
+    stageVocabularyVersion: 2,
+    batchId: 'batch-1',
+    filterFingerprint: 'd'.repeat(32),
+    projectionHealth: { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] },
+    items: [],
+    nextCursor: null,
+    scannedRows: 0,
+    queryCount: 1,
+  })),
+  getBrandGateProjections: vi.fn(async () => { throw new Error('no server in test'); }),
+  getExecutionStripSnapshot: vi.fn(async () => { throw new Error('no server in test'); }),
 }));
 
 import { Onboarding } from '../../client/components/Onboarding';
@@ -304,21 +348,30 @@ describe('Onboarding Batch URL Persistence', () => {
     expect(container.textContent).toContain('Batch not found');
   });
 
-  it('initializes and preserves the active workspace tab from URL tab parameter on refresh', async () => {
+  it('initializes the entire-batch Review destination from legacy URL tab parameter on refresh', async () => {
     window.history.replaceState(null, '', '/?view=onboarding&batch=batch-1&tab=review');
+    // The review destination mounts the real ReviewWorkspace; keep network
+    // deterministic — wrapper + banner assertions must not depend on fetch.
+    const realFetch = globalThis.fetch;
+    (globalThis as any).fetch = () => Promise.reject(new Error('no server in test'));
+    try {
+      const root = createRoot(container);
+      await act(async () => {
+        root.render(<Onboarding />);
+      });
 
-    const root = createRoot(container);
-    await act(async () => {
-      root.render(<Onboarding />);
-    });
-
-    expect(container.textContent).toContain('Batch Alpha');
-    const reviewTab = container.querySelector('#bws-tab-review') as HTMLButtonElement;
-    expect(reviewTab).not.toBeNull();
-    expect(reviewTab.getAttribute('aria-selected')).toBe('true');
+      expect(container.textContent).toContain('Batch Alpha');
+      // Legacy ?tab=review resolves to the frozen full-batch review
+      // destination (Table C), not the old tab strip.
+      const reviewDestination = container.querySelector('[data-testid="linear-operation-review"]');
+      expect(reviewDestination).not.toBeNull();
+      expect(container.querySelector('[data-testid="linear-scope-banner"]')).not.toBeNull();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
-  it('updates tab query parameter when switching tabs in BatchWorkspace', async () => {
+  it('updates stage query parameters when switching stage tabs in BatchWorkspace', async () => {
     window.history.replaceState(null, '', '/?view=onboarding&batch=batch-1');
 
     const root = createRoot(container);
@@ -326,15 +379,44 @@ describe('Onboarding Batch URL Persistence', () => {
       root.render(<Onboarding />);
     });
 
-    const processingTab = container.querySelector('#bws-tab-processing') as HTMLButtonElement;
-    expect(processingTab).not.toBeNull();
+    // Linear shell stage tabs carry versioned stage identity (Table B).
+    const stageTab = container.querySelector('#bws-stage-tab-find_product_page') as HTMLButtonElement;
+    expect(stageTab).not.toBeNull();
 
     await act(async () => {
-      processingTab.click();
+      stageTab.click();
     });
 
     const params = new URLSearchParams(window.location.search);
-    expect(params.get('tab')).toBe('processing');
+    expect(params.get('stage')).toBe('find_product_page');
+    expect(params.get('stageVersion')).toBe('2');
     expect(params.get('batch')).toBe('batch-1');
+    // The app-level view param is shell routing state, never a shell
+    // selector: stage navigation must preserve it (regression: cleaners
+    // once deleted 'view' instead of 'wview', navigating away from onboarding).
+    expect(params.get('view')).toBe('onboarding');
+    expect(params.get('wview')).toBeNull();
+  });
+
+  it('clears a stale brand-setup view when moving back to a stage', async () => {
+    window.history.replaceState(null, '', '/?view=onboarding&batch=batch-1&wview=brand-setup');
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<Onboarding />);
+    });
+
+    // Force a stage selection the way the shell does after brand setup.
+    const stageTab = container.querySelector('#bws-stage-tab-collect_details') as HTMLButtonElement;
+    expect(stageTab).not.toBeNull();
+
+    await act(async () => {
+      stageTab.click();
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('stage')).toBe('collect_details');
+    expect(params.get('wview')).toBeNull();
+    expect(params.get('view')).toBe('onboarding');
   });
 });

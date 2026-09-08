@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   callLlmForTaskWithProvenance: vi.fn(),
 }));
 
-vi.mock('../../onboarding/llm-client', () => ({
+vi.mock('@/onboarding/llm-client', () => ({
   callLlmForTask: mocks.callLlmForTask,
   getLlmConfigForTask: mocks.getLlmConfigForTask,
   // Route through the test handle so tests can inspect the transport options
@@ -15,17 +15,17 @@ vi.mock('../../onboarding/llm-client', () => ({
   // string content in the enriched result shape the coordinator consumes.
   callLlmForTaskWithProvenance: (...args: unknown[]) => mocks.callLlmForTaskWithProvenance(...args),
 }));
-vi.mock('../../db/repositories/page-repo', () => ({ listPages: vi.fn(() => []) }));
+vi.mock('@/db/repositories/page-repo', () => ({ listPages: vi.fn(() => []) }));
 // The coordinator records terminal preflight rows; mock the repo so the
 // bun:sqlite-backed module never loads in the Vitest graph.
-vi.mock('../../db/repositories/classification-model-call-repo', () => ({
+vi.mock('@/db/repositories/classification-model-call-repo', () => ({
   recordTerminalPreflight: vi.fn(),
 }));
 // The page-hash module now derives the P-hash model authority from the frozen
 // model-execution-plan entry (PR7 review R2 F2c); mock the DB-backed
 // runtime-snapshot module so the Vitest graph never loads bun:sqlite. The
 // pure plan-entry lookup is exercised in the bun:test hash suite.
-vi.mock('../../classification/runtime-snapshot', () => ({
+vi.mock('@/classification/runtime-snapshot', () => ({
   getModelExecutionPlanEntry: () => null,
 }));
 
@@ -34,7 +34,7 @@ import {
   coordinateCohortPagesOnce,
   coordinateCohortPagesCore,
   type CohortPageCoordinationParams,
-} from '../../classification/cohort-page-coordinator';
+} from '../../classification/cohort-page-proposal-engine';
 import { llmAssignCategoryPages } from '../../classification/page-assignment-llm';
 
 const pages = [

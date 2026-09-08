@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('../../onboarding/llm-client', () => ({
+vi.mock('@/onboarding/llm-client', () => ({
   callLlmForTask: mocks.callLlmForTask,
   callLlmForTaskWithProvenance: mocks.callLlmForTaskWithProvenance,
   getLlmConfigForTask: mocks.getLlmConfigForTask,
@@ -19,7 +19,7 @@ vi.mock('../../onboarding/llm-client', () => ({
 }));
 // The ranker now records terminal preflight rows; mock the repo so the
 // bun:sqlite-backed module never loads in the Vitest graph.
-vi.mock('../../db/repositories/classification-model-call-repo', () => ({
+vi.mock('@/db/repositories/classification-model-call-repo', () => ({
   recordTerminalPreflight: vi.fn(),
 }));
 

@@ -5,7 +5,7 @@
  *
  * Harness: cohort-worker.test.ts (temp DB, migrations, `createReadyCohort`)
  * + the active-v2 bundle + counting llm-client mock from
- * cohort-title-coordinator.test.ts. The mock returns a CANNED per-UPC title
+ * cohort-curation-titles.test.ts (Slice 3 transfer). The mock returns a CANNED per-UPC title
  * JSON built from the prompt's UPC set (so it works for 2- and 3-member
  * groups), counts every `cohort_title_consolidation` invocation, and
  * simulates the audited transport's `classification_model_calls`
@@ -28,7 +28,7 @@
  *     the general guarantee is ZERO FURTHER calls AFTER COMMIT (replay-safe),
  *     not "one call forever" (a crash between transport success and the
  *     outputs commit may re-invoke coordination — each invocation audited,
- *     no retry cap; covered in cohort-title-coordinator.test.ts);
+ *     no retry cap; covered in cohort-curation-titles.test.ts);
  *  5. flag OFF → zero output rows, the legacy coordinator + cohortCache path
  *     (byte-identical), zero parent-level title calls;
  *  6. shadow (`cohortCurationV2Enabled && cohortShadowOnly`) → the legacy
@@ -78,15 +78,12 @@ import { generateCandidate, buildFocusedFiles } from '../../classification/confi
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { OnboardingWorker } from '../../onboarding/job-queue';
-import {
-  freezeCohortForExecution,
-  processCohort,
-  verifyCohortRunFrozen,
-  buildFrozenProductLineContext,
-  MemberCommitCrashSimulationError,
-} from '../../onboarding/cohort-curator';
-import type { PreparedCohortContext } from '../../onboarding/cohort-curator';
-import { curateItemWithPipeline } from '../../onboarding/product-curator';
+import { freezeCohortForExecution, verifyCohortRunFrozen } from '../../onboarding/cohort-curation/freeze';
+import { buildFrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
+import { MemberCommitCrashSimulationError } from '../../onboarding/cohort-curation/members';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
+import type { PreparedCohortContext } from './helpers/transitional-prepared-member';
+import { curateTransitionalPreparedMember } from './helpers/transitional-prepared-member';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
 import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
@@ -245,7 +242,7 @@ afterEach(() => {
   clearCohortCoordinationCache();
 });
 
-// ─── Fixtures (mirror cohort-worker.test.ts + cohort-title-coordinator.test.ts) ─
+// ─── Fixtures (mirror cohort-worker.test.ts + cohort-curation-titles.test.ts) ─
 
 const EVIDENCE: CatalogEvidence = {
   schemaVersion: 1,
@@ -571,7 +568,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     expect(finalized.executionProductTypeId).toBe('dog-food-dry');
 
     // C6.2 — first processCohort entry: coordinate ONCE + persist N + consume.
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
     expect(titleCallCount).toBe(1);
     expect(auditedTitleCallCount).toBe(1);
@@ -629,7 +626,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     // left pending; the parent stays running. The parent op already persisted
     // the 3 output rows before the member loop.
     let pipelineCount = 0;
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 3) {
@@ -675,7 +672,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     // before its atomic commit) re-executes.
     const auditRowsBefore = countTitleAuditRowsForRun(finalized.id);
     expect(auditRowsBefore).toBe(2); // exactly one started+success pair so far
-    const summary = await processCohort(resumed, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
     expect(summary.parentStatus).not.toBe('failed');
     expect(titleCallCount).toBe(1); // NO new title calls across the resume
     expect(auditedTitleCallCount).toBe(1);
@@ -709,7 +706,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     updateItemStageStatus(items[2].id, 'pending');
     updateItemCurationData(items[2].id, '');
     const prepared = buildPreparedContext(workspaceId, resumed, items[2], frozenLineContext);
-    const rerun = await curateItemWithPipeline(findItemById(items[2].id)!, wsPath, workspaceId, prepared);
+    const rerun = await curateTransitionalPreparedMember(findItemById(items[2].id)!, wsPath, workspaceId, prepared);
     expect(rerun.curatedTitle).toBe(cannedTitleForUpc(items[2].upc));
     expect(rerun.titleSource).toBe('llm_cohort');
     expect(titleCallCount).toBe(1);
@@ -771,7 +768,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     const { items } = await prepareActiveV2Workspace(workspaceId, wsPath, TWO_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
     const oldRunId = finalized.id;
-    await processCohort(finalized, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     const oldRows = getCohortTitleOutputsByRun(oldRunId);
     expect(oldRows).toHaveLength(2);
     const oldRowIds = outputRowIds(oldRunId);
@@ -793,7 +790,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     expect(run2.id).not.toBe(oldRunId);
     const finalized2 = await freezeCohortForExecution(run2, wsPath, workspaceId);
     expect(finalized2.status).toBe('running');
-    const summary2 = await processCohort(finalized2, wsPath, workspaceId);
+    const summary2 = await executeViaSeam(wsPath, workspaceId, finalized2.id, 'worker-b');
     expect(summary2.parentStatus).not.toBe('failed');
 
     const newRows = getCohortTitleOutputsByRun(finalized2.id);
@@ -861,7 +858,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
       warns.push(args.map(String).join(' '));
     });
     try {
-      const summary = await processCohort(finalized, wsPath, workspaceId);
+      const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
       expect(summary.parentStatus).not.toBe('failed');
     } finally {
       warnSpy.mockRestore();

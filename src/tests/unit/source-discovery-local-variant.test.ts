@@ -3,25 +3,25 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('bun:sqlite', () => ({ Database: class MockDb { constructor() {} exec() {} query() { return { get: () => undefined, all: () => [], run: () => {} } as any; } } }));
 
 // Mock db dependencies so discoverSources short-circuits via localCandidates
-vi.mock('../../db/repositories/brand-site-repo', () => ({
+vi.mock('@/db/repositories/brand-site-repo', () => ({
   findBrandSites: vi.fn(() => [{ domain: 'betterbone.com' }]),
 }));
-vi.mock('../../db/repositories/brand-url-index-repo', () => ({
+vi.mock('@/db/repositories/brand-url-index-repo', () => ({
   getActiveUrlsForDomain: vi.fn(() => ['https://betterbone.com/products/the-betterbone-beef']),
   normalizeDomain: (d: string) => d,
   reconcileSitemapUrls: vi.fn(),
 }));
-vi.mock('../../db/repositories/sitemap-telemetry-repo', () => ({
+vi.mock('@/db/repositories/sitemap-telemetry-repo', () => ({
   recordDiscoveryEvent: vi.fn(),
 }));
-vi.mock('../../db/repositories/extractor-profile-repo', () => ({
+vi.mock('@/db/repositories/extractor-profile-repo', () => ({
   findProfileByDomain: vi.fn(() => null),
 }));
-vi.mock('../../db/repositories/sitemap-cache-repo', () => ({
+vi.mock('@/db/repositories/sitemap-cache-repo', () => ({
   getCachedSitemapUrls: vi.fn(() => null),
   insertSitemapCache: vi.fn(),
 }));
-vi.mock('../../onboarding/local-brand-url-finder', () => ({
+vi.mock('@/onboarding/local-brand-url-finder', () => ({
   findLocalBrandCandidates: vi.fn(async () => [
     { url: 'https://betterbone.com/products/the-betterbone-beef', title: 'BetterBone', confidence: 0.92, matchType: 'upc_exact', sourceMethod: 'local_upc' as const },
   ]),

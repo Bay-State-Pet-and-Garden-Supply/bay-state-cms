@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { normalizeBrandHubDomain } from '../../onboarding/brand-hub/normalizeDomain';
 
 // story: e06s01 — use hoisted mock to avoid bun:sqlite in vitest (node) environment
-vi.mock('../../db/connection', () => {
+vi.mock('@/db/connection', () => {
   const fakeDb = {
     query: (sql: string) => {
       if (sql.includes('FROM extractor_profiles')) {

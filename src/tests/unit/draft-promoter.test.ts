@@ -2047,7 +2047,7 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
       sourceType: 'distributor_record',
       target: 'extraction',
     };
-    const routed = completeSourcingWithDecision(item.id, decision, 'extraction');
+    const routed = completeSourcingWithDecision(item.id, decision, 'collect_details');
     if (!routed.ok) throw new Error(`routing failed: ${routed.reason}`);
     // Claim + materialize (the durable distributor extraction row + item
     // payload — the canonical v2 payload the deep-compare gate re-verifies).

@@ -1,6 +1,22 @@
 /**
+ * Slice 3 transfer of `cohort-title-coordinator.test.ts` (39 cases, pre-delete
+ * gate 39/39 green) onto the new seam: every case now calls
+ * `ensureCohortTitles` from `src/onboarding/cohort-curation/titles.ts` (first
+ * user of the shared durable-set lifecycle in `decisions.ts`) instead of the
+ * old transitional entry. Fixture builders + counting llm-client mock moved
+ * with the cases — the old suite file is deleted in this slice. Case-level
+ * replacement map: docs/plans/cohort-curation-slice0-ledger.md §2 + Slice 3
+ * actuals appendix.
+ *
+ * Public-seam crash coverage (plan §3.3 — checkpoints threaded through
+ * `executeClaim`, never around it) lives at the bottom of this file: the
+ * active-bundle + counting-mock infrastructure required for the real
+ * coordinate path lives here, so the title pre-commit crash + reclaim
+ * scenarios run here through the public invocation. (`recovery.test.ts`
+ * covers freeze/member crashes; its header points here for titles.)
+ *
  * PR6 C4 (issue #30): the parent title coordination op —
- * `ensureCohortTitlesCoordinated`.
+ * `ensureCohortTitles`.
  *
  * bun:test harness mirroring cohort-worker.test.ts, with an ACTIVE v2 bundle
  * (mirroring cohort-freeze.test.ts's `writeActiveV2Bundle`) so the member
@@ -76,13 +92,14 @@ import {
   snapshotHash,
 } from '../../classification/runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
-import { computeCohortTitleInputHash, titleExecutionTypeAuthorityFromRun } from '../../onboarding/cohort-title-hash';
-import { ensureCohortTitlesCoordinated, CohortTitleAuthorityDriftError, CohortTitleOutputCorruptError } from '../../onboarding/cohort-title-coordinator';
-import {
-  freezeCohortForExecution,
-  buildFrozenProductLineContext,
-  HeartbeatLostError,
-} from '../../onboarding/cohort-curator';
+import { computeCohortTitleInputHash } from '../../onboarding/cohort-curation/titles';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
+import { ensureCohortTitles, CohortTitleAuthorityDriftError, CohortTitleOutputCorruptError } from '../../onboarding/cohort-curation/titles';
+import { createCohortCuration } from '../../onboarding/cohort-curation/index';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { buildFrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
+import { HeartbeatLostError } from '../../classification/heartbeat-errors';
+import { MemberCommitCrashSimulationError } from '../../onboarding/cohort-curation/members';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
 import { overrideCohortCurationFlags, resetCohortCurationFlagsOverride } from '../../classification/flags';
 import { canonicalJsonFileString, sha256Hex, hashCanonicalJson } from '../../shared/stable-id';
@@ -101,7 +118,7 @@ import type {
   ExecutionEvidenceProjectionV2,
 } from '../../shared/schemas/cohorts';
 import type { OnboardingItem } from '../../shared/schemas/onboarding';
-import type { FrozenProductLineContext } from '../../onboarding/cohort-curator';
+import type { FrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
 import type { InsertItemData } from '../../db/repositories/onboarding-item-repo';
 
@@ -606,19 +623,17 @@ const TWO_MEMBER_EXTRACTIONS = {
   '100000000002': settledExtraction({ _name: 'Purina Pro Plan Adult Dog Food Beef 10 lb', _brandHint: 'Purina' }),
 };
 
-describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
+describe('ensureCohortTitles — PR6 C4 (issue #30)', () => {
   it('fresh run: ONE title call, 2 output rows sharing input_hash, map equals persisted rows, one audited started+success pair on the ordinal-0 child run', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
     const childRunId = ordinal0ChildRunId(fixture);
     const inputHash = expectedInputHash(fixture);
 
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
 
@@ -657,13 +672,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       '100000000002': 'Another Unrelated Line Beta',
     };
     try {
-      const map = await ensureCohortTitlesCoordinated({
+      const map = await ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       });
 
@@ -707,13 +720,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       '100000000002': 'Purina Pro Plan Dog Food Beef 10 lb',
     };
     try {
-      const map = await ensureCohortTitlesCoordinated({
+      const map = await ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       });
 
@@ -747,13 +758,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
   it('reuse: second call on the same run (cache cleared) → zero calls, identical map', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(titleCallCount).toBe(1);
@@ -761,13 +770,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     // Prove DB authority: clear the in-memory coordinator cache first — the
     // parent op never consults it, so the durable outputs alone drive reuse.
     clearCohortCoordinationCache();
-    const second = await ensureCohortTitlesCoordinated({
+    const second = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(titleCallCount).toBe(1);
@@ -777,13 +784,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
   it('PR8 review R1 (BLOCKER 1): a corrupt persisted curated_title row throws CohortTitleOutputCorruptError with the run id, per-SKU failures + original causes, and the usable parsed rows — zero re-coordination', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(first.size).toBe(2);
@@ -797,13 +802,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
     let thrown: unknown;
     try {
-      await ensureCohortTitlesCoordinated({
+      await ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       });
       expect.unreachable('expected CohortTitleOutputCorruptError');
@@ -830,13 +833,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
   it('PR8 review R1 (BLOCKER 2): an EMPTY persisted title row throws CohortTitleOutputCorruptError with a schema-violation cause — the tightened schema turns a pre-tightening empty row into a member failure', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated({
+    await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     // Hand-seed an EMPTY title at the DB level (pre-tightening corruption).
@@ -846,13 +847,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     );
     let thrown: unknown;
     try {
-      await ensureCohortTitlesCoordinated({
+      await ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       });
       expect.unreachable('expected CohortTitleOutputCorruptError');
@@ -889,13 +888,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     // and NEVER replaces; it fails closed with the deterministic error.
     let thrown: unknown;
     try {
-      await ensureCohortTitlesCoordinated({
+      await ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       });
       expect.unreachable('expected CohortTitleAuthorityDriftError');
@@ -923,13 +920,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
   it('incomplete nonempty set: only 1 of 2 rows present → CohortTitleAuthorityDriftError (all-or-nothing never leaves partial rows)', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(first.size).toBe(2);
@@ -945,13 +940,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     const remainingBefore = getCohortTitleOutputsByRun(fixture.run.id);
 
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toBeInstanceOf(CohortTitleAuthorityDriftError);
@@ -976,13 +969,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     });
     try {
       await expect(
-        ensureCohortTitlesCoordinated({
+        ensureCohortTitles({
           run: fixture.run,
           workspaceId: fixture.workspaceId,
-          workspacePath: fixture.workspacePath,
           projection: fixture.projection,
           cohort: fixture.cohort,
-          members: fixture.members,
           frozenLineContext: fixture.frozenLineContext,
         }),
       ).rejects.toThrow('simulated persistence failure');
@@ -999,13 +990,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     reclaimWorkspaceId = fixture.workspaceId;
 
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toBeInstanceOf(HeartbeatLostError);
@@ -1019,13 +1008,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
     failNextTitleCall = true;
 
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
 
@@ -1046,13 +1033,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     const childRunId = ordinal0ChildRunId(fixture);
     denyNextTitleCall = true;
 
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
 
@@ -1076,13 +1061,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     const childRunId = ordinal0ChildRunId(fixture);
     unavailableNextTitleCall = true;
 
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
 
@@ -1102,13 +1085,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     const fixture = await freezeCohortFixture({
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dog Food Chicken 5 lb' }),
     });
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(map.size).toBe(0);
@@ -1119,13 +1100,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
   it('PR13 C1 (BLOCKER 1 superseded): the T-hash carries the OPERATION-SPECIFIC authority only — bound/unbound policy digests and route overrides never re-coordinate; frozen plan-entry changes do', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
     // Coordinate + persist ONCE, then inspect the persisted input_hash.
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(first.size).toBe(2);
@@ -1222,13 +1201,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       ).get(fixture.run.id, ordered[0].onboardingItemId) as { c: number };
       return Number(row.c);
     };
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(first.size).toBe(2);
@@ -1243,13 +1220,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       [new Date().toISOString(), childId],
     );
     clearCohortCoordinationCache();
-    const second = await ensureCohortTitlesCoordinated({
+    const second = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(second.size).toBe(2);
@@ -1267,13 +1242,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       [fixture.run.id, ordered[0].onboardingItemId],
     );
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toThrow(/no child run with freeze-persisted snapshot refs/);
@@ -1302,13 +1275,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       [JSON.stringify(snapshot), fixture.workspaceId, child.config_snapshot_hash],
     );
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toThrow(/Model plan incompatible|digest does not match/);
@@ -1325,13 +1296,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     });
     expect(fixture.members.length).toBe(4);
 
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
 
@@ -1378,13 +1347,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     // transaction commits. The test-only `afterCoordinatedCall` seam fires
     // exactly between transport success and `insertCohortTitleOutputsOnce`.
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
         afterCoordinatedCall: () => {
           throw new Error('simulated crash between transport success and output commit');
@@ -1427,13 +1394,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     // another independently audited call — there is no retry cap. The
     // committing attempt's set is COMPLETE + CONSISTENT: 2 rows, both share
     // the canonical input_hash, the returned map equals the persisted rows.
-    const secondMap = await ensureCohortTitlesCoordinated({
+    const secondMap = await ensureCohortTitles({
       run: resumedRun,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(titleCallCount).toBe(2);
@@ -1457,13 +1422,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
     // Attempt #3: the committed set is complete + hash-matched ⇒ REUSE with
     // zero calls — replay-safe after commit.
-    const thirdMap = await ensureCohortTitlesCoordinated({
+    const thirdMap = await ensureCohortTitles({
       run: resumedRun,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(titleCallCount).toBe(2);
@@ -1510,13 +1473,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       fixture.members,
       fixture.projection.members,
     );
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(map.size).toBe(2);
@@ -1542,13 +1503,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
 
   it('PR6 hardening C SHOULD-FIX 1: extra-row corruption — a complete same-hash set PLUS an unexpected row is DRIFT (never reused, zero new calls)', async () => {
     const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    const first = await ensureCohortTitlesCoordinated({
+    const first = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(first.size).toBe(2);
@@ -1572,13 +1531,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     // EXACT-SET equality (PR6 hardening C): row count 3 !== expected 2 ⇒ the
     // over-complete set is write-once corruption — drift, never reuse.
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toBeInstanceOf(CohortTitleAuthorityDriftError);
@@ -1604,13 +1561,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
     expect(countCohortTitleOutputs(fixture.run.id)).toBe(1);
 
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         run: fixture.run,
         workspaceId: fixture.workspaceId,
-        workspacePath: fixture.workspacePath,
         projection: fixture.projection,
         cohort: fixture.cohort,
-        members: fixture.members,
         frozenLineContext: fixture.frozenLineContext,
       }),
     ).rejects.toBeInstanceOf(CohortTitleAuthorityDriftError);
@@ -1658,13 +1613,11 @@ describe('ensureCohortTitlesCoordinated — PR6 C4 (issue #30)', () => {
       fixture.members,
       fixture.projection.members,
     );
-    const map = await ensureCohortTitlesCoordinated({
+    const map = await ensureCohortTitles({
       run: fixture.run,
       workspaceId: fixture.workspaceId,
-      workspacePath: fixture.workspacePath,
       projection: fixture.projection,
       cohort: fixture.cohort,
-      members: fixture.members,
       frozenLineContext: fixture.frozenLineContext,
     });
     expect(map.size).toBe(2);
@@ -1763,23 +1716,21 @@ async function supersedeAndRefreeze(fixture: FrozenCohortFixture): Promise<Froze
   return { workspaceId: fixture.workspaceId, workspacePath: fixture.workspacePath, run: finalized, projection, cohort, members, frozenLineContext, items: fixture.items };
 }
 
-function runCoordParams(fixture: FrozenCohortFixture): Parameters<typeof ensureCohortTitlesCoordinated>[0] {
+function runCoordParams(fixture: FrozenCohortFixture): Parameters<typeof ensureCohortTitles>[0] {
   return {
     run: fixture.run,
     workspaceId: fixture.workspaceId,
-    workspacePath: fixture.workspacePath,
     projection: fixture.projection,
     cohort: fixture.cohort,
-    members: fixture.members,
     frozenLineContext: fixture.frozenLineContext,
   };
 }
 
-describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reuse (issue #30)', () => {
+describe('ensureCohortTitles — PR13 C2 cross-parent same-T-hash reuse (issue #30)', () => {
   it('revision B with the SAME frozen authority copies the superseded parent set: ZERO calls, fresh rows, same values, ORIGINAL model-call ids, old rows untouched', async () => {
     // Run A: ONE title call, durable rows under A.
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    const mapA = await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    const mapA = await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
     expect(mapA.size).toBe(2);
     const rowsA = getCohortTitleOutputsByRun(fixtureA.run.id);
@@ -1790,7 +1741,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     titleCallCount = 0;
     const fixtureB = await supersedeAndRefreeze(fixtureA);
 
-    const mapB = await ensureCohortTitlesCoordinated(runCoordParams(fixtureB));
+    const mapB = await ensureCohortTitles(runCoordParams(fixtureB));
     // ZERO LLM calls — the superseded set was copied, never re-coordinated.
     expect(titleCallCount).toBe(0);
     // Byte-identical titles from the copied set.
@@ -1809,7 +1760,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
   it('a DIFFERENT frozen authority (mutated member evidence) → revision B coordinates FRESH (one call, no copy)', async () => {
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
 
     // Mutate one member's frozen title evidence BEFORE freezing revision B —
@@ -1823,7 +1774,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     const fixtureB = await supersedeAndRefreeze(fixtureA);
     expect(expectedInputHash(fixtureB)).not.toBe(expectedInputHash(fixtureA));
 
-    const mapB = await ensureCohortTitlesCoordinated(runCoordParams(fixtureB));
+    const mapB = await ensureCohortTitles(runCoordParams(fixtureB));
     // The superseded set's hash no longer matches → NO copy → fresh coordinate.
     expect(titleCallCount).toBe(1);
     expect(mapB.size).toBe(2);
@@ -1832,7 +1783,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
   it('an INCOMPLETE superseded set (missing row) → no reuse, fresh coordinate (one call)', async () => {
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
 
     // Simulate a partial old set (corruption that can only exist via an
@@ -1844,7 +1795,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
     titleCallCount = 0;
     const fixtureB = await supersedeAndRefreeze(fixtureA);
-    const mapB = await ensureCohortTitlesCoordinated(runCoordParams(fixtureB));
+    const mapB = await ensureCohortTitles(runCoordParams(fixtureB));
     expect(titleCallCount).toBe(1);
     expect(mapB.size).toBe(2);
     expect(getCohortTitleOutputsByRun(fixtureB.run.id)).toHaveLength(2);
@@ -1877,9 +1828,9 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     const foreignCohort = getCohortById(foreignFinalized.cohortId)!;
     const foreignMembers = getCohortMembers(foreignCohort.id);
     const foreignLine = buildFrozenProductLineContext(foreignCohort, foreignMembers, foreignProjection.members);
-    await ensureCohortTitlesCoordinated({
-      run: foreignFinalized, workspaceId, workspacePath: wsPath, projection: foreignProjection,
-      cohort: foreignCohort, members: foreignMembers, frozenLineContext: foreignLine,
+    await ensureCohortTitles({
+      run: foreignFinalized, workspaceId, projection: foreignProjection,
+      cohort: foreignCohort, frozenLineContext: foreignLine,
     });
     expect(titleCallCount).toBe(1);
     expect(supersedeOwnedCohortRunForOutputDrift(foreignFinalized.id, 'worker-a', 'foreign supersede')).toBe(true);
@@ -1895,9 +1846,9 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     const targetMembers = getCohortMembers(targetCohort.id);
     const targetLine = buildFrozenProductLineContext(targetCohort, targetMembers, targetProjection.members);
     titleCallCount = 0;
-    const mapTarget = await ensureCohortTitlesCoordinated({
-      run: targetFinalized, workspaceId, workspacePath: wsPath, projection: targetProjection,
-      cohort: targetCohort, members: targetMembers, frozenLineContext: targetLine,
+    const mapTarget = await ensureCohortTitles({
+      run: targetFinalized, workspaceId, projection: targetProjection,
+      cohort: targetCohort, frozenLineContext: targetLine,
     });
     expect(titleCallCount).toBe(1);
     expect(mapTarget.size).toBe(2);
@@ -1917,7 +1868,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
   it('rows already committed under revision B (stale-hash sibling commit) → CohortTitleAuthorityDriftError, never copies over the non-empty set, zero calls', async () => {
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
 
     const fixtureB = await supersedeAndRefreeze(fixtureA);
@@ -1935,7 +1886,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
     titleCallCount = 0;
     await expect(
-      ensureCohortTitlesCoordinated(runCoordParams(fixtureB)),
+      ensureCohortTitles(runCoordParams(fixtureB)),
     ).rejects.toBeInstanceOf(CohortTitleAuthorityDriftError);
     expect(titleCallCount).toBe(0);
     // The stale set is untouched (write-once) — the superseded copy never ran.
@@ -1952,14 +1903,14 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     // rows become visible exactly there, so the insert's write-once throw is
     // converted to the deterministic drift error (never a silent overwrite).
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
     const fixtureB = await supersedeAndRefreeze(fixtureA);
     const { insertCohortTitleOutputsOnce } = await import('../../db/repositories/classification-cohort-output-repo');
 
     titleCallCount = 0;
     await expect(
-      ensureCohortTitlesCoordinated({
+      ensureCohortTitles({
         ...runCoordParams(fixtureB),
         beforeTitleCopyInsert: () => {
           insertCohortTitleOutputsOnce({
@@ -1988,11 +1939,11 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     // B (latest superseded) incomplete → NO reuse — and A (older, complete,
     // matching) must NOT be consulted → fresh coordinate (one call).
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     expect(titleCallCount).toBe(1);
     const fixtureB = await supersedeAndRefreeze(fixtureA);
     titleCallCount = 0;
-    const mapB = await ensureCohortTitlesCoordinated(runCoordParams(fixtureB));
+    const mapB = await ensureCohortTitles(runCoordParams(fixtureB));
     expect(titleCallCount).toBe(0);
     expect(mapB.size).toBe(2);
     // Make the LATEST superseded (B) incomplete.
@@ -2002,7 +1953,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     );
     const fixtureC = await supersedeAndRefreeze(fixtureB);
     titleCallCount = 0;
-    const mapC = await ensureCohortTitlesCoordinated(runCoordParams(fixtureC));
+    const mapC = await ensureCohortTitles(runCoordParams(fixtureC));
     // Latest superseded incomplete → no reuse; the older matching set (A) is
     // NOT a candidate → fresh coordinate.
     expect(titleCallCount).toBe(1);
@@ -2027,7 +1978,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     // the lookup must be deterministic (secondary id DESC), never
     // insertion-order dependent — repeated lookups agree on the SAME run.
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
-    await ensureCohortTitlesCoordinated(runCoordParams(fixtureA));
+    await ensureCohortTitles(runCoordParams(fixtureA));
     const tie = nowIso();
     getDb().run('UPDATE classification_cohort_runs SET superseded_at = ? WHERE id = ?', [tie, fixtureA.run.id]);
     const fixtureB = await supersedeAndRefreeze(fixtureA);
@@ -2049,7 +2000,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
     // copy → fresh title coordination (one call).
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
     titleCallCount = 0;
-    const mapA = await ensureCohortTitlesCoordinated({
+    const mapA = await ensureCohortTitles({
       ...runCoordParams(fixtureA),
       titleOperationParameters: { temperature: 0.0, maxTokens: null }, // P1
     });
@@ -2062,7 +2013,7 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
 
     const fixtureB = await supersedeAndRefreeze(fixtureA);
     titleCallCount = 0;
-    const mapB = await ensureCohortTitlesCoordinated({
+    const mapB = await ensureCohortTitles({
       ...runCoordParams(fixtureB),
       titleOperationParameters: { temperature: 0.1, maxTokens: null }, // P2 (the registry default)
     });
@@ -2079,19 +2030,123 @@ describe('ensureCohortTitlesCoordinated — PR13 C2 cross-parent same-T-hash reu
   it('PR13 review R2 (P1): SAME parameter authority across revisions still reuses — B under the SAME tuple as A ⇒ zero calls (the R2 regression must not break the economics)', async () => {
     const fixtureA = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
     titleCallCount = 0;
-    await ensureCohortTitlesCoordinated({
+    await ensureCohortTitles({
       ...runCoordParams(fixtureA),
       titleOperationParameters: { temperature: 0.0, maxTokens: null }, // P1
     });
     expect(titleCallCount).toBe(1);
     const fixtureB = await supersedeAndRefreeze(fixtureA);
     titleCallCount = 0;
-    const mapB = await ensureCohortTitlesCoordinated({
+    const mapB = await ensureCohortTitles({
       ...runCoordParams(fixtureB),
       titleOperationParameters: { temperature: 0.0, maxTokens: null }, // P1 again
     });
     expect(titleCallCount).toBe(0);
     expect(mapB.size).toBe(2);
     expect(getCohortTitleOutputsByRun(fixtureB.run.id)).toHaveLength(2);
+  });
+});
+
+// ─── Public-seam title crash coverage (plan §3.3; deferred Slice 2 item) ─────
+//
+// The active-bundle + counting-mock infrastructure required for the real
+// coordinate path lives in this file, so the title pre-commit crash +
+// reclaim scenarios run here — always through the PUBLIC `executeClaim`
+// invocation (never the op directly, never mocked). A test calling
+// `ensureCohortTitles` for these windows would not be evidence.
+
+describe('title pre-commit crash through the public seam (issue #30 P1-1)', () => {
+  it('crash TWICE pre-commit → zero rows each time; recovery coordinates once more then commits; later entries reuse call-free', async () => {
+    const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
+    const curation = createCohortCuration({
+      workspacePath: fixture.workspacePath,
+      workspaceId: fixture.workspaceId,
+    });
+    const crashTitleCommit = () => {
+      throw new Error('simulated title pre-commit crash');
+    };
+    // Crash twice (not once) so the test cannot pass on an at-most-once path.
+    // Each attempt leaves the audited call durable but ZERO committed rows.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        curation.executeClaim(fixture.run.id, 'worker-a', {
+          afterCoordinatedCall: crashTitleCommit,
+        }),
+      ).rejects.toThrow('simulated title pre-commit crash');
+      expect(countCohortTitleOutputs(fixture.run.id)).toBe(0);
+      expect(getCohortRunById(fixture.run.id)!.status).toBe('running');
+    }
+    expect(titleCallCount).toBe(2);
+    // Recovery through the same public invocation: titles coordinate once
+    // more (third audited call) and commit — then crash AFTER the member
+    // pipeline so the committed title set survives with the run still open.
+    await expect(
+      curation.executeClaim(fixture.run.id, 'worker-a', {
+        afterMemberPipeline: () => {
+          throw new MemberCommitCrashSimulationError('simulated member-commit crash');
+        },
+      }),
+    ).rejects.toBeInstanceOf(MemberCommitCrashSimulationError);
+    expect(titleCallCount).toBe(3);
+    expect(countCohortTitleOutputs(fixture.run.id)).toBe(2);
+    expect(getCohortRunById(fixture.run.id)!.status).toBe('running');
+    // Final entry through the seam: the committed title set is REUSED with
+    // zero new coordination calls; members complete; the parent completes.
+    const callsBefore = titleCallCount;
+    const finished = await curation.executeClaim(fixture.run.id, 'worker-a');
+    expect(finished.executed).toBe(true);
+    expect(titleCallCount).toBe(callsBefore);
+    expect(countCohortTitleOutputs(fixture.run.id)).toBe(2);
+    // Active-bundle targets abstain under the null-for-non-title-ops mock,
+    // so the parent completes with abstentions (2/2 members) — the title
+    // path under test is unaffected.
+    expect(getCohortRunById(fixture.run.id)!.status).toBe('completed_with_abstentions');
+  });
+
+  it('ownership lost in the title window: zero rows, no post-loss writes; the reclaiming owner alone finishes', async () => {
+    const fixture = await freezeCohortFixture(TWO_MEMBER_EXTRACTIONS);
+    const curation = createCohortCuration({
+      workspacePath: fixture.workspacePath,
+      workspaceId: fixture.workspaceId,
+    });
+    // Worker A's transport resolves, but a sibling reclaims BEFORE A's
+    // insert — then A crashes. A must leave zero rows and never write again.
+    await expect(
+      curation.executeClaim(fixture.run.id, 'worker-a', {
+        afterCoordinatedCall: () => {
+          getDb().run('UPDATE classification_cohort_runs SET lease_expires_at = ? WHERE id = ?', [
+            '2000-01-01T00:00:00.000Z',
+            fixture.run.id,
+          ]);
+          const reclaim = reclaimExpiredCohortRuns(
+            fixture.workspaceId,
+            new Date().toISOString(),
+            run => curation.verifyFrozen(run),
+            'worker-b',
+            COHORT_LEASE_TTL_MS,
+          );
+          expect(reclaim.resumed.length).toBe(1);
+          throw new Error('simulated title pre-commit crash');
+        },
+      }),
+    ).rejects.toThrow('simulated title pre-commit crash');
+    expect(titleCallCount).toBe(1);
+    expect(countCohortTitleOutputs(fixture.run.id)).toBe(0);
+    // A is stale: the seam refuses without mutation or transport.
+    const stale = await curation.executeClaim(fixture.run.id, 'worker-a');
+    expect(stale.executed).toBe(false);
+    if (!stale.executed) expect(stale.disposition).toBe('stale-owner');
+    expect(titleCallCount).toBe(1);
+    expect(countCohortTitleOutputs(fixture.run.id)).toBe(0);
+    // B alone finishes: exactly one more audited coordination (its own
+    // recovery attempt), commit, member completion, parent completion.
+    const finished = await curation.executeClaim(fixture.run.id, 'worker-b');
+    expect(finished.executed).toBe(true);
+    expect(titleCallCount).toBe(2);
+    expect(countCohortTitleOutputs(fixture.run.id)).toBe(2);
+    // Same active-bundle abstention note as above: parent terminal success
+    // carries abstentions; the title path under test is unaffected.
+    expect(getCohortRunById(fixture.run.id)!.status).toBe('completed_with_abstentions');
+    expect(getCohortRunById(fixture.run.id)!.claimedBy).toBe('worker-b');
   });
 });

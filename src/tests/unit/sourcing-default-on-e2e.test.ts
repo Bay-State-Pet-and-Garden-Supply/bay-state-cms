@@ -64,7 +64,7 @@ import {
   getCohortSnapshotByHash,
 } from '../../db/repositories/classification-cohort-run-repo';
 import { updateCohortStatus } from '../../db/repositories/curation-cohort-repo';
-import { freezeCohortForExecution } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
 import { parseExecutionEvidenceProjection, PROJECTION_VERSION_V3, ExecutionEvidenceProjectionV3Schema } from '../../shared/schemas/cohorts';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import { saveClassificationConfig, loadClassificationConfig } from '../../classification/config-loader';
@@ -416,7 +416,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    const res = completeSourcingWithDecision(item.id, decision as never, 'extraction');
+    const res = completeSourcingWithDecision(item.id, decision as never, 'collect_details');
     expect(res.ok).toBe(true);
 
     const routed = findItemById(item.id);
@@ -747,7 +747,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    const res = completeSourcingWithDecision(item.id, decision as never, 'extraction');
+    const res = completeSourcingWithDecision(item.id, decision as never, 'collect_details');
     expect(res.ok).toBe(true);
     // The worker records relational acceptances before routing; mirror it so
     // the materializer's acceptance-equality check passes and the corrupted
@@ -801,7 +801,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
         warnings: [],
         decidedAt: new Date().toISOString(),
       } as never,
-      'extraction',
+      'collect_details',
     );
     expect(res2.ok).toBe(true);
     recordAcceptances(item2.item.id, [att2.id], 'system', 'qualified distributor record (superseded-gen scenario)');
@@ -845,7 +845,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    expect(completeSourcingWithDecision(item.id, decision as never, 'extraction').ok).toBe(true);
+    expect(completeSourcingWithDecision(item.id, decision as never, 'collect_details').ok).toBe(true);
     // The worker records relational acceptances before routing; mirror it so
     // the materializer's acceptance-equality check passes (E2E repo-direct
     // routes bypass the worker).
@@ -960,7 +960,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    expect(completeSourcingWithDecision(item.id, decision as never, 'extraction').ok).toBe(true);
+    expect(completeSourcingWithDecision(item.id, decision as never, 'collect_details').ok).toBe(true);
     recordAcceptances(item.id, [att.id], 'system', 'qualified distributor record (image-boundary scenario)');
     updateItemStageStatus(item.id, 'in_progress');
     expect(materializeDistributorRecordExtraction(item.id, workspaceId).ok).toBe(true);
@@ -1054,7 +1054,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    expect(completeSourcingWithDecision(item.id, decision as never, 'extraction').ok).toBe(true);
+    expect(completeSourcingWithDecision(item.id, decision as never, 'collect_details').ok).toBe(true);
     recordAcceptances(item.id, [att.id], 'system', 'qualified distributor record (curate v2)');
     updateItemStageStatus(item.id, 'in_progress');
     const mat = materializeDistributorRecordExtraction(item.id, workspaceId);
@@ -1125,7 +1125,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
     const res = completeSourcingWithDecision(
       item.id,
       { route: 'bundle_to_curation', origin: 'automatic_policy', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: new Date().toISOString() } as never,
-      'discovery',
+      'find_product_page',
     );
     expect(res.ok).toBe(false);
     expect(res.reason).toContain('prohibited');

@@ -1,0 +1,3 @@
+// Synthetic: immutable route ids (historical, never rewritten).
+if (decision.route !== 'distributor_record_to_extraction') {}
+const r2 = 'evidence_to_discovery';

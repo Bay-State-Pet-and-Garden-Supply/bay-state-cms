@@ -8,13 +8,15 @@ import {
   computeCohortPageInputHash,
   pageAuthorityFromProjectionMember,
   pageAuthorityMemberToSnapshot,
+} from '../../onboarding/cohort-curation/pages';
+import {
   PAGE_AUTHORITY_TRUNCATION,
   normalizePageAuthorityString,
-} from '../../onboarding/cohort-page-hash';
-import { buildPrompt, coordinateCohortPagesCore } from '../../classification/cohort-page-coordinator';
+} from '../../classification/cohort-decision-authority';
+import { buildPrompt, coordinateCohortPagesCore } from '../../classification/cohort-page-proposal-engine';
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
-import { titleExecutionTypeAuthorityFromRun } from '../../onboarding/cohort-title-hash';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
 import { initDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import type {

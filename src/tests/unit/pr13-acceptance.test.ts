@@ -64,9 +64,10 @@ import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
-import { freezeCohortForExecution, processCohort } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -80,8 +81,8 @@ import {
 } from '../../classification/runtime-snapshot';
 import {
   computeCohortTitleInputHash,
-  titleExecutionTypeAuthorityFromRun,
-} from '../../onboarding/cohort-title-hash';
+} from '../../onboarding/cohort-curation/titles';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
 import { evidenceFromProjection } from '../../classification/cohort-product-type-resolver';
 import {
   ClassificationManifestV2Schema,
@@ -637,7 +638,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
 
     // Revision A: one title call; members commit consuming A's titles.
     const runA = await freezeActiveCohort(workspaceId, wsPath);
-    const summaryA = await processCohort(runA, wsPath, workspaceId);
+    const summaryA = await executeViaSeam(wsPath, workspaceId, runA.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summaryA.parentStatus);
     expect(titleCallCount).toBe(1);
     expect(pageCallCount).toBe(1); // one parent page call for the group
@@ -665,7 +666,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     const titleOpsBeforeB = getDb().query(
       "SELECT COUNT(*) AS cnt FROM classification_model_calls WHERE operation = 'cohort_title_consolidation'",
     ).get() as { cnt: number };
-    const summaryB = await processCohort(finalizedB, wsPath, workspaceId);
+    const summaryB = await executeViaSeam(wsPath, workspaceId, finalizedB.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summaryB.parentStatus);
     // Cross-parent same-T-hash reuse: ZERO title calls.
     expect(titleCallCount).toBe(0);
@@ -714,7 +715,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const runA = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(runA, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, runA.id, 'worker-a');
     expect(titleCallCount).toBe(1);
 
     // Mutate one member's frozen title evidence BEFORE the re-run → B's
@@ -729,7 +730,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     const finalizedB = await freezeCohortForExecution(runB, wsPath, workspaceId);
     expect(finalizedB.status).toBe('running');
     titleCallCount = 0;
-    const summaryB = await processCohort(finalizedB, wsPath, workspaceId);
+    const summaryB = await executeViaSeam(wsPath, workspaceId, finalizedB.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summaryB.parentStatus);
     // A DIFFERENT T-hash → no copy → fresh coordinate (exactly one call).
     expect(titleCallCount).toBe(1);
@@ -741,7 +742,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const runA = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(runA, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, runA.id, 'worker-a');
     expect(titleCallCount).toBe(1);
 
     // Simulate a partial old set (only possible via an illegal direct DELETE).
@@ -756,7 +757,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     const finalizedB = await freezeCohortForExecution(runB, wsPath, workspaceId);
     expect(finalizedB.status).toBe('running');
     titleCallCount = 0;
-    const summaryB = await processCohort(finalizedB, wsPath, workspaceId);
+    const summaryB = await executeViaSeam(wsPath, workspaceId, finalizedB.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summaryB.parentStatus);
     // EXACT-SET completeness failed on the old set → fresh coordinate.
     expect(titleCallCount).toBe(1);
@@ -880,6 +881,8 @@ describe('PR13 C5 — PR12-close P2 edges', () => {
           customFields: {},
           fieldProvenance: {},
           packagingTitle: null,
+          manualEvidenceAttestationId: null,
+          manualReferenceUrl: null,
           ocr: {
             outcome: null,
             packagingOcrData: { productName: 'Package Dog Food' } as never,

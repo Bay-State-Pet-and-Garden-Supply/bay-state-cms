@@ -171,7 +171,7 @@ describe('Conflict Resolution & Multi-Conflict Stage Isolation Tests', () => {
       completeSourcingWithDecision(
         item.id,
         { route: 'bundle_to_curation', origin: 'operator_override', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: now },
-        'sourcing',
+        'route_sources',
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('prohibited') });
 
@@ -180,25 +180,26 @@ describe('Conflict Resolution & Multi-Conflict Stage Isolation Tests', () => {
       completeSourcingWithDecision(
         item.id,
         { route: 'evidence_to_discovery', origin: 'automatic_policy', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: now },
-        'sourcing',
+        'route_sources',
       ),
-    ).toMatchObject({ ok: false, reason: expect.stringContaining('targets discovery') });
+    ).toMatchObject({ ok: false, reason: expect.stringContaining('targets find_product_page') });
 
     // needs_input_conflict requires the item to be needs_input.
     expect(
       completeSourcingWithDecision(
         item.id,
         { route: 'needs_input_conflict', origin: 'automatic_policy', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: now },
-        'sourcing',
+        'route_sources',
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('needs_input') });
 
-    // evidence_to_discovery lands in discovery/pending.
+    // evidence_to_discovery lands in find_product_page/pending (stored v1
+    // spelling on v1 storage).
     expect(
       completeSourcingWithDecision(
         item.id,
         { route: 'evidence_to_discovery', origin: 'automatic_policy', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: now },
-        'discovery',
+        'find_product_page',
       ),
     ).toEqual({ ok: true });
     const after = findItemById(item.id);
@@ -206,12 +207,12 @@ describe('Conflict Resolution & Multi-Conflict Stage Isolation Tests', () => {
     expect(after?.stageStatus).toBe('pending');
     expect(after?.sourcingDecision?.route).toBe('evidence_to_discovery');
 
-    // A non-sourcing row can never be completed through the helper.
+    // A non-route_sources row can never be completed through the helper.
     expect(
       completeSourcingWithDecision(
         item.id,
         { route: 'fallback_to_discovery', origin: 'operator_override', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: now },
-        'discovery',
+        'find_product_page',
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('not_eligible') });
   });
@@ -295,7 +296,7 @@ describe('Conflict Resolution & Multi-Conflict Stage Isolation Tests', () => {
     const ok = completeSourcingWithDecision(
       item.id,
       { route: 'evidence_to_discovery', origin: 'automatic_policy', acceptedEvidenceAttemptIds: [], providerIds: ['p1'], conflicts: [], warnings: [], decidedAt: new Date().toISOString() },
-      'discovery',
+      'find_product_page',
     );
     expect(ok).toEqual({ ok: true });
     expect(findItemById(item.id)?.stage).toBe('discovery');

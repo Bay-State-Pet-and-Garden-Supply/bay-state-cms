@@ -7,23 +7,23 @@ import { listPages } from '../../db/repositories/page-repo';
 import { getDb } from '../../db/connection';
 import { loadRuntimeConfig } from '../../classification/config-loader';
 
-vi.mock('../../server/services/workspace-service', () => ({
+vi.mock('@/server/services/workspace-service', () => ({
   getCurrentWorkspace: vi.fn(),
 }));
 
-vi.mock('../../db/repositories/field-registry-repo', () => ({
+vi.mock('@/db/repositories/field-registry-repo', () => ({
   listRegistry: vi.fn(),
 }));
 
-vi.mock('../../db/repositories/page-repo', () => ({
+vi.mock('@/db/repositories/page-repo', () => ({
   listPages: vi.fn(),
 }));
 
-vi.mock('../../db/connection', () => ({
+vi.mock('@/db/connection', () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock('../../classification/config-loader', () => ({
+vi.mock('@/classification/config-loader', () => ({
   loadRuntimeConfig: vi.fn(),
 }));
 

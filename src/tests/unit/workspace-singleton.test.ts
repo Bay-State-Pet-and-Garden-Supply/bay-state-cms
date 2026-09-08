@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockAll = vi.fn();
 
-vi.mock('../../db/connection', () => ({
+vi.mock('@/db/connection', () => ({
   getDb: () => ({
     query: () => ({ all: mockAll }),
   }),

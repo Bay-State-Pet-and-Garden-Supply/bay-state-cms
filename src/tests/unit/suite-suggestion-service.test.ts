@@ -1,11 +1,11 @@
 // story: e07s02
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../../onboarding/sitemap-health-evaluator', () => ({
+vi.mock('@/onboarding/sitemap-health-evaluator', () => ({
   getDomainSitemapHealth: vi.fn(() => ({ status: 'healthy' })),
 }));
 
-vi.mock('../../db/repositories/brand-url-index-repo', () => ({
+vi.mock('@/db/repositories/brand-url-index-repo', () => ({
   findUrlsByDomain: vi.fn(),
   normalizeDomain: (d: string) => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim(),
 }));

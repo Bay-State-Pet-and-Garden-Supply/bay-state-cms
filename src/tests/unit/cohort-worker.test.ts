@@ -38,17 +38,16 @@ import {
 import { saveClassificationConfig, loadClassificationConfig, loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../../classification/config-loader';
 import { syncConfigToCache, createConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { OnboardingWorker } from '../../onboarding/job-queue';
-import {
-  freezeCohortForExecution,
-  processCohort,
-  verifyCohortRunFrozen,
-  HeartbeatLostError,
-  MemberCommitCrashSimulationError,
-  observeCohortShadowTypeResolution,
-  buildFrozenProductLineContext,
-  computeOcrExecutionDigest,
-} from '../../onboarding/cohort-curator';
-import type { PreparedCohortContext } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution, verifyCohortRunFrozen } from '../../onboarding/cohort-curation/freeze';
+import { HeartbeatLostError } from '../../classification/heartbeat-errors';
+import { MemberCommitCrashSimulationError } from '../../onboarding/cohort-curation/members';
+import { observeCohortShadowTypeResolution } from '../../onboarding/cohort-curation/index';
+import { buildFrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
+import { computeOcrExecutionDigest } from '../../classification/runtime-snapshot';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
+import type { PreparedCohortContext } from './helpers/transitional-prepared-member';
+import { curateTransitionalPreparedMember } from './helpers/transitional-prepared-member';
+import { createCohortCuration } from '../../onboarding/cohort-curation/index';
 import { buildRuntimeSnapshot } from '../../classification/runtime-snapshot';
 import { listCandidateCohortViews } from '../../onboarding/curation-cohort-service';
 import { getRun, completeRun } from '../../db/repositories/classification-run-repo';
@@ -81,15 +80,15 @@ import type {
   ExecutionEvidenceProjection,
 } from '../../shared/schemas/cohorts';
 import { CurationCohortViewSchema } from '../../shared/schemas/cohorts';
-import { computeCohortTitleInputHash, titleExecutionTypeAuthorityFromRun } from '../../onboarding/cohort-title-hash';
+import { computeCohortTitleInputHash } from '../../onboarding/cohort-curation/titles';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
 import {
   buildCohortPageAuthorityBundle,
   computeCohortPageInputHash,
   type CohortPagePlanAuthority,
-} from '../../onboarding/cohort-page-hash';
+} from '../../onboarding/cohort-curation/pages';
 import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
 import { buildPageHierarchy } from '../../classification/page-assignment-llm';
-import { curateItemWithPipeline } from '../../onboarding/product-curator';
 import {
   getCohortTitleOutputsByRun,
   insertCohortTitleOutputsOnce,
@@ -627,18 +626,18 @@ describe('OnboardingWorker Curation cohort integration (issue #30, PR3 M3)', () 
     // non-audited call. Seed the durable `curated_title` outputs when the
     // worker dispatches the run — the parent op then REUSES them (zero
     // transport) and the worker-driven claim/freeze/execute flow is unchanged.
-    const cohortCuratorModule = await import('../../onboarding/cohort-curator');
-    const originalProcessCohort = cohortCuratorModule.processCohort;
-    const processSpy = vi.spyOn(cohortCuratorModule, 'processCohort').mockImplementation(async (run: any, wp: string, wsId: string, hooks?: any) => {
-      seedV1TitleOutputs(wsId, run);
-      return originalProcessCohort(run, wp, wsId, hooks);
+    const titlesModule = await import('../../onboarding/cohort-curation/titles');
+    const originalEnsureTitles = titlesModule.ensureCohortTitles;
+    const titlesSpy = vi.spyOn(titlesModule, 'ensureCohortTitles').mockImplementation(async (params: any) => {
+      seedV1TitleOutputs(workspaceId, params.run);
+      return originalEnsureTitles(params);
     });
     try {
       const worker = new OnboardingWorker(workspaceId, wsPath);
       await worker.poll();
       await drainWorker(worker);
     } finally {
-      processSpy.mockRestore();
+      titlesSpy.mockRestore();
     }
 
     // Exactly one cohort run row, terminal with a valid completion status.
@@ -834,7 +833,7 @@ describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
     expect(finalized.status).toBe('running');
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
     expect(summary.memberCount).toBe(2);
@@ -873,7 +872,7 @@ describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
     );
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.completedMembers).toBe(1);
     expect(summary.memberFailures.length).toBe(1);
@@ -907,7 +906,7 @@ describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
     // at a snapshot that does not exist instead of deleting the row.)
     getDb().run('UPDATE classification_cohort_runs SET evidence_snapshot_hash = ? WHERE id = ?', ['f'.repeat(64), finalized.id]);
     const unreachable = getCohortRunById(finalized.id)!;
-    await expect(processCohort(unreachable, wsPath, workspaceId)).rejects.toThrow(/no persisted execution-evidence snapshot/);
+    await expect(executeViaSeam(wsPath, workspaceId, unreachable.id, 'worker-a')).rejects.toThrow(/no persisted execution-evidence snapshot/);
     const failed = getCohortRunById(finalized.id)!;
     expect(failed.status).toBe('failed');
     expect(failed.completedAt).not.toBeNull();
@@ -939,7 +938,7 @@ describe('processCohort heartbeat hardening (issue #30, PR3 hardening Commit A)'
     // the abort the stale owner must not have added/updated a single row in
     // the pipeline's persistence tables.
     let tablesAtReclaim: Record<string, number> = {};
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       onPipelineInFlight: () => {
         if (reclaimed) return;
         reclaimed = true;
@@ -1061,7 +1060,7 @@ describe('PR3 hardening — Commit B (R2 frozen execution purity, end-to-end)', 
     );
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
 
     const storedA = findItemById(a.id)!;
@@ -1126,7 +1125,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
 
     // Crash EXACTLY between pipeline completion and item persistence (test
     // seam, documented test-only like beforeFinalCas).
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         throw new MemberCommitCrashSimulationError('simulated crash between pipeline completion and member commit');
       },
@@ -1159,7 +1158,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     expect(reclaim.resumed[0].id).toBe(finalized.id);
 
     const resumed = getCohortRunById(finalized.id)!;
-    const summary = await processCohort(resumed, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(1);
 
@@ -1195,7 +1194,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // (no curation data referencing it, item not completed) → the recovery skip
     // rule does NOT apply → the member is re-executed and committed atomically
     // under a NEW child (inheriting the freeze-persisted snapshot refs).
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(1);
 
@@ -1229,7 +1228,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // completion — member 1's atomic commit already landed).
     seedV1TitleOutputs(workspaceId, finalized);
     let memberPipelines = 0;
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         memberPipelines++;
         if (memberPipelines >= 2) {
@@ -1250,7 +1249,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // Resume the same run: member 1 is skipped by the recovery skip rule (its
     // child is terminal-success + curation data references it + item completed);
     // member 2 is re-executed and committed atomically.
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
     const firstAfter = findItemById(items[0].id)!;
@@ -1286,7 +1285,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     expect(finalized.productTypeConfidence).toBeCloseTo(0.8, 4);
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
 
@@ -1330,7 +1329,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     // Crash EXACTLY between pipeline completion and the atomic member commit:
     // the pipeline created proposals, but the dependency rows live INSIDE that
     // transaction — none may exist before it commits.
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         throw new MemberCommitCrashSimulationError('simulated crash between pipeline completion and member commit');
       },
@@ -1353,7 +1352,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     );
     expect(reclaim.resumed.length).toBe(1);
     const resumed = getCohortRunById(finalized.id)!;
-    const summary = await processCohort(resumed, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
     expect(summary.parentStatus).toBe('completed');
 
     const stored = findItemById(items[0].id)!;
@@ -1416,7 +1415,10 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
       curationDataRunId: string | null;
       childStatus: string | null;
     } | null = null;
-    const summary = await processCohort(finalized, wsPath, workspaceId, {
+    // Public-seam threading proof: member checkpoints reach members.ts via
+    // executeClaim (no dual dispatch — job-queue calls only executeClaim).
+    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
+    const result = await curation.executeClaim(finalized.id, 'worker-a', {
       afterMemberProjectionDependencyInsert: () => {
         const item = findItemById(items[0].id)!;
         const childId = item.curationData?.classificationRunId ?? null;
@@ -1428,6 +1430,9 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
         };
       },
     });
+    expect(result.executed).toBe(true);
+    if (!result.executed) throw new Error('expected execution through the public seam');
+    const summary = result.summary;
     expect(summary.parentStatus).toBe('completed');
     expect(observed).not.toBeNull();
     // Inside the transaction the dependency rows already exist …
@@ -1461,7 +1466,8 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     // A throw from the in-transaction seam aborts the whole member commit: the
     // transaction rolls back the dependency rows, the item projection, and the
     // child terminal write together.
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
+    await expect(curation.executeClaim(finalized.id, 'worker-a', {
       afterMemberProjectionDependencyInsert: () => {
         throw new MemberCommitCrashSimulationError('simulated crash inside the member-projection transaction');
       },
@@ -1500,7 +1506,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     expect(finalized.finalMembershipHash).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     // The enabled type target still produced member proposals — with no
     // execution type on the run row, none of them record dependency rows.
@@ -1533,7 +1539,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     expect(finalized.productTypeConfidence).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     for (const item of items) {
       expect(findItemById(item.id)!.stageStatus).toBe('completed');
@@ -1604,7 +1610,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
 
     const expectedHash = hashCanonicalJson({ executionProductTypeId: 'dry-dog-food', productTypeConfidence: 0.8 });
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     for (const item of items) {
       const stored = findItemById(item.id)!;
@@ -1651,7 +1657,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     expect(finalized.executionProductTypeId).toBe('dry-dog-food');
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
 
@@ -1724,7 +1730,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     });
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
 
     const reviewedMember = findItemById(items[0].id)!;
@@ -1796,7 +1802,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     expect(finalized.productTypeOutcome).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     for (const item of items) {
       const stored = findItemById(item.id)!;
@@ -1830,7 +1836,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     expect(finalized.productTypeConfidence).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     for (const item of items) {
       const stored = findItemById(item.id)!;
@@ -2115,7 +2121,7 @@ describe('PR5 C4 — acceptance integration: execution-driven first pass, review
     expect(finalized.productTypeConfidence).toBeCloseTo(0.8, 4);
 
     seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
 
@@ -2470,7 +2476,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
 
     const titleCallSpy = vi.spyOn(llmClient, 'callLlmForTask');
     try {
-      const summary = await processCohort(run, wsPath, workspaceId);
+      const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
       expect(summary.parentStatus).toBe('completed');
       expect(summary.completedMembers).toBe(2);
     } finally {
@@ -2507,7 +2513,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       // the parent stays running — the durable outputs were already written by
       // the parent op before the member loop.
       let pipelineCount = 0;
-      await expect(processCohort(run, wsPath, workspaceId, {
+      await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
         afterMemberPipeline: () => {
           pipelineCount++;
           if (pipelineCount === 2) {
@@ -2546,7 +2552,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       // child run). Member 2 re-executes via its still-running child. Both
       // members consume the SAME persisted titles byte-for-byte.
       const resumed = getCohortRunById(run.id)!;
-      const summary = await processCohort(resumed, wsPath, workspaceId);
+      const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
       expect(summary.parentStatus).toBe('completed');
       expect(summary.completedMembers).toBe(2);
       const memberTwoAfter = findItemById(items[1].id)!;
@@ -2566,7 +2572,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       updateItemStageStatus(items[1].id, 'pending');
       updateItemCurationData(items[1].id, '');
       const prepared = buildPreparedContext(workspaceId, resumed, items[1], frozenLineContext);
-      const rerun = await curateItemWithPipeline(findItemById(items[1].id)!, wsPath, workspaceId, prepared);
+      const rerun = await curateTransitionalPreparedMember(findItemById(items[1].id)!, wsPath, workspaceId, prepared);
       expect(rerun.curatedTitle).toBe('Purina Pro Plan Dog Food Beef 10 lb');
       expect(rerun.titleSource).toBe('llm_cohort');
       expect(titleCallInvocationCount(titleCallSpy)).toBe(0);
@@ -2602,7 +2608,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
     expect(childrenBefore.length).toBeGreaterThan(0);
     expect(childrenBefore.every(c => c.status === 'running')).toBe(true);
 
-    await expect(processCohort(run, wsPath, workspaceId)).rejects.toThrow(/CohortTitleAuthorityDrift/);
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a')).rejects.toThrow(/CohortTitleAuthorityDrift/);
 
     // The parent is SUPERSEDED (not failed) with the deterministic drift
     // message — the historical decision stays immutable.
@@ -2700,7 +2706,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
 
     const titleCallSpy = vi.spyOn(llmClient, 'callLlmForTask');
     try {
-      const summary = await processCohort(run, wsPath, workspaceId);
+      const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
       expect(summary.parentStatus).toBe('completed');
       expect(summary.completedMembers).toBe(2);
     } finally {
@@ -2755,7 +2761,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
     ).all(run.id) as Array<{ id: string; status: string }>;
     expect(childrenBefore.length).toBeGreaterThan(0);
 
-    await expect(processCohort(run, wsPath, workspaceId)).rejects.toThrow(/CohortPageAuthorityDrift/);
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a')).rejects.toThrow(/CohortPageAuthorityDrift/);
 
     // The parent is SUPERSEDED (not failed) via the EXISTING drift primitive;
     // every running child is terminalized; no member writes happened.
@@ -2811,7 +2817,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
     }) as any);
     try {
       await expect(
-        curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
+        curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
       ).rejects.toThrow(/missing a persisted cohort title output in active cohort mode/);
       // No invented fallback title and no per-item title LLM call.
       expect(titleCallsDuringTest).toBe(0);
@@ -3025,7 +3031,7 @@ describe('PR7 C6 — execution_product_type dependency on materialized page prop
     expect(auditedRow.run_id).toBe(ordinalZeroChild.id);
     expect(auditedRow.snapshot_hash).toBe(ordinalZeroChild.config_snapshot_hash);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
 
@@ -3111,7 +3117,7 @@ describe('PR7 C6 — execution_product_type dependency on materialized page prop
       ['100000000002', { pageId: pageIds.get('dog-treats')!, pageName: 'Dog Treats' }],
     ]), auditedPageCallId);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
 
     // PR7 review R2 (F3-1/P1-D): the reviewed-driven member's field_assignment
@@ -3205,7 +3211,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     expect(finalized.executionProductTypeId).toBe('dry-dog-food');
     seedV1TitleOutputs(workspaceId, finalized);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(2);
     expect(summary.memberFailures).toEqual([]);
@@ -3239,7 +3245,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const mutatedRun = getCohortRunById(finalized.id)!;
     seedV1TitleOutputs(workspaceId, mutatedRun);
 
-    const summary = await processCohort(mutatedRun, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.completedMembers).toBe(2);
     expect(summary.memberFailures).toHaveLength(2);
@@ -3280,7 +3286,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     expect(finalized.executionProductTypeId).toBe('dry-dog-food');
     seedV1TitleOutputs(workspaceId, finalized);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     expect(summary.memberFailures[0].productSku).toBe('100000000002');
@@ -3317,7 +3323,8 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     // Crash AFTER member 2's projection commit (test-only seam) — the brand
     // check never runs in this attempt; the committed members survive.
     let commitCount = 0;
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
+    await expect(curation.executeClaim(finalized.id, 'worker-a', {
       afterMemberCommit: () => {
         commitCount++;
         if (commitCount === 2) {
@@ -3341,7 +3348,10 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     );
     expect(reclaim.resumed.length).toBe(1);
     const resumed = getCohortRunById(finalized.id)!;
-    const summary = await processCohort(resumed, wsPath, workspaceId);
+    const resumedResult = await curation.executeClaim(resumed.id, 'worker-b');
+    expect(resumedResult.executed).toBe(true);
+    if (!resumedResult.executed) throw new Error('expected execution through the public seam');
+    const summary = resumedResult.summary;
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.completedMembers).toBe(2);
 
@@ -3372,7 +3382,8 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     // Crash AFTER member 1's projection commit — its BLOCKED semanticValidation
     // commits, the parent stays `running`.
     let commitCount = 0;
-    await expect(processCohort(mutatedRun, wsPath, workspaceId, {
+    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
+    await expect(curation.executeClaim(mutatedRun.id, 'worker-a', {
       afterMemberCommit: () => {
         commitCount++;
         if (commitCount === 1) throw new MemberCommitCrashSimulationError('simulated crash after member 1 commit');
@@ -3394,7 +3405,10 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     );
     expect(reclaim.resumed.length).toBe(1);
     const resumed = getCohortRunById(finalized.id)!;
-    const summary = await processCohort(resumed, wsPath, workspaceId);
+    const resumedResult = await curation.executeClaim(resumed.id, 'worker-b');
+    expect(resumedResult.executed).toBe(true);
+    if (!resumedResult.executed) throw new Error('expected execution through the public seam');
+    const summary = resumedResult.summary;
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     // BOTH members appear in the failure summary — the committed block was
     // restored (deduplicated to ONE entry per member).
@@ -3431,7 +3445,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const unsubscribe = onboardingEvents.subscribe(batchId, event => {
       events.push(event);
     });
-    const summary = await processCohort(mutatedRun, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
     unsubscribe();
 
     expect(summary.parentStatus).toBe('completed_with_member_failures');

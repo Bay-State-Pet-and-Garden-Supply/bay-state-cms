@@ -78,21 +78,18 @@ import { generateCandidate, buildFocusedFiles } from '../../classification/confi
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { OnboardingWorker } from '../../onboarding/job-queue';
-import {
-  freezeCohortForExecution,
-  processCohort,
-  verifyCohortRunFrozen,
-  buildFrozenProductLineContext,
-  MemberCommitCrashSimulationError,
-} from '../../onboarding/cohort-curator';
-import type { PreparedCohortContext } from '../../onboarding/cohort-curator';
-import { curateItemWithPipeline } from '../../onboarding/product-curator';
+import { freezeCohortForExecution, verifyCohortRunFrozen } from '../../onboarding/cohort-curation/freeze';
+import { buildFrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
+import { MemberCommitCrashSimulationError } from '../../onboarding/cohort-curation/members';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
+import type { PreparedCohortContext } from './helpers/transitional-prepared-member';
+import { curateTransitionalPreparedMember } from './helpers/transitional-prepared-member';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import * as cohortNameCoordinator from '../../onboarding/cohort-name-coordinator';
-import * as cohortPageCoordinator from '../../classification/cohort-page-coordinator';
+import * as cohortPageCoordinator from '../../classification/cohort-page-proposal-engine';
 import * as pageAssignmentLlm from '../../classification/page-assignment-llm';
 import {
   overrideCohortCurationFlags,
@@ -750,7 +747,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
 
     // ── processCohort #1: member 1 COMMITS; crash after member 2's pipeline.
     let pipelineCount = 0;
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 2) {
@@ -838,7 +835,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     const groupPageCallsBeforeRetry = groupPageCallCount;
     const singletonPageCallsBeforeRetry = singletonPageCallCount;
     const auditedCallsBeforeRetry = auditedPageCallCount;
-    const summary2 = await processCohort(resumed, wsPath, workspaceId);
+    const summary2 = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
     expect(summary2.parentStatus).not.toBe('failed');
 
     // ZERO title/Page coordination calls across the retry window — four
@@ -905,7 +902,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     // The parent-op contract violation: no durable title row for the member.
     prepared.coordinatedTitles = new Map();
     await expect(
-      curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
+      curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
     ).rejects.toThrow(/missing a persisted cohort title output in active cohort mode/);
     // No fallback title was ever written (the pipeline threw before the draft).
     expect(findItemById(items[0].id)!.curationData).toBeNull();
@@ -920,7 +917,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     ]);
     prepared.pageCoordinationAbsent = false;
     await expect(
-      curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
+      curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
     ).rejects.toThrow(/corrupt parent page output payload/);
   });
 
@@ -931,7 +928,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     prepared.coordinatedPages = new Map();
     prepared.pageCoordinationAbsent = false;
     await expect(
-      curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
+      curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
     ).rejects.toThrow(/no parent page output row in active cohort mode/);
   });
 
@@ -943,7 +940,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
       ['100000000001', { output: { status: 'abstained', reason: 'Cohort page LLM policy denied.' }, modelCallId: null }],
     ]);
     prepared.pageCoordinationAbsent = false;
-    const curationData = await curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared);
+    const curationData = await curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared);
     expect(curationData.curatedTitle).toBe('Frozen Coordinated Title');
     expect(curationData.titleSource).toBe('llm_cohort');
     const pageProposals = curationData.classificationProposals.filter(p => p.proposalType === 'category_page');
@@ -960,7 +957,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     // member fails.
     prepared.cohortExecutionType = { id: 'bogus-not-a-real-type', confidence: 0.95, outcome: 'coherent' };
     await expect(
-      curateItemWithPipeline(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
+      curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
     ).rejects.toThrow(/missing from the frozen runtime snapshot/);
   });
 
@@ -977,7 +974,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('review-R2-1 (P1): a corrupt persisted curated_title row SUPERSEDES the parent — children terminalized, old rows immutable, new run immediately claimable, zero re-coordination', async () => {
     const { workspaceId, workspacePath: wsPath, run, items } = await freezeAndScaffold();
     let pipelineCount = 0;
-    await expect(processCohort(run, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 2) throw new MemberCommitCrashSimulationError('simulated kill');
@@ -1006,7 +1003,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
 
     // Re-enter processCohort: the parent title op's REUSE path parses the row,
     // fails closed, and the parent is SUPERSEDED (not a member failure).
-    await expect(processCohort(run, wsPath, workspaceId)).rejects.toThrow(/corrupt/i);
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a')).rejects.toThrow(/corrupt/i);
 
     // Parent SUPERSEDED with the deterministic message (run id + SKU + cause).
     const terminal = getCohortRunById(run.id)!;
@@ -1057,7 +1054,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     }));
     const newRevision = await freezeActiveCohort(workspaceId, wsPath);
     expect(newRevision.id).not.toBe(run.id);
-    const freshSummary = await processCohort(newRevision, wsPath, workspaceId);
+    const freshSummary = await executeViaSeam(wsPath, workspaceId, newRevision.id, 'worker-a');
     // Same completion semantics as the first revision: the title transport mock
     // returns empty -> durable cohort_fallback rows, pages assigned; members
     // commit. Not failed, and a FULL fresh output set exists under the new id.
@@ -1074,7 +1071,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('review-R2-2 (P1): an EMPTY persisted curated_title row (pre-tightening) SUPERSEDES the parent — no fallback title is ever invented', async () => {
     const { workspaceId, workspacePath: wsPath, run, items } = await freezeAndScaffold();
     let pipelineCount = 0;
-    await expect(processCohort(run, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 2) throw new MemberCommitCrashSimulationError('simulated kill');
@@ -1089,7 +1086,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
       [JSON.stringify({ title: '', source: 'llm_cohort' }), run.id],
     );
 
-    await expect(processCohort(run, wsPath, workspaceId)).rejects.toThrow(/corrupt/i);
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a')).rejects.toThrow(/corrupt/i);
 
     const terminal = getCohortRunById(run.id)!;
     expect(terminal.status).toBe('superseded');
@@ -1109,7 +1106,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('review-R2-3 (P1): an assigned persisted coordinated_page row with EMPTY pages SUPERSEDES the parent — no partial draft', async () => {
     const { workspaceId, workspacePath: wsPath, run, items } = await freezeAndScaffold();
     let pipelineCount = 0;
-    await expect(processCohort(run, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 2) throw new MemberCommitCrashSimulationError('simulated kill');
@@ -1123,7 +1120,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
       [JSON.stringify({ status: 'assigned', pages: [], source: 'llm_cohort' }), run.id],
     );
 
-    await expect(processCohort(run, wsPath, workspaceId)).rejects.toThrow(/corrupt/i);
+    await expect(executeViaSeam(wsPath, workspaceId, run.id, 'worker-a')).rejects.toThrow(/corrupt/i);
 
     const terminal = getCohortRunById(run.id)!;
     expect(terminal.status).toBe('superseded');

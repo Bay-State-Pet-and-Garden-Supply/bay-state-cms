@@ -16,6 +16,9 @@ import {
   sourceTypeLabel,
   workspaceTabForCategory,
   WORK_STATE_CATEGORY_LABELS,
+  REVIEW_LIST_FACETS,
+  DEFAULT_REVIEW_LIST_FACET,
+  isAwaitingReviewFacet,
 } from '../../client/components/onboarding/batch-workspace-logic';
 import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state';
 
@@ -63,7 +66,7 @@ describe('WORKSPACE_TABS', () => {
     expect(getTabCount(approvedTab, counts)).toBe(10);
   });
 
-  it('counts ready_to_export tab badge across ready_to_export + completed', () => {
+  it('counts ready_to_export tab badge from ready_to_export only (Slice 2: completed excluded)', () => {
     const readyTab = WORKSPACE_TABS.find(t => t.id === 'ready_to_export')!;
     const counts: WorkStateCounts = {
       ...ZERO_COUNTS,
@@ -71,7 +74,8 @@ describe('WORKSPACE_TABS', () => {
       ready_to_export: 4,
       completed: 2,
     };
-    expect(getTabCount(readyTab, counts)).toBe(6);
+    // Completed is a distinct terminal outcome — never merged into Ready to Export.
+    expect(getTabCount(readyTab, counts)).toBe(4);
   });
 
   it('counts review tab badge from ready_for_review only', () => {
@@ -164,14 +168,30 @@ describe('labels', () => {
 });
 
 describe('workspaceTabForCategory', () => {
-  it('maps each category to its tab', () => {
+  it('maps operation categories to their tab', () => {
     expect(workspaceTabForCategory('needs_attention')).toBe('needs_attention');
     expect(workspaceTabForCategory('processing')).toBe('processing');
     expect(workspaceTabForCategory('waiting_on_family')).toBe('waiting_on_family');
     expect(workspaceTabForCategory('ready_for_review')).toBe('review');
     expect(workspaceTabForCategory('approved')).toBe('approved');
     expect(workspaceTabForCategory('ready_to_export')).toBe('ready_to_export');
-    expect(workspaceTabForCategory('completed')).toBe('ready_to_export');
-    expect(workspaceTabForCategory('skipped')).toBe('approved');
+  });
+
+  it('Slice 2: completed and skipped are outcomes with no operation tab (never Approved / Ready-to-Export)', () => {
+    expect(workspaceTabForCategory('completed')).toBeNull();
+    expect(workspaceTabForCategory('skipped')).toBeNull();
+  });
+});
+
+describe('review-list facets (Slice 2: category/reviewState independence)', () => {
+  it('defaults the Review-listings stage list to Unreviewed', () => {
+    expect(DEFAULT_REVIEW_LIST_FACET).toBe('unreviewed');
+    expect(REVIEW_LIST_FACETS).toEqual(['unreviewed', 'reviewed', 'not_ready']);
+  });
+
+  it('counts only Unreviewed as awaiting review (Reviewed/Not-ready separated)', () => {
+    expect(isAwaitingReviewFacet('unreviewed')).toBe(true);
+    expect(isAwaitingReviewFacet('reviewed')).toBe(false);
+    expect(isAwaitingReviewFacet('not_ready')).toBe(false);
   });
 });

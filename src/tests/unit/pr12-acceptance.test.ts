@@ -56,9 +56,10 @@ import { upsertConfigSnapshot } from '../../db/repositories/classification-confi
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
-import { freezeCohortForExecution, processCohort } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -510,7 +511,7 @@ async function promoteReadyCoherent(
 ): Promise<{ prepared: ReturnType<typeof prepareActiveV2Workspace>; run: CohortRun; items: OnboardingItem[] }> {
   const prepared = prepareActiveV2Workspace(wsId, wsPath, extByUpc);
   const run = await freezeActiveCohort(wsId, wsPath);
-  const summary = await processCohort(run, wsPath, wsId);
+  const summary = await executeViaSeam(wsPath, wsId, run.id, 'worker-a');
   expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
   const items = prepared.items;
   for (const item of items) decideAllProposals(findItemById(item.id)!);
@@ -623,7 +624,7 @@ describe('PR12 C6 — promotion hygiene: 3-phase promoteItems (issue #30, DECISI
     };
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, fixture);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     const items = prepared.items;
@@ -669,7 +670,7 @@ describe('PR12 C6 — promotion hygiene: 3-phase promoteItems (issue #30, DECISI
     };
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, fixture);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     const items = prepared.items;
     for (const item of items) decideAllProposals(findItemById(item.id)!);
     placeInPromotion(items.map(item => findItemById(item.id)!));
@@ -750,7 +751,7 @@ describe('PR12 C6 — registry-version fail-closed (issue #30, DECISION-B)', () 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     const child = getDb().query(
       'SELECT id, config_snapshot_hash FROM classification_runs WHERE cohort_run_id = ? LIMIT 1',
     ).get(run.id) as { id: string; config_snapshot_hash: string | null };

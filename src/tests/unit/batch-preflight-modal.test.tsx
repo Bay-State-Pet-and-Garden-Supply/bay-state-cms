@@ -6,7 +6,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('@/client/onboarding-api', () => ({
   getBatchPreflight: vi.fn(),
   startBatch: vi.fn(),
   assignBrandGroup: vi.fn(),
@@ -14,13 +14,13 @@ vi.mock('../../client/onboarding-api', () => ({
   savePreflightDraft: vi.fn(),
 }));
 
-import { BatchPreflightModal } from '../../client/components/onboarding/preflight/BatchPreflightModal';
+import { BatchPreflightModal } from '@/client/components/onboarding/preflight/BatchPreflightModal';
 import {
   getBatchPreflight,
   startBatch,
   assignBrandGroup,
   savePreflightDraft,
-} from '../../client/onboarding-api';
+} from '@/client/onboarding-api';
 
 describe('BatchPreflightModal Component', () => {
   let container: HTMLDivElement;
@@ -298,5 +298,69 @@ describe('BatchPreflightModal Component', () => {
     });
 
     expect(patternInput.value).toBe('/custom-products/');
+  });
+
+  it('renders a navigation-only link to the unified Brand setup view when the callback is provided', async () => {
+    vi.mocked(getBatchPreflight).mockResolvedValueOnce(mockPreflightData);
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BatchPreflightModal
+          batchId="batch-test-123"
+          isOpen={true}
+          onClose={vi.fn()}
+          onOpenBrandSetup={vi.fn()}
+        />
+      );
+    });
+
+    const link = container.querySelector('[data-testid="preflight-open-brand-setup"]');
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toContain('Brand setup view');
+  });
+
+  it('omits the Brand setup link when no navigation callback is provided', async () => {
+    vi.mocked(getBatchPreflight).mockResolvedValueOnce(mockPreflightData);
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BatchPreflightModal
+          batchId="batch-test-123"
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    expect(container.querySelector('[data-testid="preflight-open-brand-setup"]')).toBeNull();
+  });
+
+  it('the Brand setup link navigates only — it never starts the batch or saves a draft', async () => {
+    vi.mocked(getBatchPreflight).mockResolvedValueOnce(mockPreflightData);
+
+    const onOpenBrandSetup = vi.fn();
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BatchPreflightModal
+          batchId="batch-test-123"
+          isOpen={true}
+          onClose={vi.fn()}
+          onOpenBrandSetup={onOpenBrandSetup}
+        />
+      );
+    });
+
+    const link = container.querySelector('[data-testid="preflight-open-brand-setup"]') as HTMLButtonElement;
+    expect(link).not.toBeNull();
+    await act(async () => {
+      link.click();
+    });
+
+    expect(onOpenBrandSetup).toHaveBeenCalledTimes(1);
+    expect(startBatch).not.toHaveBeenCalled();
+    expect(savePreflightDraft).not.toHaveBeenCalled();
   });
 });

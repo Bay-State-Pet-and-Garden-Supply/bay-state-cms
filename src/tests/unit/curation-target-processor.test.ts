@@ -12,14 +12,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ── Mocks — mock the entire page-assignment-llm module so its
 //    transitive dependencies (page-repo → bun:sqlite) never load ─────
 
-vi.mock('../../classification/page-assignment-llm', () => ({
+vi.mock('@/classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn(),
   extractProductContext: vi.fn(),
   llmAssignCategoryPages: vi.fn(),
 }));
 
-vi.mock('../../classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
-vi.mock('../../classification/config-loader', () => ({
+vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('@/classification/config-loader', () => ({
   loadClassificationConfig: vi.fn(() => ({
     curationTargets: [
       {
@@ -36,15 +36,15 @@ vi.mock('../../classification/config-loader', () => ({
   })),
 }));
 
-vi.mock('../../classification/curation-target-resolver', () => ({
+vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
 }));
 
-vi.mock('../../classification/curation-target-ranker', () => ({
+vi.mock('@/classification/curation-target-ranker', () => ({
   llmRankOptions: vi.fn(),
 }));
 
-vi.mock('../../classification/cohort-page-coordinator', () => ({
+vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: vi.fn(),
 }));
 

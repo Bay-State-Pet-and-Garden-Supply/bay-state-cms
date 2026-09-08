@@ -13,7 +13,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-vi.mock('../../client/store-manager-api', () => ({
+vi.mock('@/client/store-manager-api', () => ({
   fetchStoreManagerTriggers: vi.fn(),
   fetchStoreManagerTriggerTemplates: vi.fn(),
   fetchStoreManagerTriggerOccurrences: vi.fn(),

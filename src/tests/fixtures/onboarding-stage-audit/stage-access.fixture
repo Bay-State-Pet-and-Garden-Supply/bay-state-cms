@@ -1,0 +1,5 @@
+// Synthetic: stage access patterns (must be found as operational-v1).
+if (row.stage === 'review') {}
+const s = item['stage'];
+const keys = Object.keys(STAGES);
+db.query('SELECT * FROM t WHERE stage_status = ?').all('pending');

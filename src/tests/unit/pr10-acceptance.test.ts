@@ -62,10 +62,11 @@ import { upsertConfigSnapshot } from '../../db/repositories/classification-confi
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
-import { freezeCohortForExecution, processCohort } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
 import { validateReviewCompletionGate } from '../../classification/review-completion-gate';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -524,7 +525,7 @@ function runConflictingCohort(wsId: string, wsPath: string): Promise<{
   return (async () => {
     const { items } = prepareActiveV2Workspace(wsId, wsPath, CONFLICTING_BRAND_EXTRACTIONS);
     const run = await freezeActiveCohort(wsId, wsPath);
-    const summary = await processCohort(run, wsPath, wsId);
+    const summary = await executeViaSeam(wsPath, wsId, run.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     expect(summary.memberFailures[0].productSku).toBe('100000000002');
@@ -589,7 +590,7 @@ describe('PR10 C1 — hydrated item payload carries the first-class semanticVali
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const res = await makeApp().request(`/api/onboarding/items/${items[0].id}`);
@@ -617,7 +618,7 @@ describe('PR10 C1 — hydrated item payload carries the first-class semanticVali
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     // Corrupt the committed semanticValidation payload (malformed status).
@@ -698,7 +699,7 @@ describe('PR10 C2 — POST /cohorts/:id/re-run (new-cohort-revision resolution, 
     // 4. The fresh revision re-freezes, re-coordinates, and re-validates.
     const finalized = await freezeCohortForExecution(newRun, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-b');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     expect(summary.memberFailures[0].productSku).toBe('100000000002');
@@ -772,7 +773,7 @@ describe('PR10 C2 — POST /cohorts/:id/re-run (new-cohort-revision resolution, 
     const [newRun] = claimReadyCurationCohorts(workspaceId, 10, 'worker-b', COHORT_LEASE_TTL_MS);
     expect(newRun.id).not.toBe(oldRun.id);
     const finalized = await freezeCohortForExecution(newRun, wsPath, workspaceId);
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-b');
     expect(summary.parentStatus).toBe('completed');
     expect(summary.completedMembers).toBe(3);
 

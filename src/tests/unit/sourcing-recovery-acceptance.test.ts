@@ -501,7 +501,7 @@ describe('Sourcing V2 recovery end-to-end acceptance (M7)', () => {
       completeSourcingWithDecision(
         item.id,
         { route: 'bundle_to_curation', origin: 'operator_override', acceptedEvidenceAttemptIds: [], providerIds: [], conflicts: [], warnings: [], decidedAt: new Date().toISOString() },
-        'discovery',
+        'find_product_page',
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('prohibited') });
 
@@ -701,7 +701,7 @@ describe('Sourcing V2 recovery end-to-end acceptance (M7)', () => {
         warnings: [],
         decidedAt: new Date().toISOString(),
       } as const,
-      'extraction',
+      'collect_details',
     );
     expect(routed.ok).toBe(true);
     expect(findItemById(item.id)?.stage).toBe('extraction');

@@ -1,10 +1,10 @@
 // story: e06s03 — LLM propose pipeline with provenance + deterministic discovery first
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../db/repositories/llm-task-config-repo', () => ({
+vi.mock('@/db/repositories/llm-task-config-repo', () => ({
   getLlmTaskConfig: vi.fn(() => ({ provider: 'openai', model: 'gpt-4o-mini', baseUrlOverride: null, configId: 'cfg_123' })),
 }));
-vi.mock('../../db/repositories/api-key-repo', () => ({
+vi.mock('@/db/repositories/api-key-repo', () => ({
   getApiKey: vi.fn(() => ({ api_key: 'sk-test', base_url: null, model: null })),
 }));
 

@@ -221,7 +221,7 @@ describe('Sourcing worker pass-through (ADR 0014 flag-gated leg)', () => {
 
     const terminal = events.filter((e) => ['completed', 'failed', 'needs_input'].includes(e.status));
     expect(terminal.length).toBe(1);
-    expect(terminal[0]).toMatchObject({ status: 'completed', stage: 'sourcing', route: 'fallback_to_discovery' });
+    expect(terminal[0]).toMatchObject({ status: 'completed', stage: 'route_sources', route: 'fallback_to_discovery' });
   });
 
   test('emits exactly one completed event for auto-resolved match and advances', async () => {

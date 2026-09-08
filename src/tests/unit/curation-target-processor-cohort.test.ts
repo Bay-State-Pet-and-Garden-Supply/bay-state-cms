@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   perItem: vi.fn(),
 }));
 
-vi.mock('../../classification/config-loader', () => ({ loadClassificationConfig: vi.fn() }));
-vi.mock('../../classification/curation-target-resolver', () => ({
+vi.mock('@/classification/config-loader', () => ({ loadClassificationConfig: vi.fn() }));
+vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
   resolveTargetsFromSnapshot: vi.fn(() => ({
     pages: [{
@@ -17,12 +17,12 @@ vi.mock('../../classification/curation-target-resolver', () => ({
     productTypes: [],
   })),
 }));
-vi.mock('../../classification/detail-enrichment', () => ({ enrichProductDetails: vi.fn(() => []) }));
-vi.mock('../../classification/curation-target-ranker', () => ({ llmRankOptions: vi.fn() }));
-vi.mock('../../classification/cohort-page-coordinator', () => ({
+vi.mock('@/classification/detail-enrichment', () => ({ enrichProductDetails: vi.fn(() => []) }));
+vi.mock('@/classification/curation-target-ranker', () => ({ llmRankOptions: vi.fn() }));
+vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: mocks.coordinate,
 }));
-vi.mock('../../classification/page-assignment-llm', () => ({
+vi.mock('@/classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn((options: Array<{ value: string; label: string }>) =>
     options.map(option => ({ id: option.value, name: option.label, parentName: null }))),
   extractProductContext: vi.fn(() => ({
@@ -34,7 +34,7 @@ vi.mock('../../classification/page-assignment-llm', () => ({
   llmAssignCategoryPages: mocks.perItem,
 }));
 
-vi.mock('../../classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
 import { processPageTarget, materializeCoordinatedPages } from '../../classification/curation-target-processor';
 import { categoryPageProposalsStage } from '../../classification/stages/category-page-proposals';
 

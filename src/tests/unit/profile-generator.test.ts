@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // tests below also stub the task-specific helpers
 // (`getLlmConfigForTask`, `callLlmForTask`) that the
 // `profile_generation` task now uses by default.
-vi.mock('../../onboarding/llm-client', () => ({
+vi.mock('@/onboarding/llm-client', () => ({
   getLlmConfig: vi.fn(),
   callLlm: vi.fn(),
   getLlmConfigForTask: vi.fn(),

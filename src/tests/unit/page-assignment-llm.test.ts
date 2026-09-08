@@ -14,7 +14,7 @@ function asMock(fn: any): Mock {
 
 // ── Mocks (hoisted) ──────────────────────────────────────────────────────────
 
-vi.mock('../../onboarding/llm-client', () => {
+vi.mock('@/onboarding/llm-client', () => {
   const callLlmForTask = vi.fn();
   return {
     callLlmForTask,
@@ -30,7 +30,7 @@ vi.mock('../../onboarding/llm-client', () => {
   };
 });
 
-vi.mock('../../db/repositories/page-repo', () => ({
+vi.mock('@/db/repositories/page-repo', () => ({
   listPages: vi.fn(),
 }));
 

@@ -3,9 +3,9 @@ import {
   computeCohortTitleInputHash,
   computeCohortTitleInputHashForFormatRules,
   titleAuthorityFromProjectionMember,
-  titleExecutionTypeAuthorityFromRun,
-} from '../../onboarding/cohort-title-hash';
-import type { CohortTitleAuthorityMember } from '../../onboarding/cohort-title-hash';
+} from '../../onboarding/cohort-curation/titles';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
+import type { CohortTitleAuthorityMember } from '../../onboarding/cohort-curation/titles';
 import { buildCohortPrompt, FORMAT_RULES } from '../../onboarding/title-prompt-template';
 import type { CohortSiblingInput } from '../../onboarding/title-prompt-template';
 import { PROMPT_TEMPLATE_VERSIONS, RULE_VERSIONS } from '../../classification/model-operation-registry';
@@ -587,8 +587,8 @@ describe('computeCohortTitleInputHash — PARITY: hash authority == prompt autho
   // the SAME authority the hash covers (`titleAuthorityFromProjectionMember`
   // for member fields + `titleExecutionTypeAuthorityFromRun` for the type) —
   // no independently-constructed test authority. The REAL coordinator mapping
-  // (one field at a time, through `ensureCohortTitlesCoordinated`) is covered
-  // in cohort-title-coordinator.test.ts.
+  // (one field at a time, through the new-seam entry `ensureCohortTitles`)
+  // is covered in cohort-curation-titles.test.ts (Slice 3 transfer).
 
   it('flavor-only mutation changes BOTH the T-hash AND the prompt content', () => {
     const base = makeParams();

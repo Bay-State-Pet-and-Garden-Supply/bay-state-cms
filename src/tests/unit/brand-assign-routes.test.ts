@@ -1,14 +1,24 @@
 /**
  * ADR 0017 commitment 4 — assign_brand / assign_domain discovery attention
- * action routes.
+ * action routes, extended for Check source options single-brand assignment.
  *
  * DB-backed route suite (bun:sqlite — run under `bun test`, same convention
  * as sourcing-safety-routes.test.ts / brand-authority-gate.test.ts). Proves
  * the two first-class attention actions end-to-end through the real Hono
  * app:
- * - assign_brand updates the item's brand hint and re-queues discovery
- *   exactly like the search_again/retry flow (discovery/pending, flat status
- *   back to imported, error cleared, worker polled);
+ * - assign_brand updates the item's brand hint and, for Find product page
+ *   items, re-queues discovery exactly like the search_again/retry flow
+ *   (discovery/pending, flat status back to imported, error cleared,
+ *   worker polled);
+ * - assign_brand also accepts Check source options items, overwrites an
+ *   existing hint, saves without a discovery requeue, and releases a
+ *   missing_brand hold so the item can flow;
+ * - assign_domain remains Find product page-only: it upserts the
+ *   brand→domain mapping for the item's current brand hint, fails with a
+ *   clear error when no brand is assigned, and re-queues discovery;
+ * - assign_brand still rejects later stages, and both actions fail closed
+ *   cross-workspace (404).
+ *
  * - assign_domain upserts the brand→domain mapping for the item's current
  *   brand hint, fails with a clear error when no brand is assigned, and
  *   re-queues discovery;
@@ -34,6 +44,7 @@ import {
   findItemById,
   updateItemStageStatus,
 } from '../../db/repositories/onboarding-item-repo';
+import { toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 import { findBrandSites } from '../../db/repositories/brand-site-repo';
 import { resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import app from '../../server/app';
@@ -55,6 +66,26 @@ function makeDiscoveryItem(overrides: { brandHint?: string | null } = {}) {
   // Realistic discovery-card state: discovery completed, held for manual
   // review (needs_review error-message convention).
   updateItemStageStatus(item.id, 'completed', 'needs_review: no candidate passed verification');
+  return item;
+}
+
+function makeSourcingItem(overrides: { brandHint?: string | null; stageStatus?: 'pending' | 'needs_input'; errorMessage?: string | null; isHeld?: boolean; heldReason?: string | null } = {}) {
+  const batch = createBatch({ workspaceId: wsId, name: 'Sourcing Brand Assign', fileName: 'sba.csv', totalItems: 1 });
+  const [item] = insertItems(batch.id, [
+    {
+      upc: 'SBA-0001',
+      name: 'Sourcing Brand Product',
+      brandHint: overrides.brandHint ?? null,
+      rowNumber: 1,
+      stage: 'route_sources',
+      stageStatus: overrides.stageStatus ?? 'pending',
+      isHeld: overrides.isHeld ?? false,
+      heldReason: overrides.heldReason ?? null,
+    },
+  ]);
+  if (overrides.errorMessage !== undefined) {
+    updateItemStageStatus(item.id, overrides.stageStatus ?? 'pending', overrides.errorMessage);
+  }
   return item;
 }
 
@@ -122,6 +153,49 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(after?.stage).toBe('discovery');
     expect(after?.errorMessage).toBeNull();
     expect(['pending', 'in_progress']).toContain(after?.stageStatus);
+  });
+
+  it('assign_brand accepts Check source options without a discovery requeue', async () => {
+    const item = makeSourcingItem({ stageStatus: 'needs_input', errorMessage: 'source conflict' });
+
+    const res = await app.request(`/api/onboarding/items/${item.id}/assign-brand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand: '  Open Farm  ' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.item.brandHint).toBe('Open Farm'); // trimmed
+
+    const after = findItemById(item.id);
+    expect(after?.brandHint).toBe('Open Farm');
+    expect(toCanonicalStored(after?.stage)).toBe('route_sources');
+    // A discovery requeue would reset an in-stage sourcing status/error to
+    // pending/null. Sourcing keeps its own status and error untouched.
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.errorMessage).toBe('source conflict');
+    expect(after?.isHeld).toBe(false);
+    expect(after?.heldReason).toBeNull();
+  });
+
+  it('assign_brand overwrites an existing sourcing hint and releases a missing_brand hold', async () => {
+    const item = makeSourcingItem({ brandHint: 'Wrong Brand', isHeld: true, heldReason: 'missing_brand' });
+
+    const res = await app.request(`/api/onboarding/items/${item.id}/assign-brand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand: 'Open Farm' }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
+
+    const after = findItemById(item.id);
+    expect(after?.brandHint).toBe('Open Farm');
+    expect(toCanonicalStored(after?.stage)).toBe('route_sources');
+    expect(after?.stageStatus).toBe('pending');
+    expect(after?.isHeld).toBe(false);
+    expect(after?.heldReason).toBeNull();
   });
 
   it('assign_brand rejects a missing or blank brand without mutation', async () => {
@@ -228,7 +302,7 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(after?.brandHint).toBe('Butchers');
   });
 
-  it('both actions reject items outside the Discovery stage', async () => {
+  it('assign-brand still rejects later stages; assign-domain remains Discovery-only', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'Not Discovery', fileName: 'nd.csv', totalItems: 1 });
     const [item] = insertItems(batch.id, [
       { upc: 'BA-0002', name: 'Extraction Item', rowNumber: 1, stage: 'extraction' },
@@ -240,7 +314,7 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
       body: JSON.stringify({ brand: 'Fromm' }),
     });
     expect(brandRes.status).toBe(400);
-    expect((await brandRes.json()).error).toContain('requires the item to be in Discovery');
+    expect((await brandRes.json()).error).toContain('Check source options (route_sources) or Find product page (find_product_page)');
 
     const domainRes = await app.request(`/api/onboarding/items/${item.id}/assign-domain`, {
       method: 'POST',
