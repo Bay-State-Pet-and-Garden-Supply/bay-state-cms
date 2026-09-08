@@ -607,8 +607,8 @@ An item's status within a Pipeline Stage: `pending`, `in_progress`, `completed`,
 _Avoid_: Item state, pipeline status, old status
 
 **Stage Advancement**:
-The action of moving one or more items from their current Pipeline Stage to the next. Items may be advanced individually or in selected groups, regardless of batch membership. Advancement is always manual — no item auto-transitions between stages. The worker only processes items within their current stage.
-_Avoid_: Batch promotion, phase transition, auto-advance
+The action of moving one or more items from their current Pipeline Stage to the next. Happy-path progression is automation-owned: the worker runs `sweepAutoAdvance` every poll (discovery→extraction→curation→review) plus `sweepDomainReleases`, so an item that satisfies its stage exit contract advances without an operator click. Manual advancement is reserved for explicit human decisions — approval, export, source-conflict resolution, URL/profile exception resolution. The worker only processes items within their current stage; retries are idempotent (`pending` requeue, never backwards). (Supersedes the pre-ADR-0016 “always manual” wording for the operator model; execution `stage` + `stage_status` diagnostics semantics unchanged.)
+_Avoid_: Batch promotion, phase transition, routine manual auto-advance
 
 **Stage Names**:
 The six declared Pipeline Stages: **Sourcing**, **Discovery**, **Extraction**, **Curation**, **Review**, and **Promotion**, in that order.
@@ -779,7 +779,7 @@ _Avoid_: Table view, item list, batch detail view
 - "status" was used to mean both batch lifecycle and item-level stage — resolved: use **Pipeline Stage** + **Stage Status** for items, and derived progress for batches.
 - "phase" was used interchangeably with "stage" — resolved: use **Pipeline Stage** exclusively.
 - "batch" was used as a lifecycle controller — resolved: batches are grouping/import containers with no lifecycle control.
-- "advance" was conflated with automated progression — resolved: **Stage Advancement** is always manual.
+- "advance" was conflated with automated progression — resolved: happy-path progression is automation-owned (`sweepAutoAdvance` + `sweepDomainReleases`); manual advancement is reserved for explicit human decisions (approval, export, source-conflict resolution, URL/profile exception resolution).
 - "review" was both a pipeline stage name and a UI drawer action — resolved: **Review** is the stage; the drawer is the **Review Drawer** within it.
 - "category" was used to mean both **Category Page** placement and **Product Type** classification — resolved: these are distinct concepts.
 - Customer-facing page names or hierarchy could be treated as direct product facts — resolved: they are **Page Context Evidence** and low-reliability.

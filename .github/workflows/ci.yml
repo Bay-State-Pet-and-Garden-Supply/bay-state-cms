@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Test-runner coverage gate
+        run: bun run test:runner-coverage
+
       - name: Vitest suite
         run: bunx vitest run
 
