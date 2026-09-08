@@ -35,10 +35,12 @@ describe('production-shape URLs (app view=onboarding always present)', () => {
     ).toEqual({ kind: 'stage', stage: 'find_product_page' });
   });
 
-  it('brand-setup travels in the shell namespace, app view intact', () => {
+  it('retired brand-setup redirects into Stage 1, app view intact (#115)', () => {
+    // Step 0 retired: legacy `wview=brand-setup` links redirect seamlessly
+    // to `stage=route_sources` with stageVersion=2.
     expect(
       parseWorkspaceSelection('?view=onboarding&batch=batch-1&wview=brand-setup'),
-    ).toEqual({ kind: 'brand-setup' });
+    ).toEqual({ kind: 'stage', stage: 'route_sources' });
   });
 
   it('genuine shell conflicts still report unsupported', () => {

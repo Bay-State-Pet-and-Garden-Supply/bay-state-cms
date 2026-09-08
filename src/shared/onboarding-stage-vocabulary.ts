@@ -8,11 +8,12 @@
  * - v2 (canonical runtime, owner-approved): route_sources, find_product_page,
  *   collect_details, prepare_listing, review_listings, create_drafts.
  *
- * Stage 1 is neutral source triage/routing ("Check source options"): the
+ * Stage 1 is the intake gate ("Identify & Route Sources"): the
  * official product URL is the main flow and a qualified distributor record is
  * an alternate fast path — NOT a compulsory supplier-first step and NOT a
- * worker scheduling change. Step 0 ("brand-setup" / "Brand setup") is a VIEW,
- * never a stage, and is rejected by every stage parser below.
+ * worker scheduling change. Step 0 ("brand-setup" / "Brand setup") is a retired
+ * VIEW alias: legacy `wview=brand-setup` links redirect into Stage 1 and it
+ * is rejected by every stage parser below.
  */
 // NOTE: namespace import (not `import { z }`) — vite-node cannot resolve
 // zod v4's named `z` export under Vitest (pre-existing repo-wide breakage:
@@ -88,7 +89,7 @@ export const V2_TO_V1: Readonly<Record<StageV2, StageV1>> = Object.freeze({
 });
 
 export const STAGE_V2_LABELS: Readonly<Record<StageV2, string>> = Object.freeze({
-  route_sources: 'Check source options',
+  route_sources: 'Identify & Route Sources',
   find_product_page: 'Find product page',
   collect_details: 'Collect details',
   prepare_listing: 'Prepare listing',

@@ -41,7 +41,7 @@ describe('stage vocabulary bijection', () => {
 
   it('labels every v2 stage exactly once', () => {
     expect(Object.keys(STAGE_V2_LABELS).sort()).toEqual([...STAGE_ORDER_V2].sort());
-    expect(STAGE_V2_LABELS['route_sources']).toBe('Check source options');
+    expect(STAGE_V2_LABELS['route_sources']).toBe('Identify & Route Sources');
     expect(STAGE_V2_LABELS['review_listings']).toBe('Review listings');
   });
 

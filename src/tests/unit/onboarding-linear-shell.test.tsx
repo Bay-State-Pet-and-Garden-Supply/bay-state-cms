@@ -193,11 +193,11 @@ describe('linear shell mounts (BatchWorkspace, shellV2 ON)', () => {
     setUrl('?batch=b1');
     await mount();
     const tabs = Array.from(container.querySelectorAll('[role="tab"]')).map((t) => t.textContent ?? '');
-    const stageTabs = tabs.filter((t) => /Check source options|Find product page|Collect details|Prepare listing|Review listings|Create drafts/.test(t));
+    const stageTabs = tabs.filter((t) => /Identify & Route Sources|Find product page|Collect details|Prepare listing|Review listings|Create drafts/.test(t));
     expect(stageTabs.length).toBe(6);
     const labels = LINEAR_STAGES.map((s) => s.label);
     expect(labels).toEqual([
-      'Check source options',
+      'Identify & Route Sources',
       'Find product page',
       'Collect details',
       'Prepare listing',
@@ -401,7 +401,7 @@ describe('linear shell mounts (BatchWorkspace, shellV2 ON)', () => {
     expect(container.querySelector('[data-testid="linear-operation-review"]')).not.toBeNull();
     // Return preserves the entering stage (Collect details), never route_sources.
     expect(container.querySelector('[data-testid="linear-scope-banner"]')?.textContent).toMatch(/Back to Collect details/);
-    expect(container.querySelector('[data-testid="linear-scope-banner"]')?.textContent).not.toMatch(/Check source options/);
+    expect(container.querySelector('[data-testid="linear-scope-banner"]')?.textContent).not.toMatch(/Identify & Route Sources/);
   });
 });
 

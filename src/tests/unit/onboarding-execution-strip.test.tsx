@@ -317,7 +317,7 @@ describe('execution strip lifecycle (deterministic harness)', () => {
     expect(text('strip-error')).toContain('Could not refresh counts: boom');
     expect(text('strip-counts')).toContain('10 products');
     expect(text('strip-counts')).not.toBe('Counts not loaded');
-    expect(container.querySelector('[data-testid="strip-stage-totals"]')?.textContent).toContain('Check source options:');
+    expect(container.querySelector('[data-testid="strip-stage-totals"]')?.textContent).toContain('Identify & Route Sources:');
   });
 
   it('error then open: gap marker, exact disclosure, and refetch', async () => {

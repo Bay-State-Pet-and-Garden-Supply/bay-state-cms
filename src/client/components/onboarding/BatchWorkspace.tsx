@@ -13,7 +13,6 @@ import {
   type LinearStageId,
   type OperationViewId,
 } from './linear-workspace-logic';
-import { BrandGateView } from './BrandGateView';
 import { ExecutionStrip } from './ExecutionStrip';
 import { StageNavigation } from './StageNavigation';
 import { StageItemsView } from './StageItemsView';
@@ -301,20 +300,26 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
     setAttentionItemId(itemId);
   }, [openOperation]);
 
-  // Slice 3: the single Step 0 brand view is available only when the shell
-  // flag AND the brand flag are both on (brand requires shell). Existing
-  // preflight/setup entry points route into it when enabled; the Preflight
-  // Review modal itself stays the controlled-release surface.
-  const brandSetupAvailable = isBrandSetupAvailable();
+  // Slice 3 (retired, #115): Step 0 brand-setup is absorbed into Stage 1
+  // ("Identify & Route Sources"). `parseWorkspaceSelection` redirects legacy
+  // `wview=brand-setup` links into `stage=route_sources` at the parse seam,
+  // so there is no standalone brand view, no header button, and no separate
+  // mount branch here.
   const stripMounted = isExecutionStripMounted();
-  const openBrandSetup = useCallback(() => {
-    setAttentionItemId(null);
-    writeSearch((params) => {
-      params.delete('stage');
-      params.delete('stageVersion');
-      params.delete('tab');
-      params.set('wview', 'brand-setup');
-    }, true);
+  // Step 0 retired (#115): normalize any inbound `wview=brand-setup` URL to
+  // the canonical Stage 1 URL so legacy links/bookmarks land on Identify &
+  // Route Sources with stageVersion=2 (single replace, no history loop).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('wview') === 'brand-setup') {
+      writeSearch((p) => {
+        p.delete('tab');
+        p.delete('wview');
+        p.set('stage', 'route_sources');
+        p.set('stageVersion', '2');
+      }, false);
+    }
   }, []);
 
   return (
@@ -338,17 +343,6 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {brandSetupAvailable && (
-            <button
-              type="button"
-              data-testid="open-brand-setup"
-              onClick={openBrandSetup}
-              style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36 }}
-              title="Open the unified Brand setup view (Step 0)"
-            >
-              Brand setup
-            </button>
-          )}
           {onOpenPreflight && (
             <button type="button" onClick={onOpenPreflight} style={{ backgroundColor: colors.uniformGreen, border: 'none', borderRadius: rounded.md, padding: '0.4375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.feedBagCream, cursor: 'pointer', minHeight: 36, boxShadow: 'var(--shadow-sm)' }} title="Open Preflight & Brand Resolution Review">
               ⚡ Preflight Review
@@ -378,10 +372,10 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
 
       {selection.kind === 'unsupported' && (
         <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Unsupported link: {selection.reason} Showing Check source options instead — nothing was changed.
+          Unsupported link: {selection.reason} Showing Identify & Route Sources instead — nothing was changed.
           <div style={{ marginTop: 8 }}>
             <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-              Go to Check source options
+              Go to Identify & Route Sources
             </button>
           </div>
         </div>
@@ -393,24 +387,16 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
         <div style={{ padding: 24, textAlign: 'center', color: colors.mulchBrown }}>Loading stages…</div>
       ) : null}
 
-      {selection.kind === 'brand-setup' && brandSetupAvailable && (
-        <BrandGateView
+      {/* Step 0 retired (#115): unreachable via parse (redirects to Stage 1
+          at the parse seam). Defensive fallback: any residual brand-setup
+          selection renders the Stage 1 intake surface, never a separate
+          brand view. */}
+      {selection.kind === 'brand-setup' && stageCounts && (
+        <StageItemsView
+          key={`stage-${batchId}-route_sources`}
           batchId={batchId}
-          onBack={() => backToStage(returnStage)}
-          onOpenSettings={onOpenSettings}
-          onOpenPreflight={onOpenPreflight}
-          onOpenAttentionItem={openAttentionItem}
+          stage="route_sources"
         />
-      )}
-      {selection.kind === 'brand-setup' && !brandSetupAvailable && (
-        <div role="status" data-testid="brand-setup-disabled-notice" style={{ backgroundColor: '#f3f4f6', color: '#374151', borderRadius: 8, padding: '16px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Brand setup is not enabled for this workspace. Existing brand actions remain in Settings and the attention queue.
-          <div style={{ marginTop: 8 }}>
-            <button type="button" onClick={() => backToStage(returnStage)} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-              Back to stages
-            </button>
-          </div>
-        </div>
       )}
 
       {(selection.kind === 'stage' || selection.kind === 'unsupported') && stageCounts && (
@@ -426,6 +412,7 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
             key={`stage-${batchId}-${activeStage}`}
             batchId={batchId}
             stage={activeStage}
+            onOpenSettings={onOpenSettings}
             onOpenFullBatchReview={activeStage === 'review_listings' ? () => openOperation('review') : undefined}
             onOpenReadyToExportWorkspace={activeStage === 'create_drafts' ? () => openOperation('export') : undefined}
           />
@@ -446,13 +433,13 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
           <OutcomeItemsView key={`outcome-${batchId}-${legacyDest.outcome}`} batchId={batchId} outcome={legacyDest.outcome} />
         </div>
       ) : legacyDest.kind === 'stage' ? (
-        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
+        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenSettings={onOpenSettings} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
       ) : (
         <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Unsupported link: unknown operation ‘{selection.kind === 'legacy' ? (selection.rawTab ?? '') : ''}’. Showing Check source options instead — nothing was changed.
+          Unsupported link: unknown operation ‘{selection.kind === 'legacy' ? (selection.rawTab ?? '') : ''}’. Showing Identify & Route Sources instead — nothing was changed.
           <div style={{ marginTop: 8 }}>
             <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-              Go to Check source options
+              Go to Identify & Route Sources
             </button>
           </div>
         </div>
@@ -479,7 +466,7 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
 
 function activeStageLabel(stage: LinearStageId): string {
   switch (stage) {
-    case 'route_sources': return 'Check source options';
+    case 'route_sources': return 'Identify & Route Sources';
     case 'find_product_page': return 'Find product page';
     case 'collect_details': return 'Collect details';
     case 'prepare_listing': return 'Prepare listing';
@@ -489,11 +476,10 @@ function activeStageLabel(stage: LinearStageId): string {
 }
 
 /**
- * Slice 3: the brand flag requires the shell flag. Inside the linear shell
- * the view mounts only when both are on; otherwise the disabled notice
- * above renders and existing Settings/attention actions stay authoritative.
- * Step 0 is a view slot only — never a seventh stage, never counted.
- */
+ * Step 0 retired (#115): the standalone Brand setup view is absorbed into
+ * Stage 1 ("Identify & Route Sources"). Retained as a no-op anchor so
+ * legacy flag readers keep compiling; the shell no longer gates any brand
+ * view on these flags.
 function isBrandSetupAvailable(): boolean {
   const flags = getOnboardingFeatureFlags();
   return flags.shellV2Enabled && flags.brandGateV2Enabled;

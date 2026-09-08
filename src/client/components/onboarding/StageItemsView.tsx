@@ -6,10 +6,27 @@
  * GET /api/onboarding/v2/batches/:id/stage-work-state/items via
  * `src/client/onboarding-stage-api.ts`. The client sends limit 50 explicitly
  * and follows cursors; it never derives totals from fetched-page lengths.
+ *
+ * Stage 1 ("Identify & Route Sources", issues #116–#119) is the unified
+ * intake surface absorbing Step 0 brand-setup:
+ * - Intake KPI & quick-filter strip (All / Missing Brand / Missing Domain /
+ *   Distributor Fast-Path / Ready to Route) derived from loaded rows plus
+ *   batch brand-domain blocker reads.
+ * - Unmapped brand resolution drawer: inline domain entry per unmapped
+ *   brand, saved through `assignBatchBrandDomain` (Brand Hub stays the
+ *   brand→domain authority per ADR 0017 — never ad-hoc local state).
+ * - Enhanced bulk brand bar: multiselect, canonical-brand autocomplete,
+ *   live domain/profile preview, inline quick-add for unmapped brands.
+ * - Enriched row columns: Brand (inline combobox + Missing Brand badge),
+ *   Domain & Profile (domain + Profile Ready / Profile Required link /
+ *   Missing Domain quick-add / distributor-exempt note), Source Route
+ *   (Distributor Fast-Path / Official Site Discovery / Needs Brand-Domain),
+ *   and pipeline Status.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, fonts, rounded } from '../../theme';
-import { assignBrandGroup, assignItemBrand } from '../../onboarding-api';
+import { assignBrandGroup, assignItemBrand, getBrandSites, getExtractorProfiles } from '../../onboarding-api';
+import { assignBatchBrandDomain, getBrandDomainBlockers } from '../../onboarding-work-api';
 import { BrandCombobox } from './BrandCombobox';
 import { getBrandOptions, resolveCanonicalBrand } from './brand-combobox-logic';
 import {
@@ -18,6 +35,7 @@ import {
 } from '../../onboarding-stage-api';
 import { STAGE_READ_LIMIT_DEFAULT } from '../../../shared/schemas/onboarding-stage-read';
 import type { OnboardingWorkState } from '../../../shared/schemas/onboarding-work-state';
+import type { BrandDomainSetupResponse } from '../../../shared/schemas/onboarding-work-state';
 import type { StageReadQuery } from '../../onboarding-stage-api';
 import type { LinearStageId } from './linear-workspace-logic';
 import { LINEAR_STAGE_LABELS } from './linear-workspace-logic';
@@ -39,11 +57,129 @@ export interface StageItemsViewProps {
   onOpenFullBatchReview?: () => void;
   /** Oracle slice: batch-wide export workspace entry inside Create drafts. */
   onOpenReadyToExportWorkspace?: () => void;
+  /** Opens Settings (Profile Builder) for a domain missing an extractor profile. */
+  onOpenSettings?: () => void;
 }
 
 type Facet = { category?: string; reviewState?: ReviewListFacet };
 
-export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview, onOpenReadyToExportWorkspace }: StageItemsViewProps) {
+/** Stage 1 quick-filter selected from the Intake KPI strip (#116). */
+export type IntakeKpiFilter = 'all' | 'missing-brand' | 'missing-domain' | 'distributor' | 'ready';
+
+export const INTAKE_KPI_FILTERS: readonly IntakeKpiFilter[] = [
+  'all',
+  'missing-brand',
+  'missing-domain',
+  'distributor',
+  'ready',
+];
+
+export const INTAKE_KPI_LABELS: Record<IntakeKpiFilter, string> = {
+  all: 'All Products',
+  'missing-brand': 'Missing Brand',
+  'missing-domain': 'Missing Domain',
+  distributor: 'Distributor Fast-Path',
+  ready: 'Ready to Route',
+};
+
+const brandKeyOf = (brand: string): string => brand.trim().toLowerCase();
+const domainKeyOf = (domain: string): string => domain.trim().toLowerCase();
+
+/** Per-row intake derivations for Stage 1 (#116/#119). Pure and unit-testable. */
+export interface IntakeRowFlags {
+  missingBrand: boolean;
+  /** Distributor-record items are exempt from brand-domain requirements. */
+  distributorExempt: boolean;
+  /** Mapped official domain for the row brand (null when unmapped/unbranded). */
+  mappedDomain: string | null;
+  missingDomain: boolean;
+  /** Routable now: branded+mapped, or distributor-exempt. */
+  ready: boolean;
+}
+
+/**
+ * Derive one row's intake state from server-owned values only: the row's
+ * recorded brand/sourceType plus the Brand Hub brand→domain map (authority)
+ * and the batch's parked-brand blocker set (fallback while the map loads).
+ */
+export function deriveIntakeFlags(
+  item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
+  domainMap: ReadonlyMap<string, string>,
+  parkedBrands?: ReadonlySet<string>,
+): IntakeRowFlags {
+  const brand = item.brand?.trim() ? item.brand.trim() : null;
+  const distributorExempt = item.sourceType === 'distributor_record' && !item.domain;
+  if (!brand) {
+    return { missingBrand: true, distributorExempt, mappedDomain: null, missingDomain: false, ready: distributorExempt };
+  }
+  const key = brandKeyOf(brand);
+  const mappedDomain = domainMap.get(key) ?? null;
+  // While the Brand Hub map is still loading, callers pass the batch
+  // parked-brand set so missing-domain counts stay honest; the map itself
+  // remains authoritative once loaded (see effectiveParked below).
+  void parkedBrands;
+  const missingDomain = !distributorExempt && mappedDomain === null;
+  return {
+    missingBrand: false,
+    distributorExempt,
+    mappedDomain,
+    missingDomain,
+    ready: distributorExempt || !missingDomain,
+  };
+}
+
+/** Source-route badge kind for one row (#119). */
+export type IntakeSourceRoute = 'distributor' | 'blocked' | 'discovery';
+
+export function intakeSourceRoute(flags: IntakeRowFlags): IntakeSourceRoute {
+  if (flags.distributorExempt) return 'distributor';
+  if (flags.missingBrand || flags.missingDomain) return 'blocked';
+  return 'discovery';
+}
+
+export interface IntakeKpiCounts {
+  all: number;
+  missingBrand: number;
+  missingDomain: number;
+  distributor: number;
+  ready: number;
+}
+
+/** Aggregate KPI counts over loaded rows (#116). */
+export function countIntakeKpis(
+  items: ReadonlyArray<Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>>,
+  domainMap: ReadonlyMap<string, string>,
+  parkedBrands?: ReadonlySet<string>,
+): IntakeKpiCounts {
+  const counts: IntakeKpiCounts = { all: items.length, missingBrand: 0, missingDomain: 0, distributor: 0, ready: 0 };
+  for (const item of items) {
+    const flags = deriveIntakeFlags(item, domainMap, parkedBrands);
+    if (flags.missingBrand) counts.missingBrand += 1;
+    if (flags.missingDomain) counts.missingDomain += 1;
+    if (flags.distributorExempt) counts.distributor += 1;
+    if (flags.ready) counts.ready += 1;
+  }
+  return counts;
+}
+
+/** Client-side quick filter over loaded rows (#116). */
+export function matchesIntakeFilter(
+  item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
+  filter: IntakeKpiFilter,
+  domainMap: ReadonlyMap<string, string>,
+  parkedBrands?: ReadonlySet<string>,
+): boolean {
+  if (filter === 'all') return true;
+  const flags = deriveIntakeFlags(item, domainMap, parkedBrands);
+  switch (filter) {
+    case 'missing-brand': return flags.missingBrand;
+    case 'missing-domain': return flags.missingDomain;
+    case 'distributor': return flags.distributorExempt;
+    case 'ready': return flags.ready;
+  }
+}
+
+export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview, onOpenReadyToExportWorkspace, onOpenSettings }: StageItemsViewProps) {
   const [items, setItems] = useState<OnboardingWorkState[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +194,8 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   const generation = useRef(0);
   // Inline brand assignment (route_sources only): per-row drafts mirroring
   // Step 0 BrandGateView BrandFixRow. The mutation path is the EXACT same
-  // `assignItemBrand` call — no new endpoints, no mapping UI; brand→domain
-  // mapping authority stays in Settings.
+  // `assignItemBrand` call — no new endpoints; brand→domain mapping
+  // authority stays in Brand Hub via assignBatchBrandDomain.
   const [drafts, setDrafts] = useState<Record<string, { brand: string; saving: boolean; error: string | null }>>({});
   const [refreshing, setRefreshing] = useState(false);
   // Checkbox multiselect (route_sources only): per-row selection driving a
@@ -75,6 +211,28 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
   const brandOptionsRef = useRef<string[]>([]);
   brandOptionsRef.current = brandOptions;
+  // ── Stage 1 intake state (#116–#119) ─────────────────────────────────────
+  // Batch brand-domain blockers (server-owned parked groups) power the
+  // resolution drawer and the missing-domain fallback while brand_sites
+  // loads. Brand Hub brand→domain map + extractor-profile domain set power
+  // KPI counts, bulk preview, and the Domain & Profile column.
+  const [blockers, setBlockers] = useState<BrandDomainSetupResponse['blockers']>([]);
+  const [blockersError, setBlockersError] = useState<string | null>(null);
+  const [brandDomainMap, setBrandDomainMap] = useState<ReadonlyMap<string, string>>(new Map());
+  const [brandSitesLoaded, setBrandSitesLoaded] = useState(false);
+  const [profileDomains, setProfileDomains] = useState<ReadonlySet<string>>(new Set());
+  const [kpiFilter, setKpiFilter] = useState<IntakeKpiFilter>('all');
+  // Bulk quick-add domain for unmapped brands (#118).
+  const [bulkDomain, setBulkDomain] = useState('');
+  // Resolution drawer per-brand inputs (#117).
+  const [drawerInputs, setDrawerInputs] = useState<Record<string, string>>({});
+  const [drawerSaving, setDrawerSaving] = useState<Record<string, boolean>>({});
+  const [drawerErrors, setDrawerErrors] = useState<Record<string, string | null>>({});
+  // Per-row "+ Add Domain" inline inputs (#119).
+  const [rowDomainOpen, setRowDomainOpen] = useState<Record<string, boolean>>({});
+  const [rowDomainInputs, setRowDomainInputs] = useState<Record<string, string>>({});
+  const [rowDomainSaving, setRowDomainSaving] = useState<Record<string, boolean>>({});
+  const [rowDomainErrors, setRowDomainErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     setFacet(stage === 'review_listings' ? { reviewState: DEFAULT_REVIEW_LIST_FACET } : {});
@@ -86,6 +244,15 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     setBulkBrand('');
     setBulkError(null);
     setBulkSaving(false);
+    setBulkDomain('');
+    setKpiFilter('all');
+    setDrawerInputs({});
+    setDrawerSaving({});
+    setDrawerErrors({});
+    setRowDomainOpen({});
+    setRowDomainInputs({});
+    setRowDomainSaving({});
+    setRowDomainErrors({});
   }, [stage, batchId]);
 
   useEffect(() => {
@@ -139,9 +306,76 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   const queryRef = useRef(debouncedQ);
   queryRef.current = debouncedQ;
 
+  /**
+   * Intake reference reads (#116–#119): batch brand-domain blockers (drawer
+   * + missing-domain signal), Brand Hub brand→domain map (KPI/preview/
+   * column authority), and extractor-profile domain set (profile readiness).
+   * Every read degrades to empty on failure — the table stays usable and
+   * inputs degrade to free-text entry, never a broken control.
+   */
+  const loadIntakeRefs = useCallback(async () => {
+    if (stage !== 'route_sources') return;
+    try {
+      const res = await getBrandDomainBlockers(batchId);
+      setBlockers(Array.isArray(res?.blockers) ? res.blockers : []);
+      setBlockersError(null);
+    } catch (err) {
+      setBlockers([]);
+      setBlockersError(err instanceof Error ? err.message : String(err));
+    }
+    try {
+      const loader = getBrandSites as unknown as (() => Promise<{ brandSites?: Array<{ brandName?: unknown; domain?: unknown }>; catalogBrands?: unknown }>) | undefined;
+      if (typeof loader !== 'function') {
+        setBrandDomainMap(new Map());
+        setBrandSitesLoaded(false);
+      } else {
+        const res = await loader();
+        const map = new Map<string, string>();
+        for (const site of Array.isArray(res?.brandSites) ? res.brandSites : []) {
+          const name = typeof site?.brandName === 'string' ? site.brandName.trim() : '';
+          const domain = typeof site?.domain === 'string' ? site.domain.trim() : '';
+          if (name && domain && !map.has(brandKeyOf(name))) map.set(brandKeyOf(name), domain);
+        }
+        setBrandDomainMap(map);
+        setBrandSitesLoaded(true);
+      }
+    } catch {
+      setBrandDomainMap(new Map());
+      setBrandSitesLoaded(false);
+    }
+    try {
+      const loader = getExtractorProfiles as unknown as (() => Promise<{ extractorProfiles?: Array<{ domain?: unknown }> }>) | undefined;
+      if (typeof loader !== 'function') {
+        setProfileDomains(new Set());
+      } else {
+        const res = await loader();
+        const set = new Set<string>();
+        for (const p of Array.isArray(res?.extractorProfiles) ? res.extractorProfiles : []) {
+          if (typeof p?.domain === 'string' && p.domain.trim()) set.add(domainKeyOf(p.domain));
+        }
+        setProfileDomains(set);
+      }
+    } catch {
+      setProfileDomains(new Set());
+    }
+  }, [batchId, stage]);
+
+  useEffect(() => {
+    if (stage !== 'route_sources') {
+      setBlockers([]);
+      setBlockersError(null);
+      setBrandDomainMap(new Map());
+      setBrandSitesLoaded(false);
+      setProfileDomains(new Set());
+      return;
+    }
+    void loadIntakeRefs();
+  }, [loadIntakeRefs, stage]);
+
   // Refresh epoch mirroring BrandGateView.refreshEpoch: success refetches
-  // the stage list from the server; rows keep their server-reported state
-  // until the fresh response confirms the fix, so counts/badges update.
+  // the stage list (plus intake references) from the server; rows keep
+  // their server-reported state until the fresh response confirms the fix,
+  // so counts/badges update.
   const refreshEpoch = useCallback(async () => {
     const gen = generation.current;
     setRefreshing(true);
@@ -152,11 +386,15 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setDrafts({});
       setSelected({});
       setBulkError(null);
+      setBulkDomain('');
+      setRowDomainOpen({});
+      setRowDomainErrors({});
       await load(null, facetRef.current, queryRef.current);
+      await loadIntakeRefs();
     } finally {
       if (generation.current === gen) setRefreshing(false);
     }
-  }, [load]);
+  }, [load, loadIntakeRefs]);
 
   const updateDraft = useCallback((itemId: string, patch: Partial<{ brand: string; saving: boolean; error: string | null }>) => {
     setDrafts((prev) => {
@@ -204,6 +442,32 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     [drafts, refreshEpoch, updateDraft],
   );
 
+  // Parked-brand fallback set while brand_sites loads: batch blocker brands
+  // (lowercased) count as unmapped-known, so KPI/table stay honest before
+  // the map arrives. Once loaded, the Brand Hub map is authoritative.
+  const parkedBrands = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of blockers) {
+      if (b.brand?.trim()) set.add(brandKeyOf(b.brand));
+    }
+    return set;
+  }, [blockers]);
+
+  const effectiveDomainMap = brandDomainMap;
+  const effectiveParked = brandSitesLoaded ? undefined : parkedBrands;
+
+  const kpiCounts = useMemo(
+    () => (stage === 'route_sources' ? countIntakeKpis(items, effectiveDomainMap, effectiveParked) : null),
+    [stage, items, effectiveDomainMap, effectiveParked],
+  );
+
+  const visibleItems = useMemo(
+    () => (stage === 'route_sources' && kpiFilter !== 'all'
+      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, effectiveDomainMap, effectiveParked))
+      : items),
+    [stage, items, kpiFilter, effectiveDomainMap, effectiveParked],
+  );
+
   const toggleSelect = useCallback((itemId: string) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -215,37 +479,97 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   }, []);
 
   const toggleSelectAll = useCallback(() => {
+    // Select-all covers the currently filtered (visible) rows (#118).
+    const rows = visibleItems;
     setSelected((prev) => {
-      const allSelected = items.length > 0 && items.every((item) => prev[item.itemId]);
+      const allSelected = rows.length > 0 && rows.every((item) => prev[item.itemId]);
       if (allSelected) return {};
       const next: Record<string, true> = {};
-      for (const item of items) next[item.itemId] = true;
+      for (const item of rows) next[item.itemId] = true;
       return next;
     });
     setBulkError(null);
-  }, [items]);
+  }, [visibleItems]);
+
+  // Bulk brand target preview (#118): canonical spelling → Brand Hub domain
+  // → extractor-profile readiness. New/unmapped brands reveal the inline
+  // quick-add domain input instead of a preview badge.
+  const bulkPreview = useMemo(() => {
+    const trimmed = bulkBrand.trim();
+    if (!trimmed) return null;
+    const canonical = resolveCanonicalBrand(trimmed, brandOptionsRef.current);
+    const domain = effectiveDomainMap.get(brandKeyOf(canonical)) ?? null;
+    if (!domain) return { canonical, domain: null as string | null, profileReady: false };
+    return { canonical, domain, profileReady: profileDomains.has(domainKeyOf(domain)) };
+  }, [bulkBrand, effectiveDomainMap, profileDomains]);
 
   // Bulk path: the EXISTING assignBrandGroup(batchId, itemIds, brand)
-  // client, then the existing refresh epoch. Never locally marks rows
-  // fixed; route_sources scope only (callers gate rendering). Canonicalizes
-  // like the per-row path so bulk assigns hit brand_sites keys exactly.
+  // client, then — when the operator supplied a quick-add domain — the
+  // EXISTING assignBatchBrandDomain(batchId, brand, domain) client (Brand
+  // Hub stays the mapping authority, ADR 0017). Ends in the refresh epoch,
+  // which clears the selection. Never locally marks rows fixed.
   const runBulkAssign = useCallback(async (overrideValue?: string) => {
     const ids = Object.keys(selected);
     const canonical = resolveCanonicalBrand(overrideValue ?? bulkBrand, brandOptionsRef.current);
     if (!canonical || ids.length === 0 || bulkSaving) return;
+    const domainToAdd = !effectiveDomainMap.has(brandKeyOf(canonical)) ? bulkDomain.trim() : '';
     setBulkSaving(true);
     setBulkError(null);
     try {
       await assignBrandGroup(batchId, ids, canonical);
+      if (domainToAdd) {
+        await assignBatchBrandDomain(batchId, canonical, domainToAdd);
+      }
       setSelected({});
       setBulkBrand('');
+      setBulkDomain('');
       await refreshEpoch();
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : String(err));
     } finally {
       setBulkSaving(false);
     }
-  }, [selected, bulkBrand, bulkSaving, batchId, refreshEpoch]);
+  }, [selected, bulkBrand, bulkDomain, bulkSaving, batchId, refreshEpoch, effectiveDomainMap]);
+
+  // Resolution drawer save (#117): persist one unmapped brand's domain to
+  // Brand Hub, drop the resolved row, and refresh the stage view. Failures
+  // keep the operator's input with an inline error.
+  const runDrawerSave = useCallback(async (brand: string) => {
+    const domain = (drawerInputs[brand] ?? '').trim();
+    if (!domain || drawerSaving[brand]) return;
+    setDrawerSaving((prev) => ({ ...prev, [brand]: true }));
+    setDrawerErrors((prev) => ({ ...prev, [brand]: null }));
+    try {
+      await assignBatchBrandDomain(batchId, brand, domain);
+      setDrawerInputs((prev) => {
+        const next = { ...prev };
+        delete next[brand];
+        return next;
+      });
+      await refreshEpoch();
+    } catch (err) {
+      setDrawerErrors((prev) => ({ ...prev, [brand]: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setDrawerSaving((prev) => ({ ...prev, [brand]: false }));
+    }
+  }, [drawerInputs, drawerSaving, batchId, refreshEpoch]);
+
+  // Per-row "+ Add Domain" save (#119): same Brand Hub write path as the
+  // drawer, scoped to the row's brand. Failures keep the input.
+  const runRowDomainSave = useCallback(async (itemId: string, brand: string) => {
+    const domain = (rowDomainInputs[itemId] ?? '').trim();
+    if (!domain || rowDomainSaving[itemId]) return;
+    setRowDomainSaving((prev) => ({ ...prev, [itemId]: true }));
+    setRowDomainErrors((prev) => ({ ...prev, [itemId]: null }));
+    try {
+      await assignBatchBrandDomain(batchId, brand, domain);
+      await refreshEpoch();
+    } catch (err) {
+      setRowDomainErrors((prev) => ({ ...prev, [itemId]: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setRowDomainSaving((prev) => ({ ...prev, [itemId]: false }));
+    }
+  }, [rowDomainInputs, rowDomainSaving, batchId, refreshEpoch]);
 
   const selectedCount = Object.keys(selected).length;
 
@@ -275,6 +599,144 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
         {nextCursor ? ' — more available' : ''}
         {refreshing ? ' · refreshing…' : ''}
       </p>
+
+      {isRouteSourcesStage && kpiCounts && (
+        <div
+          className="bws-facet-row"
+          role="group"
+          aria-label="Intake summary and quick filters"
+          data-testid="intake-kpi-strip"
+          style={{ marginBottom: 8 }}
+        >
+          {INTAKE_KPI_FILTERS.map((filter) => {
+            const active = kpiFilter === filter;
+            const count = filter === 'all' ? kpiCounts.all
+              : filter === 'missing-brand' ? kpiCounts.missingBrand
+              : filter === 'missing-domain' ? kpiCounts.missingDomain
+              : filter === 'distributor' ? kpiCounts.distributor
+              : kpiCounts.ready;
+            return (
+              <button
+                key={filter}
+                type="button"
+                aria-pressed={active}
+                data-testid={`intake-kpi-${filter}`}
+                className={`bws-chip${active ? ' bws-chip-active' : ''}`}
+                onClick={() => setKpiFilter(active && filter !== 'all' ? 'all' : filter)}
+                title={filter === 'all' ? 'Show all loaded products' : `Filter to ${INTAKE_KPI_LABELS[filter]}`}
+              >
+                {INTAKE_KPI_LABELS[filter]} ({formatCount(count)})
+              </button>
+            );
+          })}
+          {!brandSitesLoaded && !blockersError && (
+            <span className="bws-muted" data-testid="intake-kpi-domain-unknown" style={{ fontSize: '0.75rem' }}>
+              Domain checks loading…
+            </span>
+          )}
+        </div>
+      )}
+
+      {isRouteSourcesStage && blockersError && (
+        <div role="status" data-testid="intake-blockers-unavailable" style={{ fontSize: '0.75rem', color: colors.mulchBrown, marginBottom: 8 }}>
+          Brand-domain checks unavailable: {blockersError} — domain status below may be partial.
+        </div>
+      )}
+
+      {isRouteSourcesStage && blockers.length > 0 && (
+        <div
+          data-testid="unmapped-brand-drawer"
+          role="region"
+          aria-label="Unmapped brand resolution"
+          style={{
+            backgroundColor: '#fffbeb',
+            border: '1px solid #fcd34d',
+            borderRadius: rounded.md,
+            padding: '10px 12px',
+            margin: '0 0 8px 0',
+          }}
+        >
+          <p style={{ margin: '0 0 8px 0', fontSize: '0.8125rem', fontWeight: 700, color: colors.ledgerCharcoal }}>
+            {blockers.length} brand{blockers.length === 1 ? '' : 's'} missing an official domain
+          </p>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {blockers.map((blocker) => {
+              const brand = blocker.brand;
+              const saving = drawerSaving[brand] ?? false;
+              const err = drawerErrors[brand] ?? null;
+              const value = drawerInputs[brand] ?? '';
+              return (
+                <li
+                  key={brand}
+                  data-testid={`unmapped-brand-row-${brand}`}
+                  style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}
+                >
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: colors.ledgerCharcoal }}>
+                    {brand}
+                    <span className="bws-muted" style={{ fontWeight: 400 }}>
+                      {' '}· {formatCount(blocker.blockedItemCount)} product{blocker.blockedItemCount === 1 ? '' : 's'}
+                    </span>
+                  </span>
+                  <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
+                    Official domain / URL
+                    <input
+                      type="text"
+                      data-testid={`unmapped-brand-input-${brand}`}
+                      value={value}
+                      disabled={saving}
+                      placeholder="e.g. acme.com"
+                      aria-label={`Official domain for ${brand}`}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setDrawerInputs((prev) => ({ ...prev, [brand]: next }));
+                        setDrawerErrors((prev) => ({ ...prev, [brand]: null }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void runDrawerSave(brand);
+                      }}
+                      style={{
+                        display: 'block',
+                        width: 220,
+                        padding: '0.375rem 0.5rem',
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: rounded.md,
+                        fontSize: '0.8125rem',
+                        fontFamily: fonts.body,
+                        marginTop: 2,
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    data-testid={`unmapped-brand-save-${brand}`}
+                    onClick={() => void runDrawerSave(brand)}
+                    disabled={saving || !value.trim()}
+                    style={{
+                      backgroundColor: colors.uniformGreen,
+                      border: 'none',
+                      borderRadius: rounded.md,
+                      padding: '0.375rem 0.75rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: colors.feedBagCream,
+                      cursor: saving || !value.trim() ? 'not-allowed' : 'pointer',
+                      opacity: saving || !value.trim() ? 0.6 : 1,
+                      minHeight: 32,
+                    }}
+                  >
+                    {saving ? 'Saving…' : 'Save domain'}
+                  </button>
+                  {err && (
+                    <span role="alert" data-testid={`unmapped-brand-error-${brand}`} style={{ fontSize: '0.75rem', color: colors.signetBurgundy, flexBasis: '100%' }}>
+                      {err} — nothing was saved; your entry is kept above.
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {isReviewStage && (
         <div className="bws-facet-row" role="group" aria-label="Review state filter" data-testid="review-facet-row">
@@ -370,6 +832,40 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
               />
             </span>
           </label>
+          {bulkPreview && bulkPreview.domain && (
+            <span
+              data-testid="stage-bulk-domain-preview"
+              role="status"
+              style={{ fontSize: '0.75rem', color: colors.ledgerCharcoal, paddingBottom: 8 }}
+              title="Brand Hub domain mapping with extractor profile readiness"
+            >
+              🌐 {bulkPreview.domain} · Active in Brand Hub ({bulkPreview.profileReady ? 'Profile Ready' : 'Profile Required'})
+            </span>
+          )}
+          {bulkPreview && !bulkPreview.domain && (
+            <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
+              Official domain for “{bulkPreview.canonical}” (Brand Hub has none yet)
+              <input
+                type="text"
+                data-testid="stage-bulk-domain-input"
+                value={bulkDomain}
+                disabled={bulkSaving}
+                placeholder="e.g. acme.com"
+                aria-label={`Official domain for ${bulkPreview.canonical}`}
+                onChange={(e) => setBulkDomain(e.target.value)}
+                style={{
+                  display: 'block',
+                  width: 200,
+                  padding: '0.375rem 0.5rem',
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: rounded.md,
+                  fontSize: '0.8125rem',
+                  fontFamily: fonts.body,
+                  marginTop: 2,
+                }}
+              />
+            </label>
+          )}
           <button
             type="button"
             data-testid="stage-bulk-assign"
@@ -411,47 +907,25 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
           No products in this stage match the current filters.
         </div>
       )}
-      {items.length > 0 && (
+      {isRouteSourcesStage && !loading && !error && items.length > 0 && visibleItems.length === 0 && (
+        <div className="bws-muted" style={{ padding: '2rem 1rem', textAlign: 'center' }} data-testid="intake-filter-empty">
+          No products match the {INTAKE_KPI_LABELS[kpiFilter]} filter.
+        </div>
+      )}
+      {items.length > 0 && !isRouteSourcesStage && (
         <div className="bws-table-scroll">
         <table className="bws-results-table">
           <thead>
             <tr>
-              {isRouteSourcesStage && (
-                <th>
-                  <input
-                    type="checkbox"
-                    data-testid="stage-select-all"
-                    aria-label="Select all rows"
-                    checked={items.length > 0 && items.every((item) => selected[item.itemId])}
-                    onChange={toggleSelectAll}
-                  />
-                </th>
-              )}
               <th>Product</th>
               <th>Stage status</th>
               <th>Review</th>
               <th>Source</th>
-              {isRouteSourcesStage && <th>Brand fix</th>}
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
-              const draft = drafts[item.itemId];
-              const brandValue = draft?.brand ?? item.brand ?? '';
-              const saving = draft?.saving ?? false;
-              return (
+            {items.map((item) => (
               <tr key={item.itemId}>
-                {isRouteSourcesStage && (
-                  <td>
-                    <input
-                      type="checkbox"
-                      data-testid={`stage-select-${item.itemId}`}
-                      aria-label={`Select ${item.name || item.upc}`}
-                      checked={Boolean(selected[item.itemId])}
-                      onChange={() => toggleSelect(item.itemId)}
-                    />
-                  </td>
-                )}
                 <td>
                   <div style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>{item.name || item.upc}</div>
                   <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
@@ -472,62 +946,289 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                   {sourceTypeLabel(item.sourceType)}
                   {item.domain ? <div style={{ fontSize: '0.6875rem' }}>{item.domain}</div> : null}
                 </td>
-                {isRouteSourcesStage && (
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 200 }}>
-                      <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
-                        Brand
-                        <span style={{ display: 'block', width: '100%', marginTop: 2 }}>
-                          <BrandCombobox
-                            value={brandValue}
-                            onChange={(next) => updateDraft(item.itemId, { brand: next, error: null })}
-                            onCommit={(next) => void runBrandAssign(item.itemId, next)}
-                            options={brandOptions}
-                            disabled={saving}
-                            ariaLabel={`Brand for ${item.name || item.upc}`}
-                            placeholder="Enter brand name"
-                            inputStyle={{
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+      {items.length > 0 && isRouteSourcesStage && (
+        <div className="bws-table-scroll">
+        <table className="bws-results-table">
+          <thead>
+            <tr>
+              <th>
+                <input
+                  type="checkbox"
+                  data-testid="stage-select-all"
+                  aria-label="Select all filtered rows"
+                  checked={visibleItems.length > 0 && visibleItems.every((item) => selected[item.itemId])}
+                  onChange={toggleSelectAll}
+                />
+              </th>
+              <th>Product</th>
+              <th>Brand</th>
+              <th>Domain &amp; Profile</th>
+              <th>Source Route</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleItems.map((item) => {
+              const draft = drafts[item.itemId];
+              const brandValue = draft?.brand ?? item.brand ?? '';
+              const saving = draft?.saving ?? false;
+              const flags = deriveIntakeFlags(item, effectiveDomainMap, effectiveParked);
+              const route = intakeSourceRoute(flags);
+              const profileReady = flags.mappedDomain ? profileDomains.has(domainKeyOf(flags.mappedDomain)) : false;
+              const rowDomainErr = rowDomainErrors[item.itemId] ?? null;
+              const savingRowDomain = rowDomainSaving[item.itemId] ?? false;
+              return (
+              <tr key={item.itemId}>
+                <td>
+                  <input
+                    type="checkbox"
+                    data-testid={`stage-select-${item.itemId}`}
+                    aria-label={`Select ${item.name || item.upc}`}
+                    checked={Boolean(selected[item.itemId])}
+                    onChange={() => toggleSelect(item.itemId)}
+                  />
+                </td>
+                <td>
+                  <div style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>{item.name || item.upc}</div>
+                  <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
+                    {item.upc}
+                    {item.weight ? ` · ${item.weight}` : ''}
+                  </div>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 200 }}>
+                    {flags.missingBrand && (
+                      <span
+                        data-testid={`intake-missing-brand-${item.itemId}`}
+                        role="status"
+                        style={{
+                          display: 'inline-block',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: '#fff',
+                          backgroundColor: colors.signetBurgundy,
+                          borderRadius: rounded.full,
+                          padding: '2px 8px',
+                          width: 'fit-content',
+                        }}
+                      >
+                        ⚠️ Missing Brand
+                      </span>
+                    )}
+                    <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
+                      Brand
+                      <span style={{ display: 'block', width: '100%', marginTop: 2 }}>
+                        <BrandCombobox
+                          value={brandValue}
+                          onChange={(next) => updateDraft(item.itemId, { brand: next, error: null })}
+                          onCommit={(next) => void runBrandAssign(item.itemId, next)}
+                          options={brandOptions}
+                          disabled={saving}
+                          ariaLabel={`Brand for ${item.name || item.upc}`}
+                          placeholder="Enter brand name"
+                          inputStyle={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '0.375rem 0.5rem',
+                            border: `1px solid ${colors.cardBorder}`,
+                            borderRadius: rounded.md,
+                            fontSize: '0.8125rem',
+                            fontFamily: fonts.body,
+                          }}
+                        />
+                      </span>
+                    </label>
+                    <div>
+                      <button
+                        type="button"
+                        data-testid={`stage-brand-assign-${item.itemId}`}
+                        onClick={() => void runBrandAssign(item.itemId, brandValue)}
+                        disabled={saving || !brandValue.trim()}
+                        style={{
+                          backgroundColor: colors.uniformGreen,
+                          border: 'none',
+                          borderRadius: rounded.md,
+                          padding: '0.375rem 0.75rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: colors.feedBagCream,
+                          cursor: saving || !brandValue.trim() ? 'not-allowed' : 'pointer',
+                          opacity: saving || !brandValue.trim() ? 0.6 : 1,
+                          minHeight: 32,
+                        }}
+                      >
+                        {saving ? 'Assigning…' : 'Assign brand'}
+                      </button>
+                    </div>
+                    {draft?.error && (
+                      <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
+                        {draft.error} — list unchanged.
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td data-testid={`intake-domain-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 180 }}>
+                  {flags.distributorExempt ? (
+                    <span className="bws-muted">— (Distributor record)</span>
+                  ) : flags.missingBrand ? (
+                    <span className="bws-muted">—</span>
+                  ) : flags.mappedDomain ? (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span title="Official domain mapped in Brand Hub">🌐 {flags.mappedDomain}</span>
+                      {profileReady ? (
+                        <span
+                          data-testid={`intake-profile-ready-${item.itemId}`}
+                          role="status"
+                          style={{
+                            display: 'inline-block',
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            color: colors.uniformGreen,
+                            backgroundColor: '#e8f3ec',
+                            borderRadius: rounded.full,
+                            padding: '2px 8px',
+                            width: 'fit-content',
+                          }}
+                        >
+                          Profile Ready
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          data-testid={`intake-profile-required-${item.itemId}`}
+                          onClick={() => onOpenSettings?.()}
+                          title={onOpenSettings ? 'Open Settings to configure the extractor profile' : `No extractor profile for ${flags.mappedDomain} yet`}
+                          style={{
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            color: '#92400e',
+                            backgroundColor: '#fef3c7',
+                            border: '1px solid #fcd34d',
+                            borderRadius: rounded.full,
+                            padding: '2px 8px',
+                            cursor: onOpenSettings ? 'pointer' : 'default',
+                            width: 'fit-content',
+                          }}
+                        >
+                          Profile Required — open Profile Builder
+                        </button>
+                      )}
+                    </span>
+                  ) : (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span
+                        data-testid={`intake-missing-domain-${item.itemId}`}
+                        role="status"
+                        style={{ fontSize: '0.75rem', fontWeight: 700, color: colors.signetBurgundy }}
+                      >
+                        ⚠️ Missing Domain
+                      </span>
+                      {!rowDomainOpen[item.itemId] ? (
+                        <button
+                          type="button"
+                          data-testid={`intake-add-domain-${item.itemId}`}
+                          onClick={() => {
+                            setRowDomainOpen((prev) => ({ ...prev, [item.itemId]: true }));
+                            setRowDomainErrors((prev) => ({ ...prev, [item.itemId]: null }));
+                          }}
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: colors.uniformGreen,
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            width: 'fit-content',
+                          }}
+                        >
+                          + Add Domain
+                        </button>
+                      ) : (
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <input
+                            type="text"
+                            data-testid={`intake-domain-input-${item.itemId}`}
+                            value={rowDomainInputs[item.itemId] ?? ''}
+                            disabled={savingRowDomain}
+                            placeholder="e.g. acme.com"
+                            aria-label={`Official domain for ${item.brand}`}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setRowDomainInputs((prev) => ({ ...prev, [item.itemId]: next }));
+                              setRowDomainErrors((prev) => ({ ...prev, [item.itemId]: null }));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && item.brand) void runRowDomainSave(item.itemId, item.brand);
+                            }}
+                            style={{
                               display: 'block',
-                              width: '100%',
+                              width: 180,
                               padding: '0.375rem 0.5rem',
                               border: `1px solid ${colors.cardBorder}`,
                               borderRadius: rounded.md,
-                              fontSize: '0.8125rem',
+                              fontSize: '0.75rem',
                               fontFamily: fonts.body,
                             }}
                           />
-                        </span>
-                      </label>
-                      <div>
-                        <button
-                          type="button"
-                          data-testid={`stage-brand-assign-${item.itemId}`}
-                          onClick={() => void runBrandAssign(item.itemId, brandValue)}
-                          disabled={saving || !brandValue.trim()}
-                          style={{
-                            backgroundColor: colors.uniformGreen,
-                            border: 'none',
-                            borderRadius: rounded.md,
-                            padding: '0.375rem 0.75rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: colors.feedBagCream,
-                            cursor: saving || !brandValue.trim() ? 'not-allowed' : 'pointer',
-                            opacity: saving || !brandValue.trim() ? 0.6 : 1,
-                            minHeight: 32,
-                          }}
-                        >
-                          {saving ? 'Assigning…' : 'Assign brand'}
-                        </button>
-                      </div>
-                      {draft?.error && (
-                        <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
-                          {draft.error} — list unchanged.
+                          <span style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              data-testid={`intake-domain-save-${item.itemId}`}
+                              onClick={() => item.brand && void runRowDomainSave(item.itemId, item.brand)}
+                              disabled={savingRowDomain || !(rowDomainInputs[item.itemId] ?? '').trim()}
+                              style={{
+                                backgroundColor: colors.uniformGreen,
+                                border: 'none',
+                                borderRadius: rounded.md,
+                                padding: '0.25rem 0.625rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: colors.feedBagCream,
+                                cursor: savingRowDomain || !(rowDomainInputs[item.itemId] ?? '').trim() ? 'not-allowed' : 'pointer',
+                                opacity: savingRowDomain || !(rowDomainInputs[item.itemId] ?? '').trim() ? 0.6 : 1,
+                                minHeight: 28,
+                              }}
+                            >
+                              {savingRowDomain ? 'Saving…' : 'Save'}
+                            </button>
+                          </span>
+                          {rowDomainErr && (
+                            <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
+                              {rowDomainErr} — entry kept.
+                            </span>
+                          )}
                         </span>
                       )}
-                    </div>
-                  </td>
-                )}
+                    </span>
+                  )}
+                </td>
+                <td data-testid={`intake-route-${item.itemId}`} style={{ fontSize: '0.75rem' }}>
+                  {route === 'distributor' && (
+                    <span title="Qualified distributor record — skips discovery to collect_details">📦 Distributor Fast-Path</span>
+                  )}
+                  {route === 'discovery' && (
+                    <span title="Routed to official site discovery (find_product_page)">🌐 Official Site Discovery</span>
+                  )}
+                  {route === 'blocked' && (
+                    <span className="bws-muted" title="Parked in Stage 1 until brand/domain is resolved">⏳ Needs Brand/Domain</span>
+                  )}
+                </td>
+                <td>
+                  <span className="bws-stage-badge" title={`Recorded pipeline state: ${item.stage} / ${item.stageStatus}`}>
+                    {item.stage} / {item.stageStatus}
+                  </span>
+                  <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
+                    {item.reviewState ? reviewStateLabel(item.reviewState) : item.label}
+                  </div>
+                </td>
               </tr>
               );
             })}

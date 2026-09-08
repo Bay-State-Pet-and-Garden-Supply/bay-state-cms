@@ -47,7 +47,7 @@ describe('§7.1 pre-retirement mount matrix (full ledger)', () => {
       'create_drafts',
     ]);
     expect(LINEAR_STAGES.map((s) => s.label)).toEqual([
-      'Check source options',
+      'Identify & Route Sources',
       'Find product page',
       'Collect details',
       'Prepare listing',

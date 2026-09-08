@@ -950,18 +950,18 @@ export function Onboarding() {
               }
             }}
             onOpenBrandSetup={() => {
-              // Slice 3: navigation into the unified Brand setup view ONLY.
-              // The modal's release/save bodies and controlled-release flow
-              // are untouched; the workspace reads the new URL on popstate.
+              // Step 0 retired (#115): brand setup is absorbed into Stage 1
+              // ("Identify & Route Sources"). Route into the canonical
+              // Stage 1 URL; the workspace reads the new URL on popstate.
               const targetBatch = preflightBatchId;
               setShowPreflightModal(false);
               setPreflightBatchId(null);
               const url = new URL(window.location.href);
               if (targetBatch) url.searchParams.set('batch', targetBatch);
               url.searchParams.delete('tab');
-              url.searchParams.delete('stage');
-              url.searchParams.delete('stageVersion');
-              url.searchParams.set('wview', 'brand-setup');
+              url.searchParams.delete('wview');
+              url.searchParams.set('stage', 'route_sources');
+              url.searchParams.set('stageVersion', '2');
               window.history.pushState({ view: 'onboarding', batch: targetBatch }, '', url.toString());
               window.dispatchEvent(new PopStateEvent('popstate'));
             }}

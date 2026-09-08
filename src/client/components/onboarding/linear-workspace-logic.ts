@@ -12,8 +12,9 @@
  *   unknown `stageVersion`, or an unknown stage value, renders an actionable
  *   unsupported-link state (safe default Stage 1, no mutation) — never a
  *   silent guess at the first stage.
- * - Step 0 brand-setup slot: `?wview=brand-setup`. A VIEW placeholder only
- *   (Slice 3 builds it); never a seventh stage, never counted.
+ * - Step 0 brand-setup slot: legacy `?wview=brand-setup` links redirect into
+ *   Stage 1 (`stage=route_sources&stageVersion=2`). The Step 0 Brand setup
+ *   view is retired and absorbed into Stage 1 ("Identify & Route Sources").
  * - Legacy `?tab=<T>` (with no `stage=`/`wview=` present): resolves to the
  *   secondary operation/outcome destination per Table C — no stage is
  *   inferred from a work-state category.
@@ -53,9 +54,9 @@ export interface LinearStageDef {
 export const LINEAR_STAGES: readonly LinearStageDef[] = [
   {
     id: 'route_sources',
-    label: 'Check source options',
+    label: 'Identify & Route Sources',
     description:
-      'Automatic source triage. Use the official product page as the main source; a qualified supplier record can provide an alternate path.',
+      'Intake gate: identify products, assign brands, and route each source — official product page as the main source, qualified supplier records as the fast path.',
   },
   {
     id: 'find_product_page',
@@ -189,6 +190,14 @@ export type StageSelection =
   | { kind: 'unsupported'; reason: string };
 
 /**
+ * Legacy Step 0 redirect target: retired `wview=brand-setup` links land on
+ * Stage 1 ("Identify & Route Sources") with the canonical stage version.
+ * Callers that need the URL string can build it with
+ * `serializeStageSelection('route_sources')`.
+ */
+export const BRAND_SETUP_REDIRECT_STAGE: LinearStageId = 'route_sources';
+
+/**
  * Parse the workspace content selectors from a query string. Diagnostics
  * (`board=pipeline`) is NOT handled here — Onboarding.tsx resolves Table A
  * before BatchWorkspace mounts.
@@ -211,7 +220,11 @@ export function parseWorkspaceSelection(search: string): StageSelection {
     };
   }
   if (hasView) {
-    if (viewRaw === STEP_ZERO_VIEW_ID) return { kind: 'brand-setup' };
+    // Step 0 retired (#115): legacy `wview=brand-setup` links redirect
+    // seamlessly into Stage 1. `parseWorkspaceSelection` performs the
+    // redirect at the parse seam so every consumer (shell, deep links,
+    // bookmarks) lands on `stage=route_sources` with stageVersion=2.
+    if (viewRaw === STEP_ZERO_VIEW_ID) return { kind: 'stage', stage: BRAND_SETUP_REDIRECT_STAGE };
     return { kind: 'unsupported', reason: `Unknown view '${viewRaw ?? ''}'.` };
   }
   if (hasStage) {
