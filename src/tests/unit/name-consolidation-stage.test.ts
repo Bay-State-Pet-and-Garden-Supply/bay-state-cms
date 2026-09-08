@@ -1042,3 +1042,209 @@ describe('nameConsolidationStage — size/capacity guarantee', () => {
     expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 });
+
+// ─── Color guarantee (issue #112) ───────────────────────────────────────────
+
+describe('nameConsolidationStage — color guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const brandAndSize = [
+    makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+    makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+  ];
+
+  it('passes distributor color rows and OCR color into the consolidator', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget Red',
+      source: 'llm',
+      colorApplied: 'Red',
+    });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      ...brandAndSize,
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'color', value: 'Red' }),
+      makeEvidence({
+        source: 'distributor_record', sourceField: 'color', value: 'Red',
+        metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+      }),
+    ];
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.ocrColor).toBe('Red');
+    expect(callArgs.distributorVariants.some((v: any) => v.field === 'color' && v.value === 'Red')).toBe(true);
+    expect(result.output.metadata?.colorApplied).toBe('Red');
+  });
+
+  it('consumes a durable title carrying its own color byte-for-byte', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          ...brandAndSize,
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'color', value: 'Red' }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb Red',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Widget 5 lb Red');
+    expect(result.output.metadata?.colorApplied).toBe('Red');
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws a parent-defect error for a durable title missing its authored color', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'RED WIDGET' }),
+            ...brandAndSize,
+          ],
+        }),
+        makeContext({
+          runId: 'run-color-defect-1',
+          preComputedTitle: 'Acme Widget 5 lb',
+          preComputedTitleSource: 'llm_cohort',
+          productLineContext: {
+            groupId: 'g1',
+            groupLabel: 'Widgets',
+            siblingNames: ['Widget Blue'],
+            siblingWebTitles: [],
+            siblingOcrTitles: [],
+            siblingSkus: ['SKU-BLUE'],
+          },
+        }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains (no throw) for distributor-only color against a colorless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          ...brandAndSize,
+          makeEvidence({
+            source: 'distributor_record', sourceField: 'color', value: 'Red',
+            metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+          }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_color/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('passes colorless coordinated titles silently when no color is evidenced', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence: [...brandAndSize] }),
+      makeContext({ preComputedTitle: 'Acme Widget 5 lb', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.colorApplied).toBeNull();
+  });
+
+  it('holds missing_color for labeled-specs color against a colorless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          ...brandAndSize,
+          makeEvidence({
+            source: 'distributor_record', sourceField: 'description',
+            value: 'Specs:\nColor: Red\nWeight: 5 lb',
+          }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_color/);
+    expect(result.reason).toContain('Red');
+  });
+
+  it('applies the color guarantee on the error-path fallback with siblings', async () => {
+    asMock(consolidateProductTitle).mockRejectedValue(new Error('LLM error'));
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      ...brandAndSize,
+      makeEvidence({
+        source: 'distributor_record', sourceField: 'color', value: 'Red',
+        metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+      }),
+    ];
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence }),
+      makeContext({
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // Fallback: brand → color → size, each guarantee in order (size final).
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Widget Red 5 lb');
+  });
+});

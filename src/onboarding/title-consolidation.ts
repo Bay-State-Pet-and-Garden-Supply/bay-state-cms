@@ -11,7 +11,7 @@ import { getLlmConfigForTask, callLlmForTaskWithProvenance } from './llm-client'
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { MODEL_CALL_STATUS } from '../classification/model-operation-registry';
 import { recordTerminalPreflight } from '../db/repositories/classification-model-call-repo';
-import { buildPerItemPrompt, ensureBrandInTitle, ensureVariantTokensInTitle, knownVariantTokens } from './title-prompt-template';
+import { buildPerItemPrompt, ensureBrandInTitle, ensureVariantTokensInTitle, knownVariantTokens, ensureColorInTitle, knownColorsAcross, resolveOwnColor } from './title-prompt-template';
 import { formatDeterministicTitle } from './cohort-name-coordinator';
 export interface TitleSignals {
   /** Original name from the spreadsheet import (always available) */
@@ -42,6 +42,8 @@ export interface TitleSignals {
   ocrSize?: string | null;
   /** Count extracted from VLM packaging OCR (e.g. "20-PIECE VALUE PACK", "6 Pack") */
   ocrCount?: string | null;
+  /** Color extracted from VLM packaging OCR (issue #112, e.g. "Red") */
+  ocrColor?: string | null;
   /** Optional product-line sibling context for variant-consistent naming */
   siblingContext?: {
     groupLabel: string;
@@ -81,6 +83,8 @@ export interface TitleSignals {
   }>;
   /** Weight from official-page extraction evidence (issue #111). */
   extractionWeight?: string | null;
+  /** Colors from labeled distributor specs lines (issue #112) — own colors. */
+  labeledColors?: string[];
 }
 
 export interface TitleResult {
@@ -95,6 +99,11 @@ export interface TitleResult {
    * guaranteed. Callers must hold the item for a manual title (issue #108).
    */
   brandUnverified?: boolean;
+  /**
+   * Color ensured in the title for a multi-color family (issue #112), or
+   * null when the item is single-color/unknown (untouched, never a hold).
+   */
+  colorApplied?: string | null;
   /**
    * Normalized variant tokens ensured as final tokens (issue #111), from
    * the merged known-variant set. Empty when no size/capacity is evidenced
@@ -164,6 +173,34 @@ export async function consolidateProductTitle(
   // ("every numeric quantity is MANDATORY") is enforced by code.
   const variantSources = variantSourcesOf(signals);
 
+  // Issue #112: color context for the deterministic post-step. Structured
+  // colors (OCR color, distributor color attributes) are trusted as-is;
+  // title texts and sibling names contribute vocabulary-scanned words.
+  // The multi-color rule lives in ensureColorInTitle: fewer than two
+  // distinct colors (or unknown own color) leaves the title untouched —
+  // single-color items are unaffected and absence is never a hold.
+  const structuredColors: Array<string | null | undefined> = [
+    signals.ocrColor,
+    ...(signals.distributorVariants ?? []).filter(v => v.field === 'color').map(v => v.value),
+    ...(signals.labeledColors ?? []),
+  ];
+  const ownTitleTexts: Array<string | null | undefined> = [
+    signals.name,
+    signals.rawRegisterName,
+    signals.webTitle,
+    signals.ocrTitle,
+    signals.manualTitle,
+    ...(signals.distributorTitles ?? []).map(t => t.title),
+  ];
+  const ownColor = resolveOwnColor(structuredColors, ownTitleTexts);
+  const familyColors = knownColorsAcross([
+    ...structuredColors,
+    ...ownTitleTexts,
+    ...(signals.siblingContext?.siblingNames ?? []),
+    ...(signals.siblingContext?.siblingWebTitles ?? []),
+    ...(signals.siblingContext?.siblingOcrTitles ?? []),
+  ]);
+
   // If LLM is not configured, prefer spreadsheet name (has variant tokens like LG, SM, YELLOW)
   // over web title which may strip them. OCR title still wins when available.
   // The attempted-but-unavailable call is still observable (durable row).
@@ -177,7 +214,7 @@ export async function consolidateProductTitle(
       );
     }
     if (signals.ocrTitle) {
-      return applyVariantGuarantee(applyBrandGuarantee({ title: signals.ocrTitle, source: 'ocr' }, brand), variantSources);
+      return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({ title: signals.ocrTitle, source: 'ocr' }, brand), ownColor, familyColors), variantSources);
     }
     // Parent #101 (manual-evidence route, ticket #104): the
     // operator-verified per-SKU title is deterministic truth — eligible
@@ -186,9 +223,9 @@ export async function consolidateProductTitle(
     // only which signal wins, never whether validation runs.
     const manualTitle = signals.manualTitle?.trim() || null;
     if (manualTitle) {
-      return applyVariantGuarantee(applyBrandGuarantee({ title: manualTitle, source: 'manual' }, brand), variantSources);
+      return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({ title: manualTitle, source: 'manual' }, brand), ownColor, familyColors), variantSources);
     }
-    return applyVariantGuarantee(applyBrandGuarantee({ title: signals.name, source: 'web' }, brand), variantSources);
+    return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({ title: signals.name, source: 'web' }, brand), ownColor, familyColors), variantSources);
   }
 
   try {
@@ -202,6 +239,7 @@ export async function consolidateProductTitle(
       ocrWeight: signals.ocrWeight,
       ocrSize: signals.ocrSize,
       ocrCount: signals.ocrCount,
+      ocrColor: signals.ocrColor,
       siblingContext: signals.siblingContext
         ? { groupLabel: signals.siblingContext.groupLabel, siblingNames: signals.siblingContext.siblingNames }
         : undefined,
@@ -209,6 +247,7 @@ export async function consolidateProductTitle(
       distributorBrands: signals.distributorBrands,
       distributorVariants: signals.distributorVariants,
       extractionWeight: signals.extractionWeight,
+      labeledColors: signals.labeledColors,
     });
 
     const auditedTitle = await callLlmForTaskWithProvenance('product_curation', prompt, 'You are a clean product taxonomy assistant.', {
@@ -225,31 +264,41 @@ export async function consolidateProductTitle(
       // name): distributor variant attributes, OCR measurements, and
       // official-page details below the title are restored exactly like
       // raw-register tokens instead of being silently dropped.
-      const guardedTitle = ensureVariantTokensInTitle(cleanTitle, variantSources);
+      // Issue #112: authorship order is brand → color → variant
+      // (FORMAT_RULES size-final) — color before variant so the color
+      // never lands after size. The wrappers below re-apply idempotently.
+      const guardedTitle = ensureVariantTokensInTitle(
+        ensureColorInTitle(
+          brand ? ensureBrandInTitle(cleanTitle, brand) : cleanTitle,
+          ownColor,
+          familyColors,
+        ),
+        variantSources,
+      );
       // If the LLM still produced an empty/whitespace title after guard, fail
       // closed to deterministic fallback so no invention occurs.
       if (!guardedTitle || guardedTitle.trim().length === 0) {
         const fallback = formatDeterministicTitle(signals.name, signals.brandHint ?? null);
         console.warn(`[TitleConsolidation] LLM title empty after guard; fallback deterministic: "${fallback}"`);
-        return applyVariantGuarantee(applyBrandGuarantee({ title: fallback, source: 'llm', ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}) }, brand), variantSources);
+        return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({ title: fallback, source: 'llm', ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}) }, brand), ownColor, familyColors), variantSources);
       }
       // If guard restored tokens, keep llm source but with restored title —
       // the variant is preserved while provenance stays llm.
       if (guardedTitle !== cleanTitle) {
         console.log(`[TitleConsolidation] Restored variant tokens: "${guardedTitle}" (from merged ${variantSources.length} variant sources)`);
       }
-      return applyVariantGuarantee(applyBrandGuarantee({
+      return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({
         title: guardedTitle,
         source: 'llm',
         ...(auditedTitle.callId ? { modelCallIds: [auditedTitle.callId] } : {}),
-      }, brand), variantSources);
+      }, brand), ownColor, familyColors), variantSources);
     }
   } catch (err: any) {
     console.warn(`[TitleConsolidation] LLM title consolidation failed: ${redactTransportText(err.message)}`);
   }
 
   // Fallback: spreadsheet name has the richest variant tokens
-  return applyVariantGuarantee(applyBrandGuarantee({ title: signals.name, source: 'web' }, brand), variantSources);
+  return applyVariantGuarantee(applyColorGuarantee(applyBrandGuarantee({ title: signals.name, source: 'web' }, brand), ownColor, familyColors), variantSources);
 }
 
 /**
@@ -295,6 +344,33 @@ export function applyVariantGuarantee<T extends { title: string; source: TitleRe
     return { ...result, sizeApplied: [], sizeUnverified: true };
   }
   return { ...result, title: ensureVariantTokensInTitle(result.title, sources), sizeApplied: known };
+}
+
+/**
+ * Deterministic color post-step (issue #112).
+ *
+ * Applies `ensureColorInTitle` with the item's own color and the family
+ * color set; records the ensured color in colorApplied (null when the
+ * title was correctly left untouched). Unlike brand/size there is NO
+ * unverified flag: a single known color — or no color at all — leaves the
+ * title unchanged by design and never holds the item (mirrors the
+ * applyBrandGuarantee shape for test parity).
+ *
+ * Exported for tests: the live-LLM returns share this exact wrapper.
+ */
+// fallow-ignore-next-line unused-export — used by tests
+export function applyColorGuarantee<T extends { title: string; source: TitleResult['source'] }>(
+  result: T,
+  ownColor: string | null | undefined,
+  familyColors: string[],
+): T & { colorApplied?: string | null } {
+  const cleanOwn = ownColor?.trim() || null;
+  // Metadata contract mirrors the ensure gate: the carried color is
+  // recorded whenever the multi-color rule engages (appended or already
+  // present); single-color/unknown leaves colorApplied null.
+  const distinct = [...new Set((familyColors ?? []).map(c => c?.trim()).filter(Boolean))] as string[];
+  if (!cleanOwn || distinct.length < 2) return { ...result, colorApplied: null };
+  return { ...result, title: ensureColorInTitle(result.title, cleanOwn, distinct), colorApplied: cleanOwn };
 }
 
 /**

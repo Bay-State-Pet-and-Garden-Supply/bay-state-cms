@@ -51,6 +51,8 @@ export default defineConfig({
       'src/tests/unit/brand-title-guarantee.test.ts',
       // Size guarantee uses bun:sqlite via llm-client; same isolation rule.
       'src/tests/unit/size-title-guarantee.test.ts',
+      // Color guarantee uses bun:sqlite via llm-client; same isolation rule.
+      'src/tests/unit/color-consolidation.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',

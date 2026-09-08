@@ -17,7 +17,7 @@
 import { getLlmConfigForTask, callLlmForTask, callLlmForTaskWithProvenance } from './llm-client';
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { familyGroupingIdentityFor, knownBrandsForBatch } from './product-line-grouper';
-import { buildCohortPrompt, FORMAT_RULES, ensureBrandInTitle, ensureVariantTokensInTitle } from './title-prompt-template';
+import { buildCohortPrompt, FORMAT_RULES, ensureBrandInTitle, ensureVariantTokensInTitle, ensureColorInTitle, knownColorsAcross, resolveOwnColor, extractColorWords } from './title-prompt-template';
 import type { CohortExecutionTypeContext } from './title-prompt-template';
 import { normalizeTitleAuthorityString, TITLE_AUTHORITY_TRUNCATION } from './cohort-title-hash';
 import { HeartbeatLostError } from '../classification/heartbeat-errors';
@@ -338,7 +338,7 @@ export function itemVariantSources(item: OnboardingItem): Array<string | null | 
     weight?: string | null;
     variantAttributes?: Record<string, string> | null;
     packagingTitle?: string | null;
-    packagingOcrData?: { productName?: string | null; weight?: string | null; size?: string | null; count?: string | null } | null;
+    packagingOcrData?: { productName?: string | null; weight?: string | null; size?: string | null; count?: string | null; color?: string | null } | null;
     distributorReferenceValues?: Record<string, string[]> | null;
     casePack?: string | null;
     unitOfMeasure?: string | null;
@@ -354,10 +354,62 @@ export function itemVariantSources(item: OnboardingItem): Array<string | null | 
     ext?.packagingOcrData?.weight,
     ext?.packagingOcrData?.size,
     ext?.packagingOcrData?.count,
+    ext?.packagingOcrData?.color,
     ...(ext?.distributorReferenceValues ? Object.values(ext.distributorReferenceValues).flat() : []),
     ext?.casePack,
     ext?.unitOfMeasure,
   ];
+}
+
+/**
+ * Author-visible color channels for one cohort member (issue #112):
+ * distributor color attribute (key-aware — the producer classified it),
+ * packaging OCR color, and color words in the member's own title texts.
+ * Manual titles and distributor per-attempt rows have no item-level
+ * counterpart and stay member-side.
+ */
+function itemColorChannels(item: OnboardingItem): { structured: string[]; texts: Array<string | null | undefined> } {
+  const ext = item.extractionData as {
+    title?: string | null;
+    variantAttributes?: Record<string, string> | null;
+    packagingOcrData?: { color?: string | null } | null;
+  } | null | undefined;
+  const structured: string[] = [];
+  if (ext?.variantAttributes) {
+    for (const [key, value] of Object.entries(ext.variantAttributes)) {
+      if (key.toLowerCase() === 'color' && value?.trim()) structured.push(value.trim());
+    }
+  }
+  const ocrColor = ext?.packagingOcrData?.color?.trim();
+  if (ocrColor) structured.push(ocrColor);
+  return { structured, texts: [item.name, item.expectedName, ext?.title] };
+}
+
+/**
+ * The item's own color under authorship authority (issue #112): first
+ * structured color, else the first color word in its own title texts.
+ */
+// fallow-ignore-next-line unused-export — used by tests
+export function itemOwnColor(item: OnboardingItem): string | null {
+  const { structured, texts } = itemColorChannels(item);
+  return resolveOwnColor(structured, texts);
+}
+
+/**
+ * Family color set across cohort members (issue #112): union of
+ * structured colors and title-text color words. Two or more distinct
+ * colors marks a multi-color family whose members each carry their own.
+ */
+// fallow-ignore-next-line unused-export — used by tests
+export function familyColorsForGroup(items: OnboardingItem[]): string[] {
+  const structured: string[] = [];
+  const texts: Array<string | null | undefined> = [];
+  for (const item of items) {
+    const channels = itemColorChannels(item);
+    structured.push(...channels.structured);
+    texts.push(...channels.texts);
+  }
+  return knownColorsAcross([...structured, ...texts]);
 }
 
 /**
@@ -426,8 +478,36 @@ export function deriveFrozenFactsForValidation(item: OnboardingItem): TitleFroze
   // Dedupe while preserving order — repeated mentions of the SAME flavor are one
   // logical value; only DISTINCT flavors become extra slot tokens.
   const distinctFlavors = [...new Set(flavorMatches)];
-  const flavorOrColorOrSubline = distinctFlavors[0];
-  const extraFlavorTokens = distinctFlavors.length > 1 ? distinctFlavors.slice(1) : undefined;
+  // Issue #112: color words share the {flavor} slot (flavorOrColorOrSubline)
+  // so multi-color families ("... Red" vs "... Blue") skeleton-match
+  // instead of hard-failing T7 — the slot was always named for both.
+  // Lowercased to match the flavor pipeline's canonical forms; words
+  // already covered by a flavor match are not duplicated. Structured
+  // colors (distributor color attribute, OCR color) join the pool AFTER
+  // name words: without them, attribute-only color families could never
+  // coordinate — appended candidates would fail T2 against colorless
+  // skeletons. T4 then requires each pooled color in its member's title,
+  // which authorship guarantees before the gate runs.
+  const extForColor = item.extractionData as {
+    variantAttributes?: Record<string, string> | null;
+    packagingOcrData?: { color?: string | null } | null;
+  } | null | undefined;
+  const structuredColorTexts: string[] = [];
+  if (extForColor?.variantAttributes) {
+    for (const [key, value] of Object.entries(extForColor.variantAttributes)) {
+      if (key.toLowerCase() === 'color' && value?.trim()) structuredColorTexts.push(value);
+    }
+  }
+  const extOcrColor = extForColor?.packagingOcrData?.color?.trim();
+  if (extOcrColor) structuredColorTexts.push(extOcrColor);
+  const colorMatches = [
+    ...extractColorWords(raw),
+    ...knownColorsAcross(structuredColorTexts),
+  ].map(c => c.toLowerCase());
+  const distinctColors = [...new Set(colorMatches)].filter(c => !distinctFlavors.includes(c));
+  const slotCandidates = [...distinctFlavors, ...[...new Set(distinctColors)]];
+  const flavorOrColorOrSubline = slotCandidates[0];
+  const extraFlavorTokens = slotCandidates.length > 1 ? slotCandidates.slice(1) : undefined;
   const sizeMatch = raw.match(/\b(small|medium|large|x-?large|xx-?large|x-small|sm|md|lg|xl|xxl|xs)\b/);
   const sizeMap: Record<string,string> = { sm:'Small', md:'Medium', lg:'Large', xl:'X-Large', xxl:'XX-Large', xs:'X-Small' };
   // Weight/count slot (adjudicated Size/Weight/Count slot, plan §6.2): families legitimately
@@ -562,9 +642,22 @@ function lintAndValidateFallbackTitles(
   group: OnboardingItem[],
   cause: unknown,
 ): Array<{ upc: string; title: string }> {
+  // Issue #112: family color at fallback authorship, ordered brand →
+  // color → variant (FORMAT_RULES size-final) like the coordinated-LLM
+  // path. Composed explicitly (not via deterministicTitleWithVariants)
+  // because color must land BEFORE the variant append. Single-color
+  // families pass through untouched.
+  const fallbackFamilyColors = familyColorsForGroup(group);
   const fallbackTitles = group.map(item => ({
     upc: item.upc,
-    title: deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item)),
+    title: ensureVariantTokensInTitle(
+      ensureColorInTitle(
+        formatDeterministicTitle(item.name ?? item.upc, item.brandHint ?? null),
+        itemOwnColor(item),
+        fallbackFamilyColors,
+      ),
+      itemVariantSources(item),
+    ),
   }));
   // Title Lint (e09 follow-through): the fallback is a candidate set like any
   // other — lint first (blocked => fail closed, zero rows), then validate the
@@ -602,11 +695,11 @@ function lintAndValidateFallbackTitles(
     candidateTitles: fallbackTitles,
   });
   if (!fallbackValidation.valid) {
-    console.warn(`[CohortCoordinator] Fallback title set family validation failed (${fallbackValidation.reason}), using formatted individual titles for cohort: ${familyId}`);
-    return group.map(item => ({
-      upc: item.upc,
-      title: deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item)),
-    }));
+    // Last resort keeps the color-augmented set (issue #112): rebuilding
+    // via plain deterministicTitleWithVariants here would silently drop
+    // known multi-color tokens the rest of the pipeline guaranteed.
+    console.warn(`[CohortCoordinator] Fallback title set family validation failed (${fallbackValidation.reason}), using color-augmented individual titles for cohort: ${familyId}`);
+    return fallbackTitles;
   }
   return fallbackTitles;
 }
@@ -893,11 +986,21 @@ async function coordinateGroup(
   // missing_size abstention or the parent-defect error).
   const brandByUpc = new Map(items.map(i => [i.upc, i.brandHint?.trim() || null]));
   const itemByUpc = new Map(items.map(i => [i.upc, i]));
+  // Issue #112: family colors computed once across the group — multi-color
+  // families (two or more distinct) get per-member own-color appends below.
+  const familyColors = familyColorsForGroup(items);
+  // Issue #112: authorship order is brand → color → variant (FORMAT_RULES
+  // size-final) — color before variant so the color never lands after size.
   for (const [upc, title] of validated) {
     const itemBrand = brandByUpc.get(upc);
     let finalTitle = itemBrand ? ensureBrandInTitle(title, itemBrand) : title;
     const item = itemByUpc.get(upc);
-    if (item) finalTitle = ensureVariantTokensInTitle(finalTitle, itemVariantSources(item));
+    if (item) {
+      finalTitle = ensureVariantTokensInTitle(
+        ensureColorInTitle(finalTitle, itemOwnColor(item), familyColors),
+        itemVariantSources(item),
+      );
+    }
     validated.set(upc, finalTitle);
   }
 

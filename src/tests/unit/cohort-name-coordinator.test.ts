@@ -25,6 +25,8 @@ import {
   deriveFrozenFactsForValidation,
   formatDeterministicTitle,
   groupByProductLine,
+  itemOwnColor,
+  familyColorsForGroup,
 } from '../../onboarding/cohort-name-coordinator';
 import { buildCohortPrompt } from '../../onboarding/title-prompt-template';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
@@ -931,3 +933,228 @@ Return ONLY valid JSON: {"UPC1": "name1", "UPC2": "name2", ...}`,
     });
   });
 });
+
+  // ─── Color slot (issue #112) ────────────────────────────────────────────
+
+  describe('deriveFrozenFactsForValidation color slot (issue #112)', () => {
+    it('a color word occupies the {flavor} slot', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({ upc: 'UC1', name: 'Acme Widget Red' }) as any);
+      expect(f.flavorOrColorOrSubline).toBe('red');
+      expect(f.extraFlavorTokens).toBeUndefined();
+    });
+
+    it('two distinct colors keep both — first is primary, second is extra', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({ upc: 'UC2', name: 'Acme Red Blue Widget' }) as any);
+      expect(f.flavorOrColorOrSubline).toBe('red');
+      expect(f.extraFlavorTokens).toEqual(['blue']);
+    });
+
+    it('flavor keeps the primary slot with color as extra', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({ upc: 'UC3', name: 'Acme Chicken Red Widget' }) as any);
+      expect(f.flavorOrColorOrSubline).toBe('chicken');
+      expect(f.extraFlavorTokens).toEqual(['red']);
+    });
+
+    it('structured distributor color joins the pool after name words', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({
+        upc: 'UC4',
+        name: 'WIDGET',
+        extractionData: { title: 'Widget', variantAttributes: { color: 'Blue' } },
+      }) as any);
+      expect(f.flavorOrColorOrSubline).toBe('blue');
+    });
+
+    it('structured OCR color joins the pool', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({
+        upc: 'UC5',
+        name: 'WIDGET',
+        extractionData: { title: 'Widget', packagingOcrData: { color: 'Green' } },
+      }) as any);
+      expect(f.flavorOrColorOrSubline).toBe('green');
+    });
+
+    it('a color-as-substring word never occupies the slot', () => {
+      const f = deriveFrozenFactsForValidation(makeItem({ upc: 'UC6', name: 'Acme Blackberry Treats' }) as any);
+      expect(f.flavorOrColorOrSubline).toBeUndefined();
+      expect(f.extraFlavorTokens).toBeUndefined();
+    });
+
+    it('attribute-only color family passes family consistency with distinct titles (AC4)', () => {
+      const items = [
+        makeItem({
+          upc: 'UC7', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+        makeItem({
+          upc: 'UC8', brandHint: 'Acme', name: 'WIDGET 10 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Blue' } },
+        }),
+      ];
+      // Authorship-style candidates: size + appended own color per member.
+      const result = validateFamilyTitleSet({
+        familyId: 'color-family',
+        members: items.map(item => ({
+          onboardingItemId: item.id,
+          upc: item.upc,
+          frozenEvidenceHash: 'color:' + item.upc,
+          frozenFacts: deriveFrozenFactsForValidation(item),
+        })),
+        candidateTitles: [
+          { upc: 'UC7', title: 'Acme Widget 5 lb Red' },
+          { upc: 'UC8', title: 'Acme Widget 10 lb Blue' },
+        ],
+      });
+      expect(result.valid).toBe(true);
+      expect(result.skeleton).not.toContain('red');
+      expect(result.skeleton).not.toContain('blue');
+    });
+
+    it('same-size color-only siblings validate with neither color in the skeleton (issue #112)', () => {
+      const items = [
+        makeItem({
+          upc: 'UC9', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+        makeItem({
+          upc: 'UC10', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Blue' } },
+        }),
+      ];
+      const result = validateFamilyTitleSet({
+        familyId: 'color-only-family',
+        members: items.map(item => ({
+          onboardingItemId: item.id,
+          upc: item.upc,
+          frozenEvidenceHash: 'color:' + item.upc,
+          frozenFacts: deriveFrozenFactsForValidation(item),
+        })),
+        candidateTitles: [
+          { upc: 'UC9', title: 'Acme Widget 5 lb Red' },
+          { upc: 'UC10', title: 'Acme Widget 5 lb Blue' },
+        ],
+      });
+      expect(result.valid).toBe(true);
+      expect(result.skeleton).not.toContain('red');
+      expect(result.skeleton).not.toContain('blue');
+    });
+  });
+
+  describe('itemOwnColor / familyColorsForGroup (issue #112)', () => {
+    it('prefers the distributor color attribute over name words', () => {
+      const item = makeItem({
+        upc: 'UO1', name: 'Blue Widget',
+        extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+      });
+      expect(itemOwnColor(item as any)).toBe('Red');
+    });
+
+    it('falls back to packaging OCR color, then name words', () => {
+      const ocr = makeItem({
+        upc: 'UO2', name: 'Widget',
+        extractionData: { title: 'Widget', packagingOcrData: { color: 'Green' } },
+      });
+      expect(itemOwnColor(ocr as any)).toBe('Green');
+      const named = makeItem({ upc: 'UO3', name: 'Pink Widget' });
+      expect(itemOwnColor(named as any)).toBe('Pink');
+    });
+
+    it('returns null when nothing is evidenced', () => {
+      expect(itemOwnColor(makeItem({ upc: 'UO4', name: 'Widget' }) as any)).toBeNull();
+    });
+
+    it('unions structured and name colors across the group', () => {
+      const items = [
+        makeItem({ upc: 'UF1', name: 'Widget', extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } } }),
+        makeItem({ upc: 'UF2', name: 'Blue Widget' }),
+      ];
+      expect(familyColorsForGroup(items as any)).toEqual(['Red', 'Blue']);
+    });
+
+    it('single-color groups yield one color (append stays off)', () => {
+      const items = [
+        makeItem({ upc: 'US1', name: 'Widget', extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } } }),
+        makeItem({ upc: 'US2', name: 'Widget Pro', extractionData: { title: 'Widget Pro', variantAttributes: { color: 'Red' } } }),
+      ];
+      expect(familyColorsForGroup(items as any)).toEqual(['Red']);
+    });
+  });
+
+  describe('coordinateGroup color authorship (issue #112)', () => {
+    it('appends each member own color to colorless coordinated titles', async () => {
+      const items = [
+        makeItem({
+          upc: 'UA1', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+        makeItem({
+          upc: 'UA2', brandHint: 'Acme', name: 'WIDGET 10 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Blue' } },
+        }),
+      ] as OnboardingItem[];
+      (callLlmForTask as any).mockResolvedValueOnce(JSON.stringify({
+        'UA1': 'Acme Widget 5 lb',
+        'UA2': 'Acme Widget 10 lb',
+      }));
+      const result = await coordinateCohortItems(items);
+      // Title-lint renders '5 lb.' after the authorship append (periods are
+      // lint-owned, per the #111 closeout); the color append itself holds.
+      expect(result.get('UA1')!.title).toBe('Acme Widget 5 lb. Red');
+      expect(result.get('UA2')!.title).toBe('Acme Widget 10 lb. Blue');
+    });
+
+    it('leaves single-color coordinated titles untouched', async () => {
+      // Single structured color: the multi-color rule stays off, so the
+      // colorless coordinated titles fail T4 (structured red required but
+      // unappendable) and the family deterministically falls back to
+      // formatted individual titles — colorless, per AC#2. The failure is
+      // the mechanism, not an accident: single-color items never gain
+      // color tokens through coordination.
+      const items = [
+        makeItem({
+          upc: 'US3', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+        makeItem({
+          upc: 'US4', brandHint: 'Acme', name: 'WIDGET 10 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+      ] as OnboardingItem[];
+      (callLlmForTask as any).mockResolvedValueOnce(JSON.stringify({
+        'US3': 'Acme Widget 5 lb',
+        'US4': 'Acme Widget 10 lb',
+      }));
+      const result = await coordinateCohortItems(items);
+      // Last resort returns the LINTED fallback set (periods are
+      // lint-owned, per the #111 closeout) — still colorless, per AC#2.
+      expect(result.get('US3')!.title).toBe('Acme Widget 5 lb.');
+      expect(result.get('US4')!.title).toBe('Acme Widget 10 lb.');
+      // Design relies on the T4-failure → cohort_fallback path (see comment
+      // above), so pin the source too — an llm_cohort source here would
+      // mean single-color items took the coordinated path.
+      expect(result.get('US3')!.source).toBe('cohort_fallback');
+      expect(result.get('US4')!.source).toBe('cohort_fallback');
+    });
+
+    it('distinguishes same-size siblings by color alone (issue #112)', async () => {
+      // Same size, different colors: the mocked LLM titles are colorless
+      // (and identical, so response validation routes to the deterministic
+      // fallback) — color alone must still yield distinct final titles.
+      const items = [
+        makeItem({
+          upc: 'UD1', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Red' } },
+        }),
+        makeItem({
+          upc: 'UD2', brandHint: 'Acme', name: 'WIDGET 5 LB',
+          extractionData: { title: 'Widget', variantAttributes: { color: 'Blue' } },
+        }),
+      ] as OnboardingItem[];
+      (callLlmForTask as any).mockResolvedValueOnce(JSON.stringify({
+        'UD1': 'Acme Widget 5 lb',
+        'UD2': 'Acme Widget 5 lb',
+      }));
+      const result = await coordinateCohortItems(items);
+      expect(result.get('UD1')!.title).toBe('Acme Widget 5 lb. Red');
+      expect(result.get('UD2')!.title).toBe('Acme Widget 5 lb. Blue');
+    });
+  });

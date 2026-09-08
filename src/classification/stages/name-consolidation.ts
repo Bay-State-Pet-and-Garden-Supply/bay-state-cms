@@ -12,7 +12,7 @@
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { consolidateProductTitle } from '../../onboarding/title-consolidation';
-import { ensureBrandInTitle, titleContainsBrand, ensureVariantTokensInTitle, knownVariantTokens, variantTokenPresentInTitle } from '../../onboarding/title-prompt-template';
+import { ensureBrandInTitle, titleContainsBrand, ensureVariantTokensInTitle, ensureColorInTitle, knownVariantTokens, knownColorsAcross, resolveOwnColor, extractLabeledColors, colorTokenPresentInTitle, variantTokenPresentInTitle } from '../../onboarding/title-prompt-template';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import { buildModelCallContext } from '../runtime-snapshot';
 import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
@@ -55,21 +55,23 @@ interface DistributorBrandSignal {
 }
 
 /**
- * Variant attribute signal from distributor evidence (issue #111): size,
- * capacity (volume), weight, count/pack-count from merchandising fields
- * below the distributor title. Capacity is its own axis — never folded
- * into size text.
+ * Variant attribute signal from distributor evidence (issue #111, color
+ * added issue #112): size, capacity (volume), weight, count/pack-count,
+ * and color from merchandising fields below the distributor title.
+ * Capacity is its own axis — never folded into size text. Color rows flow
+ * through this channel when a producer classifies them (sourceField
+ * `color`); free-text specs are parsed separately and conservatively.
  */
 interface DistributorVariantSignal {
-  field: 'size' | 'capacity' | 'weight' | 'count' | 'packCount';
+  field: 'size' | 'capacity' | 'weight' | 'count' | 'packCount' | 'color';
   value: string;
   providerId: string;
   attemptId: string;
   confidence: number;
 }
 
-/** Recognized variant-attribute evidence fields (issue #111). */
-const DISTRIBUTOR_VARIANT_FIELDS = ['size', 'capacity', 'weight', 'count', 'packCount'] as const;
+/** Recognized variant-attribute evidence fields (issue #111, color added #112). */
+const DISTRIBUTOR_VARIANT_FIELDS = ['size', 'capacity', 'weight', 'count', 'packCount', 'color'] as const;
 
 /**
  * Collect distributor variant-attribute signals from distributor_record
@@ -333,6 +335,9 @@ export const nameConsolidationStage: StageDefinition = {
     const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
     const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
     const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
+    // Color from packaging OCR (issue #112): structured color alongside the
+    // OCR title/measurements.
+    const ocrColor = evidenceValue(input.evidence, 'color', 'visual_product_evidence');
 
     // Merged known-variant sources from every origin (issue #111):
     // spreadsheet names, web/OCR/manual titles, OCR measurements, official
@@ -357,6 +362,46 @@ export const nameConsolidationStage: StageDefinition = {
       spreadsheetName, rawRegisterName, webTitle, ocrTitle,
       ocrWeight, ocrSize, ocrCount, officialWeight,
     ];
+
+    // Color signals from every origin (issue #112). Structured colors
+    // (OCR color, distributor color attributes) are trusted as-is; title
+    // texts and sibling names contribute vocabulary-scanned words; labeled
+    // distributor specs lines ("Color: Red") contribute vocabulary-gated
+    // values only — heuristic parsing must never invent (see
+    // extractLabeledColors). Sibling texts come from the product-line
+    // context shared by both paths below.
+    const distributorColorValues = distributorVariants
+      .filter(v => v.field === 'color')
+      .map(v => v.value);
+    const distributorSpecTexts = input.evidence
+      .filter(e => e.source === 'distributor_record'
+        && (e.sourceField === 'description' || e.sourceField === 'bullet_point')
+        && typeof e.value === 'string')
+      .map(e => e.value as string);
+    const labeledColors = extractLabeledColors(distributorSpecTexts);
+    const ownTitleTexts: Array<string | null | undefined> = [
+      spreadsheetName, rawRegisterName, webTitle, manualTitle, ocrTitle,
+      ...distributorSignals.titles.map(t => t.title),
+    ];
+    const siblingColorTexts: string[] = context.productLineContext
+      ? [
+          ...(context.productLineContext.siblingNames ?? []),
+          ...(context.productLineContext.siblingWebTitles ?? []),
+          ...(context.productLineContext.siblingOcrTitles ?? []),
+        ]
+      : [];
+    const structuredColors: Array<string | null | undefined> = [
+      ocrColor, ...distributorColorValues, ...labeledColors,
+    ];
+    const ownColor = resolveOwnColor(structuredColors, ownTitleTexts);
+    const familyColors = knownColorsAcross([...structuredColors, ...ownTitleTexts, ...siblingColorTexts]);
+    // Authored color subset (issue #112, mirrors authoredVariantSources):
+    // spreadsheet names, extraction titles, OCR color — the channels the
+    // coordinator authors from. Manual titles, distributor rows, and
+    // labeled-specs colors are member-side only.
+    const authoredColors = knownColorsAcross([
+      spreadsheetName, rawRegisterName, webTitle, ocrTitle, ocrColor,
+    ]);
 
     // Brand hint: prefer spreadsheet → official page → highest-confidence distributor brand.
     // Computed FIRST (issue #108): every title path below either guarantees
@@ -453,6 +498,32 @@ export const nameConsolidationStage: StageDefinition = {
         // Brand checks passed — now the variant check (#111, defined above).
         const sizeHold = checkDurableSize();
         if (sizeHold) return sizeHold;
+        // Issue #112 (mirrors the size check, one deliberate asymmetry):
+        // the durable title must carry the item's own color when the family
+        // is multi-color. The multi-color gate (familyColors.length >= 2)
+        // mirrors the authorship guarantee (ensureColorInTitle is a no-op
+        // for single-color families), so single-color items are unaffected.
+        // Authored-evidenced colors contradicting a brandless-of-color
+        // durable title mean a stale parent (throw, same philosophy as
+        // size); member-only colors (manual, distributor rows, labeled
+        // specs) mean an evidence gap (hold, don't throw). No own color
+        // at all passes silently — absence is never a hold.
+        if (ownColor && familyColors.length >= 2 && !colorTokenPresentInTitle(preComputedTitle, ownColor)) {
+          const authoredOwn = authoredColors.some(
+            c => c.toLowerCase() === ownColor.toLowerCase(),
+          );
+          if (authoredOwn) {
+            throw new Error(
+              `parent_defect_stale_title: member ${input.sku} (run ${context.runId}) durable coordinated title ` +
+                `"${preComputedTitle}" is missing its author-visible color "${ownColor}" — the parent title output is stale or corrupt; ` +
+                're-run coordination. The member never mutates a durable title.',
+            );
+          }
+          return {
+            status: 'abstained',
+            reason: `missing_color: durable coordinated title ("${preComputedTitle}") lacks the manually- or distributor-evidenced color (${ownColor}) invisible to coordination — re-run coordination or supply an operator manual title/color.`,
+          };
+        }
         return {
           status: 'succeeded',
           output: {
@@ -465,6 +536,7 @@ export const nameConsolidationStage: StageDefinition = {
               titleSource: source,
               packagingOcrTitle: null,
               brandApplied: brandHint,
+              colorApplied: ownColor && familyColors.length >= 2 ? ownColor : null,
               signalsUsed: { source: 'cohort_coordination', sourceType: source, brandHint },
             },
           },
@@ -541,6 +613,7 @@ export const nameConsolidationStage: StageDefinition = {
           ocrWeight: ocrWeight ?? undefined,
           ocrSize: ocrSize ?? undefined,
           ocrCount: ocrCount ?? undefined,
+          ocrColor: ocrColor ?? undefined,
           siblingContext,
           distributorTitles: distributorSignals.titles.length > 0 ? distributorSignals.titles : undefined,
           distributorBrands: distributorSignals.brands.length > 0 ? distributorSignals.brands : undefined,
@@ -548,6 +621,7 @@ export const nameConsolidationStage: StageDefinition = {
             ? distributorVariants.map(v => ({ field: v.field, value: v.value, providerId: v.providerId, attemptId: v.attemptId, confidence: v.confidence }))
             : undefined,
           extractionWeight: officialWeight ?? undefined,
+          labeledColors: labeledColors.length > 0 ? labeledColors : undefined,
         },
         context.snapshot
           ? modelPolicyViewFromConfig(
@@ -593,6 +667,9 @@ export const nameConsolidationStage: StageDefinition = {
             titleSource: result.source,
             brandApplied: result.brandApplied ?? brandHint,
             sizeApplied: result.sizeApplied ?? knownSize,
+            // Issue #112: the consolidator's color verdict (null for
+            // single-color/unknown — correctly untouched, never a hold).
+            colorApplied: result.colorApplied ?? null,
             // Durable model-call IDs that produced this title (issue #17 E):
             // carried in stage metadata so the run's provenance is complete.
             modelCallIds: result.modelCallIds ?? [],
@@ -606,6 +683,7 @@ export const nameConsolidationStage: StageDefinition = {
               ocrWeight: ocrWeight ?? null,
               ocrSize: ocrSize ?? null,
               ocrCount: ocrCount ?? null,
+              ocrColor: ocrColor ?? null,
               brandHint: brandHint ?? null,
               officialWeight: officialWeight ?? null,
               distributorVariantCount: distributorVariants.length,
@@ -627,9 +705,12 @@ export const nameConsolidationStage: StageDefinition = {
       // abstains above), so the fallback gets the same brand guarantee.
       // Issue #111: knownSize is non-empty on this path (missing size
       // abstains above) — the fallback gets the variant guarantee too.
+      // Issue #112: the color guarantee applies with the stage-computed
+      // own/family colors (single-color/unknown leaves it unchanged),
+      // ordered brand → color → variant (FORMAT_RULES size-final).
       const bestDistributorTitle = distributorSignals.titles[0]?.title ?? null;
       const rawFallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
-      const fallback = ensureVariantTokensInTitle(ensureBrandInTitle(rawFallback, brandHint), variantSources);
+      const fallback = ensureVariantTokensInTitle(ensureColorInTitle(ensureBrandInTitle(rawFallback, brandHint), ownColor, familyColors), variantSources);
       const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (manualTitle ? 'manual' : (bestDistributorTitle ? 'web' : 'web')));
 
       return {
@@ -646,6 +727,7 @@ export const nameConsolidationStage: StageDefinition = {
             titleSource: fallbackSource,
             brandApplied: brandHint,
             sizeApplied: knownSize,
+            colorApplied: ownColor && familyColors.length >= 2 ? ownColor : null,
             packagingOcrTitle: ocrTitle ?? null,
             signalsUsed: {
               spreadsheetName: spreadsheetName ?? null,
@@ -656,6 +738,7 @@ export const nameConsolidationStage: StageDefinition = {
               ocrWeight: ocrWeight ?? null,
               ocrSize: ocrSize ?? null,
               ocrCount: ocrCount ?? null,
+              ocrColor: ocrColor ?? null,
               brandHint: brandHint ?? null,
               groupId: productLine?.groupId ?? null,
               siblingCount: productLine?.siblingNames.length ?? 0,
