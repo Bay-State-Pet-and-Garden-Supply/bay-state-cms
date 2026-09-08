@@ -159,13 +159,13 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
   const numReview = Math.max(2, Math.round(size * 0.15));
   const numPromotion = size - (numSourcing + numDiscovery + numExtraction + numCuration + numReview);
 
-  const stages: Array<'sourcing' | 'discovery' | 'extraction' | 'curation' | 'review' | 'promotion'> = [];
-  for (let i = 0; i < numSourcing; i++) stages.push('sourcing');
-  for (let i = 0; i < numDiscovery; i++) stages.push('discovery');
-  for (let i = 0; i < numExtraction; i++) stages.push('extraction');
-  for (let i = 0; i < numCuration; i++) stages.push('curation');
-  for (let i = 0; i < numReview; i++) stages.push('review');
-  for (let i = 0; i < numPromotion; i++) stages.push('promotion');
+  const stages: Array<'route_sources' | 'find_product_page' | 'collect_details' | 'prepare_listing' | 'review_listings' | 'create_drafts'> = [];
+  for (let i = 0; i < numSourcing; i++) stages.push('route_sources');
+  for (let i = 0; i < numDiscovery; i++) stages.push('find_product_page');
+  for (let i = 0; i < numExtraction; i++) stages.push('collect_details');
+  for (let i = 0; i < numCuration; i++) stages.push('prepare_listing');
+  for (let i = 0; i < numReview; i++) stages.push('review_listings');
+  for (let i = 0; i < numPromotion; i++) stages.push('create_drafts');
 
   const itemsToInsert = stages.map((stage, idx) => {
     const upc = `000000${String(idx + 1).padStart(6, '0')}`;
@@ -227,10 +227,10 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
       const item = inserted[i];
       const stage = stages[i];
 
-      if (stage === 'sourcing') {
+      if (stage === 'route_sources') {
         const status = i % 2 === 0 ? 'needs_input' : 'pending';
         updateItemStmt.run(stage, status, null, null, null, null, JSON.stringify({ outcome: 'sourcing_in_progress' }), item.id);
-      } else if (stage === 'discovery') {
+      } else if (stage === 'find_product_page') {
         const status = i % 3 === 0 ? 'needs_input' : 'pending';
         updateItemStmt.run(stage, status, null, null, null, null, null, item.id);
         // Insert 1-3 discovery sources
@@ -250,7 +250,7 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
             now,
           );
         }
-      } else if (stage === 'extraction') {
+      } else if (stage === 'collect_details') {
         const isOfficial = i % 2 === 0;
         const sourceType = isOfficial ? 'official_page' : 'distributor_record';
         const sourceUrl = isOfficial ? `https://www.acmepet.com/products/item-${i}` : null;
@@ -271,7 +271,7 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
           sourceType,
           now,
         );
-      } else if (stage === 'curation') {
+      } else if (stage === 'prepare_listing') {
         const runId = randomUUID();
         const curationData = {
           curatedTitle: item.name,
@@ -284,7 +284,7 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
         for (const stg of stageNames) {
           insertStageStmt.run(randomUUID(), runId, stg, 'completed', '{}', now, now);
         }
-      } else if (stage === 'review') {
+      } else if (stage === 'review_listings') {
         const isApproved = i % 3 === 0;
         const isReviewed = isApproved || (i % 3 === 1);
         updateItemStmt.run(stage, isApproved ? 'completed' : 'pending', `https://www.acmepet.com/products/item-${i}`, 'official_page', '{}', JSON.stringify({ curatedTitle: item.name }), null, item.id);
@@ -299,7 +299,7 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
           now,
           now,
         );
-      } else if (stage === 'promotion') {
+      } else if (stage === 'create_drafts') {
         updateItemStmt.run(stage, 'completed', `https://www.acmepet.com/products/item-${i}`, 'official_page', '{}', JSON.stringify({ curatedTitle: item.name }), null, item.id);
         insertReviewStmt.run(item.id, batchId, now, 'operator-1', now, 'approver-1', 'manual_ui', now, now);
       }
@@ -358,7 +358,7 @@ export function seedSyntheticBatch(workspaceId: string, batchId: string, size: n
       INSERT INTO change_sets (id, workspace_id, status, skus_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const promotedSkus = inserted.filter((_, idx) => stages[idx] === 'promotion').map(it => it.upc);
+    const promotedSkus = inserted.filter((_, idx) => stages[idx] === 'create_drafts').map(it => it.upc);
     if (promotedSkus.length > 0) {
       insertChangeSetStmt.run(randomUUID(), workspaceId, 'draft', JSON.stringify(promotedSkus), now, now);
     }
