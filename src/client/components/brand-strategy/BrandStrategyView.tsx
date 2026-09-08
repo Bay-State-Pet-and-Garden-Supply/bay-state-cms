@@ -76,7 +76,6 @@ export function BrandStrategyView({ strategies: initial, loading }: Props) {
       .then(async (r) => {
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          if (j.error === 'multiple_workspaces') throw new Error(`Multiple workspaces: ${j.workspaces?.join(', ')}`);
           throw new Error(j.error ?? `HTTP ${r.status}`);
         }
         return r.json();

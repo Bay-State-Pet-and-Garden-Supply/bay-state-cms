@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getWorkspace, closeWorkspace, type Workspace } from './api';
+import { getWorkspace, type Workspace } from './api';
 import { SetupWizard } from './components/SetupWizard';
 import { Catalog } from './components/Catalog';
 import { ProductDetail } from './components/ProductDetail';

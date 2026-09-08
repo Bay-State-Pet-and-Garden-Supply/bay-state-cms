@@ -12,24 +12,20 @@ import {
 import { ViewHeader } from './common/ViewHeader';
 import { colors } from '../theme';
 import { OnboardingSettings } from './OnboardingSettings';
-import { PipelineBoard } from './PipelineBoard';
 import { BatchWorkspace } from './onboarding/BatchWorkspace';
 import { WeeklyReportModal } from './WeeklyReportModal';
 import { BatchPreflightModal } from './onboarding/preflight/BatchPreflightModal';
-import type { OnboardingBatch, ColumnMapping, BrandSite } from '../../shared/schemas/onboarding';
+import type { OnboardingBatch, ColumnMapping } from '../../shared/schemas/onboarding';
 import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state';
-import { getProfileWorkspacePath } from './profile-workspace/route';
-import { normalizeBrandHubDomain } from '../../onboarding/brand-hub/normalizeDomain';
 import { formatCount, totalItemCount } from './onboarding/batch-workspace-logic';
 import { matchExistingBrand } from '../../shared/brand-matcher';
-import { getOnboardingFeatureFlags } from '../onboarding-feature-flags';
 import { resolveOnboardingSettingsTab } from './onboarding-settings/tabRegistry';
 export function Onboarding() {
   const [showSettings, setShowSettings] = useState(false);
 
-  // Sourcing engine capability (server-reported; fail closed to false).
-  // While false, Sourcing items may only continue to Discovery.
-  const [sourcingEngineEnabled, setSourcingEngineEnabled] = useState(false);
+  // Sourcing engine capability probe (server-reported). Slice 7: the engine
+  // flag value was consumed only by the deleted PipelineBoard diagnostics
+  // mount, so only a fetch failure is surfaced (fail-closed banner below).
   const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null);
   // Deep-linked settings tab (`?view=onboarding&settingsTab=curation` — the
   // "Open Curation Targets settings" banner links land here, not on the
@@ -68,14 +64,14 @@ export function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load onboarding capabilities once on mount; fail closed (engine disabled)
-  // when the fetch fails, surfacing the error rather than engine actions.
+  // Load onboarding capabilities once on mount; only a fetch failure is
+  // surfaced (engine treated as disabled). The value itself was consumed
+  // only by the retired board mount.
   useEffect(() => {
     let cancelled = false;
     getOnboardingCapabilities()
-      .then((caps) => {
+      .then(() => {
         if (cancelled) return;
-        setSourcingEngineEnabled(caps.sourcing?.engineEnabled === true);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -99,16 +95,12 @@ export function Onboarding() {
 
   // Item review/edit drawer states were removed in the epic #46 operator
   // rollover — per-item review lives in the Review workspace, bulk actions in
-  // the Batch Workspace, and the legacy Pipeline Board (diagnostics) owns its
-  // own drawer components.
+  // the Batch Workspace (the deleted Pipeline Board diagnostics owned its
+  // own drawer components).
   // story: e07s04 — profile builder modal state removed; navigation via getProfileWorkspacePath
 
   // Custom Selector Editor state was removed; extractor profiles are
   // managed in OnboardingSettings ("Domain Extractor Profiles" section).
-
-  // Brand/Domain Management states
-  const [cachedBrandSites, setCachedBrandSites] = useState<BrandSite[]>([]);
-  const [catalogBrands, setCatalogBrands] = useState<string[]>([]);
 
   // Preflight & Controlled Release modal states
   const [showPreflightModal, setShowPreflightModal] = useState(false);
@@ -126,18 +118,6 @@ export function Onboarding() {
     }
   };
 
-  const loadBrandSites = async () => {
-    try {
-      const res = await getBrandSites();
-      setCachedBrandSites(res.brandSites);
-      if (res.catalogBrands) {
-        setCatalogBrands(res.catalogBrands);
-      }
-    } catch (err) {
-      console.error('Failed to load brand sites:', err);
-    }
-  };
-
   const handleSelectBatch = async (batchId: string, replaceHistory = false) => {
     setLoading(true);
     setError('');
@@ -145,7 +125,6 @@ export function Onboarding() {
     try {
       const batchRes = await getBatch(batchId);
       setSelectedBatch(batchRes.batch);
-      await loadBrandSites();
       const url = new URL(window.location.href);
       url.searchParams.set('view', 'onboarding');
       url.searchParams.set('batch', batchId);
@@ -170,7 +149,6 @@ export function Onboarding() {
 
   useEffect(() => {
     fetchBatchesList();
-    loadBrandSites();
     if (initialBatchId) {
       void handleSelectBatch(initialBatchId, true);
     }
@@ -501,10 +479,20 @@ export function Onboarding() {
   }
 
   // ─── VIEW 1: BATCHES LIST ─────────────────────────────────────────────────────
+  // Slice 7 P2: `?board=pipeline` with no `?batch=` renders the same
+  // retired-diagnostics notice above the batches list (never a dead
+  // screen, never a board mount — the board file is deleted).
 
   if (!selectedBatchId) {
+    const boardQuery = typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('board') === 'pipeline';
     return (
       <div style={styles.container}>
+        {boardQuery && (
+          <div role="status" data-testid="retired-diagnostics-notice" style={{ backgroundColor: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: 8, padding: '8px 12px', marginBottom: 20, fontSize: '0.8125rem' }}>
+            The pipeline board diagnostics view has been retired — showing the Batch Workspace instead. Use the stage tabs and operations below; nothing was lost.
+          </div>
+        )}
         <ViewHeader
           title="Product Onboarding"
           description="Automatic acquisition — distributor lookups, official-site fallback, extraction, and family curation — with human review and bulk approval before export."
@@ -916,104 +904,34 @@ export function Onboarding() {
     );
   }
 
-  // ─── VIEW 2: BATCH WORKSPACE (default) or PIPELINE BOARD (diagnostics) ──
-  // Epic #46: the six-stage Kanban is no longer the primary operator model.
-  // The Batch Workspace is the default; the Pipeline Board remains available
-  // as a diagnostics escape hatch via `?board=pipeline` (separate query param
-  // so App.tsx's `view` routing is untouched), gated by the rollout flags
-  // (src/client/onboarding-feature-flags.ts).
-  // e10s05 retirement COMPLETE: the board STAYS diagnostics-only; the legacy
-  // ReviewDrawerShell + CurationStagePanel have been removed.
+  // ─── VIEW 2: BATCH WORKSPACE (sole shell) ─────────────────────────────────
+  // Slice 7 file deletion (council plan §6 Slice 7): PipelineBoard.tsx is
+  // deleted after the Slice 6 zero-mount evidence + grace interval. No
+  // board import/mount/implicit fallback remains anywhere; an explicit
+  // `?board=pipeline` URL resolves to the current shell with a retirement
+  // notice, never a dead screen. `VITE_BATCH_WORKSPACE_ENABLED=false` stays
+  // a deprecated no-op. Rollback uses the archived matching bridge client —
+  // never a resurrected board. `shellV2Enabled=false` is an emergency
+  // disabled-content state inside BatchWorkspace (see BatchWorkspace.tsx).
   if (selectedBatchId && selectedBatch) {
-    const { batchWorkspaceEnabled, pipelineDiagnosticsEnabled } = getOnboardingFeatureFlags();
-    const forcePipelineDiagnostics =
-      pipelineDiagnosticsEnabled &&
-      new URLSearchParams(window.location.search).get('board') === 'pipeline';
-    // Rollout guard: workspace disabled → Pipeline Board (unless the
-    // diagnostics surface itself is disabled, which leaves a clear message
-    // instead of a blank screen).
-    if (!batchWorkspaceEnabled && pipelineDiagnosticsEnabled) {
-      return (
-        <>
-          <div style={{ padding: 24 }}>
-            <button
-              onClick={handleBackToBatches}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#1d4ed8',
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: 14,
-              }}
-            >
-              ← All Batches
-            </button>
-            <PipelineBoard
-              batchId={selectedBatchId}
-              batchName={selectedBatch.name}
-              onBack={handleBackToBatches}
-              cachedBrandSites={cachedBrandSites}
-              _catalogBrands={catalogBrands}
-              sourcingEngineEnabled={sourcingEngineEnabled}
-              onRefreshBrandSites={loadBrandSites}
-              onOpenProfileBuilder={(domain) => {
-                const normalized = normalizeBrandHubDomain(domain);
-                if (!normalized) return;
-                const path = getProfileWorkspacePath(normalized, window.location.pathname + window.location.search);
-                window.history.pushState(null, '', path);
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }}
-              onOpenBrandSetup={() => {
-                setShowSettings(true);
-              }}
-            />
-          </div>
-        </>
-      );
-    }
+    const boardQuery = new URLSearchParams(window.location.search).get('board') === 'pipeline';
     return (
       <>
-        {batchWorkspaceEnabled && !forcePipelineDiagnostics ? (
-          <BatchWorkspace
-            batchId={selectedBatchId}
-            batchName={selectedBatch.name}
-            onBack={handleBackToBatches}
-            onOpenSettings={() => setShowSettings(true)}
-            onOpenPreflight={() => {
-              setPreflightBatchId(selectedBatchId);
-              setShowPreflightModal(true);
-            }}
-          />
-        ) : pipelineDiagnosticsEnabled ? (
-          <PipelineBoard
-            batchId={selectedBatchId}
-            batchName={selectedBatch.name}
-            onBack={handleBackToBatches}
-            cachedBrandSites={cachedBrandSites}
-            _catalogBrands={catalogBrands}
-            sourcingEngineEnabled={sourcingEngineEnabled}
-            onRefreshBrandSites={loadBrandSites}
-            onOpenProfileBuilder={(domain) => {
-              const normalized = normalizeBrandHubDomain(domain);
-              if (!normalized) return;
-              const path = getProfileWorkspacePath(normalized, window.location.pathname + window.location.search);
-              window.history.pushState(null, '', path);
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-            onOpenBrandSetup={() => {
-              setShowSettings(true);
-            }}
-          />
-        ) : (
-          <div style={{ padding: 24 }}>
-            <ViewHeader
-              title="Onboarding unavailable"
-              description="Both the Batch Workspace and the Pipeline diagnostics surface are disabled. Enable VITE_BATCH_WORKSPACE_ENABLED or VITE_PIPELINE_DIAGNOSTICS_ENABLED to use onboarding."
-            />
-            <button onClick={handleBackToBatches} style={styles.secondaryBtn}>← All Batches</button>
+        {boardQuery && (
+          <div role="status" data-testid="retired-diagnostics-notice" style={{ margin: '12px 24px 0 24px', backgroundColor: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: 8, padding: '8px 12px', fontSize: '0.8125rem' }}>
+            The pipeline board diagnostics view has been retired — showing the Batch Workspace instead. Use the stage tabs and operations below; nothing was lost.
           </div>
         )}
+        <BatchWorkspace
+          batchId={selectedBatchId}
+          batchName={selectedBatch.name}
+          onBack={handleBackToBatches}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenPreflight={() => {
+            setPreflightBatchId(selectedBatchId);
+            setShowPreflightModal(true);
+          }}
+        />
         {showWeeklyReportModal && (
           <WeeklyReportModal onClose={() => setShowWeeklyReportModal(false)} />
         )}
@@ -1030,6 +948,22 @@ export function Onboarding() {
               if (selectedBatchId) {
                 handleSelectBatch(selectedBatchId);
               }
+            }}
+            onOpenBrandSetup={() => {
+              // Slice 3: navigation into the unified Brand setup view ONLY.
+              // The modal's release/save bodies and controlled-release flow
+              // are untouched; the workspace reads the new URL on popstate.
+              const targetBatch = preflightBatchId;
+              setShowPreflightModal(false);
+              setPreflightBatchId(null);
+              const url = new URL(window.location.href);
+              if (targetBatch) url.searchParams.set('batch', targetBatch);
+              url.searchParams.delete('tab');
+              url.searchParams.delete('stage');
+              url.searchParams.delete('stageVersion');
+              url.searchParams.set('wview', 'brand-setup');
+              window.history.pushState({ view: 'onboarding', batch: targetBatch }, '', url.toString());
+              window.dispatchEvent(new PopStateEvent('popstate'));
             }}
           />
         )}

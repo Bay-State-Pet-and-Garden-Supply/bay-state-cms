@@ -122,7 +122,6 @@ export interface ExportResult {
 
 // Store Workspace
 export function getWorkspace() { return request<{ workspace: Workspace | null }>('/workspace'); }
-export function closeWorkspace() { return request<{ success: boolean; message: string }>('/workspace/close', { method: 'POST' }); }
 
 
 

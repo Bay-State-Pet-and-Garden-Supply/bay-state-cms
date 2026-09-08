@@ -30,6 +30,7 @@ import type {
   BatchPreflightResponse,
   SourcingPolicy,
   MediaSelectionRequest,
+  FallbackSourcingItemsResponse,
 } from '../shared/schemas/onboarding';
 import type {
   WorkerHealthResponse,
@@ -233,8 +234,12 @@ export async function savePreflightDraft(
 
 export async function getBatchStagedItems(
   batchId: string,
+  options?: { vocabularyVersion?: 1 | 2 },
 ): Promise<{ staged: Record<PipelineStage, OnboardingItem[]> }> {
-  return request<{ staged: Record<PipelineStage, OnboardingItem[]> }>(`/batches/${batchId}/staged`);
+  // Slice 5b native: the board consumes canonical v2 keys. Default wire
+  // stays legacy v1 for unchanged callers; pass { vocabularyVersion: 2 }.
+  const suffix = options?.vocabularyVersion === 2 ? '?stageVocabularyVersion=2' : '';
+  return request<{ staged: Record<PipelineStage, OnboardingItem[]> }>(`/batches/${batchId}/staged${suffix}`);
 }
 
 /**
@@ -329,10 +334,7 @@ export interface SourcingFallbackItem {
   reason: string;
 }
 
-export interface FallbackSourcingItemsResponse {
-  moved: string[];
-  skipped: SourcingFallbackItem[];
-}
+export type { FallbackSourcingItemsResponse };
 
 export async function fallbackSourcingItemsToDiscovery(
   itemIds: string[],

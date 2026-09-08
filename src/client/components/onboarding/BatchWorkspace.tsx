@@ -1,30 +1,29 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { colors, fonts, rounded, typography } from '../../theme';
-import {
-  getBatchWorkStateCounts,
-  getBatchWorkStateItems,
-  subscribeBatchEvents,
-  type WorkStateFilters,
-} from '../../onboarding-work-api';
+import { subscribeBatchEvents } from '../../onboarding-work-api';
 import type {
-  OnboardingWorkState,
-  ReviewState,
   WorkStateCounts,
   WorkStateProjectionHealth,
 } from '../../../shared/schemas/onboarding-work-state';
+import { attentionIsUrgent, formatCount } from './batch-workspace-logic';
+import { getOnboardingFeatureFlags } from '../../onboarding-feature-flags';
 import {
-  buildWorkStateFilters,
-  formatCount,
-  hasActiveFilters,
-  reviewStateLabel,
-  sourceTypeLabel,
-  totalItemCount,
-  WORK_STATE_CATEGORY_LABELS,
-  workspaceTabForCategory,
-  type WorkspaceFilterInput,
-  type WorkspaceTabId,
-} from './batch-workspace-logic';
-import { WorkStateTabs } from './WorkStateTabs';
+  parseWorkspaceSelection,
+  resolveLegacyTabDestination,
+  type LinearStageId,
+  type OperationViewId,
+} from './linear-workspace-logic';
+import { BrandGateView } from './BrandGateView';
+import { ExecutionStrip } from './ExecutionStrip';
+import { StageNavigation } from './StageNavigation';
+import { StageItemsView } from './StageItemsView';
+import { OutcomeItemsView } from './OutcomeItemsView';
+import { PrepareListingView } from './PrepareListingView';
+import {
+  getStageReadCounts,
+  type StageReadQuery,
+} from '../../onboarding-stage-api';
+import type { StageStatusMatrix } from '../../../shared/schemas/onboarding-stage-read';
 
 // ── Sibling feature views (epic #46 wave 2 contract) ─────────────────────────
 import { AttentionQueueView } from './attention/AttentionQueueView';
@@ -38,7 +37,6 @@ import { ReadyToExportView } from './approved/ReadyToExportView';
 import './onboarding-workspace.css';
 
 const COUNT_REFRESH_DEBOUNCE_MS = 400;
-const FILTER_PAGE_SIZE = 200;
 
 export interface BatchWorkspaceProps {
   batchId: string;
@@ -61,146 +59,272 @@ export interface BatchWorkspaceProps {
  *
  * Raw pipeline stage/stage_status are secondary diagnostics only.
  */
-const VALID_WORKSPACE_TABS: readonly WorkspaceTabId[] = [
-  'needs_attention',
-  'processing',
-  'waiting_on_family',
-  'review',
-  'approved',
-  'ready_to_export',
-];
-
-function resolveWorkspaceTab(raw: string | null): WorkspaceTabId | null {
-  return raw && (VALID_WORKSPACE_TABS as readonly string[]).includes(raw)
-    ? (raw as WorkspaceTabId)
-    : null;
-}
 
 export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onOpenPreflight }: BatchWorkspaceProps) {
-  const [counts, setCounts] = useState<WorkStateCounts | null>(null);
+  // Slice 7: BatchWorkspace is the sole shell and the temporary classic
+  // work-state-primary navigation branch is removed (fallback release
+  // archived). The linear six-stage navigation is primary; batch-wide
+  // operation/outcome destinations live behind one compact Batch tools
+  // disclosure in the batch header (grouped links, never a second tablist).
+  // shellV2Enabled=false is an emergency
+  // disabled-content state (header + rollback instruction, no
+  // brand/strip/old navigation), not a permanent competing primary shell —
+  // restore classic navigation via the archived matching bridge client.
+  const linearEnabled = getOnboardingFeatureFlags().shellV2Enabled;
+  if (linearEnabled) {
+    return (
+      <LinearShell
+        batchId={batchId}
+        batchName={batchName}
+        onBack={onBack}
+        onOpenSettings={onOpenSettings}
+        onOpenPreflight={onOpenPreflight}
+      />
+    );
+  }
+  return (
+    <ShellDisabledNotice
+      batchName={batchName}
+      onBack={onBack}
+      onOpenSettings={onOpenSettings}
+      onOpenPreflight={onOpenPreflight}
+    />
+  );
+}
+
+/**
+ * Slice 7 emergency kill-switch state (shell flag OFF): the shell header
+ * plus a clear rollback instruction. No stage navigation, no brand view, no
+ * execution strip, and no resurrected classic/board navigation — this is a
+ * disabled-content state, not a second shell.
+ */
+function ShellDisabledNotice({ batchName, onBack, onOpenSettings, onOpenPreflight }: {
+  batchName: string;
+  onBack: () => void;
+  onOpenSettings?: () => void;
+  onOpenPreflight?: () => void;
+}) {
+  return (
+    <div data-testid="shell-disabled-notice" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36, marginTop: 6 }}
+          aria-label="Back to batches"
+        >
+          ← Batches
+        </button>
+        <div>
+          <h1 style={{ ...typography.viewTitle, margin: 0 }}>{batchName}</h1>
+          <p style={{ ...typography.viewSubtitle, margin: '0.25rem 0 0 0' }}>Workspace disabled</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+          {onOpenPreflight && (
+            <button type="button" onClick={onOpenPreflight} style={{ backgroundColor: colors.uniformGreen, border: 'none', borderRadius: rounded.md, padding: '0.4375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.feedBagCream, cursor: 'pointer', minHeight: 36 }}>
+              ⚡ Preflight Review
+            </button>
+          )}
+          {onOpenSettings && (
+            <button type="button" onClick={onOpenSettings} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.mulchBrown, cursor: 'pointer', minHeight: 36 }}>
+              Settings
+            </button>
+          )}
+        </div>
+      </div>
+      <div role="status" style={{ backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, padding: '16px', fontSize: '0.8125rem', lineHeight: 1.5 }}>
+        The onboarding workspace is disabled by configuration (<code>VITE_ONBOARDING_SHELL_V2=false</code>). No stage navigation, brand setup, or execution strip is available in this state.
+        To restore the workspace, rebuild with the shell flag enabled — or, to use classic navigation, serve the archived matching bridge client.
+      </div>
+    </div>
+  );
+}
+
+/** Sum one stage column of the server 6×6 matrix — the badge source of truth. */
+function sumStageMatrixColumn(matrix: StageStatusMatrix, stage: LinearStageId): number {
+  const col = matrix[stage];
+  return col.pending + col.in_progress + col.completed + col.failed + col.needs_input + col.skipped;
+}
+
+function readSelection() {
+  return parseWorkspaceSelection(typeof window !== 'undefined' ? window.location.search : '');
+}
+
+function writeSearch(mutator: (params: URLSearchParams) => void, push: boolean) {
+  const url = new URL(window.location.href);
+  mutator(url.searchParams);
+  if (push) window.history.pushState(null, '', url.toString());
+  else window.history.replaceState(null, '', url.toString());
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+/**
+ * Slice 2 linear shell: six stage tabs are primary navigation; preserved
+ * full-batch operation views are secondary destinations (clearly labeled
+ * 'entire batch', stage filters cleared/hidden while open); Completed /
+ * Skipped are server-filtered outcome results with no new decisions.
+ */
+function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflight }: BatchWorkspaceProps) {
+  const [selection, setSelection] = useState(readSelection);
+  const [stageCounts, setStageCounts] = useState<Record<LinearStageId, number> | null>(null);
+  const [opCounts, setOpCounts] = useState<WorkStateCounts | null>(null);
   const [countsError, setCountsError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<WorkspaceTabId>(() => {
-    if (typeof window !== 'undefined') {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      return resolveWorkspaceTab(tabParam) ?? 'needs_attention';
-    }
-    return 'needs_attention';
-  });
-  const [updating, setUpdating] = useState(false);
-
-  const handleTabChange = useCallback((nextTab: WorkspaceTabId) => {
-    setActiveTab(nextTab);
-    const url = new URL(window.location.href);
-    if (nextTab === 'needs_attention') {
-      url.searchParams.delete('tab');
-    } else {
-      url.searchParams.set('tab', nextTab);
-    }
-    window.history.replaceState(null, '', url.toString());
-  }, []);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      const resolved = resolveWorkspaceTab(tabParam);
-      setActiveTab(resolved ?? 'needs_attention');
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  // Cross-category filters (server-owned filtering).
-  const [filterInput, setFilterInput] = useState<WorkspaceFilterInput>({});
-
-  // Attention resolution modal.
-  const [attentionItemId, setAttentionItemId] = useState<string | null>(null);
-
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const [countsStale, setCountsStale] = useState(false);
   const [projectionHealth, setProjectionHealth] = useState<WorkStateProjectionHealth | null>(null);
-  const refreshCounts = useCallback(async () => {
+  const [attentionItemId, setAttentionItemId] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generation = useRef(0);
+
+  const refreshStageCounts = useCallback(async () => {
+    const gen = generation.current;
     try {
-      const res = await getBatchWorkStateCounts(batchId);
-      setCounts(res.counts);
+      const res = await getStageReadCounts(batchId, {} satisfies StageReadQuery);
+      if (generation.current !== gen) return;
+      const next: Record<LinearStageId, number> = {
+        route_sources: sumStageMatrixColumn(res.stageStatusMatrix, 'route_sources'),
+        find_product_page: sumStageMatrixColumn(res.stageStatusMatrix, 'find_product_page'),
+        collect_details: sumStageMatrixColumn(res.stageStatusMatrix, 'collect_details'),
+        prepare_listing: sumStageMatrixColumn(res.stageStatusMatrix, 'prepare_listing'),
+        review_listings: sumStageMatrixColumn(res.stageStatusMatrix, 'review_listings'),
+        create_drafts: sumStageMatrixColumn(res.stageStatusMatrix, 'create_drafts'),
+      };
+      setStageCounts(next);
+      setOpCounts(res.counts);
       setProjectionHealth(res.projectionHealth);
       setCountsError(null);
+      setCountsStale(false);
     } catch (err) {
+      if (generation.current !== gen) return;
+      // Retain last successful counts with a stale badge — never zero them.
       setCountsError(err instanceof Error ? err.message : String(err));
+      setCountsStale(true);
     } finally {
-      setUpdating(false);
+      if (generation.current === gen) setUpdating(false);
     }
   }, [batchId]);
 
-  // Initial load + batch change.
   useEffect(() => {
-    setCounts(null);
-    setFilterInput({});
+    generation.current += 1;
+    setStageCounts(null);
+    setOpCounts(null);
+    setCountsError(null);
+    setCountsStale(false);
     setAttentionItemId(null);
-    refreshCounts();
-  }, [refreshCounts]);
+    setSelection(readSelection());
+    void refreshStageCounts();
+  }, [refreshStageCounts]);
 
-  // SSE-driven refresh (debounced) — resolved blockers disappear automatically.
+  useEffect(() => {
+    const onPop = () => setSelection(readSelection());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = subscribeBatchEvents(batchId, () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       setUpdating(true);
       refreshTimer.current = setTimeout(() => {
-        refreshCounts();
+        refreshStageCounts();
       }, COUNT_REFRESH_DEBOUNCE_MS);
     });
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       unsubscribe();
     };
-  }, [batchId, refreshCounts]);
+  }, [batchId, refreshStageCounts]);
 
-  const filters = useMemo(() => buildWorkStateFilters(filterInput), [filterInput]);
-  const showFilteredResults = hasActiveFilters(filters);
-
-  const handleOpenItem = useCallback((itemId: string) => {
-    setAttentionItemId(itemId);
+  const selectStage = useCallback((stage: LinearStageId) => {
+    setAttentionItemId(null);
+    writeSearch((params) => {
+      params.delete('tab');
+      params.delete('wview');
+      params.set('stage', stage);
+      params.set('stageVersion', '2');
+    }, true);
   }, []);
 
-  const handleFamilyOpenItem = useCallback((itemId: string) => {
-    // Blocking siblings live in Needs Attention — jump there and open them.
-    handleTabChange('needs_attention');
-    setAttentionItemId(itemId);
-  }, [handleTabChange]);
-
-  const handleResolved = useCallback(() => {
+  const openOperation = useCallback((view: OperationViewId) => {
+    const tab = view === 'attention' ? 'needs_attention'
+      : view === 'processing' ? 'processing'
+      : view === 'family' ? 'waiting_on_family'
+      : view === 'review' ? 'review'
+      : view === 'approved' ? 'approved'
+      : 'ready_to_export';
     setAttentionItemId(null);
-    refreshCounts();
-  }, [refreshCounts]);
+    // Entering a full-batch operation clears/hides stage-scoped filters:
+    // the stage list unmounts (keyed remount clears its filters on return).
+    writeSearch((params) => {
+      params.delete('stage');
+      params.delete('stageVersion');
+      params.delete('wview');
+      params.set('tab', tab);
+    }, true);
+  }, []);
+
+  const openOutcome = useCallback((outcome: 'completed' | 'skipped') => {
+    setAttentionItemId(null);
+    writeSearch((params) => {
+      params.delete('stage');
+      params.delete('stageVersion');
+      params.delete('wview');
+      params.set('tab', outcome);
+    }, true);
+  }, []);
+
+  const backToStage = useCallback((stage: LinearStageId) => {
+    setAttentionItemId(null);
+    writeSearch((params) => {
+      params.delete('tab');
+      params.delete('wview');
+      params.set('stage', stage);
+      params.set('stageVersion', '2');
+    }, true);
+  }, []);
+
+  const activeStage: LinearStageId = selection.kind === 'stage' ? selection.stage : 'route_sources';
+  const legacyDest = selection.kind === 'legacy' ? resolveLegacyTabDestination(selection.rawTab) : null;
+  // Return-to-prior-stage: remember the last explicitly entered stage so
+  // operation/outcome/brand destinations return there instead of
+  // resetting to route_sources. Legacy ?tab= links never infer a stage,
+  // so the remembered stage only advances on explicit stage selections.
+  const lastStageRef = useRef<LinearStageId>('route_sources');
+  useEffect(() => {
+    if (selection.kind === 'stage') lastStageRef.current = selection.stage;
+  }, [selection]);
+  const returnStage: LinearStageId = selection.kind === 'stage' ? selection.stage : lastStageRef.current;
+
+  const openAttentionItem = useCallback((itemId: string) => {
+    // Blocking siblings live in Needs Attention — jump there and open them.
+    openOperation('attention');
+    setAttentionItemId(itemId);
+  }, [openOperation]);
+
+  // Slice 3: the single Step 0 brand view is available only when the shell
+  // flag AND the brand flag are both on (brand requires shell). Existing
+  // preflight/setup entry points route into it when enabled; the Preflight
+  // Review modal itself stays the controlled-release surface.
+  const brandSetupAvailable = isBrandSetupAvailable();
+  const stripMounted = isExecutionStripMounted();
+  const openBrandSetup = useCallback(() => {
+    setAttentionItemId(null);
+    writeSearch((params) => {
+      params.delete('stage');
+      params.delete('stageVersion');
+      params.delete('tab');
+      params.set('wview', 'brand-setup');
+    }, true);
+  }, []);
 
   return (
-    <div style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
-      {/* ── Batch header ── */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 16,
-          flexWrap: 'wrap',
-          marginBottom: 14,
-        }}
-      >
+    <div data-testid="linear-shell" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <button
             type="button"
             onClick={onBack}
-            style={{
-              backgroundColor: colors.whiteSurface,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: rounded.md,
-              padding: '0.4375rem 0.75rem',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              color: colors.uniformGreen,
-              cursor: 'pointer',
-              minHeight: 36,
-              marginTop: 6,
-            }}
+            style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36, marginTop: 6 }}
             aria-label="Back to batches"
           >
             ← Batches
@@ -208,215 +332,143 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onO
           <div>
             <h1 style={{ ...typography.viewTitle, margin: 0 }}>{batchName}</h1>
             <p style={{ ...typography.viewSubtitle, margin: '0.25rem 0 0 0' }}>
-              {counts ? `${formatCount(totalItemCount(counts))} products` : 'Loading…'}
+              {stageCounts ? `${formatCount(Object.values(stageCounts).reduce((a, b) => a + b, 0))} products across 6 stages` : 'Loading…'}
               {updating ? ' · updating…' : ''}
             </p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {onOpenPreflight && (
+          {brandSetupAvailable && (
             <button
               type="button"
-              onClick={onOpenPreflight}
-              style={{
-                backgroundColor: colors.uniformGreen,
-                border: 'none',
-                borderRadius: rounded.md,
-                padding: '0.4375rem 0.875rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: colors.feedBagCream,
-                cursor: 'pointer',
-                minHeight: 36,
-                boxShadow: 'var(--shadow-sm)',
-              }}
-              title="Open Preflight & Brand Resolution Review"
+              data-testid="open-brand-setup"
+              onClick={openBrandSetup}
+              style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36 }}
+              title="Open the unified Brand setup view (Step 0)"
             >
+              Brand setup
+            </button>
+          )}
+          {onOpenPreflight && (
+            <button type="button" onClick={onOpenPreflight} style={{ backgroundColor: colors.uniformGreen, border: 'none', borderRadius: rounded.md, padding: '0.4375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.feedBagCream, cursor: 'pointer', minHeight: 36, boxShadow: 'var(--shadow-sm)' }} title="Open Preflight & Brand Resolution Review">
               ⚡ Preflight Review
             </button>
           )}
           {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              style={{
-                backgroundColor: 'transparent',
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: rounded.md,
-                padding: '0.4375rem 0.75rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: colors.mulchBrown,
-                cursor: 'pointer',
-                minHeight: 36,
-              }}
-            >
+            <button type="button" onClick={onOpenSettings} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.mulchBrown, cursor: 'pointer', minHeight: 36 }}>
               Settings
             </button>
           )}
         </div>
       </div>
 
+      <BatchToolsDisclosure opCounts={opCounts} onOpenOperation={openOperation} onOpenOutcome={openOutcome} />
+
       {countsError && (
-        <div
-          role="alert"
-          style={{
-            backgroundColor: colors.signetBurgundy,
-            color: colors.feedBagCream,
-            borderRadius: rounded.md,
-            padding: '10px 14px',
-            marginBottom: 14,
-            fontSize: '0.8125rem',
-          }}
-        >
-          Could not load batch progress: {countsError}
+        <div role="alert" style={{ backgroundColor: colors.signetBurgundy, color: colors.feedBagCream, borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
+          Could not load stage counts: {countsError}
         </div>
       )}
+      {stripMounted && <ExecutionStrip batchId={batchId} />}
       {projectionHealth?.status === 'degraded' && (
-        <div
-          role="status"
-          aria-label="Projection health degraded"
-          style={{
-            backgroundColor: '#fff3cd',
-            color: '#856404',
-            border: '1px solid #ffeaa7',
-            borderRadius: rounded.md,
-            padding: '10px 14px',
-            marginBottom: 14,
-            fontSize: '0.8125rem',
-          }}
-        >
+        <div role="status" aria-label="Projection health degraded" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
           Projection degraded: {projectionHealth.issues.length} issue(s) — counts may be partial. (v{projectionHealth.version})
         </div>
       )}
 
-      {counts && (
-        <>
-          {/* ── Filter bar (server-owned filtering) ── */}
-          <div className="bws-filter-bar" role="search" aria-label="Filter products">
-            <input
-              type="search"
-              className="bws-filter-input"
-              placeholder="Search UPC, name, or brand…"
-              aria-label="Search by UPC, name, or brand"
-              value={filterInput.q ?? ''}
-              onChange={e => setFilterInput(prev => ({ ...prev, q: e.target.value }))}
-              style={{ flex: '1 1 240px', minWidth: 200 }}
-            />
-            <select
-              className="bws-filter-input"
-              aria-label="Filter by review state"
-              value={filterInput.reviewState ?? ''}
-              onChange={e =>
-                setFilterInput(prev => ({
-                  ...prev,
-                  reviewState: (e.target.value || '') as ReviewState | '',
-                }))
-              }
-            >
-              <option value="">Any review state</option>
-              <option value="unreviewed">Unreviewed</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="approved">Approved</option>
-              <option value="not_ready">Not ready</option>
-            </select>
-            <select
-              className="bws-filter-input"
-              aria-label="Filter by source type"
-              value={filterInput.sourceType ?? ''}
-              onChange={e =>
-                setFilterInput(prev => ({
-                  ...prev,
-                  sourceType: (e.target.value || '') as 'official_page' | 'distributor_record' | '',
-                }))
-              }
-            >
-              <option value="">Any source</option>
-              <option value="distributor_record">Distributor record</option>
-              <option value="official_page">Official page</option>
-            </select>
-            {showFilteredResults && (
-              <button
-                type="button"
-                className="bws-filter-input"
-                style={{ cursor: 'pointer', fontWeight: 600, color: colors.uniformGreen }}
-                onClick={() => setFilterInput({})}
-              >
-                Clear filters
-              </button>
-            )}
+      {selection.kind === 'unsupported' && (
+        <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
+          Unsupported link: {selection.reason} Showing Check source options instead — nothing was changed.
+          <div style={{ marginTop: 8 }}>
+            <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
+              Go to Check source options
+            </button>
           </div>
-
-          {/* ── Tabs ── */}
-          <WorkStateTabs activeId={activeTab} counts={counts} onChange={handleTabChange} />
-
-          <div id="bws-tabpanel" role="tabpanel" aria-labelledby={`bws-tab-${activeTab}`}>
-            {showFilteredResults ? (
-              <FilteredResultsList batchId={batchId} filters={filters} onOpenItem={handleOpenItem} />
-            ) : (
-              <TabContent
-                tabId={activeTab}
-                batchId={batchId}
-                onOpenItem={handleOpenItem}
-                onOpenFamilyItem={handleFamilyOpenItem}
-              />
-            )}
-          </div>
-        </>
-      )}
-
-      {!counts && !countsError && (
-        <div style={{ padding: 48, textAlign: 'center', color: colors.mulchBrown }}>
-          Loading batch progress…
         </div>
       )}
 
-      {/* ── Attention resolution modal (focus-trapped) ── */}
+      {stageCounts ? (
+        <StageNavigation activeStage={activeStage} stageCounts={stageCounts} countsStale={countsStale} onSelect={selectStage} />
+      ) : !countsError ? (
+        <div style={{ padding: 24, textAlign: 'center', color: colors.mulchBrown }}>Loading stages…</div>
+      ) : null}
+
+      {selection.kind === 'brand-setup' && brandSetupAvailable && (
+        <BrandGateView
+          batchId={batchId}
+          onBack={() => backToStage(returnStage)}
+          onOpenSettings={onOpenSettings}
+          onOpenPreflight={onOpenPreflight}
+          onOpenAttentionItem={openAttentionItem}
+        />
+      )}
+      {selection.kind === 'brand-setup' && !brandSetupAvailable && (
+        <div role="status" data-testid="brand-setup-disabled-notice" style={{ backgroundColor: '#f3f4f6', color: '#374151', borderRadius: 8, padding: '16px', marginBottom: 14, fontSize: '0.8125rem' }}>
+          Brand setup is not enabled for this workspace. Existing brand actions remain in Settings and the attention queue.
+          <div style={{ marginTop: 8 }}>
+            <button type="button" onClick={() => backToStage(returnStage)} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
+              Back to stages
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(selection.kind === 'stage' || selection.kind === 'unsupported') && stageCounts && (
+        selection.kind === 'stage' && selection.stage === 'prepare_listing' ? (
+          <PrepareListingView
+            key={`prepare-${batchId}`}
+            batchId={batchId}
+            onOpenOperation={openOperation}
+            onOpenFullBatchReview={() => openOperation('review')}
+          />
+        ) : (
+          <StageItemsView
+            key={`stage-${batchId}-${activeStage}`}
+            batchId={batchId}
+            stage={activeStage}
+            onOpenFullBatchReview={activeStage === 'review_listings' ? () => openOperation('review') : undefined}
+            onOpenReadyToExportWorkspace={activeStage === 'create_drafts' ? () => openOperation('export') : undefined}
+          />
+        )
+      )}
+
+      {legacyDest && (legacyDest.kind === 'operation' ? (
+        <LinearOperationDestination
+          batchId={batchId}
+          view={legacyDest.view}
+          returnStage={returnStage}
+          onBack={() => backToStage(returnStage)}
+          onOpenItem={legacyDest.view === 'attention' ? setAttentionItemId : openAttentionItem}
+        />
+      ) : legacyDest.kind === 'outcome' ? (
+        <div>
+          <LinearScopeBanner scope={`${legacyDest.outcome === 'completed' ? 'Completed' : 'Skipped'} outcome`} returnLabel={`Back to ${activeStageLabel(returnStage)}`} onBack={() => backToStage(returnStage)} />
+          <OutcomeItemsView key={`outcome-${batchId}-${legacyDest.outcome}`} batchId={batchId} outcome={legacyDest.outcome} />
+        </div>
+      ) : legacyDest.kind === 'stage' ? (
+        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
+      ) : (
+        <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
+          Unsupported link: unknown operation ‘{selection.kind === 'legacy' ? (selection.rawTab ?? '') : ''}’. Showing Check source options instead — nothing was changed.
+          <div style={{ marginTop: 8 }}>
+            <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
+              Go to Check source options
+            </button>
+          </div>
+        </div>
+      ))}
+
       {attentionItemId && (
         <FocusTrap onClose={() => setAttentionItemId(null)}>
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Resolve product blocker"
-            className="bws-drawer"
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                backgroundColor: colors.uniformGreen,
-                color: colors.feedBagCream,
-              }}
-            >
-              <strong style={{ fontFamily: fonts.body, fontSize: '0.875rem' }}>
-                Resolve product blocker
-              </strong>
-              <button
-                type="button"
-                onClick={() => setAttentionItemId(null)}
-                aria-label="Close resolution workspace"
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: colors.feedBagCream,
-                  fontSize: '1.25rem',
-                  cursor: 'pointer',
-                  lineHeight: 1,
-                  padding: '0.25rem 0.5rem',
-                  minHeight: 32,
-                }}
-              >
+          <div role="dialog" aria-modal="true" aria-label="Resolve product blocker" className="bws-drawer">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: colors.uniformGreen, color: colors.feedBagCream }}>
+              <strong style={{ fontFamily: fonts.body, fontSize: '0.875rem' }}>Resolve product blocker</strong>
+              <button type="button" onClick={() => setAttentionItemId(null)} aria-label="Close resolution workspace" style={{ backgroundColor: 'transparent', border: 'none', color: colors.feedBagCream, fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, padding: '0.25rem 0.5rem', minHeight: 32 }}>
                 ✕
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-              <OfficialSiteResolutionWorkspace
-                batchId={batchId}
-                itemId={attentionItemId}
-                onResolved={handleResolved}
-              />
+              <OfficialSiteResolutionWorkspace batchId={batchId} itemId={attentionItemId} onResolved={() => { setAttentionItemId(null); refreshStageCounts(); }} />
             </div>
           </div>
         </FocusTrap>
@@ -425,229 +477,181 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onO
   );
 }
 
-// ─── Tab content ───────────────────────────────────────────────────────────────
-
-function TabContent({
-  tabId,
-  batchId,
-  onOpenItem,
-  onOpenFamilyItem,
-}: {
-  tabId: WorkspaceTabId;
-  batchId: string;
-  onOpenItem: (itemId: string) => void;
-  onOpenFamilyItem: (itemId: string) => void;
-}) {
-  switch (tabId) {
-    case 'needs_attention':
-      return <AttentionQueueView batchId={batchId} onOpenItem={onOpenItem} />;
-    case 'processing':
-      return <ProcessingView batchId={batchId} />;
-    case 'waiting_on_family':
-      return <FamilyWaitingView batchId={batchId} onOpenItem={onOpenFamilyItem} />;
-    case 'review':
-      return <ReviewWorkspace batchId={batchId} />;
-    case 'approved':
-      return (
-        <div data-testid="approved-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <ApprovedView batchId={batchId} />
-        </div>
-      );
-    case 'ready_to_export':
-      return (
-        <div data-testid="ready-to-export-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <ReadyToExportView batchId={batchId} />
-        </div>
-      );
-    default:
-      return null;
+function activeStageLabel(stage: LinearStageId): string {
+  switch (stage) {
+    case 'route_sources': return 'Check source options';
+    case 'find_product_page': return 'Find product page';
+    case 'collect_details': return 'Collect details';
+    case 'prepare_listing': return 'Prepare listing';
+    case 'review_listings': return 'Review listings';
+    case 'create_drafts': return 'Create drafts';
   }
 }
 
-// ─── Cross-category filtered results ───────────────────────────────────────────
+/**
+ * Slice 3: the brand flag requires the shell flag. Inside the linear shell
+ * the view mounts only when both are on; otherwise the disabled notice
+ * above renders and existing Settings/attention actions stay authoritative.
+ * Step 0 is a view slot only — never a seventh stage, never counted.
+ */
+function isBrandSetupAvailable(): boolean {
+  const flags = getOnboardingFeatureFlags();
+  return flags.shellV2Enabled && flags.brandGateV2Enabled;
+}
 
-function FilteredResultsList({
-  batchId,
-  filters,
-  onOpenItem,
-}: {
+/**
+ * Slice 4: the ephemeral execution strip mounts only when the shell flag
+ * AND the strip flag are both on (Table B E=1 ⇒ mounted). It is a
+ * batch-wide shell element with honest scope — it stays mounted across
+ * stage/operation destinations and never claims worker health.
+ */
+function isExecutionStripMounted(): boolean {
+  const flags = getOnboardingFeatureFlags();
+  return flags.shellV2Enabled && flags.executionStripV2Enabled;
+}
+
+/** Clearly-scoped full-batch operation destination (composition, not rewrite). */
+function LinearOperationDestination({ batchId, view, returnStage, onBack, onOpenItem }: {
   batchId: string;
-  filters: WorkStateFilters;
+  view: OperationViewId;
+  returnStage: LinearStageId;
+  onBack: () => void;
   onOpenItem: (itemId: string) => void;
 }) {
-  const [items, setItems] = useState<OnboardingWorkState[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [projectionHealth, setProjectionHealth] = useState<WorkStateProjectionHealth | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(
-    async (cursor: string | null) => {
-      setLoading(true);
-      try {
-        const res = await getBatchWorkStateItems(batchId, {
-          ...filters,
-          limit: FILTER_PAGE_SIZE,
-          cursor: cursor ?? undefined,
-        });
-        setItems(prev => (cursor ? [...prev, ...res.items] : res.items));
-        setNextCursor(res.nextCursor);
-        setProjectionHealth(res.projectionHealth);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [batchId, filters],
-  );
-
-  useEffect(() => {
-    setItems([]);
-    setNextCursor(null);
-    setProjectionHealth(null);
-    load(null);
-    // Key on the serialized filter shape so object identity churn never
-    // retriggers the fetch; only actual filter changes do.
-  }, [JSON.stringify(filters)]);
-
-  if (error) {
-    return (
-      <div role="alert" style={{ color: colors.signetBurgundy, padding: '1rem 0' }}>
-        Failed to load results: {error}
-      </div>
-    );
-  }
-  if (loading && items.length === 0) {
-    return <div className="bws-muted" style={{ padding: '1rem 0' }}>Loading results…</div>;
-  }
-  if (items.length === 0) {
-    return (
-      <div className="bws-muted" style={{ padding: '2rem 1rem', textAlign: 'center' }}>
-        No products match your filters.
-      </div>
-    );
-  }
-
   return (
-    <div>
-      {projectionHealth?.status === 'degraded' && (
-        <div style={{ backgroundColor: '#fff3cd', color: '#856404', borderRadius: 6, padding: '8px 12px', marginBottom: 8, fontSize: '0.75rem' }}>
-          Projection degraded: {projectionHealth.issues.length} issue(s)
+    <div data-testid={`linear-operation-${view}`}>
+      <LinearScopeBanner scope={`Entire batch — ${view === 'attention' ? 'Needs Attention' : view === 'processing' ? 'Processing' : view === 'family' ? 'Waiting on Family' : view === 'review' ? 'Review' : view === 'approved' ? 'Approved' : 'Ready to Export'}`} returnLabel={`Back to ${activeStageLabel(returnStage)}`} onBack={onBack} />
+      {view === 'attention' && <AttentionQueueView batchId={batchId} onOpenItem={onOpenItem} />}
+      {view === 'processing' && <ProcessingView batchId={batchId} />}
+      {view === 'family' && <FamilyWaitingView batchId={batchId} onOpenItem={onOpenItem} />}
+      {view === 'review' && <ReviewWorkspace batchId={batchId} />}
+      {view === 'approved' && (
+        <div data-testid="approved-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <ApprovedView batchId={batchId} />
         </div>
       )}
-      <p className="bws-muted" style={{ margin: '0 0 8px 0', fontSize: '0.8125rem' }}>
-        {formatCount(items.length)} matching {items.length === 1 ? 'product' : 'products'}
-        {nextCursor ? ' — more available' : ''}
-      </p>
-      <table className="bws-results-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Work state</th>
-            <th>Review</th>
-            <th>Source</th>
-            <th>Family</th>
-            <th>Stage</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(item => (
-            <ResultRow key={item.itemId} item={item} onOpenItem={onOpenItem} />
-          ))}
-        </tbody>
-      </table>
-      {nextCursor && (
-        <button
-          type="button"
-          onClick={() => load(nextCursor)}
-          disabled={loading}
-          style={{
-            marginTop: 12,
-            backgroundColor: colors.whiteSurface,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: rounded.md,
-            padding: '0.5rem 0.875rem',
-            fontSize: '0.8125rem',
-            fontWeight: 600,
-            color: colors.uniformGreen,
-            cursor: 'pointer',
-            minHeight: 36,
-          }}
-        >
-          {loading ? 'Loading…' : "Load more"}
-        </button>
+      {view === 'export' && (
+        <div data-testid="ready-to-export-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <ReadyToExportView batchId={batchId} />
+        </div>
       )}
     </div>
   );
 }
 
-function ResultRow({
-  item,
-  onOpenItem,
-}: {
-  item: OnboardingWorkState;
-  onOpenItem: (itemId: string) => void;
-}) {
-  const tab = workspaceTabForCategory(item.category);
-  const urgent = item.category === 'needs_attention';
-  const canOpen = urgent && tab === 'needs_attention';
+function LinearScopeBanner({ scope, returnLabel, onBack }: { scope: string; returnLabel: string; onBack: () => void }) {
   return (
-    <tr>
-      <td>
-        <div style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>{item.name || item.upc}</div>
-        <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
-          {item.upc}
-          {item.brand ? ` · ${item.brand}` : ''}
-        </div>
-      </td>
-      <td>
-        <div style={{ fontWeight: 600, color: urgent ? colors.signetBurgundy : colors.uniformGreen }}>
-          {WORK_STATE_CATEGORY_LABELS[item.category]}
-        </div>
-        <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
-          {item.label}
-        </div>
-        {canOpen && (
-          <button
-            type="button"
-            onClick={() => onOpenItem(item.itemId)}
-            style={{
-              marginTop: 4,
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: colors.uniformGreen,
-              fontWeight: 600,
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              padding: 0,
-              minHeight: 28,
-              textAlign: 'left',
-            }}
-          >
-            Resolve →
-          </button>
-        )}
-      </td>
-      <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
-        {item.reviewState ? reviewStateLabel(item.reviewState) : '—'}
-      </td>
-      <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
-        {sourceTypeLabel(item.sourceType)}
-        {item.domain ? <div style={{ fontSize: '0.6875rem' }}>{item.domain}</div> : null}
-      </td>
-      <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
-        {item.family
-          ? `${item.family.readyCount}/${item.family.memberCount} ready`
-          : '—'}
-      </td>
-      <td>
-        <span className="bws-stage-badge" title={`Raw pipeline state: ${item.stage} / ${item.stageStatus}`}>
-          {item.stage}
+    <div data-testid="linear-scope-banner" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: '0.8125rem', color: '#3730a3' }}>
+      <strong>Scope: {scope}.</strong>
+      <span>Stage filters are cleared while this view is open.</span>
+      <button type="button" onClick={onBack} style={{ marginLeft: 'auto', backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
+        {returnLabel}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Oracle slice: the single compact batch-wide entry point in the header.
+ *
+ * One <details> disclosure labeled 'Batch tools, entire batch' with grouped
+ * navigation LINKS (plain buttons in lists — never a second tablist, so no
+ * tab selection state can falsely highlight Ready to Export). Batch counts
+ * stay inside the disclosure; the trigger carries a clearly labeled
+ * batch-attention urgency indicator. Opening a destination replaces stage
+ * content with its explicit scope banner, stays batch-wide, and hides
+ * stage filters (entering an operation clears stage params; the stage list
+ * unmounts and its filters reset on return).
+ */
+function BatchToolsDisclosure({ opCounts, onOpenOperation, onOpenOutcome }: {
+  opCounts: WorkStateCounts | null;
+  onOpenOperation: (view: OperationViewId) => void;
+  onOpenOutcome: (outcome: 'completed' | 'skipped') => void;
+}) {
+  const urgent = opCounts ? attentionIsUrgent(opCounts) : false;
+  const attentionCount = opCounts?.needs_attention ?? null;
+  const linkStyle: React.CSSProperties = {
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: colors.uniformGreen,
+    fontWeight: 600,
+    fontSize: '0.8125rem',
+    cursor: 'pointer',
+    padding: '0.25rem 0',
+    minHeight: 28,
+    textAlign: 'left',
+    fontFamily: fonts.body,
+  };
+  const countStyle: React.CSSProperties = {
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 400,
+    color: colors.mulchBrown,
+  };
+  const groupTitleStyle: React.CSSProperties = {
+    margin: '0 0 4px 0',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: colors.mulchBrown,
+    fontFamily: fonts.body,
+  };
+  const renderCount = (value: number | null) => (
+    <span style={countStyle}> ({value === null ? '…' : formatCount(value)})</span>
+  );
+  return (
+    <details data-testid="batch-tools-disclosure" style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', marginBottom: 12 }}>
+      <summary data-testid="batch-tools-trigger" style={{ cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 700, color: colors.ledgerCharcoal, minHeight: 32, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: fonts.body }}>
+        <span>Batch tools, entire batch</span>
+        <span
+          data-testid="batch-attention-urgency"
+          role="status"
+          aria-label={attentionCount === null ? 'Batch attention: loading' : urgent ? `Batch attention urgent: ${attentionCount} need attention` : `Batch attention: ${attentionCount} need attention`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            borderRadius: rounded.full,
+            padding: '0 0.5rem',
+            fontSize: '0.75rem',
+            lineHeight: 1.5,
+            fontWeight: 700,
+            backgroundColor: urgent ? colors.signetBurgundy : colors.cardBorder,
+            color: urgent ? colors.feedBagCream : colors.ledgerCharcoal,
+          }}
+        >
+          {attentionCount === null ? 'Attention: …' : `Attention: ${formatCount(attentionCount)}${urgent ? ' — action needed' : ''}`}
         </span>
-      </td>
-    </tr>
+      </summary>
+      {opCounts ? (
+        <nav aria-label="Batch tools, entire batch" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '8px 0 4px 0' }}>
+          <div>
+            <p style={groupTitleStyle}>Resolve and monitor</p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li><button type="button" data-testid="batch-tool-attention" onClick={() => onOpenOperation('attention')} style={linkStyle}>Attention{renderCount(opCounts.needs_attention)}</button></li>
+              <li><button type="button" data-testid="batch-tool-processing" onClick={() => onOpenOperation('processing')} style={linkStyle}>Processing{renderCount(opCounts.processing)}</button></li>
+              <li><button type="button" data-testid="batch-tool-family" onClick={() => onOpenOperation('family')} style={linkStyle}>Family{renderCount(opCounts.waiting_on_family)}</button></li>
+            </ul>
+          </div>
+          <div>
+            <p style={groupTitleStyle}>Review and approval</p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li><button type="button" data-testid="batch-tool-review" onClick={() => onOpenOperation('review')} style={linkStyle}>Full-batch review workspace{renderCount(opCounts.ready_for_review)}</button></li>
+              <li><button type="button" data-testid="batch-tool-approved" onClick={() => onOpenOperation('approved')} style={linkStyle}>Approved{renderCount(opCounts.approved)}</button></li>
+            </ul>
+          </div>
+          <div>
+            <p style={groupTitleStyle}>Drafts and outcomes</p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li><button type="button" data-testid="batch-tool-export" onClick={() => onOpenOperation('export')} style={linkStyle}>Ready to export{renderCount(opCounts.ready_to_export)}</button></li>
+              <li><button type="button" data-testid="batch-tool-completed" onClick={() => onOpenOutcome('completed')} style={linkStyle}>Completed{renderCount(opCounts.completed)}</button></li>
+              <li><button type="button" data-testid="batch-tool-skipped" onClick={() => onOpenOutcome('skipped')} style={linkStyle}>Skipped{renderCount(opCounts.skipped)}</button></li>
+            </ul>
+          </div>
+        </nav>
+      ) : (
+        <div className="bws-muted" style={{ fontSize: '0.8125rem', padding: '8px 0 4px 0' }}>Loading batch counts…</div>
+      )}
+    </details>
   );
 }
 

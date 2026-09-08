@@ -257,12 +257,20 @@ export async function assignBatchBrandDomain(
  * are attached per event name plus a fallback `message` handler for any
  * unnamed frames. Data payloads carry the full event object
  * `{ type, batchId, itemId?, data }`.
+ *
+ * Slice 4-UI: optional third `options` argument selects the SSE
+ * representation (URL parameter only — EventSource cannot send headers).
+ * Absent options preserves the exact legacy v1 subscription: same URL,
+ * same named-event callbacks. Pass `{ vocabularyVersion: 2 }` for the
+ * versioned sanitized envelope consumed by the execution strip.
  */
 export function subscribeBatchEvents(
   batchId: string,
   onEvent: (event: { type: string; data: unknown }) => void,
+  options?: { vocabularyVersion?: 1 | 2 },
 ): () => void {
-  const sse = new EventSource(`${API_BASE}/batches/${batchId}/events`);
+  const versionSuffix = options?.vocabularyVersion === 2 ? '?stageVocabularyVersion=2' : '';
+  const sse = new EventSource(`${API_BASE}/batches/${batchId}/events${versionSuffix}`);
   const handler = (ev: MessageEvent) => {
     try {
       const payload = JSON.parse(ev.data) as { type?: string; [k: string]: unknown };

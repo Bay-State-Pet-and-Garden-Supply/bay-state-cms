@@ -24,6 +24,13 @@ interface BatchPreflightModalProps {
   onBatchStarted?: () => void;
   catalogBrands?: string[];
   cachedBrandSites?: BrandSite[];
+  /**
+   * Slice 3 — navigation link to the unified Brand setup view ONLY.
+   * When provided, the modal renders a link that navigates there; all
+   * release/save request bodies and controlled-release behavior stay
+   * exactly as before.
+   */
+  onOpenBrandSetup?: () => void;
 }
 
 /**
@@ -167,6 +174,7 @@ export const BatchPreflightModal: React.FC<BatchPreflightModalProps> = ({
   onBatchStarted,
   catalogBrands = [],
   cachedBrandSites = [],
+  onOpenBrandSetup,
 }) => {
   const [preflight, setPreflight] = useState<BatchPreflightResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -371,6 +379,27 @@ export const BatchPreflightModal: React.FC<BatchPreflightModalProps> = ({
                   <span className={`preflight-state-badge ${preflight.executionState}`}>
                     {preflight.executionState}
                   </span>
+                )}
+                {onOpenBrandSetup && (
+                  <button
+                    type="button"
+                    data-testid="preflight-open-brand-setup"
+                    onClick={onOpenBrandSetup}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: '#14532D',
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 2,
+                    }}
+                    title="Open the unified Brand setup view"
+                  >
+                    Open in Brand setup view →
+                  </button>
                 )}
               </div>
             </div>

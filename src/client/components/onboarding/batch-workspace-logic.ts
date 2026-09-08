@@ -85,7 +85,11 @@ export const WORKSPACE_TABS: readonly WorkspaceTabDef[] = [
     id: 'ready_to_export',
     label: 'Ready to Export',
     category: 'ready_to_export',
-    countCategories: ['ready_to_export', 'completed'],
+    // Slice 2 fix (misleading outcome): the badge counts only the
+    // `ready_to_export` work-state category. `completed` is a distinct
+    // terminal outcome — merging it here presented completed exports as
+    // still awaiting export. Completed lives in the outcome selector.
+    countCategories: ['ready_to_export'],
     description: 'Export drafts ready for Store release.',
     emptyMessage: 'No export-ready products yet.',
   },
@@ -195,7 +199,18 @@ export function sourceTypeLabel(sourceType: 'official_page' | 'distributor_recor
   return '—';
 }
 
-/** Map a work-state category to the tab that surfaces it ('' stays in results). */
+/**
+ * Map a work-state category to the operation tab that surfaces it.
+ *
+ * Slice 2 fix (misleading outcomes; Slice 7 retains this helper for the
+ * secondary operation nav after the classic primary branch is removed):
+ * `completed` and `skipped` are terminal OUTCOMES, not operations. They
+ * return null so no caller can route them into Ready-to-Export (completed)
+ * or Approved (skipped) — both previously misrouted here. Outcome
+ * categories are served by the secondary outcome selector
+ * (OutcomeItemsView, server-filtered `category=completed|skipped`, no new
+ * decisions), never by an operation tab.
+ */
 export function workspaceTabForCategory(category: WorkStateCategory): WorkspaceTabId | null {
   switch (category) {
     case 'needs_attention':
@@ -209,11 +224,39 @@ export function workspaceTabForCategory(category: WorkStateCategory): WorkspaceT
     case 'approved':
       return 'approved';
     case 'ready_to_export':
-    case 'completed':
       return 'ready_to_export';
+    case 'completed':
     case 'skipped':
-      return 'approved';
+      return null;
     default:
       return null;
   }
+}
+
+// ─── Review-list facets (independent of work-state category) ─────────────────
+//
+// Slice 2 fix (reviewState mixing in the Review tab; Slice 7 retains these
+// helpers for the secondary operation nav after the classic primary branch
+// is removed): the Review operation surfaces the `ready_for_review` CATEGORY, while the linear
+// Review-listings stage list facets on durable `reviewState`. The two axes
+// are independent — a `reviewed`/`approved` reviewState must never be counted
+// as "awaiting review", and `not_ready` (blocked) must never be included in
+// an awaiting count. These helpers keep that separation explicit.
+
+export type ReviewListFacet = 'unreviewed' | 'reviewed' | 'not_ready';
+
+export const REVIEW_LIST_FACETS: readonly ReviewListFacet[] = ['unreviewed', 'reviewed', 'not_ready'];
+
+export const REVIEW_LIST_FACET_LABELS: Record<ReviewListFacet, string> = {
+  unreviewed: 'Unreviewed',
+  reviewed: 'Reviewed',
+  not_ready: 'Not ready',
+};
+
+/** Default Review-listings stage list facet: Unreviewed. */
+export const DEFAULT_REVIEW_LIST_FACET: ReviewListFacet = 'unreviewed';
+
+/** True only for the facet that means "awaiting review". */
+export function isAwaitingReviewFacet(facet: ReviewListFacet): boolean {
+  return facet === 'unreviewed';
 }
