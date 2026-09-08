@@ -56,12 +56,25 @@ interface DistributorBrandSignal {
 
 /**
  * Collect, deduplicate, and confidence-order distributor title and brand
- * signals from third_party_page evidence.
+ * signals from distributor evidence.
+ *
+ * Reads BOTH `distributor_record` (the Amendment A/B label both the live
+ * and frozen evidence-extraction paths emit) and legacy `third_party_page`
+ * rows. Before this fix the collector read only `third_party_page`, so
+ * qualified distributor-record brand/name evidence never reached title
+ * synthesis (issue #110) — distributor drafts fell through to spreadsheet
+ * names and brandless titles.
  *
  * Rules:
  * - Prefer per-attempt evidence (those with metadata.attemptId) over
  *   flattened ExtractionData-derived evidence to avoid double-counting
  *   the highest-ranked provider.
+ * - Consolidated `distributor_record` rows (the reconciled projection pick,
+ *   one row per field) are ALWAYS included: providerId comes from the
+ *   per-field provenance map (`metadata.fieldProvenance[field]`), falling
+ *   back to the first accepted provider; attemptId is '' (consolidated
+ *   semantics — the contributing attempt ids live in evidence metadata);
+ *   confidence is 1.0 (projection authority outranks raw per-attempt rows).
  * - Recognise both sourceField: 'name' and legacy 'title' for titles.
  * - Deduplicate provider/value pairs, keeping the highest confidence.
  * - Sort by confidence descending, then providerId, then attemptId.
@@ -71,6 +84,7 @@ function collectDistributorSignals(evidence: StageInput['evidence']): {
   brands: DistributorBrandSignal[];
 } {
   const thirdPartyEvidence = evidence.filter(e => e.source === 'third_party_page');
+  const distributorRecordEvidence = evidence.filter(e => e.source === 'distributor_record');
 
   // ── Per-attempt titles ────────────────────────────────────────────────
   const perAttemptTitles: DistributorTitleSignal[] = [];
@@ -144,6 +158,40 @@ function collectDistributorSignals(evidence: StageInput['evidence']): {
     }
   }
 
+  // ── Consolidated distributor_record rows (ALWAYS included) ──────────
+  // One row per field holding the reconciled projection pick. These carry
+  // no per-row attemptId (the contributing attempts live in evidence
+  // metadata: acceptedEvidenceAttemptIds/acceptedProviderIds), so they join
+  // with consolidated semantics: providerId from the per-field provenance
+  // map, attemptId '', and authority confidence (outranks raw per-attempt
+  // rows, which can only come from legacy third_party_page evidence).
+  for (const e of distributorRecordEvidence) {
+    const val = typeof e.value === 'string' ? e.value.trim() : null;
+    if (!val) continue;
+    if (e.sourceField !== 'name' && e.sourceField !== 'title' && e.sourceField !== 'brand') continue;
+    const meta = (e.metadata ?? {}) as Record<string, unknown>;
+    const fieldProv = meta.fieldProvenance as Record<string, unknown> | undefined;
+    const acceptedProviders = meta.acceptedProviderIds as string[] | undefined;
+    const providerId =
+      (typeof fieldProv?.[e.sourceField] === 'string' && (fieldProv[e.sourceField] as string)) ||
+      acceptedProviders?.[0] ||
+      'unknown';
+    if (e.sourceField === 'name' || e.sourceField === 'title') {
+      const key = `${providerId}|${val.toLowerCase()}`;
+      if (!seenTitleKeys.has(key)) {
+        seenTitleKeys.add(key);
+        perAttemptTitles.push({ title: val, providerId, attemptId: '', confidence: 1.0 });
+      }
+    }
+    if (e.sourceField === 'brand') {
+      const key = `${providerId}|${val.toLowerCase()}`;
+      if (!seenBrandKeys.has(key)) {
+        seenBrandKeys.add(key);
+        perAttemptBrands.push({ brand: val, providerId, attemptId: '', confidence: 1.0 });
+      }
+    }
+  }
+
   // Sort by confidence descending, then providerId, then attemptId
   const sortFn = (a: { confidence: number; providerId: string; attemptId: string }, b: { confidence: number; providerId: string; attemptId: string }) => {
     if (b.confidence !== a.confidence) return b.confidence - a.confidence;
@@ -190,7 +238,8 @@ export const nameConsolidationStage: StageDefinition = {
     const manualTitle = evidenceValue(input.evidence, 'name', 'operator_manual');
     const ocrTitle = evidenceValue(input.evidence, 'name', 'visual_product_evidence');
 
-    // Collect distributor title and brand signals from third_party_page evidence
+    // Collect distributor title and brand signals (distributor_record +
+    // legacy third_party_page evidence)
     const distributorSignals = collectDistributorSignals(input.evidence);
 
     // Brand hint: prefer spreadsheet → official page → highest-confidence distributor brand.

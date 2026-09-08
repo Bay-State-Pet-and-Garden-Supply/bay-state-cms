@@ -632,3 +632,145 @@ describe('nameConsolidationStage — brand guarantee', () => {
     expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 });
+
+// ─── distributor_record wiring (issue #110) ──────────────────────────────────
+// Both evidence-extraction paths emit distributor evidence with source
+// `distributor_record`; the collector must not drop it.
+
+/** Consolidated distributor_record evidence as evidence-extraction emits it. */
+const distributorRecordEvidence = (
+  sourceField: string,
+  value: string,
+  opts: { providerId?: string; attemptIds?: string[] } = {},
+): ClassificationEvidence =>
+  makeEvidence({
+    source: 'distributor_record' as ClassificationEvidence['source'],
+    sourceField,
+    value,
+    metadata: {
+      provenance: 'distributor_record',
+      sourcingGenerationId: 'gen-1',
+      acceptedEvidenceAttemptIds: opts.attemptIds ?? ['att-1'],
+      acceptedProviderIds: [opts.providerId ?? 'bradley'],
+      distributorEvidenceHash: 'hash-1',
+      fieldProvenance: { [sourceField]: opts.providerId ?? 'bradley' },
+    },
+  });
+
+describe('nameConsolidationStage — distributor_record wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('distributor_record name+brand reach the consolidator with provenance', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Salter E-Z Hang Scale Silver Up to 55 LB',
+      source: 'llm',
+      brandApplied: 'Salter',
+    });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale Silver Up to 55 LB'),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    // Bradley-style: brandless spreadsheet name, brand only in distributor details.
+    expect(callArgs.brandHint).toBe('Salter');
+    expect(callArgs.distributorTitles).toHaveLength(1);
+    expect(callArgs.distributorTitles[0]).toMatchObject({
+      title: 'E-Z Hang Scale Silver Up to 55 LB',
+      providerId: 'bradley',
+      attemptId: '',
+      confidence: 1.0,
+    });
+    expect(callArgs.distributorBrands).toHaveLength(1);
+    expect(callArgs.distributorBrands[0]).toMatchObject({ brand: 'Salter', providerId: 'bradley' });
+  });
+
+  it('providerId falls back to acceptedProviderIds then unknown', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const noFieldProv = distributorRecordEvidence('brand', 'Acme', { providerId: 'bradley' });
+    (noFieldProv.metadata as Record<string, unknown>).fieldProvenance = {};
+    const noProvAtAll = distributorRecordEvidence('name', 'Widget', { providerId: 'bradley' });
+    (noProvAtAll.metadata as Record<string, unknown>).fieldProvenance = {};
+    (noProvAtAll.metadata as Record<string, unknown>).acceptedProviderIds = [];
+
+    await nameConsolidationStage.execute(
+      makeInput({ evidence: [noFieldProv, noProvAtAll] }),
+      makeContext(),
+    );
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorBrands[0].providerId).toBe('bradley');
+    expect(callArgs.distributorTitles[0].providerId).toBe('unknown');
+  });
+
+  it('consolidated distributor_record outranks legacy per-attempt rows', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      makeEvidence({
+        source: 'third_party_page',
+        sourceField: 'brand',
+        value: 'Stale Brand',
+        metadata: { providerId: 'legacy', attemptId: 'att-9', confidence: 0.9 },
+      }),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    // Projection authority first; the legacy row is retained, not dropped.
+    expect(callArgs.distributorBrands[0].brand).toBe('Salter');
+    expect(callArgs.distributorBrands).toHaveLength(2);
+    expect(callArgs.brandHint).toBe('Salter');
+  });
+
+  it('operator-transcribed Bradley titles pick up the distributor-details brand (AC3)', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Salter E-Z Hang Scale Silver Up to 55 LB',
+      source: 'llm',
+      brandApplied: 'Salter',
+    });
+
+    // Operator copied the brandless H1; brand lives only in distributor details.
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      makeEvidence({ source: 'operator_manual', sourceField: 'name', value: 'E-Z Hang Scale Silver Up to 55 LB' }),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.manualTitle).toBe('E-Z Hang Scale Silver Up to 55 LB');
+    expect(callArgs.brandHint).toBe('Salter');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Salter');
+  });
+
+  it('distributor_record rows never invent values from blank evidence', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      distributorRecordEvidence('brand', '   '),
+    ];
+
+    await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorBrands).toBeUndefined();
+    expect(callArgs.brandHint).toBe('Acme');
+  });
+});
