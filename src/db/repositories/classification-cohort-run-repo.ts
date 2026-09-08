@@ -34,6 +34,7 @@
 import { getDb } from '../connection';
 import { createRun, getRun } from './classification-run-repo';
 import { randomUUID } from 'node:crypto';
+import { readStorageVersion, encodeForStorage, toCanonicalStored } from './onboarding-stage-vocabulary-repo';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import type { ClassificationRunRow } from './classification-run-repo';
 import type { CohortRun, ProposalDependency, ExecutionProductTypeOutcome } from '../../shared/schemas/cohorts';
@@ -169,7 +170,7 @@ export function claimReadyCurationCohorts(
            AND EXISTS (
              SELECT 1 FROM curation_cohort_members m
              JOIN onboarding_items i ON i.id = m.onboarding_item_id
-             WHERE m.cohort_id = c2.id AND i.stage NOT IN ('review', 'promotion')
+             WHERE m.cohort_id = c2.id AND i.stage NOT IN ('review', 'promotion', 'review_listings', 'create_drafts')
            )
          ORDER BY c2.updated_at ASC
          LIMIT ?
@@ -183,7 +184,7 @@ export function claimReadyCurationCohorts(
        AND EXISTS (
          SELECT 1 FROM curation_cohort_members m
          JOIN onboarding_items i ON i.id = m.onboarding_item_id
-         WHERE m.cohort_id = c.id AND i.stage NOT IN ('review', 'promotion')
+         WHERE m.cohort_id = c.id AND i.stage NOT IN ('review', 'promotion', 'review_listings', 'create_drafts')
        )
        RETURNING *`,
     ).all(workerId, nowIso, leaseExpiresAt, nowIso, workspaceId, limit) as Record<string, any>[];
@@ -257,6 +258,43 @@ export function getCohortMemberRunForTitleAudit(
   ).get(parentRunId, itemId) as { id: string } | undefined;
   if (!withRefs) return null;
   return createRunLookup(withRefs.id);
+}
+
+// ─── Cohort member-run narrow writers/readers (Slice 1: relocated verbatim
+// from `src/onboarding/cohort-curator.ts`; statement text, ordering, and
+// transaction membership preserved — these compose inside the caller's
+// transactions exactly as the inline SQL did) ──────────────────────────────
+
+/**
+ * Rebind freeze-persisted snapshot refs onto a reused child run (idempotent
+ * in-place update inside the caller's transaction). Used both when a prior
+ * refs-bearing child exists under the same parent and when backfilling refs
+ * on a side-effect-free member run during resume.
+ */
+export function rebindMemberChildSnapshotRefs(
+  childRunId: string,
+  configSnapshotId: string,
+  configSnapshotHash: string,
+): void {
+  getDb().run(
+    'UPDATE classification_runs SET config_snapshot_id = ?, config_snapshot_hash = ? WHERE id = ?',
+    [configSnapshotId, configSnapshotHash, childRunId],
+  );
+}
+
+/**
+ * Snapshot hash of the FIRST committed child (ASC-first ordering is
+ * load-bearing: all member snapshots freeze against the same config
+ * authority — the earliest committed child carries the canonical Brand
+ * authority for post-loop semantic coherence). Null when no committed child.
+ */
+export function getFirstCommittedMemberChildSnapshotHash(cohortRunId: string): string | null {
+  const row = getDb().query(
+    `SELECT config_snapshot_hash FROM classification_runs
+     WHERE cohort_run_id = ? AND status IN ('completed', 'completed_with_abstentions')
+     ORDER BY started_at ASC LIMIT 1`,
+  ).get(cohortRunId) as { config_snapshot_hash: string | null } | undefined;
+  return row?.config_snapshot_hash ?? null;
 }
 
 // ─── Freeze authorities (ownership-guarded) ───────────────────────────────────
@@ -762,7 +800,16 @@ export function rerunIdleCohortRevision(
         'WHERE m.cohort_id = ?',
     ).all(cohortId) as Array<{ onboarding_item_id: string; stage: string }>;
     for (const member of members) {
-      if (member.stage !== 'review' && member.stage !== 'curation') {
+      // Slice 5a bridge: canonical stage comparison (dual read) — v1
+      // `review`/`curation` and v2 `review_listings`/`prepare_listing`
+      // are the same semantic stages.
+      let canonical: string;
+      try {
+        canonical = toCanonicalStored(member.stage);
+      } catch {
+        throw new CohortRerunStageConflictError(member.onboarding_item_id, member.stage);
+      }
+      if (canonical !== 'review_listings' && canonical !== 'prepare_listing') {
         throw new CohortRerunStageConflictError(member.onboarding_item_id, member.stage);
       }
     }
@@ -791,13 +838,17 @@ export function rerunIdleCohortRevision(
       [now(), currentRunId],
     );
     // 4. Reset the EXACT cohort members (never the whole batch).
+    // Slice 5a bridge: per-transaction storage-version read; the curation
+    // reset write encodes the observed version (never a hardcoded spelling).
+    const rerunVersion = readStorageVersion(db);
+    const rerunStage = encodeForStorage('prepare_listing', rerunVersion);
     for (const member of members) {
       db.run(
         `UPDATE onboarding_items
-         SET stage = 'curation', stage_status = 'pending', curation_data_json = NULL,
+         SET stage = ?, stage_status = 'pending', curation_data_json = NULL,
              claimed_by = NULL, claimed_at = NULL, updated_at = ?
          WHERE id = ?`,
-        [now(), member.onboarding_item_id],
+        [rerunStage, now(), member.onboarding_item_id],
       );
       resetMemberCount++;
     }

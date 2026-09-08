@@ -2,8 +2,17 @@ import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } from '../../onboarding/imported-identity';
-import type { OnboardingItem, ItemStatus, PipelineStage, StageStatus, SourcingDecision, SourcingDecisionV2 } from '../../shared/schemas/onboarding';
+import type { OnboardingItem, ItemStatus, PipelineStage, LegacyPipelineStage, StageStatus, SourcingDecision, SourcingDecisionV2 } from '../../shared/schemas/onboarding';
+
+/**
+ * Slice 5b native: stage inputs accept either spelling (dual input — v1
+ * fixtures/legacy callers keep working); every input normalizes through
+ * `toCanonicalStored` before comparison or storage encoding.
+ */
+export type StageInput = PipelineStage | LegacyPipelineStage;
 import { getAcceptedAttemptIdsForItem, isAcceptanceMigrationCompleted } from './onboarding-acceptance-repo';
+import { toCanonicalStored, readStorageVersion, encodeForStorage, stagePredicateParams } from './onboarding-stage-vocabulary-repo';
+import { STAGE_ORDER_V2, type StageV2 } from '../../shared/onboarding-stage-vocabulary';
 import { supersedeCurrentSourcingGeneration, getCurrentSourcingGeneration, getEvidenceAttemptsByItemAndGeneration } from './onboarding-evidence-repo';
 import { getCurrentGenerationAcceptedAttemptIds } from './onboarding-acceptance-repo';
 import { SOURCING_ENTRY_POLICY_VERSION, isCurrentSourcingEntryPolicy } from '../../onboarding/sourcing/entry-policy';
@@ -71,7 +80,7 @@ export interface InsertItemData {
   rowNumber: number;
   isDuplicate?: boolean;
   existingSku?: string | null;
-  stage?: PipelineStage;
+  stage?: StageInput;
   stageStatus?: StageStatus;
   isHeld?: boolean;
   heldReason?: string | null;
@@ -81,7 +90,27 @@ export interface InsertItemData {
   identityProvenanceHash?: string | null;
 }
 
-const STAGE_ORDER: PipelineStage[] = ['sourcing', 'discovery', 'extraction', 'curation', 'review', 'promotion'];
+/**
+ * Slice 5a bridge — canonical-stage comparison for hydrated rows.
+ * Hydration preserves the STORED spelling (v1 or v2), so every in-memory
+ * `item.stage === '<v1>'` guard must compare the canonical semantic instead
+ * of the raw literal (dual read). Fails closed on unknown literals.
+ * (Execution order comes from shared `STAGE_ORDER_V2`; this module owns no
+ * order array, per the no-second-array rule.)
+ */
+function storedStageIs(rawStage: unknown, canonical: StageV2): boolean {
+  return toCanonicalStored(rawStage) === canonical;
+}
+
+/**
+ * Slice 5a bridge — canonical execution index for a stored (v1 or v2)
+ * stage literal, over shared `STAGE_ORDER_V2` (both spellings share the
+ * same positions; a raw v1-only index would return -1 for v2). Fails
+ * closed on unknown literals.
+ */
+function storedStageIndex(rawStage: unknown): number {
+  return STAGE_ORDER_V2.indexOf(toCanonicalStored(rawStage));
+}
 
 /**
  * Guarded JSON parse for the serialized sourcing decision. Returns the parsed
@@ -201,16 +230,32 @@ function safeParseDecision(raw: string): SourcingDecision | SourcingDecisionV2 |
   }
 }
 
-function mapRowToItem(row: OnboardingItemRow): OnboardingItemWithEntryPolicy {
+export interface ChunkAcceptanceHydration {
+  /** Bulk marker result for the chunk (one read, not one per row). */
+  completed: boolean;
+  /** Per-item ids; meaningful only when completed is true. */
+  byId: Map<string, string[]>;
+}
+
+function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydration | null): OnboardingItemWithEntryPolicy {
   // Acceptances hydrate from the relational authority once the distributor
   // V2 migration marker exists (ADR 0014: normalized rows are 100%
   // authoritative — empty means zero acceptances, never legacy JSON).
   // Pre-migration databases keep the legacy JSON column fallback.
-  const acceptedEvidenceAttemptIds = isAcceptanceMigrationCompleted()
-    ? getAcceptedAttemptIdsForItem(row.id)
-    : row.accepted_evidence_attempt_ids_json
-      ? (JSON.parse(row.accepted_evidence_attempt_ids_json) as string[])
-      : [];
+  // Slice 1: callers doing chunk-scoped bulk hydration pass one hydration
+  // object per chunk (marker read once, not once per row). `undefined`/`null`
+  // (default) preserves the exact legacy per-row behavior.
+  const acceptedEvidenceAttemptIds = hydration
+    ? hydration.completed
+      ? (hydration.byId.get(row.id) ?? [])
+      : row.accepted_evidence_attempt_ids_json
+        ? (JSON.parse(row.accepted_evidence_attempt_ids_json) as string[])
+        : []
+    : isAcceptanceMigrationCompleted()
+      ? getAcceptedAttemptIdsForItem(row.id)
+      : row.accepted_evidence_attempt_ids_json
+        ? (JSON.parse(row.accepted_evidence_attempt_ids_json) as string[])
+        : [];
 
   return {
     id: row.id,
@@ -232,7 +277,17 @@ function mapRowToItem(row: OnboardingItemRow): OnboardingItemWithEntryPolicy {
     // must NEVER throw during row hydration. The materializer validates the
     // decision authority and fails closed with a stable code when absent.
     sourcingDecision: row.sourcing_decision_json ? safeParseDecision(row.sourcing_decision_json) : null,
-    stage: (row.stage || 'sourcing') as PipelineStage,
+    // Slice 5a bridge: version-aware validation at the row boundary.
+    // null/empty/unknown stage literals throw (fail closed) — never a
+    // fail-open first-stage default. The STORED spelling is preserved here:
+    // runtime stays v1 until the Slice 5b native cutover; dual-spelling
+    // predicates (claim/advance/reset/count) match either spelling and new
+    // v2 consumers normalize via toCanonicalStored. Legacy status fallback
+    // below is separately inventoried and unchanged.
+    stage: ((): PipelineStage => {
+      toCanonicalStored(row.stage);
+      return row.stage as PipelineStage;
+    })(),
     stageStatus: (row.stage_status || 'pending') as StageStatus,
     isHeld: row.is_held === 1,
     heldReason: row.held_reason ?? null,
@@ -312,7 +367,7 @@ export function listCurationDataRows(): CurationDataHistoryRow[] {
 export function insertItems(
   batchId: string,
   items: InsertItemData[],
-  entryStage: PipelineStage = 'discovery',
+  entryStage: StageInput = 'find_product_page',
   sourcingEntryPolicyVersion: number = 0,
 ): OnboardingItemWithEntryPolicy[] {
   const db = getDb();
@@ -328,13 +383,20 @@ export function insertItems(
   const inserted: OnboardingItemWithEntryPolicy[] = [];
 
   const insertAll = db.transaction(() => {
+    // Slice 5a bridge: per-transaction storage-version read (no process
+    // cache); row writes use this transaction's observed write encoding.
+    const storageVersion = readStorageVersion(db);
     for (const item of items) {
       const id = randomUUID();
       const isDuplicateNum = item.isDuplicate ? 1 : 0;
       // The entry stage is the caller-selected effective stage (Discovery when
       // the Sourcing engine capability is disabled). Explicit `item.stage`
       // wins for fixtures/internal state construction only.
-      const targetStage = item.stage ?? entryStage;
+      const requested = (item.stage ?? entryStage) as unknown as string;
+      const canonical = toCanonicalStored(requested); // fail closed on unknown/Step-0
+      // Storage-version-dependent write: v1 callers on v1 storage keep v1
+      // spelling; after the sanctioned flip the same canonical input encodes v2.
+      const targetStage = encodeForStorage(canonical, storageVersion);
       const targetStageStatus = item.stageStatus ?? 'pending';
       const isHeldNum = item.isHeld ? 1 : 0;
       stmt.run(
@@ -493,9 +555,120 @@ export function listItemsByBatchChunked(
   }
   const hasMore = rows.length > safeLimit;
   const pageRows = hasMore ? rows.slice(0, safeLimit) : rows;
-  const items = pageRows.map(mapRowToItem);
+  const items = pageRows.map(row => mapRowToItem(row));
   const lastCursor = pageRows.length > 0 ? { rowNumber: pageRows[pageRows.length - 1].row_number, id: pageRows[pageRows.length - 1].id } : null;
   return { items, lastCursor, hasMore };
+}
+
+export interface StageChunkOptions {
+  /** v1 stored stage literals (storage remains v1 until the sanctioned migration). */
+  stages?: string[] | null;
+  /** StageStatus literals, unchanged by the rename. */
+  stageStatuses?: string[] | null;
+  limit: number;
+  cursor?: { rowNumber: number; id: string } | null;
+  /** Chunk-scoped bulk hydration (marker read once per chunk, not per row).
+   * Pass null/undefined for the exact legacy per-row behavior. */
+  hydration?: ChunkAcceptanceHydration | null;
+}
+
+/**
+ * Slice 1 — additive stage/status-filtered chunk reader for v2 stage reads.
+ *
+ * Same (row_number, id) ordering and LIMIT n+1 continuation semantics as
+ * listItemsByBatchChunked, plus SQL WHERE predicates for batch + stored
+ * stage aliases + stage_status. All parameters are bound; stage/status lists
+ * are validated by the caller against known vocabularies before reaching here.
+ * No change to listItemsByBatchChunked or any v1 reader/claim behavior.
+ */
+/**
+ * Slice 1 — chunk-scoped bulk acceptance hydration (v2 stage reads).
+ *
+ * Single-pass replacement for N per-row `isAcceptanceMigrationCompleted()` +
+ * `getAcceptedAttemptIdsForItem()` calls: one marker read, plus one IN query
+ * when the migration completed. `statements` is the exact executed count
+ * (1 or 2) for budget accounting. Kept in this repository (rather than the
+ * acceptance repo) to confine Slice 1 to allowlisted files.
+ */
+/** Single marker read for chunk hydration (exactly one statement). */
+function isChunkAcceptanceCompleted(): boolean {
+  try {
+    const marker = getDb().query('SELECT value FROM app_meta WHERE key = ?').get('distributor_v2_schema_version') as
+      | { value: string }
+      | undefined;
+    return !!marker;
+  } catch {
+    return false;
+  }
+}
+
+function getChunkAcceptances(pageRowIds: string[]): {
+  completed: boolean;
+  byId: Map<string, string[]>;
+  statements: number;
+} {
+  const db = getDb();
+  const completed = isChunkAcceptanceCompleted();
+  let statements = 1; // the marker read above
+  const byId = new Map<string, string[]>();
+  for (const id of pageRowIds) byId.set(id, []);
+  if (!completed || pageRowIds.length === 0) return { completed, byId, statements };
+  const placeholders = pageRowIds.map(() => '?').join(', ');
+  const rows = db.query(
+    `SELECT item_id, evidence_attempt_id FROM onboarding_item_evidence_acceptances WHERE item_id IN (${placeholders}) ORDER BY created_at ASC`,
+  ).all(...pageRowIds) as Array<{ item_id: string; evidence_attempt_id: string }>;
+  statements += 1;
+  for (const row of rows) {
+    const list = byId.get(row.item_id);
+    if (list) list.push(row.evidence_attempt_id);
+  }
+  return { completed, byId, statements };
+}
+
+export function listItemsByBatchStageChunked(
+  batchId: string,
+  opts: StageChunkOptions,
+): { items: OnboardingItemWithEntryPolicy[]; lastCursor: { rowNumber: number; id: string } | null; hasMore: boolean; statementsExecuted: number } {
+  const db = getDb();
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(opts.limit)));
+  const clauses: string[] = ['batch_id = ?'];
+  const params: Array<string | number> = [batchId];
+  if (opts.stages && opts.stages.length > 0) {
+    clauses.push(`stage IN (${opts.stages.map(() => '?').join(', ')})`);
+    params.push(...opts.stages);
+  }
+  if (opts.stageStatuses && opts.stageStatuses.length > 0) {
+    clauses.push(`stage_status IN (${opts.stageStatuses.map(() => '?').join(', ')})`);
+    params.push(...opts.stageStatuses);
+  }
+  const where = clauses.join(' AND ');
+  let rows: OnboardingItemRow[];
+  if (!opts.cursor) {
+    rows = db.query(
+      `SELECT * FROM onboarding_items WHERE ${where} ORDER BY row_number, id LIMIT ?`,
+    ).all(...params, safeLimit + 1) as OnboardingItemRow[];
+  } else {
+    rows = db.query(
+      `SELECT * FROM onboarding_items WHERE ${where} AND (row_number > ? OR (row_number = ? AND id > ?)) ORDER BY row_number, id LIMIT ?`,
+    ).all(...params, opts.cursor.rowNumber, opts.cursor.rowNumber, opts.cursor.id, safeLimit + 1) as OnboardingItemRow[];
+  }
+  const hasMore = rows.length > safeLimit;
+  const pageRows = hasMore ? rows.slice(0, safeLimit) : rows;
+  // Single-pass chunk hydration: resolve acceptances once for the whole
+  // chunk (1 marker + 0/1 IN query) instead of per-row marker checks.
+  // statementsExecuted is exact (chunk SELECT + hydration statements).
+  // The bulk read lives here (not in the acceptance repo) so Slice 1
+  // touches only allowlisted files; SQL stays inside a repository.
+  let statementsExecuted = 1;
+  let hydration = opts.hydration ?? null;
+  if (hydration === null) {
+    const bulk = getChunkAcceptances(pageRows.map(r => r.id));
+    statementsExecuted += bulk.statements;
+    hydration = { completed: bulk.completed, byId: bulk.byId };
+  }
+  const items = pageRows.map(row => mapRowToItem(row, hydration));
+  const lastCursor = pageRows.length > 0 ? { rowNumber: pageRows[pageRows.length - 1].row_number, id: pageRows[pageRows.length - 1].id } : null;
+  return { items, lastCursor, hasMore, statementsExecuted };
 }
 
 export function listItemsByBatch(
@@ -517,7 +690,7 @@ export function listItemsByBatch(
     ).all(batchId, ...statuses) as OnboardingItemRow[];
   }
 
-  return rows.map(mapRowToItem);
+  return rows.map(row => mapRowToItem(row));
 }
 
 // ─── STAGE-BASED METHODS ────────────────────────────────────────────────────────
@@ -531,21 +704,21 @@ export function listItemsByBatchStaged(batchId: string): Record<PipelineStage, O
     'SELECT * FROM onboarding_items WHERE batch_id = ? ORDER BY row_number',
   ).all(batchId) as OnboardingItemRow[];
 
-  const items = rows.map(mapRowToItem);
+  const items = rows.map(row => mapRowToItem(row));
   const grouped: Record<PipelineStage, OnboardingItem[]> = {
-    sourcing: [],
-    discovery: [],
-    extraction: [],
-    curation: [],
-    review: [],
-    promotion: [],
+    route_sources: [],
+    find_product_page: [],
+    collect_details: [],
+    prepare_listing: [],
+    review_listings: [],
+    create_drafts: [],
   };
 
   for (const item of items) {
-    const stage = item.stage;
-    if (grouped[stage]) {
-      grouped[stage].push(item);
-    }
+    // Slice 5b native: bucket by canonical semantic (dual read — either
+    // stored spelling lands in the same v2-keyed bucket; unknown fails closed).
+    const stage = toCanonicalStored(item.stage);
+    grouped[stage].push(item);
   }
 
   return grouped;
@@ -557,31 +730,37 @@ export function listItemsByBatchStaged(batchId: string): Record<PipelineStage, O
  */
 // fallow-ignore-next-line unused-export — used by tests
 export function getPendingItemsByStage(
-  stage: PipelineStage,
+  // Slice 5a bridge: accepts v1 stored OR canonical v2 input (dual read).
+  stage: StageInput | StageV2,
   limit: number,
   workspaceId?: string,
 ): OnboardingItem[] {
   const db = getDb();
+
+  // Slice 5a bridge: dual-spelling predicate (same pattern as the
+  // claim predicate) — matches the semantic stage under either spelling.
+  const canonicalPending = toCanonicalStored(stage);
+  const [pendingAltA, pendingAltB] = stagePredicateParams(canonicalPending);
 
   let rows: OnboardingItemRow[];
   if (workspaceId) {
     rows = db.query(
       `SELECT i.* FROM onboarding_items i
        JOIN onboarding_batches b ON i.batch_id = b.id
-       WHERE b.workspace_id = ? AND b.status = 'active' AND i.stage = ? AND i.stage_status = 'pending'
+       WHERE b.workspace_id = ? AND b.status = 'active' AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'pending'
        ORDER BY i.row_number
        LIMIT ?`,
-    ).all(workspaceId, stage, limit) as OnboardingItemRow[];
+    ).all(workspaceId, pendingAltA, pendingAltB, limit) as OnboardingItemRow[];
   } else {
     rows = db.query(
       `SELECT i.* FROM onboarding_items i
        JOIN onboarding_batches b ON i.batch_id = b.id
-       WHERE b.status = 'active' AND i.stage = ? AND i.stage_status = 'pending'
+       WHERE b.status = 'active' AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'pending'
        ORDER BY i.row_number
        LIMIT ?`,
-    ).all(stage, limit) as OnboardingItemRow[];
+    ).all(pendingAltA, pendingAltB, limit) as OnboardingItemRow[];
   }
-  return rows.map(mapRowToItem);
+  return rows.map(row => mapRowToItem(row));
 }
 
 /**
@@ -601,7 +780,8 @@ export function getPendingItemsByStage(
  * @returns Array of claimed onboarding items (empty if none available)
  */
 export function claimItemsForProcessing(
-  stage: PipelineStage,
+  // Slice 5a bridge: accepts v1 stored OR canonical v2 input (dual read).
+  stage: StageInput | StageV2,
   limit: number,
   workspaceId: string,
   workerId: string,
@@ -609,11 +789,11 @@ export function claimItemsForProcessing(
   const db = getDb();
   const now = new Date().toISOString();
 
-  // Amendment A: Sourcing claims require the exact current entry-policy
-  // version in BOTH the atomic subquery and the outer CAS — pre-amendment
-  // (policy 0) items, including the legacy stranded rows, are never
-  // automatically claimed/observed. Other stages are unchanged.
-  const isSourcingClaim = stage === 'sourcing';
+  // Slice 5a bridge: accept canonical (v2) or stored (v1) input; predicate
+  // matches the semantic stage under EITHER spelling (dual read).
+  const canonical = toCanonicalStored(stage);
+  const [altA, altB] = stagePredicateParams(canonical);
+  const isSourcingClaim = canonical === 'route_sources';
   const versionClause = isSourcingClaim ? ' AND sourcing_entry_policy_version = ?' : '';
 
   // Atomic UPDATE with subquery. The outer AND stage_status = 'pending'
@@ -627,7 +807,7 @@ export function claimItemsForProcessing(
        SELECT i.id FROM onboarding_items i
        JOIN onboarding_batches b ON i.batch_id = b.id
        WHERE b.workspace_id = ? AND b.status = 'active' AND (b.execution_state = 'running' OR b.execution_state IS NULL)
-       AND i.stage = ? AND i.stage_status = 'pending'
+       AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'pending'
        AND (i.is_held = 0 OR i.is_held IS NULL)
        ${versionClause}
        ORDER BY i.row_number
@@ -635,8 +815,8 @@ export function claimItemsForProcessing(
      )
      AND stage_status = 'pending'${versionClause}`,
     isSourcingClaim
-      ? [workerId, now, now, workspaceId, stage, SOURCING_ENTRY_POLICY_VERSION, limit, SOURCING_ENTRY_POLICY_VERSION]
-      : [workerId, now, now, workspaceId, stage, limit],
+      ? [workerId, now, now, workspaceId, altA, altB, SOURCING_ENTRY_POLICY_VERSION, limit, SOURCING_ENTRY_POLICY_VERSION]
+      : [workerId, now, now, workspaceId, altA, altB, limit],
   );
 
   if (result.changes === 0) return [];
@@ -649,7 +829,7 @@ export function claimItemsForProcessing(
      LIMIT ?`,
   ).all(workerId, now, limit) as OnboardingItemRow[];
 
-  return rows.map(mapRowToItem);
+  return rows.map(row => mapRowToItem(row));
 }
 
 /**
@@ -765,6 +945,9 @@ export function advanceItemsToNextStage(itemIds: string[]): { advanced: number; 
   let skipped = 0;
 
   db.transaction(() => {
+    // Slice 5a bridge: per-transaction storage-version read; the advance
+    // write below encodes the observed version (never a hardcoded spelling).
+    const advanceVersion = readStorageVersion(db);
     for (const id of itemIds) {
       const item = findItemById(id);
       if (!item) {
@@ -782,7 +965,7 @@ export function advanceItemsToNextStage(itemIds: string[]): { advanced: number; 
       // through the generic endpoint (ADR 0014): resolution must clear every
       // hard conflict and complete via `completeSourcingWithDecision` first.
       // Stale superseded-generation conflicts are audit-only and never block.
-      if (item.stage === 'sourcing') {
+      if (storedStageIs(item.stage, 'route_sources')) {
         const openConflict = db
           .query(
             `SELECT 1 FROM onboarding_evidence_conflicts
@@ -801,22 +984,25 @@ export function advanceItemsToNextStage(itemIds: string[]): { advanced: number; 
         }
       }
 
-      let nextStage: PipelineStage;
-      if (item.stage === 'sourcing') {
+      // Slice 5a bridge: canonical comparison + canonical order (dual read);
+      // the write encodes this transaction's observed storage version.
+      let nextCanonical: StageV2;
+      if (storedStageIs(item.stage, 'route_sources')) {
         // Sourcing advances only to adjacent Discovery. Direct Sourcing →
         // Curation (legacy `bundle_to_curation`) is prohibited until a
         // structured-record fallback ADR exists; legacy persisted decisions
         // are ignored for routing.
-        nextStage = 'discovery';
+        nextCanonical = 'find_product_page';
       } else {
-        const currentIdx = STAGE_ORDER.indexOf(item.stage);
-        if (currentIdx < 0 || currentIdx >= STAGE_ORDER.length - 1) {
-          // Already at promotion or unknown stage — can't advance
+        const currentIdx = storedStageIndex(item.stage);
+        if (currentIdx < 0 || currentIdx >= STAGE_ORDER_V2.length - 1) {
+          // Already at create_drafts or unknown stage — can't advance
           skipped++;
           continue;
         }
-        nextStage = STAGE_ORDER[currentIdx + 1];
+        nextCanonical = STAGE_ORDER_V2[currentIdx + 1];
       }
+      const nextStage = encodeForStorage(nextCanonical, advanceVersion);
 
       db.query(
         `UPDATE onboarding_items
@@ -858,13 +1044,19 @@ export function advanceReviewedItemsToPromotion(
   const refused: Array<{ itemId: string; reason: string }> = [];
 
   db.transaction(() => {
+    // Slice 5a bridge: per-transaction storage-version read; the promotion
+    // write below encodes the observed version, and its guard matches the
+    // semantic review stage under either spelling (dual read).
+    const promoVersion = readStorageVersion(db);
+    const promoStage = encodeForStorage('create_drafts', promoVersion);
+    const [reviewAltA, reviewAltB] = stagePredicateParams('review_listings');
     for (const id of itemIds) {
       const item = findItemById(id);
       if (!item) {
         refused.push({ itemId: id, reason: 'item_not_found' });
         continue;
       }
-      if (item.stage !== 'review' || item.stageStatus !== 'completed') {
+      if (!storedStageIs(item.stage, 'review_listings') || item.stageStatus !== 'completed') {
         refused.push({ itemId: id, reason: `not_eligible:${item.stage}/${item.stageStatus}` });
         continue;
       }
@@ -897,10 +1089,10 @@ export function advanceReviewedItemsToPromotion(
       }
       const result = db.query(
         `UPDATE onboarding_items
-         SET stage = 'promotion', stage_status = 'pending', error_message = NULL, retry_count = 0,
+         SET stage = ?, stage_status = 'pending', error_message = NULL, retry_count = 0,
              claimed_by = NULL, claimed_at = NULL, updated_at = ?
-         WHERE id = ? AND stage = 'review' AND stage_status = 'completed'`,
-      ).run(now, id);
+         WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'`,
+      ).run(promoStage, now, id, reviewAltA, reviewAltB);
       if (result.changes > 0) {
         advanced.push(id);
       } else {
@@ -943,9 +1135,11 @@ export function updateItemStageStatus(
 export function completeReviewStage(id: string): void {
   const db = getDb();
   const now = new Date().toISOString();
+  // Slice 5a bridge: dual-spelling guard (same pattern as the claim predicate).
+  const [reviewAltA, reviewAltB] = stagePredicateParams('review_listings');
   db.query(
-    "UPDATE onboarding_items SET stage_status = 'completed', claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ? AND stage = 'review'",
-  ).run(now, id);
+    "UPDATE onboarding_items SET stage_status = 'completed', claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ? AND (stage = ? OR stage = ?)",
+  ).run(now, id, reviewAltA, reviewAltB);
 }
 
 /**
@@ -955,9 +1149,11 @@ export function completePromotionStage(id: string, success: boolean, errorMessag
   const db = getDb();
   const now = new Date().toISOString();
   if (success) {
+    // Slice 5a bridge: dual-spelling guard (same pattern as the claim predicate).
+    const [promoAltA, promoAltB] = stagePredicateParams('create_drafts');
     db.query(
-      "UPDATE onboarding_items SET stage_status = 'completed', error_message = NULL, claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ? AND stage = 'promotion'",
-    ).run(now, id);
+      "UPDATE onboarding_items SET stage_status = 'completed', error_message = NULL, claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ? AND (stage = ? OR stage = ?)",
+    ).run(now, id, promoAltA, promoAltB);
   } else {
     db.query(
       'UPDATE onboarding_items SET stage_status = ?, error_message = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ?',
@@ -986,19 +1182,20 @@ export function getStageCounts(batchId: string): Record<PipelineStage, number> {
   ).all(batchId) as Array<{ stage: string; count: number }>;
 
   const counts: Record<PipelineStage, number> = {
-    sourcing: 0,
-    discovery: 0,
-    extraction: 0,
-    curation: 0,
-    review: 0,
-    promotion: 0,
+    route_sources: 0,
+    find_product_page: 0,
+    collect_details: 0,
+    prepare_listing: 0,
+    review_listings: 0,
+    create_drafts: 0,
   };
 
   for (const row of rows) {
-    const stage = row.stage as PipelineStage;
-    if (Object.prototype.hasOwnProperty.call(counts, stage)) {
-      counts[stage] = row.count;
-    }
+    // Slice 5b native: semantic (canonical) counting — both spellings of a
+    // stage accumulate into the same v2-keyed bucket (storage stays v1
+    // until the sanctioned migration; unknown literals fail closed).
+    const canonical = toCanonicalStored(row.stage);
+    counts[canonical] += row.count;
   }
 
   return counts;
@@ -1023,7 +1220,8 @@ export function resetItemsToPending(itemIds: string[]): void {
          WHERE onboarding_item_id = ? AND status = 'running'`,
       ).run(now, id);
 
-      if (item.stage === 'review' || item.stage === 'promotion') {
+      // Slice 5a bridge: canonical stage comparison (dual read).
+      if (storedStageIs(item.stage, 'review_listings') || storedStageIs(item.stage, 'create_drafts')) {
         db.query(
           `UPDATE onboarding_items
            SET stage_status = 'pending', error_message = NULL, retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
@@ -1058,22 +1256,26 @@ export function skipItems(itemIds: string[]): void {
 /**
  * Reset items to a specific pipeline stage with 'completed' status.
  * Preserves all existing extraction/curation data and source URLs.
- * The item will show in the target stage in the PipelineBoard but
+ * The item will show in the target stage in stage navigation but
  * the worker will not re-process it (since stage_status is 'completed').
  */
 export function resetItemsToStage(
   itemIds: string[],
-  targetStage: PipelineStage,
+  targetStage: StageInput,
 ): { reset: number } {
   if (itemIds.length === 0) return { reset: 0 };
   const db = getDb();
   const now = new Date().toISOString();
+  // Slice 5a bridge: the target may arrive in either spelling; encode this
+  // transaction's observed storage version (never a hardcoded spelling).
+  const resetVersion = readStorageVersion(db);
+  const encodedTarget = encodeForStorage(toCanonicalStored(targetStage), resetVersion);
   const placeholders = itemIds.map(() => '?').join(', ');
   db.query(
     `UPDATE onboarding_items
      SET stage = ?, stage_status = 'completed', claimed_by = NULL, claimed_at = NULL, updated_at = ?
      WHERE id IN (${placeholders})`,
-  ).run(targetStage, now, ...itemIds);
+  ).run(encodedTarget, now, ...itemIds);
   return { reset: itemIds.length };
 }
 
@@ -1092,6 +1294,8 @@ export function sendItemsToPreviousStage(
   let skipped = 0;
 
   db.transaction(() => {
+    // Slice 5a bridge: per-transaction storage-version read for the revert write.
+    const revertVersion = readStorageVersion(db);
     for (const id of itemIds) {
       const item = findItemById(id);
       if (!item) {
@@ -1099,21 +1303,25 @@ export function sendItemsToPreviousStage(
         continue;
       }
 
-      const currentIdx = STAGE_ORDER.indexOf(item.stage);
+      // Slice 5a bridge: canonical order index (dual read — v2 spellings
+      // share the same positions, never -1).
+      const currentIdx = storedStageIndex(item.stage);
       if (currentIdx <= 0) {
         skipped++;
         continue;
       }
 
-      const previousStage = STAGE_ORDER[currentIdx - 1];
+      const previousCanonical = STAGE_ORDER_V2[currentIdx - 1];
+      const previousStage = encodeForStorage(previousCanonical, revertVersion);
 
-      // Undo the current stage's specific outcomes
-      if (item.stage === 'extraction') {
+      // Undo the current stage's specific outcomes (canonical comparison).
+      const currentCanonical = toCanonicalStored(item.stage);
+      if (currentCanonical === 'collect_details') {
         db.query('DELETE FROM onboarding_extractions WHERE item_id = ?').run(id);
         db.query('UPDATE onboarding_items SET extraction_data_json = NULL, status = ? WHERE id = ?').run('source_confirmed', id);
-      } else if (item.stage === 'curation') {
+      } else if (currentCanonical === 'prepare_listing') {
         db.query('UPDATE onboarding_items SET curation_data_json = NULL WHERE id = ?').run(id);
-      } else if (item.stage === 'review') {
+      } else if (currentCanonical === 'review_listings') {
         // Append-only: supersede the run's decisions instead of deleting them.
         // Re-review can then re-issue decisions (including exact retries of
         // previously superseded payloads) as fresh live revisions.
@@ -1131,7 +1339,7 @@ export function sendItemsToPreviousStage(
           WHERE run_id IN (SELECT id FROM classification_runs WHERE onboarding_item_id = ?)
         `).run(id);
         db.query('UPDATE onboarding_items SET status = ? WHERE id = ?').run('curated', id);
-      } else if (item.stage === 'promotion') {
+      } else if (currentCanonical === 'create_drafts') {
         db.query(`
           DELETE FROM change_set_items
           WHERE sku = ? AND change_set_id IN (SELECT id FROM change_sets WHERE status = 'draft')
@@ -1396,11 +1604,14 @@ export function updateSourcingDecision(
   const now = new Date().toISOString();
   const jsonStr = JSON.stringify(decision);
 
+  // Slice 5a bridge: dual-spelling sourcing guard (same pattern as the
+  // claim predicate) — audit-only write, no stage transition.
+  const [sourcingAltA, sourcingAltB] = stagePredicateParams('route_sources');
   const result = db.query(
     `UPDATE onboarding_items
      SET sourcing_decision_json = ?, stage_status = 'completed', error_message = NULL, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'sourcing'`,
-  ).run(jsonStr, now, id);
+     WHERE id = ? AND (stage = ? OR stage = ?)`,
+  ).run(jsonStr, now, id, sourcingAltA, sourcingAltB);
   return result.changes > 0;
 }
 
@@ -1409,33 +1620,37 @@ export function updateSourcingDecision(
  * ONLY to adjacent Discovery; Curation is unreachable.
  */
 const SOURCING_COMPLETION_TARGETS: Record<SourcingDecision['route'], PipelineStage> = {
-  evidence_to_discovery: 'discovery',
-  fallback_to_discovery: 'discovery',
-  degraded_fallback_to_discovery: 'discovery',
-  distributor_record_to_extraction: 'extraction',
-  needs_input_conflict: 'sourcing',
-  retry_provider_errors: 'sourcing',
+  evidence_to_discovery: 'find_product_page',
+  fallback_to_discovery: 'find_product_page',
+  degraded_fallback_to_discovery: 'find_product_page',
+  distributor_record_to_extraction: 'collect_details',
+  needs_input_conflict: 'route_sources',
+  retry_provider_errors: 'route_sources',
   // Legacy audit value: never creatable or actionable.
-  bundle_to_curation: 'sourcing',
-};
+  bundle_to_curation: 'route_sources',
+};;
 
 /**
  * The ONLY automatic Sourcing completion transition (ADR 0014).
  *
  * Guards (all fail closed with a reason, never partially applied):
- * - the row must currently be in the `sourcing` stage;
+ * - the row must currently be in the `route_sources` stage (either spelling);
  * - the requested target stage must match the decision route's matrix
- *   (evidence_to_discovery/fallback_to_discovery → discovery/pending,
- *   needs_input_conflict → sourcing/needs_input,
- *   retry_provider_errors → sourcing/pending);
+ *   (evidence_to_discovery/fallback_to_discovery → find_product_page/pending,
+ *   needs_input_conflict → route_sources/needs_input,
+ *   retry_provider_errors → route_sources/pending);
  * - `bundle_to_curation` is rejected outright;
  * - evidence routes refuse when open hard conflicts remain;
  * - `needs_input_conflict` requires the item to currently be `needs_input`.
+ *
+ * Slice 5b native: runtime stages are canonical v2; the write encodes this
+ * transaction's observed storage version and the guard matches either
+ * spelling (dual read). Immutable decision `target` bytes are untouched.
  */
 export function completeSourcingWithDecision(
   itemId: string,
   decision: SourcingDecision | SourcingDecisionV2,
-  targetStage: 'discovery' | 'extraction' | 'sourcing',
+  targetStage: 'find_product_page' | 'collect_details' | 'route_sources',
 ): { ok: boolean; reason?: string } {
   const db = getDb();
   const now = new Date().toISOString();
@@ -1449,24 +1664,29 @@ export function completeSourcingWithDecision(
     return { ok: false, reason: `route ${decision.route} targets ${expectedTarget}, not ${targetStage}` };
   }
 
-  const item = findItemById(itemId);
-  if (!item) return { ok: false, reason: 'item_not_found' };
-  if (item.stage !== 'sourcing') {
-    return { ok: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
-  }
+  return db.transaction(() => {
+    const writeVersion = readStorageVersion(db);
+    const encodedTarget = encodeForStorage(targetStage, writeVersion);
+    const [sourcingAltA, sourcingAltB] = stagePredicateParams('route_sources');
+
+    const item = findItemById(itemId);
+    if (!item) return { ok: false, reason: 'item_not_found' };
+    if (!storedStageIs(item.stage, 'route_sources')) {
+      return { ok: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
+    }
 
   // Automatic/manual distributor routing is gated on the durable entry-policy
   // version (Amendment A): only post-amendment (marker-v1) imports may target
   // Extraction through a distributor record. Marker-v0 items are preserved as
   // operator-controlled Continue-to-Discovery (the legacy fallback).
-  if (targetStage === 'extraction' && !isCurrentSourcingEntryPolicy(item.sourcingEntryPolicyVersion)) {
+  if (targetStage === 'collect_details' && !isCurrentSourcingEntryPolicy(item.sourcingEntryPolicyVersion)) {
     return { ok: false, reason: 'distributor routing requires sourcing_entry_policy_version=1' };
   }
 
   // The extraction decision must validate against the strict V2 route schema
   // (MA invariant): distributor Extraction is inexpressible without
   // generation/attempt/provider/hash provenance.
-  if (targetStage === 'extraction') {
+  if (targetStage === 'collect_details') {
     const v2 = SourcingDecisionV2Schema.safeParse(decision);
     if (!v2.success) {
       console.warn(
@@ -1480,7 +1700,7 @@ export function completeSourcingWithDecision(
     }
   }
 
-  if (targetStage === 'discovery' || targetStage === 'extraction') {
+  if (targetStage === 'find_product_page' || targetStage === 'collect_details') {
     const openConflict = db
       .query(
         `SELECT 1 FROM onboarding_evidence_conflicts
@@ -1510,23 +1730,24 @@ export function completeSourcingWithDecision(
   // Extraction routing atomically binds the item to the distributor record:
   // source_type becomes 'distributor_record' and source_url stays NULL (no
   // fake official URL is ever invented — ADR 0014 Amendment A).
-  const result = targetStage === 'extraction'
+  const result = targetStage === 'collect_details'
     ? db.query(
         `UPDATE onboarding_items
          SET sourcing_decision_json = ?, stage = ?, stage_status = ?, source_type = 'distributor_record',
              source_url = NULL, error_message = NULL, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-         WHERE id = ? AND stage = 'sourcing'`,
-      ).run(jsonStr, targetStage, nextStatus, now, itemId)
+         WHERE id = ? AND (stage = ? OR stage = ?)`,
+      ).run(jsonStr, encodedTarget, nextStatus, now, itemId, sourcingAltA, sourcingAltB)
     : db.query(
         `UPDATE onboarding_items
          SET sourcing_decision_json = ?, stage = ?, stage_status = ?, error_message = NULL, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-         WHERE id = ? AND stage = 'sourcing'`,
-      ).run(jsonStr, targetStage, nextStatus, now, itemId);
+         WHERE id = ? AND (stage = ? OR stage = ?)`,
+      ).run(jsonStr, encodedTarget, nextStatus, now, itemId, sourcingAltA, sourcingAltB);
 
   if (result.changes === 0) {
     return { ok: false, reason: 'transition_failed' };
   }
   return { ok: true };
+  })();
 }
 
 /**
@@ -1565,7 +1786,7 @@ export function completeSourcingViaProjection(
   if (!item) {
     return { ok: false, reason: 'item_not_found', qualified: false, route: null };
   }
-  if (item.stage !== 'sourcing') {
+  if (!storedStageIs(item.stage, 'route_sources')) {
     return { ok: false, reason: `not_eligible:${item.stage}/${item.stageStatus}`, qualified: false, route: null };
   }
   if (item.stageStatus !== 'needs_input') {
@@ -1588,7 +1809,7 @@ export function completeSourcingViaProjection(
       warnings: [],
       decidedAt: new Date().toISOString(),
     };
-    const res = completeSourcingWithDecision(itemId, decision, 'discovery');
+    const res = completeSourcingWithDecision(itemId, decision, 'find_product_page');
     if (!res.ok) return { ok: false, reason: res.reason, qualified: false, route: null };
     return { ok: true, qualified: false, route: 'evidence_to_discovery', evidenceHash: null };
   }
@@ -1652,7 +1873,7 @@ export function completeSourcingViaProjection(
           warnings: projection.warnings,
           decidedAt: now,
         };
-    const res = completeSourcingWithDecision(itemId, decision, 'discovery');
+    const res = completeSourcingWithDecision(itemId, decision, 'find_product_page');
     if (!res.ok) return { ok: false, reason: res.reason, qualified: false, route: null };
     return { ok: true, qualified: false, route: decision.route, reasonCodes: projection.reasonCodes, evidenceHash: null };
   }
@@ -1691,7 +1912,7 @@ export function completeSourcingViaProjection(
           warnings: projection.warnings,
           decidedAt: now,
         };
-    const res = completeSourcingWithDecision(itemId, decision, 'discovery');
+    const res = completeSourcingWithDecision(itemId, decision, 'find_product_page');
     if (!res.ok) return { ok: false, reason: res.reason, qualified: true, route: null };
     return { ok: true, qualified: true, route: decision.route, evidenceHash: projection.evidenceHash };
   }
@@ -1710,7 +1931,7 @@ export function completeSourcingViaProjection(
     warnings: projection.warnings,
     decidedAt: now,
   };
-  const res = completeSourcingWithDecision(itemId, decision, 'extraction');
+  const res = completeSourcingWithDecision(itemId, decision, 'collect_details');
   if (!res.ok) return { ok: false, reason: res.reason, qualified: true, route: null };
   return {
     ok: true,
@@ -1775,10 +1996,10 @@ function applyFallbackTransition(id: string, decidedAt: string): boolean {
     : fallbackSourcingDecision(decidedAt, generation?.id);
   const result = db.query(
     `UPDATE onboarding_items
-     SET sourcing_decision_json = ?, stage = 'discovery', stage_status = 'pending', error_message = NULL,
+     SET sourcing_decision_json = ?, stage = ?, stage_status = 'pending', error_message = NULL,
          retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'sourcing'`,
-  ).run(JSON.stringify(decision), decidedAt, id);
+     WHERE id = ? AND (stage = ? OR stage = ?)`,
+  ).run(JSON.stringify(decision), encodeForStorage('find_product_page', readStorageVersion(db)), decidedAt, id, ...stagePredicateParams('route_sources'));
   return result.changes > 0;
 }
 
@@ -1836,7 +2057,7 @@ export function fallbackSourcingItemsToDiscovery(itemIds: string[]): SourcingFal
         skipped.push({ id, reason: 'not_found' });
         continue;
       }
-      if (item.stage !== 'sourcing' || item.stageStatus !== 'pending') {
+      if (!storedStageIs(item.stage, 'route_sources') || item.stageStatus !== 'pending') {
         skipped.push({ id, reason: `not_eligible:${item.stage}/${item.stageStatus}` });
         continue;
       }
@@ -1864,7 +2085,7 @@ export interface SingleItemFallbackResult {
 export function fallbackSourcingItemToDiscovery(id: string): SingleItemFallbackResult {
   const item = findItemById(id);
   if (!item) return { moved: false, reason: 'not_found' };
-  if (item.stage !== 'sourcing') {
+  if (!storedStageIs(item.stage, 'route_sources')) {
     return { moved: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
   // Fail closed on unresolved hard identity conflicts (ADR 0014).
@@ -1910,7 +2131,7 @@ export function revertToOfficialDiscovery(
     // Only extraction-stage items (pending/failed/completed-before-curation)
     // may revert; a completed extraction that already advanced must use the
     // reviewed send-back flow.
-    if (item.stage !== 'extraction') {
+    if (!storedStageIs(item.stage, 'collect_details')) {
       return { ok: false as const, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
     }
     if (!['pending', 'failed', 'completed'].includes(item.stageStatus)) {
@@ -1946,11 +2167,11 @@ export function revertToOfficialDiscovery(
     const result = db.query(
       `UPDATE onboarding_items
        SET source_type = 'official_page', source_url = NULL, extraction_data_json = NULL,
-           sourcing_decision_json = ?, stage = 'discovery', stage_status = 'pending',
+           sourcing_decision_json = ?, stage = ?, stage_status = 'pending',
            error_message = NULL, retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-       WHERE id = ? AND stage = 'extraction' AND stage_status IN ('pending', 'failed', 'completed')
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status IN ('pending', 'failed', 'completed')
          AND source_type = 'distributor_record'`,
-    ).run(JSON.stringify(decision), now, itemId);
+    ).run(JSON.stringify(decision), encodeForStorage('find_product_page', readStorageVersion(db)), now, itemId, ...stagePredicateParams('collect_details'));
     if (result.changes === 0) {
       // The guards passed in-transaction but the guarded UPDATE matched no
       // row: a concurrent mutation won the race. Nothing was written.
@@ -2009,9 +2230,9 @@ export function resetItemsForRetry(
       skipped.push({ id, reason: 'not_found' });
       continue;
     }
-    if (item.stage === 'sourcing' && !options.sourcingEngineEnabled) {
+    if (storedStageIs(item.stage, 'route_sources') && !options.sourcingEngineEnabled) {
       toFallback.push(id);
-    } else if (item.stage === 'sourcing' && options.sourcingEngineEnabled) {
+    } else if (storedStageIs(item.stage, 'route_sources') && options.sourcingEngineEnabled) {
       // Engine ON: retry stays in Sourcing but supersedes the evidence
       // generation and resets to pending for a clean re-run (ADR 0014).
       // Marker-v0 (pre-Amendment-A) items are excluded: their cohort is
@@ -2079,15 +2300,16 @@ const AUTO_ADVANCE_COLUMNS = 'i.id, i.batch_id, i.source_url, i.source_type, i.e
  */
 export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceRow[] {
   const db = getDb();
+  const [discA, discB] = stagePredicateParams('find_product_page');
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
-       AND i.stage = 'discovery' AND i.stage_status = 'completed'
+       AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.source_url IS NOT NULL
      ORDER BY i.row_number`,
-  ).all(workspaceId) as AutoAdvanceRow[];
+  ).all(workspaceId, discA, discB) as AutoAdvanceRow[];
 }
 
 /**
@@ -2100,15 +2322,16 @@ export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceR
  */
 export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
   const db = getDb();
+  const [extA, extB] = stagePredicateParams('collect_details');
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
-       AND i.stage = 'extraction' AND i.stage_status = 'completed'
+       AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.extraction_data_json IS NOT NULL
      ORDER BY i.row_number`,
-  ).all(workspaceId) as AutoAdvanceRow[];
+  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
 }
 
 /**
@@ -2118,14 +2341,15 @@ export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
  */
 export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
   const db = getDb();
+  const [curA, curB] = stagePredicateParams('prepare_listing');
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
-       AND i.stage = 'curation' AND i.stage_status = 'completed'
+       AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
      ORDER BY i.row_number`,
-  ).all(workspaceId) as AutoAdvanceRow[];
+  ).all(workspaceId, curA, curB) as AutoAdvanceRow[];
 }
 
 /**
@@ -2137,17 +2361,18 @@ export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
  */
 export function listBlockedExtractionItemsByWorkspace(workspaceId: string): AutoAdvanceRow[] {
   const db = getDb();
+  const [extA, extB] = stagePredicateParams('collect_details');
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
-       AND i.stage = 'extraction'
+       AND (i.stage = ? OR i.stage = ?)
        AND i.stage_status IN ('failed', 'needs_input')
        AND (i.source_type IS NULL OR i.source_type != 'distributor_record')
        AND i.source_url IS NOT NULL
      ORDER BY i.row_number`,
-  ).all(workspaceId) as AutoAdvanceRow[];
+  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
 }
 
 /**
@@ -2158,14 +2383,19 @@ export function listBlockedExtractionItemsByWorkspace(workspaceId: string): Auto
 export function advanceDiscoveryToExtraction(itemId: string): boolean {
   const db = getDb();
   const now = new Date().toISOString();
-  const result = db.query(
-    `UPDATE onboarding_items
-     SET stage = 'extraction', stage_status = 'pending', error_message = NULL,
-         retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'discovery' AND stage_status = 'completed'
-       AND source_url IS NOT NULL`,
-  ).run(now, itemId);
-  return result.changes > 0;
+  return db.transaction(() => {
+    const version = readStorageVersion(db);
+    const encoded = encodeForStorage('collect_details', version);
+    const [fromA, fromB] = stagePredicateParams('find_product_page');
+    const result = db.query(
+      `UPDATE onboarding_items
+       SET stage = ?, stage_status = 'pending', error_message = NULL,
+           retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'
+         AND source_url IS NOT NULL`,
+    ).run(encoded, now, itemId, fromA, fromB);
+    return result.changes > 0;
+  })();
 }
 
 /**
@@ -2177,13 +2407,18 @@ export function advanceDiscoveryToExtraction(itemId: string): boolean {
 export function advanceExtractionToCuration(itemId: string): boolean {
   const db = getDb();
   const now = new Date().toISOString();
-  const result = db.query(
-    `UPDATE onboarding_items
-     SET stage = 'curation', stage_status = 'pending', error_message = NULL,
-         retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'extraction' AND stage_status = 'completed'`,
-  ).run(now, itemId);
-  return result.changes > 0;
+  return db.transaction(() => {
+    const version = readStorageVersion(db);
+    const encoded = encodeForStorage('prepare_listing', version);
+    const [fromA, fromB] = stagePredicateParams('collect_details');
+    const result = db.query(
+      `UPDATE onboarding_items
+       SET stage = ?, stage_status = 'pending', error_message = NULL,
+           retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'`,
+    ).run(encoded, now, itemId, fromA, fromB);
+    return result.changes > 0;
+  })();
 }
 
 /**
@@ -2195,13 +2430,18 @@ export function advanceExtractionToCuration(itemId: string): boolean {
 export function advanceCurationToReview(itemId: string): boolean {
   const db = getDb();
   const now = new Date().toISOString();
-  const result = db.query(
-    `UPDATE onboarding_items
-     SET stage = 'review', stage_status = 'pending', error_message = NULL,
-         retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'curation' AND stage_status = 'completed'`,
-  ).run(now, itemId);
-  return result.changes > 0;
+  return db.transaction(() => {
+    const version = readStorageVersion(db);
+    const encoded = encodeForStorage('review_listings', version);
+    const [fromA, fromB] = stagePredicateParams('prepare_listing');
+    const result = db.query(
+      `UPDATE onboarding_items
+       SET stage = ?, stage_status = 'pending', error_message = NULL,
+           retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'`,
+    ).run(encoded, now, itemId, fromA, fromB);
+    return result.changes > 0;
+  })();
 }
 
 /**
@@ -2213,12 +2453,13 @@ export function advanceCurationToReview(itemId: string): boolean {
 export function requeueBlockedExtractionItem(itemId: string): boolean {
   const db = getDb();
   const now = new Date().toISOString();
+  const [extA, extB] = stagePredicateParams('collect_details');
   const result = db.query(
     `UPDATE onboarding_items
      SET stage_status = 'pending', error_message = NULL, retry_count = 0,
          claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'extraction' AND stage_status IN ('failed', 'needs_input')`,
-  ).run(now, itemId);
+     WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status IN ('failed', 'needs_input')`,
+  ).run(now, itemId, extA, extB);
   return result.changes > 0;
 }
 
@@ -2250,12 +2491,17 @@ export function releaseHeldFamilyClaim(itemId: string, workerId: string): boolea
 export function reopenApprovedForReapproval(itemId: string): boolean {
   const db = getDb();
   const now = new Date().toISOString();
-  const result = db.query(
-    `UPDATE onboarding_items
-     SET stage = 'review', stage_status = 'pending', error_message = NULL,
-         retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
-     WHERE id = ? AND stage = 'promotion'`,
-  ).run(now, itemId);
-  return result.changes > 0;
+  return db.transaction(() => {
+    const version = readStorageVersion(db);
+    const encoded = encodeForStorage('review_listings', version);
+    const [fromA, fromB] = stagePredicateParams('create_drafts');
+    const result = db.query(
+      `UPDATE onboarding_items
+       SET stage = ?, stage_status = 'pending', error_message = NULL,
+           retry_count = 0, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?)`,
+    ).run(encoded, now, itemId, fromA, fromB);
+    return result.changes > 0;
+  })();
 }
 

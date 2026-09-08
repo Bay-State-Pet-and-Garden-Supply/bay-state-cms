@@ -2096,6 +2096,35 @@ export function runMigrations(): void {
       addDecCol('has_revised_target', 'INTEGER NOT NULL DEFAULT 0');
       addDecCol('decision_key', 'TEXT');
       addDecCol('superseded_at', 'TEXT');
+      addDecCol('decision_origin', 'TEXT');
+
+      const propCols = db.query('PRAGMA table_info(classification_proposals)').all() as Array<{ name: string }>;
+      const addPropCol = (col: string, def: string) => {
+        if (!propCols.some(c => c.name === col)) {
+          db.exec('ALTER TABLE classification_proposals ADD COLUMN ' + col + ' ' + def);
+          console.log('[Migrations] Added classification_proposals.' + col);
+        }
+      };
+      addPropCol('superseded_at', 'TEXT');
+      addPropCol('refresh_queue_id', 'TEXT');
+
+      const rqCols = db.query('PRAGMA table_info(classification_refresh_queue)').all() as Array<{ name: string }>;
+      const addRqCol = (col: string, def: string) => {
+        if (!rqCols.some(c => c.name === col)) {
+          db.exec('ALTER TABLE classification_refresh_queue ADD COLUMN ' + col + ' ' + def);
+          console.log('[Migrations] Added classification_refresh_queue.' + col);
+        }
+      };
+      addRqCol('source_kind', "TEXT NOT NULL DEFAULT 'onboarding'");
+      addRqCol('onboarding_item_id', 'TEXT');
+      addRqCol('cohort_id', 'TEXT');
+      addRqCol('expected_run_id', 'TEXT');
+      addRqCol('expected_parent_run_id', 'TEXT');
+      addRqCol('trigger_decision_id', 'TEXT');
+      addRqCol('claimed_by', 'TEXT');
+      addRqCol('claimed_at', 'TEXT');
+      addRqCol('attempt_count', 'INTEGER NOT NULL DEFAULT 0');
+      addRqCol('outcome_run_id', 'TEXT');
 
       // Backfill presence for rows that already stored a non-null revised target
       // before the explicit presence column existed.
@@ -4048,6 +4077,79 @@ export function runMigrations(): void {
     console.log('[Migrations] Default-On Sourcing schema migration complete.');
   }
 
+  // ── Parent #101: classification_evidence.source CHECK gains
+  //    `operator_manual` (manual-evidence extraction route).
+  //
+  // Own marker-gated block: installations that already recorded
+  // `default_on_sourcing_schema_version` never re-run that block, so an
+  // `operator_manual` CHECK added there would skip them forever. This block
+  // rebuilds the table ONLY when the stored CHECK predates the member,
+  // preserves every row value exactly, and writes its marker LAST inside one
+  // transaction (`PRAGMA defer_foreign_keys = ON`; any violation rolls back
+  // ALL DDL/data and leaves the marker absent). A fresh DB already has the
+  // member from the classification SQL file — the block then only validates
+  // shape and writes its marker, so fresh and legacy-upgrade DDL converge.
+  const manualSourceVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('manual_evidence_source_schema_version') as { value: string } | undefined;
+  const ceManualDdl = db
+    .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'classification_evidence'")
+    .get() as { sql?: string } | undefined;
+  const manualMemberPresent = Boolean(ceManualDdl?.sql && ceManualDdl.sql.includes("'operator_manual'"));
+  const manualMarkerCorrect = !manualSourceVersion || manualSourceVersion.value === '1';
+  if (manualSourceVersion) {
+    // Marker present: the stored CHECK must carry the member and the marker
+    // value must match. Drift throws — it is not silently repaired.
+    if (!manualMemberPresent || !manualMarkerCorrect) {
+      throw new Error('[Migrations] manual_evidence_source marker present but schema drifted (operator_manual CHECK member or marker value missing)');
+    }
+  } else {
+    db.transaction(() => {
+      db.exec('PRAGMA defer_foreign_keys = ON');
+      if (!manualMemberPresent) {
+        const ceBefore = db.query('SELECT COUNT(*) AS cnt FROM classification_evidence').get() as { cnt: number };
+        const ceBeforeIds = (db.query('SELECT id FROM classification_evidence ORDER BY id').all() as Array<{ id: string }>).map((r) => r.id);
+        db.exec(`
+          CREATE TABLE classification_evidence_new (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES classification_runs(id) ON DELETE CASCADE,
+            onboarding_item_id TEXT,
+            product_sku TEXT NOT NULL,
+            stage_name TEXT NOT NULL,
+            source TEXT NOT NULL CHECK (source IN ('spreadsheet', 'official_product_page', 'distributor_record', 'third_party_page', 'visual_product_evidence', 'page_context', 'approved_product_example', 'catalog_manager_guidance', 'catalog_product', 'operator_manual')),
+            reliability TEXT NOT NULL DEFAULT 'unknown' CHECK (reliability IN ('high', 'medium', 'low', 'conflicting', 'unknown')),
+            attribute_id TEXT,
+            source_url TEXT,
+            source_field TEXT,
+            snippet TEXT,
+            value_json TEXT,
+            metadata_json TEXT,
+            snapshot_json TEXT,
+            retention_expires_at TEXT,
+            created_at TEXT NOT NULL
+          );
+        `);
+        db.exec('INSERT INTO classification_evidence_new SELECT * FROM classification_evidence;');
+        db.exec('DROP TABLE classification_evidence;');
+        db.exec('ALTER TABLE classification_evidence_new RENAME TO classification_evidence;');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_classification_evidence_run ON classification_evidence(run_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_classification_evidence_product_source ON classification_evidence(product_sku, source);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_classification_evidence_product ON classification_evidence(product_sku);');
+        const ceAfter = db.query('SELECT COUNT(*) AS cnt FROM classification_evidence').get() as { cnt: number };
+        const ceAfterIds = (db.query('SELECT id FROM classification_evidence ORDER BY id').all() as Array<{ id: string }>).map((r) => r.id);
+        if (ceAfter.cnt !== ceBefore.cnt || JSON.stringify(ceAfterIds) !== JSON.stringify(ceBeforeIds)) {
+          throw new Error('[Migrations] classification_evidence rebuild row/ID mismatch');
+        }
+      }
+      const ceFkViolations = db.query('PRAGMA foreign_key_check').all() as Array<{ table: string }>;
+      if (ceFkViolations.length > 0) {
+        throw new Error(`[Migrations] manual_evidence_source foreign_key_check failed: ${JSON.stringify(ceFkViolations.slice(0, 5))}`);
+      }
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('manual_evidence_source_schema_version', '1');");
+    })();
+    console.log('[Migrations] Manual-evidence source schema migration complete.');
+  }
+
   // ── Amendment B: distributor_connections connector_type CHECK gains
   //    `html_scraper` (Distributor Scraper connectors, ADR 0014 Amendment B).
   //
@@ -5740,6 +5842,33 @@ export function runMigrations(): void {
     | undefined;
   if (!row) {
     throw new Error('Schema migration did not create app_meta');
+  }
+
+  // Slice 5a (council plan §5.1/§5.3): stage-vocabulary precondition/order
+  // validation ONLY — never an unconditional live startup backfill. The
+  // rename backfill runs exclusively through the offline maintenance script
+  // (`scripts/onboarding-stage-vocabulary.ts --mode=apply`) under quiescence
+  // with a verified backup. Here we only: (a) refuse boot on an unknown
+  // storage version, (b) refuse boot on unknown stage literals when storage
+  // claims v2 (fail closed, never coerce), (c) leave v1/absent untouched.
+  const vocabRow = db.query('SELECT value FROM app_meta WHERE key = ?').get('onboarding_stage_vocabulary_version') as
+    | { value: string }
+    | undefined;
+  if (vocabRow && vocabRow.value !== '1' && vocabRow.value !== '2') {
+    throw new Error(`[Migrations] Unknown ${'onboarding_stage_vocabulary_version'}=${vocabRow.value} — refusing boot (no VITE_* override)`);
+  }
+  if (vocabRow?.value === '2') {
+    const bad = db.query(
+      `SELECT COUNT(*) AS cnt FROM onboarding_items WHERE stage IS NULL OR stage NOT IN
+       ('route_sources','find_product_page','collect_details','prepare_listing','review_listings','create_drafts',
+        'sourcing','discovery','extraction','curation','review','promotion')`,
+    ).get() as { cnt: number };
+    if (bad.cnt > 0) {
+      throw new Error(
+        `[Migrations] Refusing boot: ${bad.cnt} onboarding_items row(s) carry unknown/null stage literals ` +
+          `while onboarding_stage_vocabulary_version=2 — fail closed (no coercion to the first stage)`,
+      );
+    }
   }
 }
 

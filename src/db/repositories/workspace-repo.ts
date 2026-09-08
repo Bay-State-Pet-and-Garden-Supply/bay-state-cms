@@ -15,13 +15,6 @@ export function findWorkspace(): Workspace | null {
   }
 }
 
-function findWorkspaceById(id: string): Workspace | null {
-  const db = getDb();
-  const row = db.query('SELECT * FROM workspace WHERE id = ?').get(id) as Record<string, unknown> | undefined;
-  if (!row) return null;
-  return mapRowToWorkspace(row);
-}
-
 export function insertWorkspace(ws: Workspace): void {
   const db = getDb();
   db.run(

@@ -50,6 +50,9 @@ import type {
   AttributeEvidencePolicy,
   SerializationConfigV2,
   MlFeatureId,
+  DecisionOrigin,
+  TypeReviewDetail,
+  TypeReviewDetailSchema,
 } from './schemas/classification';
 
 export type {
@@ -117,6 +120,8 @@ export type {
   AttributeEvidencePolicy,
   SerializationConfigV2,
   MlFeatureId,
+  DecisionOrigin,
+  TypeReviewDetail,
 };
 
 /** Syncable product status for a change set item */

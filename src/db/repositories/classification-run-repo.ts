@@ -109,6 +109,52 @@ export function getRun(id: string): ClassificationRunRow | null {
   return mapRun(row);
 }
 
+// ─── Cohort member-run narrow readers (Slice 1: relocated verbatim from
+// `src/onboarding/cohort-curator.ts`; statement text, ordering, and
+// transaction membership preserved — these compose inside the caller's
+// transactions exactly as the inline SQL did) ─────────────────────────────
+
+/**
+ * True when a child classification run accumulated model-call or stage side
+ * effects (PR3 hardening, Commit A / R4). A running child with side effects
+ * under a DIFFERENT snapshot authority is retired (never rebound); a
+ * side-effect-free child is re-linked to the new snapshot in place. Both
+ * probes run in order with OR semantics, exactly as the inline version.
+ */
+export function childRunHasSideEffects(childRunId: string): boolean {
+  const db = getDb();
+  const call = db.query('SELECT 1 FROM classification_model_calls WHERE run_id = ? LIMIT 1').get(childRunId);
+  if (call) return true;
+  const stage = db.query('SELECT 1 FROM classification_stage_results WHERE run_id = ? LIMIT 1').get(childRunId);
+  return Boolean(stage);
+}
+
+/** Latest member child lookup (resume guard). LATEST child — NOT latest
+ * refs-bearing child; the refs-bearing lookup is
+ * `getCohortMemberRunForTitleAudit` (never substitute one for the other). */
+export function getLatestMemberChildRun(
+  cohortRunId: string,
+  onboardingItemId: string,
+): { id: string; status: string } | undefined {
+  return getDb().query(
+    `SELECT id, status FROM classification_runs
+     WHERE cohort_run_id = ? AND onboarding_item_id = ?
+     ORDER BY started_at DESC LIMIT 1`,
+  ).get(cohortRunId, onboardingItemId) as { id: string; status: string } | undefined;
+}
+
+/** Proposal rows of one type on a child run, for product-type dependency
+ * stamping (`field_assignment` needs id + target_id; `category_page` needs
+ * id — one reader serves both with the same row order). */
+export function listChildProposalTargets(
+  childRunId: string,
+  proposalType: string,
+): Array<{ id: string; target_id: string | null }> {
+  return getDb().query(
+    'SELECT id, target_id FROM classification_proposals WHERE run_id = ? AND proposal_type = ?',
+  ).all(childRunId, proposalType) as Array<{ id: string; target_id: string | null }>;
+}
+
 /**
  * Resolve an onboarding item's persisted run pointer only when every ownership
  * dimension agrees. Curation JSON is a convenience pointer, never authority.
@@ -188,6 +234,10 @@ export function getProposalsByRun(runId: string): ClassificationProposal[] {
       FROM classification_proposals p WHERE p.run_id = ?`)
     .all(runId) as Record<string, any>[];
   return rows.map(mapProposal);
+}
+
+export function getActiveProposalsByRun(runId: string): ClassificationProposal[] {
+  return getProposalsByRun(runId).filter(p => !p.isStale && p.status !== 'stale');
 }
 
 // fallow-ignore-next-line unused-export — used by tests
@@ -306,6 +356,7 @@ export interface DecisionRowInput {
    * classification_proposal_decision_evidence inside the same transaction.
    */
   evidenceIds?: string[];
+  decisionOrigin?: string | null;
 }
 
 function hasOwn(object: object, key: string): boolean {
@@ -440,14 +491,16 @@ export function insertDecisionRow(
   const revisedValueJson = correctionJson(input);
   const hasRevisedTarget = inputHasRevisedTarget(input) ? 1 : 0;
   const revisedTargetId = hasRevisedTarget ? (input.revisedTargetId ?? null) : null;
+  const decisionOrigin = input.decisionOrigin ?? (input.reviewerId === 'system_auto_accept' ? 'system_auto_accept' : 'human_review');
 
   // Plain INSERT is intentional: only a previously verified action token may
   // be treated as an idempotent retry. PK/FK/CHECK conflicts must fail.
   db.run(
     `INSERT INTO classification_proposal_decisions
      (id, proposal_id, decision, revised_from_id, reviewer_id, reviewer_note,
-      revised_value_json, revised_target_id, has_revised_target, decision_key, superseded_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      revised_value_json, revised_target_id, has_revised_target, decision_key,
+      decision_origin, superseded_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
     [
       decisionId,
       input.proposalId,
@@ -459,6 +512,7 @@ export function insertDecisionRow(
       revisedTargetId,
       hasRevisedTarget,
       actionToken,
+      decisionOrigin,
       createdAt,
     ],
   );
@@ -731,6 +785,7 @@ function mapDecision(row: Record<string, any>): ClassificationProposalDecision {
     hasRevisedTargetId,
     actionToken,
     decisionKey: actionToken,
+    decisionOrigin: row.decision_origin ? String(row.decision_origin) : null,
     supersededAt: row.superseded_at ? String(row.superseded_at) : null,
     createdAt: String(row.created_at),
     ...(hydrateDecisionCitations(row.id) ? { evidenceIds: hydrateDecisionCitations(row.id) } : {}),

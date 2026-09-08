@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-export
-
 import { z } from 'zod';
 import { convertToLbs } from '../weight-converter';
 import { MANUAL_EVIDENCE_FIELD_NAMES } from '../../onboarding/manual-evidence-eligibility';
@@ -206,6 +204,26 @@ export const ManualEvidenceAttestationSchema = z.object({
 export type ManualEvidenceAttestation = z.infer<typeof ManualEvidenceAttestationSchema>;
 
 export const PipelineStageEnum = z.enum([
+  'route_sources',
+  'find_product_page',
+  'collect_details',
+  'prepare_listing',
+  'review_listings',
+  'create_drafts',
+]);
+
+export type PipelineStage = z.infer<typeof PipelineStageEnum>;
+
+/**
+ * Slice 5b native cutover (D1 machine rename) — `PipelineStageEnum` is now
+ * the canonical v2 runtime enum (same order/positions as v1). Storage may
+ * still hold v1 literals until the separately authorized activation; every
+ * repository boundary reads through the storage adapter (`toCanonicalStored`)
+ * and writes through the per-transaction storage encoder (`encodeForStorage`).
+ * Transport defaults to legacy v1 at the version-aware boundary
+ * (`src/server/onboarding-stage-api.ts`); v1 request/receipt bytes preserved.
+ */
+export const LegacyPipelineStageEnum = z.enum([
   'sourcing',
   'discovery',
   'extraction',
@@ -213,8 +231,7 @@ export const PipelineStageEnum = z.enum([
   'review',
   'promotion',
 ]);
-
-export type PipelineStage = z.infer<typeof PipelineStageEnum>;
+export type LegacyPipelineStage = z.infer<typeof LegacyPipelineStageEnum>;
 
 // ─── Extraction Data (structured product output) ────────────────────────────────
 
@@ -778,7 +795,7 @@ export const ManualEvidenceAttestationInputSchema = z
     notes: z.string().max(2000).nullable().default(null),
   })
   .strict();
-export type ManualEvidenceAttestationInput = z.infer<typeof ManualEvidenceAttestationInputSchema>;
+export type ManualEvidenceAttestationSchemaType = z.infer<typeof ManualEvidenceAttestationInputSchema>;
 
 /** Per-image rights approval for one operator-supplied manual image. */
 export const ManualEvidenceImageApprovalInputSchema = z
@@ -1286,8 +1303,15 @@ export const OnboardingItemSchema = z.object({
   acceptedEvidenceAttemptId: z.string().nullable().default(null),
   /** The auto-routing decision from Sourcing evaluation. Legacy writer shape, or the strict V2 shape (Amendment A) once written. */
   sourcingDecision: z.union([SourcingDecisionSchema, SourcingDecisionV2Schema]).nullable().default(null),
-  /** Current pipeline stage for this item. */
-  stage: PipelineStageEnum,
+  /**
+   * Current pipeline stage for this item. Slice 5b native: hydrated rows
+   * preserve the STORED spelling (v1 until the separately authorized
+   * storage activation), so the row schema accepts either spelling.
+   * Canonical v2 is the runtime authority; compare/branch only through
+   * the canonical vocabulary helpers, and serialize per wire version at
+   * the transport boundary. Unknown literals fail closed (never coerce).
+   */
+  stage: z.union([PipelineStageEnum, LegacyPipelineStageEnum]),
   /** Status within the current stage. */
   stageStatus: StageStatusEnum,
   /** Preflight / controlled release hold flag: 1 when held from worker processing. */

@@ -75,6 +75,8 @@ export function createBatch(data: {
 
 export function findBatchById(id: string): OnboardingBatch | undefined {
   const db = getDb();
+  // Slice 5a bridge: semantic (dual-spelling) completed counting — both
+  // spellings of the promotion stage accumulate into the same bucket.
   const row = db.query(
     `SELECT 
        b.*,
@@ -85,7 +87,7 @@ export function findBatchById(id: string): OnboardingBatch | undefined {
      LEFT JOIN (
        SELECT 
          batch_id,
-         SUM(CASE WHEN stage = 'promotion' AND stage_status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+         SUM(CASE WHEN (stage = 'promotion' OR stage = 'create_drafts') AND stage_status = 'completed' THEN 1 ELSE 0 END) as completed_count,
          SUM(CASE WHEN stage_status = 'failed' THEN 1 ELSE 0 END) as failed_count,
          SUM(CASE WHEN stage_status = 'skipped' THEN 1 ELSE 0 END) as skipped_count
        FROM onboarding_items
@@ -98,6 +100,7 @@ export function findBatchById(id: string): OnboardingBatch | undefined {
 
 export function listBatches(workspaceId: string): OnboardingBatch[] {
   const db = getDb();
+  // Slice 5a bridge: semantic (dual-spelling) completed counting.
   const rows = db.query(
     `SELECT 
        b.*,
@@ -108,7 +111,7 @@ export function listBatches(workspaceId: string): OnboardingBatch[] {
      LEFT JOIN (
        SELECT 
          batch_id,
-         SUM(CASE WHEN stage = 'promotion' AND stage_status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+         SUM(CASE WHEN (stage = 'promotion' OR stage = 'create_drafts') AND stage_status = 'completed' THEN 1 ELSE 0 END) as completed_count,
          SUM(CASE WHEN stage_status = 'failed' THEN 1 ELSE 0 END) as failed_count,
          SUM(CASE WHEN stage_status = 'skipped' THEN 1 ELSE 0 END) as skipped_count
        FROM onboarding_items
@@ -158,9 +161,11 @@ function getBatchStageDistribution(batchId: string): Record<PipelineStage, numbe
  */
 export function isBatchComplete(batchId: string): boolean {
   const db = getDb();
+  // Slice 5a bridge: dual-spelling archival predicate — v2 create_drafts
+  // counts as the terminal promotion stage (same pattern as the claim predicate).
   const remaining = db.query(
     `SELECT COUNT(*) as count FROM onboarding_items
-     WHERE batch_id = ? AND stage != 'promotion' AND stage_status NOT IN ('skipped', 'failed')`,
+     WHERE batch_id = ? AND (stage != 'promotion' AND stage != 'create_drafts') AND stage_status NOT IN ('skipped', 'failed')`,
   ).get(batchId) as { count: number };
   return remaining.count === 0;
 }
