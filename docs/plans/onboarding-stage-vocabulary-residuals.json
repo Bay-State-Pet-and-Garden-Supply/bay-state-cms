@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "scripts/onboarding-stage-compat-smoke.ts",
+      "pattern": "^(154:const\\ claimed\\ =\\ claimItemsForProcessing\\('discovery',\\ 10,\\ workspaceId,\\ 'bridge\\-smoke'\\);|223:const\\ inserted\\ =\\ insertItems\\(batchId,\\ \\[\\{\\ upc:\\ 'upc\\-bridge\\-new',\\ name:\\ 'Bridge\\ New',\\ rowNumber:\\ 90\\ \\}\\],\\ 'discovery',\\ 1\\);)$",
+      "reason": "version=v1+v2 bridge-proof dual input (exercises v1 acceptance on v1 storage + v2 encoding after the sanctioned flip); role=rollback-proof instrumentation, never a runtime authority; test=onboarding-stage-rollback-bridge (spawned emitted artifact)",
+      "version": 1
+    },
+    {
+      "file": "scripts/onboarding-stage-vocabulary.ts",
+      "pattern": "^(54:'sourcing',\\ 'discovery',\\ 'extraction',\\ 'curation',\\ 'review',\\ 'promotion',)$",
+      "reason": "version=v1+v2 maintenance inventory universe (dry-run audit lists all twelve known literals); role=offline maintenance seam, never startup; test=onboarding-stage-migration (dry-run-writes-nothing + failure checkpoints)",
+      "version": 1
+    },
+    {
+      "file": "scripts/repair-system-auto-accept.ts",
+      "pattern": "^(135:`SELECT\\ id,\\ stage\\ FROM\\ onboarding_items\\ WHERE\\ id\\ IN\\ \\(\\$\\{ph\\}\\)\\ AND\\ stage\\ =\\ 'promotion'`,|229:`UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'review',\\ stage_status\\ =\\ 'pending',\\ updated_at\\ =\\ \\?\\ WHERE\\ id\\ =\\ \\?\\ AND\\ stage\\ =\\ 'promotion'`,)$",
+      "reason": "version=v1 version-known-or-refuse-v2 (v1/absent storage queries byte-identical; v2 storage throws); immutable target bytes untouched; role=offline admin repair (never run in this tranche); test=onboarding-stage-migration refuse-v2 check",
+      "version": 1
+    },
+    {
+      "file": "scripts/unblock-sourcing-conflicts.ts",
+      "pattern": "^(45:WHERE\\ stage\\ =\\ 'sourcing'\\ AND\\ stage_status\\ =\\ 'needs_input'`,|104:target:\\ 'extraction'\\ as\\ const,)$",
+      "reason": "version=v1 version-known-or-refuse-v2 (v1/absent storage: v1 query byte-identical; v2 storage throws); route IDs + V2 decision target bytes immutable; role=offline admin repair; test=onboarding-stage-migration refuse-v2 check",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/BatchWorkspace.tsx",
+      "pattern": "^(61:\\* Raw pipeline stage/stage_status are secondary diagnostics only\\.|252::\\ view\\ ===\\ 'review'\\ \\?\\ 'review'|411:onOpenFullBatchReview=\\{\\(\\)\\ =>\\ openOperation\\('review'\\)\\}|525:<LinearScopeBanner\\ scope=\\{`Entire\\ batch\\ \u2014\\ \\$\\{view\\ ===\\ 'attention'\\ \\?\\ 'Needs\\ Attention'\\ :\\ view\\ ===\\ 'processing'\\ \\?\\ 'Processing'\\ :\\ view\\ ===\\ 'family'\\ \\?\\ 'Waiting\\ on\\ Fa|529:\\{view\\ ===\\ 'review'\\ \\&\\&\\ <ReviewWorkspace\\ batchId=\\{batchId\\}\\ />\\}|573:activeId=\\{activeOperation\\ ===\\ 'attention'\\ \\?\\ 'needs_attention'\\ :\\ activeOperation\\ ===\\ 'processing'\\ \\?\\ 'processing'\\ :\\ activeOperation\\ ===\\ 'family'\\ \\?\\ 'waiting_on_fam|579:else\\ if\\ \\(tab\\ ===\\ 'review'\\)\\ onOpenOperation\\('review'\\);)$",
+      "reason": "version=n/a legacy operation/tab IDs (Table C), not pipeline stages; raw stage badges are stored-spelling diagnostic passthrough; role=secondary operation navigation + diagnostics; test=onboarding-linear-shell matrix",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/PrepareListingView.tsx",
+      "pattern": "^(19:onOpenOperation:\\ \\(view:\\ 'attention'\\ \\|\\ 'family'\\ \\|\\ 'review'\\)\\ =>\\ void;|62:onClick=\\{\\(\\)\\ =>\\ onOpenOperation\\(section\\.operationLink\\ as\\ 'attention'\\ \\|\\ 'family'\\ \\|\\ 'review'\\)\\})$",
+      "reason": "version=n/a legacy operation-view union (attention/family/review), not pipeline stages; role=sectioned stage view links; test=onboarding-prepare-listing suite",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/batch-workspace-logic.ts",
+      "pattern": "^(21:\\|\\ 'review'|69:id:\\ 'review',|222:return\\ 'review';)$",
+      "reason": "version=n/a legacy operation/tab IDs (Table C ?tab= destinations), not pipeline stages; role=secondary operation navigation; test=onboarding-linear-shell 640-case matrix + batch-workspace-logic suite",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/linear-workspace-logic.ts",
+      "pattern": "^(103:'review',|117:\\|\\ 'review'|146:case\\ 'review':|147:return\\ \\{\\ kind:\\ 'operation',\\ view:\\ 'review'\\ \\};)$",
+      "reason": "version=n/a legacy operation/tab IDs (Table C), not pipeline stages; role=linear navigation resolver; test=onboarding-linear-shell matrix (expected ledger, never production resolver)",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/prepare-listing-logic.ts",
+      "pattern": "^(42:operationLink:\\ 'review',|49:operationLink:\\ 'review',|56:operationLink:\\ 'review',)$",
+      "reason": "version=n/a legacy operation links (attention/family/review views), not pipeline stages; role=read-only section presentation; test=onboarding-prepare-listing suite",
+      "version": 1
+    },
+    {
+      "file": "src/client/components/onboarding/processing/processing-logic.ts",
+      "pattern": "^(35:'extraction',|42:'curation',)$",
+      "reason": "version=n/a independent WorkActivity enum (ACTIVITY_ORDER/ACTIVITY_BADGE_*), explicitly not STAGE_ORDER (inventory non-stage); role=activity presentation; test=attention/processing suites",
+      "version": 1
+    },
+    {
+      "file": "src/db/migrations.ts",
+      "pattern": "^(242:CASE\\ WHEN\\ i\\.stage\\ =\\ 'promotion'\\ THEN\\ i\\.updated_at\\ ELSE\\ NULL\\ END,|243:CASE\\ WHEN\\ i\\.stage\\ =\\ 'promotion'\\ THEN\\ 'legacy'\\ ELSE\\ NULL\\ END,|246:WHERE\\ \\(i\\.stage\\ =\\ 'review'\\ AND\\ i\\.stage_status\\ =\\ 'completed'\\)\\ OR\\ i\\.stage\\ =\\ 'promotion'|261:AND\\ item_id\\ IN\\ \\(SELECT\\ id\\ FROM\\ onboarding_items\\ WHERE\\ stage\\ =\\ 'promotion'\\)|297:AND\\ item_id\\ IN\\ \\(SELECT\\ id\\ FROM\\ onboarding_items\\ WHERE\\ stage\\ =\\ 'promotion'\\)|5263:target:\\ 'discovery',|5278:target:\\ 'discovery',|5295:target:\\ 'discovery',|5313:target:\\ 'discovery',|5835:'sourcing','discovery','extraction','curation','review','promotion'\\)`,)$",
+      "reason": "version=v1 historical migration literals (operator-review backfill, old-status upgrade ordering, seeded V2 decision bytes, legacy CHECK/DDL inventory); role=historical upgrade chain, preserved byte-identical; test=db-migration + acceptance-migration",
+      "version": 1
+    },
+    {
+      "file": "src/db/onboarding-stage-vocabulary-migration.sql",
+      "pattern": "^(25:\\-\\-\\ \\ \\ \\('sourcing','discovery','extraction','curation','review','promotion',)$",
+      "reason": "version=v1 comment cites the six legacy literals being replaced (the UPDATE statements carry v2); role=sanctioned offline migration step, never startup; test=onboarding-stage-migration",
+      "version": 1
+    },
+    {
+      "file": "src/db/repositories/onboarding-item-repo.ts",
+      "pattern": "^(149:target:\\ 'discovery',|165:target:\\ 'discovery',|183:target:\\ 'discovery',|200:target:\\ 'discovery',|217:target:\\ 'extraction',|1858:target:\\ 'discovery',|1871:target:\\ 'discovery',|1897:target:\\ 'discovery',|1910:target:\\ 'discovery',|1929:target:\\ 'extraction',|1957:target:\\ 'discovery',|1991:target:\\ 'discovery',|2161:target:\\ 'discovery',)$",
+      "reason": "version=v1-recorded immutable SourcingDecisionV2 target bytes (interpreted via artifacts module, never rewritten); role=immutable decision normalization; test=onboarding-stage-history-compat",
+      "version": 1
+    },
+    {
+      "file": "src/db/stage-pipeline-migration.sql",
+      "pattern": "^(6:ALTER\\ TABLE\\ onboarding_items\\ ADD\\ COLUMN\\ stage\\ TEXT\\ NOT\\ NULL\\ DEFAULT\\ 'discovery';|10:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'discovery',\\ \\ stage_status\\ =\\ 'pending'\\ \\ \\ \\ \\ WHERE\\ status\\ =\\ 'imported';|11:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'discovery',\\ \\ stage_status\\ =\\ 'in_progress'\\ WHERE\\ status\\ =\\ 'discovering';|12:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'discovery',\\ \\ stage_status\\ =\\ 'completed'\\ \\ \\ WHERE\\ status\\ IN\\ \\('source_found',\\ 'source_confirmed'\\);|13:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'extraction',\\ stage_status\\ =\\ 'in_progress'\\ WHERE\\ status\\ =\\ 'extracting';|14:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'extraction',\\ stage_status\\ =\\ 'completed'\\ \\ \\ WHERE\\ status\\ =\\ 'extracted';|15:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'curation',\\ \\ \\ stage_status\\ =\\ 'in_progress'\\ WHERE\\ status\\ =\\ 'curating';|16:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'curation',\\ \\ \\ stage_status\\ =\\ 'completed'\\ \\ \\ WHERE\\ status\\ IN\\ \\('needs_review',\\ 'curated'\\);|17:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'review',\\ \\ \\ \\ \\ stage_status\\ =\\ 'completed'\\ \\ \\ WHERE\\ status\\ =\\ 'ready';|18:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'promotion',\\ \\ stage_status\\ =\\ 'completed'\\ \\ \\ WHERE\\ status\\ =\\ 'promoted';|22:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'discovery',\\ \\ stage_status\\ =\\ 'failed'\\ WHERE\\ status\\ =\\ 'failed'\\ AND\\ source_url\\ IS\\ NULL\\ AND\\ extraction_data_json\\ IS\\ NULL;|23:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'extraction',\\ stage_status\\ =\\ 'failed'\\ WHERE\\ status\\ =\\ 'failed'\\ AND\\ source_url\\ IS\\ NOT\\ NULL\\ AND\\ extraction_data_json\\ IS\\ NULL;|24:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'curation',\\ \\ \\ stage_status\\ =\\ 'failed'\\ WHERE\\ status\\ =\\ 'failed'\\ AND\\ extraction_data_json\\ IS\\ NOT\\ NULL\\ AND\\ curation_data_json\\ IS|25:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'review',\\ \\ \\ \\ \\ stage_status\\ =\\ 'failed'\\ WHERE\\ status\\ =\\ 'failed'\\ AND\\ curation_data_json\\ IS\\ NOT\\ NULL;|28:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'discovery',\\ \\ stage_status\\ =\\ 'skipped'\\ WHERE\\ status\\ =\\ 'skipped'\\ AND\\ source_url\\ IS\\ NULL\\ AND\\ extraction_data_json\\ IS\\ NULL;|29:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'extraction',\\ stage_status\\ =\\ 'skipped'\\ WHERE\\ status\\ =\\ 'skipped'\\ AND\\ source_url\\ IS\\ NOT\\ NULL\\ AND\\ extraction_data_json\\ IS\\ NULL;|30:UPDATE\\ onboarding_items\\ SET\\ stage\\ =\\ 'curation',\\ \\ \\ stage_status\\ =\\ 'skipped'\\ WHERE\\ status\\ =\\ 'skipped'\\ AND\\ extraction_data_json\\ IS\\ NOT\\ NULL;)$",
+      "reason": "version=v1 historical old-status-to-v1 upgrade step, preserved as the v1 convergence prerequisite; role=historical migration; test=db-migration",
+      "version": 1
+    },
+    {
+      "file": "src/onboarding/draft-promoter.ts",
+      "pattern": "^(1134:recordHistoryEvent\\(workspaceId,\\ item\\.upc,\\ 'promotion',\\ \\{)$",
+      "reason": "version=n/a classification-history event label (recordHistoryEvent eventType=promotion), not the pipeline enum; role=history audit label; test=draft-promoter + durable-approval-promote",
+      "version": 1
+    },
+    {
+      "file": "src/onboarding/job-queue.ts",
+      "pattern": "^(946:target:\\ 'discovery',|974:target:\\ 'discovery',|1001:target:\\ 'discovery',|1081:target:\\ 'sourcing',|1129:target:\\ 'extraction',|1148:target:\\ 'discovery',|1169:target:\\ 'discovery',|1190:target:\\ 'discovery',)$",
+      "reason": "version=v1-recorded immutable SourcingDecisionV2 target bytes in constructed decisions (runtime targetStage args are canonical v2); role=immutable decision payloads; test=onboarding-stage-history-compat + sourcing-default-on-e2e",
+      "version": 1
+    },
+    {
+      "file": "src/onboarding/onboarding-work-state.ts",
+      "pattern": "^(418:return\\ 'curation';|675:if\\ \\(granular\\ !==\\ 'curation'\\ \\&\\&\\ semanticBlock\\.activity\\ ===\\ 'semantic_validation'\\)\\ \\{|731:activity:\\ 'review',|743:activity:\\ 'review',|754:return\\ build\\(item,\\ row,\\ cohort,\\ \\{\\ category:\\ 'ready_for_review',\\ activity:\\ 'review',\\ label:\\ 'Ready\\ for\\ review'\\ \\}\\);|760:const\\ activityForProcessing\\ =\\ granularActivity\\ !==\\ 'curation'\\ \\?\\ granularActivity\\ :\\ 'curation';|789:return\\ build\\(item,\\ row,\\ cohort,\\ \\{\\ category:\\ 'processing',\\ activity:\\ 'extraction',\\ label:\\ 'Distributor\\ materialization\\ complete'\\ \\}\\);|791:return\\ build\\(item,\\ row,\\ cohort,\\ \\{\\ category:\\ 'processing',\\ activity:\\ 'extraction',\\ label:\\ 'Materializing\\ distributor\\ data'\\ \\}\\);|819:return\\ build\\(item,\\ row,\\ cohort,\\ \\{\\ category:\\ 'processing',\\ activity:\\ 'extraction',\\ label:\\ 'Extraction\\ complete'\\ \\}\\);|821:return\\ build\\(item,\\ row,\\ cohort,\\ \\{\\ category:\\ 'processing',\\ activity:\\ 'extraction',\\ label:\\ 'Extracting\\ product\\ data'\\ \\}\\);)$",
+      "reason": "version=n/a independent WorkActivity values in activity fields (return curation fallback, granular comparisons, extraction/review activity labels), explicitly not pipeline stages; role=activity projection facet; test=onboarding-work-state + preparation suites",
+      "version": 1
+    },
+    {
+      "file": "src/shared/onboarding-stage-vocabulary.ts",
+      "pattern": "^(31:'sourcing',|32:'discovery',|33:'extraction',|34:'curation',|35:'review',|36:'promotion',|52:'sourcing',|53:'discovery',|54:'extraction',|55:'curation',|56:'review',|57:'promotion',|82:route_sources:\\ 'sourcing',|83:find_product_page:\\ 'discovery',|84:collect_details:\\ 'extraction',|85:prepare_listing:\\ 'curation',|86:review_listings:\\ 'review',|87:create_drafts:\\ 'promotion',)$",
+      "reason": "version=v1 legacy authority half (StageV1Enum/STAGE_ORDER_V1/V1_TO_V2 + dual inventory SQL); role=canonical v1<->v2 authority, the single version-aware adapter source; test=onboarding-stage-history-compat + onboarding-stage-vocabulary suite",
+      "version": 1
+    },
+    {
+      "file": "src/shared/schemas/onboarding-work-state.ts",
+      "pattern": "^(57:'extraction',|58:'curation',|59://\\ Granular\\ curation\\ sub\\-stages\\ \\(Task\\ 1\\):\\ refinement\\ of\\ 'curation'\\ for|60://\\ pipeline\\ observability\\.\\ Backward\\-compatible\\ \u2014\\ 'curation'\\ remains\\ the|68:'review',)$",
+      "reason": "version=n/a independent WorkActivity enum (granular curation sub-activities) + comments citing curation observability; role=activity vocabulary, not pipeline stages; test=onboarding-preparation-schema + work-state suites",
+      "version": 1
+    },
+    {
+      "file": "src/shared/schemas/onboarding.ts",
+      "pattern": "^(229:  'sourcing',|230:  'discovery',|231:  'extraction',|232:  'curation',|233:  'review',|234:  'promotion',|621:target:\\ z\\.literal\\('extraction'\\),|638:target:\\ z\\.literal\\('discovery'\\),|651:target:\\ z\\.literal\\('discovery'\\),|664:target:\\ z\\.literal\\('discovery'\\),|677:target:\\ z\\.literal\\('sourcing'\\),|698:target:\\ z\\.literal\\('sourcing'\\),)$",
+      "reason": "version=v1 LegacyPipelineStageEnum authority + v1-recorded immutable SourcingDecisionV2 target literals; role=legacy wire/immutable-format authority; test=onboarding-stage-history-compat + onboarding-stage-api-compat",
+      "version": 1
+    }
+  ]
+}
