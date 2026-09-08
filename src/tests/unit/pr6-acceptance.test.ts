@@ -343,7 +343,7 @@ function newWorkspace(): { workspaceId: string; workspacePath: string } {
 }
 
 function settledExtraction(overrides: Record<string, any> = {}): Record<string, any> {
-  return {
+  const ext = {
     title: 'Original Web Title',
     brand: 'Acme',
     description: 'Original description',
@@ -372,6 +372,14 @@ function settledExtraction(overrides: Record<string, any> = {}): Record<string, 
     productIntelligenceEvidence: [],
     ...overrides,
   };
+  // Fixture realism (issue #111): real OCR reads EACH package, so items
+  // with different name weights must not share one OCR weight — a shared
+  // value fabricates contradictory evidence (see the T7 cascade note on
+  // deterministicTitleWithVariants). Override per item via _ocrWeight.
+  if (overrides._ocrWeight !== undefined) {
+    ext.packagingOcrData = { ...ext.packagingOcrData, weight: overrides._ocrWeight };
+  }
+  return ext;
 }
 
 /** ocrInputHash for the same canonical input set computeOcrInputHash uses. */
@@ -405,6 +413,7 @@ function createReadyCohort(
     delete ext._sourceUrl;
     delete ext._name;
     delete ext._brandHint;
+    delete ext._ocrWeight;
     if (ext.ocrInputHash === undefined) {
       ext.ocrInputHash = expectedOcrInputHash(sourceUrl, ext);
     }
@@ -473,7 +482,7 @@ function outputRowIds(runId: string): string[] {
 
 const TWO_MEMBER_EXTRACTIONS = {
   '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-  '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
+  '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _ocrWeight: '10 lb' }),
 };
 
 /** Write the active v2 bundle + persist its config snapshot, then create the
@@ -614,7 +623,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const THREE_MEMBER_EXTRACTIONS = {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
+      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _ocrWeight: '10 lb' }),
       '100000000003': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb' }),
     };
     const { items } = await prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
@@ -826,7 +835,7 @@ describe('PR6 acceptance — durable parent title coordination, replay-safe afte
     const extByUpc = {
       // Two members form one `groupByProductLine` group (same brand + stem).
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Purina' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Purina' }),
+      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Purina', _ocrWeight: '10 lb' }),
       // A TRUE singleton: same brand but a DIFFERENT stem (its own group of 1)
       // — merged into the same cohort below so the cohort has >=2 SKUs but the
       // member's ACTUAL frozen group size is 1.

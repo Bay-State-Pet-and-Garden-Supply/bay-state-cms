@@ -17,7 +17,7 @@
 import { getLlmConfigForTask, callLlmForTask, callLlmForTaskWithProvenance } from './llm-client';
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { familyGroupingIdentityFor, knownBrandsForBatch } from './product-line-grouper';
-import { buildCohortPrompt, FORMAT_RULES, ensureBrandInTitle } from './title-prompt-template';
+import { buildCohortPrompt, FORMAT_RULES, ensureBrandInTitle, ensureVariantTokensInTitle } from './title-prompt-template';
 import type { CohortExecutionTypeContext } from './title-prompt-template';
 import { normalizeTitleAuthorityString, TITLE_AUTHORITY_TRUNCATION } from './cohort-title-hash';
 import { HeartbeatLostError } from '../classification/heartbeat-errors';
@@ -323,6 +323,72 @@ export function formatDeterministicTitle(
 // ─── Core Coordination Logic ──────────────────────────────────────────────────
 
 /**
+ * Variant sources for one cohort member (issue #111): spreadsheet names,
+ * official/distributor titles, structured weight, distributor variant
+ * attributes (size/capacity/count), structured OCR measurements, distributor
+ * reference names, and case pack / unit of measure. The authorship
+ * guarantee restores from this merged set — never invents. Manual evidence
+ * has no item-level counterpart, so manual-only sizes stay member-side and
+ * the member holds (missing_size) rather than throwing parent-defect.
+ */
+// fallow-ignore-next-line unused-export — used by product-curator member fallbacks
+export function itemVariantSources(item: OnboardingItem): Array<string | null | undefined> {
+  const ext = item.extractionData as {
+    title?: string | null;
+    weight?: string | null;
+    variantAttributes?: Record<string, string> | null;
+    packagingTitle?: string | null;
+    packagingOcrData?: { productName?: string | null; weight?: string | null; size?: string | null; count?: string | null } | null;
+    distributorReferenceValues?: Record<string, string[]> | null;
+    casePack?: string | null;
+    unitOfMeasure?: string | null;
+  } | null | undefined;
+  return [
+    item.name,
+    item.expectedName,
+    ext?.title,
+    ext?.weight,
+    ...(ext?.variantAttributes ? Object.values(ext.variantAttributes) : []),
+    ext?.packagingTitle,
+    ext?.packagingOcrData?.productName,
+    ext?.packagingOcrData?.weight,
+    ext?.packagingOcrData?.size,
+    ext?.packagingOcrData?.count,
+    ...(ext?.distributorReferenceValues ? Object.values(ext.distributorReferenceValues).flat() : []),
+    ext?.casePack,
+    ext?.unitOfMeasure,
+  ];
+}
+
+/**
+ * Deterministic fallback title with the variant guarantee applied
+ * (issue #111): the spreadsheet-derived title plus any evidenced variant
+ * tokens missing from it, so fallback sets obey the same rule as
+ * LLM-coordinated sets. Unknown sizes leave the title unchanged — the
+ * member holds later via missing_size abstention.
+ *
+ * NOTE (issue #111 follow-up): contradictory evidence is appended, not
+ * adjudicated — e.g. an OCR weight disagreeing with the name-embedded
+ * size lands in the title verbatim. A family mixing such titles fails T7
+ * family validation, which cascades past title-lint for the whole family.
+ * Conflict handling (evidence-conflict routing for contradictory variant
+ * values) is intentionally out of scope here; fixture OCR weights must
+ * therefore stay consistent with each item's own size.
+ */
+// fallow-ignore-next-line unused-export — used by product-curator member fallbacks
+export function deterministicTitleWithVariants(
+  spreadsheetName: string | null | undefined,
+  upc: string,
+  brandHint: string | null | undefined,
+  variantSources: Array<string | null | undefined>,
+): string {
+  return ensureVariantTokensInTitle(
+    formatDeterministicTitle(spreadsheetName ?? upc, brandHint ?? null),
+    variantSources,
+  );
+}
+
+/**
  * Canonicalize an abbreviation flavor token to its rendered form.
  */
 function canonicalFlavorToken(token: string): string {
@@ -498,7 +564,7 @@ function lintAndValidateFallbackTitles(
 ): Array<{ upc: string; title: string }> {
   const fallbackTitles = group.map(item => ({
     upc: item.upc,
-    title: formatDeterministicTitle(item.name ?? item.upc, item.brandHint),
+    title: deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item)),
   }));
   // Title Lint (e09 follow-through): the fallback is a candidate set like any
   // other — lint first (blocked => fail closed, zero rows), then validate the
@@ -539,7 +605,7 @@ function lintAndValidateFallbackTitles(
     console.warn(`[CohortCoordinator] Fallback title set family validation failed (${fallbackValidation.reason}), using formatted individual titles for cohort: ${familyId}`);
     return group.map(item => ({
       upc: item.upc,
-      title: formatDeterministicTitle(item.name ?? item.upc, item.brandHint),
+      title: deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item)),
     }));
   }
   return fallbackTitles;
@@ -579,7 +645,7 @@ async function coordinateSingleGroup(
     // All-or-nothing: deterministic fallback for every sibling (linted + T7-validated in the shared helper)
     const fallbackTitles = lintAndValidateFallbackTitles(groupItems.map(i => i.upc).sort().join(','), groupItems, err);
     for (const item of groupItems) {
-      const t = fallbackTitles.find(f => f.upc === item.upc)?.title ?? formatDeterministicTitle(item.name ?? item.upc, item.brandHint);
+      const t = fallbackTitles.find(f => f.upc === item.upc)?.title ?? deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
       groupResultMap.set(item.upc, { title: t, source: 'cohort_fallback' });
     }
   }
@@ -623,7 +689,7 @@ export async function coordinateCohortItems(
       console.warn(`[CohortCoordinator] Authoritative coordination failed for cohort ${opts.authoritativeCohortId}: ${redactTransportText(err.message)}`);
       const fallbackTitles = lintAndValidateFallbackTitles(opts.authoritativeCohortId, authoritativeGroup, err);
       for (const item of authoritativeGroup) {
-        const t = fallbackTitles.find(f => f.upc === item.upc)?.title ?? formatDeterministicTitle(item.name ?? item.upc, item.brandHint);
+        const t = fallbackTitles.find(f => f.upc === item.upc)?.title ?? deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
         result.set(item.upc, { title: t, source: 'cohort_fallback' });
       }
     }
@@ -821,10 +887,18 @@ async function coordinateGroup(
   // BEFORE lint + family gate, so validators and durable rows see final
   // titles. Unknown brand → persisted raw, never invented (the member holds
   // later via missing_brand abstention or the parent-defect error).
+  // Issue #111: same authorship rule for variant tokens — every coordinated
+  // title carries its item's evidenced size/capacity as final tokens BEFORE
+  // lint + family gate. Unknown size → persisted raw (the member holds via
+  // missing_size abstention or the parent-defect error).
   const brandByUpc = new Map(items.map(i => [i.upc, i.brandHint?.trim() || null]));
+  const itemByUpc = new Map(items.map(i => [i.upc, i]));
   for (const [upc, title] of validated) {
     const itemBrand = brandByUpc.get(upc);
-    if (itemBrand) validated.set(upc, ensureBrandInTitle(title, itemBrand));
+    let finalTitle = itemBrand ? ensureBrandInTitle(title, itemBrand) : title;
+    const item = itemByUpc.get(upc);
+    if (item) finalTitle = ensureVariantTokensInTitle(finalTitle, itemVariantSources(item));
+    validated.set(upc, finalTitle);
   }
 
   // Title Lint (e09 follow-through): normalize mechanically-repairable defects

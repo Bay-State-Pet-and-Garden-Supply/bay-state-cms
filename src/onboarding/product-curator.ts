@@ -22,7 +22,7 @@ import { getPageDisplayName, getPageIdentityId } from '../shared/proposal-displa
 import { convertToLbs } from '../shared/weight-converter';
 import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../classification/page-snapshot';
 import { assertClassificationReady } from '../classification/readiness';
-import { coordinateCohortItemsOnce, formatDeterministicTitle } from './cohort-name-coordinator';
+import { coordinateCohortItemsOnce, deterministicTitleWithVariants, itemVariantSources } from './cohort-name-coordinator';
 import { listItemsByBatch, findExtractionDataJsonRowById } from '../db/repositories/onboarding-item-repo';
 import { getDb } from '../db/connection';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../classification/config-loader';
@@ -610,7 +610,7 @@ export async function curateItemWithPipeline(
           console.warn(
             `[ProductCurator] Member ${item.upc} missing a persisted cohort title output — using deterministic fallback.`,
           );
-          preComputedTitle = formatDeterministicTitle(item.name ?? item.upc, item.brandHint);
+          preComputedTitle = deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
           preComputedTitleSource = 'cohort_fallback';
         }
       } else {
@@ -622,14 +622,14 @@ export async function curateItemWithPipeline(
             preComputedTitleSource = selected.source;
           } else {
             // A grouped item must never fall through to an independent title LLM.
-            preComputedTitle = formatDeterministicTitle(item.name ?? item.upc, item.brandHint);
+            preComputedTitle = deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
             preComputedTitleSource = 'cohort_fallback';
           }
         } catch (err) {
           console.warn(
             `[ProductCurator] Cohort title coordination failed for ${item.upc}; using deterministic fallback: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
           );
-          preComputedTitle = formatDeterministicTitle(item.name ?? item.upc, item.brandHint);
+          preComputedTitle = deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
           preComputedTitleSource = 'cohort_fallback';
         }
       }

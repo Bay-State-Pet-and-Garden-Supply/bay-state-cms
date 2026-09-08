@@ -24,7 +24,11 @@ describe('e04s01 — attribute proposals gated empty is abstained', () => {
 describe('e04s01 — title variant preservation', () => {
   test('title-consolidation uses rawRegisterName guard and deterministic fallback', () => {
     const src = fs.readFileSync('src/onboarding/title-consolidation.ts', 'utf8');
-    expect(src).toContain('verifyAndRestoreProtectedTokens');
+    // Issue #111: the raw-only verifyAndRestoreProtectedTokens guard was
+    // extended to the merged known-variant set (ensureVariantTokensInTitle
+    // over variantSourcesOf) — same story, every evidence origin.
+    expect(src).toContain('ensureVariantTokensInTitle');
+    expect(src).toContain('variantSourcesOf');
     expect(src).toContain('formatDeterministicTitle');
     expect(src).toContain('rawRegisterName');
     expect(src).toContain('e04s01');

@@ -58,7 +58,7 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
           // Issue #108: brand evidence required — 'Butcher' already opens
           // the manual title, so the guarantee leaves it byte-identical.
           evidence('spreadsheet', 'brand', 'Butcher'),
-          evidence('operator_manual', 'name', 'Butcher\u2019s Pup Chicken Recipe'),
+          evidence('operator_manual', 'name', 'Butcher\u2019s Pup Chicken Recipe 5 lb'),
         ],
         acceptedProposals: [],
         allProposals: [],
@@ -74,7 +74,9 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     if (result.status !== 'succeeded') return;
     const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
     expect(metadata.titleSource).toBe('manual');
-    expect(metadata.curatedTitle).toBe('Butcher\u2019s Pup Chicken Recipe');
+    // Issue #111: the manual title carries its own size token, so the
+    // variant guarantee leaves it byte-identical.
+    expect(metadata.curatedTitle).toBe('Butcher\u2019s Pup Chicken Recipe 5 lb');
   });
 
   test('non-manual evidence keeps the legacy fallback order byte-identical', async () => {
@@ -100,7 +102,8 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
         // token exactly, so the guarantee leaves the legacy fallback output
         // byte-identical (this test pins fallback ORDER, not branding).
         evidence: [
-          evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS'),
+          // Issue #111: size token lives in the spreadsheet name itself.
+          evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS 5LB'),
           evidence('spreadsheet', 'brand', 'BUTCHER'),
         ],
         acceptedProposals: [],
@@ -117,6 +120,6 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     if (result.status !== 'succeeded') return;
     const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
     expect(metadata.titleSource).toBe('web');
-    expect(metadata.curatedTitle).toBe('BUTCHER PUP TREATS');
+    expect(metadata.curatedTitle).toBe('BUTCHER PUP TREATS 5LB');
   });
 });

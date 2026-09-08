@@ -49,6 +49,8 @@ export default defineConfig({
       // vi.mock()s title-consolidation and bun shares the module registry
       // per process, so co-running would poison these real-path tests.
       'src/tests/unit/brand-title-guarantee.test.ts',
+      // Size guarantee uses bun:sqlite via llm-client; same isolation rule.
+      'src/tests/unit/size-title-guarantee.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',

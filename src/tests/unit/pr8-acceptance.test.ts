@@ -360,7 +360,7 @@ function newWorkspace(): { workspaceId: string; workspacePath: string } {
 }
 
 function settledExtraction(overrides: Record<string, any> = {}): Record<string, any> {
-  return {
+  const ext = {
     title: 'Original Web Title',
     brand: 'Acme',
     description: 'Original description',
@@ -389,6 +389,14 @@ function settledExtraction(overrides: Record<string, any> = {}): Record<string, 
     productIntelligenceEvidence: [],
     ...overrides,
   };
+  // Fixture realism (issue #111): real OCR reads EACH package, so items
+  // with different name weights must not share one OCR weight — a shared
+  // value fabricates contradictory evidence (see the T7 cascade note on
+  // deterministicTitleWithVariants). Override per item via _ocrWeight.
+  if (overrides._ocrWeight !== undefined) {
+    ext.packagingOcrData = { ...ext.packagingOcrData, weight: overrides._ocrWeight };
+  }
+  return ext;
 }
 
 /** ocrInputHash for the same canonical input set computeOcrInputHash uses. */
@@ -422,6 +430,7 @@ function createReadyCohort(
     delete ext._sourceUrl;
     delete ext._name;
     delete ext._brandHint;
+    delete ext._ocrWeight;
     if (ext.ocrInputHash === undefined) {
       ext.ocrInputHash = expectedOcrInputHash(sourceUrl, ext);
     }
@@ -447,7 +456,7 @@ async function drainWorker(worker: OnboardingWorker): Promise<void> {
 const THREE_MEMBER_EXTRACTIONS = {
   // Members 1 + 2 share brand + name stem → ONE `groupByProductLine` group.
   '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme' }),
-  '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme' }),
+  '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme', _ocrWeight: '10 lb' }),
   // Member 3: a DIFFERENT stem → a singleton group of 1.
   '100000000003': settledExtraction({ _name: 'Purina Pro Plan Adult Dog Food Salmon 5 lb', _brandHint: 'Acme' }),
 };
@@ -914,7 +923,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3b (DECISION-B): corrupt stored page payload FAILS the member — no partial draft', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title 5 lb', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map([
       ['100000000001', { output: { status: 'assigned', pages: [{ pageId: 42 }] }, modelCallId: 'x' } as any],
     ]);
@@ -927,7 +936,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3c (DECISION-B): missing page row (no abstained row, no pageCoordinationAbsent marker) FAILS the member — no partial draft', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title 5 lb', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map();
     prepared.pageCoordinationAbsent = false;
     await expect(
@@ -938,7 +947,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3d (DECISION-B): an abstained page output row is a COMPLETE result — the member succeeds with NO pages', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title 5 lb', source: 'llm_cohort' }]]);
     prepared.coordinatedPages = new Map([
       ['100000000001', { output: { status: 'abstained', reason: 'Cohort page LLM policy denied.' }, modelCallId: null }],
     ]);
@@ -947,7 +956,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     // Issue #108 (design B): the hand-built durable title is a valid
     // branded parent output, so the member consumes it byte-for-byte (the
     // page-abstention subject of this test is unaffected).
-    expect(curationData.curatedTitle).toBe('Acme Frozen Coordinated Title');
+    expect(curationData.curatedTitle).toBe('Acme Frozen Coordinated Title 5 lb');
     expect(curationData.titleSource).toBe('llm_cohort');
     const pageProposals = curationData.classificationProposals.filter(p => p.proposalType === 'category_page');
     expect(pageProposals).toHaveLength(0);
@@ -957,7 +966,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
   it('3e (DECISION-B): an attribute-stage failure FAILS the member via the pipeline throw (no partial draft)', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
-    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title', source: 'llm_cohort' }]]);
+    prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title 5 lb', source: 'llm_cohort' }]]);
     // An execution type absent from the frozen snapshot makes
     // `attribute_applicability` fail closed — the pipeline throws and the
     // member fails.

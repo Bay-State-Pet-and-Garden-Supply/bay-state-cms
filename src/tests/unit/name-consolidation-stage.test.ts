@@ -17,6 +17,7 @@ vi.mock('../../onboarding/title-consolidation', () => ({
 }));
 
 import { consolidateProductTitle } from '../../onboarding/title-consolidation';
+import { ensureBrandInTitle, ensureVariantTokensInTitle } from '../../onboarding/title-prompt-template';
 import { nameConsolidationStage } from '../../classification/stages/name-consolidation';
 import type { StageContext, StageInput } from '../../classification/types';
 
@@ -79,6 +80,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'DOG FOOD 5LB' }),
       // Per-attempt distributor titles
       makeEvidence({
@@ -137,6 +141,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
@@ -172,6 +179,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Per-attempt record
@@ -202,6 +212,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Flattened record (no attemptId)
@@ -235,6 +248,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
@@ -263,6 +279,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test Product' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'brand', value: 'Distributor Brand Inc',
@@ -286,6 +305,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Spreadsheet Brand' }),
       makeEvidence({
@@ -312,6 +334,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Distributor Only Product',
@@ -338,6 +363,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Non-string value — should be safely ignored
@@ -372,6 +400,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
@@ -397,6 +428,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test Product' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'T1',
@@ -429,7 +463,12 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
   it('consumes a branded preComputedTitle byte-for-byte without calling the consolidator', async () => {
     const result = await nameConsolidationStage.execute(
-      makeInput({ evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' })] }),
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
       makeContext({ preComputedTitle: 'Acme Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
     );
 
@@ -502,6 +541,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     asMock(consolidateProductTitle).mockRejectedValue(new Error('LLM error'));
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page',
@@ -524,7 +566,7 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     expect(result.status).toBe('succeeded');
     if (result.status !== 'succeeded') throw new Error('Expected success');
-    expect(result.output.metadata?.curatedTitle).toBe('Acme Distributor Fallback Title');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Distributor Fallback Title 5 lb');
   });
 });
 
@@ -567,6 +609,7 @@ describe('nameConsolidationStage — brand guarantee', () => {
         evidence: [
           makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Brandless Product' }),
           makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
         ],
       }),
       makeContext(),
@@ -589,6 +632,7 @@ describe('nameConsolidationStage — brand guarantee', () => {
         evidence: [
           makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
           makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
         ],
       }),
       makeContext(),
@@ -610,6 +654,7 @@ describe('nameConsolidationStage — brand guarantee', () => {
         evidence: [
           makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
           makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
         ],
       }),
       makeContext(),
@@ -670,6 +715,9 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
       distributorRecordEvidence('name', 'E-Z Hang Scale Silver Up to 55 LB'),
       distributorRecordEvidence('brand', 'Salter'),
@@ -702,7 +750,13 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     (noProvAtAll.metadata as Record<string, unknown>).acceptedProviderIds = [];
 
     await nameConsolidationStage.execute(
-      makeInput({ evidence: [noFieldProv, noProvAtAll] }),
+      makeInput({
+        evidence: [
+          noFieldProv,
+          noProvAtAll,
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
       makeContext(),
     );
 
@@ -715,6 +769,9 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
       makeEvidence({
         source: 'third_party_page',
@@ -743,6 +800,9 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
 
     // Operator copied the brandless H1; brand lives only in distributor details.
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
       makeEvidence({ source: 'operator_manual', sourceField: 'name', value: 'E-Z Hang Scale Silver Up to 55 LB' }),
       distributorRecordEvidence('brand', 'Salter'),
@@ -762,6 +822,9 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
       distributorRecordEvidence('brand', '   '),
@@ -772,5 +835,210 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
     expect(callArgs.distributorBrands).toBeUndefined();
     expect(callArgs.brandHint).toBe('Acme');
+  });
+});
+
+// ─── Size/capacity guarantee end-to-end (issue #111) ────────────────────────
+// The consolidator is mocked, so the echo below replays the REAL pure
+// guarantees (brand + variant post-steps from the unmocked template module)
+// over the stage's signal wiring — a faithful end-to-end of evidence →
+// signals → guaranteed title without fabricating a run-bound LLM call.
+function mockEchoConsolidator() {
+  asMock(consolidateProductTitle).mockImplementation(async (signals: {
+    name: string;
+    rawRegisterName?: string;
+    brandHint?: string;
+    webTitle?: string;
+    distributorTitles?: Array<{ title: string }>;
+    distributorVariants?: Array<{ value: string }>;
+    ocrWeight?: string;
+    extractionWeight?: string;
+  }) => {
+    const sources = [
+      signals.name,
+      signals.rawRegisterName,
+      signals.webTitle,
+      signals.ocrWeight,
+      signals.extractionWeight,
+      ...(signals.distributorTitles ?? []).map(t => t.title),
+      ...(signals.distributorVariants ?? []).map(v => v.value),
+    ];
+    const base = signals.distributorTitles?.[0]?.title ?? signals.webTitle ?? signals.name;
+    const title = ensureVariantTokensInTitle(
+      signals.brandHint ? ensureBrandInTitle(base, signals.brandHint) : base,
+      sources,
+    );
+    return { title, source: 'llm' as const };
+  });
+}
+
+describe('nameConsolidationStage — size/capacity guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('Bradley details below a sizeless H1 yield a draft name ending with size tokens (AC1)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale Silver'),
+      distributorRecordEvidence('brand', 'Salter'),
+      distributorRecordEvidence('size', 'Up to 55 LB'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // Brand from adjacent details, size from specs below the H1 — both
+    // guaranteed, size as final tokens.
+    expect(result.output.metadata?.curatedTitle).toBe('Salter E-Z Hang Scale Silver 55 lb');
+    expect(result.output.metadata?.sizeApplied).toEqual(['55 lb']);
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorVariants).toMatchObject([{ field: 'size', value: 'Up to 55 LB' }]);
+  });
+
+  it('raw register size survives into the curated title when expected_name dropped it (AC2)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'expected_name', value: 'DOG FOOD' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'DOG FOOD 5LB' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // The cleaned expected_name lost the size; the raw register name is the
+    // authority — the curated title must end with it as final tokens.
+    const title = result.output.metadata?.curatedTitle as string;
+    expect(title.endsWith('5 lb')).toBe(true);
+    expect(result.output.metadata?.sizeApplied).toEqual(['5 lb']);
+  });
+
+  it('distributor size reaches the title even when absent from the H1 string (AC3)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale'),
+      distributorRecordEvidence('size', '55 LB'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle as string).toMatch(/55 lb$/);
+  });
+
+  it('capacity is a first-class axis in the draft name (AC4)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'BUCKET' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      distributorRecordEvidence('name', 'Acme Bucket'),
+      distributorRecordEvidence('capacity', '5 GAL'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Bucket 5 gal');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorVariants).toMatchObject([{ field: 'capacity', value: '5 GAL' }]);
+  });
+
+  it('official-page weight joins the merged set', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'KIBBLE' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      makeEvidence({ source: 'official_product_page', sourceField: 'title', value: 'Premium Kibble' }),
+      makeEvidence({ source: 'official_product_page', sourceField: 'weight', value: '16 oz' }),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Premium Kibble 16 oz');
+  });
+
+  it('holds missing_size when size is known nowhere, without calling synthesis (AC5)', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Mystery Product' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_size/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws parent-defect for a sizeless durable title against evidenced size', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE 55LB' }),
+            makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+          ],
+        }),
+        makeContext({ runId: 'run-size-1', preComputedTitle: 'Salter Scale', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws parent-defect when the durable title is missing ONE of several authored tokens (require every)', async () => {
+    // Partial pass-through is forbidden: the durable title carries 55 lb
+    // but drops the evidenced 2-Count — one missing authored token still
+    // fails closed loudly.
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE 55LB 2CT' }),
+            makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+          ],
+        }),
+        makeContext({ runId: 'run-size-partial', preComputedTitle: 'Salter Scale 55 lb', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('holds missing_size (not parent-defect) for a distributor-only token gap invisible to authorship', async () => {
+    // The 5 gal token lives ONLY in per-attempt distributor evidence — the
+    // coordinator could never have healed it — so the member holds for
+    // review instead of throwing a stale-parent error.
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Acme Bucket' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          distributorRecordEvidence('name', 'Acme Bucket 5 GAL'),
+        ],
+      }),
+      makeContext({ runId: 'run-size-distonly', preComputedTitle: 'Acme Bucket', preComputedTitleSource: 'llm_cohort' }),
+    );
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_size/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 });

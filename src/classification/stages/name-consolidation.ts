@@ -12,7 +12,7 @@
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { consolidateProductTitle } from '../../onboarding/title-consolidation';
-import { ensureBrandInTitle, titleContainsBrand } from '../../onboarding/title-prompt-template';
+import { ensureBrandInTitle, titleContainsBrand, ensureVariantTokensInTitle, knownVariantTokens, variantTokenPresentInTitle } from '../../onboarding/title-prompt-template';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import { buildModelCallContext } from '../runtime-snapshot';
 import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
@@ -52,6 +52,75 @@ interface DistributorBrandSignal {
   providerId: string;
   attemptId: string;
   confidence: number;
+}
+
+/**
+ * Variant attribute signal from distributor evidence (issue #111): size,
+ * capacity (volume), weight, count/pack-count from merchandising fields
+ * below the distributor title. Capacity is its own axis — never folded
+ * into size text.
+ */
+interface DistributorVariantSignal {
+  field: 'size' | 'capacity' | 'weight' | 'count' | 'packCount';
+  value: string;
+  providerId: string;
+  attemptId: string;
+  confidence: number;
+}
+
+/** Recognized variant-attribute evidence fields (issue #111). */
+const DISTRIBUTOR_VARIANT_FIELDS = ['size', 'capacity', 'weight', 'count', 'packCount'] as const;
+
+/**
+ * Collect distributor variant-attribute signals from distributor_record
+ * evidence. Only consolidated projection rows carry variants (one row per
+ * field, source `distributor_record`); legacy third_party_page rows never
+ * do, so only the former is read. Provider/confidence follow the same
+ * consolidated semantics as the title/brand collector: per-field
+ * provenance map, then accepted providers, authority confidence 1.0.
+ */
+function collectDistributorVariantSignals(
+  evidence: StageInput['evidence'],
+): DistributorVariantSignal[] {
+  const out: DistributorVariantSignal[] = [];
+  const seen = new Set<string>();
+  const candidates = evidence.filter(
+    (e): e is typeof e & { sourceField: string } => e.source === 'distributor_record'
+      && typeof e.sourceField === 'string'
+      && (DISTRIBUTOR_VARIANT_FIELDS as readonly string[]).includes(e.sourceField),
+  );
+  // Authority order first: consolidated rows (metadata.acceptedProviderIds)
+  // outrank stray per-attempt rows. Within a rank, stable insertion
+  // (evidence) order is kept — dedup below is first-wins on
+  // field|provider|value, so the earliest row of each key survives.
+  const rank = (e: StageInput['evidence'][number]): number =>
+    (e.metadata as Record<string, unknown> | null)?.acceptedProviderIds ? 0 : 1;
+  candidates.sort((a, b) => rank(a) - rank(b));
+  for (const e of candidates) {
+    if (typeof e.sourceField !== 'string') continue;
+    const field = e.sourceField;
+    const val = typeof e.value === 'string' ? e.value.trim() : null;
+    if (!val) continue;
+    const meta = (e.metadata ?? {}) as Record<string, unknown>;
+    const fieldProv = meta.fieldProvenance as Record<string, unknown> | undefined;
+    const acceptedProviders = meta.acceptedProviderIds as string[] | undefined;
+    const providerId =
+      (typeof fieldProv?.[field] === 'string' && (fieldProv[field] as string)) ||
+      (typeof meta.providerId === 'string' ? meta.providerId : undefined) ||
+      acceptedProviders?.[0] ||
+      'unknown';
+    const key = `${field}|${providerId}|${val.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      field: field as DistributorVariantSignal['field'],
+      value: val,
+      providerId,
+      attemptId: (meta.attemptId as string) ?? '',
+      confidence: typeof meta.confidence === 'number' ? meta.confidence : 1.0,
+    });
+  }
+  return out;
 }
 
 /**
@@ -242,6 +311,53 @@ export const nameConsolidationStage: StageDefinition = {
     // legacy third_party_page evidence)
     const distributorSignals = collectDistributorSignals(input.evidence);
 
+    // Collect distributor variant attributes: size/capacity/weight/count
+    // from merchandising fields below the distributor title (issue #111).
+    const distributorVariants = collectDistributorVariantSignals(input.evidence);
+
+    // Weight from official-page extraction evidence (issue #111): structured
+    // measurement alongside the web title.
+    const officialWeight = evidenceValue(input.evidence, 'weight', 'official_product_page');
+
+    // Raw register name + OCR measurements are gathered here (before the
+    // cohort branch) so BOTH the coordinated-title path and the per-item
+    // path share one variant authority (issue #111, mirrors #108 brand).
+    // Always also capture the raw register name (the original unabbreviated
+    // name from the spreadsheet import) so size/weight/count/flavor tokens
+    // the expected_name might have lost stay evidenced.
+    const rawRegisterName = evidenceValue(input.evidence, 'name', 'spreadsheet');
+    // Log when the expected name dropped tokens the raw name had
+    if (rawRegisterName && spreadsheetName && rawRegisterName !== spreadsheetName) {
+      console.log(`[NameConsolidation] Raw register name differs from expected_name. Raw: "${rawRegisterName}", expected: "${spreadsheetName}"`);
+    }
+    const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
+    const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
+    const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
+
+    // Merged known-variant sources from every origin (issue #111):
+    // spreadsheet names, web/OCR/manual titles, OCR measurements, official
+    // weight, distributor titles + variant attributes. Titles contribute
+    // embedded tokens; structured values contribute measurements.
+    const variantSources: Array<string | null | undefined> = [
+      spreadsheetName, rawRegisterName, webTitle, manualTitle, ocrTitle,
+      ocrWeight, ocrSize, ocrCount, officialWeight,
+      ...distributorSignals.titles.map(t => t.title),
+      ...distributorVariants.map(v => v.value),
+    ];
+
+    // Authorship-visible subset (issue #111): ONLY channels with a true
+    // item-level counterpart the coordinator can read — spreadsheet names,
+    // official/extraction titles, OCR payload fields, extraction weight.
+    // Manual evidence has no item-level counterpart, and distributor
+    // per-attempt titles/variant rows may carry stray values beyond the
+    // materialized projection — the coordinator never sees those — so
+    // manual-only and distributor-only sizes are a member evidence gap,
+    // never a stale parent (see checkDurableSize below: hold, don't throw).
+    const authoredVariantSources: Array<string | null | undefined> = [
+      spreadsheetName, rawRegisterName, webTitle, ocrTitle,
+      ocrWeight, ocrSize, ocrCount, officialWeight,
+    ];
+
     // Brand hint: prefer spreadsheet → official page → highest-confidence distributor brand.
     // Computed FIRST (issue #108): every title path below either guarantees
     // this brand deterministically or abstains when no brand exists anywhere.
@@ -279,6 +395,40 @@ export const nameConsolidationStage: StageDefinition = {
             reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
           };
         }
+        // Issue #111 (design B, mirrors brand): the durable title must
+        // carry EVERY evidenced size/capacity token — the guarantee lives
+        // at authorship, so the member never mutates it. Runs AFTER the
+        // brand checks below (#108 authority order: brand first, then
+        // variant). No size evidenced anywhere → hold; a token the
+        // authorship could see but dropped → the parent output is stale or
+        // corrupt, fail closed loudly; a token evidenced ONLY manually or
+        // ONLY in distributor per-attempt rows (invisible to the
+        // coordinator) → hold for review, since the parent could never
+        // have healed it.
+        const checkDurableSize = (): StageResult | null => {
+          const knownSize = knownVariantTokens(variantSources);
+          if (knownSize.length === 0) {
+            return {
+              status: 'abstained',
+              reason: 'missing_size: no size/capacity/weight/count in spreadsheet, web/OCR/manual titles, measurements, or distributor variant attributes — supply an operator manual title/size and re-run.',
+            };
+          }
+          const missing = knownSize.filter(t => !variantTokenPresentInTitle(preComputedTitle, t));
+          if (missing.length === 0) return null;
+          const authoredKnown = knownVariantTokens(authoredVariantSources);
+          const authoredMissing = authoredKnown.filter(t => !variantTokenPresentInTitle(preComputedTitle, t));
+          if (authoredMissing.length > 0) {
+            throw new Error(
+              `parent_defect_stale_title: member ${input.sku} (run ${context.runId}) durable coordinated title ` +
+                `"${preComputedTitle}" is missing evidenced variant tokens (${authoredMissing.join(', ')}) — the parent title output is stale or corrupt; ` +
+                're-run coordination. The member never mutates a durable title.',
+            );
+          }
+          return {
+            status: 'abstained',
+            reason: `missing_size: durable coordinated title ("${preComputedTitle}") lacks the manually- or distributor-evidenced size (${missing.join(', ')}) invisible to coordination — re-run coordination or supply an operator manual title/size.`,
+          };
+        };
         if (!titleContainsBrand(preComputedTitle, brandHint)) {
           // The durable title lacks every known brand. When an
           // author-visible channel (spreadsheet/official — the authority
@@ -300,6 +450,9 @@ export const nameConsolidationStage: StageDefinition = {
             reason: 'missing_brand: distributor-only brand evidence against a brandless coordinated title needs operator confirmation (see #110) — supply an operator manual title/brand and re-run.',
           };
         }
+        // Brand checks passed — now the variant check (#111, defined above).
+        const sizeHold = checkDurableSize();
+        if (sizeHold) return sizeHold;
         return {
           status: 'succeeded',
           output: {
@@ -329,19 +482,8 @@ export const nameConsolidationStage: StageDefinition = {
       );
     }
 
-    // Remaining per-item signals (spreadsheet/web/manual/OCR titles and
-    // distributor signals were gathered above, before the cohort branch, so
-    // every path shares one brand authority).
-    const rawRegisterName = evidenceValue(input.evidence, 'name', 'spreadsheet');
-    // Log when the expected name dropped tokens the raw name had
-    if (rawRegisterName && spreadsheetName && rawRegisterName !== spreadsheetName) {
-      console.log(`[NameConsolidation] Raw register name differs from expected_name. Raw: "${rawRegisterName}", expected: "${spreadsheetName}"`);
-    }
-
-    const ocrWeight = evidenceValue(input.evidence, 'weight', 'visual_product_evidence');
-    const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
-    const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
-
+    // Remaining per-item signals were gathered above, before the cohort
+    // branch, so every path shares one brand AND variant authority.
     const fallbackName = spreadsheetName ?? webTitle ?? 'Unknown Product';
 
     // Consider distributor titles as valid signals for availability
@@ -361,6 +503,17 @@ export const nameConsolidationStage: StageDefinition = {
       return {
         status: 'abstained',
         reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
+      };
+    }
+
+    // Issue #111: no size/capacity/weight/count in any evidence → hold.
+    // Same fail-closed shape as missing_brand: the variant guarantee cannot
+    // be verified, and inventing a size is forbidden. Skips the LLM call.
+    const knownSize = knownVariantTokens(variantSources);
+    if (knownSize.length === 0) {
+      return {
+        status: 'abstained',
+        reason: 'missing_size: no size/capacity/weight/count in spreadsheet, web/OCR/manual titles, measurements, or distributor variant attributes — supply an operator manual title/size and re-run.',
       };
     }
 
@@ -391,6 +544,10 @@ export const nameConsolidationStage: StageDefinition = {
           siblingContext,
           distributorTitles: distributorSignals.titles.length > 0 ? distributorSignals.titles : undefined,
           distributorBrands: distributorSignals.brands.length > 0 ? distributorSignals.brands : undefined,
+          distributorVariants: distributorVariants.length > 0
+            ? distributorVariants.map(v => ({ field: v.field, value: v.value, providerId: v.providerId, attemptId: v.attemptId, confidence: v.confidence }))
+            : undefined,
+          extractionWeight: officialWeight ?? undefined,
         },
         context.snapshot
           ? modelPolicyViewFromConfig(
@@ -406,13 +563,19 @@ export const nameConsolidationStage: StageDefinition = {
           : undefined,
       );
 
-      // Defensive: the consolidator reports brandUnverified when it somehow
-      // produced a title without brand evidence (e.g. mocked consolidator in
-      // tests) — hold rather than ship it.
+      // Defensive: the consolidator reports brandUnverified/sizeUnverified
+      // when it somehow produced a title without brand/size evidence (e.g.
+      // mocked consolidator in tests) — hold rather than ship it.
       if (result.brandUnverified) {
         return {
           status: 'abstained',
           reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
+        };
+      }
+      if (result.sizeUnverified) {
+        return {
+          status: 'abstained',
+          reason: 'missing_size: no size/capacity/weight/count in spreadsheet, web/OCR/manual titles, measurements, or distributor variant attributes — supply an operator manual title/size and re-run.',
         };
       }
 
@@ -429,6 +592,7 @@ export const nameConsolidationStage: StageDefinition = {
             curatedTitle: result.title,
             titleSource: result.source,
             brandApplied: result.brandApplied ?? brandHint,
+            sizeApplied: result.sizeApplied ?? knownSize,
             // Durable model-call IDs that produced this title (issue #17 E):
             // carried in stage metadata so the run's provenance is complete.
             modelCallIds: result.modelCallIds ?? [],
@@ -443,6 +607,8 @@ export const nameConsolidationStage: StageDefinition = {
               ocrSize: ocrSize ?? null,
               ocrCount: ocrCount ?? null,
               brandHint: brandHint ?? null,
+              officialWeight: officialWeight ?? null,
+              distributorVariantCount: distributorVariants.length,
               groupId: productLine?.groupId ?? null,
               siblingCount: productLine?.siblingNames.length ?? 0,
               distributorTitleCount: distributorSignals.titles.length,
@@ -459,9 +625,11 @@ export const nameConsolidationStage: StageDefinition = {
       // manual signal, so their fallback order is byte-identical.
       // Issue #108: brandHint is non-null on this path (missing brand
       // abstains above), so the fallback gets the same brand guarantee.
+      // Issue #111: knownSize is non-empty on this path (missing size
+      // abstains above) — the fallback gets the variant guarantee too.
       const bestDistributorTitle = distributorSignals.titles[0]?.title ?? null;
       const rawFallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
-      const fallback = ensureBrandInTitle(rawFallback, brandHint);
+      const fallback = ensureVariantTokensInTitle(ensureBrandInTitle(rawFallback, brandHint), variantSources);
       const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (manualTitle ? 'manual' : (bestDistributorTitle ? 'web' : 'web')));
 
       return {
@@ -476,6 +644,8 @@ export const nameConsolidationStage: StageDefinition = {
           metadata: {
             curatedTitle: fallback,
             titleSource: fallbackSource,
+            brandApplied: brandHint,
+            sizeApplied: knownSize,
             packagingOcrTitle: ocrTitle ?? null,
             signalsUsed: {
               spreadsheetName: spreadsheetName ?? null,
