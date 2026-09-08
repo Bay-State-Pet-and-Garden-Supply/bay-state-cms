@@ -219,3 +219,58 @@ export function getUniversalTierFlags(): UniversalTierFlags {
   const base = loadUniversalTierFlags();
   return universalTierRuntimeOverride ? { ...base, ...universalTierRuntimeOverride } : base;
 }
+
+// ---------------------------------------------------------------------------
+// Type-first curation accuracy guardrail flags (P1/P2)
+// ---------------------------------------------------------------------------
+
+export interface TypeFirstCurationFlags {
+  typeFirstReviewUiEnabled: boolean;
+  typeChangeRefreshWorkerEnabled: boolean;
+  typeDependentRecomputeEnabled: boolean;
+  productTypeDeterministicVerifierMode: 'off' | 'shadow' | 'enforce';
+  productTypeSecondModelShadowEnabled: boolean;
+  productTypeShadowEnabled: boolean;
+  productTypeVerifierEnabled: boolean;
+}
+
+export const DEFAULT_TYPE_FIRST_CURATION_FLAGS: TypeFirstCurationFlags = {
+  typeFirstReviewUiEnabled: false,
+  typeChangeRefreshWorkerEnabled: false,
+  typeDependentRecomputeEnabled: false,
+  productTypeDeterministicVerifierMode: 'off',
+  productTypeSecondModelShadowEnabled: false,
+  productTypeShadowEnabled: false,
+  productTypeVerifierEnabled: false,
+};
+
+let typeFirstRuntimeOverride: Partial<TypeFirstCurationFlags> | null = null;
+
+export function loadTypeFirstCurationFlags(
+  env: Record<string, string | undefined> = process.env,
+): TypeFirstCurationFlags {
+  return {
+    typeFirstReviewUiEnabled: parseBooleanEnv(env['BAYSTATE_CMS_TYPE_FIRST_REVIEW_UI'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.typeFirstReviewUiEnabled),
+    typeChangeRefreshWorkerEnabled: parseBooleanEnv(env['BAYSTATE_CMS_TYPE_CHANGE_REFRESH_WORKER'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.typeChangeRefreshWorkerEnabled),
+    typeDependentRecomputeEnabled: parseBooleanEnv(env['BAYSTATE_CMS_TYPE_DEPENDENT_RECOMPUTE'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.typeDependentRecomputeEnabled),
+    productTypeDeterministicVerifierMode: (env['BAYSTATE_CMS_PRODUCT_TYPE_VERIFIER_MODE'] as any) ?? DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeDeterministicVerifierMode,
+    productTypeSecondModelShadowEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_SECOND_MODEL_SHADOW'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeSecondModelShadowEnabled),
+    productTypeShadowEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_SHADOW'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeShadowEnabled),
+    productTypeVerifierEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_VERIFIER'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeVerifierEnabled),
+  };
+}
+
+export function overrideTypeFirstCurationFlags(next: Partial<TypeFirstCurationFlags>): TypeFirstCurationFlags {
+  typeFirstRuntimeOverride = { ...typeFirstRuntimeOverride, ...next };
+  return getTypeFirstCurationFlags();
+}
+
+export function resetTypeFirstCurationFlagsOverride(): void {
+  typeFirstRuntimeOverride = null;
+}
+
+export function getTypeFirstCurationFlags(): TypeFirstCurationFlags {
+  const base = loadTypeFirstCurationFlags();
+  return typeFirstRuntimeOverride ? { ...base, ...typeFirstRuntimeOverride } : base;
+}
+

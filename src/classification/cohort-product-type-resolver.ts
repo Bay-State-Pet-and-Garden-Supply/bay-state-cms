@@ -32,7 +32,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { hashCanonicalJson } from '../shared/stable-id';
-import { sourceProvenanceFromMember } from '../onboarding/cohort-title-hash';
+import { sourceProvenanceFromMember } from './cohort-decision-authority';
 import type {
   ClassificationEvidence,
   BrandConfig,

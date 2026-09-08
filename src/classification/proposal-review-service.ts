@@ -277,6 +277,7 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           decision: d.decision,
           reviewerId: d.reviewerId ?? null,
           reviewerNote: d.reviewerNote ?? null,
+          decisionOrigin: 'human_review',
           ...(correction.hasRevisedValue ? { revisedValue: correction.revisedValue } : {}),
           ...(correction.hasRevisedTargetId ? { revisedTargetId: correction.revisedTargetId ?? null } : {}),
           ...(d.actionToken ? { actionToken: d.actionToken } : {}),

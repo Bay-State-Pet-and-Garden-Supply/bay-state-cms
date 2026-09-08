@@ -1,4 +1,14 @@
 import { listItemsByBatch } from '../db/repositories/onboarding-item-repo';
+import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical equality for hydrated stages (dual read). */
+function stageIs(rawStage: unknown, canonical: StageV2): boolean {
+  try {
+    return toCanonicalStage(rawStage) === canonical;
+  } catch {
+    return false;
+  }
+}
 import { listReviewStates } from '../db/repositories/onboarding-review-repo';
 import { buildCohortContext } from './onboarding-work-state';
 import {
@@ -47,10 +57,10 @@ export function getBatchReviewQueue(
       else if (reviewRow.reviewedAt) reviewState = 'reviewed';
       else reviewState = 'unreviewed';
     } else {
-      if (item.stage === 'review' && item.stageStatus === 'completed') reviewState = 'reviewed';
-      else if (item.stage === 'promotion' && item.stageStatus === 'completed') reviewState = 'reviewed';
-      else if (item.stage === 'curation' && item.stageStatus === 'completed') reviewState = 'unreviewed';
-      else if (item.stage === 'review') reviewState = 'unreviewed';
+      if (stageIs(item.stage, 'review_listings') && item.stageStatus === 'completed') reviewState = 'reviewed';
+      else if (stageIs(item.stage, 'create_drafts') && item.stageStatus === 'completed') reviewState = 'reviewed';
+      else if (stageIs(item.stage, 'prepare_listing') && item.stageStatus === 'completed') reviewState = 'unreviewed';
+      else if (stageIs(item.stage, 'review_listings')) reviewState = 'unreviewed';
       else reviewState = 'not_ready';
     }
 

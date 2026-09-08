@@ -9,24 +9,11 @@
  * surface.
  */
 import { getDb } from '../../db/connection';
+import { stagePredicateParams } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 import { findProfileByDomain } from '../../db/repositories/extractor-profile-repo';
+import type { ExtractorProfileDomainBlocker } from '../../shared/schemas/onboarding-work-state';
 
-export interface ExtractorProfileDomainBlocker {
-  domain: string;
-  blockedItemCount: number;
-  batchId: string;
-  itemIds: string[];
-  sampleItems: Array<{
-    itemId: string;
-    upc?: string;
-    name: string;
-    sourceUrl: string | null;
-    errorMessage: string;
-  }>;
-  /** True when an extractor profile already exists for the domain (the
-   *  failures may be stale or the profile unusable — surface it either way). */
-  profileExists: boolean;
-}
+export type { ExtractorProfileDomainBlocker };
 
 /** The worker's stable failure signature (page-extractor). */
 const MISSING_PROFILE_RE = /^No extractor profile for\s+(\S+)/i;
@@ -59,13 +46,15 @@ function normalizeBlockerDomain(raw: string): string | null {
 /** Group a batch's missing-profile extraction failures by source domain. */
 export function getExtractorProfileDomainBlockers(batchId: string): ExtractorProfileDomainBlocker[] {
   const db = getDb();
+  // Slice 5b native: dual-spelling predicate (either stored spelling).
+  const [extA, extB] = stagePredicateParams('collect_details');
   const rows = db.query(
     `SELECT id, upc, name, source_url, error_message
      FROM onboarding_items
-     WHERE batch_id = ? AND stage = 'extraction' AND stage_status = 'failed'
+     WHERE batch_id = ? AND (stage = ? OR stage = ?) AND stage_status = 'failed'
        AND error_message IS NOT NULL
      ORDER BY row_number ASC`,
-  ).all(batchId) as Array<{
+  ).all(batchId, extA, extB) as Array<{
     id: string;
     upc: string | null;
     name: string | null;

@@ -20,7 +20,7 @@ import type { SourcingFlags } from '../flags';
 export const SOURCING_ENTRY_POLICY_VERSION = 1;
 
 /** Entry stages the sourcing capability can produce. */
-export type SourcingEntryStage = Extract<PipelineStage, 'sourcing' | 'discovery'>;
+export type SourcingEntryStage = Extract<PipelineStage, 'route_sources' | 'find_product_page'>;
 
 /**
  * Derive the entry stage for a new import from the effective sourcing flags.
@@ -32,9 +32,9 @@ export type SourcingEntryStage = Extract<PipelineStage, 'sourcing' | 'discovery'
  * marker-v1 rows instead (Milestone C).
  */
 export function deriveSourcingEntryStage(flags: SourcingFlags): SourcingEntryStage {
-  if (!flags.effectiveEnabled) return 'discovery';
-  if (isObserveMode(flags)) return 'discovery';
-  return 'sourcing';
+  if (!flags.effectiveEnabled) return 'find_product_page';
+  if (isObserveMode(flags)) return 'find_product_page';
+  return 'route_sources';
 }
 
 /** True when the given version is the current sourcing entry-policy version. */

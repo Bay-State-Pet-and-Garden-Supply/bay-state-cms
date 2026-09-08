@@ -43,6 +43,28 @@ import {
 } from '../db/repositories/curation-cohort-repo';
 import { getCurrentCohortRun } from '../db/repositories/classification-cohort-run-repo';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
+import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
+
+/**
+ * Slice 5b native: canonical comparison of a hydrated (either-spelling)
+ * stage. Unknown literals are never treated as a match (fail closed).
+ */
+function isCanonicalStage(rawStage: unknown, canonical: StageV2): boolean {
+  try {
+    return toCanonicalStage(rawStage) === canonical;
+  } catch {
+    return false;
+  }
+}
+
+/** Canonical set membership for hydrated stages (dual read). */
+function isCanonicalStageIn(rawStage: unknown, set: readonly StageV2[]): boolean {
+  try {
+    return set.includes(toCanonicalStage(rawStage));
+  } catch {
+    return false;
+  }
+}
 import {
   GROUPING_VERSION,
 } from '../shared/schemas/cohorts';
@@ -210,7 +232,7 @@ function isSourceFinalized(item: OnboardingItem, binding: ExtractionBinding | un
     }
     return true;
   }
-  const discoveryFinalized = item.stage !== 'discovery' || item.stageStatus === 'completed';
+  const discoveryFinalized = !isCanonicalStage(item.stage, 'find_product_page') || item.stageStatus === 'completed';
   // Parent #101 (manual-evidence route): a manual-complete member has a NULL
   // extraction URL by design (never a fabricated per-SKU URL), so the
   // persisted-URL requirement can never hold. A manual binding (method +
@@ -228,7 +250,7 @@ function isSourceFinalized(item: OnboardingItem, binding: ExtractionBinding | un
  *  Curation-stage failure is NOT a readiness blocker — the item is past the
  *  barrier and its evidence is complete. */
 function isFailedMember(item: OnboardingItem): boolean {
-  return ['sourcing', 'discovery', 'extraction'].includes(item.stage) && item.stageStatus === 'failed';
+  return isCanonicalStageIn(item.stage, ['route_sources', 'find_product_page', 'collect_details']) && item.stageStatus === 'failed';
 }
 
 function capitalizeStage(stage: string): string {
@@ -309,10 +331,10 @@ export function sourceProvenanceConsistent(
  *  The worker refresh runs right after extraction completes AND during curation
  *  polling, so cohorts must stay stable after items advance. */
 function hasCompletedExtraction(item: OnboardingItem): boolean {
-  if (item.stage === 'extraction') {
+  if (isCanonicalStage(item.stage, 'collect_details')) {
     return item.stageStatus === 'completed' && item.extractionData != null;
   }
-  return ['curation', 'review', 'promotion'].includes(item.stage) && item.extractionData != null;
+  return isCanonicalStageIn(item.stage, ['prepare_listing', 'review_listings', 'create_drafts']) && item.extractionData != null;
 }
 
 /** OCR is settled when structured OCR data exists or the OCR attempt reached a

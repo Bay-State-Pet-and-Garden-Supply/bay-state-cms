@@ -46,6 +46,26 @@ import {
 } from '../db/repositories/onboarding-work-state-repo';
 import { convertToLbs } from '../shared/weight-converter';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
+import type { WorkStateFilters } from '../shared/schemas/onboarding-work-state';
+import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
+
+/**
+ * Slice 5b native: canonical stage of a hydrated (either-spelling) item.
+ * Null for unknown literals — callers fall through to the default/
+ * not-ready projection instead of coercing to the first stage.
+ */
+function canonicalStageOf(rawStage: unknown): StageV2 | null {
+  try {
+    return toCanonicalStage(rawStage);
+  } catch {
+    return null;
+  }
+}
+
+/** Canonical equality for hydrated stages (dual read). */
+function stageIs(rawStage: unknown, canonical: StageV2): boolean {
+  return canonicalStageOf(rawStage) === canonical;
+}
 import type { CurationCohortView } from '../shared/schemas/cohorts';
 import {
   type WorkStateCategory,
@@ -109,17 +129,7 @@ export interface WorkStateContext {
   healthIssues: WorkStateProjectionHealthIssue[];
 }
 
-export interface WorkStateFilters {
-  category?: WorkStateCategory;
-  q?: string;
-  domain?: string;
-  sourceType?: 'official_page' | 'distributor_record';
-  cohortId?: string;
-  reviewState?: ReviewState;
-  limit?: number;
-  offset?: number;
-  cursor?: string;
-}
+export type { WorkStateFilters };
 
 // ─── Context builders ──────────────────────────────────────────────────────────
 
@@ -183,7 +193,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     hasCriticalIssue = true;
   }
   const promotedSkus = items
-    .filter(item => item.stage === 'promotion')
+    .filter(item => stageIs(item.stage, 'create_drafts'))
     .map(item => item.upc);
   const workspaceId = findBatchById(batchId)?.workspaceId ?? '';
   let changeSetStatusBySku: Map<string, string>;
@@ -287,10 +297,10 @@ function deriveReviewState(item: OnboardingItem, row: OnboardingReviewState | un
     if (row.reviewedAt) return 'reviewed';
     return 'unreviewed';
   }
-  if (item.stage === 'review' && item.stageStatus === 'completed') return 'reviewed';
-  if (item.stage === 'promotion' && item.stageStatus === 'completed') return 'reviewed';
-  if (item.stage === 'curation' && item.stageStatus === 'completed') return 'unreviewed';
-  if (item.stage === 'review') return 'unreviewed';
+  if (stageIs(item.stage, 'review_listings') && item.stageStatus === 'completed') return 'reviewed';
+  if (stageIs(item.stage, 'create_drafts') && item.stageStatus === 'completed') return 'reviewed';
+  if (stageIs(item.stage, 'prepare_listing') && item.stageStatus === 'completed') return 'unreviewed';
+  if (stageIs(item.stage, 'review_listings')) return 'unreviewed';
   return 'not_ready';
 }
 
@@ -650,7 +660,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
   }
 
   const semanticBlock = semanticBlockedInput(item);
-  if (semanticBlock && (item.stage === 'curation' || item.stage === 'review')) {
+  if (semanticBlock && (stageIs(item.stage, 'prepare_listing') || stageIs(item.stage, 'review_listings'))) {
     // Override activity with granular if available via ctx
     const granular = deriveCurationSubActivity(item, ctx);
     if (granular !== 'curation' && semanticBlock.activity === 'semantic_validation') {
@@ -663,7 +673,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
   if (
     variantRes &&
     (variantRes.status === 'ambiguous' || variantRes.status === 'no_match' || variantRes.status === 'stale') &&
-    (item.stage === 'discovery' || item.stage === 'extraction') &&
+    (stageIs(item.stage, 'find_product_page') || stageIs(item.stage, 'collect_details')) &&
     item.stageStatus === 'needs_input'
   ) {
     try {
@@ -684,8 +694,11 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
     }
   }
 
-  switch (item.stage) {
-    case 'promotion': {
+  // Slice 5b native: switch on the canonical stage (dual read — either
+  // stored spelling reaches the same v2 case; unknown stages take the
+  // default branch, never coerced to the first stage).
+  switch (canonicalStageOf(item.stage)) {
+    case 'create_drafts': {
       if (item.stageStatus === 'completed') {
         const changeSetStatus = ctx.changeSetStatusBySku.get(item.upc);
         if (changeSetStatus === 'pushed') {
@@ -712,7 +725,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       });
     }
 
-    case 'review': {
+    case 'review_listings': {
       if (item.stageStatus === 'failed') {
         return attention('processing_failed', 'retry_processing', 'Review failed');
       }
@@ -727,7 +740,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       });
     }
 
-    case 'curation': {
+    case 'prepare_listing': {
       if (item.stageStatus === 'completed') {
         return build(item, row, cohort, { category: 'ready_for_review', activity: 'review', label: 'Ready for review' });
       }
@@ -758,7 +771,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       return build(item, row, cohort, { category: 'processing', activity: activityForProcessing, label: 'Curating product' });
     }
 
-    case 'extraction': {
+    case 'collect_details': {
       if (item.sourceType === 'distributor_record') {
         if (item.stageStatus === 'failed') {
           return attention('processing_failed', 'retry_extraction', 'Distributor materialization failed');
@@ -799,7 +812,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       return build(item, row, cohort, { category: 'processing', activity: 'extraction', label: 'Extracting product data' });
     }
 
-    case 'discovery': {
+    case 'find_product_page': {
       if (item.stageStatus === 'needs_input') {
         if (!item.brandHint || item.brandHint.trim().length === 0) {
           return attention(
@@ -834,7 +847,7 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       return build(item, row, cohort, { category: 'processing', activity: 'official_site_search', label: 'Searching official site' });
     }
 
-    case 'sourcing': {
+    case 'route_sources': {
       if (item.stageStatus === 'needs_input') {
         return attention('source_conflict', 'resolve_source_conflict', 'Distributor match needs decision', error);
       }
@@ -864,7 +877,9 @@ function sourceTypeLabel(sourceType: OnboardingWorkState['sourceType']): string 
   return '';
 }
 
-function matchesFilters(state: OnboardingWorkState, filters: WorkStateFilters): boolean {
+/** Slice 1: exported for the v2 stage-read service so both endpoints share the
+ * identical post-projection predicate function. Do not duplicate. */
+export function matchesFilters(state: OnboardingWorkState, filters: WorkStateFilters): boolean {
   if (filters.category && state.category !== filters.category) return false;
   if (filters.reviewState && state.reviewState !== filters.reviewState) return false;
   if (filters.sourceType && state.sourceType !== filters.sourceType) return false;
@@ -1218,7 +1233,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   const workspaceId = findBatchById(item.batchId)?.workspaceId ?? '';
   // Use bulk helpers even for single item (keeps query plan uniform)
   const cohortByItem = buildCohortContext(item.batchId, listItemsByBatch(item.batchId));
-  const changeSetStatusBySku = item.stage === 'promotion' ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
+  const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);
   const cohortRunStatusByItem = bulkGetCohortRunStatusByItem([item.id]);

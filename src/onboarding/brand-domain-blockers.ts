@@ -17,6 +17,7 @@
  * workspace panel fails closed without breaking the attention tab.
  */
 import { getDb } from '../db/connection';
+import { stagePredicateParams } from '../db/repositories/onboarding-stage-vocabulary-repo';
 import { findBrandSites } from '../db/repositories/brand-site-repo';
 import type { BrandDomainSetupBlocker } from '../shared/schemas/onboarding-work-state';
 
@@ -37,13 +38,15 @@ interface ParkedRow {
 export function getBrandDomainBlockers(batchId: string): BrandDomainSetupBlocker[] {
   try {
     const db = getDb();
+    // Slice 5b native: dual-spelling predicate (either stored spelling).
+    const [discA, discB] = stagePredicateParams('find_product_page');
     const rows = db.query(
       `SELECT id, upc, name, source_url, brand_hint, error_message, created_at
        FROM onboarding_items
-       WHERE batch_id = ? AND stage = 'discovery' AND stage_status = 'completed'
+       WHERE batch_id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'
          AND error_message IS NOT NULL
        ORDER BY row_number ASC`,
-    ).all(batchId) as ParkedRow[];
+    ).all(batchId, discA, discB) as ParkedRow[];
 
     const byBrand = new Map<string, BrandDomainSetupBlocker>();
     for (const row of rows) {

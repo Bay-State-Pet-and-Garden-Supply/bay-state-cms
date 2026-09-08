@@ -19,7 +19,7 @@ import { redactTransportText } from '../classification/model-policy-gateway';
 import { familyGroupingIdentityFor, knownBrandsForBatch } from './product-line-grouper';
 import { buildCohortPrompt, FORMAT_RULES } from './title-prompt-template';
 import type { CohortExecutionTypeContext } from './title-prompt-template';
-import { normalizeTitleAuthorityString, TITLE_AUTHORITY_TRUNCATION } from './cohort-title-hash';
+import { normalizeTitleAuthorityString, TITLE_AUTHORITY_TRUNCATION } from '../classification/cohort-decision-authority';
 import { HeartbeatLostError } from '../classification/heartbeat-errors';
 import { validateFamilyTitleSet } from '../classification/family-title-consistency';
 import type { TitleFrozenFacts } from '../classification/family-title-consistency';

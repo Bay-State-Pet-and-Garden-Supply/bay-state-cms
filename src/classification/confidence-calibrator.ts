@@ -14,6 +14,7 @@
  * qualification receipt + activation audit (feature-policy).
  */
 
+import { createHash } from 'node:crypto';
 import type { BenchmarkPredictionEntry } from '../shared/schemas/classification';
 
 export interface CalibratedThresholds {
@@ -148,3 +149,135 @@ function thresholdsFor(proposalType: string, thresholds: CalibratedThresholds): 
   if (proposalType === 'field_assignment') return thresholds.fieldAssignment;
   return thresholds.fieldAssignment;
 }
+
+export interface DepthStratifiedPredictionPair {
+  proposalType: 'primary_product_type' | 'category_page' | 'field_assignment';
+  depth: number;
+  confidence: number;
+  correct: boolean;
+  predictedId?: string;
+  goldId?: string;
+  goldAncestorIds?: string[];
+  predictedAncestorIds?: string[];
+}
+
+export interface DepthStratifiedCalibrationOptions {
+  minSupport?: number;
+  targetAbstentionRate?: number;
+  autoTierQuantile?: number;
+}
+
+export interface DepthCalibrationStats {
+  sampleCount: number;
+  isSufficientSupport: boolean;
+  exactAccuracy: number;
+  ancestorAccuracy: number;
+  treeDistanceError: number;
+  ece: number;
+  calibratedThreshold: { abstainBelow: number; reviewAbove: number };
+}
+
+export interface DepthStratifiedCalibrationResult {
+  artifactDigest: string;
+  globalThreshold: { abstainBelow: number; reviewAbove: number };
+  byDepth: Record<number, DepthCalibrationStats>;
+}
+
+export function computeDepthStratifiedCalibration(
+  pairs: DepthStratifiedPredictionPair[],
+  options: DepthStratifiedCalibrationOptions = {},
+): DepthStratifiedCalibrationResult {
+  const minSupport = options.minSupport ?? 10;
+  const globalThreshold = tierThresholds(pairs, options);
+
+  const digest = createHash('sha256')
+    .update(JSON.stringify(pairs.map(p => ({
+      proposalType: p.proposalType,
+      depth: p.depth,
+      confidence: p.confidence,
+      correct: p.correct,
+      goldAncestorIds: p.goldAncestorIds,
+      predictedAncestorIds: p.predictedAncestorIds,
+      goldId: p.goldId,
+      predictedId: p.predictedId,
+    }))))
+    .digest('hex');
+
+  const byDepthMap = new Map<number, DepthStratifiedPredictionPair[]>();
+  for (const pair of pairs) {
+    const list = byDepthMap.get(pair.depth) ?? [];
+    list.push(pair);
+    byDepthMap.set(pair.depth, list);
+  }
+
+  const byDepth: Record<number, DepthCalibrationStats> = {};
+  for (const [depth, bucket] of byDepthMap.entries()) {
+    const sampleCount = bucket.length;
+    const isSufficientSupport = sampleCount >= minSupport;
+    const exactAccuracy = bucket.filter(p => p.correct).length / sampleCount;
+
+    let ancestorMatches = 0;
+    let totalTreeDistance = 0;
+
+    for (const p of bucket) {
+      const goldAncestors = p.goldAncestorIds ?? [];
+      const predAncestors = p.predictedAncestorIds ?? [];
+      const isAncestorMatch = p.correct || (goldAncestors.length > 0 && goldAncestors.join('/') === predAncestors.join('/'));
+      if (isAncestorMatch) {
+        ancestorMatches++;
+      }
+
+      if (p.correct) {
+        // distance 0
+      } else {
+        const goldPath = [...goldAncestors, ...(p.goldId ? [p.goldId] : [])];
+        const predPath = [...predAncestors, ...(p.predictedId ? [p.predictedId] : [])];
+        let lcaIndex = 0;
+        while (lcaIndex < goldPath.length && lcaIndex < predPath.length && goldPath[lcaIndex] === predPath[lcaIndex]) {
+          lcaIndex++;
+        }
+        const distGold = goldPath.length - lcaIndex;
+        const distPred = predPath.length - lcaIndex;
+        totalTreeDistance += distGold + distPred;
+      }
+    }
+
+    const ancestorAccuracy = sampleCount > 0 ? ancestorMatches / sampleCount : 1;
+    const treeDistanceError = sampleCount > 0 ? totalTreeDistance / sampleCount : 0;
+
+    // ECE across 10 bins
+    const numBins = 10;
+    let totalEce = 0;
+    for (let b = 0; b < numBins; b++) {
+      const binMin = b / numBins;
+      const binMax = (b + 1) / numBins;
+      const inBin = bucket.filter(p => p.confidence >= binMin && (b === numBins - 1 ? p.confidence <= binMax : p.confidence < binMax));
+      if (inBin.length > 0) {
+        const binAcc = inBin.filter(p => p.correct).length / inBin.length;
+        const binConf = inBin.reduce((acc, p) => acc + p.confidence, 0) / inBin.length;
+        totalEce += (inBin.length / sampleCount) * Math.abs(binAcc - binConf);
+      }
+    }
+
+    const calibratedThreshold = isSufficientSupport
+      ? tierThresholds(bucket, options)
+      : globalThreshold;
+
+    byDepth[depth] = {
+      sampleCount,
+      isSufficientSupport,
+      exactAccuracy,
+      ancestorAccuracy,
+      treeDistanceError,
+      ece: totalEce,
+      calibratedThreshold,
+    };
+  }
+
+  return {
+    artifactDigest: digest,
+    globalThreshold,
+    byDepth,
+  };
+}
+

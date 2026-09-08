@@ -6,6 +6,7 @@ import { evaluateGate } from '../../onboarding/profile-activation-gate';
 import { getSuiteSuggestion } from '../../onboarding/suite-suggestion-service';
 import { templateAwarePrefix } from '../../onboarding/template-clustering';
 import { getDb } from '../../db/connection';
+import { encodeForStorage, readStorageVersion } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 import { hasValidWaiver } from '../../db/repositories/waiver-repo';
 
 export const profileActivationRoutes = new Hono();
@@ -105,7 +106,8 @@ profileActivationRoutes.post('/domains/:domain/profile/activate', async (c) => {
       let h = '';
       try { h = new URL(row.source_url ?? '').hostname.replace(/^www\./, '').toLowerCase(); } catch (_err) { /* ignore invalid url */ }
       if (h === domain) {
-        db.query("UPDATE onboarding_items SET status = 'pending', stage = 'extraction', stage_status = 'pending', error_message = NULL, updated_at = ? WHERE id = ?").run(now, row.id);
+        // Slice 5b native: requeue write encodes the observed storage version.
+        db.query("UPDATE onboarding_items SET status = 'pending', stage = ?, stage_status = 'pending', error_message = NULL, updated_at = ? WHERE id = ?").run(encodeForStorage('collect_details', readStorageVersion(db)), now, row.id);
         released++;
       }
     }

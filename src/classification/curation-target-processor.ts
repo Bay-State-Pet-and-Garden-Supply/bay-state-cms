@@ -44,7 +44,7 @@ import {
   llmAssignCategoryPages,
   type PageAssignmentResult,
 } from './page-assignment-llm';
-import { coordinateCohortPagesOnce } from './cohort-page-coordinator';
+import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
 
 // ─── Shared Target Constants ──────────────────────────────────────────────────
 

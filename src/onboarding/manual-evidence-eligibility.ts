@@ -7,6 +7,17 @@
  * two lanes.
  */
 
+import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical extraction-stage check (either spelling). */
+function isManualEvidenceStage(rawStage: unknown): boolean {
+  try {
+    return toCanonicalStage(rawStage) === 'collect_details';
+  } catch {
+    return false;
+  }
+}
+
 const PROFILE_BLOCKED_RE = /^No extractor profile for\s+(\S+)/i;
 
 export const MANUAL_EVIDENCE_METHOD = 'manual_evidence_v1' as const;
@@ -147,12 +158,13 @@ export interface ManualEvidenceEligibilityInput {
 }
 
 /**
- * Pure eligibility check: only `extraction/failed` items whose failure is
+ * Pure eligibility check: only `collect_details/failed` items whose failure is
  * either the profile-blocked signature or an explicitly triaged
- * family-page-only failure may enter the manual route.
+ * family-page-only failure may enter the manual route. Slice 5b native:
+ * accepts either stored spelling (dual read).
  */
 export function isManualEvidenceEligible(input: ManualEvidenceEligibilityInput): boolean {
-  if (input.stage !== 'extraction') return false;
+  if (!isManualEvidenceStage(input.stage)) return false;
   if (input.stageStatus !== 'failed') return false;
   if (isManualEvidenceProfileBlockedError(input.errorMessage)) return true;
   return input.familyPageOnlyConfirmed;

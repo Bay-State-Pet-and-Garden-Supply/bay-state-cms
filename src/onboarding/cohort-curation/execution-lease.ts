@@ -1,27 +1,17 @@
 /**
- * Scoped ownership-guarded lease keeper (issue #30, PR3 hardening Commit A2).
+ * Cohort execution lease — scoped ownership-guarded renewal (Slice 1).
  *
- * Shared by every long-awaited cohort operation: the freeze member's OCR
- * pull-forward, the freeze product-type ranker, the cohort member's execution
- * pipeline, and the PR6 parent title op (`ensureCohortTitlesCoordinated`).
- * Defined in its OWN module (not `cohort-curator.ts`) so the PR6 title
- * coordinator can use it WITHOUT a runtime circular import (cohort-curator
- * imports the coordinator, so the coordinator must not import back).
+ * Parent runs own the lease (15-minute default TTL, `max(1, floor(TTL / 3))`
+ * scoped renewal cadence). A lost owner raises `HeartbeatLostError` and
+ * performs no further writes. Timers stop in `finally` on every path.
  *
- * While the wrapped operation is in flight the keeper renews the parent
- * cohort run's lease via `heartbeatCohortRun` on a TTL/3 cadence, so a
- * live-but-slow owner can no longer silently outlive the lease and be
- * legitimately reclaimed mid-call. A renewal that returns false means the run
- * is no longer ours (a sibling worker reclaimed it, or it went
- * terminal/superseded): the keeper marks `lost`, and the operation's
- * continuation calls `assertHeld()` before EVERY subsequent write —
- * `assertHeld()` performs an immediate ownership re-assertion (so a loss
- * between renewal ticks is still caught) and throws `HeartbeatLostError` when
- * the claim is gone, aborting with NO further side effects. `stop()` (called
- * in `finally`) clears the renewal timer.
+ * Relocated verbatim from `src/onboarding/cohort-lease-keeper.ts` (Slice 1);
+ * that module re-exports it as a temporary forwarder (deleted in Slice 6).
+ * Private implementation detail of the cohort-curation package, not a new
+ * public service.
  */
-import { heartbeatCohortRun } from '../db/repositories/classification-cohort-run-repo';
-import { HeartbeatLostError } from '../classification/heartbeat-errors';
+import { heartbeatCohortRun } from '../../db/repositories/classification-cohort-run-repo';
+import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 
 export class CohortLeaseKeeper {
   private readonly runId: string;

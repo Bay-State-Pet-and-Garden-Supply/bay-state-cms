@@ -36,6 +36,16 @@ import { getActiveCohortForItem } from '../db/repositories/curation-cohort-repo'
 import { getCurrentCohortRun } from '../db/repositories/classification-cohort-run-repo';
 import { onboardingEvents } from './sse-emitter';
 import { getDb } from '../db/connection';
+import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical comparison of a hydrated (either-spelling) stage. */
+function isCanonicalStage(rawStage: unknown, canonical: StageV2): boolean {
+  try {
+    return toCanonicalStage(rawStage) === canonical;
+  } catch {
+    return false;
+  }
+}
 
 /** Parent-run statuses that mean the cohort is still executing. */
 const COHORT_PARENT_IN_FLIGHT = new Set(['freezing', 'running']);
@@ -74,7 +84,7 @@ function cohortParentInFlight(item: { curationData?: { classificationRunId?: str
 export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceResult {
   const item = findItemById(itemId);
   if (!item) return { advanced: false, reason: 'item_not_found' };
-  if (item.stage !== 'discovery' || item.stageStatus !== 'completed') {
+  if (!isCanonicalStage(item.stage, 'find_product_page') || item.stageStatus !== 'completed') {
     return { advanced: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
   if (!item.sourceUrl) {
@@ -82,9 +92,9 @@ export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceRes
   }
   if (advanceDiscoveryToExtraction(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
-      stage: 'extraction',
+      stage: 'collect_details',
       autoAdvanced: true,
-      fromStage: 'discovery',
+      fromStage: 'find_product_page',
     });
     return { advanced: true };
   }
@@ -103,7 +113,7 @@ export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceRes
 export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResult {
   const item = findItemById(itemId);
   if (!item) return { advanced: false, reason: 'item_not_found' };
-  if (item.stage !== 'extraction' || item.stageStatus !== 'completed') {
+  if (!isCanonicalStage(item.stage, 'collect_details') || item.stageStatus !== 'completed') {
     return { advanced: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
   if (!item.extractionData) {
@@ -118,9 +128,9 @@ export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResu
   }
   if (advanceExtractionToCuration(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
-      stage: 'curation',
+      stage: 'prepare_listing',
       autoAdvanced: true,
-      fromStage: 'extraction',
+      fromStage: 'collect_details',
     });
     return { advanced: true };
   }
@@ -139,7 +149,7 @@ export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResu
 export function advanceCurationItemToReview(itemId: string): AutoAdvanceResult {
   const item = findItemById(itemId);
   if (!item) return { advanced: false, reason: 'item_not_found' };
-  if (item.stage !== 'curation' || item.stageStatus !== 'completed') {
+  if (!isCanonicalStage(item.stage, 'prepare_listing') || item.stageStatus !== 'completed') {
     return { advanced: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
   if (!item.curationData) {
@@ -158,9 +168,9 @@ export function advanceCurationItemToReview(itemId: string): AutoAdvanceResult {
   }
   if (advanceCurationToReview(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
-      stage: 'review',
+      stage: 'review_listings',
       autoAdvanced: true,
-      fromStage: 'curation',
+      fromStage: 'prepare_listing',
     });
     return { advanced: true };
   }

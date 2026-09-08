@@ -126,7 +126,7 @@ export function releaseDomainExtractionItems(
     if (requeueBlockedExtractionItem(row.id)) {
       releasedIds.push(row.id);
       onboardingEvents.emitItemStatus(row.batch_id, row.id, 'pending', {
-        stage: 'extraction',
+        stage: 'collect_details',
         autoReleased: true,
         reason: 'extractor profile now usable',
         domain: normalized,

@@ -1,6 +1,6 @@
 import { callLlmForTaskWithProvenance, getLlmConfigForTask } from '../onboarding/llm-client';
-import { PAGE_AUTHORITY_TRUNCATION } from '../onboarding/cohort-page-hash';
-import type { ExecutionTypeTitleAuthority } from '../onboarding/cohort-title-hash';
+import { PAGE_AUTHORITY_TRUNCATION } from './cohort-decision-authority';
+import type { ExecutionTypeTitleAuthority } from './cohort-decision-authority';
 import { redactTransportText, type ModelPolicyView, type ProtectedOperation } from './model-policy-gateway';
 import type { ModelCallContext } from './model-operation-registry';
 import { MODEL_CALL_STATUS } from './model-operation-registry';
@@ -146,9 +146,10 @@ function buildPageMaps(pages: CohortPageOption[]): {
 
 /** PR7 C3 + review R1 (B1): optional Execution Type context for the v2 parent
  *  prompt. The context is the SINGLE full `ExecutionTypeTitleAuthority` object
- *  (id + label + confidence + outcome — the SAME object the P-hash consumes,
- *  `cohort-title-hash.ts`). When the options object is PROVIDED, the
- *  Execution Type context block ALWAYS renders — including a null id
+ *  (id + label + confidence + outcome — the SAME object the P-hash consumes;
+ *  type lives in the pure leaf `cohort-decision-authority.ts`). When the
+ *  options object is PROVIDED, the Execution Type context block ALWAYS
+ *  renders — including a null id
  *  ('not resolved') and the confidence + outcome lines — so the rendered
  *  content is fully determined by the hashed authority. When the options
  *  object is ABSENT, the prompt is the legacy v1 text byte-for-byte (the

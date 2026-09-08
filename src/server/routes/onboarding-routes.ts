@@ -3,6 +3,15 @@ import { isPrivateOrLinkLocal } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
 import { OLLAMA_VLM_SERVICE_NAME, DEFAULT_LOCAL_VISION_MODEL } from '../../ai/vision-model-defaults';
 import { streamSSE } from 'hono/streaming';
+import {
+  SSE_VERSION_PARAM,
+  parseSseVocabularyVersion,
+  serializeSseV1,
+  serializeSseV1Ping,
+  serializeSseV1Welcome,
+  serializeSseV2,
+  serializeSseV2ConnectionFrame,
+} from '../onboarding-event-presentation';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -48,7 +57,27 @@ import { upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-re
 import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
 import { extractDomainAndPattern } from '../../onboarding/brand-hub/normalizeDomain';
 import type { PipelineStage, SourcingPolicy } from '../../shared/schemas/onboarding';
+import { toCanonicalStage, type StageV2 } from '../../shared/onboarding-stage-vocabulary';
+import {
+  parseStageVocabularyVersion,
+  serializeStage,
+  type StageVocabularyVersion,
+} from '../onboarding-stage-api';
+import { isStageV1String, parseV2StageInput, V1_TO_V2 } from '../../shared/onboarding-stage-vocabulary';
 import { ResolveSourcingRequestSchema, FallbackSourcingItemsRequestSchema, MediaSelectionRequestSchema } from '../../shared/schemas/onboarding';
+import { readStorageVersion, encodeForStorage } from '../../db/repositories/onboarding-stage-vocabulary-repo';
+
+/**
+ * Slice 5b native: canonical equality for hydrated (either-spelling) stages.
+ * Unknown literals never match (fail closed to the not-eligible branch).
+ */
+function routeStageIs(rawStage: unknown, canonical: StageV2): boolean {
+  try {
+    return toCanonicalStage(rawStage) === canonical;
+  } catch {
+    return false;
+  }
+}
 import { getSourcingFlags } from '../../onboarding/flags';
 import {
   deriveSourcingEntryStage,
@@ -580,7 +609,7 @@ route.get('/onboarding/weekly-report', async (c) => {
 
   const items = getWeeklyReportItems(startIso, endIso);
   const promotedCount = items.filter(
-    i => i.status === 'promoted' || (i.stage === 'promotion' && i.stageStatus === 'completed')
+    i => i.status === 'promoted' || (routeStageIs(i.stage, 'create_drafts') && i.stageStatus === 'completed')
   ).length;
 
   // Issue #17 F: include the same versioned quality summary in the weekly
@@ -1011,8 +1040,22 @@ route.get('/onboarding/batches/:id/staged', (c) => {
   if (!workspace || !batch || batch.workspaceId !== workspace.id) {
     return c.json({ error: 'Batch not found' }, 404);
   }
+  // Slice 5b native: stage-typed grouping is canonical v2 in memory.
+  // Default/unversioned wire representation stays legacy v1; opt-in
+  // `?stageVocabularyVersion=2` selects canonical v2 keys.
+  let wireVersion: StageVocabularyVersion;
+  try {
+    wireVersion = parseStageVocabularyVersion(c.req.query('stageVocabularyVersion'));
+  } catch {
+    return c.json({ error: 'Invalid stageVocabularyVersion', code: 'invalid_version' }, 400);
+  }
   const staged = listItemsByBatchStaged(batchId);
-  return c.json({ staged });
+  if (wireVersion === 2) return c.json({ staged });
+  const v1Staged: Record<string, typeof staged[keyof typeof staged]> = {};
+  for (const [stage, items] of Object.entries(staged)) {
+    v1Staged[serializeStage(stage, 1)] = items;
+  }
+  return c.json({ staged: v1Staged });
 });
 
 /**
@@ -1156,10 +1199,10 @@ route.post('/onboarding/items/advance', async (c) => {
   const refused: Array<{ itemId: string; reason: string }> = [];
   for (const id of itemIds) {
     const item = findItemById(id);
-    // Only a completed REVIEW item advances review → promotion — the only
+    // Only a completed REVIEW_LISTINGS item advances review → promotion — the only
     // transition this guard covers (blocked members must still reach the
     // Review drawer, so curation → review is never refused).
-    if (!item || item.stage !== 'review' || item.stageStatus !== 'completed') {
+    if (!item || !routeStageIs(item.stage, 'review_listings') || item.stageStatus !== 'completed') {
       advanceable.push(id);
       continue;
     }
@@ -1382,12 +1425,29 @@ route.post('/onboarding/items/reset-to-stage', async (c) => {
   if (!targetStage || typeof targetStage !== 'string') {
     return c.json({ error: 'targetStage string is required' }, 400);
   }
-  const validStages = ['sourcing', 'discovery', 'extraction', 'curation', 'review', 'promotion'];
-  if (!validStages.includes(targetStage)) {
-    return c.json({ error: `Invalid stage: ${targetStage}` }, 400);
+  const rawVersion = c.req.query('stageVocabularyVersion');
+  let wireVersion: StageVocabularyVersion;
+  try {
+    wireVersion = parseStageVocabularyVersion(rawVersion);
+  } catch {
+    return c.json({ error: 'Invalid stageVocabularyVersion', code: 'invalid_version' }, 400);
+  }
+  // Slice 5b native: strict version separation — default/unversioned
+  // accepts ONLY legacy v1 spellings, opt-in v2 ONLY canonical values.
+  // Mixed/unknown representations reject (never silently coerced).
+  let canonicalTarget: string;
+  try {
+    if (wireVersion === 2) {
+      canonicalTarget = parseV2StageInput(targetStage);
+    } else {
+      if (!isStageV1String(targetStage)) throw new Error('invalid_stage');
+      canonicalTarget = V1_TO_V2[targetStage];
+    }
+  } catch {
+    return c.json({ error: `Invalid stage: ${targetStage}`, code: 'invalid_stage' }, 400);
   }
 
-  const result = resetItemsToStage(itemIds, targetStage as PipelineStage);
+  const result = resetItemsToStage(itemIds, canonicalTarget as PipelineStage);
   return c.json({ success: true, reset: result.reset });
 });
 
@@ -1434,7 +1494,7 @@ route.post('/onboarding/items/skip-bulk', async (c) => {
  * - Each item must reference a run that belongs to the current workspace,
  *   that exact onboarding item, and that SKU, and be in a
  *   completed/completed_with_abstentions state.
- * - The item must be in the 'review' stage.
+ * - The item must be in the 'review_listings' stage.
  * - Every proposal in that run (excluding product_draft_projection) must
  *   have status 'accepted', 'rejected', or 'deferred' AND have at least
  *   one matching row in classification_proposal_decisions.
@@ -1501,9 +1561,9 @@ route.post('/onboarding/items/review-complete', async (c) => {
       continue;
     }
 
-    // Must be in review stage
-    if (item.stage !== 'review') {
-      failures.push({ itemId: id, reason: `Item is in stage "${item.stage}", not "review"` });
+    // Must be in the review_listings stage
+    if (!routeStageIs(item.stage, 'review_listings')) {
+      failures.push({ itemId: id, reason: `Item is in stage "${item.stage}", not "review_listings"` });
       continue;
     }
 
@@ -1614,10 +1674,10 @@ route.post('/onboarding/batches/:id/promote', async (c) => {
   }
 
   try {
-    // Validate items are in promotion stage
+    // Validate items are in the promotion (create_drafts) stage — either spelling.
     const db = getDb();
     const invalid = db.query(
-      `SELECT COUNT(*) as count FROM onboarding_items WHERE id IN (${itemIds.map(() => '?').join(',')}) AND stage != 'promotion'`
+      `SELECT COUNT(*) as count FROM onboarding_items WHERE id IN (${itemIds.map(() => '?').join(',')}) AND stage NOT IN ('promotion', 'create_drafts')`
     ).all(...itemIds) as Array<{ count: number }>;
     if (invalid.length > 0 && invalid[0].count > 0) {
       return c.json({ error: 'All items must be in the promotion stage' }, 400);
@@ -1696,6 +1756,15 @@ route.get('/onboarding/batches/:id/events', async (c) => {
     getWorker(workspace.id, workspace.workspacePath);
   }
 
+  // Slice 4-SERVER: SSE representation is selected at connection creation by
+  // URL parameter ONLY (EventSource cannot send headers). Absent/unversioned
+  // means legacy v1; anything else rejects BEFORE the stream opens.
+  const versioned = parseSseVocabularyVersion(c.req.query(SSE_VERSION_PARAM));
+  if ('error' in versioned) {
+    return c.json({ error: 'Invalid stageVocabularyVersion', code: 'invalid_version' }, 400);
+  }
+  const sseVersion = versioned.version;
+
   c.header('Content-Type', 'text/event-stream');
   c.header('Cache-Control', 'no-cache');
   c.header('Connection', 'keep-alive');
@@ -1706,20 +1775,23 @@ route.get('/onboarding/batches/:id/events', async (c) => {
   return streamSSE(c, async (stream) => {
     const unsubscribe = onboardingEvents.subscribe(batchId, async (event) => {
       try {
-        await stream.writeSSE({
-          event: event.type,
-          data: JSON.stringify(event),
-        });
+        // v1 path is byte-identical legacy passthrough. v2 serializes per
+        // subscriber through the allowlisted sanitizer; unmappable events
+        // are dropped (counts still refresh by polling).
+        const frame = sseVersion === 2 ? serializeSseV2(event) : serializeSseV1(event);
+        if (frame) {
+          await stream.writeSSE(frame);
+        }
       } catch (err) {
         console.warn(`[SSE] Failed to write event to batch ${batchId}:`, err);
       }
     });
 
-    // Send initial heart beat/welcome message
-    await stream.writeSSE({
-      event: 'welcome',
-      data: JSON.stringify({ message: 'SSE connection established', batchId }),
-    });
+    // Send initial heart beat/welcome message (connection frame, not activity).
+    // v1 shape is byte-identical legacy; v2 is a typed connection frame.
+    await stream.writeSSE(
+      sseVersion === 2 ? serializeSseV2ConnectionFrame('welcome', batchId) : serializeSseV1Welcome(batchId),
+    );
 
     // Cleanup on disconnect
     stream.onAbort(() => {
@@ -1727,14 +1799,16 @@ route.get('/onboarding/batches/:id/events', async (c) => {
       console.log(`[SSE] Disconnected from batch ${batchId}`);
     });
 
-    // Keep connection alive with periodic pings every 15s
+    // Keep connection alive with periodic pings every 15s (transport-only;
+    // never worker activity). v1 ping shape is byte-identical legacy.
     while (true) {
       await new Promise(r => setTimeout(r, 15000));
       try {
-        await stream.writeSSE({
-          event: 'ping',
-          data: JSON.stringify({ time: new Date().toISOString() }),
-        });
+        await stream.writeSSE(
+          sseVersion === 2
+            ? serializeSseV2ConnectionFrame('ping', batchId)
+            : serializeSseV1Ping(new Date().toISOString()),
+        );
       } catch {
         break;
       }
@@ -1830,10 +1904,10 @@ route.get('/onboarding/items/:id', async (c) => {
   // the view so the extraction drawer can render provider/attempt/hash/
   // generation provenance (MD round-6 defect 7).
   const sourcingQualificationView = (() => {
-    const isSourcingStage = item.stage === 'sourcing';
+    const isSourcingStage = routeStageIs(item.stage, 'route_sources');
     const isDistributorExtractionPendingOrFailed =
       item.sourceType === 'distributor_record' &&
-      item.stage === 'extraction' &&
+      routeStageIs(item.stage, 'collect_details') &&
       (item.stageStatus === 'pending' || item.stageStatus === 'failed');
     if (!isSourcingStage && !isDistributorExtractionPendingOrFailed) return null;
     const generation = getCurrentSourcingGeneration(itemId);
@@ -2110,14 +2184,14 @@ route.put('/onboarding/items/:id', async (c) => {
   // (invalidation nulls approved_at).
   const reviewBeforeEdit = getReviewState(itemId);
   const wasApprovedInPromotion =
-    item.stage === 'promotion' &&
+    routeStageIs(item.stage, 'create_drafts') &&
     Boolean(reviewBeforeEdit?.approvedAt) &&
     !reviewBeforeEdit?.reviewInvalidatedAt;
   if (isConsequentialEdit) {
     markReviewInvalidated(itemId, 'consequential_edit');
     if (wasApprovedInPromotion && reopenApprovedForReapproval(itemId)) {
       onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
-        stage: 'review',
+        stage: 'review_listings',
         reason: 'reapproval_required',
       });
     }
@@ -2206,7 +2280,7 @@ route.put('/onboarding/items/:id/media', async (c) => {
   const db = getDb();
   const reviewBeforeEdit = getReviewState(itemId);
   const wasApprovedInPromotion =
-    item.stage === 'promotion' &&
+    routeStageIs(item.stage, 'create_drafts') &&
     Boolean(reviewBeforeEdit?.approvedAt) &&
     !reviewBeforeEdit?.reviewInvalidatedAt;
 
@@ -2234,7 +2308,7 @@ route.put('/onboarding/items/:id/media', async (c) => {
   })();
   if (wasApprovedInPromotion && reopenApprovedForReapproval(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
-      stage: 'review',
+      stage: 'review_listings',
       reason: 'reapproval_required',
     });
   }
@@ -2349,7 +2423,7 @@ route.post('/onboarding/items/:id/retry', async (c) => {
   // fallback_to_discovery transition (never stranding at sourcing/pending);
   // when ENABLED, retry resets the item in place and supersedes the evidence
   // generation for a clean re-run (ADR 0014).
-  if (item.stage === 'sourcing') {
+  if (routeStageIs(item.stage, 'route_sources')) {
     const result = resetItemsForRetry([itemId], {
       sourcingEngineEnabled: sourcingRoutingActive(),
     });
@@ -2369,7 +2443,7 @@ route.post('/onboarding/items/:id/retry', async (c) => {
   const db = getDb();
   db.query('UPDATE onboarding_items SET stage_status = ?, status = ?, retry_count = 0, error_message = NULL WHERE id = ?').run(
     'pending',
-    item.stage === 'discovery' ? 'imported' : 'source_confirmed',
+    routeStageIs(item.stage, 'find_product_page') ? 'imported' : 'source_confirmed',
     itemId
   );
 
@@ -2458,7 +2532,8 @@ route.post('/onboarding/items/:id/select-variant', async (c) => {
     const workspace = findWorkspace();
     if (workspace) {
       try {
-        db.prepare('UPDATE onboarding_items SET stage = ?, stage_status = ?, retry_count = 0, error_message = NULL, updated_at = ? WHERE id = ?').run('extraction', 'pending', new Date().toISOString(), itemId);
+        // Slice 5b native: requeue write encodes the observed storage version.
+        db.prepare('UPDATE onboarding_items SET stage = ?, stage_status = ?, retry_count = 0, error_message = NULL, updated_at = ? WHERE id = ?').run(encodeForStorage('collect_details', readStorageVersion(db)), 'pending', new Date().toISOString(), itemId);
         const { OnboardingWorker } = await import('../../onboarding/job-queue');
         const worker = new (OnboardingWorker as any)(workspace.id, workspace.workspacePath);
         try { worker.poll(); } catch {}
@@ -2536,12 +2611,13 @@ function requeueDiscoveryRun(itemId: string, workspaceId: string, workspacePath:
 /**
  * POST /api/onboarding/items/:id/assign-brand
  *
- * ADR 0017 commitment 4 — first-class discovery-card attention action:
- * assign a brand hint to the item and re-run official site discovery
- * guided by that brand. On the next discovery run the resolved brand
- * scopes the search (`site:` + sitemap pass) and feeds the authority gate
- * (auto-accept requires the brand's mapped official domain). Re-triggers
- * discovery exactly like the existing search_again flow.
+ * ADR 0017 commitment 4 — first-class discovery-card attention action,
+ * extended to Check source options (route_sources): assign a brand hint to
+ * the item and, for Find product page items only, re-run official site
+ * discovery guided by that brand. For Check source options items, sourcing
+ * reads the saved hint when routing; the item keeps its stage/status and
+ * discovery is not re-queued. A missing_brand hold is released so the
+ * newly-branded sourcing item can flow (mirroring assign-brand-group).
  *
  * Request:  { "brand": string }
  * Response: 200 { success: true, item } | 400 { error } | 404 { error }
@@ -2570,17 +2646,24 @@ route.post('/onboarding/items/:id/assign-brand', async (c) => {
   }
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
-  if (item.stage !== 'discovery') {
+  const isDiscovery = routeStageIs(item.stage, 'find_product_page');
+  const isSourcing = routeStageIs(item.stage, 'route_sources');
+  if (!isDiscovery && !isSourcing) {
     return c.json(
-      { error: `assign_brand requires the item to be in Discovery, got ${item.stage}/${item.stageStatus}` },
+      { error: `assign_brand requires the item to be in Check source options (route_sources) or Find product page (find_product_page), got ${item.stage}/${item.stageStatus}` },
       400,
     );
   }
 
-  updateItemBrandHint(itemId, brand.trim());
-  requeueDiscoveryRun(itemId, workspace.id, workspace.workspacePath);
+  const trimmedBrand = brand.trim();
+  updateItemBrandHint(itemId, trimmedBrand);
+  if (isDiscovery) {
+    requeueDiscoveryRun(itemId, workspace.id, workspace.workspacePath);
+  } else if (item.isHeld && item.heldReason === 'missing_brand') {
+    releaseBatchItems(item.batchId, [itemId]);
+  }
   console.log(
-    `[OnboardingRoutes] assign_brand for ${itemId}: brand hint -> "${brand.trim()}", discovery re-queued`,
+    `[OnboardingRoutes] assign_brand for ${itemId}: brand hint -> "${trimmedBrand}"${isDiscovery ? ', discovery re-queued' : ', sourcing hint saved without discovery requeue'}`,
   );
 
   return c.json({ success: true, item: findItemById(itemId) });
@@ -2623,9 +2706,9 @@ route.post('/onboarding/items/:id/assign-domain', async (c) => {
   }
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
-  if (item.stage !== 'discovery') {
+  if (!routeStageIs(item.stage, 'find_product_page')) {
     return c.json(
-      { error: `assign_domain requires the item to be in Discovery, got ${item.stage}/${item.stageStatus}` },
+      { error: `assign_domain requires the item to be in Find product page (find_product_page), got ${item.stage}/${item.stageStatus}` },
       400,
     );
   }
@@ -2797,7 +2880,7 @@ route.post('/onboarding/items/:id/resolve-sourcing', async (c) => {
   if (!item) {
     return c.json({ error: 'Onboarding item not found' }, 404);
   }
-  if (item.stage !== 'sourcing') {
+  if (!routeStageIs(item.stage, 'route_sources')) {
     return c.json({ error: `Item is not in the sourcing stage (${item.stage}/${item.stageStatus})` }, 400);
   }
 
@@ -2890,12 +2973,12 @@ route.post('/onboarding/items/:id/continue-with-official-discovery', async (c) =
   if (item.sourceType !== 'distributor_record') {
     return c.json({ error: 'Item is not a distributor-source item' }, 400);
   }
-  // Stage guard: extraction pending/failed, or completed before Curation.
+  // Stage guard: collect_details pending/failed, or completed before Curation.
   // Anything later must use the reviewed send-back flow.
-  if (item.stage !== 'extraction' || !['pending', 'failed', 'completed'].includes(item.stageStatus)) {
+  if (!routeStageIs(item.stage, 'collect_details') || !['pending', 'failed', 'completed'].includes(item.stageStatus)) {
     return c.json(
       {
-        error: `Continue-with-official-discovery requires extraction pending/failed/completed-before-curation, got ${item.stage}/${item.stageStatus}. Items that advanced past Curation must use the reviewed send-back flow instead.`,
+        error: `Continue-with-official-discovery requires collect_details pending/failed/completed-before-curation, got ${item.stage}/${item.stageStatus}. Items that advanced past Curation must use the reviewed send-back flow instead.`,
       },
       400,
     );
@@ -2972,7 +3055,7 @@ route.post('/onboarding/items/:id/conflicts/:conflictId/resolve', async (c) => {
     return c.json({ error: 'Onboarding item not found' }, 404);
   }
 
-  if (item.stage !== 'sourcing') {
+  if (!routeStageIs(item.stage, 'route_sources')) {
     return c.json({ error: `Item is not in the sourcing stage (${item.stage}/${item.stageStatus})` }, 400);
   }
 
@@ -4601,7 +4684,7 @@ route.get('/onboarding/settings/profile-retry-preview/:domain', (c) => {
 
   for (const batch of batches) {
     const staged = listItemsByBatchStaged(batch.id);
-    const extractionItems = staged.extraction || [];
+    const extractionItems = staged.collect_details || [];
 
     for (const item of extractionItems) {
       if (item.stageStatus !== 'failed') continue;

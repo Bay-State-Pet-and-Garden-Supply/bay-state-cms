@@ -26,6 +26,20 @@ import {
   type WorkStateFilters,
 } from '../../onboarding/onboarding-work-state';
 import { WorkStateCursorError } from '../../shared/schemas/onboarding-work-state';
+import { toCanonicalStage } from '../../shared/onboarding-stage-vocabulary';
+
+/**
+ * Slice 5b native (D4 narrow rename-boundary substitution in this otherwise
+ * frozen file): canonical review-stage guard (dual read). URLs, auth,
+ * decisions, receipts, and v1 request/receipt bytes are untouched.
+ */
+function workRouteStageIs(rawStage: unknown, canonical: 'review_listings' | 'create_drafts'): boolean {
+  try {
+    return toCanonicalStage(rawStage) === canonical;
+  } catch {
+    return false;
+  }
+}
 import { WorkStateProjectionError } from '../../db/repositories/onboarding-work-state-repo';
 import { buildProjectionHealth } from '../../onboarding/onboarding-work-state';
 import { getBatchReviewQueue } from '../../onboarding/onboarding-review-queue';
@@ -442,7 +456,7 @@ route.post('/onboarding/batches/:id/approve', async (c) => {
       rejected.push({ itemId: id, reason: 'item_not_in_batch' });
       continue;
     }
-    if (item.stage !== 'review' || item.stageStatus !== 'completed') {
+    if (!workRouteStageIs(item.stage, 'review_listings') || item.stageStatus !== 'completed') {
       rejected.push({ itemId: id, reason: `not_eligible:${item.stage}/${item.stageStatus}` });
       continue;
     }
@@ -508,7 +522,7 @@ route.post('/onboarding/batches/:id/approve', async (c) => {
   }
   for (const id of advancedIds) {
     onboardingEvents.emitItemStatus(findItemById(id)?.batchId ?? batchId, id, 'approved', {
-      stage: 'promotion',
+      stage: 'create_drafts',
       approvalOrigin: 'bulk',
     });
   }

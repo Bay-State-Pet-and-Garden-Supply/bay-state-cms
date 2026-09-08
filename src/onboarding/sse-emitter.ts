@@ -82,6 +82,33 @@ class OnboardingEventBus {
       data: { status },
     });
   }
+
+  emitClassificationRefreshStarted(batchId: string, itemId: string, data: Record<string, unknown>): void {
+    this.emit({
+      type: 'item:status',
+      batchId,
+      itemId,
+      data: { status: 'refresh_started', ...data },
+    });
+  }
+
+  emitClassificationRefreshCompleted(batchId: string, itemId: string, data: Record<string, unknown>): void {
+    this.emit({
+      type: 'item:status',
+      batchId,
+      itemId,
+      data: { status: 'refresh_completed', ...data },
+    });
+  }
+
+  emitClassificationRefreshFailed(batchId: string, itemId: string, data: Record<string, unknown>): void {
+    this.emit({
+      type: 'item:status',
+      batchId,
+      itemId,
+      data: { status: 'refresh_failed', ...data },
+    });
+  }
 }
 
 // Singleton instance
