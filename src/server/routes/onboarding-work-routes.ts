@@ -14,6 +14,7 @@
  */
 import { Hono } from 'hono';
 import { findWorkspace } from '../../db/repositories/workspace-repo';
+import { previewBatchFilenames, recordFilenameDecision, filenameGateReason } from '../../onboarding/filename-review';
 import { findBatchById } from '../../db/repositories/onboarding-batch-repo';
 import {
   findItemById,
@@ -263,6 +264,33 @@ route.get('/onboarding/batches/:id/review-queue', async (c) => {
 });
 
 /**
+ * GET /api/onboarding/batches/:id/filename-preview (issue #109)
+ *
+ * Per-draft computed more-information file names + collision warnings for
+ * the Review drawer. Deterministic for a fixed batch state — the client
+ * fetches once per batch review load and caches. Read-only; same
+ * ownership checks as the review queue.
+ */
+route.get('/onboarding/batches/:id/filename-preview', async (c) => {
+  const batchId = c.req.param('id');
+  const batch = findBatchById(batchId);
+  if (!batch) {
+    return c.json({ error: 'Batch not found' }, 404);
+  }
+  const workspace = findWorkspace();
+  if (!workspace || batch.workspaceId !== workspace.id) {
+    return c.json({ error: 'Batch not found' }, 404);
+  }
+  try {
+    const items = previewBatchFilenames(workspace.workspacePath, batchId, workspace.id);
+    return c.json({ batchId, items });
+  } catch (err) {
+    console.error('[FilenamePreview] Unexpected error:', err);
+    return c.json({ error: 'Failed to compute filename preview' }, 500);
+  }
+});
+
+/**
  * GET /api/onboarding/items/:id/work-state
  * Single-item operator work-state projection.
  */
@@ -430,6 +458,12 @@ route.post('/onboarding/batches/:id/approve', async (c) => {
   }
 
   // ── Phase 1: validate every item (per-item, fail-closed reasons) ───────
+  // Issue #109: filename preview computed once for the batch; warned items
+  // need an explicit recorded decision (accept/defer) or they are rejected.
+  const filenamePreviewById = new Map(
+    previewBatchFilenames(workspace.workspacePath, batchId, workspace.id).map(p => [p.itemId, p]),
+  );
+  const filenameDecisions = parsed.data.filenameDecisions ?? {};
   const validIds: string[] = [];
   const rejected: Array<{ itemId: string; reason: string }> = [];
   for (const id of parsed.data.itemIds) {
@@ -458,6 +492,28 @@ route.post('/onboarding/batches/:id/approve', async (c) => {
     if (reviewState.approvedAt) {
       rejected.push({ itemId: id, reason: 'already_approved' });
       continue;
+    }
+    // Issue #109: filename-warning gate. Explicit decisions are recorded to
+    // Classification History before the verdict, deliberately: the decision
+    // is audit trail even for deferred/rejected items. This is safe because
+    // accepts are base-keyed and revalidated on every gate check — a stale
+    // accept can never silently approve later; retitles change the base and
+    // re-warn.
+    const preview = filenamePreviewById.get(id);
+    if (preview && preview.warnings.length > 0) {
+      const decision = filenameDecisions[id];
+      if (decision === 'accept' || decision === 'defer') {
+        recordFilenameDecision(workspace.id, item.upc, batchId, decision, preview.baseFileName, approvedBy);
+      }
+      if (decision === 'defer') {
+        rejected.push({ itemId: id, reason: 'deferred_by_operator' });
+        continue;
+      }
+      const filenameReason = filenameGateReason(preview, workspace.id, batchId);
+      if (filenameReason) {
+        rejected.push({ itemId: id, reason: filenameReason });
+        continue;
+      }
     }
     // Run-linked items pass the SAME review-completion gate the review flow
     // enforces (semantic validation + type gates). Legacy items (no run)

@@ -437,11 +437,13 @@ export async function moveToPreviousStage(
   });
 }
 
-export async function completeReviewStage(itemIds: string[]): Promise<{ success: boolean; count: number; legacyCount?: number; classifiedCount?: number }> {
+export async function completeReviewStage(itemIds: string[], opts?: { filenameDecisions?: Record<string, 'accept' | 'defer'> }): Promise<{ success: boolean; count: number; legacyCount?: number; classifiedCount?: number }> {
   const res = await fetch(`${API_BASE}/items/review-complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ itemIds }),
+    body: JSON.stringify(
+      opts?.filenameDecisions ? { itemIds, filenameDecisions: opts.filenameDecisions } : { itemIds },
+    ),
   });
   const data = await res.json() as Record<string, unknown>;
   if (!res.ok) {

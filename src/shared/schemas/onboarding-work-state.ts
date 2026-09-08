@@ -562,6 +562,13 @@ export const ApproveItemsRequestSchema = z.object({
   ),
   /** Optional operator identity for the audit trail. */
   reviewerId: z.string().max(200).optional(),
+  /**
+   * Explicit per-item filename-warning decisions (issue #109). Warned items
+   * without an entry are rejected `filename_warning_unresolved`; 'accept'
+   * records history and proceeds (batch warnings only — catalog collisions
+   * stay blocked); 'defer' records history and skips the item.
+   */
+  filenameDecisions: z.record(z.string(), z.enum(['accept', 'defer'])).optional(),
 });
 
 export type ApproveItemsRequest = z.infer<typeof ApproveItemsRequestSchema>;

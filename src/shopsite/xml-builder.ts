@@ -1,5 +1,6 @@
 import { sanitizeXml } from './xml-sanitizer';
 import { denormalizeProduct } from './product-denormalizer';
+import { resolveBaseFileName, uniquifyFileNames } from './file-name';
 import type { Product } from '../shared/types';
 
 /**
@@ -8,7 +9,7 @@ import type { Product } from '../shared/types';
  */
 export function buildProductsXml(
   products: Product[],
-  options?: { xmlVersion?: string; newProductTag?: string },
+  options?: { xmlVersion?: string; newProductTag?: string; uniquifyFileNames?: boolean },
 ): string {
   const xmlVersion = options?.xmlVersion ?? '15.0';
   const lines: string[] = [];
@@ -18,8 +19,21 @@ export function buildProductsXml(
   lines.push(`<ShopSiteProducts version="${escapeAttr(xmlVersion)}">`);
   lines.push('<Products>');
 
-  for (const product of products) {
-    lines.push(buildProductXml(product, options?.newProductTag));
+  // Issue #107: sibling drafts with identical (or slug-colliding) names must
+  // never export identical <FileName> values. Uniquification is default-on
+  // so every export/sync path is covered; pass { uniquifyFileNames: false }
+  // only to reproduce the raw per-product output. Keys are positional
+  // (SKU + index) so even a duplicate-SKU batch — already invalid via
+  // DUPLICATE_SKU — still exports distinct file names (fails closed
+  // downstream instead of cross-linking detail pages).
+  const uniquify = options?.uniquifyFileNames ?? true;
+  const keyed = products.map((p, i) => ({ product: p, key: `${p.sku}#${i}` }));
+  const uniqueNames = uniquify
+    ? uniquifyFileNames(keyed.map(k => ({ key: k.key, fileName: resolveBaseFileName(k.product) })))
+    : null;
+
+  for (const { product, key } of keyed) {
+    lines.push(buildProductXml(product, options?.newProductTag, uniqueNames?.get(key)));
   }
 
   lines.push('</Products>');
@@ -32,8 +46,8 @@ export function buildProductsXml(
  * Build a single Product XML element from the normalized Product model.
  * Uses the denormalizer for the product block.
  */
-function buildProductXml(product: Product, _newProductTag?: string): string {
-  const result = denormalizeProduct(product);
+function buildProductXml(product: Product, _newProductTag?: string, fileName?: string): string {
+  const result = denormalizeProduct(product, fileName ? { fileName } : undefined);
   return result.xml;
 }
 
