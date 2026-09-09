@@ -46,9 +46,36 @@ export function buildBrandOptions(
 
 /**
  * Case-insensitive substring match over the option list. Prefix matches
- * rank first, then alphabetical within each group. Empty queries return no
- * suggestions (the input doubles as free entry — no dropdown on empty).
+ * rank first, then contains, then typo-tolerant fuzzy matches (edit
+ * distance ≤1 for short queries, ≤2 for queries ≥7 chars; queries shorter
+ * than 4 chars never fuzzy-match to avoid noisy dropdowns). Empty queries
+ * return no suggestions (the input doubles as free entry — no dropdown
+ * on empty).
+ *
+ * Fuzzy tier exists so a single-char typo (e.g. `Snif-Snax` vs stored
+ * `Sniff-Snax`) still surfaces the existing brand — previously the
+ * substring check missed it entirely, leaving the "Pick a suggestion
+ * above" nudge with nothing above to pick.
  */
+export function brandEditDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  // Classic DP over two rows; early-exit when the current row minimum
+  // already exceeds max (typical brand strings are short so this is cheap).
+  let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const curr: number[] = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > max) return max + 1;
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
 export function filterBrandOptions(
   options: string[],
   query: string,
@@ -58,15 +85,24 @@ export function filterBrandOptions(
   if (!q) return [];
   const prefix: string[] = [];
   const contains: string[] = [];
+  const fuzzy: Array<{ option: string; dist: number }> = [];
+  const maxFuzzyDist = q.length <= 6 ? 1 : 2;
   for (const option of options) {
     const lower = option.toLowerCase();
-    if (lower === q || lower.startsWith(q)) prefix.push(option);
-    else if (lower.includes(q)) contains.push(option);
+    if (lower === q || lower.startsWith(q)) {
+      prefix.push(option);
+    } else if (lower.includes(q)) {
+      contains.push(option);
+    } else if (q.length >= 4) {
+      const dist = brandEditDistance(lower, q, maxFuzzyDist);
+      if (dist <= maxFuzzyDist) fuzzy.push({ option, dist });
+    }
   }
   const byName = (a: string, b: string) => a.localeCompare(b);
   prefix.sort(byName);
   contains.sort(byName);
-  return [...prefix, ...contains].slice(0, Math.max(0, limit));
+  fuzzy.sort((a, b) => a.dist - b.dist || a.option.localeCompare(b.option));
+  return [...prefix, ...contains, ...fuzzy.map((f) => f.option)].slice(0, Math.max(0, limit));
 }
 
 /**

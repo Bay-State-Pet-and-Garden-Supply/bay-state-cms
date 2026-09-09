@@ -78,12 +78,12 @@ export function OutcomeItemsView({ batchId, outcome }: OutcomeItemsViewProps) {
 
   return (
     <div data-testid={`outcome-items-${outcome}`}>
-      <p className="bws-muted" data-testid="outcome-scope-label" style={{ margin: '0 0 8px 0', fontSize: '0.8125rem' }}>
-        Outcome: {copy.title} · server-filtered <code>category={outcome}</code> · no decisions here ·{' '}
+      <div className="bws-muted" data-testid="outcome-scope-label" style={{ margin: '0 0 4px 0', fontSize: '0.75rem' }}>
+        {copy.title} · server-filtered <code>category={outcome}</code> ·{' '}
         {loading && items.length === 0 ? 'loading…' : `${formatCount(items.length)} loaded row${items.length === 1 ? '' : 's'}`}
         {nextCursor ? ' — more available' : ''}
-      </p>
-      <p className="bws-muted" style={{ margin: '0 0 12px 0', fontSize: '0.8125rem' }}>{copy.note}</p>
+      </div>
+      <div className="bws-muted" style={{ margin: '0 0 8px 0', fontSize: '0.75rem' }}>{copy.note}</div>
       {error && (
         <div role="alert" style={{ color: colors.signetBurgundy, padding: '0.75rem 0' }}>
           Failed to load outcome items: {error}

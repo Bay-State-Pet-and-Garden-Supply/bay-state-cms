@@ -426,6 +426,13 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       updateDraft(itemId, { saving: true, error: null });
       try {
         await assignItemBrand(itemId, canonical);
+        // Seed newly-coined brands into the local pool: assigning only
+        // sets the item hint (brand_sites requires a domain, created at the
+        // domain step), so without this the new-brand nudge would persist
+        // on every sibling row as if creation had failed.
+        setBrandOptions((prev) =>
+          prev.some((o) => o.toLowerCase() === canonical.toLowerCase()) ? prev : [...prev, canonical],
+        );
         await refreshEpoch();
       } catch (err) {
         updateDraft(itemId, {
@@ -434,7 +441,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
         });
       }
     },
-    [drafts, refreshEpoch, updateDraft],
+    [drafts, refreshEpoch, updateDraft, setBrandOptions],
   );
 
   // Brand Hub map is the single authority for KPI/table derivations. While
@@ -504,6 +511,10 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       if (domainToAdd) {
         await assignBatchBrandDomain(batchId, canonical, domainToAdd);
       }
+      // Same local-pool seeding as the per-row path (see runBrandAssign).
+      setBrandOptions((prev) =>
+        prev.some((o) => o.toLowerCase() === canonical.toLowerCase()) ? prev : [...prev, canonical],
+      );
       setSelected({});
       setBulkBrand('');
       setBulkDomain('');
@@ -513,7 +524,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     } finally {
       setBulkSaving(false);
     }
-  }, [selected, bulkBrand, bulkDomain, bulkSaving, batchId, refreshEpoch, brandDomainMap]);
+  }, [selected, bulkBrand, bulkDomain, bulkSaving, batchId, refreshEpoch, brandDomainMap, setBrandOptions]);
 
   // Resolution drawer save (#117): persist one unmapped brand's domain to
   // Brand Hub, drop the resolved row, and refresh the stage view. Failures
@@ -566,23 +577,17 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     <div id="bws-stage-panel" role="tabpanel" aria-labelledby={`bws-stage-tab-${stage}`} data-testid={`stage-items-${stage}`}>
       {!compact && stage === 'route_sources' && (
         <div className="bws-stage-flow-note" data-testid="stage-one-flow-note">
-          <p>
-            <strong>Main flow:</strong> use the official product page as the main source.
-          </p>
-          <p className="bws-muted">
-            Secondary fast path: a qualified supplier record can provide an alternate path that
-            skips product-page discovery. Triage rows report their actual recorded activity —
-            including a real distributor lookup when one occurred — never a fabricated visit.
-          </p>
+          <span><strong>Main flow:</strong> official product page.</span>{' '}
+          <span className="bws-muted">Secondary fast path: qualified supplier record provides an alternate path skipping discovery.</span>
         </div>
       )}
 
-      <p className="bws-muted" data-testid="stage-scope-label" style={{ margin: '0 0 8px 0', fontSize: '0.8125rem' }}>
-        Stage list: {LINEAR_STAGE_LABELS[stage]} · server-filtered ·{' '}
-        {loading && items.length === 0 ? 'loading…' : `${formatCount(items.length)} loaded row${items.length === 1 ? '' : 's'}`}
+      <div className="bws-muted" data-testid="stage-scope-label" style={{ margin: '0 0 6px 0', fontSize: '0.75rem' }}>
+        <span>{LINEAR_STAGE_LABELS[stage]} · server-filtered · </span>
+        <span>{loading && items.length === 0 ? 'loading…' : `${formatCount(items.length)} loaded row${items.length === 1 ? '' : 's'}`}</span>
         {nextCursor ? ' — more available' : ''}
         {refreshing ? ' · refreshing…' : ''}
-      </p>
+      </div>
 
       {isRouteSourcesStage && kpiCounts && (
         <div
@@ -778,23 +783,59 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
         <div
           data-testid="stage-bulk-bar"
           style={{
-            display: 'flex',
-            gap: 8,
-            alignItems: 'flex-end',
+            display: selectedCount > 0 ? 'flex' : 'none',
+            alignItems: 'center',
+            gap: 12,
             flexWrap: 'wrap',
-            backgroundColor: colors.whiteSurface,
-            border: `1px solid ${colors.cardBorder}`,
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #16844D',
             borderRadius: rounded.md,
-            padding: '8px 10px',
+            padding: '6px 12px',
             margin: '0 0 8px 0',
+            boxShadow: '0 1px 4px rgba(20, 83, 45, 0.1)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
-          <span className="bws-muted" data-testid="stage-bulk-count" style={{ fontSize: '0.75rem', fontWeight: 600, paddingBottom: 8 }}>
-            {selectedCount === 0 ? 'No rows selected' : `${selectedCount} selected`}
-          </span>
-          <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
-            Brand for selected
-            <span style={{ display: 'block', width: 200, marginTop: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              data-testid="stage-bulk-count"
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                backgroundColor: colors.uniformGreen,
+                color: colors.feedBagCream,
+                borderRadius: rounded.full,
+                padding: '2px 8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {selectedCount === 0 ? 'No rows selected' : `${selectedCount} selected`}
+            </span>
+            {selectedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected({})}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: colors.mulchBrown,
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: '2px 4px',
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div style={{ width: 1, height: 18, backgroundColor: colors.cardBorder }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', fontWeight: 600, color: colors.ledgerCharcoal }}>
+            <span>Brand for selected:</span>
+            <span style={{ display: 'block', width: 200 }}>
               <BrandCombobox
                 value={bulkBrand}
                 onChange={(next) => { setBulkBrand(next); setBulkError(null); }}
@@ -807,11 +848,12 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                 inputStyle={{
                   display: 'block',
                   width: 200,
-                  padding: '0.375rem 0.5rem',
+                  padding: '0.3125rem 0.5rem',
                   border: `1px solid ${colors.cardBorder}`,
                   borderRadius: rounded.md,
                   fontSize: '0.8125rem',
                   fontFamily: fonts.body,
+                  backgroundColor: colors.whiteSurface,
                 }}
               />
             </span>
@@ -820,15 +862,24 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
             <span
               data-testid="stage-bulk-domain-preview"
               role="status"
-              style={{ fontSize: '0.75rem', color: colors.ledgerCharcoal, paddingBottom: 8 }}
+              style={{
+                fontSize: '0.75rem',
+                color: colors.ledgerCharcoal,
+                backgroundColor: colors.whiteSurface,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: rounded.full,
+                padding: '2px 8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
               title="Brand Hub domain mapping with extractor profile readiness"
             >
               🌐 {bulkPreview.domain} · Active in Brand Hub ({bulkPreview.profileReady ? 'Profile Ready' : 'Profile Required'})
             </span>
           )}
           {bulkPreview && !bulkPreview.domain && (
-            <label style={{ fontSize: '0.6875rem', fontWeight: 600, color: colors.mulchBrown }}>
-              Official domain for “{bulkPreview.canonical}” (Brand Hub has none yet)
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 600, color: colors.mulchBrown }}>
+              <span>Official domain for “{bulkPreview.canonical}”:</span>
               <input
                 type="text"
                 data-testid="stage-bulk-domain-input"
@@ -839,13 +890,13 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                 onChange={(e) => setBulkDomain(e.target.value)}
                 style={{
                   display: 'block',
-                  width: 200,
-                  padding: '0.375rem 0.5rem',
+                  width: 180,
+                  padding: '0.3125rem 0.5rem',
                   border: `1px solid ${colors.cardBorder}`,
                   borderRadius: rounded.md,
                   fontSize: '0.8125rem',
                   fontFamily: fonts.body,
-                  marginTop: 2,
+                  backgroundColor: colors.whiteSurface,
                 }}
               />
             </label>
@@ -865,7 +916,8 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
               color: colors.feedBagCream,
               cursor: bulkSaving || selectedCount === 0 || !bulkBrand.trim() ? 'not-allowed' : 'pointer',
               opacity: bulkSaving || selectedCount === 0 || !bulkBrand.trim() ? 0.6 : 1,
-              minHeight: 32,
+              minHeight: 28,
+              marginLeft: 'auto',
             }}
           >
             {bulkSaving ? 'Assigning…' : 'Assign to selected'}
@@ -903,7 +955,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
             <tr>
               <th>Product</th>
               <th>Stage status</th>
-              <th>Review</th>
+              {isReviewStage && <th>Review</th>}
               <th>Source</th>
             </tr>
           </thead>
@@ -923,9 +975,11 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                   </span>
                   <div className="bws-muted" style={{ fontSize: '0.75rem' }}>{item.label}</div>
                 </td>
-                <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
-                  {item.reviewState ? reviewStateLabel(item.reviewState) : '—'}
-                </td>
+                {isReviewStage && (
+                  <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
+                    {item.reviewState ? reviewStateLabel(item.reviewState) : '—'}
+                  </td>
+                )}
                 <td className="bws-muted" style={{ fontSize: '0.75rem' }}>
                   {sourceTypeLabel(item.sourceType)}
                   {item.domain ? <div style={{ fontSize: '0.6875rem' }}>{item.domain}</div> : null}
@@ -1014,13 +1068,19 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                           onCommit={(next) => void runBrandAssign(item.itemId, next)}
                           options={brandOptions}
                           disabled={saving}
+                          saving={saving}
+                          commitOnBlur
                           ariaLabel={`Brand for ${item.name || item.upc}`}
                           placeholder="Enter brand name"
+                          inputTestId={`stage-brand-input-${item.itemId}`}
                           inputStyle={{
                             display: 'block',
                             width: '100%',
-                            padding: '0.375rem 0.5rem',
-                            border: `1px solid ${colors.cardBorder}`,
+                            paddingTop: '0.375rem',
+                            paddingBottom: '0.375rem',
+                            paddingLeft: '0.5rem',
+                            paddingRight: saving ? '4.5rem' : '0.5rem',
+                            border: `1px solid ${draft?.error ? colors.signetBurgundy : colors.cardBorder}`,
                             borderRadius: rounded.md,
                             fontSize: '0.8125rem',
                             fontFamily: fonts.body,
@@ -1028,28 +1088,6 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                         />
                       </span>
                     </label>
-                    <div>
-                      <button
-                        type="button"
-                        data-testid={`stage-brand-assign-${item.itemId}`}
-                        onClick={() => void runBrandAssign(item.itemId, brandValue)}
-                        disabled={saving || !brandValue.trim()}
-                        style={{
-                          backgroundColor: colors.uniformGreen,
-                          border: 'none',
-                          borderRadius: rounded.md,
-                          padding: '0.375rem 0.75rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: colors.feedBagCream,
-                          cursor: saving || !brandValue.trim() ? 'not-allowed' : 'pointer',
-                          opacity: saving || !brandValue.trim() ? 0.6 : 1,
-                          minHeight: 32,
-                        }}
-                      >
-                        {saving ? 'Assigning…' : 'Assign brand'}
-                      </button>
-                    </div>
                     {draft?.error && (
                       <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
                         {draft.error} — list unchanged.

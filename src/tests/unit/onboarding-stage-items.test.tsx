@@ -205,17 +205,18 @@ describe('StageItemsView route_sources inline brand assignment', () => {
     document.body.innerHTML = '';
   });
 
-  it('per-row assign-brand calls the existing assignItemBrand path then refreshes the stage list', async () => {
+  it('per-row brand selector commits via assignItemBrand and refreshes the stage list', async () => {
     await mountStage('route_sources');
-    const assignBtn = container.querySelector('[data-testid="stage-brand-assign-item_1"]') as HTMLButtonElement;
-    expect(assignBtn).not.toBeNull();
+    // No redundant per-row assign button is rendered
+    expect(container.querySelector('[data-testid="stage-brand-assign-item_1"]')).toBeNull();
     // Prefilled from the server-reported brand (mirrors BrandFixRow drafts).
     const brandInput = container.querySelector('input[aria-label="Brand for Product 1"]') as HTMLInputElement;
+    expect(brandInput).not.toBeNull();
     expect(brandInput.value).toBe('Acme');
     const readsBefore = stageReads().length;
     expect(readsBefore).toBeGreaterThan(0);
     await act(async () => {
-      assignBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      brandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await new Promise((r) => setTimeout(r, 20));
     });
     // EXACT Step 0 BrandGateView mutation path: (itemId, brand).
@@ -229,9 +230,9 @@ describe('StageItemsView route_sources inline brand assignment', () => {
     vi.mocked(assignItemBrand).mockRejectedValueOnce(new Error('server refused'));
     await mountStage('route_sources');
     const readsBefore = stageReads().length;
-    const assignBtn = container.querySelector('[data-testid="stage-brand-assign-item_1"]') as HTMLButtonElement;
+    const brandInput = container.querySelector('input[aria-label="Brand for Product 1"]') as HTMLInputElement;
     await act(async () => {
-      assignBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      brandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await new Promise((r) => setTimeout(r, 20));
     });
     expect(container.textContent).toContain('server refused');
@@ -240,7 +241,7 @@ describe('StageItemsView route_sources inline brand assignment', () => {
 
   it('other stages render no brand action (route_sources scope only)', async () => {
     await mountStage('review_listings');
-    expect(container.querySelector('[data-testid^="stage-brand-assign-"]')).toBeNull();
+    expect(container.querySelector('input[aria-label^="Brand for"]')).toBeNull();
     expect(container.textContent).not.toMatch(/Assign brand/);
   });
 });

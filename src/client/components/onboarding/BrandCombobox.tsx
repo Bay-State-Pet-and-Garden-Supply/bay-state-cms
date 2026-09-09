@@ -9,8 +9,10 @@
  *
  * Submission contract: `onCommit(nextValue)` always receives the value to
  * submit. Picking a suggestion (mouse or Enter on the highlight) commits
- * its canonical stored spelling; plain Enter commits the current input
- * (callers canonicalize exact-but-miscased entries via
+ * its canonical stored spelling; picking the explicit "Create new brand X"
+ * option (rendered whenever the typed value matches nothing) commits the
+ * trimmed free entry; plain Enter with a closed list commits the current
+ * input (callers canonicalize exact-but-miscased entries via
  * `resolveCanonicalBrand`). Free entry is never blocked: the nudge is
  * advisory (`role="status"`), errors keep `role="alert"`.
  */
@@ -31,6 +33,10 @@ export interface BrandComboboxProps {
   /** Canonical option pool (brand_sites spellings first). */
   options: string[];
   disabled?: boolean;
+  /** Whether a commit mutation is in progress. */
+  saving?: boolean;
+  /** Automatically commit on blur if value has changed. Defaults to true. */
+  commitOnBlur?: boolean;
   ariaLabel: string;
   placeholder?: string;
   /** Forwarded to the inner input (preserves incumbent testids). */
@@ -45,6 +51,8 @@ export function BrandCombobox({
   onCommit,
   options,
   disabled,
+  saving,
+  commitOnBlur = true,
   ariaLabel,
   placeholder,
   inputTestId,
@@ -54,10 +62,18 @@ export function BrandCombobox({
   const [highlight, setHighlight] = useState(0);
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const initialFocusValueRef = useRef<string>(value);
 
   const suggestions = filterBrandOptions(options, value);
   const showNudge = !disabled && isNewBrandValue(value, options);
   const trimmed = value.trim();
+  // Explicit create affordance: when the typed value matches nothing
+  // existing, offer "Create new brand X" as a real listbox option (mouse
+  // + Arrow/Enter navigable) so creation is a visible choice instead of
+  // an implied side effect of the Assign button.
+  const showCreate = showNudge;
+  const totalOptions = suggestions.length + (showCreate ? 1 : 0);
+  const listOpen = open && totalOptions > 0;
 
   // Highlight tracks the current suggestion list; stale indexes never leak
   // across keystrokes or option reloads.
@@ -80,30 +96,45 @@ export function BrandCombobox({
 
   const pick = (canonical: string) => {
     setOpen(false);
+    initialFocusValueRef.current = canonical;
     onChange(canonical);
     onCommit(canonical);
   };
 
+  const pickCreate = () => {
+    setOpen(false);
+    initialFocusValueRef.current = trimmed;
+    onChange(trimmed);
+    onCommit(trimmed);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      if (!suggestions.length) return;
+      if (!totalOptions) return;
       e.preventDefault();
       setOpen(true);
       setHighlight((prev) => {
         const delta = e.key === 'ArrowDown' ? 1 : -1;
-        return (prev + delta + suggestions.length) % suggestions.length;
+        return (prev + delta + totalOptions) % totalOptions;
       });
       return;
     }
     if (e.key === 'Enter') {
-      // Highlighted suggestion wins: Enter picks it AND submits its
-      // canonical spelling in one keypress (Enter-to-submit preserved).
-      if (open && suggestions.length > 0) {
+      // Highlighted row wins: a suggestion commits its canonical spelling,
+      // the Create row commits the trimmed free entry — all in one
+      // keypress (Enter-to-submit preserved).
+      if (open && totalOptions > 0) {
         e.preventDefault();
-        pick(suggestions[Math.min(highlight, suggestions.length - 1)]);
+        const idx = Math.min(highlight, totalOptions - 1);
+        if (idx < suggestions.length) pick(suggestions[idx]);
+        else pickCreate();
         return;
       }
-      onCommit(value);
+      const trimmedVal = value.trim();
+      if (trimmedVal) {
+        initialFocusValueRef.current = trimmedVal;
+        onCommit(trimmedVal);
+      }
       return;
     }
     if (e.key === 'Escape') {
@@ -116,16 +147,16 @@ export function BrandCombobox({
       <input
         type="text"
         role="combobox"
-        aria-expanded={open && suggestions.length > 0}
+        aria-expanded={listOpen}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={
-          open && suggestions.length > 0
-            ? `${listId}-option-${Math.min(highlight, suggestions.length - 1)}`
+          listOpen
+            ? `${listId}-option-${Math.min(highlight, totalOptions - 1)}`
             : undefined
         }
         value={value}
-        disabled={disabled}
+        disabled={disabled || saving}
         aria-label={ariaLabel}
         placeholder={placeholder}
         data-testid={inputTestId}
@@ -134,13 +165,50 @@ export function BrandCombobox({
           setOpen(true);
         }}
         onFocus={() => {
-          if (filterBrandOptions(options, value).length > 0) setOpen(true);
+          initialFocusValueRef.current = value;
+          if (
+            filterBrandOptions(options, value).length > 0 ||
+            (!disabled && !saving && isNewBrandValue(value, options))
+          ) {
+            setOpen(true);
+          }
         }}
-        onBlur={() => setOpen(false)}
+        onBlur={(e) => {
+          setOpen(false);
+          if (commitOnBlur && !disabled && !saving) {
+            const currentVal = (e.target.value ?? value).trim();
+            if (currentVal && currentVal !== initialFocusValueRef.current?.trim()) {
+              initialFocusValueRef.current = currentVal;
+              onCommit(currentVal);
+            }
+          }
+        }}
         onKeyDown={handleKeyDown}
         style={inputStyle}
       />
-      {open && suggestions.length > 0 && (
+      {saving && (
+        <span
+          role="status"
+          aria-label="Saving brand"
+          data-testid="brand-combobox-saving"
+          style={{
+            position: 'absolute',
+            right: 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '0.6875rem',
+            fontWeight: 600,
+            color: colors.uniformGreen,
+            backgroundColor: '#e8f3ec',
+            padding: '1px 6px',
+            borderRadius: rounded.sm,
+            pointerEvents: 'none',
+          }}
+        >
+          Saving…
+        </span>
+      )}
+      {listOpen && (
         <ul
           id={listId}
           role="listbox"
@@ -165,7 +233,7 @@ export function BrandCombobox({
           }}
         >
           {suggestions.map((option, index) => {
-            const active = index === Math.min(highlight, suggestions.length - 1);
+            const active = index === Math.min(highlight, totalOptions - 1);
             return (
               <li
                 key={option.toLowerCase()}
@@ -193,6 +261,34 @@ export function BrandCombobox({
               </li>
             );
           })}
+          {showCreate && (
+            <li
+              id={`${listId}-option-create`}
+              role="option"
+              aria-selected={Math.min(highlight, totalOptions - 1) === suggestions.length}
+              data-testid="brand-combobox-create-option"
+              data-active={Math.min(highlight, totalOptions - 1) === suggestions.length ? 'true' : undefined}
+              onMouseDown={(e) => {
+                // Fire before input blur closes the list.
+                e.preventDefault();
+                pickCreate();
+              }}
+              style={{
+                padding: '6px 8px',
+                borderRadius: rounded.md,
+                fontSize: '0.8125rem',
+                color: colors.uniformGreen,
+                backgroundColor:
+                  Math.min(highlight, totalOptions - 1) === suggestions.length ? '#e8f3ec' : 'transparent',
+                fontWeight: 600,
+                cursor: 'pointer',
+                borderTop: `1px dashed ${colors.cardBorder}`,
+                marginTop: 2,
+              }}
+            >
+              + Create new brand &ldquo;{trimmed}&rdquo;
+            </li>
+          )}
         </ul>
       )}
       {showNudge && (
@@ -200,15 +296,22 @@ export function BrandCombobox({
           role="status"
           data-testid="brand-combobox-new-nudge"
           style={{
-            display: 'block',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
             marginTop: 4,
-            fontSize: '0.75rem',
-            color: colors.mulchBrown,
+            padding: '1px 6px',
+            fontSize: '0.6875rem',
+            fontWeight: 500,
+            color: colors.uniformGreen,
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: rounded.sm,
+            lineHeight: 1.3,
             fontFamily: fonts.body,
           }}
         >
-          Create new brand &ldquo;{trimmed}&rdquo;? No existing brand matches — assigning will
-          create it. Pick a suggestion above to use an existing brand instead.
+          + Create new brand &ldquo;{trimmed}&rdquo;
         </span>
       )}
     </div>

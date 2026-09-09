@@ -21,6 +21,22 @@ export interface BatchExecutionControlsProps {
  * releases everything and therefore requires confirmation. Resume only
  * flips paused → running and never releases holds.
  */
+function PlayIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 5 }}>
+      <path d="M5 3l14 9-14 9V3z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 5 }}>
+      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+    </svg>
+  );
+}
+
 export function BatchExecutionControls({
   batchId,
   executionState: controlledState,
@@ -79,6 +95,8 @@ export function BatchExecutionControls({
     cursor: busy ? 'wait' : 'pointer',
     minHeight: 32,
     opacity: busy ? 0.7 : 1,
+    display: 'inline-flex',
+    alignItems: 'center',
   });
 
   return (
@@ -92,7 +110,7 @@ export function BatchExecutionControls({
           style={btn(true)}
           title="Release branded items and hold unbranded ones"
         >
-          {busy === 'ready' ? 'Starting…' : '▶ Start ready'}
+          {busy === 'ready' ? 'Starting…' : <><PlayIcon />Start ready</>}
         </button>
       )}
       {state !== 'running' && (
@@ -115,7 +133,7 @@ export function BatchExecutionControls({
           disabled={busy !== null}
           style={btn(false)}
         >
-          {busy === 'pause' ? 'Pausing…' : '⏸ Pause'}
+          {busy === 'pause' ? 'Pausing…' : <><PauseIcon />Pause</>}
         </button>
       )}
       {state === 'paused' && (
@@ -126,7 +144,7 @@ export function BatchExecutionControls({
           disabled={busy !== null}
           style={btn(true)}
         >
-          {busy === 'resume' ? 'Resuming…' : '▶ Resume'}
+          {busy === 'resume' ? 'Resuming…' : <><PlayIcon />Resume</>}
         </button>
       )}
       {error && (

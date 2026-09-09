@@ -44,7 +44,6 @@ import {
   WorkStateProjectionError,
   type BulkStageRow,
 } from '../db/repositories/onboarding-work-state-repo';
-import { convertToLbs } from '../shared/weight-converter';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import type { WorkStateFilters } from '../shared/schemas/onboarding-work-state';
 import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
@@ -541,6 +540,10 @@ function build(
       : null;
 
   const sizeAttr = (extData?.variantAttributes as Record<string, any> | undefined)?.size;
+  // Weight is display-only here and must never be invented: null unless a
+  // real curated or extracted value exists. Name-derived parsing
+  // (convertToLbs(item.name)) previously fabricated weights on freshly
+  // uploaded pre-extraction items and has been removed.
   const rawWeight =
     typeof curData?.curatedWeight === 'string' && curData.curatedWeight.trim().length > 0
       ? curData.curatedWeight.trim()
@@ -548,7 +551,7 @@ function build(
       ? String(extData.weight).trim()
       : typeof sizeAttr === 'string' && sizeAttr.trim().length > 0
       ? sizeAttr.trim()
-      : convertToLbs(item.name) ?? null;
+      : null;
 
   const weight =
     rawWeight != null && rawWeight.length > 0

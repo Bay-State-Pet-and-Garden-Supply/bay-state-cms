@@ -13,7 +13,7 @@
   flex-wrap: wrap;
   gap: var(--spacing-xs);
   border-bottom: 2px solid var(--color-card-border);
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
 }
 
 .bws-tab {
@@ -22,11 +22,11 @@
   border-bottom: none;
   background: transparent;
   font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-mulch-brown);
-  padding: 0.5rem 0.875rem;
-  min-height: 40px; /* touch target ≥ 32px */
+  padding: 0.375rem 0.75rem;
+  min-height: 34px; /* touch target ≥ 32px */
   border-radius: var(--rounded-md) var(--rounded-md) 0 0;
   cursor: pointer;
   display: inline-flex;
@@ -76,18 +76,18 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
 }
 
 .bws-filter-input {
   font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--color-ledger-charcoal);
   background: var(--color-white-surface);
   border: 1px solid var(--color-card-border);
   border-radius: var(--rounded-md);
-  padding: 0.4375rem 0.625rem;
-  min-height: 36px;
+  padding: 0.3125rem 0.5rem;
+  min-height: 32px;
 }
 
 .bws-filter-input:focus-visible {
@@ -98,34 +98,51 @@
 /* ── Results table ── */
 .bws-table-scroll {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 270px);
+  min-height: 340px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--rounded-md);
+  background: var(--color-white-surface);
   -webkit-overflow-scrolling: touch;
+  box-shadow: var(--shadow-sm);
+  position: relative;
 }
 
 .bws-results-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.8125rem;
 }
 
 .bws-results-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-feed-bag-cream);
   text-align: left;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-mulch-brown);
-  padding: 0.375rem 0.5rem;
-  border-bottom: 1px solid var(--color-card-border);
+  padding: 0.5rem 0.625rem;
+  border-bottom: 2px solid var(--color-card-border);
 }
 
 .bws-results-table td {
-  padding: 0.5rem;
+  padding: 0.5rem 0.625rem;
   border-bottom: 1px solid var(--color-card-border);
   vertical-align: top;
 }
 
 .bws-results-table tbody tr:hover {
   background: var(--color-feed-bag-cream);
+}
+
+.bws-results-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* ── Modal overlay / drawer ── */
@@ -167,7 +184,7 @@
 
 /* ── Slice 2: linear six-stage navigation (scoped additions only) ── */
 .bws-stage-nav-wrap {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
 }
 
 .bws-stage-tabs {
@@ -203,13 +220,14 @@
   background: var(--color-white-surface);
   border: 1px solid var(--color-card-border);
   border-radius: var(--rounded-md);
-  padding: 0.75rem 1rem;
-  margin-bottom: var(--spacing-md);
-  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .bws-stage-flow-note p {
-  margin: 0 0 0.375rem 0;
+  margin: 0;
 }
 
 .bws-stage-flow-note p:last-child {
@@ -299,4 +317,12 @@
 
 .bws-prepare-section-body p {
   margin: 0 0 0.5rem 0;
+}
+
+/* ── Header batch tools dropdown ── */
+.bws-batch-tools-summary::-webkit-details-marker {
+  display: none;
+}
+.bws-batch-tools-summary {
+  list-style: none;
 }

@@ -1,6 +1,6 @@
 # ADR 0034 — Onboarding linear shell rewrite + full stage rename (RECONCILED Slice 0)
 
-**Status:** reconciled draft — the council memo (Pass 1 f3287394 / Pass 2 c36e504c) is binding and **supersedes** every conflicting decision below. Vocabulary remains owner-pending; no migration is approved or executed in this tranche.
+**Status:** reconciled draft — the council memo (Pass 1 f3287394 / Pass 2 c36e504c) is binding and **supersedes** every conflicting decision below. Vocabulary: full v2 canonical vocabulary owner-approved 2026-09-08 (`route_sources` / Identify & Route Sources, `find_product_page` / Find product page, `collect_details` / Collect details, `prepare_listing` / Prepare listing, `review_listings` / Review listings, `create_drafts` / Create drafts). No storage migration is approved or executed by this approval alone — the backfill/flip remains a separately authorized migration with bridge-artifact proof.
 
 **Superseded draft decisions (do NOT implement):** new competing `onboarding-v2/` shell, durable execution tail/heartbeat (`onboarding_execution_events`, `/health` extension), backup-only rollback, prematurely final vocabulary (`sourcing→check_suppliers`, `discovery→find_official_page`, `extraction→pull_details`, `curation→clean_classify`, `review→review_approve`, `promotion→create_drafts`), `BatchWorkspace` deletion at cutover, provisional/denylist spike, Slice 5 UI-defaults flip, broad CONTEXT rewrite. Each is replaced by the council-conformant plan `docs/plans/onboarding-linear-rewrite-council-plan.md` §8 outline, summarized here:
 

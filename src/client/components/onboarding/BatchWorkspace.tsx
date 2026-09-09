@@ -14,6 +14,8 @@ import {
   type OperationViewId,
 } from './linear-workspace-logic';
 import { ExecutionStrip } from './ExecutionStrip';
+import { BatchExecutionControls } from './BatchExecutionControls';
+import { getBatch } from '../../onboarding-api';
 import { StageNavigation } from './StageNavigation';
 import { StageItemsView } from './StageItemsView';
 import { OutcomeItemsView } from './OutcomeItemsView';
@@ -43,8 +45,6 @@ export interface BatchWorkspaceProps {
   onBack: () => void;
   /** Opens the Onboarding settings page (extractor profiles, distributors…). */
   onOpenSettings?: () => void;
-  /** Opens the Preflight & Release Review modal. */
-  onOpenPreflight?: () => void;
 }
 
 /**
@@ -59,7 +59,7 @@ export interface BatchWorkspaceProps {
  * Raw pipeline stage/stage_status are secondary diagnostics only.
  */
 
-export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onOpenPreflight }: BatchWorkspaceProps) {
+export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings }: BatchWorkspaceProps) {
   // Slice 7: BatchWorkspace is the sole shell and the temporary classic
   // work-state-primary navigation branch is removed (fallback release
   // archived). The linear six-stage navigation is primary; batch-wide
@@ -77,7 +77,6 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onO
         batchName={batchName}
         onBack={onBack}
         onOpenSettings={onOpenSettings}
-        onOpenPreflight={onOpenPreflight}
       />
     );
   }
@@ -86,7 +85,6 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onO
       batchName={batchName}
       onBack={onBack}
       onOpenSettings={onOpenSettings}
-      onOpenPreflight={onOpenPreflight}
     />
   );
 }
@@ -97,11 +95,10 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onO
  * execution strip, and no resurrected classic/board navigation — this is a
  * disabled-content state, not a second shell.
  */
-function ShellDisabledNotice({ batchName, onBack, onOpenSettings, onOpenPreflight }: {
+function ShellDisabledNotice({ batchName, onBack, onOpenSettings }: {
   batchName: string;
   onBack: () => void;
   onOpenSettings?: () => void;
-  onOpenPreflight?: () => void;
 }) {
   return (
     <div data-testid="shell-disabled-notice" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
@@ -119,11 +116,6 @@ function ShellDisabledNotice({ batchName, onBack, onOpenSettings, onOpenPrefligh
           <p style={{ ...typography.viewSubtitle, margin: '0.25rem 0 0 0' }}>Workspace disabled</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
-          {onOpenPreflight && (
-            <button type="button" onClick={onOpenPreflight} style={{ backgroundColor: colors.uniformGreen, border: 'none', borderRadius: rounded.md, padding: '0.4375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.feedBagCream, cursor: 'pointer', minHeight: 36 }}>
-              ⚡ Preflight Review
-            </button>
-          )}
           {onOpenSettings && (
             <button type="button" onClick={onOpenSettings} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.mulchBrown, cursor: 'pointer', minHeight: 36 }}>
               Settings
@@ -163,7 +155,7 @@ function writeSearch(mutator: (params: URLSearchParams) => void, push: boolean) 
  * 'entire batch', stage filters cleared/hidden while open); Completed /
  * Skipped are server-filtered outcome results with no new decisions.
  */
-function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflight }: BatchWorkspaceProps) {
+function LinearShell({ batchId, batchName, onBack, onOpenSettings }: BatchWorkspaceProps) {
   const [selection, setSelection] = useState(readSelection);
   const [stageCounts, setStageCounts] = useState<Record<LinearStageId, number> | null>(null);
   const [opCounts, setOpCounts] = useState<WorkStateCounts | null>(null);
@@ -171,9 +163,11 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
   const [countsStale, setCountsStale] = useState(false);
   const [projectionHealth, setProjectionHealth] = useState<WorkStateProjectionHealth | null>(null);
   const [attentionItemId, setAttentionItemId] = useState<string | null>(null);
+  const [executionState, setExecutionState] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
+  const hasAutoRoutedRef = useRef(false);
 
   const refreshStageCounts = useCallback(async () => {
     const gen = generation.current;
@@ -193,6 +187,20 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
       setProjectionHealth(res.projectionHealth);
       setCountsError(null);
       setCountsStale(false);
+      // Auto-land on Needs Attention if the batch has items needing attention and no explicit stage/tab was chosen
+      if (!hasAutoRoutedRef.current && (res.counts?.needs_attention ?? 0) > 0) {
+        const currentSel = parseWorkspaceSelection(typeof window !== 'undefined' ? window.location.search : '');
+        if (currentSel.kind === 'legacy' && currentSel.rawTab === null) {
+          hasAutoRoutedRef.current = true;
+          writeSearch((params) => {
+            params.delete('stage');
+            params.delete('stageVersion');
+            params.delete('wview');
+            params.set('tab', 'needs_attention');
+          }, false);
+          return;
+        }
+      }
     } catch (err) {
       if (generation.current !== gen) return;
       // Retain last successful counts with a stale badge — never zero them.
@@ -205,14 +213,20 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
 
   useEffect(() => {
     generation.current += 1;
+    hasAutoRoutedRef.current = false;
     setStageCounts(null);
     setOpCounts(null);
     setCountsError(null);
     setCountsStale(false);
     setAttentionItemId(null);
+    setExecutionState(null);
     setSelection(readSelection());
     void refreshStageCounts();
-  }, [refreshStageCounts]);
+    void getBatch(batchId).then(
+      (res) => setExecutionState(res?.batch?.executionState ?? null),
+      () => {},
+    );
+  }, [refreshStageCounts, batchId]);
 
   useEffect(() => {
     const onPop = () => setSelection(readSelection());
@@ -226,6 +240,10 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
       setUpdating(true);
       refreshTimer.current = setTimeout(() => {
         refreshStageCounts();
+        void getBatch(batchId).then(
+          (res) => setExecutionState(res?.batch?.executionState ?? null),
+          () => {},
+        );
       }, COUNT_REFRESH_DEBOUNCE_MS);
     });
     return () => {
@@ -324,42 +342,75 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenPreflig
 
   return (
     <div data-testid="linear-shell" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
             onClick={onBack}
-            style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36, marginTop: 6 }}
+            style={{
+              backgroundColor: colors.whiteSurface,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: rounded.md,
+              padding: '0.375rem 0.75rem',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              color: colors.uniformGreen,
+              cursor: 'pointer',
+              minHeight: 32,
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
             aria-label="Back to batches"
           >
             ← Batches
           </button>
-          <div>
-            <h1 style={{ ...typography.viewTitle, margin: 0 }}>{batchName}</h1>
-            <p style={{ ...typography.viewSubtitle, margin: '0.25rem 0 0 0' }}>
-              {stageCounts ? `${formatCount(Object.values(stageCounts).reduce((a, b) => a + b, 0))} products across 6 stages` : 'Loading…'}
-              {updating ? ' · updating…' : ''}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 style={{ ...typography.viewTitle, margin: 0, fontSize: '1.25rem', lineHeight: 1.2 }}>{batchName}</h1>
+            {updating && (
+              <span
+                role="status"
+                style={{
+                  fontSize: '0.6875rem',
+                  fontWeight: 600,
+                  color: colors.mulchBrown,
+                  backgroundColor: colors.feedBagCream,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: rounded.full,
+                  padding: '2px 8px',
+                }}
+              >
+                updating…
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {onOpenPreflight && (
-            <button type="button" onClick={onOpenPreflight} style={{ backgroundColor: colors.uniformGreen, border: 'none', borderRadius: rounded.md, padding: '0.4375rem 0.875rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.feedBagCream, cursor: 'pointer', minHeight: 36, boxShadow: 'var(--shadow-sm)' }} title="Open Preflight & Brand Resolution Review">
-              ⚡ Preflight Review
-            </button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BatchExecutionControls batchId={batchId} executionState={executionState} onChanged={setExecutionState} compact />
+          <BatchToolsDisclosure opCounts={opCounts} onOpenOperation={openOperation} onOpenOutcome={openOutcome} />
           {onOpenSettings && (
-            <button type="button" onClick={onOpenSettings} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.mulchBrown, cursor: 'pointer', minHeight: 36 }}>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              style={{
+                backgroundColor: 'transparent',
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: rounded.md,
+                padding: '0.3125rem 0.625rem',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: colors.mulchBrown,
+                cursor: 'pointer',
+                minHeight: 32,
+              }}
+            >
               Settings
             </button>
           )}
         </div>
       </div>
 
-      <BatchToolsDisclosure opCounts={opCounts} onOpenOperation={openOperation} onOpenOutcome={openOutcome} />
-
       {countsError && (
-        <div role="alert" style={{ backgroundColor: colors.signetBurgundy, color: colors.feedBagCream, borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
+        <div role="alert" style={{ backgroundColor: colors.signetBurgundy, color: colors.feedBagCream, borderRadius: rounded.md, padding: '10px 14px', marginBottom: 8, fontSize: '0.8125rem' }}>
           Could not load stage counts: {countsError}
         </div>
       )}
@@ -548,8 +599,35 @@ function BatchToolsDisclosure({ opCounts, onOpenOperation, onOpenOutcome }: {
   onOpenOperation: (view: OperationViewId) => void;
   onOpenOutcome: (outcome: 'completed' | 'skipped') => void;
 }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const urgent = opCounts ? attentionIsUrgent(opCounts) : false;
   const attentionCount = opCounts?.needs_attention ?? null;
+
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (detailsRef.current?.open && !detailsRef.current.contains(e.target as Node)) {
+        detailsRef.current.open = false;
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && detailsRef.current?.open) {
+        detailsRef.current.open = false;
+      }
+    };
+    document.addEventListener('click', handleDocumentClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const closeMenu = () => {
+    if (detailsRef.current) {
+      detailsRef.current.open = false;
+    }
+  };
+
   const linkStyle: React.CSSProperties = {
     backgroundColor: 'transparent',
     border: 'none',
@@ -561,6 +639,7 @@ function BatchToolsDisclosure({ opCounts, onOpenOperation, onOpenOutcome }: {
     minHeight: 28,
     textAlign: 'left',
     fontFamily: fonts.body,
+    whiteSpace: 'nowrap',
   };
   const countStyle: React.CSSProperties = {
     fontVariantNumeric: 'tabular-nums',
@@ -569,67 +648,142 @@ function BatchToolsDisclosure({ opCounts, onOpenOperation, onOpenOutcome }: {
   };
   const groupTitleStyle: React.CSSProperties = {
     margin: '0 0 4px 0',
-    fontSize: '0.75rem',
+    fontSize: '0.6875rem',
     fontWeight: 700,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     color: colors.mulchBrown,
     fontFamily: fonts.body,
+    whiteSpace: 'nowrap',
   };
   const renderCount = (value: number | null) => (
     <span style={countStyle}> ({value === null ? '…' : formatCount(value)})</span>
   );
   return (
-    <details data-testid="batch-tools-disclosure" style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', marginBottom: 12 }}>
-      <summary data-testid="batch-tools-trigger" style={{ cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 700, color: colors.ledgerCharcoal, minHeight: 32, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontFamily: fonts.body }}>
-        <span>Batch tools, entire batch</span>
-        <span
-          data-testid="batch-attention-urgency"
-          role="status"
-          aria-label={attentionCount === null ? 'Batch attention: loading' : urgent ? `Batch attention urgent: ${attentionCount} need attention` : `Batch attention: ${attentionCount} need attention`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            borderRadius: rounded.full,
-            padding: '0 0.5rem',
-            fontSize: '0.75rem',
-            lineHeight: 1.5,
-            fontWeight: 700,
-            backgroundColor: urgent ? colors.signetBurgundy : colors.cardBorder,
-            color: urgent ? colors.feedBagCream : colors.ledgerCharcoal,
-          }}
-        >
-          {attentionCount === null ? 'Attention: …' : `Attention: ${formatCount(attentionCount)}${urgent ? ' — action needed' : ''}`}
-        </span>
+    <details
+      ref={detailsRef}
+      data-testid="batch-tools-disclosure"
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+      }}
+    >
+      <summary
+        data-testid="batch-tools-trigger"
+        className="bws-batch-tools-summary"
+        style={{
+          cursor: 'pointer',
+          fontSize: '0.8125rem',
+          fontWeight: 600,
+          color: colors.mulchBrown,
+          backgroundColor: 'transparent',
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: rounded.md,
+          padding: '0.3125rem 0.625rem',
+          minHeight: 32,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          fontFamily: fonts.body,
+          userSelect: 'none',
+        }}
+      >
+        <span>Batch tools</span>
+        <span style={{ fontSize: '0.625rem', opacity: 0.8 }}>▾</span>
+        {urgent && attentionCount !== null ? (
+          <span
+            data-testid="batch-attention-urgency"
+            role="status"
+            aria-label={`Batch attention urgent: ${attentionCount} need attention`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: rounded.full,
+              padding: '1px 7px',
+              fontSize: '0.6875rem',
+              lineHeight: 1.3,
+              fontWeight: 700,
+              backgroundColor: colors.signetBurgundy,
+              color: colors.feedBagCream,
+              border: `1px solid ${colors.burgundyDark}`,
+              marginLeft: 2,
+            }}
+          >
+            {formatCount(attentionCount)}
+          </span>
+        ) : (
+          <span
+            data-testid="batch-attention-urgency"
+            role="status"
+            aria-label={
+              attentionCount === null
+                ? 'Batch attention: loading'
+                : `Batch attention: ${attentionCount} need attention`
+            }
+            style={{ display: 'none' }}
+          />
+        )}
       </summary>
       {opCounts ? (
-        <nav aria-label="Batch tools, entire batch" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '8px 0 4px 0' }}>
-          <div>
-            <p style={groupTitleStyle}>Resolve and monitor</p>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <li><button type="button" data-testid="batch-tool-attention" onClick={() => onOpenOperation('attention')} style={linkStyle}>Attention{renderCount(opCounts.needs_attention)}</button></li>
-              <li><button type="button" data-testid="batch-tool-processing" onClick={() => onOpenOperation('processing')} style={linkStyle}>Processing{renderCount(opCounts.processing)}</button></li>
-              <li><button type="button" data-testid="batch-tool-family" onClick={() => onOpenOperation('family')} style={linkStyle}>Family{renderCount(opCounts.waiting_on_family)}</button></li>
-            </ul>
-          </div>
-          <div>
-            <p style={groupTitleStyle}>Review and approval</p>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <li><button type="button" data-testid="batch-tool-review" onClick={() => onOpenOperation('review')} style={linkStyle}>Full-batch review workspace{renderCount(opCounts.ready_for_review)}</button></li>
-              <li><button type="button" data-testid="batch-tool-approved" onClick={() => onOpenOperation('approved')} style={linkStyle}>Approved{renderCount(opCounts.approved)}</button></li>
-            </ul>
-          </div>
-          <div>
-            <p style={groupTitleStyle}>Drafts and outcomes</p>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <li><button type="button" data-testid="batch-tool-export" onClick={() => onOpenOperation('export')} style={linkStyle}>Ready to export{renderCount(opCounts.ready_to_export)}</button></li>
-              <li><button type="button" data-testid="batch-tool-completed" onClick={() => onOpenOutcome('completed')} style={linkStyle}>Completed{renderCount(opCounts.completed)}</button></li>
-              <li><button type="button" data-testid="batch-tool-skipped" onClick={() => onOpenOutcome('skipped')} style={linkStyle}>Skipped{renderCount(opCounts.skipped)}</button></li>
-            </ul>
-          </div>
-        </nav>
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 4px)',
+            zIndex: 40,
+            backgroundColor: colors.whiteSurface,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: rounded.md,
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
+            padding: '12px 16px',
+            minWidth: 420,
+          }}
+        >
+          <nav aria-label="Batch tools, entire batch" style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 110 }}>
+              <p style={groupTitleStyle}>Resolve and monitor</p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <li><button type="button" data-testid="batch-tool-attention" onClick={() => { closeMenu(); onOpenOperation('attention'); }} style={linkStyle}>Attention{renderCount(opCounts.needs_attention)}</button></li>
+                <li><button type="button" data-testid="batch-tool-processing" onClick={() => { closeMenu(); onOpenOperation('processing'); }} style={linkStyle}>Processing{renderCount(opCounts.processing)}</button></li>
+                <li><button type="button" data-testid="batch-tool-family" onClick={() => { closeMenu(); onOpenOperation('family'); }} style={linkStyle}>Family{renderCount(opCounts.waiting_on_family)}</button></li>
+              </ul>
+            </div>
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <p style={groupTitleStyle}>Review and approval</p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <li><button type="button" data-testid="batch-tool-review" onClick={() => { closeMenu(); onOpenOperation('review'); }} style={linkStyle}>Full-batch review workspace{renderCount(opCounts.ready_for_review)}</button></li>
+                <li><button type="button" data-testid="batch-tool-approved" onClick={() => { closeMenu(); onOpenOperation('approved'); }} style={linkStyle}>Approved{renderCount(opCounts.approved)}</button></li>
+              </ul>
+            </div>
+            <div style={{ flex: 1, minWidth: 110 }}>
+              <p style={groupTitleStyle}>Drafts and outcomes</p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <li><button type="button" data-testid="batch-tool-export" onClick={() => { closeMenu(); onOpenOperation('export'); }} style={linkStyle}>Ready to export{renderCount(opCounts.ready_to_export)}</button></li>
+                <li><button type="button" data-testid="batch-tool-completed" onClick={() => { closeMenu(); onOpenOutcome('completed'); }} style={linkStyle}>Completed{renderCount(opCounts.completed)}</button></li>
+                <li><button type="button" data-testid="batch-tool-skipped" onClick={() => { closeMenu(); onOpenOutcome('skipped'); }} style={linkStyle}>Skipped{renderCount(opCounts.skipped)}</button></li>
+              </ul>
+            </div>
+          </nav>
+        </div>
       ) : (
-        <div className="bws-muted" style={{ fontSize: '0.8125rem', padding: '8px 0 4px 0' }}>Loading batch counts…</div>
+        <div
+          className="bws-muted"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 4px)',
+            zIndex: 40,
+            backgroundColor: colors.whiteSurface,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: rounded.md,
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
+            fontSize: '0.8125rem',
+            padding: '8px 12px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Loading batch counts…
+        </div>
       )}
     </details>
   );

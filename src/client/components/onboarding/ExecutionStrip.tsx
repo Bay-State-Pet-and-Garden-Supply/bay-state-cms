@@ -72,11 +72,11 @@ export function ExecutionStrip({
       aria-label="Execution status"
       data-testid="execution-strip"
       style={{
-        backgroundColor: colors.whiteSurface,
+        backgroundColor: colors.feedBagCream,
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: rounded.md,
-        padding: '10px 14px',
-        marginBottom: 12,
+        padding: '3px 10px',
+        marginBottom: 6,
         fontFamily: fonts.body,
         color: colors.ledgerCharcoal,
       }}
@@ -85,36 +85,32 @@ export function ExecutionStrip({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 10,
           flexWrap: 'wrap',
-          fontSize: '0.8125rem',
+          fontSize: '0.75rem',
         }}
       >
-        <span
-          className="bws-muted"
-          style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}
-        >
-          Batch-wide
-        </span>
         <span
           data-testid="strip-execution-state"
           title={EXECUTION_PERMISSION_NOTE}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
-            backgroundColor: colors.feedBagCream,
-            border: `1px solid ${colors.cardBorder}`,
+            gap: 4,
             borderRadius: rounded.full,
-            padding: '0.25rem 0.625rem',
+            padding: '1px 7px',
+            fontSize: '0.75rem',
             fontWeight: 700,
+            backgroundColor: snapshot?.executionState === 'running' ? '#dcfce7' : colors.whiteSurface,
+            color: snapshot?.executionState === 'running' ? '#15803d' : colors.mulchBrown,
+            border: `1px solid ${snapshot?.executionState === 'running' ? '#bbf7d0' : colors.cardBorder}`,
           }}
         >
           Execution: {snapshot ? labelExecutionPermission(snapshot.executionState) : '…'}
         </span>
-        <span data-testid="strip-counts" style={{ fontWeight: 600 }}>
+        <span data-testid="strip-counts" style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>
           {snapshot ? (
-            <>{totalLabel} products (server counts)</>
+            <>{totalLabel} products</>
           ) : (
             <>Counts not loaded</>
           )}
@@ -125,9 +121,10 @@ export function ExecutionStrip({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 4,
             borderRadius: rounded.full,
-            padding: '0.25rem 0.625rem',
+            padding: '1px 6px',
+            fontSize: '0.6875rem',
             fontWeight: 600,
             backgroundColor:
               freshness === 'fresh'
@@ -149,12 +146,7 @@ export function ExecutionStrip({
           {freshness === 'stale' && ageLabel !== null && `Stale — updated ${ageLabel} ago`}
           {freshness === 'error' && 'Error — showing last successful counts'}
         </span>
-        {snapshot?.projectionComputedAt && (
-          <span className="bws-muted" style={{ fontSize: '0.75rem' }} title="Server projection time (display only)">
-            Server computed: {snapshot.projectionComputedAt}
-          </span>
-        )}
-        <span data-testid="strip-connection" style={{ marginLeft: 'auto', fontWeight: 600 }} className="bws-muted">
+        <span data-testid="strip-connection" style={{ marginLeft: 'auto', fontWeight: 500, fontSize: '0.75rem' }} className="bws-muted">
           {STRIP_CONNECTION_LABELS[connection]}
         </span>
         <button
@@ -162,15 +154,15 @@ export function ExecutionStrip({
           data-testid="strip-refresh"
           onClick={refreshNow}
           style={{
-            backgroundColor: 'transparent',
+            backgroundColor: colors.whiteSurface,
             border: `1px solid ${colors.cardBorder}`,
             borderRadius: rounded.md,
-            padding: '0.375rem 0.75rem',
-            fontSize: '0.8125rem',
+            padding: '2px 8px',
+            fontSize: '0.75rem',
             fontWeight: 600,
             color: colors.uniformGreen,
             cursor: 'pointer',
-            minHeight: 32,
+            minHeight: 26,
           }}
         >
           Refresh
@@ -182,15 +174,15 @@ export function ExecutionStrip({
           aria-controls={activityListId}
           onClick={() => setExpanded((value) => !value)}
           style={{
-            backgroundColor: 'transparent',
+            backgroundColor: colors.whiteSurface,
             border: `1px solid ${colors.cardBorder}`,
             borderRadius: rounded.md,
-            padding: '0.375rem 0.75rem',
-            fontSize: '0.8125rem',
+            padding: '2px 8px',
+            fontSize: '0.75rem',
             fontWeight: 600,
             color: colors.uniformGreen,
             cursor: 'pointer',
-            minHeight: 32,
+            minHeight: 26,
           }}
         >
           {expanded ? 'Hide live activity' : `Live activity (${activityCount})`}
@@ -198,28 +190,31 @@ export function ExecutionStrip({
       </div>
 
       {fetchError && (
-        <p role="alert" data-testid="strip-error" style={{ margin: '8px 0 0 0', fontSize: '0.8125rem', color: '#856404' }}>
+        <p role="alert" data-testid="strip-error" style={{ margin: '6px 0 0 0', fontSize: '0.75rem', color: '#856404' }}>
           Could not refresh counts: {fetchError} Showing the last successful server counts.
         </p>
       )}
 
+      {/* Visually hidden for screen readers and test assertion — stage navigation tabs immediately below render the authoritative per-stage counts */}
       {snapshot && (
         <dl
           data-testid="strip-stage-totals"
           style={{
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap',
-            margin: '8px 0 0 0',
-            fontSize: '0.75rem',
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0,
           }}
         >
           {LINEAR_STAGES.map((stage) => (
-            <div key={stage.id} style={{ display: 'flex', gap: 4 }}>
-              <dt className="bws-muted" style={{ margin: 0 }}>{stage.label}:</dt>
-              <dd style={{ margin: 0, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {formatCount(snapshot.stageTotals[stage.id] ?? 0)}
-              </dd>
+            <div key={stage.id}>
+              <dt>{stage.label}:</dt>
+              <dd>{formatCount(snapshot.stageTotals[stage.id] ?? 0)}</dd>
             </div>
           ))}
         </dl>

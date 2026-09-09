@@ -63,6 +63,16 @@ describe('brand-combobox-logic: suggestion filtering', () => {
     expect(filterBrandOptions(pool, '   ')).toEqual([]);
     expect(filterBrandOptions(pool, 'a', 1)).toHaveLength(1);
   });
+
+  it('surfaces typo variants via fuzzy matching (Snif-Snax → Sniff-Snax)', () => {
+    expect(filterBrandOptions(['Sniff-Snax'], 'Snif-Snax')).toEqual(['Sniff-Snax']);
+    // Nudge still fires (exact-only) but now a suggestion exists to pick.
+    expect(isNewBrandValue('Snif-Snax', ['Sniff-Snax'])).toBe(true);
+  });
+
+  it('does not fuzzy-match very short queries', () => {
+    expect(filterBrandOptions(['Acana'], 'ax')).toEqual([]);
+  });
 });
 
 describe('brand-combobox-logic: canonical submission + new-brand nudge', () => {
@@ -116,10 +126,14 @@ function Harness({
   options,
   initial = '',
   onCommit,
+  saving = false,
+  commitOnBlur = true,
 }: {
   options: string[];
   initial?: string;
   onCommit: (value: string) => void;
+  saving?: boolean;
+  commitOnBlur?: boolean;
 }) {
   const [value, setValue] = useState(initial);
   return (
@@ -128,6 +142,8 @@ function Harness({
       onChange={setValue}
       onCommit={onCommit}
       options={options}
+      saving={saving}
+      commitOnBlur={commitOnBlur}
       ariaLabel="Brand for test"
       placeholder="Enter brand name"
       inputTestId="brand-test-input"
@@ -158,9 +174,22 @@ describe('BrandCombobox component', () => {
     document.body.innerHTML = '';
   });
 
-  async function mount(initial = '', onCommit: (v: string) => void = () => {}) {
+  async function mount(
+    initial = '',
+    onCommit: (v: string) => void = () => {},
+    saving = false,
+    commitOnBlur = true,
+  ) {
     await act(async () => {
-      root.render(<Harness options={OPTIONS} initial={initial} onCommit={onCommit} />);
+      root.render(
+        <Harness
+          options={OPTIONS}
+          initial={initial}
+          onCommit={onCommit}
+          saving={saving}
+          commitOnBlur={commitOnBlur}
+        />,
+      );
     });
   }
 
@@ -252,5 +281,90 @@ describe('BrandCombobox component', () => {
     await mount('Orijen');
     expect(input().value).toBe('Orijen');
     expect(container.querySelector('[data-testid="brand-combobox-new-nudge"]')).toBeNull();
+  });
+
+  it('offers an explicit Create option for unmatched brands and commits it on click', async () => {
+    const onCommit = vi.fn();
+    await mount('', onCommit);
+    const el = input();
+    await act(async () => {
+      setInputValue(el, 'CustomBrandX');
+    });
+    const create = container.querySelector('[data-testid="brand-combobox-create-option"]');
+    expect(create).not.toBeNull();
+    expect(create?.textContent).toContain('CustomBrandX');
+    await act(async () => {
+      create?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onCommit).toHaveBeenCalledWith('CustomBrandX');
+    expect(input().value).toBe('CustomBrandX');
+  });
+
+  it('keyboard-navigates past suggestions to Create and commits the typed value', async () => {
+    const onCommit = vi.fn();
+    await mount('', onCommit);
+    const el = input();
+    await act(async () => {
+      setInputValue(el, 'ac');
+    });
+    // Suggestions first, Create row last.
+    expect(suggestionTexts()).toEqual(['Acana', 'Acme']);
+    expect(container.querySelector('[data-testid="brand-combobox-create-option"]')).not.toBeNull();
+    await act(async () => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    await act(async () => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    await act(async () => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onCommit).toHaveBeenCalledWith('ac');
+  });
+
+  it('shows no Create option for an existing brand', async () => {
+    await mount();
+    const el = input();
+    await act(async () => {
+      setInputValue(el, 'ACANA');
+    });
+    expect(container.querySelector('[data-testid="brand-combobox-create-option"]')).toBeNull();
+    expect(container.querySelector('[data-testid="brand-combobox-new-nudge"]')).toBeNull();
+  });
+
+  it('commits on blur when value has changed from initial focus', async () => {
+    const onCommit = vi.fn();
+    await mount('', onCommit);
+    const el = input();
+    await act(async () => {
+      el.focus();
+    });
+    await act(async () => {
+      setInputValue(el, 'Acme');
+    });
+    await act(async () => {
+      el.blur();
+    });
+    expect(onCommit).toHaveBeenCalledWith('Acme');
+  });
+
+  it('does not commit on blur when value is unchanged', async () => {
+    const onCommit = vi.fn();
+    await mount('Acme', onCommit);
+    const el = input();
+    await act(async () => {
+      el.focus();
+      el.blur();
+    });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('renders a saving badge and disables the input when saving is true', async () => {
+    await mount('Acme', () => {}, true);
+    const el = input();
+    expect(el.disabled).toBe(true);
+    const savingBadge = container.querySelector('[data-testid="brand-combobox-saving"]');
+    expect(savingBadge).not.toBeNull();
+    expect(savingBadge?.textContent).toContain('Saving…');
   });
 });
