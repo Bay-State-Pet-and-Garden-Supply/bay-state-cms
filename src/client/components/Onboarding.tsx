@@ -20,6 +20,7 @@ import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state
 import { formatCount, totalItemCount } from './onboarding/batch-workspace-logic';
 import { matchExistingBrand } from '../../shared/brand-matcher';
 import { resolveOnboardingSettingsTab } from './onboarding-settings/tabRegistry';
+import { getProfileWorkspacePath } from './profile-workspace/route';
 
 // Semantic SVG Icons (replaces raw unicode emoji for consistent craft)
 function ReportIcon() {
@@ -1217,6 +1218,12 @@ export function Onboarding() {
           batchName={selectedBatch.name}
           onBack={handleBackToBatches}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenProfileBuilder={(domain) => {
+            const returnUrl = window.location.pathname + window.location.search;
+            const path = getProfileWorkspacePath(domain, returnUrl);
+            window.history.pushState(null, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
         />
         {showWeeklyReportModal && (
           <WeeklyReportModal onClose={() => setShowWeeklyReportModal(false)} />

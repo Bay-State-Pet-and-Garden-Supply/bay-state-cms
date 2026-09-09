@@ -4,7 +4,7 @@ import { listAllBrandSites } from '../../db/repositories/brand-site-repo';
 import { getDomainProfileState } from '../../db/repositories/domain-profile-state-repo';
 import { getSitemapInventory } from '../sitemap-inventory-service';
 import { requireServerSingletonWorkspace } from '../../db/repositories/workspace-singleton';
-import { deriveBrandStrategies } from './brand-strategy-derive';
+import { deriveBrandStrategies, type StrategyApprovalInput } from './brand-strategy-derive';
 import { BrandStrategySchema } from '../../shared/schemas/brand-strategy';
 import type { BrandStrategy } from '../../shared/schemas/brand-strategy';
 import { SourcingPolicyEnum } from '../../shared/schemas/distributor';
@@ -51,7 +51,31 @@ export function listBrandStrategies(): BrandStrategy[] {
     sitemapByDomain.set(d, { totalUrls: inv.candidateCount, lastRefreshAt: inv.freshness, activeCount: inv.activeProductCount });
     readinessByDomain.set(d, readinessForDomain(d));
   }
-  const strategies = deriveBrandStrategies({ brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), advisoryProfiles, sitemapByDomain, readinessByDomain, enabledDistributorIds }, readinessForDomain);
+  // Spec #120: approved strategies are explicit rows; absence means awaiting approval.
+  const approvals = new Map<string, StrategyApprovalInput>();
+  try {
+    const db = getDb();
+    const approvedRows = db.query(
+      'SELECT normalized_brand, sources_json, revision, approved, approved_at, approved_by FROM brand_sourcing_strategies WHERE workspace_id = ?',
+    ).all(workspace.id) as Array<{ normalized_brand: string; sources_json: string; revision: number; approved: number; approved_at: string | null; approved_by: string | null }>;
+    for (const row of approvedRows) {
+      let sources: StrategyApprovalInput['sources'] = undefined;
+      try {
+        const parsed: unknown = JSON.parse(row.sources_json);
+        if (Array.isArray(parsed)) sources = parsed as NonNullable<StrategyApprovalInput['sources']>;
+      } catch { sources = undefined; }
+      approvals.set(row.normalized_brand, {
+        approved: row.approved === 1,
+        revision: row.revision,
+        approvedAt: row.approved_at,
+        approvedBy: row.approved_by,
+        sources,
+      });
+    }
+  } catch {
+    // Minimal test DBs without the strategy table: every brand reads as awaiting approval.
+  }
+  const strategies = deriveBrandStrategies({ brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), advisoryProfiles, sitemapByDomain, readinessByDomain, enabledDistributorIds, approvals }, readinessForDomain);
   for (const s of strategies) BrandStrategySchema.parse(s);
   return strategies;
 }

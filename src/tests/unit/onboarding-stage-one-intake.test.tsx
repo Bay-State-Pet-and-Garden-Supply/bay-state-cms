@@ -455,6 +455,18 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
   });
 
+  it('opens Profile Builder for the product domain when Profile Required is clicked', async () => {
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
+    const onOpenProfileBuilder = vi.fn();
+    await mount({ onOpenProfileBuilder });
+    const required = container.querySelector('[data-testid="intake-profile-required-item_2"]') as HTMLButtonElement;
+    expect(required).not.toBeNull();
+    await act(async () => {
+      required.click();
+    });
+    expect(onOpenProfileBuilder).toHaveBeenCalledWith('acme.com');
+  });
+
   it('does not display Create new brand for items with existing brands, and syncs item brands into brand pool', async () => {
     vi.spyOn(globalThis as any, 'fetch').mockImplementation(async () => ({
       ok: true,
@@ -483,6 +495,29 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(input1?.value).toBe('Delta');
     expect(input2?.value).toBe('Acme');
     expect(container.querySelectorAll('[data-testid="brand-combobox-new-nudge"]')).toHaveLength(0);
+  });
+
+  it('does not include items with Profile Required in Ready to Route count or filter', async () => {
+    // Drop extractor profiles so Acme (item_2) has domain but lacks a profile
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
+    await mount();
+
+    const strip = container.querySelector('[data-testid="intake-kpi-strip"]');
+    expect(strip?.textContent).toMatch(/All Products \(4\)/);
+    // Only item_4 (distributor record) is ready; item_2 is blocked on Profile Required
+    expect(strip?.textContent).toMatch(/Ready to Route \(1\)/);
+
+    // Filter by Ready to Route
+    const readyChip = container.querySelector('[data-testid="intake-kpi-ready"]') as HTMLButtonElement;
+    expect(readyChip).not.toBeNull();
+    await act(async () => {
+      readyChip.click();
+    });
+
+    // item_2 (Profile Required) must NOT be visible under Ready to Route
+    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
+    // item_4 (distributor record) IS visible
+    expect(container.querySelector('[data-testid="stage-select-item_4"]')).not.toBeNull();
   });
 });
 

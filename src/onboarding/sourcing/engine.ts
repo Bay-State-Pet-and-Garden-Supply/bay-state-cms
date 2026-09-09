@@ -9,6 +9,7 @@ import type { ConnectorRegistry } from './connector-registry';
 import { DefaultConnectorRegistry } from './connector-registry';
 import { resolveSecret } from './secret-resolver';
 import { listConnectionsByWorkspace, getPreferredDistributorOrder, getBrandSourcingConfig } from '../../db/repositories/distributor-repo';
+import { getApprovedBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
 import { insertEvidenceAttempt } from '../../db/repositories/onboarding-evidence-repo';
 import { findItemById } from '../../db/repositories/onboarding-item-repo';
 import type { DistributorConnection } from '../../shared/schemas/distributor';
@@ -62,14 +63,79 @@ export class DefaultSourcingEngine implements SourcingEngine {
     }
 
     const connections = listConnectionsByWorkspace(request.workspaceId, true);
-    if (connections.length === 0) {
-      return { generationId: request.generationId, attempts, skipped };
-    }
 
     // registerName is an advisory identity hint (the spreadsheet register
     // row); it is never a lookup key.
     const item = findItemById(request.itemId);
     const registerName = item?.name ?? null;
+
+    // Spec #120 (ticket #122): an approved brand strategy pins the
+    // collection boundary. Every selected usable distributor source is
+    // attempted — a first success never short-circuits the others, and no
+    // unapproved fallback is added. Distributor-only strategies skip
+    // official discovery entirely (no fake URL, no profile).
+    const approvedStrategy = getApprovedBrandStrategy(request.workspaceId, request.brandHint ?? null);
+    if (approvedStrategy) {
+      // No collection path executes official_page yet: approved official
+      // sources are reported (never silently dropped, never fake evidence).
+      for (const src of approvedStrategy.sources) {
+        if (src.kind === 'official_page') {
+          skipped.push({
+            connectionId: `strategy:official:${(src.domain ?? '').toLowerCase() || 'website'}`,
+            reason: 'strategy_official_not_yet_supported',
+          });
+        }
+      }
+      const selectedIds = approvedStrategy.sources
+        .filter((s) => s.kind === 'distributor_record' && s.distributorId)
+        .map((s) => s.distributorId as string);
+      const byDistributorId = new Map<string, DistributorConnection[]>();
+      for (const c of connections) {
+        const list = byDistributorId.get(c.distributorId) ?? [];
+        list.push(c);
+        byDistributorId.set(c.distributorId, list);
+      }
+      const seen = new Set<string>();
+      const selectedConns: DistributorConnection[] = [];
+      for (const distributorId of selectedIds) {
+        for (const conn of byDistributorId.get(distributorId) ?? []) {
+          if (!seen.has(conn.id)) {
+            selectedConns.push(conn);
+            seen.add(conn.id);
+          }
+        }
+      }
+      if (selectedConns.length === 0) {
+        // Approved but nothing usable: setup attention, not a fake result.
+        return {
+          generationId: request.generationId,
+          attempts,
+          skipped: [{ connectionId: '', reason: 'strategy_no_usable_source' }],
+          strategyRevision: approvedStrategy.revision,
+          strategyBrand: approvedStrategy.normalizedBrand,
+        };
+      }
+      const work = selectedConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
+      const results = await runBounded(work, this.concurrency);
+      for (const result of results) {
+        if (result.kind === 'attempt') {
+          attempts.push(result.summary);
+        } else {
+          skipped.push({ connectionId: result.connectionId, reason: result.reason });
+        }
+      }
+      return {
+        generationId: request.generationId,
+        attempts,
+        skipped,
+        strategyRevision: approvedStrategy.revision,
+        strategyBrand: approvedStrategy.normalizedBrand,
+      };
+    }
+
+    if (connections.length === 0) {
+      return { generationId: request.generationId, attempts, skipped };
+    }
 
     // Resolve brand routing profile & policy
     const sourcingConfig = getBrandSourcingConfig(request.workspaceId, request.brandHint ?? null);

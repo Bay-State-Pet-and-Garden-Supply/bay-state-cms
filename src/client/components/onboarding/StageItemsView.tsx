@@ -26,7 +26,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, fonts, rounded } from '../../theme';
 import { assignBrandGroup, assignItemBrand, getBrandSites, getExtractorProfiles } from '../../onboarding-api';
-import { assignBatchBrandDomain, getBrandDomainBlockers } from '../../onboarding-work-api';
+import { assignBatchBrandDomain, getBrandDomainBlockers, approveBrandStrategy } from '../../onboarding-work-api';
 import { BrandCombobox } from './BrandCombobox';
 import { getBrandOptions, registerBrandOption, resetBrandOptionsCache, resolveCanonicalBrand } from './brand-combobox-logic';
 import {
@@ -48,6 +48,7 @@ import {
   formatCount,
   type ReviewListFacet,
 } from './batch-workspace-logic';
+import { getProfileWorkspacePath } from '../profile-workspace/route';
 
 export interface StageItemsViewProps {
   batchId: string;
@@ -58,12 +59,20 @@ export interface StageItemsViewProps {
   /** Oracle slice: batch-wide export workspace entry inside Create drafts. */
   onOpenReadyToExportWorkspace?: () => void;
   /** Opens Settings (Profile Builder) for a domain missing an extractor profile. */
-  onOpenSettings?: () => void;
+  onOpenSettings?: (domain?: string) => void;
+  /** Direct hook to open Profile Builder for the specified domain. */
+  onOpenProfileBuilder?: (domain: string) => void;
 }
 
 type Facet = { category?: string; reviewState?: ReviewListFacet };
 
-/** Stage 1 quick-filter selected from the Intake KPI strip (#116). */
+/** Stage 1 quick-filter selected from the Intake KPI strip (#116).
+ *
+ * Follow-up gap (spec #120): strategy readiness states (awaiting_approval,
+ * setup_attention) have no dedicated chip/filter yet — strategy status is
+ * visible per row (Brand strategy / Collection readiness columns) but not
+ * quick-filterable. See the todo test in stage-one-strategy-readiness.test.ts.
+ */
 export type IntakeKpiFilter = 'all' | 'missing-brand' | 'missing-domain' | 'distributor' | 'ready';
 
 export const INTAKE_KPI_FILTERS: readonly IntakeKpiFilter[] = [
@@ -93,34 +102,136 @@ export interface IntakeRowFlags {
   /** Mapped official domain for the row brand (null when unmapped/unbranded). */
   mappedDomain: string | null;
   missingDomain: boolean;
-  /** Routable now: branded+mapped, or distributor-exempt. */
+  /** Whether the mapped domain has an extractor profile configured. */
+  profileReady: boolean;
+  /** Routable now: distributor-exempt, or (branded + mapped domain + profile ready). */
   ready: boolean;
 }
 
 /**
  * Derive one row's intake state from server-owned values only: the row's
- * recorded brand/sourceType plus the Brand Hub brand→domain map (authority).
+ * recorded brand/sourceType plus the Brand Hub brand→domain map (authority)
+ * and the extractor-profile domain set.
  * Fail-closed while the map loads: branded rows read as missing-domain
  * until the server map arrives (the KPI strip shows a loading notice).
+ * An official page row requires a configured extractor profile for its
+ * mapped domain to be considered ready to route.
  */
 export function deriveIntakeFlags(
   item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
   domainMap: ReadonlyMap<string, string>,
+  profileDomains?: ReadonlySet<string>,
 ): IntakeRowFlags {
   const brand = item.brand?.trim() ? item.brand.trim() : null;
   const distributorExempt = item.sourceType === 'distributor_record' && !item.domain;
   if (!brand) {
-    return { missingBrand: true, distributorExempt, mappedDomain: null, missingDomain: false, ready: distributorExempt };
+    return {
+      missingBrand: true,
+      distributorExempt,
+      mappedDomain: null,
+      missingDomain: false,
+      profileReady: false,
+      ready: distributorExempt,
+    };
   }
   const key = brandKeyOf(brand);
   const mappedDomain = domainMap.get(key) ?? null;
   const missingDomain = !distributorExempt && mappedDomain === null;
+  const profileReady = Boolean(
+    mappedDomain && profileDomains && profileDomains.has(domainKeyOf(mappedDomain)),
+  );
   return {
     missingBrand: false,
     distributorExempt,
     mappedDomain,
     missingDomain,
-    ready: distributorExempt || !missingDomain,
+    profileReady,
+    ready: distributorExempt || (!missingDomain && profileReady),
+  };
+}
+
+/** Spec #120: strategy-driven collection readiness for one row (pure, unit-testable).
+ *
+ * "Ready" means collection can run within the approved strategy — never that
+ * a product matched, evidence was collected, or a listing is complete.
+ * A distributor-only approved strategy suppresses the universal Missing
+ * Domain warning: no official website is required for those brands.
+ */
+export interface StrategyReadinessView {
+  approved: boolean;
+  revision: number;
+  /** Effective sources: the approved boundary when approved, else the live proposal. */
+  sources: Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>;
+  /** Live proposal sources (for diffing against the approved boundary). */
+  proposalSources?: Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>;
+  /** Stored approved boundary (absent when never approved / legacy). */
+  approvedSources?: Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>;
+  availability: Array<{ kind: 'official_page' | 'distributor_record'; ref: string; available: boolean; reason: string }>;
+  readiness: 'awaiting_approval' | 'setup_attention' | 'ready' | 'ready_partial' | 'unknown';
+}
+
+/** Order-sensitive equality of two source boundaries (proposal vs approved). */
+export function strategySourcesEqual(
+  a: ReadonlyArray<StrategyReadinessView['sources'][number]>,
+  b: ReadonlyArray<StrategyReadinessView['sources'][number]>,
+): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((s, i) => {
+    const o = b[i];
+    return s.kind === o.kind
+      && (s.distributorId ?? null) === (o.distributorId ?? null)
+      && (s.domain ?? '').toLowerCase() === (o.domain ?? '').toLowerCase();
+  });
+}
+
+export interface RowStrategyReadiness {
+  /** Human-readable readiness label (text, never color-only). */
+  label: string;
+  /** Short strategy summary, e.g. "Phillips + BCI" or "Suggested sources". */
+  strategyLabel: string;
+  /** True when an approved distributor-only strategy excuses a missing domain. */
+  suppressMissingDomain: boolean;
+  /** True when at least one approved source can be collected from now. */
+  canCollect: boolean;
+}
+
+export function strategySummaryLabel(view: StrategyReadinessView | null): string {
+  if (!view) return 'Suggested sources';
+  if (view.sources.length === 0) return 'Suggested sources';
+  const names = view.sources.map((s) =>
+    s.kind === 'official_page' ? 'Official website' : (s.distributorId ?? 'Distributor'),
+  );
+  return names.join(' + ');
+}
+
+export function deriveStrategyReadiness(
+  view: StrategyReadinessView | null,
+  loaded: boolean,
+): RowStrategyReadiness {
+  if (!loaded) {
+    return { label: 'Loading strategy…', strategyLabel: 'Suggested sources', suppressMissingDomain: false, canCollect: false };
+  }
+  if (!view || !view.approved) {
+    return { label: 'Awaiting strategy approval', strategyLabel: strategySummaryLabel(view), suppressMissingDomain: false, canCollect: false };
+  }
+  const available = view.availability.filter((s) => s.available);
+  const unavailable = view.availability.filter((s) => !s.available);
+  const officialPlanned = view.sources.some((s) => s.kind === 'official_page');
+  const suppressMissingDomain = !officialPlanned && available.some((s) => s.kind === 'distributor_record');
+  const strategyLabel = strategySummaryLabel(view);
+  if (view.readiness === 'setup_attention' || available.length === 0) {
+    return { label: 'Setup attention — no usable sources', strategyLabel, suppressMissingDomain, canCollect: false };
+  }
+  if (unavailable.length === 0) {
+    const n = available.length;
+    return { label: `Ready · ${n} source${n === 1 ? '' : 's'} available`, strategyLabel, suppressMissingDomain, canCollect: true };
+  }
+  const needsSetup = unavailable.map((s) => s.ref).join(', ');
+  return {
+    label: `Ready · ${available.length} available, ${needsSetup} needs setup`,
+    strategyLabel,
+    suppressMissingDomain,
+    canCollect: true,
   };
 }
 
@@ -145,10 +256,11 @@ export interface IntakeKpiCounts {
 export function countIntakeKpis(
   items: ReadonlyArray<Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>>,
   domainMap: ReadonlyMap<string, string>,
+  profileDomains?: ReadonlySet<string>,
 ): IntakeKpiCounts {
   const counts: IntakeKpiCounts = { all: items.length, missingBrand: 0, missingDomain: 0, distributor: 0, ready: 0 };
   for (const item of items) {
-    const flags = deriveIntakeFlags(item, domainMap);
+    const flags = deriveIntakeFlags(item, domainMap, profileDomains);
     if (flags.missingBrand) counts.missingBrand += 1;
     if (flags.missingDomain) counts.missingDomain += 1;
     if (flags.distributorExempt) counts.distributor += 1;
@@ -162,9 +274,10 @@ export function matchesIntakeFilter(
   item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
   filter: IntakeKpiFilter,
   domainMap: ReadonlyMap<string, string>,
+  profileDomains?: ReadonlySet<string>,
 ): boolean {
   if (filter === 'all') return true;
-  const flags = deriveIntakeFlags(item, domainMap);
+  const flags = deriveIntakeFlags(item, domainMap, profileDomains);
   switch (filter) {
     case 'missing-brand': return flags.missingBrand;
     case 'missing-domain': return flags.missingDomain;
@@ -173,7 +286,15 @@ export function matchesIntakeFilter(
   }
 }
 
-export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview, onOpenReadyToExportWorkspace, onOpenSettings }: StageItemsViewProps) {
+export function StageItemsView({
+  batchId,
+  stage,
+  compact,
+  onOpenFullBatchReview,
+  onOpenReadyToExportWorkspace,
+  onOpenSettings,
+  onOpenProfileBuilder,
+}: StageItemsViewProps) {
   const [items, setItems] = useState<OnboardingWorkState[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -214,6 +335,10 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   const [blockersError, setBlockersError] = useState<string | null>(null);
   const [brandDomainMap, setBrandDomainMap] = useState<ReadonlyMap<string, string>>(new Map());
   const [brandSitesLoaded, setBrandSitesLoaded] = useState(false);
+  // Spec #120: approved brand strategies + per-source availability, keyed by
+  // normalized brand. Same server facts back the table, chips, and details.
+  const [strategyViews, setStrategyViews] = useState<ReadonlyMap<string, StrategyReadinessView>>(new Map());
+  const [strategiesLoaded, setStrategiesLoaded] = useState(false);
   const [profileDomains, setProfileDomains] = useState<ReadonlySet<string>>(new Set());
   const [kpiFilter, setKpiFilter] = useState<IntakeKpiFilter>('all');
   // Bulk quick-add domain for unmapped brands (#118).
@@ -222,6 +347,9 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   const [drawerInputs, setDrawerInputs] = useState<Record<string, string>>({});
   const [drawerSaving, setDrawerSaving] = useState<Record<string, boolean>>({});
   const [drawerErrors, setDrawerErrors] = useState<Record<string, string | null>>({});
+  // Spec #120: per-brand strategy approval state (keyboard-operable inline action).
+  const [strategyApproving, setStrategyApproving] = useState<string | null>(null);
+  const [strategyApproveErrors, setStrategyApproveErrors] = useState<Record<string, string | null>>({});
   // Per-row "+ Add Domain" inline inputs (#119).
   const [rowDomainOpen, setRowDomainOpen] = useState<Record<string, boolean>>({});
   const [rowDomainInputs, setRowDomainInputs] = useState<Record<string, string>>({});
@@ -353,6 +481,67 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setBrandSitesLoaded(false);
     }
     try {
+      const res = await fetch('/api/onboarding/brands/strategy');
+      if (res.ok) {
+        const body = await res.json() as { strategies?: Array<{
+          normalizedBrand?: unknown; approval?: { approved?: unknown; revision?: unknown; approvedAt?: unknown; approvedBy?: unknown } | null;
+          preferredDistributorIds?: unknown; officialDomains?: Array<{ domain?: unknown }>; fallbackTier?: unknown;
+          approvedSources?: Array<{ kind?: unknown; distributorId?: unknown; domain?: unknown }>;
+          sourceAvailability?: Array<{ kind?: unknown; ref?: unknown; available?: unknown; reason?: unknown }>;
+          collectionReadiness?: unknown;
+        }> };
+        const map = new Map<string, StrategyReadinessView>();
+        for (const s of Array.isArray(body?.strategies) ? body.strategies : []) {
+          const key = typeof s?.normalizedBrand === 'string' ? s.normalizedBrand.trim().toLowerCase() : '';
+          if (!key || map.has(key)) continue;
+          const proposalSources: StrategyReadinessView['sources'] = [];
+          for (const d of Array.isArray(s?.officialDomains) ? s.officialDomains : []) {
+            if (typeof d?.domain === 'string' && d.domain.trim()) proposalSources.push({ kind: 'official_page', domain: d.domain.trim().toLowerCase() });
+          }
+          for (const id of Array.isArray(s?.preferredDistributorIds) ? s.preferredDistributorIds : []) {
+            if (typeof id === 'string' && id.trim()) proposalSources.push({ kind: 'distributor_record', distributorId: id.trim() });
+          }
+          // Stored approved boundary (additive GET field; absent on legacy rows).
+          const approvedSources: StrategyReadinessView['approvedSources'] = [];
+          for (const a of Array.isArray(s?.approvedSources) ? s.approvedSources : []) {
+            if (a?.kind === 'official_page' && typeof a?.domain === 'string' && a.domain.trim()) {
+              approvedSources.push({ kind: 'official_page', domain: a.domain.trim().toLowerCase() });
+            } else if (a?.kind === 'distributor_record' && typeof a?.distributorId === 'string' && a.distributorId.trim()) {
+              approvedSources.push({ kind: 'distributor_record', distributorId: a.distributorId.trim() });
+            }
+          }
+          const approved = s?.approval?.approved === true;
+          const availability: StrategyReadinessView['availability'] = [];
+          for (const a of Array.isArray(s?.sourceAvailability) ? s.sourceAvailability : []) {
+            if ((a?.kind === 'official_page' || a?.kind === 'distributor_record') && typeof a?.ref === 'string') {
+              availability.push({ kind: a.kind, ref: a.ref, available: a.available === true, reason: typeof a?.reason === 'string' ? a.reason : 'unknown' });
+            }
+          }
+          const readiness = s?.collectionReadiness;
+          map.set(key, {
+            approved,
+            revision: typeof s?.approval?.revision === 'number' ? s.approval.revision : 0,
+            // Effective sources: the approved boundary when approved, else the proposal.
+            sources: approved && approvedSources.length > 0 ? approvedSources : proposalSources,
+            proposalSources,
+            approvedSources,
+            availability,
+            readiness: readiness === 'ready' || readiness === 'ready_partial' || readiness === 'setup_attention' || readiness === 'unknown'
+              ? readiness
+              : 'awaiting_approval',
+          });
+        }
+        setStrategyViews(map);
+        setStrategiesLoaded(true);
+      } else {
+        setStrategyViews(new Map());
+        setStrategiesLoaded(false);
+      }
+    } catch {
+      setStrategyViews(new Map());
+      setStrategiesLoaded(false);
+    }
+    try {
       const loader = getExtractorProfiles as unknown as (() => Promise<{ extractorProfiles?: Array<{ domain?: unknown }> }>) | undefined;
       if (typeof loader !== 'function') {
         setProfileDomains(new Set());
@@ -376,6 +565,8 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setBrandDomainMap(new Map());
       setBrandSitesLoaded(false);
       setProfileDomains(new Set());
+      setStrategyViews(new Map());
+      setStrategiesLoaded(false);
       return;
     }
     void loadIntakeRefs();
@@ -490,15 +681,15 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
   // it loads, derivations are fail-closed (branded rows read as
   // missing-domain) and the KPI strip shows a loading notice.
   const kpiCounts = useMemo(
-    () => (stage === 'route_sources' ? countIntakeKpis(items, brandDomainMap) : null),
-    [stage, items, brandDomainMap],
+    () => (stage === 'route_sources' ? countIntakeKpis(items, brandDomainMap, profileDomains) : null),
+    [stage, items, brandDomainMap, profileDomains],
   );
 
   const visibleItems = useMemo(
     () => (stage === 'route_sources' && kpiFilter !== 'all'
-      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, brandDomainMap))
+      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, brandDomainMap, profileDomains))
       : items),
-    [stage, items, kpiFilter, brandDomainMap],
+    [stage, items, kpiFilter, brandDomainMap, profileDomains],
   );
 
   const toggleSelect = useCallback((itemId: string) => {
@@ -608,6 +799,54 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setRowDomainSaving((prev) => ({ ...prev, [itemId]: false }));
     }
   }, [rowDomainInputs, rowDomainSaving, batchId, refreshEpoch]);
+
+  // Spec #120 (ticket #121): approve the proposed strategy for one brand,
+  // or re-approve when the live proposal drifted from the approved boundary.
+  // Only an explicit click writes; viewing the proposal never approves.
+  const runStrategyApprove = useCallback(async (brand: string) => {
+    const key = brandKeyOf(brand);
+    const view = strategyViews.get(key) ?? null;
+    if (!view || strategyApproving) return;
+    // Initial approval sends the proposal; re-approval sends the drifted
+    // proposal (never the stale stored boundary). No-op when approved and
+    // the proposal already matches the stored boundary.
+    const approvedSources = view.approvedSources ?? [];
+    const proposalSources = view.proposalSources ?? view.sources;
+    const drifted = view.approved && approvedSources.length > 0
+      && !strategySourcesEqual(proposalSources, approvedSources);
+    const toApprove = !view.approved ? view.sources : (drifted ? proposalSources : null);
+    if (!toApprove || toApprove.length === 0) return;
+    setStrategyApproving(key);
+    setStrategyApproveErrors((prev) => ({ ...prev, [key]: null }));
+    try {
+      await approveBrandStrategy({ brand: brand.trim(), sources: toApprove, expectedRevision: view.revision });
+      await loadIntakeRefs();
+    } catch (err) {
+      setStrategyApproveErrors((prev) => ({
+        ...prev,
+        [key]: err instanceof Error ? err.message : String(err),
+      }));
+    } finally {
+      setStrategyApproving(null);
+    }
+  }, [strategyViews, strategyApproving, loadIntakeRefs]);
+
+  const handleOpenProfileBuilder = useCallback(
+    (domain: string) => {
+      if (onOpenProfileBuilder) {
+        onOpenProfileBuilder(domain);
+      } else {
+        const returnUrl = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '';
+        const path = getProfileWorkspacePath(domain, returnUrl);
+        if (typeof window !== 'undefined') {
+          window.history.pushState(null, '', path);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      }
+      onOpenSettings?.(domain);
+    },
+    [onOpenProfileBuilder, onOpenSettings],
+  );
 
   const selectedCount = Object.keys(selected).length;
 
@@ -1049,8 +1288,8 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
               </th>
               <th>Product</th>
               <th>Brand</th>
-              <th>Domain &amp; Profile</th>
-              <th>Source Route</th>
+              <th>Brand strategy</th>
+              <th>Collection readiness</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -1059,9 +1298,14 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
               const draft = drafts[item.itemId];
               const brandValue = draft?.brand ?? item.brand ?? '';
               const saving = draft?.saving ?? false;
-              const flags = deriveIntakeFlags(item, brandDomainMap);
+              const flags = deriveIntakeFlags(item, brandDomainMap, profileDomains);
               const route = intakeSourceRoute(flags);
-              const profileReady = flags.mappedDomain ? profileDomains.has(domainKeyOf(flags.mappedDomain)) : false;
+              const profileReady = flags.profileReady;
+              // Spec #120: strategy-driven readiness from the same server
+              // facts. A distributor-only approved strategy excuses Missing Domain.
+              const strategyView = item.brand ? strategyViews.get(brandKeyOf(item.brand)) ?? null : null;
+              const strategy = deriveStrategyReadiness(strategyView, strategiesLoaded);
+              const showMissingDomain = flags.missingDomain && !strategy.suppressMissingDomain;
               const rowDomainErr = rowDomainErrors[item.itemId] ?? null;
               const savingRowDomain = rowDomainSaving[item.itemId] ?? false;
               return (
@@ -1139,6 +1383,68 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                   </div>
                 </td>
                 <td data-testid={`intake-domain-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 180 }}>
+                  <span
+                    data-testid={`intake-strategy-${item.itemId}`}
+                    title={strategyView?.approved ? `Approved strategy revision ${strategyView.revision}` : 'No approved strategy yet'}
+                    style={{ display: 'block', fontWeight: 700, marginBottom: 4 }}
+                  >
+                    {strategy.strategyLabel}
+                  </span>
+                  {strategiesLoaded && item.brand && strategyView && (() => {
+                    const needsApprove = !strategyView.approved && strategyView.sources.length > 0;
+                    // Re-approval only when the live proposal drifted from the
+                    // stored approved boundary.
+                    const approvedSources = strategyView.approvedSources ?? [];
+                    const proposalSources = strategyView.proposalSources ?? strategyView.sources;
+                    const needsReapprove = strategyView.approved
+                      && approvedSources.length > 0
+                      && !strategySourcesEqual(proposalSources, approvedSources);
+                    if (!needsApprove && !needsReapprove) return null;
+                    const unsupported = strategyView.availability.filter((a) => !a.available && a.reason === 'not_supported');
+                    return (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
+                      {needsReapprove && (
+                        <span
+                          data-testid={`intake-strategy-approved-${item.itemId}`}
+                          title={`Approved revision ${strategyView.revision}: ${strategySummaryLabel({ ...strategyView, sources: approvedSources })}`}
+                          style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}
+                        >
+                          Approved rev {strategyView.revision}: {strategySummaryLabel({ ...strategyView, sources: approvedSources })} — proposal differs
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        data-testid={`intake-strategy-approve-${item.itemId}`}
+                        onClick={() => item.brand && void runStrategyApprove(item.brand)}
+                        disabled={strategyApproving === brandKeyOf(item.brand)}
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: colors.uniformGreen,
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${colors.uniformGreen}`,
+                          borderRadius: rounded.md,
+                          padding: '0.25rem 0.625rem',
+                          cursor: strategyApproving === brandKeyOf(item.brand) ? 'not-allowed' : 'pointer',
+                          width: 'fit-content',
+                          minHeight: 28,
+                        }}
+                      >
+                        {strategyApproving === brandKeyOf(item.brand) ? 'Approving…' : needsReapprove ? 'Re-approve updated strategy' : 'Approve strategy'}
+                      </button>
+                      {unsupported.length > 0 && (
+                        <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
+                          {unsupported.map((u) => u.ref).join(', ')}: official collection not yet supported — other sources still run
+                        </span>
+                      )}
+                      {strategyApproveErrors[brandKeyOf(item.brand)] && (
+                        <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
+                          {strategyApproveErrors[brandKeyOf(item.brand)]} — strategy unchanged.
+                        </span>
+                      )}
+                    </span>
+                    );
+                  })()}
                   {flags.distributorExempt ? (
                     <span className="bws-muted">— (Distributor record)</span>
                   ) : flags.missingBrand ? (
@@ -1167,8 +1473,14 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                         <button
                           type="button"
                           data-testid={`intake-profile-required-${item.itemId}`}
-                          onClick={() => onOpenSettings?.()}
-                          title={onOpenSettings ? 'Open Settings to configure the extractor profile' : `No extractor profile for ${flags.mappedDomain} yet`}
+                          onClick={() => {
+                            if (flags.mappedDomain) {
+                              handleOpenProfileBuilder(flags.mappedDomain);
+                            } else {
+                              onOpenSettings?.();
+                            }
+                          }}
+                          title={flags.mappedDomain ? `Open Profile Builder for ${flags.mappedDomain}` : 'Open Profile Builder'}
                           style={{
                             fontSize: '0.6875rem',
                             fontWeight: 700,
@@ -1177,7 +1489,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                             border: '1px solid #fcd34d',
                             borderRadius: rounded.full,
                             padding: '2px 8px',
-                            cursor: onOpenSettings ? 'pointer' : 'default',
+                            cursor: 'pointer',
                             width: 'fit-content',
                           }}
                         >
@@ -1185,7 +1497,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                         </button>
                       )}
                     </span>
-                  ) : (
+                  ) : showMissingDomain ? (
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span
                         data-testid={`intake-missing-domain-${item.itemId}`}
@@ -1273,16 +1585,28 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                         </span>
                       )}
                     </span>
+                  ) : (
+                    <span className="bws-muted" title="Approved distributor-only strategy — no official website required">
+                      Distributor-supported brand — no domain required
+                    </span>
                   )}
                 </td>
                 <td data-testid={`intake-route-${item.itemId}`} style={{ fontSize: '0.75rem' }}>
+                  <span
+                    data-testid={`intake-readiness-${item.itemId}`}
+                    role="status"
+                    title="Collection readiness: whether collection can run within the approved strategy"
+                    style={{ display: 'block', fontWeight: 700, marginBottom: 4 }}
+                  >
+                    {strategy.label}
+                  </span>
                   {route === 'distributor' && (
                     <span title="Qualified distributor record — skips discovery to collect_details">📦 Distributor Fast-Path</span>
                   )}
                   {route === 'discovery' && (
                     <span title="Routed to official site discovery (find_product_page)">🌐 Official Site Discovery</span>
                   )}
-                  {route === 'blocked' && (
+                  {route === 'blocked' && !strategy.suppressMissingDomain && (
                     <span className="bws-muted" title="Parked in Stage 1 until brand/domain is resolved">⏳ Needs Brand/Domain</span>
                   )}
                 </td>
@@ -1291,7 +1615,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                     {item.stage} / {item.stageStatus}
                   </span>
                   <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
-                    {item.reviewState ? reviewStateLabel(item.reviewState) : item.label}
+                    {item.label}
                   </div>
                 </td>
               </tr>

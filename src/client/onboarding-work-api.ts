@@ -275,6 +275,35 @@ export async function assignBatchBrandDomain(
   });
 }
 
+// ─── Brand sourcing strategy approval (spec #120, ticket #121) ─────────────
+// Explicit operator approval of a reusable per-brand collection plan.
+// Viewing a proposal never writes; only this command persists approval.
+export interface StrategySourceInput {
+  kind: 'official_page' | 'distributor_record';
+  distributorId?: string;
+  domain?: string;
+}
+
+export async function approveBrandStrategy(input: {
+  brand: string;
+  sources: StrategySourceInput[];
+  expectedRevision?: number;
+}): Promise<{ strategy: unknown }> {
+  const res = await fetch('/api/onboarding/brands/strategy/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = (data as { error?: unknown; message?: unknown } | null)?.message
+      ?? (data as { error?: unknown } | null)?.error
+      ?? `HTTP ${res.status}`;
+    throw new Error(typeof msg === 'string' ? msg : `HTTP ${res.status}`);
+  }
+  return data as { strategy: unknown };
+}
+
 // ─── Live events ───────────────────────────────────────────────────────────────
 
 /**

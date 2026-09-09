@@ -10,6 +10,7 @@ const CLASSIFICATION_MIGRATION_PATH = path.resolve(import.meta.dirname, 'classif
 const STAGE_PIPELINE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'stage-pipeline-migration.sql');
 const COHORT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'cohort-migration.sql');
 const DISTRIBUTOR_V2_MIGRATION_PATH = path.resolve(import.meta.dirname, 'distributor-v2-migration.sql');
+const BRAND_STRATEGY_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-migration.sql');
 const OPERATOR_STATE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'operator-state-migration.sql');
 
 /**
@@ -3836,6 +3837,20 @@ export function runMigrations(): void {
       db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('distributor_v2_schema_version', '1');");
     })();
     console.log('[Migrations] Distributor V2 schema migration complete.');
+  }
+
+  // Brand Sourcing Strategy approval + Preparation gaps (spec #120).
+  // Additive-only new tables; idempotent via CREATE TABLE IF NOT EXISTS.
+  const brandStrategyVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('brand_strategy_schema_version') as { value: string } | undefined;
+  if (!brandStrategyVersion) {
+    db.transaction(() => {
+      const strategySql = fs.readFileSync(BRAND_STRATEGY_MIGRATION_PATH, 'utf-8');
+      db.exec(strategySql);
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('brand_strategy_schema_version', '1');");
+    })();
+    console.log('[Migrations] Brand sourcing strategy schema migration complete.');
   }
 
   // ── Evidence connection index repair (ADR 0014) ────────────────────────────

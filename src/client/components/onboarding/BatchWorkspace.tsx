@@ -45,6 +45,8 @@ export interface BatchWorkspaceProps {
   onBack: () => void;
   /** Opens the Onboarding settings page (extractor profiles, distributors…). */
   onOpenSettings?: () => void;
+  /** Direct hook to open Profile Builder for the specified domain. */
+  onOpenProfileBuilder?: (domain: string) => void;
 }
 
 /**
@@ -59,7 +61,7 @@ export interface BatchWorkspaceProps {
  * Raw pipeline stage/stage_status are secondary diagnostics only.
  */
 
-export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings }: BatchWorkspaceProps) {
+export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onOpenProfileBuilder }: BatchWorkspaceProps) {
   // Slice 7: BatchWorkspace is the sole shell and the temporary classic
   // work-state-primary navigation branch is removed (fallback release
   // archived). The linear six-stage navigation is primary; batch-wide
@@ -77,6 +79,7 @@ export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings }: B
         batchName={batchName}
         onBack={onBack}
         onOpenSettings={onOpenSettings}
+        onOpenProfileBuilder={onOpenProfileBuilder}
       />
     );
   }
@@ -155,7 +158,7 @@ function writeSearch(mutator: (params: URLSearchParams) => void, push: boolean) 
  * 'entire batch', stage filters cleared/hidden while open); Completed /
  * Skipped are server-filtered outcome results with no new decisions.
  */
-function LinearShell({ batchId, batchName, onBack, onOpenSettings }: BatchWorkspaceProps) {
+function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenProfileBuilder }: BatchWorkspaceProps) {
   const [selection, setSelection] = useState(readSelection);
   const [stageCounts, setStageCounts] = useState<Record<LinearStageId, number> | null>(null);
   const [opCounts, setOpCounts] = useState<WorkStateCounts | null>(null);
@@ -464,6 +467,7 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings }: BatchWorksp
             batchId={batchId}
             stage={activeStage}
             onOpenSettings={onOpenSettings}
+            onOpenProfileBuilder={onOpenProfileBuilder}
             onOpenFullBatchReview={activeStage === 'review_listings' ? () => openOperation('review') : undefined}
             onOpenReadyToExportWorkspace={activeStage === 'create_drafts' ? () => openOperation('export') : undefined}
           />
@@ -484,7 +488,7 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings }: BatchWorksp
           <OutcomeItemsView key={`outcome-${batchId}-${legacyDest.outcome}`} batchId={batchId} outcome={legacyDest.outcome} />
         </div>
       ) : legacyDest.kind === 'stage' ? (
-        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenSettings={onOpenSettings} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
+        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenSettings={onOpenSettings} onOpenProfileBuilder={onOpenProfileBuilder} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
       ) : (
         <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
           Unsupported link: unknown operation ‘{selection.kind === 'legacy' ? (selection.rawTab ?? '') : ''}’. Showing Identify & Route Sources instead — nothing was changed.

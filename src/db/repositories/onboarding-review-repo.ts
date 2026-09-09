@@ -329,6 +329,21 @@ export function approveAndAdvanceItems(input: {
         continue;
       }
       const semanticValidation = curation?.semanticValidation;
+      // Spec #120 (ticket #124): an unresolved Listing Evidence Gap blocks
+      // review approval exactly like a blocked semantic validation. The gap
+      // clears only when preparation validation succeeds (durable resolve),
+      // never by clicking submit alone.
+      try {
+        const gapRow = db.query(
+          'SELECT status FROM preparation_gaps WHERE item_id = ?',
+        ).get(id) as { status: string } | undefined;
+        if (gapRow?.status === 'open') {
+          rejected.push({ itemId: id, reason: 'preparation_gap_unresolved' });
+          continue;
+        }
+      } catch {
+        // Minimal DBs without the gaps table: no gap can be open.
+      }
       if (
         semanticValidation &&
         typeof semanticValidation === 'object' &&

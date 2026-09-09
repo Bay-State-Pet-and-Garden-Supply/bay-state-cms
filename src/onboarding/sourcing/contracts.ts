@@ -512,6 +512,10 @@ export interface SourcingGenerationRunResult {
   attempts: SourcingGenerationAttemptSummary[];
   /** Connections that were enabled but could not be invoked (missing secret, unknown type). */
   skipped: Array<{ connectionId: string; reason: string }>;
+  /** Spec #120: approved strategy revision pinned for this generation (undefined = legacy advisory path). */
+  strategyRevision?: number | null;
+  /** Normalized brand the strategy was resolved for (null when unbranded). */
+  strategyBrand?: string | null;
 }
 
 export interface SourcingGenerationAttemptSummary {
