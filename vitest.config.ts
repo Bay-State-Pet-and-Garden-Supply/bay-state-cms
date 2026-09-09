@@ -22,6 +22,7 @@ export default defineConfig({
     exclude: [
       'node_modules',
       // Batch preflight & sourcing policy tests — use bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/batch-controlled-release-routes.test.ts',
       'src/tests/unit/batch-preflight-lifecycle.test.ts',
       'src/tests/unit/sourcing-policy.test.ts',
       // M7 scraper acceptance — bun:sqlite/bun:test, run under bun test (test:db)
@@ -52,6 +53,17 @@ export default defineConfig({
       'src/tests/unit/review-media-resolution.test.ts',
       'src/tests/unit/durable-approval-promote.test.ts',
       'src/tests/unit/draft-promoter.test.ts',
+      'src/tests/unit/naming-promotion-filenames.test.ts',
+      'src/tests/unit/filename-review.test.ts',
+      // Brand guarantee uses bun:sqlite via llm-client; runs under bun test.
+      // NOTE: keep isolated from name-consolidation-stage.test.ts — that file
+      // vi.mock()s title-consolidation and bun shares the module registry
+      // per process, so co-running would poison these real-path tests.
+      'src/tests/unit/brand-title-guarantee.test.ts',
+      // Size guarantee uses bun:sqlite via llm-client; same isolation rule.
+      'src/tests/unit/size-title-guarantee.test.ts',
+      // Color guarantee uses bun:sqlite via llm-client; same isolation rule.
+      'src/tests/unit/color-consolidation.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',

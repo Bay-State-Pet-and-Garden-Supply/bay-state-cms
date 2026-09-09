@@ -28,6 +28,17 @@ export interface ReviewActionsProps {
    * Undefined ⇒ pre-V2 behavior (warning-based blocking only).
    */
   blockers?: ReviewCompletenessBlockerCode[];
+  /**
+   * Issue #109 — filename-warning decision state for the current item.
+   * When `filenameWarned` is true, plain Looks-Good stays disabled: the
+   * reviewer must Accept (batch collisions only) or Defer explicitly, so a
+   * warned approval without a recorded decision is impossible.
+   */
+  filenameWarned?: boolean;
+  /** False when a catalog collision is present (accept is never offered). */
+  filenameAcceptable?: boolean;
+  onAcceptFilename?: () => void;
+  onDeferFilename?: () => void;
   onLooksGood: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -43,6 +54,10 @@ export function ReviewActions({
   allReviewed,
   shortcutKey = 'G',
   blockers,
+  filenameWarned = false,
+  filenameAcceptable = false,
+  onAcceptFilename,
+  onDeferFilename,
   onLooksGood,
   onPrevious,
   onNext,
@@ -52,7 +67,7 @@ export function ReviewActions({
   const warningBlocked = workState ? warningInfoFromDetail(detail ?? {}).blocked : false;
   const hasBlockers = Array.isArray(blockers) && blockers.length > 0;
   const approveDisabled =
-    !workState || busy || warningBlocked || editing || hasBlockers;
+    !workState || busy || warningBlocked || editing || hasBlockers || filenameWarned;
 
   return (
     <div className="rv-actions">
@@ -68,6 +83,36 @@ export function ReviewActions({
       >
         {busy ? 'Saving…' : 'Looks Good & Next'}
       </button>
+
+      {filenameWarned && (
+        <span className="rv-actions-blocked" role="status">
+          Filename warning needs an explicit decision — accept the suffixed name{filenameAcceptable ? '' : ' (not available for catalog collisions)'} or defer.
+        </span>
+      )}
+
+      {filenameWarned && filenameAcceptable && onAcceptFilename && (
+        <button
+          type="button"
+          className="rv-btn rv-btn-primary"
+          onClick={onAcceptFilename}
+          disabled={!workState || busy}
+          title="Record filename accept and mark reviewed"
+        >
+          {busy ? 'Saving…' : 'Accept filename & approve'}
+        </button>
+      )}
+
+      {filenameWarned && onDeferFilename && (
+        <button
+          type="button"
+          className="rv-btn rv-btn-secondary"
+          onClick={onDeferFilename}
+          disabled={!workState || busy}
+          title="Record filename defer and move on without marking reviewed"
+        >
+          Defer
+        </button>
+      )}
 
       {hasBlockers && (
         <span className="rv-actions-blocked" role="status">

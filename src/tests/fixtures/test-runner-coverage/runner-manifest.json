@@ -1,6 +1,7 @@
 {
   "comment": "Reviewed test-runner classifications (council plan 6.1). vitestSafe files collect under Vitest despite a textual bun mention (verified 2026-09-06; test outcomes owned by respective teams). transitiveBun files fail Vitest collection in the current worktree (verified 2026-09-06) and stay Bun-side until owning teams prove Vitest collection; Slice 0 leaves their registration untouched.",
   "transitiveBun": {
+    "src/tests/unit/batch-controlled-release-routes.test.ts": "imports db/connection (bun:sqlite); runs under bun test (test:db)",
     "src/tests/unit/cohort-page-coordinator.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection",
     "src/tests/unit/manual-evidence-foundation.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection"
   },

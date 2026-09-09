@@ -20,14 +20,18 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     );
     expect(manual.title).toBe('Butcher\u2019s Pup Chicken Recipe');
     expect(manual.source).toBe('manual');
+    // Issue #108: no brand anywhere → unverified marker, nothing invented.
+    expect(manual.brandUnverified).toBe(true);
     const ocr = await consolidateProductTitle(
       { name: 'BUTCHER PUP TREATS', manualTitle: 'Manual Title', ocrTitle: 'OCR Title' },
       null,
       undefined,
     );
     expect(ocr.source).toBe('ocr');
+    expect(ocr.brandUnverified).toBe(true);
     const legacy = await consolidateProductTitle({ name: 'BUTCHER PUP TREATS' }, null, undefined);
     expect(legacy.source).toBe('web');
+    expect(legacy.brandUnverified).toBe(true);
   });
 
   test('name-consolidation emits titleSource manual for operator-manual evidence', async () => {
@@ -51,7 +55,10 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
         sku: 'upc-manual-1',
         evidence: [
           evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS'),
-          evidence('operator_manual', 'name', 'Butcher\u2019s Pup Chicken Recipe'),
+          // Issue #108: brand evidence required — 'Butcher' already opens
+          // the manual title, so the guarantee leaves it byte-identical.
+          evidence('spreadsheet', 'brand', 'Butcher'),
+          evidence('operator_manual', 'name', 'Butcher\u2019s Pup Chicken Recipe 5 lb'),
         ],
         acceptedProposals: [],
         allProposals: [],
@@ -67,7 +74,9 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     if (result.status !== 'succeeded') return;
     const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
     expect(metadata.titleSource).toBe('manual');
-    expect(metadata.curatedTitle).toBe('Butcher\u2019s Pup Chicken Recipe');
+    // Issue #111: the manual title carries its own size token, so the
+    // variant guarantee leaves it byte-identical.
+    expect(metadata.curatedTitle).toBe('Butcher\u2019s Pup Chicken Recipe 5 lb');
   });
 
   test('non-manual evidence keeps the legacy fallback order byte-identical', async () => {
@@ -89,7 +98,14 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     const result = await nameConsolidationStage.execute(
       {
         sku: 'upc-manual-2',
-        evidence: [evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS')],
+        // Issue #108: brand evidence required — 'BUTCHER' matches the title
+        // token exactly, so the guarantee leaves the legacy fallback output
+        // byte-identical (this test pins fallback ORDER, not branding).
+        evidence: [
+          // Issue #111: size token lives in the spreadsheet name itself.
+          evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS 5LB'),
+          evidence('spreadsheet', 'brand', 'BUTCHER'),
+        ],
         acceptedProposals: [],
         allProposals: [],
       },
@@ -104,6 +120,6 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     if (result.status !== 'succeeded') return;
     const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
     expect(metadata.titleSource).toBe('web');
-    expect(metadata.curatedTitle).toBe('BUTCHER PUP TREATS');
+    expect(metadata.curatedTitle).toBe('BUTCHER PUP TREATS 5LB');
   });
 });

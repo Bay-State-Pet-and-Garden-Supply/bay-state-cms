@@ -1285,83 +1285,16 @@ export async function callLlm(
  * These are identity-bearing details that must survive expected name generation
  * (brand, size, flavor, variant, count, weight, etc.).
  *
- * Exported for testing.
- */
-// fallow-ignore-next-line unused-export — used by tests
-export function extractProtectedTokens(rawName: string): string[] {
-  const tokens: string[] = [];
-  const lower = rawName;
-
-  // Match weight/size: number followed by unit (with optional space)
-  // e.g. "2.64OZ", "10.5 OZ", "5LB", "6 oz", "100G", "16OZ"
-  const weightPattern = /(\d+(?:\.\d+)?)\s*(OZ|OZS?|LB|LBS?|OUNCE|OUNCES|GRAM|GRAMS|G|KG|ML|GAL|QT|LTR)\b/gi;
-  let match;
-  while ((match = weightPattern.exec(lower)) !== null) {
-    tokens.push(match[0].trim());
-  }
-
-  // Match count/pack: number followed by PK, CT, COUNT, etc.
-  // e.g. "3PK", "6 Pack", "12CT", "5COUNT"
-  const countPattern = /(\d+)\s*(PK|CT|COUNT|PACK|CAN|BAG|PC|PCS|PIECE|PIECES)\b/gi;
-  while ((match = countPattern.exec(lower)) !== null) {
-    tokens.push(match[0].trim());
-  }
-
-  // Match variant size abbreviations that stand alone
-  const sizeAbbrPattern = /\b(SM|MD|LG|XL|XXL|XS)\b/g;
-  while ((match = sizeAbbrPattern.exec(lower)) !== null) {
-    tokens.push(match[0].trim());
-  }
-
-  return tokens;
-}
-
-/**
- * Normalize a raw protected token to its expected display form.
- * E.g. "2.64OZ" → "2.64 oz", "3PK" → "3-Pack", "SM" → "Small"
+ * Canonical definitions live in title-prompt-template (issue #111) so the
+ * deterministic title post-steps share one tokenizer; re-exported here so
+ * existing importers (discovery consolidation, guard tests) are unaffected.
  *
  * Exported for testing.
  */
 // fallow-ignore-next-line unused-export — used by tests
-export function normalizeProtectedToken(token: string): string {
-  const t = token.trim();
-
-  // Weight/volume: normalize unit
-  const weightMatch = /^(\d+(?:\.\d+)?)\s*(OZ|OZS?|LB|LBS?|OUNCE|OUNCES|GRAM|GRAMS|G|KG|ML|GAL|QT|LTR)$/i.exec(t);
-  if (weightMatch) {
-    const num = weightMatch[1];
-    const unit = weightMatch[2].toLowerCase();
-    const unitMap: Record<string, string> = {
-      ozs: 'oz', lbs: 'lb', ounce: 'oz', ounces: 'oz',
-      gram: 'g', grams: 'g',
-      gallon: 'gal', quarts: 'qt', quart: 'qt', liter: 'ltr',
-    };
-    return `${num} ${unitMap[unit] ?? unit}`;
-  }
-
-  // Count/pack
-  const countMatch = /^(\d+)\s*(PK|CT|COUNT|PACK|CAN|BAG|PC|PCS|PIECE|PIECES)$/i.exec(t);
-  if (countMatch) {
-    const num = countMatch[1];
-    const type = countMatch[2].toUpperCase();
-    if (type === 'PK' || type === 'PACK') return `${num}-Pack`;
-    if (type === 'CT' || type === 'COUNT') return `${num} ct`;
-    if (type === 'PC' || type === 'PCS') return `${num} pc`;
-    if (type === 'CAN') return `${num} Can`;
-    if (type === 'BAG') return `${num} Bag`;
-    if (type === 'PIECE' || type === 'PIECES') return `${num}-Piece`;
-  }
-
-  // Size abbreviations
-  const sizeMap: Record<string, string> = {
-    SM: 'Small', MD: 'Medium', LG: 'Large',
-    XL: 'X-Large', XXL: 'XX-Large', XS: 'X-Small',
-  };
-  const upper = t.toUpperCase();
-  if (sizeMap[upper]) return sizeMap[upper];
-
-  return t;
-}
+import { extractProtectedTokens, normalizeProtectedToken } from './title-prompt-template';
+// fallow-ignore-next-line unused-export — used by tests
+export { extractProtectedTokens, normalizeProtectedToken };
 
 /**
  * Verify that all protected tokens from the raw register name survived

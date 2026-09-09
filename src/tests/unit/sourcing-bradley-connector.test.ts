@@ -215,6 +215,69 @@ describe('Bradley pure parsers (fixture-based)', () => {
   });
 });
 
+describe('Bradley brand candidates (issue #110)', () => {
+  const BASE = (body: string) => `<html><body>${body}</body></html>`;
+  const H1 = `<h1>E-Z HANG SCALE</h1>`;
+
+  test('adjacent brand link wins with provenance', () => {
+    const p = parseBradleyPdp(BASE(`<p><a href="/kerbl">KERBL</a></p>${H1}`));
+    expect(p.brand).toBe('KERBL');
+    expect(p.brandSource).toBe('adjacent_link');
+  });
+
+  test('existing PDP fixture resolves via the adjacent link', () => {
+    const p = parseBradleyPdp(FIXTURES['found-pdp.html']);
+    expect(p.brand).toBe('KERBL');
+    expect(p.brandSource).toBe('adjacent_link');
+  });
+
+  test('brand absent everywhere yields observed-null (held downstream, never guessed)', () => {
+    const p = parseBradleyPdp(BASE(H1));
+    expect(p.brand).toBeNull();
+    expect(p.brandSource).toBeNull();
+  });
+
+  test('brand moved into the spec list resolves with spec provenance', () => {
+    const p = parseBradleyPdp(BASE(`${H1}<dl>
+      <dt><strong>Brand</strong></dt><dd>SALTER</dd>
+      <dt><strong>UPC</strong></dt><dd>018653299524</dd>
+    </dl>`));
+    expect(p.brand).toBe('SALTER');
+    expect(p.brandSource).toBe('spec');
+  });
+
+  test('Manufacturer spec label is a brand candidate', () => {
+    const p = parseBradleyPdp(BASE(`${H1}<dl>
+      <dt><strong>Manufacturer</strong></dt><dd>ACME CO</dd>
+    </dl>`));
+    expect(p.brand).toBe('ACME CO');
+    expect(p.brandSource).toBe('spec');
+  });
+
+  test('JSON-LD vendor brand resolves with json_ld provenance', () => {
+    const p = parseBradleyPdp(BASE(`${H1}<script type="application/ld+json">
+      {"@type":"Product","name":"E-Z HANG SCALE","brand":{"@type":"Brand","name":"Kerbl"}}
+    </script>`));
+    expect(p.brand).toBe('Kerbl');
+    expect(p.brandSource).toBe('json_ld');
+  });
+
+  test('adjacent link outranks spec and JSON-LD (first-nonempty wins)', () => {
+    const p = parseBradleyPdp(BASE(`<p><a href="/kerbl">KERBL</a></p>${H1}<dl>
+      <dt><strong>Brand</strong></dt><dd>WRONG</dd>
+    </dl><script type="application/ld+json">{"brand":"ALSOWRONG"}</script>`));
+    expect(p.brand).toBe('KERBL');
+    expect(p.brandSource).toBe('adjacent_link');
+  });
+
+  test('malformed JSON-LD never throws and falls through to null', () => {
+    const p = parseBradleyPdp(BASE(`${H1}<script type="application/ld+json">not json {{{</script>`));
+    expect(p.brand).toBeNull();
+    expect(p.brandSource).toBeNull();
+    expect(p.parsed).toBe(true);
+  });
+});
+
 describe('Bradley live-shape extraction (inline HTML mirroring the 2026-08-15 captured PDP)', () => {
   // Live-shaped PDP: h1 + preceding brand paragraph, dt/dd spec list (incl.
   // the excluded Pallet Quantity + Type), Additional Details li list (incl.

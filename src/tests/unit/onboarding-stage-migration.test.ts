@@ -150,7 +150,7 @@ describe('no cache loophole (§5.2)', () => {
     const before = fs.readFileSync(dbPath);
     const proc = Bun.spawnSync(
       ['bun', 'scripts/onboarding-stage-vocabulary.ts', `--db=${dbPath}`],
-      { cwd: '/Users/nickborrello/Desktop/Projects/bay-state-cms' },
+      { cwd: path.resolve(__dirname, '../../..') },
     );
     expect(proc.exitCode).toBe(0);
     expect(fs.readFileSync(dbPath).equals(before)).toBe(true);

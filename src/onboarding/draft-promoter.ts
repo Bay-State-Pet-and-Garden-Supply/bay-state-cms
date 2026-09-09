@@ -10,6 +10,7 @@ import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
 import { clearProductPages, assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
+import { normalizeFileName, slugifyFileName, uniquifyFileNames, FILE_NAME_EXTENSION } from '../shopsite/file-name';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
 import {
   getAcceptedProposals,
@@ -541,6 +542,93 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
   approval_invalidated: 'Approval was invalidated after review; re-approve before exporting',
 };
 
+/**
+ * Assign a distinct more-information FileName per promoted item (issue #107).
+ *
+ * Items that already resolve to a FileName (explicit custom field,
+ * preserved import value, or healed name from a prior ShopSite pull living
+ * in core.seo.fileName) keep it — live pages are never renamed
+ * automatically. All other items take the persisted per-source-URL slug
+ * when present, else the slugged title, and are uniquified against the
+ * kept names (ascending UPC order, so reruns reproduce the assignment).
+ * Candidates use disambiguated UPC-plus-id keys and the returned map is
+ * keyed by item id, so duplicate UPCs can never collapse to one name.
+ * Distributor-record items carry no URL
+ * slug by design and always take the uniquified name-derived path.
+ *
+ * Scope note (issue #107): the taken set covers kept names in THIS batch
+ * only, not untouched live-catalog products — a new item can still claim a
+ * filename owned elsewhere, in which case the DUPLICATE_FILENAME pre-sync
+ * backstop fails the change set closed and batch export uniquifies old
+ * drafts lacking persisted names. Feeding live-catalog names into `taken`
+ * is explicit future work.
+ *
+ * The optional reader parameter exists for tests; production passes the
+ * workspace product-file reader.
+ */
+/**
+ * Resolve the base (pre-uniquify) file name promotion will use for an item.
+ *
+ * Single source of truth shared by `assignPromotionFileNames` (persist) and
+ * the Review filename preview (issue #109): an existing workspace product
+ * keeps its effective name; otherwise the persisted per-source-URL slug
+ * wins, else the slugged title (SKU-guarded for punctuation-only names).
+ *
+ * Returns whether the name is kept from live state (`kept: true` — never
+ * renamed, seeds the taken set) or newly derived (`kept: false`).
+ */
+export function resolvePromotionBaseName(
+  item: OnboardingItem,
+  existing: ReturnType<typeof readProductFile>,
+): { name: string; kept: boolean } {
+  const keptName = normalizeFileName(existing?.customFields?.['FileName'])
+    ?? normalizeFileName(existing?.shopsite?.preserved?.unknownElements?.['FileName'])
+    ?? normalizeFileName(existing?.core?.seo?.fileName);
+  if (keptName) return { name: keptName, kept: true };
+  const finalTitle = item.curationData?.curatedTitle || item.extractionData?.title || item.name;
+  // Mirror the central SKU guard in resolveBaseFileName: punctuation-only
+  // titles slug to a bare extension, which must never enter uniquification.
+  const titleSlug = slugifyFileName(finalTitle || item.upc);
+  const base = normalizeFileName(item.extractionData?.seoFileName)
+    ?? (titleSlug !== FILE_NAME_EXTENSION ? titleSlug : slugifyFileName(item.upc));
+  return { name: base, kept: false };
+}
+
+export function assignPromotionFileNames(
+  items: OnboardingItem[],
+  workspacePath: string,
+  readExisting: typeof readProductFile = readProductFile,
+): Map<string, string> {
+  const candidates: Array<{ key: string; id: string; fileName: string }> = [];
+  const taken: string[] = [];
+  const kept = new Map<string, string>();
+  for (const item of items) {
+    const existing = readExisting(workspacePath, item.upc);
+    const base = resolvePromotionBaseName(item, existing);
+    if (base.kept) {
+      kept.set(item.id, base.name);
+      taken.push(base.name);
+      continue;
+    }
+    // Disambiguated keys (positional pattern, as in batch XML export):
+    // keys sort UPC-major, preserving ascending-UPC determinism, while the
+    // id suffix keeps duplicate UPCs distinct through uniquification AND
+    // the result map (keyed by item id, so lookups never collapse).
+    candidates.push({ key: `${item.upc}#${item.id ?? candidates.length}`, id: item.id, fileName: base.name });
+  }
+  const disambiguated = uniquifyFileNames(
+    candidates.map(c => ({ key: c.key, fileName: c.fileName })),
+    taken,
+  );
+  const assigned = new Map<string, string>();
+  for (const c of candidates) {
+    const name = disambiguated.get(c.key);
+    if (name) assigned.set(c.id, name);
+  }
+  for (const [id, name] of kept) assigned.set(id, name);
+  return assigned;
+}
+
 export async function promoteItems(
   workspaceId: string,
   workspacePath: string,
@@ -743,6 +831,16 @@ export async function promoteItems(
   // draft (an item refused here never produces a change-set row even when
   // its images were already downloaded in (b)).
   db.transaction(() => {
+    // ── Issue #107: batch-unique more-information file names ──────────
+    // Assign every passed item a distinct FileName BEFORE drafting, so the
+    // persisted draft (visible in Review) already carries a collision-free
+    // name. Products that already resolve to a FileName (explicit custom
+    // field or preserved import value) keep it — live pages are never
+    // renamed automatically; their names seed the taken set. All other items
+    // get the persisted per-source-URL slug when present, else the slugged
+    // title, uniquified in ascending UPC order (deterministic: reruns
+    // reproduce the same assignment).
+    const assignedFileNames = assignPromotionFileNames(passedItems, workspacePath);
     for (const item of passedItems) {
       // ── Epic #46 review round 2 (HIGH): durable approval re-checked at the
       // FINAL draft-write authority ──────────────────────────────────────
@@ -1040,6 +1138,17 @@ export async function promoteItems(
         completePromotionStage(item.id, false, errMsg);
         failures.push({ itemId: item.id, error: errMsg });
         continue;
+      }
+
+      // ── Issue #107: persist the pre-assigned batch-unique FileName ──
+      // New drafts carry their assigned name in customFields (reviewable in
+      // the draft JSON and honored at export). Drafts that already resolve
+      // to an existing FileName keep it via the carry-over above.
+      if (!mergedCustomFields['FileName']?.trim()
+        && !normalizeFileName(existingApproved?.customFields?.['FileName'])
+        && !normalizeFileName(existingApproved?.shopsite?.preserved?.unknownElements?.['FileName'])) {
+        const assigned = assignedFileNames.get(item.id);
+        if (assigned) mergedCustomFields['FileName'] = assigned;
       }
 
       // Construct final Product schema representation

@@ -65,10 +65,18 @@ export interface BradleyConnectorDeps {
   now?: () => string;
 }
 
+/** Which brand candidate won (issue #110 provenance). Null when unresolvable. */
+export type BradleyBrandSource = 'adjacent_link' | 'spec' | 'json_ld';
+
 export interface BradleyPdpData {
   upc: string | null;
   name: string | null;
   brand: string | null;
+  /**
+   * Which candidate supplied `brand`. Observed-null (`null`) flows into the
+   * missing_brand hold downstream — never a guessed brand.
+   */
+  brandSource: BradleyBrandSource | null;
   distributorSku: string | null;
   mpn: string | null;
   weight: string | null;
@@ -195,12 +203,60 @@ function galleryImages($: CheerioAPI, sku: string | null): string[] {
   return dedupeStrings(out).filter((u) => isAllowedHttpsUrl(u, BRADLEY_ASSET_HOSTS)).slice(0, 50);
 }
 
+/**
+ * Ordered brand candidates (issue #110). Bradley H1s are typically
+ * brandless, with the brand in the small link directly above the title —
+ * but layouts shift, so fall back through spec/manufacturer fields and
+ * JSON-LD vendor metadata. First non-empty value wins, WITH its source for
+ * provenance. Returns { brand: null, brandSource: null } when unresolvable
+ * (observed-null — the missing_brand hold downstream, never a guess).
+ * Never throws on unknown markup.
+ */
+function bradleyBrand($: CheerioAPI): { brand: string | null; brandSource: BradleyBrandSource | null } {
+  const h1 = $('h1').first();
+  if (h1.length) {
+    const adjacent = h1.prev('p').find('a').first().text().replace(/\s+/g, ' ').trim();
+    if (adjacent) return { brand: adjacent, brandSource: 'adjacent_link' };
+  }
+  const specBrand = specValue($, 'Brand') ?? specValue($, 'Manufacturer');
+  if (specBrand) return { brand: specBrand, brandSource: 'spec' };
+  const jsonLd = jsonLdBrand($);
+  if (jsonLd) return { brand: jsonLd, brandSource: 'json_ld' };
+  return { brand: null, brandSource: null };
+}
+
+/** Vendor-structured brand from JSON-LD blocks (string or { name }). */
+function jsonLdBrand($: CheerioAPI): string | null {
+  let found: string | null = null;
+  $('script[type="application/ld+json"]').each((_i, el) => {
+    if (found) return false;
+    const raw = $(el).contents().text();
+    if (!raw) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const candidates = Array.isArray(parsed) ? parsed : [parsed];
+      for (const node of candidates) {
+        const brand = (node as { brand?: unknown } | null)?.brand;
+        const name = typeof brand === 'string' ? brand : (brand as { name?: unknown } | null)?.name;
+        if (typeof name === 'string' && name.replace(/\s+/g, ' ').trim()) {
+          found = name.replace(/\s+/g, ' ').trim();
+          return false;
+        }
+      }
+    } catch {
+      // Malformed JSON-LD is not brand evidence — keep scanning.
+    }
+    return undefined;
+  });
+  return found;
+}
+
 /** Pure PDP parser (fixture-testable; never throws on unknown markup). */
 export function parseBradleyPdp(html: string): BradleyPdpData {
   const $ = loadHtml(html);
   const h1 = $('h1').first();
   const name = h1.length ? h1.text().replace(/\s+/g, ' ').trim() : '';
-  const brand = h1.length ? h1.prev('p').find('a').first().text().replace(/\s+/g, ' ').trim() : '';
+  const { brand, brandSource } = bradleyBrand($);
   const distributorSku = specValue($, 'BCI Item Number');
   const upc = specValue($, 'UPC');
   const casePack = specValue($, 'Case Pack');
@@ -209,6 +265,7 @@ export function parseBradleyPdp(html: string): BradleyPdpData {
     upc,
     name: name || null,
     brand: brand || null,
+    brandSource,
     distributorSku,
     mpn: specValue($, 'Manufacturer #'),
     weight: labeledListItem($, 'Weight'),

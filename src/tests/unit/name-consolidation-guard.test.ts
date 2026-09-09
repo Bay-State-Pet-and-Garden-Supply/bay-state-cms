@@ -207,8 +207,8 @@ describe('normalizeProtectedToken', () => {
     expect(normalizeProtectedToken('XL')).toBe('X-Large');
   });
 
-  test('normalizes 5CT → 5 ct', () => {
-    expect(normalizeProtectedToken('5CT')).toBe('5 ct');
+  test('normalizes 5CT → 5-Count per FORMAT_RULES', () => {
+    expect(normalizeProtectedToken('5CT')).toBe('5-Count');
   });
 
   test('normalizes 16OZ → 16 oz', () => {

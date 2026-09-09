@@ -17,6 +17,7 @@ vi.mock('../../onboarding/title-consolidation', () => ({
 }));
 
 import { consolidateProductTitle } from '../../onboarding/title-consolidation';
+import { ensureBrandInTitle, ensureVariantTokensInTitle } from '../../onboarding/title-prompt-template';
 import { nameConsolidationStage } from '../../classification/stages/name-consolidation';
 import type { StageContext, StageInput } from '../../classification/types';
 
@@ -79,6 +80,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'DOG FOOD 5LB' }),
       // Per-attempt distributor titles
       makeEvidence({
@@ -137,7 +141,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Low Confidence',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.5 },
@@ -171,7 +179,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Per-attempt record
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Same Title',
@@ -200,7 +212,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Flattened record (no attemptId)
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Flattened Title',
@@ -232,7 +248,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Name Title',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
@@ -259,6 +279,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test Product' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'brand', value: 'Distributor Brand Inc',
@@ -282,6 +305,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Spreadsheet Brand' }),
       makeEvidence({
@@ -301,16 +327,23 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     expect(callArgs.distributorBrands).toHaveLength(1);
   });
 
-  it('does not abstain when only distributor titles are available', async () => {
+  it('does not abstain when only distributor signals are available', async () => {
     asMock(consolidateProductTitle).mockResolvedValue({
       title: 'Distributor Only Product',
       source: 'llm',
     });
 
     const evidence: ClassificationEvidence[] = [
-      // No spreadsheet, official, or OCR — only distributor titles
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'Distributor Only Product',
+        metadata: { providerId: 'central_pet', attemptId: 'att-1', confidence: 0.9 },
+      }),
+      makeEvidence({
+        source: 'third_party_page', sourceField: 'brand', value: 'Distributor Brand',
         metadata: { providerId: 'central_pet', attemptId: 'att-1', confidence: 0.9 },
       }),
     ];
@@ -330,7 +363,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       // Non-string value — should be safely ignored
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 12345 as unknown as string,
@@ -363,7 +400,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Test Brand' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: '   ',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
@@ -387,6 +428,9 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Test Product' }),
       makeEvidence({
         source: 'third_party_page', sourceField: 'name', value: 'T1',
@@ -417,15 +461,56 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     expect(signalsUsed!.distributorBrandCount).toBe(1);
   });
 
-  it('returns preComputedTitle immediately without collecting distributor signals', async () => {
+  it('consumes a branded preComputedTitle byte-for-byte without calling the consolidator', async () => {
     const result = await nameConsolidationStage.execute(
-      makeInput({ evidence: [] }),
-      makeContext({ preComputedTitle: 'Cohort Title', preComputedTitleSource: 'llm_cohort' }),
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
+      makeContext({ preComputedTitle: 'Acme Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
     );
 
     expect(result.status).toBe('succeeded');
     if (result.status !== 'succeeded') throw new Error('Expected success');
-    expect(result.output.metadata?.curatedTitle).toBe('Cohort Title');
+    // Design B: durable coordinated titles are final — consumed verbatim.
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Premium Dog Food 5 lb');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws a parent-defect error for a brandless durable title against author-visible brand', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' })],
+        }),
+        makeContext({ runId: 'run-defect-1', preComputedTitle: 'Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains (no throw) for distributor-only brand against a brandless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Premium Dog Food 5 lb' }),
+          makeEvidence({
+            source: 'third_party_page',
+            sourceField: 'brand',
+            value: 'Acme',
+            metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+          }),
+        ],
+      }),
+      makeContext({ preComputedTitle: 'Premium Dog Food 5 lb', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
     expect(consolidateProductTitle).not.toHaveBeenCalled();
   });
 
@@ -456,11 +541,20 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     asMock(consolidateProductTitle).mockRejectedValue(new Error('LLM error'));
 
     const evidence: ClassificationEvidence[] = [
-      // No spreadsheet, official, or OCR — only distributor titles
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      // No spreadsheet, official, or OCR — only distributor signals
       makeEvidence({
         source: 'third_party_page',
         sourceField: 'name',
         value: 'Distributor Fallback Title',
+        metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
+      }),
+      makeEvidence({
+        source: 'third_party_page',
+        sourceField: 'brand',
+        value: 'Acme',
         metadata: { providerId: 'p1', attemptId: 'a1', confidence: 0.9 },
       }),
     ];
@@ -472,7 +566,686 @@ describe('nameConsolidationStage — distributor signal collection', () => {
 
     expect(result.status).toBe('succeeded');
     if (result.status !== 'succeeded') throw new Error('Expected success');
-    expect(result.output.metadata?.curatedTitle).toBe('Distributor Fallback Title');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Distributor Fallback Title 5 lb');
+  });
+});
+
+// ─── Brand guarantee (issue #108) ───────────────────────────────────────────
+
+describe('nameConsolidationStage — brand guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('abstains missing_brand when no brand exists in any evidence', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Brandless Product',
+      source: 'llm',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Brandless Product' })],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+    // Fail-closed before synthesis: the LLM path is never consulted.
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains when the mocked consolidator reports brandUnverified', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Brandless Product',
+      source: 'llm',
+      brandUnverified: true,
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Brandless Product' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+  });
+
+  it('records brandApplied metadata on success', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget',
+      source: 'llm',
+      brandApplied: 'Acme',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+  });
+
+  it('falls back to the stage brandHint when the consolidator omits brandApplied', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget',
+      source: 'manual',
+    });
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Acme');
+  });
+
+  it('abstains missing_brand for a preComputedTitle with no brand evidence at all', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence: [] }),
+      makeContext({ preComputedTitle: 'Cohort Title', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_brand/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+});
+
+// ─── distributor_record wiring (issue #110) ──────────────────────────────────
+// Both evidence-extraction paths emit distributor evidence with source
+// `distributor_record`; the collector must not drop it.
+
+/** Consolidated distributor_record evidence as evidence-extraction emits it. */
+const distributorRecordEvidence = (
+  sourceField: string,
+  value: string,
+  opts: { providerId?: string; attemptIds?: string[] } = {},
+): ClassificationEvidence =>
+  makeEvidence({
+    source: 'distributor_record' as ClassificationEvidence['source'],
+    sourceField,
+    value,
+    metadata: {
+      provenance: 'distributor_record',
+      sourcingGenerationId: 'gen-1',
+      acceptedEvidenceAttemptIds: opts.attemptIds ?? ['att-1'],
+      acceptedProviderIds: [opts.providerId ?? 'bradley'],
+      distributorEvidenceHash: 'hash-1',
+      fieldProvenance: { [sourceField]: opts.providerId ?? 'bradley' },
+    },
+  });
+
+describe('nameConsolidationStage — distributor_record wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('distributor_record name+brand reach the consolidator with provenance', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Salter E-Z Hang Scale Silver Up to 55 LB',
+      source: 'llm',
+      brandApplied: 'Salter',
+    });
+
+    const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale Silver Up to 55 LB'),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    // Bradley-style: brandless spreadsheet name, brand only in distributor details.
+    expect(callArgs.brandHint).toBe('Salter');
+    expect(callArgs.distributorTitles).toHaveLength(1);
+    expect(callArgs.distributorTitles[0]).toMatchObject({
+      title: 'E-Z Hang Scale Silver Up to 55 LB',
+      providerId: 'bradley',
+      attemptId: '',
+      confidence: 1.0,
+    });
+    expect(callArgs.distributorBrands).toHaveLength(1);
+    expect(callArgs.distributorBrands[0]).toMatchObject({ brand: 'Salter', providerId: 'bradley' });
+  });
+
+  it('providerId falls back to acceptedProviderIds then unknown', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const noFieldProv = distributorRecordEvidence('brand', 'Acme', { providerId: 'bradley' });
+    (noFieldProv.metadata as Record<string, unknown>).fieldProvenance = {};
+    const noProvAtAll = distributorRecordEvidence('name', 'Widget', { providerId: 'bradley' });
+    (noProvAtAll.metadata as Record<string, unknown>).fieldProvenance = {};
+    (noProvAtAll.metadata as Record<string, unknown>).acceptedProviderIds = [];
+
+    await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          noFieldProv,
+          noProvAtAll,
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorBrands[0].providerId).toBe('bradley');
+    expect(callArgs.distributorTitles[0].providerId).toBe('unknown');
+  });
+
+  it('consolidated distributor_record outranks legacy per-attempt rows', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      makeEvidence({
+        source: 'third_party_page',
+        sourceField: 'brand',
+        value: 'Stale Brand',
+        metadata: { providerId: 'legacy', attemptId: 'att-9', confidence: 0.9 },
+      }),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    // Projection authority first; the legacy row is retained, not dropped.
+    expect(callArgs.distributorBrands[0].brand).toBe('Salter');
+    expect(callArgs.distributorBrands).toHaveLength(2);
+    expect(callArgs.brandHint).toBe('Salter');
+  });
+
+  it('operator-transcribed Bradley titles pick up the distributor-details brand (AC3)', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Salter E-Z Hang Scale Silver Up to 55 LB',
+      source: 'llm',
+      brandApplied: 'Salter',
+    });
+
+    // Operator copied the brandless H1; brand lives only in distributor details.
+    const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      makeEvidence({ source: 'operator_manual', sourceField: 'name', value: 'E-Z Hang Scale Silver Up to 55 LB' }),
+      distributorRecordEvidence('brand', 'Salter'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.manualTitle).toBe('E-Z Hang Scale Silver Up to 55 LB');
+    expect(callArgs.brandHint).toBe('Salter');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.brandApplied).toBe('Salter');
+  });
+
+  it('distributor_record rows never invent values from blank evidence', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      distributorRecordEvidence('brand', '   '),
+    ];
+
+    await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorBrands).toBeUndefined();
+    expect(callArgs.brandHint).toBe('Acme');
+  });
+});
+
+// ─── Size/capacity guarantee end-to-end (issue #111) ────────────────────────
+// The consolidator is mocked, so the echo below replays the REAL pure
+// guarantees (brand + variant post-steps from the unmocked template module)
+// over the stage's signal wiring — a faithful end-to-end of evidence →
+// signals → guaranteed title without fabricating a run-bound LLM call.
+function mockEchoConsolidator() {
+  asMock(consolidateProductTitle).mockImplementation(async (signals: {
+    name: string;
+    rawRegisterName?: string;
+    brandHint?: string;
+    webTitle?: string;
+    distributorTitles?: Array<{ title: string }>;
+    distributorVariants?: Array<{ value: string }>;
+    ocrWeight?: string;
+    extractionWeight?: string;
+  }) => {
+    const sources = [
+      signals.name,
+      signals.rawRegisterName,
+      signals.webTitle,
+      signals.ocrWeight,
+      signals.extractionWeight,
+      ...(signals.distributorTitles ?? []).map(t => t.title),
+      ...(signals.distributorVariants ?? []).map(v => v.value),
+    ];
+    const base = signals.distributorTitles?.[0]?.title ?? signals.webTitle ?? signals.name;
+    const title = ensureVariantTokensInTitle(
+      signals.brandHint ? ensureBrandInTitle(base, signals.brandHint) : base,
+      sources,
+    );
+    return { title, source: 'llm' as const };
+  });
+}
+
+describe('nameConsolidationStage — size/capacity guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('Bradley details below a sizeless H1 yield a draft name ending with size tokens (AC1)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'E-Z HANG SCALE' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale Silver'),
+      distributorRecordEvidence('brand', 'Salter'),
+      distributorRecordEvidence('size', 'Up to 55 LB'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // Brand from adjacent details, size from specs below the H1 — both
+    // guaranteed, size as final tokens.
+    expect(result.output.metadata?.curatedTitle).toBe('Salter E-Z Hang Scale Silver 55 lb');
+    expect(result.output.metadata?.sizeApplied).toEqual(['55 lb']);
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorVariants).toMatchObject([{ field: 'size', value: 'Up to 55 LB' }]);
+  });
+
+  it('raw register size survives into the curated title when expected_name dropped it (AC2)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'expected_name', value: 'DOG FOOD' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'DOG FOOD 5LB' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // The cleaned expected_name lost the size; the raw register name is the
+    // authority — the curated title must end with it as final tokens.
+    const title = result.output.metadata?.curatedTitle as string;
+    expect(title.endsWith('5 lb')).toBe(true);
+    expect(result.output.metadata?.sizeApplied).toEqual(['5 lb']);
+  });
+
+  it('distributor size reaches the title even when absent from the H1 string (AC3)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+      distributorRecordEvidence('name', 'E-Z Hang Scale'),
+      distributorRecordEvidence('size', '55 LB'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle as string).toMatch(/55 lb$/);
+  });
+
+  it('capacity is a first-class axis in the draft name (AC4)', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'BUCKET' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      distributorRecordEvidence('name', 'Acme Bucket'),
+      distributorRecordEvidence('capacity', '5 GAL'),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Bucket 5 gal');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.distributorVariants).toMatchObject([{ field: 'capacity', value: '5 GAL' }]);
+  });
+
+  it('official-page weight joins the merged set', async () => {
+    mockEchoConsolidator();
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'KIBBLE' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      makeEvidence({ source: 'official_product_page', sourceField: 'title', value: 'Premium Kibble' }),
+      makeEvidence({ source: 'official_product_page', sourceField: 'weight', value: '16 oz' }),
+    ];
+
+    const result = await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Premium Kibble 16 oz');
+  });
+
+  it('holds missing_size when size is known nowhere, without calling synthesis (AC5)', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Mystery Product' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+        ],
+      }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_size/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws parent-defect for a sizeless durable title against evidenced size', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE 55LB' }),
+            makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+          ],
+        }),
+        makeContext({ runId: 'run-size-1', preComputedTitle: 'Salter Scale', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws parent-defect when the durable title is missing ONE of several authored tokens (require every)', async () => {
+    // Partial pass-through is forbidden: the durable title carries 55 lb
+    // but drops the evidenced 2-Count — one missing authored token still
+    // fails closed loudly.
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'SCALE 55LB 2CT' }),
+            makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Salter' }),
+          ],
+        }),
+        makeContext({ runId: 'run-size-partial', preComputedTitle: 'Salter Scale 55 lb', preComputedTitleSource: 'llm_cohort' }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('holds missing_size (not parent-defect) for a distributor-only token gap invisible to authorship', async () => {
+    // The 5 gal token lives ONLY in per-attempt distributor evidence — the
+    // coordinator could never have healed it — so the member holds for
+    // review instead of throwing a stale-parent error.
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Acme Bucket' }),
+          makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+          distributorRecordEvidence('name', 'Acme Bucket 5 GAL'),
+        ],
+      }),
+      makeContext({ runId: 'run-size-distonly', preComputedTitle: 'Acme Bucket', preComputedTitleSource: 'llm_cohort' }),
+    );
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_size/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Color guarantee (issue #112) ───────────────────────────────────────────
+
+describe('nameConsolidationStage — color guarantee', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const brandAndSize = [
+    makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+    makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+  ];
+
+  it('passes distributor color rows and OCR color into the consolidator', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Widget Red',
+      source: 'llm',
+      colorApplied: 'Red',
+    });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      ...brandAndSize,
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'color', value: 'Red' }),
+      makeEvidence({
+        source: 'distributor_record', sourceField: 'color', value: 'Red',
+        metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+      }),
+    ];
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    expect(callArgs.ocrColor).toBe('Red');
+    expect(callArgs.distributorVariants.some((v: any) => v.field === 'color' && v.value === 'Red')).toBe(true);
+    expect(result.output.metadata?.colorApplied).toBe('Red');
+  });
+
+  it('consumes a durable title carrying its own color byte-for-byte', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          ...brandAndSize,
+          makeEvidence({ source: 'visual_product_evidence', sourceField: 'color', value: 'Red' }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb Red',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Widget 5 lb Red');
+    expect(result.output.metadata?.colorApplied).toBe('Red');
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('throws a parent-defect error for a durable title missing its authored color', async () => {
+    await expect(
+      nameConsolidationStage.execute(
+        makeInput({
+          evidence: [
+            makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'RED WIDGET' }),
+            ...brandAndSize,
+          ],
+        }),
+        makeContext({
+          runId: 'run-color-defect-1',
+          preComputedTitle: 'Acme Widget 5 lb',
+          preComputedTitleSource: 'llm_cohort',
+          productLineContext: {
+            groupId: 'g1',
+            groupLabel: 'Widgets',
+            siblingNames: ['Widget Blue'],
+            siblingWebTitles: [],
+            siblingOcrTitles: [],
+            siblingSkus: ['SKU-BLUE'],
+          },
+        }),
+      ),
+    ).rejects.toThrow(/stale or corrupt/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('abstains (no throw) for distributor-only color against a colorless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          ...brandAndSize,
+          makeEvidence({
+            source: 'distributor_record', sourceField: 'color', value: 'Red',
+            metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+          }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_color/);
+    expect(consolidateProductTitle).not.toHaveBeenCalled();
+  });
+
+  it('passes colorless coordinated titles silently when no color is evidenced', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence: [...brandAndSize] }),
+      makeContext({ preComputedTitle: 'Acme Widget 5 lb', preComputedTitleSource: 'llm_cohort' }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    expect(result.output.metadata?.colorApplied).toBeNull();
+  });
+
+  it('holds missing_color for labeled-specs color against a colorless durable title', async () => {
+    const result = await nameConsolidationStage.execute(
+      makeInput({
+        evidence: [
+          makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+          ...brandAndSize,
+          makeEvidence({
+            source: 'distributor_record', sourceField: 'description',
+            value: 'Specs:\nColor: Red\nWeight: 5 lb',
+          }),
+        ],
+      }),
+      makeContext({
+        preComputedTitle: 'Acme Widget 5 lb',
+        preComputedTitleSource: 'llm_cohort',
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected abstention');
+    expect(result.reason).toMatch(/^missing_color/);
+    expect(result.reason).toContain('Red');
+  });
+
+  it('applies the color guarantee on the error-path fallback with siblings', async () => {
+    asMock(consolidateProductTitle).mockRejectedValue(new Error('LLM error'));
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      ...brandAndSize,
+      makeEvidence({
+        source: 'distributor_record', sourceField: 'color', value: 'Red',
+        metadata: { providerId: 'bradley', attemptId: 'a1', confidence: 0.9 },
+      }),
+    ];
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence }),
+      makeContext({
+        productLineContext: {
+          groupId: 'g1',
+          groupLabel: 'Widgets',
+          siblingNames: ['Widget Blue'],
+          siblingWebTitles: [],
+          siblingOcrTitles: [],
+          siblingSkus: ['SKU-BLUE'],
+        },
+      }),
+    );
+
+    expect(result.status).toBe('succeeded');
+    if (result.status !== 'succeeded') throw new Error('Expected success');
+    // Fallback: brand → color → size, each guarantee in order (size final).
+    expect(result.output.metadata?.curatedTitle).toBe('Acme Widget Red 5 lb');
   });
 
   it('passes packaging OCR flavor, species, and productForm to consolidateProductTitle', async () => {
@@ -482,6 +1255,11 @@ describe('nameConsolidationStage — distributor signal collection', () => {
     });
 
     const evidence: ClassificationEvidence[] = [
+      makeEvidence({
+        source: 'spreadsheet',
+        sourceField: 'brand',
+        value: 'Acme',
+      }),
       makeEvidence({
         source: 'spreadsheet',
         sourceField: 'name',

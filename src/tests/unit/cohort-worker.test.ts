@@ -2358,8 +2358,8 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
   }
 
   const SEEDED_TITLES = [
-    ['100000000001', 'Purina Pro Plan Dog Food Chicken 5 lb'],
-    ['100000000002', 'Purina Pro Plan Dog Food Beef 10 lb'],
+    ['100000000001', 'Acme Purina Pro Plan Dog Food Chicken 5 lb'],
+    ['100000000002', 'Acme Purina Pro Plan Dog Food Beef 10 lb'],
   ] as const;
 
   /** Seed `curated_title` outputs exactly as a prior processCohort entry
@@ -2526,7 +2526,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       const memberOne = findItemById(items[0].id)!;
       const memberTwo = findItemById(items[1].id)!;
       expect(memberOne.stageStatus).toBe('completed');
-      expect(memberOne.curationData!.curatedTitle).toBe('Purina Pro Plan Dog Food Chicken 5 lb');
+      expect(memberOne.curationData!.curatedTitle).toBe('Acme Purina Pro Plan Dog Food Chicken 5 lb');
       expect(memberTwo.stageStatus).toBe('pending');
       expect(memberTwo.curationData).toBeNull();
 
@@ -2557,7 +2557,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       expect(summary.completedMembers).toBe(2);
       const memberTwoAfter = findItemById(items[1].id)!;
       expect(memberTwoAfter.stageStatus).toBe('completed');
-      expect(memberTwoAfter.curationData!.curatedTitle).toBe('Purina Pro Plan Dog Food Beef 10 lb');
+      expect(memberTwoAfter.curationData!.curatedTitle).toBe('Acme Purina Pro Plan Dog Food Beef 10 lb');
       expect(memberTwoAfter.curationData!.titleSource).toBe('llm_cohort');
       // ZERO new title calls across BOTH processCohort entries (the durable set
       // was complete + hash-matched on every re-entry; members never fall to a
@@ -2573,12 +2573,42 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       updateItemCurationData(items[1].id, '');
       const prepared = buildPreparedContext(workspaceId, resumed, items[1], frozenLineContext);
       const rerun = await curateTransitionalPreparedMember(findItemById(items[1].id)!, wsPath, workspaceId, prepared);
-      expect(rerun.curatedTitle).toBe('Purina Pro Plan Dog Food Beef 10 lb');
+      expect(rerun.curatedTitle).toBe('Acme Purina Pro Plan Dog Food Beef 10 lb');
       expect(rerun.titleSource).toBe('llm_cohort');
       expect(titleCallInvocationCount(titleCallSpy)).toBe(0);
     } finally {
       titleCallSpy.mockRestore();
     }
+  });
+
+  it('member fails closed with a parent-defect error on a brandless durable title against author-visible brand', async () => {
+    const { workspaceId, workspacePath: wsPath, run, items, projection } = await freezeTwoMemberCohort();
+    // Invalid parent output: brandless durable titles while members carry
+    // Acme spreadsheet brand evidence (the pre-#108 authorship shape).
+    // The member must NOT mutate the durable title to heal it — it fails
+    // closed with a legible parent-defect error instead.
+    insertCohortTitleOutputsOnce({
+      workspaceId,
+      runId: run.id,
+      inputHash: expectedTitleInputHash(workspaceId, run, projection),
+      outputs: [
+        { productSku: '100000000001', title: 'Purina Pro Plan Dog Food Chicken 5 lb', source: 'llm_cohort' as const },
+        { productSku: '100000000002', title: 'Purina Pro Plan Dog Food Beef 10 lb', source: 'llm_cohort' as const },
+      ],
+    });
+
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
+    expect(summary.parentStatus).toBe('completed_with_member_failures');
+    expect(summary.completedMembers).toBe(0);
+    for (const item of items) {
+      const stored = findItemById(item.id)!;
+      expect(stored.stageStatus).toBe('failed');
+      expect(stored.curationData).toBeNull();
+    }
+    const failedChild = getDb().query(
+      "SELECT error_message FROM classification_runs WHERE cohort_run_id = ? AND status = 'failed' LIMIT 1",
+    ).get(run.id) as { error_message: string | null };
+    expect(failedChild.error_message).toMatch(/parent_defect_stale_title/);
   });
 
   it('PR6 hardening A+E: a committed title set under a mismatched authority SUPERSEDES the parent run, terminalizes its running children, and reopens the claim slot (drift → superseded, no re-coordination)', async () => {

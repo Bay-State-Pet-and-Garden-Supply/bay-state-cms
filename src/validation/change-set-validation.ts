@@ -1,4 +1,5 @@
 import { clearValidationResults, listValidationResults, addValidationResult } from '../db/repositories/validation-repo';
+import { resolveBaseFileName, findDuplicateFileNames } from '../shopsite/file-name';
 import { findChangeSetById, listChangeSetItems, setItemValidationStatus } from '../db/repositories/change-set-repo';
 import { validateProduct, type ValidationContext, type ValidationOptions } from './product-validation';
 import { readStoreConfig } from '../git/workspace-files';
@@ -135,6 +136,53 @@ export function validateChangeSet(changeSetId: string, options?: ValidationOptio
       } catch { /* skip */ }
     }
   }
+
+  // Issue #107: duplicate more-information page file names fail closed.
+  // Sibling drafts whose effective <FileName> values collide (identical or
+  // slug-colliding names, case-insensitive) would cross-link detail pages in
+  // the live store. Unlike DUPLICATE_SKU (per-item via context.allSkus),
+  // this needs the whole change set, so it lives here at the change-set level.
+  try {
+    const nameEntries: Array<{ key: string; fileName: string }> = [];
+    for (const item of items) {
+      try {
+        const draft = JSON.parse(item.draftJson) as Product;
+        if (draft?.sku) nameEntries.push({ key: draft.sku, fileName: resolveBaseFileName(draft) });
+      } catch { /* unparseable drafts already recorded as PARSE_ERROR above */ }
+    }
+    for (const group of findDuplicateFileNames(nameEntries)) {
+      addValidationResult({
+        scopeType: 'change_set',
+        scopeId: changeSetId,
+        severity: 'blocker',
+        code: 'DUPLICATE_FILENAME',
+        message: `More-information page file name "${group.fileName}" is shared by ${group.keys.length} products (${group.keys.join(', ')}). Give each product a distinct file name before approval.`,
+        fieldPath: null,
+      });
+      // Mirror a pointer onto each member item: per-item surfaces render
+      // itemResults[].results, which would otherwise stay green while the
+      // change set cannot approve. Member items are marked blocked.
+      for (const sku of group.keys) {
+        const member = itemResults.find(i => i.sku === sku);
+        if (!member) continue;
+        const row = addValidationResult({
+          scopeType: 'change_set',
+          scopeId: changeSetId,
+          severity: 'blocker',
+          code: 'DUPLICATE_FILENAME',
+          message: `More-information page file name "${group.fileName}" is shared with another product in this change set. Give each product a distinct file name before approval.`,
+          fieldPath: null,
+        });
+        member.results.push({
+          severity: row.severity,
+          code: row.code,
+          message: row.message,
+          fieldPath: row.fieldPath,
+        });
+        setItemValidationStatus(changeSetId, sku, 'blocked');
+      }
+    }
+  } catch { /* filename validation never blocks validation itself */ }
 
   // Re-fetch results after our additions
   const allResults = listValidationResults('change_set', changeSetId);
