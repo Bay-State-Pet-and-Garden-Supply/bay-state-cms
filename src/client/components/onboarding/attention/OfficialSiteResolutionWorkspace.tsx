@@ -27,6 +27,7 @@ import {
   resolveSourcingAction,
   retryItem,
   selectSource,
+  selectVariant,
   setItemUrl,
 } from '../../../onboarding-api';
 import { getItemWorkState } from '../../../onboarding-work-api';
@@ -35,8 +36,9 @@ import { ExtractorStatusPanel } from './ExtractorStatusPanel';
 import { SemanticConflictPanel } from './SemanticConflictPanel';
 import { ChooseVariantPanel } from './ChooseVariantPanel';
 import { ManualEvidencePanel } from './ManualEvidencePanel';
-import { selectVariant } from '../../../onboarding-api';
 import { domainFromUrl, getAttentionConsequence } from './attention-logic';
+import { getBrandOptions } from '../brand-combobox-logic';
+import { matchExistingBrand } from '../../../../shared/brand-matcher';
 import './attention.css';
 import './semantic-conflict.css';
 
@@ -292,14 +294,27 @@ export function OfficialSiteResolutionWorkspace({
     }
   };
 
+  const [knownBrands, setKnownBrands] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void getBrandOptions().then((brands) => {
+      if (active && Array.isArray(brands)) {
+        setKnownBrands(brands);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const hasBrand = Boolean(workState?.brand || item?.brandHint);
 
   const suggestedBrandFromName = useMemo(() => {
     const name = workState?.name ?? item?.name ?? '';
-    if (!name) return null;
-    const firstWord = name.split(/\s+/)[0]?.trim();
-    return firstWord && firstWord.length > 1 ? firstWord : null;
-  }, [workState?.name, item?.name]);
+    if (!name || knownBrands.length === 0) return null;
+    return matchExistingBrand(name, knownBrands);
+  }, [workState?.name, item?.name, knownBrands]);
 
   const renderBrandSection = () => (
     <section

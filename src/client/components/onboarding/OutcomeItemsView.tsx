@@ -43,14 +43,33 @@ export function OutcomeItemsView({ batchId, outcome }: OutcomeItemsViewProps) {
       const gen = generation.current;
       setLoading(true);
       try {
-        const res = await getStageReadItems(batchId, {
-          category: outcome,
-          limit: STAGE_READ_LIMIT_DEFAULT,
-          ...(cursor ? { cursor } : {}),
-        });
-        if (generation.current !== gen) return;
-        setItems((prev) => (cursor ? [...prev, ...res.items] : res.items));
-        setNextCursor(res.nextCursor);
+        let currentCursor: string | null = cursor;
+        let isFirst = !cursor;
+        let iter = 0;
+        const maxIter = 50;
+
+        while (iter < maxIter) {
+          iter++;
+          const res = await getStageReadItems(batchId, {
+            category: outcome,
+            limit: STAGE_READ_LIMIT_DEFAULT,
+            ...(currentCursor ? { cursor: currentCursor } : {}),
+          });
+          if (generation.current !== gen) return;
+
+          if (isFirst) {
+            setItems(res.items);
+            isFirst = false;
+          } else {
+            setItems((prev) => [...prev, ...res.items]);
+          }
+          setNextCursor(res.nextCursor);
+
+          if (!res.nextCursor) {
+            break;
+          }
+          currentCursor = res.nextCursor;
+        }
         setError(null);
       } catch (err) {
         if (generation.current !== gen) return;

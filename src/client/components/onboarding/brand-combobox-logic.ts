@@ -164,3 +164,18 @@ export function getBrandOptions(): Promise<string[]> {
 export function resetBrandOptionsCache(): void {
   cachedOptions = null;
 }
+
+/**
+ * Register a newly created or assigned brand into the in-memory options pool immediately,
+ * ensuring all comboboxes in the current session recognize it without waiting for a refetch.
+ */
+export function registerBrandOption(brand: string): void {
+  const trimmed = brand.trim();
+  if (!trimmed) return;
+  if (cachedOptions) {
+    cachedOptions = cachedOptions.then((opts) =>
+      opts.some((o) => o.toLowerCase() === trimmed.toLowerCase()) ? opts : [...opts, trimmed],
+    );
+  }
+}
+

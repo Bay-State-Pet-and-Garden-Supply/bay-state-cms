@@ -15,7 +15,7 @@ import {
   holdBatchItems,
   bulkAssignBrandToItems,
 } from '../../db/repositories/onboarding-item-repo';
-import { partitionBatchByBrand, buildMissingBrandGroups } from '../../onboarding/batch-release';
+import { partitionBatchByBrand, buildMissingBrandGroups, extractCandidateBrand } from '../../onboarding/batch-release';
 
 describe('Batch Start & Controlled Release Lifecycle', () => {
   const workspaceId = 'ws-preflight-test';
@@ -235,5 +235,69 @@ describe('Batch Start & Controlled Release Lifecycle', () => {
     releaseBatchItems(batch.id);
     expect(findItemById(items[2].id)?.isHeld).toBe(false);
     expect(findItemById(items[2].id)?.heldReason).toBeNull();
+  });
+
+  it('never infers unknown brands from first words or heuristics', () => {
+    const known = ['Fromm', 'ACANA', "Stella & Chewy's"];
+
+    // Known brand matches (including multi-word) return the matched canonical brand
+    expect(extractCandidateBrand('Fromm Four-Star Duck 15lb', known)).toBe('Fromm');
+    expect(extractCandidateBrand('fromm classic adult dog food', known)).toBe('Fromm');
+    expect(extractCandidateBrand('ACANA Singles Lamb & Apple', known)).toBe('ACANA');
+    expect(extractCandidateBrand("Stella & Chewy's Freeze-Dried Patties", known)).toBe("Stella & Chewy's");
+
+    // Unknown brands must NEVER be inferred from first words or heuristic keywords
+    expect(extractCandidateBrand('COOP & RANGE CHKN TREAT HI ENERGY ROLLER', known)).toBeNull();
+    expect(extractCandidateBrand('COOP & RANGE PECK N ROLL', known)).toBeNull();
+    expect(extractCandidateBrand('RED FLANNEL ADULT DOG FOOD', known)).toBeNull();
+    expect(extractCandidateBrand('Three Dog Bakery Classic Wafers', known)).toBeNull();
+    expect(extractCandidateBrand('Inaba Churu Puree Treats', known)).toBeNull();
+    expect(extractCandidateBrand('Acme Widgets 100pk', known)).toBeNull();
+    expect(extractCandidateBrand('', known)).toBeNull();
+  });
+
+  it('clusters unknown-brand items by leading token without suggesting an unverified brand', () => {
+    const batch = createBatch({
+      workspaceId,
+      name: 'Unknown Brands Cluster Batch',
+      fileName: 'unknown.csv',
+      totalItems: 4,
+    });
+
+    const inserted = insertItems(
+      batch.id,
+      [
+        { upc: '811111111111', name: 'COOP & RANGE CHKN TREAT HI ENERGY ROLLER', brandHint: null, rowNumber: 1 },
+        { upc: '822222222222', name: 'COOP & RANGE PECK N ROLL', brandHint: null, rowNumber: 2 },
+        { upc: '833333333333', name: 'RED FLANNEL ADULT DOG FOOD', brandHint: null, rowNumber: 3 },
+        { upc: '844444444444', name: 'Fromm Four-Star Duck 15lb', brandHint: null, rowNumber: 4 },
+      ],
+      'sourcing',
+      1,
+    );
+
+    const groups = buildMissingBrandGroups(batch.id);
+    expect(groups).toHaveLength(3);
+
+    // Coop products cluster together with 2 items, but with suggestedBrand: null
+    const coopGroup = groups.find((g) => g.key === 'unassigned:coop');
+    expect(coopGroup).toBeDefined();
+    expect(coopGroup?.suggestedBrand).toBeNull();
+    expect(coopGroup?.itemCount).toBe(2);
+    expect(coopGroup?.itemIds).toEqual([inserted[0].id, inserted[1].id]);
+
+    // Red Flannel product is in its own cluster, also with suggestedBrand: null
+    const redGroup = groups.find((g) => g.key === 'unassigned:red');
+    expect(redGroup).toBeDefined();
+    expect(redGroup?.suggestedBrand).toBeNull();
+    expect(redGroup?.itemCount).toBe(1);
+    expect(redGroup?.itemIds).toEqual([inserted[2].id]);
+
+    // Fromm is a known system brand (seeded in migrations), so it HAS a suggestion
+    const frommGroup = groups.find((g) => g.key === 'suggested:fromm');
+    expect(frommGroup).toBeDefined();
+    expect(frommGroup?.suggestedBrand?.toLowerCase()).toBe('fromm');
+    expect(frommGroup?.itemCount).toBe(1);
+    expect(frommGroup?.itemIds).toEqual([inserted[3].id]);
   });
 });

@@ -382,4 +382,40 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(after?.brandHint).toBe('ForeignBrand');
     expect(findBrandSites('ForeignBrand')).toHaveLength(0);
   });
+
+  it('GET /api/onboarding/settings/brand-sites includes brand hints from onboarding items and persists newly assigned brands', async () => {
+    // 1. Initial brand-sites response
+    const initialRes = await app.request('/api/onboarding/settings/brand-sites');
+    expect(initialRes.status).toBe(200);
+    const initialData = await initialRes.json();
+    expect(Array.isArray(initialData.brandSites)).toBe(true);
+    expect(Array.isArray(initialData.catalogBrands)).toBe(true);
+
+    // 2. Create an item with a brand hint
+    const testBatch = createBatch({ workspaceId: wsId, name: 'Brand Persist Batch', fileName: 'bp.csv', totalItems: 1 });
+    const [testItem] = insertItems(testBatch.id, [
+      { upc: 'BP-0001', name: 'Persisted Brand Item', brandHint: 'Wild Frontier', rowNumber: 1, stage: 'route_sources' },
+    ]);
+
+    // 3. Verify GET /settings/brand-sites now returns "Wild Frontier" in catalogBrands
+    const resAfterInsert = await app.request('/api/onboarding/settings/brand-sites');
+    expect(resAfterInsert.status).toBe(200);
+    const dataAfterInsert = await resAfterInsert.json();
+    expect(dataAfterInsert.catalogBrands).toContain('Wild Frontier');
+
+    // 4. Assign a new brand via the route
+    const assignRes = await app.request(`/api/onboarding/items/${testItem.id}/assign-brand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand: 'BrandCraft' }),
+    });
+    expect(assignRes.status).toBe(200);
+
+    // 5. Verify the newly assigned brand is returned on subsequent fetch (persisting across refreshes)
+    const resAfterAssign = await app.request('/api/onboarding/settings/brand-sites');
+    expect(resAfterAssign.status).toBe(200);
+    const dataAfterAssign = await resAfterAssign.json();
+    expect(dataAfterAssign.catalogBrands).toContain('BrandCraft');
+  });
 });
+

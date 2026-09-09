@@ -3231,7 +3231,19 @@ route.get('/onboarding/settings/brand-sites', (c) => {
     brandField = registryRow.xml_field;
   }
 
-  let catalogBrands: string[] = [];
+  const brandSet = new Set<string>();
+  const catalogBrands: string[] = [];
+
+  const addBrand = (raw: string | null | undefined) => {
+    if (!raw) return;
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    const key = trimmed.toLowerCase();
+    if (brandSet.has(key)) return;
+    brandSet.add(key);
+    catalogBrands.push(trimmed);
+  };
+
   try {
     const queryStr = `
       SELECT DISTINCT json_extract(custom_fields, '$.' || ?) AS brandName 
@@ -3240,10 +3252,36 @@ route.get('/onboarding/settings/brand-sites', (c) => {
       ORDER BY brandName ASC
     `;
     const rows = db.query(queryStr).all(brandField) as { brandName: string }[];
-    catalogBrands = rows.map(r => r.brandName.trim());
+    for (const r of rows) addBrand(r.brandName);
   } catch (e) {
-    console.error('Failed to retrieve catalog brands:', e);
+    console.error('Failed to retrieve catalog brands from product_index:', e);
   }
+
+  try {
+    const onboardingRows = db.query(`
+      SELECT DISTINCT brand_hint AS brandName
+      FROM onboarding_items
+      WHERE brand_hint IS NOT NULL AND TRIM(brand_hint) != ''
+      ORDER BY brand_hint ASC
+    `).all() as { brandName: string }[];
+    for (const r of onboardingRows) addBrand(r.brandName);
+  } catch (e) {
+    console.error('Failed to retrieve onboarding brand hints:', e);
+  }
+
+  try {
+    const advisoryRows = db.query(`
+      SELECT DISTINCT brand AS brandName
+      FROM brand_advisory_profiles
+      WHERE brand IS NOT NULL AND TRIM(brand) != ''
+      ORDER BY brand ASC
+    `).all() as { brandName: string }[];
+    for (const r of advisoryRows) addBrand(r.brandName);
+  } catch {
+    // brand_advisory_profiles may not exist in minimal test databases
+  }
+
+  catalogBrands.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
   return c.json({ brandSites: sites, catalogBrands });
 });

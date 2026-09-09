@@ -21,6 +21,7 @@ import {
   resolveCanonicalBrand,
   isNewBrandValue,
   getBrandOptions,
+  registerBrandOption,
   resetBrandOptionsCache,
 } from '@/client/components/onboarding/brand-combobox-logic';
 import { BrandCombobox } from '@/client/components/onboarding/BrandCombobox';
@@ -117,6 +118,22 @@ describe('brand-combobox-logic: getBrandOptions over the existing client', () =>
   it('degrades to an empty pool (free-text entry) when the read fails', async () => {
     vi.mocked(getBrandSites).mockRejectedValueOnce(new Error('offline'));
     await expect(getBrandOptions()).resolves.toEqual([]);
+  });
+
+  it('registerBrandOption adds a newly coined brand to cached options immediately', async () => {
+    vi.mocked(getBrandSites).mockResolvedValueOnce({
+      brandSites: [{ brandName: 'Acana' }],
+      catalogBrands: ['Zebra'],
+    } as never);
+    await expect(getBrandOptions()).resolves.toEqual(['Acana', 'Zebra']);
+
+    registerBrandOption('NewBrand');
+    await expect(getBrandOptions()).resolves.toEqual(['Acana', 'Zebra', 'NewBrand']);
+    expect(isNewBrandValue('NewBrand', await getBrandOptions())).toBe(false);
+
+    // Re-registering with different casing does not duplicate
+    registerBrandOption('newbrand');
+    await expect(getBrandOptions()).resolves.toEqual(['Acana', 'Zebra', 'NewBrand']);
   });
 });
 

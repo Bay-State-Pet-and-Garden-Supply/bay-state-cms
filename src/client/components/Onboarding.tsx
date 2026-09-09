@@ -352,7 +352,10 @@ export function Onboarding() {
     try {
       // Fetch existing brands in the system
       const brandSitesRes = await getBrandSites();
-      const existingBrands = brandSitesRes.brandSites.map(b => b.brandName);
+      const existingBrands = [
+        ...brandSitesRes.brandSites.map((b) => b.brandName),
+        ...(brandSitesRes.catalogBrands || []),
+      ];
 
       const brandCol = uploadMapping.brand;
       const nameCol = uploadMapping.name;

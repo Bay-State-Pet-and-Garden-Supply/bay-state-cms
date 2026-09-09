@@ -28,7 +28,7 @@ import { colors, fonts, rounded } from '../../theme';
 import { assignBrandGroup, assignItemBrand, getBrandSites, getExtractorProfiles } from '../../onboarding-api';
 import { assignBatchBrandDomain, getBrandDomainBlockers } from '../../onboarding-work-api';
 import { BrandCombobox } from './BrandCombobox';
-import { getBrandOptions, resolveCanonicalBrand } from './brand-combobox-logic';
+import { getBrandOptions, registerBrandOption, resetBrandOptionsCache, resolveCanonicalBrand } from './brand-combobox-logic';
 import {
   getStageReadItems,
   StageReadApiError,
@@ -259,18 +259,33 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       const gen = generation.current;
       setLoading(true);
       try {
-        const params: StageReadQuery = { stage, limit: STAGE_READ_LIMIT_DEFAULT };
-        if (currentFacet.reviewState) params.reviewState = currentFacet.reviewState;
-        if (query) params.q = query;
-        if (cursor) params.cursor = cursor;
-        const res = await getStageReadItems(batchId, params);
-        if (generation.current !== gen) return; // batch/stage switch discards stale responses
-        setItems((prev) => (cursor ? [...prev, ...res.items] : res.items));
-        setNextCursor(res.nextCursor);
-        // Honesty note: this bounded endpoint returns rows, not a batch
-        // total — authoritative totals come from the counts endpoint (stage
-        // badges). We display the loaded-row count only, never a page
-        // length passed off as a total.
+        let currentCursor: string | null = cursor;
+        let isFirst = !cursor;
+        let iter = 0;
+        const maxIter = 50; // Drain up to 2500 items so batches are never artificially capped
+
+        while (iter < maxIter) {
+          iter++;
+          const params: StageReadQuery = { stage, limit: STAGE_READ_LIMIT_DEFAULT };
+          if (currentFacet.reviewState) params.reviewState = currentFacet.reviewState;
+          if (query) params.q = query;
+          if (currentCursor) params.cursor = currentCursor;
+          const res = await getStageReadItems(batchId, params);
+          if (generation.current !== gen) return; // batch/stage switch discards stale responses
+
+          if (isFirst) {
+            setItems(res.items);
+            isFirst = false;
+          } else {
+            setItems((prev) => [...prev, ...res.items]);
+          }
+          setNextCursor(res.nextCursor);
+
+          if (!res.nextCursor) {
+            break;
+          }
+          currentCursor = res.nextCursor;
+        }
         setError(null);
       } catch (err) {
         if (generation.current !== gen) return;
@@ -386,6 +401,9 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       setRowDomainInputs({});
       await load(null, facetRef.current, queryRef.current);
       await loadIntakeRefs();
+      resetBrandOptionsCache();
+      const freshOpts = await getBrandOptions();
+      if (generation.current === gen) setBrandOptions(freshOpts);
     } finally {
       if (generation.current === gen) setRefreshing(false);
     }
@@ -414,6 +432,30 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
     };
   }, [stage, batchId]);
 
+  // Keep brandOptions synchronized with any brands present on visible items
+  useEffect(() => {
+    if (items.length === 0) return;
+    const itemBrands = items
+      .map((it) => it.brand?.trim())
+      .filter((b): b is string => Boolean(b));
+    if (itemBrands.length === 0) return;
+
+    for (const b of itemBrands) {
+      registerBrandOption(b);
+    }
+    setBrandOptions((prev) => {
+      let changed = false;
+      const next = [...prev];
+      for (const b of itemBrands) {
+        if (!next.some((o) => o.toLowerCase() === b.toLowerCase())) {
+          next.push(b);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [items]);
+
   // EXACT Step 0 BrandGateView BrandFixRow mutation path: assignItemBrand,
   // then the refresh epoch above. Never locally marks an item fixed. The
   // value is canonicalized first so an existing brand typed with variant
@@ -426,10 +468,10 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
       updateDraft(itemId, { saving: true, error: null });
       try {
         await assignItemBrand(itemId, canonical);
-        // Seed newly-coined brands into the local pool: assigning only
-        // sets the item hint (brand_sites requires a domain, created at the
-        // domain step), so without this the new-brand nudge would persist
-        // on every sibling row as if creation had failed.
+        // Seed newly-coined brands into the local pool and in-memory cache:
+        // assigning sets the item hint, and registering ensures all
+        // comboboxes recognize the brand immediately without a "Create new brand" prompt.
+        registerBrandOption(canonical);
         setBrandOptions((prev) =>
           prev.some((o) => o.toLowerCase() === canonical.toLowerCase()) ? prev : [...prev, canonical],
         );
@@ -512,6 +554,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
         await assignBatchBrandDomain(batchId, canonical, domainToAdd);
       }
       // Same local-pool seeding as the per-row path (see runBrandAssign).
+      registerBrandOption(canonical);
       setBrandOptions((prev) =>
         prev.some((o) => o.toLowerCase() === canonical.toLowerCase()) ? prev : [...prev, canonical],
       );
@@ -612,7 +655,7 @@ export function StageItemsView({ batchId, stage, compact, onOpenFullBatchReview,
                 data-testid={`intake-kpi-${filter}`}
                 className={`bws-chip${active ? ' bws-chip-active' : ''}`}
                 onClick={() => setKpiFilter(active && filter !== 'all' ? 'all' : filter)}
-                title={filter === 'all' ? 'Show all loaded products' : `Filter to ${INTAKE_KPI_LABELS[filter]}`}
+                title={filter === 'all' ? 'Show all products' : `Filter to ${INTAKE_KPI_LABELS[filter]}`}
               >
                 {INTAKE_KPI_LABELS[filter]} ({formatCount(count)})
               </button>

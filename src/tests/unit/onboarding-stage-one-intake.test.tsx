@@ -219,6 +219,79 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(container.querySelector('[data-testid="stage-select-item_3"]')).toBeNull();
   });
 
+  it('#116 does not cap list length at 50, draining cursors so All Products and filter counts show full 130 items', async () => {
+    // Generate 130 mock rows: 50 unbranded, 80 branded with Acme
+    const mockRows = Array.from({ length: 130 }, (_, i) =>
+      makeRow(i + 1, {
+        brand: i < 50 ? null : 'Acme',
+        sourceType: 'official_page',
+        domain: i < 50 ? null : 'acme.com',
+      }),
+    );
+
+    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (url: unknown) => {
+      const u = String(url);
+      if (u.includes('/stage-work-state/items')) {
+        const urlObj = new URL(u, 'http://localhost');
+        const cursor = urlObj.searchParams.get('cursor');
+        let chunk: typeof mockRows;
+        let nextCursor: string | null = null;
+        if (!cursor) {
+          chunk = mockRows.slice(0, 50);
+          nextCursor = 'c_50';
+        } else if (cursor === 'c_50') {
+          chunk = mockRows.slice(50, 100);
+          nextCursor = 'c_100';
+        } else {
+          chunk = mockRows.slice(100);
+          nextCursor = null;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            schemaVersion: 2,
+            stageVocabularyVersion: 2,
+            batchId: 'b1',
+            filterFingerprint: 'a'.repeat(32),
+            projectionHealth: healthy(),
+            items: chunk,
+            nextCursor,
+            scannedRows: chunk.length,
+            queryCount: 3,
+          }),
+        } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schemaVersion: 2,
+          stageVocabularyVersion: 2,
+          batchId: 'b1',
+          filterFingerprint: 'a'.repeat(32),
+          projectionHealth: healthy(),
+          items: [],
+          nextCursor: null,
+          scannedRows: 0,
+          queryCount: 1,
+        }),
+      } as any;
+    });
+
+    await mount();
+    const strip = container.querySelector('[data-testid="intake-kpi-strip"]');
+    expect(strip).not.toBeNull();
+    const text = strip?.textContent ?? '';
+    expect(text).toMatch(/All Products \(130\)/);
+    expect(text).toMatch(/Missing Brand \(50\)/);
+    expect(text).toMatch(/Ready to Route \(80\)/);
+
+    const scope = container.querySelector('[data-testid="stage-scope-label"]');
+    expect(scope?.textContent).toMatch(/130 loaded rows/);
+    expect(scope?.textContent).not.toMatch(/more available/);
+  });
+
   it('#117 drawer lists the unmapped brand and saves the domain to Brand Hub', async () => {
     await mount();
     const drawer = container.querySelector('[data-testid="unmapped-brand-drawer"]');
@@ -381,4 +454,35 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     });
     expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
   });
+
+  it('does not display Create new brand for items with existing brands, and syncs item brands into brand pool', async () => {
+    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        schemaVersion: 2,
+        stageVocabularyVersion: 2,
+        batchId: 'b1',
+        filterFingerprint: 'a'.repeat(32),
+        projectionHealth: healthy(),
+        items: [
+          makeRow(1, { brand: 'Delta', domain: 'delta.com' }),
+          makeRow(2, { brand: 'Acme', domain: 'acme.com' }),
+        ],
+        nextCursor: null,
+        scannedRows: 2,
+        queryCount: 1,
+      }),
+    }) as any);
+
+    await mount();
+
+    // Neither item_1 nor item_2 should show a "Create new brand" nudge
+    const input1 = container.querySelector('[data-testid="stage-brand-input-item_1"]') as HTMLInputElement;
+    const input2 = container.querySelector('[data-testid="stage-brand-input-item_2"]') as HTMLInputElement;
+    expect(input1?.value).toBe('Delta');
+    expect(input2?.value).toBe('Acme');
+    expect(container.querySelectorAll('[data-testid="brand-combobox-new-nudge"]')).toHaveLength(0);
+  });
 });
+
