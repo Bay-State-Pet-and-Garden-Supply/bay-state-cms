@@ -33,6 +33,7 @@ import {
   findCanonicalCollisions,
   validateCanonicalValue,
 } from './controlled-value-identity';
+import { inferValueMode } from './merchandising-field-spec-projections';
 
 function cloneValue<T>(val: T): T {
   if (val === null || typeof val !== 'object') {
@@ -68,17 +69,6 @@ function deepFreeze<T>(value: T): T {
     }
   }
   return Object.freeze(value);
-}
-
-function inferValueModeFromStats(stats: {
-  nonEmptyCount: number;
-  distinctCount: number;
-}): 'controlled' | 'freeText' | 'measured' | 'unknown' {
-  if (stats.nonEmptyCount === 0) return 'unknown';
-  const ratio = stats.distinctCount / stats.nonEmptyCount;
-  if (ratio <= 0.15 && stats.distinctCount <= 100) return 'controlled';
-  if (ratio > 0.8) return 'freeText';
-  return 'measured';
 }
 
 function parseRegistrySampleValues(sampleValuesJson: string | null | undefined): {
@@ -348,7 +338,7 @@ export function composeMerchandisingFieldSpecs(
       if ('serialization' in m && m.serialization) {
         serialization = {
           status: 'available',
-          value: cloneValue(m.serialization) as any,
+          value: cloneValue(m.serialization),
         };
       }
 
@@ -399,7 +389,7 @@ export function composeMerchandisingFieldSpecs(
               allowedValues: [...(attr.allowedValues ?? [])],
               canonicalOptions: [],
               valueAliases: cloneValue(attr.valueAliases ?? []),
-              exportDisposition: cloneValue((attr as any).exportDisposition),
+              exportDisposition: cloneValue('exportDisposition' in attr ? attr.exportDisposition : undefined),
               status: 'invalid_identity',
             };
           } else {
@@ -412,7 +402,7 @@ export function composeMerchandisingFieldSpecs(
               allowedValues: [...(attr.allowedValues ?? [])],
               canonicalOptions: attr.valueMode === 'controlled' ? canonicalOptions(attr.allowedValues ?? []) : [],
               valueAliases: cloneValue(attr.valueAliases ?? []),
-              exportDisposition: cloneValue((attr as any).exportDisposition),
+              exportDisposition: cloneValue('exportDisposition' in attr ? attr.exportDisposition : undefined),
               status: 'valid',
             };
           }
@@ -504,11 +494,11 @@ export function composeMerchandisingFieldSpecs(
 
     const inferredDisplayValueMode =
       rawCatalogStats && rawCatalogStats.status === 'available'
-        ? inferValueModeFromStats(rawCatalogStats.data)
+        ? inferValueMode(rawCatalogStats.data)
         : 'unknown';
 
     const observed: MerchandisingFieldObserved = {
-      liveOptions: liveOptions.status === 'available' ? { status: 'available', data: [...liveOptions.data] } : liveOptions,
+      liveOptions: liveOptions.status === 'available' ? { status: 'available', data: [...liveOptions.data] } : cloneValue(liveOptions),
       parsedRegistrySamples: sampleResult.samples,
       rawCatalogStats: rawCatalogStats && rawCatalogStats.status === 'available'
         ? {
@@ -520,7 +510,7 @@ export function composeMerchandisingFieldSpecs(
               topValues: rawCatalogStats.data.topValues.map(tv => ({ ...tv })),
             },
           }
-        : rawCatalogStats,
+        : rawCatalogStats ? cloneValue(rawCatalogStats) : rawCatalogStats,
       inferredDisplayValueMode,
     };
 
@@ -542,7 +532,7 @@ export function composeMerchandisingFieldSpecs(
     const mappedAttrIds = new Set(allMappings.map(m => m.attributeId));
     for (const attr of attributesMap.values()) {
       if (!mappedAttrIds.has(attr.id)) {
-        const exportDisp = (attr as any).exportDisposition;
+        const exportDisp = 'exportDisposition' in attr ? attr.exportDisposition : undefined;
         const profileContexts: MerchandisingFieldProfileContext[] = [];
         for (const prof of profilesList) {
           const profAttr = prof.attributes.find(a => a.attributeId === attr.id);

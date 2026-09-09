@@ -416,4 +416,130 @@ describe('MerchandisingFieldSpec projections (Ticket #128 / W1)', () => {
       'Turkey',
     ]);
   });
+
+  it('suppresses raw allowedValues when configured identity is invalid', () => {
+    const badConfig: ClassificationConfig = {
+      ...baseConfig,
+      attributes: [
+        {
+          id: 'flavor',
+          name: 'Flavor',
+          description: null,
+          valueMode: 'controlled',
+          canonicalUnit: null,
+          allowedValues: ['Dog', 'dog'],
+          valueAliases: [],
+          visualEvidenceEligibility: 'eligible',
+          isClaim: false,
+          isCompositionAttribute: false,
+          group: null,
+        },
+      ],
+    };
+    const input: MerchandisingFieldSpecInput = {
+      configuration: { status: 'complete', config: badConfig },
+      registry: {
+        status: 'available',
+        data: [{ xmlField: 'ProductField24', label: 'Flavor', kind: 'custom', dataType: 'string', sampleValuesJson: null }],
+      },
+      observations: { ProductField24: { liveOptions: { status: 'available', data: ['Turkey'] } } },
+    };
+    const model = composeMerchandisingFieldSpecs(input);
+    expect(model.fieldSpecs[0].bindings[0]?.configured?.status).toBe('invalid_identity');
+    const candidates = projectCurationFieldCandidates(model);
+    const pf24 = candidates.find(c => c.catalogField === 'ProductField24')!;
+    expect(pf24.values).toEqual(['Turkey']);
+    expect(pf24.values).not.toContain('Dog');
+    expect(pf24.values).not.toContain('dog');
+  });
+
+  it('dedupes decomposed liveOptions against composed configured values and keeps case-distinct observations', () => {
+    const nfcConfig: ClassificationConfig = {
+      ...baseConfig,
+      attributes: [
+        {
+          id: 'flavor',
+          name: 'Flavor',
+          description: null,
+          valueMode: 'controlled',
+          canonicalUnit: null,
+          allowedValues: ['caf\u00e9'],
+          valueAliases: [],
+          visualEvidenceEligibility: 'eligible',
+          isClaim: false,
+          isCompositionAttribute: false,
+          group: null,
+        },
+      ],
+    };
+    const input: MerchandisingFieldSpecInput = {
+      configuration: { status: 'complete', config: nfcConfig },
+      registry: {
+        status: 'available',
+        data: [{ xmlField: 'ProductField24', label: 'Flavor', kind: 'custom', dataType: 'string', sampleValuesJson: null }],
+      },
+      observations: {
+        ProductField24: { liveOptions: { status: 'available', data: ['cafe\u0301', 'Dog', 'dog'] } },
+      },
+    };
+    const model = composeMerchandisingFieldSpecs(input);
+    const candidates = projectCurationFieldCandidates(model);
+    const pf24 = candidates.find(c => c.catalogField === 'ProductField24')!;
+    // Decomposed cafe + U+0301 normalizes to composed café and dedupes; Dog vs dog stay distinct in display.
+    expect(pf24.values).toEqual(['caf\u00e9', 'dog', 'Dog']);
+  });
+
+  it('preserves union limit placement with oversized, blank, and duplicated observations', () => {
+    const live = ['Chicken', '', '  ', 'Beef', 'Beef', ...Array.from({ length: 260 }, (_, i) => `Opt${i}`)];
+    const input: MerchandisingFieldSpecInput = {
+      configuration: { status: 'complete', config: baseConfig },
+      registry: {
+        status: 'available',
+        data: [{ xmlField: 'ProductField24', label: 'Flavor', kind: 'custom', dataType: 'string', sampleValuesJson: null }],
+      },
+      observations: { ProductField24: { liveOptions: { status: 'available', data: live } } },
+    };
+    const model = composeMerchandisingFieldSpecs(input);
+    const candidates = projectCurationFieldCandidates(model);
+    const pf24 = candidates.find(c => c.catalogField === 'ProductField24')!;
+    // No new cap in the projection: blanks removed, duplicates collapsed, everything else retained.
+    expect(pf24.values).not.toContain('');
+    expect(pf24.values.filter(v => v === 'Beef')).toHaveLength(1);
+    expect(pf24.values).toContain('Chicken');
+    expect(pf24.values).toContain('Opt259');
+    expect(pf24.values.length).toBeGreaterThan(250);
+  });
+
+  it('keeps candidate display identical across configured and live_store option sources', () => {
+    const withSource = (source: 'configured' | 'live_store'): ClassificationConfig => ({
+      ...baseConfig,
+      curationTargets: [
+        {
+          id: 'tgt-flavor',
+          attributeId: 'flavor',
+          catalogField: 'ProductField24',
+          kind: 'product_field',
+          enabled: true,
+          mandatory: false,
+          selectionMode: 'single',
+          optionSource: source,
+          label: 'Flavor Target',
+          required: false,
+          sortOrder: 1,
+        },
+      ],
+    });
+    const build = (config: ClassificationConfig) => {
+      const input: MerchandisingFieldSpecInput = {
+        configuration: { status: 'complete', config },
+        registry: {
+          status: 'available',
+          data: [{ xmlField: 'ProductField24', label: 'Flavor', kind: 'custom', dataType: 'string', sampleValuesJson: null }],
+        },
+        observations: { ProductField24: { liveOptions: { status: 'available', data: ['Turkey'] } } },
+      };
+      return projectCurationFieldCandidates(composeMerchandisingFieldSpecs(input))[0].values;
+    };
+    expect(build(withSource('live_store'))).toEqual(build(withSource('configured')));
+  });
 });

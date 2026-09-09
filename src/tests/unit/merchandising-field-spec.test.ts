@@ -875,4 +875,51 @@ describe('MerchandisingFieldSpec pure composer (Ticket #128 / W1)', () => {
     });
     expect(missingProfileLookup.status).toBe('profile_missing');
   });
+
+  it('distinguishes unavailable versus empty liveOptions and never freezes caller inputs', () => {
+    const unavailableLive = { status: 'unavailable' as const, reason: 'not_loaded' as const };
+    const unavailableStats = { status: 'unavailable' as const, reason: 'not_loaded' as const };
+    const input: MerchandisingFieldSpecInput = {
+      configuration: { status: 'complete', config: baseConfig },
+      registry: { status: 'available', data: sampleRegistry },
+      observations: {
+        ProductField24: { liveOptions: { status: 'available' as const, data: [] } },
+        ProductField5: { liveOptions: unavailableLive, catalogStats: unavailableStats },
+      },
+    };
+
+    const model = composeMerchandisingFieldSpecs(input);
+    const emptySpec = getMerchandisingFieldSpec(model, 'ProductField24')!;
+    const unavailSpec = getMerchandisingFieldSpec(model, 'ProductField5')!;
+    expect(emptySpec.observed.liveOptions).toEqual({ status: 'available', data: [] });
+    expect(unavailSpec.observed.liveOptions).toEqual({ status: 'unavailable', reason: 'not_loaded' });
+    // Caller-owned unavailable slices must not be frozen by composition.
+    expect(Object.isFrozen(unavailableLive)).toBe(false);
+    expect(Object.isFrozen(unavailableStats)).toBe(false);
+    expect(Object.isFrozen(model)).toBe(true);
+    // Post-compose caller mutation must not affect the committed model.
+    (unavailableLive as { reason: string }).reason = 'source_failed';
+    expect(unavailSpec.observed.liveOptions).toEqual({ status: 'unavailable', reason: 'not_loaded' });
+  });
+
+  it('accepts deep-frozen inputs without mutating them', () => {
+    const frozenLive = Object.freeze({ status: 'available' as const, data: Object.freeze(['Salmon']) as unknown as string[] });
+    const frozenRegistryRow = Object.freeze({
+      xmlField: 'ProductField24',
+      label: 'Flavor',
+      kind: 'custom',
+      dataType: 'string',
+      sampleValuesJson: null,
+    });
+    const input: MerchandisingFieldSpecInput = {
+      configuration: { status: 'complete', config: baseConfig },
+      registry: { status: 'available', data: [frozenRegistryRow] },
+      observations: { ProductField24: { liveOptions: frozenLive } },
+    };
+    const model = composeMerchandisingFieldSpecs(input);
+    expect(getMerchandisingFieldSpec(model, 'ProductField24')!.observed.liveOptions).toEqual({
+      status: 'available',
+      data: ['Salmon'],
+    });
+  });
 });

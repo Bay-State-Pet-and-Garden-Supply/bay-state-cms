@@ -70,14 +70,17 @@ export function projectCurationFieldCandidates(
         }
       }
       const sampleValues = spec.observed.parsedRegistrySamples;
-      const configuredValues = configured?.allowedValues ?? [];
+      const configuredValues =
+        configured && configured.status === 'valid' && configured.valueMode === 'controlled'
+          ? configured.canonicalOptions.map(o => o.value)
+          : [];
       values = uniqueSorted([...liveValues, ...sampleValues, ...configuredValues]);
     }
 
     return {
       catalogField: spec.catalogField,
       label: spec.display.label || spec.catalogField,
-      dataType: (spec.display.dataType as string) || 'string',
+      dataType: typeof spec.display.dataType === 'string' ? spec.display.dataType : 'string',
       values,
       target: primaryTarget ? { ...primaryTarget } : null,
       attributeId,
@@ -93,6 +96,18 @@ export function projectCurationFieldCandidates(
   });
 
   return candidates;
+}
+
+function isFieldDataType(value: unknown): value is 'string' | 'number' | 'boolean' | 'html' | 'image' | 'list' | 'raw_xml' {
+  return (
+    value === 'string' ||
+    value === 'number' ||
+    value === 'boolean' ||
+    value === 'html' ||
+    value === 'image' ||
+    value === 'list' ||
+    value === 'raw_xml'
+  );
 }
 
 export function projectCatalogFieldSummaries(
@@ -117,8 +132,10 @@ export function projectCatalogFieldSummaries(
       return {
         xmlField: spec.catalogField,
         label: spec.display.label || spec.catalogField,
-        kind: (spec.display.kind as any) || 'custom',
-        dataType: (spec.display.dataType as any) || 'string',
+        kind: spec.display.kind === 'core' || spec.display.kind === 'system' || spec.display.kind === 'custom'
+          ? spec.display.kind
+          : 'custom',
+        dataType: isFieldDataType(spec.display.dataType) ? spec.display.dataType : 'string',
         uiGroup: spec.display.uiGroup,
         nonEmptyCount: 0,
         distinctCount: 0,
@@ -157,8 +174,10 @@ export function projectCatalogFieldSummaries(
     return {
       xmlField: spec.catalogField,
       label: spec.display.label || spec.catalogField,
-      kind: (spec.display.kind as any) || 'custom',
-      dataType: (spec.display.dataType as any) || 'string',
+      kind: spec.display.kind === 'core' || spec.display.kind === 'system' || spec.display.kind === 'custom'
+        ? spec.display.kind
+        : 'custom',
+      dataType: isFieldDataType(spec.display.dataType) ? spec.display.dataType : 'string',
       uiGroup: spec.display.uiGroup,
       nonEmptyCount: stats.nonEmptyCount,
       distinctCount: stats.distinctCount,
