@@ -22,6 +22,7 @@ export default defineConfig({
     exclude: [
       'node_modules',
       // Batch preflight & sourcing policy tests — use bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/batch-controlled-release-routes.test.ts',
       'src/tests/unit/batch-preflight-lifecycle.test.ts',
       'src/tests/unit/sourcing-policy.test.ts',
       // M7 scraper acceptance — bun:sqlite/bun:test, run under bun test (test:db)

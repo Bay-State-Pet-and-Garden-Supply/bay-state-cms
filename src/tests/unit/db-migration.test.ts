@@ -1918,6 +1918,7 @@ describe('Default-On Sourcing schema migration (Amendment A)', () => {
   function downgradeToPreAmendment(): void {
     const target = getDb();
     target.exec("DELETE FROM app_meta WHERE key = 'default_on_sourcing_schema_version'");
+    target.exec("DELETE FROM app_meta WHERE key = 'manual_evidence_source_schema_version'");
 
     // onboarding_items back to the pre-amendment shape.
     target.exec('ALTER TABLE onboarding_items DROP COLUMN source_type;');

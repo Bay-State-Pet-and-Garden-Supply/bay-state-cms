@@ -8,7 +8,8 @@
  * cohort Curation success, family wait duration, derivation honesty markers,
  * batch vs global scoping, and the workspace guard.
  */
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { overrideManualEvidenceFlags, resetManualEvidenceFlagsOverride } from '../../onboarding/flags';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -37,6 +38,7 @@ let workspacePath: string;
 
 /** Fresh temp workspace (re-inits the shared DB). Call per describe. */
 function makeWorkspace() {
+  overrideManualEvidenceFlags({ enabled: false });
   workspaceId = randomUUID();
   workspacePath = path.join(os.tmpdir(), `baystate-cms-telemetry-${workspaceId.slice(0, 8)}`);
   fs.mkdirSync(path.join(workspacePath, '.baystate-cms'), { recursive: true });
@@ -53,6 +55,10 @@ function makeWorkspace() {
     baselineCommit: null,
   });
 }
+
+afterAll(() => {
+  resetManualEvidenceFlagsOverride();
+});
 
 function makeBatch(): string {
   const batch = createBatch({ workspaceId, name: 'Test Batch', fileName: 'test.csv', totalItems: 0 });

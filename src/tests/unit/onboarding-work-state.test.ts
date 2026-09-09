@@ -6,7 +6,8 @@
  * operator category/label/attention pair. Mirrors the epic #46 test plan
  * mapping table.
  */
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { overrideManualEvidenceFlags, resetManualEvidenceFlagsOverride } from '../../onboarding/flags';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -152,7 +153,12 @@ function makeBatch(name = 'Test Batch'): string {
 }
 
 beforeAll(() => {
+  overrideManualEvidenceFlags({ enabled: false });
   makeWorkspace();
+});
+
+afterAll(() => {
+  resetManualEvidenceFlagsOverride();
 });
 
 describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
