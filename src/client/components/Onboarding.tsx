@@ -13,8 +13,8 @@ import { ViewHeader } from './common/ViewHeader';
 import { colors } from '../theme';
 import { OnboardingSettings } from './OnboardingSettings';
 import { BatchWorkspace } from './onboarding/BatchWorkspace';
+import { BatchExecutionControls } from './onboarding/BatchExecutionControls';
 import { WeeklyReportModal } from './WeeklyReportModal';
-import { BatchPreflightModal } from './onboarding/preflight/BatchPreflightModal';
 import type { OnboardingBatch, ColumnMapping } from '../../shared/schemas/onboarding';
 import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state';
 import { formatCount, totalItemCount } from './onboarding/batch-workspace-logic';
@@ -101,10 +101,6 @@ export function Onboarding() {
 
   // Custom Selector Editor state was removed; extractor profiles are
   // managed in OnboardingSettings ("Domain Extractor Profiles" section).
-
-  // Preflight & Controlled Release modal states
-  const [showPreflightModal, setShowPreflightModal] = useState(false);
-  const [preflightBatchId, setPreflightBatchId] = useState<string | null>(null);
 
   const fetchBatchesList = async () => {
     try {
@@ -323,10 +319,6 @@ export function Onboarding() {
       
       await fetchBatchesList();
       handleSelectBatch(res.batch.id);
-
-      // Open Batch Preflight & Controlled Release modal immediately
-      setPreflightBatchId(res.batch.id);
-      setShowPreflightModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -576,27 +568,9 @@ export function Onboarding() {
                     <td style={styles.td} onClick={(e) => e.stopPropagation()}>{renderBatchProgress(batch)}</td>
                     <td style={styles.td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <button
-                          style={{
-                            background: 'var(--color-uniform-green, #14532D)',
-                            color: 'var(--color-feed-bag-cream, #FAF9F2)',
-                            border: 'none',
-                            borderRadius: 4,
-                            padding: '5px 10px',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            fontSize: 12,
-                            boxShadow: '0 1px 2px rgba(33,20,20,0.06)',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreflightBatchId(batch.id);
-                            setShowPreflightModal(true);
-                          }}
-                          title="Open Preflight & Brand Resolution Review"
-                        >
-                          ⚡ Preflight
-                        </button>
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <BatchExecutionControls batchId={batch.id} executionState={batch.executionState} compact onChanged={() => fetchBatchesList()} />
+                        </span>
                         <button
                           style={{
                             background: 'none',
@@ -887,19 +861,6 @@ export function Onboarding() {
         {showWeeklyReportModal && (
           <WeeklyReportModal onClose={() => setShowWeeklyReportModal(false)} />
         )}
-        {showPreflightModal && preflightBatchId && (
-          <BatchPreflightModal
-            batchId={preflightBatchId}
-            isOpen={showPreflightModal}
-            onClose={() => {
-              setShowPreflightModal(false);
-              setPreflightBatchId(null);
-            }}
-            onBatchStarted={() => {
-              fetchBatchesList();
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -927,45 +888,9 @@ export function Onboarding() {
           batchName={selectedBatch.name}
           onBack={handleBackToBatches}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenPreflight={() => {
-            setPreflightBatchId(selectedBatchId);
-            setShowPreflightModal(true);
-          }}
         />
         {showWeeklyReportModal && (
           <WeeklyReportModal onClose={() => setShowWeeklyReportModal(false)} />
-        )}
-        {showPreflightModal && preflightBatchId && (
-          <BatchPreflightModal
-            batchId={preflightBatchId}
-            isOpen={showPreflightModal}
-            onClose={() => {
-              setShowPreflightModal(false);
-              setPreflightBatchId(null);
-            }}
-            onBatchStarted={() => {
-              fetchBatchesList();
-              if (selectedBatchId) {
-                handleSelectBatch(selectedBatchId);
-              }
-            }}
-            onOpenBrandSetup={() => {
-              // Step 0 retired (#115): brand setup is absorbed into Stage 1
-              // ("Identify & Route Sources"). Route into the canonical
-              // Stage 1 URL; the workspace reads the new URL on popstate.
-              const targetBatch = preflightBatchId;
-              setShowPreflightModal(false);
-              setPreflightBatchId(null);
-              const url = new URL(window.location.href);
-              if (targetBatch) url.searchParams.set('batch', targetBatch);
-              url.searchParams.delete('tab');
-              url.searchParams.delete('wview');
-              url.searchParams.set('stage', 'route_sources');
-              url.searchParams.set('stageVersion', '2');
-              window.history.pushState({ view: 'onboarding', batch: targetBatch }, '', url.toString());
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-          />
         )}
       </>
     );

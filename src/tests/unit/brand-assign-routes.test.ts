@@ -43,6 +43,7 @@ import {
   insertItems,
   findItemById,
   updateItemStageStatus,
+  holdBatchItems,
 } from '../../db/repositories/onboarding-item-repo';
 import { toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 import { findBrandSites } from '../../db/repositories/brand-site-repo';
@@ -179,8 +180,7 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(after?.heldReason).toBeNull();
   });
 
-  it('assign_brand overwrites an existing sourcing hint and releases a missing_brand hold', async () => {
-    const item = makeSourcingItem({ brandHint: 'Wrong Brand', isHeld: true, heldReason: 'missing_brand' });
+  it('assign_brand overwrites an existing sourcing hint and releases a missing_brand hold', async () => {    const item = makeSourcingItem({ brandHint: 'Wrong Brand', isHeld: true, heldReason: 'missing_brand' });
 
     const res = await app.request(`/api/onboarding/items/${item.id}/assign-brand`, {
       method: 'POST',
@@ -196,6 +196,34 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(after?.stageStatus).toBe('pending');
     expect(after?.isHeld).toBe(false);
     expect(after?.heldReason).toBeNull();
+  });
+
+  it('assign_brand releases an unresolved_brand hold on a discovery item and re-queues discovery', async () => {
+    // Regression: ready_only start holds unbranded items with
+    // heldReason='unresolved_brand'; a later brand fix must release the
+    // hold even though discovery is re-queued (the requeue only resets
+    // stage_status/status and never clears is_held/held_reason).
+    const item = makeDiscoveryItem();
+    holdBatchItems(item.batchId, [item.id], 'unresolved_brand');
+    expect(findItemById(item.id)?.isHeld).toBe(true);
+
+    const res = await app.request(`/api/onboarding/items/${item.id}/assign-brand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand: 'Fromm' }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
+
+    const after = findItemById(item.id);
+    expect(after?.brandHint).toBe('Fromm');
+    expect(after?.isHeld).toBe(false);
+    expect(after?.heldReason).toBeNull();
+    // Discovery requeue contract still holds: stage stays discovery and
+    // the item is pending — or already claimed (in_progress) by the
+    // worker poll the route triggers.
+    expect(after?.stage).toBe('discovery');
+    expect(['pending', 'in_progress']).toContain(after?.stageStatus);
   });
 
   it('assign_brand rejects a missing or blank brand without mutation', async () => {

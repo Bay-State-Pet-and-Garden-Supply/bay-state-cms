@@ -24,7 +24,6 @@ vi.mock('../../client/onboarding-api', () => ({
   assignItemBrand: vi.fn(),
   assignItemDomain: vi.fn(),
   assignBrandGroup: vi.fn(),
-  getBatchPreflight: vi.fn(),
   getBrandSites: vi.fn(),
   getExtractorProfiles: vi.fn(),
 }));

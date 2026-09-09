@@ -52,11 +52,8 @@ import {
   holdBatchItems,
   bulkAssignBrandToItems,
 } from '../../db/repositories/onboarding-item-repo';
-import { analyzeBatchPreflight } from '../../onboarding/preflight-service';
-import { upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-repo';
-import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
-import { extractDomainAndPattern } from '../../onboarding/brand-hub/normalizeDomain';
-import type { PipelineStage, SourcingPolicy } from '../../shared/schemas/onboarding';
+import { partitionBatchByBrand, buildMissingBrandGroups } from '../../onboarding/batch-release';
+import type { PipelineStage } from '../../shared/schemas/onboarding';
 import { toCanonicalStage, type StageV2 } from '../../shared/onboarding-stage-vocabulary';
 import {
   parseStageVocabularyVersion,
@@ -657,9 +654,10 @@ route.get('/onboarding/weekly-report', async (c) => {
  * Get single batch details.
  */
 route.get('/onboarding/batches/:id', async (c) => {
+  const workspace = findWorkspace();
   const batchId = c.req.param('id');
   const batch = findBatchById(batchId);
-  if (!batch) {
+  if (!batch || (workspace && batch.workspaceId !== workspace.id)) {
     return c.json({ error: 'Batch not found' }, 404);
   }
 
@@ -686,10 +684,10 @@ route.delete('/onboarding/batches/:id', async (c) => {
 });
 
 /**
- * GET /api/onboarding/batches/:id/preflight
- * Analyzes batch readiness across brand resolution, official domains, and distributor routing.
+ * GET /api/onboarding/batches/:id/missing-brand-groups
+ * Grouped missing-brand clusters for the attention queue (brand assignments only).
  */
-route.get('/onboarding/batches/:id/preflight', async (c) => {
+route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
   const workspace = findWorkspace();
   if (!workspace) {
     return c.json({ error: 'No active workspace loaded' }, 400);
@@ -701,10 +699,10 @@ route.get('/onboarding/batches/:id/preflight', async (c) => {
   }
 
   try {
-    const preflight = analyzeBatchPreflight(workspace.id, batchId);
-    return c.json(preflight);
+    const groups = buildMissingBrandGroups(batchId);
+    return c.json({ batchId, groups });
   } catch (err) {
-    console.error('[OnboardingRoutes] Preflight analysis failed:', err);
+    console.error('[OnboardingRoutes] Missing-brand groups failed:', err);
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 });
@@ -738,13 +736,14 @@ route.post('/onboarding/batches/:id/start', async (c) => {
     // Release all items in the batch
     releaseBatchItems(batchId);
   } else {
-    // Ready only: compute preflight and release ready items, hold unready items
-    const preflight = analyzeBatchPreflight(workspace.id, batchId);
-    if (preflight.readyItemIds.length > 0) {
-      releaseBatchItems(batchId, preflight.readyItemIds);
+    // Ready only: release branded items, hold unbranded items.
+    // Ready = non-empty trimmed brandHint (no distributor exemption).
+    const { readyItemIds, heldItemIds } = partitionBatchByBrand(batchId);
+    if (readyItemIds.length > 0) {
+      releaseBatchItems(batchId, readyItemIds);
     }
-    if (preflight.heldItemIds.length > 0) {
-      holdBatchItems(batchId, preflight.heldItemIds, 'unresolved_brand');
+    if (heldItemIds.length > 0) {
+      holdBatchItems(batchId, heldItemIds, 'unresolved_brand');
     }
   }
 
@@ -763,8 +762,7 @@ route.post('/onboarding/batches/:id/start', async (c) => {
     data: { executionState: 'running' },
   });
 
-  const updatedPreflight = analyzeBatchPreflight(workspace.id, batchId);
-  return c.json({ success: true, executionState: 'running', preflight: updatedPreflight });
+  return c.json({ success: true, executionState: 'running' });
 });
 
 /**
@@ -854,129 +852,7 @@ route.post('/onboarding/batches/:id/assign-brand-group', async (c) => {
     onboardingEvents.emitItemStatus(batchId, itemId, 'pending', { brandHint: brand.trim() });
   }
 
-  const preflight = analyzeBatchPreflight(workspace.id, batchId);
-  return c.json({ success: true, preflight });
-});
-
-/**
- * POST /api/onboarding/batches/:id/configure-brand
- * Configures official domain and/or distributor routing for a brand.
- */
-route.post('/onboarding/batches/:id/configure-brand', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
-
-  const { brand, domain, urlPattern, preferredDistributorIds, sourcingPolicy } = await c.req.json();
-  if (!brand?.trim()) {
-    return c.json({ error: 'brand is required' }, 400);
-  }
-
-  const trimmedBrand = brand.trim();
-
-  // 1. Domain & URL pattern config if provided
-  if (domain && domain.trim()) {
-    const { domain: cleanDomain, urlPattern: extractedPattern } = extractDomainAndPattern(domain);
-    const finalPattern = urlPattern || extractedPattern || null;
-    if (cleanDomain) {
-      upsertBrandSite(trimmedBrand, cleanDomain, finalPattern);
-      if (finalPattern) {
-        upsertProfile(cleanDomain, { sitemapProductUrlPattern: finalPattern });
-      }
-    }
-  }
-
-  // 2. Distributor routing if provided
-  if (preferredDistributorIds !== undefined || sourcingPolicy !== undefined) {
-    upsertBrandAdvisoryProfile({
-      workspaceId: workspace.id,
-      brand: trimmedBrand,
-      preferredDistributorIds: preferredDistributorIds ?? [],
-      sourcingPolicy: sourcingPolicy ?? 'preferred_then_fallback',
-    });
-  }
-
-  const preflight = analyzeBatchPreflight(workspace.id, batchId);
-  return c.json({ success: true, preflight });
-});
-
-/**
- * POST /api/onboarding/batches/:id/save-preflight-draft
- * Saves all pending preflight changes (brand assignments, domains, distributor routing)
- * without transitioning the batch execution state out of draft.
- */
-route.post('/onboarding/batches/:id/save-preflight-draft', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
-
-  const body = await c.req.json();
-  const { brandAssignments, brandConfigs } = body as {
-    brandAssignments?: Array<{ itemIds: string[]; brand: string }>;
-    brandConfigs?: Array<{
-      brand: string;
-      domain?: string;
-      urlPattern?: string;
-      preferredDistributorIds?: string[];
-      sourcingPolicy?: SourcingPolicy;
-    }>;
-  };
-
-  // 1. Process brand assignments
-  if (brandAssignments && Array.isArray(brandAssignments)) {
-    for (const assignment of brandAssignments) {
-      if (assignment.itemIds?.length && assignment.brand?.trim()) {
-        const trimmedBrand = assignment.brand.trim();
-        bulkAssignBrandToItems(batchId, assignment.itemIds, trimmedBrand);
-        releaseBatchItems(batchId, assignment.itemIds);
-        for (const itemId of assignment.itemIds) {
-          onboardingEvents.emitItemStatus(batchId, itemId, 'pending', { brandHint: trimmedBrand });
-        }
-      }
-    }
-  }
-
-  // 2. Process brand domain, urlPattern & distributor routing configurations
-  if (brandConfigs && Array.isArray(brandConfigs)) {
-    for (const config of brandConfigs) {
-      if (config.brand?.trim()) {
-        const trimmedBrand = config.brand.trim();
-        if (config.domain && config.domain.trim()) {
-          const { domain: cleanDomain, urlPattern: extractedPattern } = extractDomainAndPattern(config.domain);
-          const finalPattern = config.urlPattern || extractedPattern || null;
-          if (cleanDomain) {
-            upsertBrandSite(trimmedBrand, cleanDomain, finalPattern);
-            if (finalPattern) {
-              upsertProfile(cleanDomain, { sitemapProductUrlPattern: finalPattern });
-            }
-          }
-        }
-        if (config.preferredDistributorIds !== undefined || config.sourcingPolicy !== undefined) {
-          upsertBrandAdvisoryProfile({
-            workspaceId: workspace.id,
-            brand: trimmedBrand,
-            preferredDistributorIds: config.preferredDistributorIds ?? [],
-            sourcingPolicy: config.sourcingPolicy ?? 'preferred_then_fallback',
-          });
-        }
-      }
-    }
-  }
-
-  const preflight = analyzeBatchPreflight(workspace.id, batchId);
-  return c.json({ success: true, preflight });
+  return c.json({ success: true });
 });
 
 /**
@@ -2616,8 +2492,9 @@ function requeueDiscoveryRun(itemId: string, workspaceId: string, workspacePath:
  * the item and, for Find product page items only, re-run official site
  * discovery guided by that brand. For Check source options items, sourcing
  * reads the saved hint when routing; the item keeps its stage/status and
- * discovery is not re-queued. A missing_brand hold is released so the
- * newly-branded sourcing item can flow (mirroring assign-brand-group).
+ * discovery is not re-queued. Controlled-release holds (`missing_brand` and
+ * `unresolved_brand`) are released so the newly-branded item can flow
+ * (mirroring assign-brand-group).
  *
  * Request:  { "brand": string }
  * Response: 200 { success: true, item } | 400 { error } | 404 { error }
@@ -2657,9 +2534,11 @@ route.post('/onboarding/items/:id/assign-brand', async (c) => {
 
   const trimmedBrand = brand.trim();
   updateItemBrandHint(itemId, trimmedBrand);
+  const heldByReleaseGate = item.isHeld && (item.heldReason === 'missing_brand' || item.heldReason === 'unresolved_brand');
   if (isDiscovery) {
+    if (heldByReleaseGate) releaseBatchItems(item.batchId, [itemId]);
     requeueDiscoveryRun(itemId, workspace.id, workspace.workspacePath);
-  } else if (item.isHeld && item.heldReason === 'missing_brand') {
+  } else if (heldByReleaseGate) {
     releaseBatchItems(item.batchId, [itemId]);
   }
   console.log(

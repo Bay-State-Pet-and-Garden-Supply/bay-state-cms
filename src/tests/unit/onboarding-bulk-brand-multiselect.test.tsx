@@ -1,14 +1,12 @@
 // @vitest-environment jsdom
 /**
  * UI-only slice: route_sources checkbox multiselect → existing
- * assignBrandGroup endpoint, plus mapped_official override affordance.
+ * assignBrandGroup endpoint.
  *
  * Pins:
  * - multiselect-to-group-endpoint wiring (batchId, itemIds, brand)
  * - refresh-epoch reload on bulk success (stage list re-read)
  * - route_sources scope (no multiselect affordance on other stages)
- * - Step 0 mapped_official rows expose an editable brand input over the
- *   existing runRowMutation path with the role=alert server-error pattern
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -20,7 +18,6 @@ vi.mock('../../client/onboarding-api', () => ({
   assignItemBrand: vi.fn(),
   assignItemDomain: vi.fn(),
   assignBrandGroup: vi.fn(),
-  getBatchPreflight: vi.fn(),
 }));
 
 vi.mock('../../client/onboarding-work-api', () => ({
@@ -31,9 +28,7 @@ vi.mock('../../client/onboarding-work-api', () => ({
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { StageItemsView } from '../../client/components/onboarding/StageItemsView';
-import { BrandGateView } from '../../client/components/onboarding/BrandGateView';
-import { assignBrandGroup, assignItemBrand, getBatchPreflight } from '../../client/onboarding-api';
-import { getBrandDomainBlockers } from '../../client/onboarding-work-api';
+import { assignBrandGroup, assignItemBrand } from '../../client/onboarding-api';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -213,111 +208,5 @@ describe('StageItemsView route_sources multiselect bulk assign', () => {
     expect(container.querySelector('[data-testid="stage-bulk-assign"]')).toBeNull();
     expect(container.querySelector('[data-testid^="stage-select-"]')).toBeNull();
     expect(container.textContent).not.toMatch(/Assign to selected/);
-  });
-});
-
-describe('BrandGateView mapped_official override affordance', () => {
-  let container: HTMLDivElement;
-  let root: Root | null = null;
-  let fetchMock: ReturnType<typeof vi.fn>;
-
-  function stageRow(i: number, overrides: Record<string, unknown> = {}) {
-    return {
-      itemId: `row-${i}`,
-      category: 'needs_attention',
-      activity: null,
-      label: 'Needs attention',
-      detail: null,
-      attentionReason: null,
-      attentionAction: null,
-      stage: 'sourcing',
-      stageStatus: 'pending',
-      upc: `000000000${i}`,
-      name: `PRODUCT ${i}`,
-      brand: null,
-      sourceType: null,
-      domain: null,
-      ...overrides,
-    };
-  }
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    vi.clearAllMocks();
-    vi.mocked(getBatchPreflight).mockResolvedValue({
-      batchId: 'batch-1',
-      batchName: 'Batch 1',
-      executionState: 'draft',
-      totalItems: 3,
-      readyCount: 2,
-      heldCount: 1,
-      readyItemIds: ['ready-1', 'ready-2'],
-      heldItemIds: ['held-0'],
-      metrics: {},
-      blockers: { needsBrandGroups: [], missingDomainBrands: [], unroutedBrands: [] },
-      availableDistributors: [],
-      knownBrands: ['Acme'],
-    } as never);
-    vi.mocked(getBrandDomainBlockers).mockResolvedValue({ blockers: [] } as never);
-    vi.mocked(assignItemBrand).mockResolvedValue({ success: true } as never);
-    fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        // row-3 classifies mapped_official: brand + domain, no blocker lists.
-        items: [
-          stageRow(3, { brand: 'Acme', domain: 'acme.com', sourceType: 'official_page' }),
-        ],
-        nextCursor: null,
-        projectionHealth: healthy(),
-      }),
-    }));
-    vi.stubGlobal('fetch', fetchMock);
-  });
-
-  afterEach(() => {
-    if (root) {
-      act(() => root!.unmount());
-      root = null;
-    }
-    container.remove();
-    vi.unstubAllGlobals();
-  });
-
-  async function mount() {
-    root = createRoot(container);
-    await act(async () => {
-      root!.render(<BrandGateView batchId="batch-1" onBack={vi.fn()} />);
-    });
-  }
-
-  it('mapped_official row keeps its advisory copy and offers an editable brand override over runRowMutation', async () => {
-    await mount();
-    const row = container.querySelector('[data-testid="brand-fix-row-row-3"]');
-    expect(row?.getAttribute('data-row-kind')).toBe('mapped_official');
-    expect(row?.textContent).toContain('No action needed.');
-    const input = row?.querySelector('input[aria-label="Brand for PRODUCT 3"]') as HTMLInputElement;
-    expect(input).not.toBeNull();
-    expect(input.value).toBe('Acme');
-    const assignBtn = container.querySelector('[data-testid="brand-row-assign-brand-row-3"]') as HTMLButtonElement;
-    expect(assignBtn).not.toBeNull();
-    const preflightBefore = vi.mocked(getBatchPreflight).mock.calls.length;
-    await act(async () => {
-      assignBtn.click();
-    });
-    expect(assignItemBrand).toHaveBeenCalledTimes(1);
-    expect(assignItemBrand).toHaveBeenCalledWith('row-3', 'Acme');
-    expect(vi.mocked(getBatchPreflight).mock.calls.length).toBe(preflightBefore + 1);
-  });
-
-  it('override failure surfaces the existing role=alert server-error pattern', async () => {
-    vi.mocked(assignItemBrand).mockRejectedValueOnce(new Error('server still rejects'));
-    await mount();
-    const assignBtn = container.querySelector('[data-testid="brand-row-assign-brand-row-3"]') as HTMLButtonElement;
-    await act(async () => {
-      assignBtn.click();
-    });
-    const alerts = Array.from(container.querySelectorAll('[role="alert"]'));
-    expect(alerts.some((a) => a.textContent?.includes('server still rejects'))).toBe(true);
   });
 });

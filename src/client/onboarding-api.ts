@@ -27,11 +27,18 @@ import type {
   BrandUrlsListResponse,
   SitemapTestLookupResponse,
   SitemapTestLookupRequest,
-  BatchPreflightResponse,
   SourcingPolicy,
   MediaSelectionRequest,
   FallbackSourcingItemsResponse,
 } from '../shared/schemas/onboarding';
+
+export interface MissingBrandGroup {
+  key: string;
+  suggestedBrand: string | null;
+  itemCount: number;
+  itemIds: string[];
+  sampleProductNames: string[];
+}
 import type {
   WorkerHealthResponse,
   SnapshotRequest,
@@ -148,15 +155,15 @@ export async function deleteBatch(id: string): Promise<{ success: boolean }> {
   });
 }
 
-export async function getBatchPreflight(batchId: string): Promise<BatchPreflightResponse> {
-  return request<BatchPreflightResponse>(`/batches/${batchId}/preflight`);
+export async function getMissingBrandGroups(batchId: string): Promise<{ batchId: string; groups: MissingBrandGroup[] }> {
+  return request<{ batchId: string; groups: MissingBrandGroup[] }>(`/batches/${batchId}/missing-brand-groups`);
 }
 
 export async function startBatch(
   batchId: string,
   mode: 'ready_only' | 'all' = 'ready_only',
-): Promise<{ success: boolean; executionState: string; preflight: BatchPreflightResponse }> {
-  return request<{ success: boolean; executionState: string; preflight: BatchPreflightResponse }>(
+): Promise<{ success: boolean; executionState: string }> {
+  return request<{ success: boolean; executionState: string }>(
     `/batches/${batchId}/start`,
     {
       method: 'POST',
@@ -181,53 +188,12 @@ export async function assignBrandGroup(
   batchId: string,
   itemIds: string[],
   brand: string,
-): Promise<{ success: boolean; preflight: BatchPreflightResponse }> {
-  return request<{ success: boolean; preflight: BatchPreflightResponse }>(
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(
     `/batches/${batchId}/assign-brand-group`,
     {
       method: 'POST',
       body: JSON.stringify({ itemIds, brand }),
-    },
-  );
-}
-
-export async function configureBrand(
-  batchId: string,
-  data: {
-    brand: string;
-    domain?: string;
-    urlPattern?: string;
-    preferredDistributorIds?: string[];
-    sourcingPolicy?: SourcingPolicy;
-  },
-): Promise<{ success: boolean; preflight: BatchPreflightResponse }> {
-  return request<{ success: boolean; preflight: BatchPreflightResponse }>(
-    `/batches/${batchId}/configure-brand`,
-    {
-      method: 'POST',
-      body: JSON.stringify(data),
-    },
-  );
-}
-
-export async function savePreflightDraft(
-  batchId: string,
-  data: {
-    brandAssignments?: Array<{ itemIds: string[]; brand: string }>;
-    brandConfigs?: Array<{
-      brand: string;
-      domain?: string;
-      urlPattern?: string;
-      preferredDistributorIds?: string[];
-      sourcingPolicy?: SourcingPolicy;
-    }>;
-  },
-): Promise<{ success: boolean; preflight: BatchPreflightResponse }> {
-  return request<{ success: boolean; preflight: BatchPreflightResponse }>(
-    `/batches/${batchId}/save-preflight-draft`,
-    {
-      method: 'POST',
-      body: JSON.stringify(data),
     },
   );
 }

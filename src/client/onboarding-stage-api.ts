@@ -84,17 +84,14 @@ export async function getStageReadItems(
   );
 }
 
-// ─── Slice 3 — Step 0 brand setup composition ────────────────────────────────
-//
-// The single Brand setup view composes these EXISTING typed reads; this
-// module adds no new authority and no mutation protocol. Mutations stay on
-// the existing clients (`assignBrandGroup`, `configureBrand`,
-// per-item assign-brand/domain in `onboarding-api.ts`,
+// Brand setup composition reads (Step 0 retired #115: brand fixes live in
+// Stage 1 "Identify & Route Sources"; the attention queue keeps grouped
+// missing-brand fixes). Mutations stay on the existing clients
+// (`assignBrandGroup`, per-item assign-brand/domain in `onboarding-api.ts`,
 // `assignBatchBrandDomain` in `onboarding-work-api.ts`). Settings remains
 // the brand→domain mapping authority.
-import type { BatchPreflightResponse } from '../shared/schemas/onboarding';
 import type { BrandDomainSetupResponse } from '../shared/schemas/onboarding-work-state';
-import { getBatchPreflight } from './onboarding-api';
+import { getBatch } from './onboarding-api';
 import { getBrandDomainBlockers } from './onboarding-work-api';
 
 export interface SettledBrandRead<T> {
@@ -105,7 +102,6 @@ export interface SettledBrandRead<T> {
 }
 
 export interface BrandGateProjections {
-  preflight: SettledBrandRead<BatchPreflightResponse>;
   blockers: SettledBrandRead<BrandDomainSetupResponse>;
 }
 
@@ -120,7 +116,7 @@ function toSettled<T>(result: PromiseSettledResult<T>): SettledBrandRead<T> {
  * Slice 4-UI — ephemeral execution strip snapshot (council plan §4.3).
  *
  * One refresh epoch for the strip's server-derived half: the batch
- * `executionState` from the existing preflight read plus the v2 server
+ * `executionState` from the batch read plus the v2 server
  * count matrix. The execution state is permission to run, never worker
  * health; counts come from the server matrix, never from SSE events. The
  * hook retains the last success on failure, so this fetcher rejects on
@@ -137,8 +133,8 @@ export interface ExecutionStripSnapshot {
 }
 
 export async function getExecutionStripSnapshot(batchId: string): Promise<ExecutionStripSnapshot> {
-  const [preflight, counts] = await Promise.all([
-    getBatchPreflight(batchId),
+  const [batchRes, counts] = await Promise.all([
+    getBatch(batchId),
     getStageReadCounts(batchId, {}),
   ]);
   const stageTotals: Record<string, number> = {};
@@ -152,7 +148,7 @@ export async function getExecutionStripSnapshot(batchId: string): Promise<Execut
       column.skipped;
   }
   return {
-    executionState: preflight.executionState,
+    executionState: batchRes.batch.executionState,
     matchingTotal: counts.matchingTotal,
     stageTotals,
     projectionComputedAt: counts.projectionHealth?.computedAt ?? null,
@@ -161,19 +157,15 @@ export async function getExecutionStripSnapshot(batchId: string): Promise<Execut
 }
 
 /**
- * One refresh epoch for the Brand setup view: the two existing server
- * reads, settled independently so a failed blocker read shows unknown
- * (never healthy) while valid preflight coverage still displays. Exactly
- * two underlying read requests — per-item rows come from one bounded
- * `getStageReadItems` page, never N detail fetches.
+ * One refresh epoch for the attention queue: the brand-domain blocker read.
+ * Per-item rows come from one bounded `getStageReadItems` page, never
+ * N detail fetches.
  */
 export async function getBrandGateProjections(batchId: string): Promise<BrandGateProjections> {
-  const [preflightSettled, blockersSettled] = await Promise.allSettled([
-    getBatchPreflight(batchId),
+  const [blockersSettled] = await Promise.allSettled([
     getBrandDomainBlockers(batchId),
   ]);
   return {
-    preflight: toSettled(preflightSettled),
     blockers: toSettled(blockersSettled),
   };
 }
