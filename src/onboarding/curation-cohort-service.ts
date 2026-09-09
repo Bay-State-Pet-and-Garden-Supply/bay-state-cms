@@ -37,11 +37,13 @@ import {
   listCohortsByBatch,
   getCohortById,
   getCohortMembers,
+  getCohortMembersForCohorts,
   getActiveCohortForItem,
   updateCohortStatus,
   computeExtractionHash,
 } from '../db/repositories/curation-cohort-repo';
-import { getCurrentCohortRun } from '../db/repositories/classification-cohort-run-repo';
+import { getCurrentCohortRun, getCurrentCohortRunsForCohorts } from '../db/repositories/classification-cohort-run-repo';
+import type { CohortRun } from '../shared/schemas/cohorts';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
 
@@ -579,11 +581,17 @@ export function getDerivedCohortStateForItem(item: OnboardingItem, items?: Onboa
  * Build the API view for one active candidate cohort: per-member extraction
  * readiness plus cohort-level derived waiting state.
  */
-export function buildCohortView(cohort: CurationCohort, items: OnboardingItem[]): CurationCohortView {
-  const members = getCohortMembers(cohort.id);
+export function buildCohortView(
+  cohort: CurationCohort,
+  items: OnboardingItem[],
+  membersByCohortId?: Map<string, CurationCohortMember[]>,
+  extractionSourcesByItemId?: Map<string, ExtractionBinding>,
+  currentRunsByCohortId?: Map<string, CohortRun>,
+): CurationCohortView {
+  const members = membersByCohortId?.get(cohort.id) ?? getCohortMembers(cohort.id);
   const itemsById = new Map(items.map(item => [item.id, item]));
   // Single batched extraction-source load shared by cohort + member readiness.
-  const extractionSources = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  const extractionSources = extractionSourcesByItemId ?? getLatestExtractionBindingsByItemIds(items.map(item => item.id));
   const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources);
 
   const memberViews = members.map(member => {
@@ -613,7 +621,7 @@ export function buildCohortView(cohort: CurationCohort, items: OnboardingItem[])
   // PR4 C5: additive read-only Execution Product Type exposure — the cohort's
   // CURRENT run's type state (null when no run exists or the type was never
   // resolved). The run row stays the authority; the view never mutates it.
-  const currentRun = getCurrentCohortRun(cohort.id);
+  const currentRun = currentRunsByCohortId ? (currentRunsByCohortId.get(cohort.id) ?? null) : getCurrentCohortRun(cohort.id);
 
   return {
     cohort,
@@ -637,5 +645,9 @@ export function buildCohortView(cohort: CurationCohort, items: OnboardingItem[])
  */
 export function listCandidateCohortViews(batchId: string): CurationCohortView[] {
   const items = listItemsByBatch(batchId);
-  return listCohortsByBatch(batchId).map(cohort => buildCohortView(cohort, items));
+  const cohorts = listCohortsByBatch(batchId);
+  const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
+  return cohorts.map(cohort => buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId));
 }
