@@ -34,6 +34,7 @@ export const ARRAY_JACCARD_MATCH_THRESHOLD = 0.5;
 export const OCR_SCALAR_FIELDS = [
   'productName', 'brand', 'upc', 'flavorVariety', 'color', 'material',
   'size', 'weight', 'count', 'lifeStage', 'breedSize', 'productForm',
+  'packagingType', 'npkRatio',
 ] as const;
 
 export type OcrScalarField = (typeof OCR_SCALAR_FIELDS)[number];

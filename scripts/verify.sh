@@ -10,6 +10,9 @@ bun install --frozen-lockfile
 echo "==> typecheck"
 npx tsc --noEmit --skipLibCheck
 
+echo "==> test-runner coverage (Bun/Vitest registration gate)"
+bun run test:runner-coverage
+
 echo "==> vitest (client + importable unit suites)"
 npx vitest run
 

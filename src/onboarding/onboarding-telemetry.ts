@@ -26,6 +26,16 @@ import {
   listCohortsByWorkspace,
 } from '../db/repositories/curation-cohort-repo';
 import { listCohortRunsByCohort } from '../db/repositories/classification-cohort-run-repo';
+import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical promotion check for hydrated stages (dual read). */
+function isPromotedStage(rawStage: unknown, stageStatus: unknown): boolean {
+  try {
+    return toCanonicalStage(rawStage) === 'create_drafts' && stageStatus === 'completed';
+  } catch {
+    return false;
+  }
+}
 import {
   listChangeSetStatusBySkus,
   listChangeSetCountsByState,
@@ -240,7 +250,7 @@ function aggregateBatch(slices: BatchSlice[], workspaceId: string): Aggregated {
   // workspaces must never contribute their change-set lifecycle.
   for (const slice of slices) {
     const promotedSkus = slice.items
-      .filter(item => item.stage === 'promotion' && item.stageStatus === 'completed')
+      .filter(item => isPromotedStage(item.stage, item.stageStatus))
       .map(item => item.upc);
     if (promotedSkus.length === 0) continue;
     for (const [sku, status] of listChangeSetStatusBySkus(workspaceId, promotedSkus)) {

@@ -16,6 +16,7 @@
  */
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
+import { readStorageVersion, encodeForStorage, stagePredicateParams } from './onboarding-stage-vocabulary-repo';
 
 export interface OnboardingReviewState {
   itemId: string;
@@ -194,6 +195,11 @@ export function approveAndAdvanceItems(input: {
   if (!requestHash) throw new Error('requestHash is required');
 
   db.transaction(() => {
+    // Slice 5a bridge (narrow D4 exception): per-transaction storage-version
+    // read; the promotion write encodes the observed version, and its guard
+    // matches the semantic review stage under either spelling.
+    const promoVersion = readStorageVersion(db);
+    const promoStage = encodeForStorage('create_drafts', promoVersion);
     // Resolve workspaceId for receipt
     let wsId = input.workspaceId ?? null;
     if (!wsId) {
@@ -301,7 +307,11 @@ export function approveAndAdvanceItems(input: {
         rejected.push({ itemId: id, reason: 'item_not_in_batch' });
         continue;
       }
-      if (itemRow.stage !== 'review' || itemRow.stage_status !== 'completed') {
+      // Slice 5a bridge (narrow D4 exception): dual-spelling review guard —
+      // the semantic review stage under either spelling (same pattern as
+      // the item-repo claim predicate).
+      const [reviewAltA, reviewAltB] = stagePredicateParams('review_listings');
+      if (itemRow.stage !== reviewAltA && itemRow.stage !== reviewAltB || itemRow.stage_status !== 'completed') {
         rejected.push({ itemId: id, reason: `not_eligible:${itemRow.stage}/${itemRow.stage_status}` });
         continue;
       }
@@ -359,10 +369,10 @@ export function approveAndAdvanceItems(input: {
 
       const advanceResult = db.query(
         `UPDATE onboarding_items
-         SET stage = 'promotion', stage_status = 'pending', error_message = NULL, retry_count = 0,
+         SET stage = ?, stage_status = 'pending', error_message = NULL, retry_count = 0,
              claimed_by = NULL, claimed_at = NULL, updated_at = ?
-         WHERE id = ? AND batch_id = ? AND stage = 'review' AND stage_status = 'completed'`,
-      ).run(now, id, input.batchId);
+         WHERE id = ? AND batch_id = ? AND (stage = ? OR stage = ?) AND stage_status = 'completed'`,
+      ).run(promoStage, now, id, input.batchId, reviewAltA, reviewAltB);
       if (advanceResult.changes > 0) {
         approved.push(id);
       } else {
@@ -514,8 +524,11 @@ export function createExportDraftsWithReceipt(input: {
       const itemRow = db.query(`SELECT id, batch_id, stage, stage_status, upc FROM onboarding_items WHERE id = ?`).get(id) as { id: string; batch_id: string; stage: string; stage_status: string; upc: string } | undefined;
       if (!itemRow) { rejected.push({ itemId: id, reason: 'item_not_found' }); continue; }
       if (itemRow.batch_id !== batchId) { rejected.push({ itemId: id, reason: 'item_not_in_batch' }); continue; }
-      // Must be in promotion pending (approved items) — not review, not already pushed
-      if (itemRow.stage !== 'promotion') { rejected.push({ itemId: id, reason: `not_eligible:${itemRow.stage}/${itemRow.stage_status}` }); continue; }
+      // Must be in promotion pending (approved items) — not review, not already pushed.
+      // Slice 5a bridge (narrow D4 exception): dual-spelling promotion guard
+      // (same pattern as the claim predicate); required for the §5.5
+      // approval/export-draft receipt proof on v2 storage.
+      if (itemRow.stage !== 'promotion' && itemRow.stage !== 'create_drafts') { rejected.push({ itemId: id, reason: `not_eligible:${itemRow.stage}/${itemRow.stage_status}` }); continue; }
       // Revalidate durable approval immediately before draft mutation (never auto-approve)
       const reviewRow = db.query('SELECT reviewed_at, review_invalidated_at, approved_at FROM onboarding_review_state WHERE item_id = ?').get(id) as { reviewed_at: string | null; review_invalidated_at: string | null; approved_at: string | null } | undefined;
       if (!reviewRow?.approved_at || reviewRow.review_invalidated_at) { rejected.push({ itemId: id, reason: 'not_approved' }); continue; }

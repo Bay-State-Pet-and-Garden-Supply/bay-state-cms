@@ -1,16 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { z } from 'zod';
 import {
   AttributeMappingsFileV2Schema,
   AttributeProfilesFileV2Schema,
   AttributesFileV2Schema,
+  BrandConfigV2Schema,
   BrandsFileV2Schema,
   ClassificationConfigBundleV2Schema,
   ClassificationFocusedFileNames,
   ClassificationManifestV2Schema,
+  CurationTargetConfigV2Schema,
   CurationTargetsFileV2Schema,
+  DataSharingConfigV2Schema,
   DataSharingFileV2Schema,
   GuidanceFileV2Schema,
+  ModelPolicyConfigV2Schema,
   ModelPolicyFileV2Schema,
   ProductTypesFileV2Schema,
   type ClassificationConfig,
@@ -619,7 +624,7 @@ function readActiveRevisionPin(workspacePath: string): string | null {
   return readWorkspaceState(workspacePath)?.activeTaxonomyRevision ?? null;
 }
 
-/** Compile the pinned release (bay-state-v4 or bay-state-v5) into the runtime authority. Fail closed on validation failure. Brands overlay after hashing so bundleHash stays pure-taxonomy. */
+/** Compile the pinned release (bay-state-v4 or bay-state-v5) into the runtime authority. Fail closed on validation failure. Store-local concerns (brands, modelPolicy, dataSharing, curationTargets) overlay after hashing so bundleHash stays pure-taxonomy. */
 function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: string): RuntimeConfigAuthority {
   const compiled =
     pinnedRevision === V5_TAXONOMY_REVISION
@@ -634,15 +639,85 @@ function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: strin
     );
   }
   let brands = compiled.brands;
+  let modelPolicy = compiled.modelPolicy;
+  let dataSharing = compiled.dataSharing;
+  let curationTargets = compiled.curationTargets;
+
   try {
-    const legacy = loadLegacyV1ConfigForMigration(workspacePath);
-    if (Array.isArray(legacy.brands) && legacy.brands.length > 0) {
-      brands = legacy.brands as typeof compiled.brands;
+    const manifest = readManifest(workspacePath);
+    const version = manifestVersion(manifest.file.value, manifest.file.path);
+    if (version === 1) {
+      const legacy = loadLegacyV1ConfigForMigration(workspacePath);
+      if (Array.isArray(legacy.brands) && legacy.brands.length > 0) {
+        brands = legacy.brands as typeof compiled.brands;
+      }
+      if (legacy.modelPolicy) {
+        const parsed = ModelPolicyConfigV2Schema.safeParse(legacy.modelPolicy);
+        if (parsed.success) modelPolicy = parsed.data;
+      }
+      if (legacy.dataSharing) {
+        const parsed = DataSharingConfigV2Schema.safeParse(legacy.dataSharing);
+        if (parsed.success) dataSharing = parsed.data;
+      }
+      if (Array.isArray(legacy.curationTargets) && legacy.curationTargets.length > 0) {
+        const parsed = z.array(CurationTargetConfigV2Schema).safeParse(legacy.curationTargets);
+        if (parsed.success) curationTargets = parsed.data;
+      }
+    } else if (version === 2) {
+      const dir = manifest.dir;
+      if (fs.existsSync(path.join(dir.path, 'brands.json'))) {
+        try {
+          const raw = readRequiredFile(dir, 'brands.json');
+          const env = BrandsFileV2Schema.safeParse(raw.value);
+          if (env.success && env.data.entries.length > 0) {
+            brands = env.data.entries;
+          } else {
+            const bare = z.array(BrandConfigV2Schema).safeParse(raw.value);
+            if (bare.success && bare.data.length > 0) brands = bare.data;
+          }
+        } catch { /* keep compiled default */ }
+      }
+      if (fs.existsSync(path.join(dir.path, 'model-policies.json'))) {
+        try {
+          const raw = readRequiredFile(dir, 'model-policies.json');
+          const env = ModelPolicyFileV2Schema.safeParse(raw.value);
+          if (env.success) {
+            modelPolicy = env.data.policy;
+          } else {
+            const bare = ModelPolicyConfigV2Schema.safeParse(raw.value);
+            if (bare.success) modelPolicy = bare.data;
+          }
+        } catch { /* keep compiled default */ }
+      }
+      if (fs.existsSync(path.join(dir.path, 'data-sharing.json'))) {
+        try {
+          const raw = readRequiredFile(dir, 'data-sharing.json');
+          const env = DataSharingFileV2Schema.safeParse(raw.value);
+          if (env.success) {
+            dataSharing = env.data.policy;
+          } else {
+            const bare = DataSharingConfigV2Schema.safeParse(raw.value);
+            if (bare.success) dataSharing = bare.data;
+          }
+        } catch { /* keep compiled default */ }
+      }
+      if (fs.existsSync(path.join(dir.path, 'curation-targets.json'))) {
+        try {
+          const raw = readRequiredFile(dir, 'curation-targets.json');
+          const env = CurationTargetsFileV2Schema.safeParse(raw.value);
+          if (env.success && env.data.entries.length > 0) {
+            curationTargets = env.data.entries;
+          } else {
+            const bare = z.array(CurationTargetConfigV2Schema).safeParse(raw.value);
+            if (bare.success && bare.data.length > 0) curationTargets = bare.data;
+          }
+        } catch { /* keep compiled default */ }
+      }
     }
   } catch {
-    // No legacy workspace bundle: keep the empty release brand list.
+    // No legacy workspace bundle or manifest: keep release defaults.
   }
-  return { kind: 'v2', bundle: Object.freeze({ ...compiled, brands }) };
+  return { kind: 'v2', bundle: Object.freeze({ ...compiled, brands, modelPolicy, dataSharing, curationTargets }) };
 }
 
 /** Observe V4 delta when shadow flag is on and pin is not bay-state-v4. Never alters authority; failures swallowed. */

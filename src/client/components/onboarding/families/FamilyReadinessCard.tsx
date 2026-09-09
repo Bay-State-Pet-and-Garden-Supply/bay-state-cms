@@ -74,7 +74,7 @@ export function FamilyReadinessCard({ card, onOpenItem }: FamilyReadinessCardPro
         <div className="fw-progress" aria-hidden="true">
           <div
             className={`fw-progress-fill${card.blocked ? ' fw-progress-fill-blocked' : ''}`}
-            style={{ width: `${progressPct}%` }}
+            style={{ transform: `scaleX(${Math.max(0, Math.min(100, progressPct)) / 100})` }}
           />
         </div>
 

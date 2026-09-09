@@ -152,4 +152,23 @@ describe('buildPerItemPrompt', () => {
     // Should not crash, rendered value is empty string slice
     expect(prompt).toContain('Distributor (p1) Title');
   });
+
+  it('renders packaging OCR species, form, flavor, weight, and size when provided', () => {
+    const prompt = buildPerItemPrompt({
+      name: 'ACME DOG FOOD',
+      brandHint: 'Acme',
+      ocrTitle: 'Acme Grain Free Recipe',
+      ocrSpecies: 'Dog',
+      ocrProductForm: 'Dry Kibble',
+      ocrFlavor: 'Salmon & Sweet Potato',
+      ocrWeight: '12 lb',
+      ocrSize: '12 lb',
+    });
+
+    expect(prompt).toContain('- Packaging OCR Species: "Dog"');
+    expect(prompt).toContain('- Packaging OCR Form: "Dry Kibble"');
+    expect(prompt).toContain('- Packaging OCR Flavor/Variety: "Salmon & Sweet Potato"');
+    expect(prompt).toContain('- Packaging OCR Weight: "12 lb"');
+    expect(prompt).toContain('- Packaging OCR Size: "12 lb"');
+  });
 });

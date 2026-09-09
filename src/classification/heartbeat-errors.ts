@@ -10,8 +10,8 @@
  * so the shared LLM ranker seam (`src/classification/curation-target-ranker.ts`)
  * can rethrow ownership-loss exceptions WITHOUT importing the onboarding
  * module that imports the ranker — a clean, cycle-free import graph:
- * `cohort-curator.ts` imports the class here and re-exports it for existing
- * callers/tests.
+ * cohort execution (`cohort-curation/*`) imports the class here; tests import
+ * it here directly.
  */
 export class HeartbeatLostError extends Error {
   constructor(message: string) {

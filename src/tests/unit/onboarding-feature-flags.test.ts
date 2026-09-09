@@ -1,9 +1,9 @@
 // @vitest-environment node
 // story: e10s02/e10s03/e10s05 — client onboarding feature flags
-// e10s05 restores the epic #46 sibling flags (batchWorkspaceEnabled,
-// pipelineDiagnosticsEnabled) alongside reviewUiV2 and pins the retirement
-// policy: VITE_REVIEW_UI_V2=false ⇒ pre-epic behavior exactly; the Pipeline
-// Board itself stays as a diagnostics surface behind VITE_PIPELINE_DIAGNOSTICS_ENABLED.
+// e10s05 restores the epic #46 sibling flag (batchWorkspaceEnabled)
+// alongside reviewUiV2. Slice 7 removes pipelineDiagnosticsEnabled with the
+// deleted PipelineBoard file: `?board=pipeline` always resolves to the
+// shell with a retirement notice, gated by no flag.
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getOnboardingFeatureFlags,
@@ -26,8 +26,8 @@ describe('onboarding feature flags // e10s02', () => {
     expect(getOnboardingFeatureFlags().batchWorkspaceEnabled).toBe(true);
   });
 
-  it('pipelineDiagnosticsEnabled defaults to true (board stays diagnostics-only)', () => {
-    expect(getOnboardingFeatureFlags().pipelineDiagnosticsEnabled).toBe(true);
+  it('pipelineDiagnosticsEnabled is REMOVED in Slice 7 (board file deleted; ?board=pipeline needs no flag)', () => {
+    expect('pipelineDiagnosticsEnabled' in getOnboardingFeatureFlags()).toBe(false);
   });
 
   it('override wins over env parsing', () => {
@@ -37,18 +37,75 @@ describe('onboarding feature flags // e10s02', () => {
     expect(getOnboardingFeatureFlags().reviewUiV2).toBe(false);
   });
 
+  // Slice 7: unknown/removed flag keys in an override patch are ignored —
+  // overrides are typed, so a stale diagnostics key cannot resurrect a
+  // gate. (Compile-time: `overrideOnboardingFeatureFlags({
+  // pipelineDiagnosticsEnabled: true })` no longer typechecks.)
+
   it('override works per-flag without disturbing siblings // e10s05', () => {
     overrideOnboardingFeatureFlags({ reviewUiV2: true, batchWorkspaceEnabled: false });
     const flags = getOnboardingFeatureFlags();
     expect(flags.reviewUiV2).toBe(true);
     expect(flags.batchWorkspaceEnabled).toBe(false);
-    expect(flags.pipelineDiagnosticsEnabled).toBe(true);
   });
 
   it('reset restores defaults', () => {
     overrideOnboardingFeatureFlags({ reviewUiV2: false });
     resetOnboardingFeatureFlags();
     expect(getOnboardingFeatureFlags().reviewUiV2).toBe(true);
+  });
+
+  // Slice 6 controlled default-on (rollout order: shell first, then brand
+  // gate + strip). UI-only; server behavior uses ONBOARDING_* flags in
+  // src/onboarding/flags.ts, never VITE_*.
+  it('shell/strip/brand flags default ON (Slice 6 controlled default-on)', () => {
+    const flags = getOnboardingFeatureFlags();
+    expect(flags.shellV2Enabled).toBe(true);
+    expect(flags.brandGateV2Enabled).toBe(true);
+    expect(flags.executionStripV2Enabled).toBe(true);
+  });
+
+  it('shellV2 overrides work per-flag without disturbing siblings', () => {
+    overrideOnboardingFeatureFlags({ shellV2Enabled: false });
+    const flags = getOnboardingFeatureFlags();
+    expect(flags.shellV2Enabled).toBe(false);
+    expect(flags.brandGateV2Enabled).toBe(true);
+    expect(flags.executionStripV2Enabled).toBe(true);
+    expect(flags.batchWorkspaceEnabled).toBe(true);
+  });
+
+  // Slice 6: REVIEW_UI_V2 is untouched by this rewrite — shell/brand/strip
+  // overrides must never flip it, and vice versa (override isolation).
+  it('REVIEW_UI_V2 is independent of the shell rollout flags', () => {
+    expect(getOnboardingFeatureFlags().reviewUiV2).toBe(true);
+    overrideOnboardingFeatureFlags({
+      shellV2Enabled: false,
+      brandGateV2Enabled: false,
+      executionStripV2Enabled: false,
+    });
+    expect(getOnboardingFeatureFlags().reviewUiV2).toBe(true);
+    resetOnboardingFeatureFlags();
+    overrideOnboardingFeatureFlags({ reviewUiV2: false });
+    const flags = getOnboardingFeatureFlags();
+    expect(flags.reviewUiV2).toBe(false);
+    expect(flags.shellV2Enabled).toBe(true);
+    expect(flags.brandGateV2Enabled).toBe(true);
+    expect(flags.executionStripV2Enabled).toBe(true);
+  });
+
+  // Slice 7: UI/server separation — client flags carry exactly the five UI
+  // keys (pipelineDiagnosticsEnabled removed with the board file); server
+  // behavior never reads VITE_* (see src/onboarding/flags.ts).
+  it('exposes exactly the UI-only flag keys', () => {
+    expect(Object.keys(getOnboardingFeatureFlags()).sort()).toEqual(
+      [
+        'batchWorkspaceEnabled',
+        'brandGateV2Enabled',
+        'executionStripV2Enabled',
+        'reviewUiV2',
+        'shellV2Enabled',
+      ].sort(),
+    );
   });
 
   // Plan §tests: VITE_REVIEW_UI_V2 parsing incl. kill-switch values.

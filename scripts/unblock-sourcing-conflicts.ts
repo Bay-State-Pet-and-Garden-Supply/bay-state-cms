@@ -26,6 +26,18 @@ async function main() {
   runMigrations();
 
   const db = getDb();
+  // Slice 5a bridge: version-known or refuse-v2 with a clear error.
+  // This script's stage handling is v1-only until the 5b native cutover;
+  // on v1/absent storage the query below is byte-identical.
+  const vocabRow = db.query('SELECT value FROM app_meta WHERE key = ?').get(
+    'onboarding_stage_vocabulary_version',
+  ) as { value: string } | undefined;
+  if (vocabRow && vocabRow.value !== '1') {
+    throw new Error(
+      `[unblock-sourcing-conflicts] Refusing: onboarding_stage_vocabulary_version=${vocabRow.value} ` +
+        `(v1-only script until the 5b native cutover — refusing instead of misreading stages)`,
+    );
+  }
   const blockedItems = db
     .query(
       `SELECT id, batch_id, upc, name, stage, stage_status, sourcing_entry_policy_version
@@ -92,7 +104,7 @@ async function main() {
         target: 'extraction' as const,
       };
 
-      const res = completeSourcingWithDecision(item.id, decision, 'extraction');
+      const res = completeSourcingWithDecision(item.id, decision, 'collect_details');
       if (res.ok) {
         completeSourcingGeneration(generation.id, 'completed');
         // Mark any open conflicts as resolved

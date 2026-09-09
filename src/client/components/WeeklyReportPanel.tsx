@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { getWeeklyReport, type WeeklyReportProductItem } from '../onboarding-api';
+import { toCanonicalStage } from '../../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical promotion check (dual read — either stored spelling). */
+function isPromotedReportItem(item: WeeklyReportProductItem): boolean {
+  if (item.status === 'promoted') return true;
+  try {
+    return toCanonicalStage(item.stage) === 'create_drafts' && item.stageStatus === 'completed';
+  } catch {
+    return false;
+  }
+}
 
 export interface WeeklyReportPanelProps {
   variant?: 'inline' | 'modal';
@@ -128,7 +139,7 @@ export function WeeklyReportPanel({ variant = 'inline', onClose }: WeeklyReportP
   // Filter items based on user selection
   const filteredItems = reportItems.filter(item => {
     if (onlyPromoted) {
-      return item.status === 'promoted' || (item.stage === 'promotion' && item.stageStatus === 'completed');
+      return isPromotedReportItem(item);
     }
     return true;
   });

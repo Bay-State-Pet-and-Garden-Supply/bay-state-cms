@@ -10,9 +10,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { initDb, closeDb } from '../../db/connection';
+import { initDb, closeDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
+import { upsertProviderConnection, upsertWorkloadRoute } from '../../db/repositories/provider-connection-repo';
 import {
   extractPackagingOcr,
   runPackagingOcrAttempt,
@@ -701,5 +702,228 @@ describe('runPackagingOcrAttempt — P2 metadata redaction', () => {
     expect(redacted).not.toContain('Signature=abc');
     // Exact provenance stays recoverable only via the digest.
     expect(meta?.imageSourceDigest).toBe(sha256Hex(rawRef));
+  });
+});
+
+// ─── Cloud VLM endpoints and locality discipline ──────────────────────────────
+
+describe('runPackagingOcrAttempt — cloud VLM endpoints and locality discipline', () => {
+  it('allows cloud VLM endpoint when imageDataSharing is cloud_allowed, passes auth and records cloud locality', async () => {
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-secret-key-12345',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: null,
+      textDataSharing: 'this_device_only',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+
+    const workspaceId = crypto.randomUUID();
+    insertWorkspace({
+      id: workspaceId,
+      name: 'cloud-test-ws',
+      workspacePath: tmpDir,
+      gitPath: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      bootstrapStatus: 'complete',
+      baselineCommit: null,
+    });
+    const candidate = generateCandidate(BayStatePetGardenSeed, HB_EVIDENCE);
+    const bundle = {
+      ...candidate.bundle,
+      modelPolicy: {
+        ...candidate.bundle.modelPolicy,
+        imageDataSharing: 'cloud_allowed' as const,
+        stageOverrides: {
+          evidence_extraction: {
+            provider: 'openai',
+            model: 'gpt-4o',
+            fallbackProvider: null,
+            fallbackModel: null,
+          },
+        },
+      },
+      dataSharing: {
+        ...candidate.bundle.dataSharing,
+        imagePolicy: 'cloud_allowed' as const,
+      },
+    };
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId,
+      workspacePath: tmpDir,
+      productSku: 'SKU-CLOUD-OK',
+      authority: { kind: 'v2' as const, bundle },
+      configSnapshotRef: {
+        id: bundle.manifest.bundleHash,
+        hash: bundle.manifest.bundleHash,
+        sourceCommit: null,
+        createdAt: new Date().toISOString(),
+      },
+      sourceProductHash: '',
+    });
+    const run = createRun(workspaceId, 'SKU-CLOUD-OK', null, null, { sourceKind: 'onboarding' });
+    const modelCall = requireModelCallContext(snapshot, String(run.id), 'evidence_extraction', 1);
+
+    let capturedUrl = '';
+    let capturedAuthHeader = '';
+    const mockTransport = async (url: string | URL | Request, init?: RequestInit) => {
+      capturedUrl = String(url);
+      capturedAuthHeader = (init?.headers as Record<string, string>)?.Authorization || '';
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  productName: 'Cloud Kibble',
+                  species: ['Dog'],
+                  productForm: 'Dry Food',
+                  dietaryLabels: ['Grain-Free'],
+                  confidenceByField: {},
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+
+    const result = await runPackagingOcrAttempt(
+      makeParams({
+        sku: 'SKU-CLOUD-OK',
+        snapshot,
+        modelCall,
+        modelFetchFn: mockTransport,
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(capturedUrl).toContain('https://api.openai.com/v1/chat/completions');
+    expect(capturedAuthHeader).toBe('Bearer sk-test-secret-key-12345');
+
+    if (result.ok) {
+      expect(result.data.productName).toBe('Cloud Kibble');
+      expect(result.data.metadata?.model).toBe('gpt-4o');
+      const db = getDb();
+      const callRow = db
+        .query('SELECT * FROM classification_model_calls WHERE id = ?')
+        .get(result.data.metadata!.modelCallIds![0]) as Record<string, unknown>;
+      expect(callRow.provider).toBe('openai');
+      expect(callRow.model).toBe('gpt-4o');
+      expect(callRow.locality).toBe('cloud');
+      expect(callRow.status).toBe('success');
+    }
+  });
+
+  it('denies cloud VLM endpoint when imageDataSharing is local_only (fail closed)', async () => {
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-secret-key-12345',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: null,
+      textDataSharing: 'this_device_only',
+      imageDataSharing: 'this_device_only',
+      terminalBehavior: 'heuristic',
+    });
+
+    const workspaceId = crypto.randomUUID();
+    insertWorkspace({
+      id: workspaceId,
+      name: 'cloud-test-ws-denied',
+      workspacePath: tmpDir,
+      gitPath: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      bootstrapStatus: 'complete',
+      baselineCommit: null,
+    });
+    const candidate = generateCandidate(BayStatePetGardenSeed, HB_EVIDENCE);
+    const bundle = {
+      ...candidate.bundle,
+      modelPolicy: {
+        ...candidate.bundle.modelPolicy,
+        imageDataSharing: 'local_only' as const,
+        stageOverrides: {
+          evidence_extraction: {
+            provider: 'openai',
+            model: 'gpt-4o',
+            fallbackProvider: null,
+            fallbackModel: null,
+          },
+        },
+      },
+      dataSharing: {
+        ...candidate.bundle.dataSharing,
+        imagePolicy: 'local_only' as const,
+      },
+    };
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId,
+      workspacePath: tmpDir,
+      productSku: 'SKU-CLOUD-DENIED',
+      authority: { kind: 'v2' as const, bundle },
+      configSnapshotRef: {
+        id: bundle.manifest.bundleHash,
+        hash: bundle.manifest.bundleHash,
+        sourceCommit: null,
+        createdAt: new Date().toISOString(),
+      },
+      sourceProductHash: '',
+    });
+    const run = createRun(workspaceId, 'SKU-CLOUD-DENIED', null, null, { sourceKind: 'onboarding' });
+    const modelCall = requireModelCallContext(snapshot, String(run.id), 'evidence_extraction', 1);
+
+    let transportInvoked = false;
+    const mockTransport = async () => {
+      transportInvoked = true;
+      return new Response('{}', { status: 200 });
+    };
+
+    const result = await runPackagingOcrAttempt(
+      makeParams({
+        sku: 'SKU-CLOUD-DENIED',
+        snapshot,
+        modelCall,
+        modelFetchFn: mockTransport,
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(transportInvoked).toBe(false);
+    if (!result.ok) {
+      expect(result.reasonCode).toBe('policy_denied');
+    }
+
+    const db = getDb();
+    const calls = db
+      .query('SELECT * FROM classification_model_calls WHERE run_id = ?')
+      .all(String(run.id)) as Record<string, unknown>[];
+    expect(calls.length).toBe(1);
+    expect(calls[0].status).toBe('policy_denied');
   });
 });

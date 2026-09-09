@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('@/client/onboarding-api', () => ({
   getDistributorConnections: vi.fn(),
   getDistributors: vi.fn(),
   getBrandProfiles: vi.fn(),

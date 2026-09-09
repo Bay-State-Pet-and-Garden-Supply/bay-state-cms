@@ -1426,7 +1426,7 @@ describe('Sourcing full-chain worker → detail → resolve (MC certification 84
       sourceType: 'distributor_record',
       target: 'extraction',
     } as never;
-    const routed = completeSourcingWithDecision(distItem.id, decision, 'extraction');
+    const routed = completeSourcingWithDecision(distItem.id, decision, 'collect_details');
     expect(routed.ok).toBe(true);
     updateItemStageStatus(distItem.id, 'in_progress');
     const materialized = materializeDistributorRecordExtraction(distItem.id, chainWsId);

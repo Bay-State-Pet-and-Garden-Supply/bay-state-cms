@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 
-vi.mock('../../db/repositories/workspace-singleton', () => ({
+vi.mock('@/db/repositories/workspace-singleton', () => ({
   getServerSingletonWorkspace: vi.fn(() => null),
   MultipleWorkspacesError: class MultipleWorkspacesError extends Error {
     workspaces: any[];
@@ -10,7 +10,7 @@ vi.mock('../../db/repositories/workspace-singleton', () => ({
   },
 }));
 
-vi.mock('../../onboarding/brand-hub/brand-strategy-service', () => ({
+vi.mock('@/onboarding/brand-hub/brand-strategy-service', () => ({
   listBrandStrategies: vi.fn(() => [{ brandKey: 'fromm', normalizedBrand: 'fromm', aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory', fallbackTier: [], officialDomains: [], extractorReadiness: 'not_configured', ambiguous: [], unmatched: false, possibleMatches: [] }]),
 }));
 

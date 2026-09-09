@@ -11,9 +11,15 @@ import {
 /**
  * Epic #46 — Work-state tab bar (UX workstream 1).
  *
- * Tab order is fixed: Needs Attention first, then Processing, Waiting on
- * Family, Review, Approved. Badges show live server-derived counts; the
- * Needs Attention badge turns urgent (accent) whenever its count is non-zero.
+ * Slice 7: the permanent secondary operation navigation INSIDE the sole
+ * shell (the linear "Operations — entire batch" nav and nothing else).
+ * The temporary classic work-state-primary branch is removed; this tab bar
+ * is never a root shell and never a competing primary navigation — the six
+ * linear stage tabs (StageNavigation) are primary when the shell v2 flag is
+ * on (default ON). It never mounts or references PipelineBoard: the board
+ * file is deleted in Slice 7 after the Slice 6 zero-mount evidence. Badges
+ * show live server-derived counts; the Needs Attention badge turns urgent
+ * (accent) whenever its count is non-zero.
  */
 
 export interface WorkStateTabsProps {

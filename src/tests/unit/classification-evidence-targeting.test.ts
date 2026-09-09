@@ -297,4 +297,51 @@ describe('evidence-targeting (issue #17 H)', () => {
     });
     expect(packet.context.map(r => r.id)).toEqual(['name1']);
   });
+
+  it('reconciles camelCase attribute IDs to canonical taxonomy IDs (issue #17 H)', () => {
+    const lifeStageOcr = ev({ id: 'ls1', attributeId: 'lifeStage', value: 'Adult' });
+    expect(evidenceMatchesTarget(lifeStageOcr, { attributeId: 'life-stage', sourceField: null })).toBe(true);
+
+    const breedSizeOcr = ev({ id: 'bs1', attributeId: 'breedSize', value: 'Large' });
+    expect(evidenceMatchesTarget(breedSizeOcr, { attributeId: 'breed-size', sourceField: null })).toBe(true);
+
+    const productFormOcr = ev({ id: 'pf1', attributeId: 'productForm', value: 'Dry Kibble' });
+    expect(evidenceMatchesTarget(productFormOcr, { attributeId: 'food-form', sourceField: null })).toBe(true);
+
+    const healthConcernOcr = ev({ id: 'hc1', attributeId: 'healthConcern', value: 'Joint Care' });
+    expect(evidenceMatchesTarget(healthConcernOcr, { attributeId: 'health-benefits', sourceField: null })).toBe(true);
+  });
+
+  it('includes visual context (species, productForm, flavor, visible_text) when includeProductTypeContext is true', () => {
+    const evidence = [
+      ev({ id: 't1', sourceField: 'title', value: 'Nutro Wholesome Essentials' }),
+      ev({ id: 'spec1', attributeId: 'species', sourceField: 'species', value: 'Dog' }),
+      ev({ id: 'form1', attributeId: 'food-form', sourceField: 'productForm', value: 'Dry Kibble' }),
+      ev({ id: 'vis1', sourceField: 'visible_text', value: 'ADULT DOG FOOD' }),
+      ev({ id: 'unrelated', attributeId: 'color', sourceField: 'color', value: 'Red' }),
+    ];
+
+    const standardPacket = buildEvidenceTargetPacket(evidence, {
+      attributeId: null,
+      sourceField: null,
+      selectionMode: 'single',
+      includeProductTypeContext: false,
+    });
+    // Without flag: only title enters context
+    expect(standardPacket.context.map(r => r.id)).toEqual(['t1']);
+
+    const ptPacket = buildEvidenceTargetPacket(evidence, {
+      attributeId: null,
+      sourceField: null,
+      selectionMode: 'single',
+      includeProductTypeContext: true,
+    });
+    // With flag: title, species, productForm, and visible_text enter context; unrelated (color) is excluded
+    expect(ptPacket.context.map(r => r.id)).toEqual(['t1', 'spec1', 'form1', 'vis1']);
+    expect(ptPacket.promptText).toContain('Nutro Wholesome Essentials');
+    expect(ptPacket.promptText).toContain('Dog');
+    expect(ptPacket.promptText).toContain('Dry Kibble');
+    expect(ptPacket.promptText).toContain('ADULT DOG FOOD');
+    expect(ptPacket.promptText).not.toContain('Red');
+  });
 });

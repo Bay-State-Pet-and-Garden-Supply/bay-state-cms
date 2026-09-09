@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-export
-
 import { z } from 'zod';
 import { convertToLbs } from '../weight-converter';
 import { MANUAL_EVIDENCE_FIELD_NAMES } from '../../onboarding/manual-evidence-eligibility';
@@ -112,6 +110,11 @@ export const PackagingOcrDataSchema = z.object({
   productForm: z.string().nullable().default(null),
   healthConcernFunction: z.array(z.string()).default(() => []),
 
+  // Store taxonomy & extra fields (packaging type, fertilizer NPK, guaranteed analysis)
+  packagingType: z.string().nullable().default(null),
+  npkRatio: z.string().nullable().default(null),
+  guaranteedAnalysis: z.record(z.string(), z.string()).default(() => ({})),
+
   // Label / dietary / ingredient data
   dietaryLabels: z.array(z.string()).default(() => []),
   ingredients: z.array(z.string()).default(() => []),
@@ -201,6 +204,26 @@ export const ManualEvidenceAttestationSchema = z.object({
 export type ManualEvidenceAttestation = z.infer<typeof ManualEvidenceAttestationSchema>;
 
 export const PipelineStageEnum = z.enum([
+  'route_sources',
+  'find_product_page',
+  'collect_details',
+  'prepare_listing',
+  'review_listings',
+  'create_drafts',
+]);
+
+export type PipelineStage = z.infer<typeof PipelineStageEnum>;
+
+/**
+ * Slice 5b native cutover (D1 machine rename) — `PipelineStageEnum` is now
+ * the canonical v2 runtime enum (same order/positions as v1). Storage may
+ * still hold v1 literals until the separately authorized activation; every
+ * repository boundary reads through the storage adapter (`toCanonicalStored`)
+ * and writes through the per-transaction storage encoder (`encodeForStorage`).
+ * Transport defaults to legacy v1 at the version-aware boundary
+ * (`src/server/onboarding-stage-api.ts`); v1 request/receipt bytes preserved.
+ */
+export const LegacyPipelineStageEnum = z.enum([
   'sourcing',
   'discovery',
   'extraction',
@@ -208,8 +231,7 @@ export const PipelineStageEnum = z.enum([
   'review',
   'promotion',
 ]);
-
-export type PipelineStage = z.infer<typeof PipelineStageEnum>;
+export type LegacyPipelineStage = z.infer<typeof LegacyPipelineStageEnum>;
 
 // ─── Extraction Data (structured product output) ────────────────────────────────
 
@@ -773,7 +795,7 @@ export const ManualEvidenceAttestationInputSchema = z
     notes: z.string().max(2000).nullable().default(null),
   })
   .strict();
-export type ManualEvidenceAttestationInput = z.infer<typeof ManualEvidenceAttestationInputSchema>;
+export type ManualEvidenceAttestationSchemaType = z.infer<typeof ManualEvidenceAttestationInputSchema>;
 
 /** Per-image rights approval for one operator-supplied manual image. */
 export const ManualEvidenceImageApprovalInputSchema = z
@@ -1281,8 +1303,15 @@ export const OnboardingItemSchema = z.object({
   acceptedEvidenceAttemptId: z.string().nullable().default(null),
   /** The auto-routing decision from Sourcing evaluation. Legacy writer shape, or the strict V2 shape (Amendment A) once written. */
   sourcingDecision: z.union([SourcingDecisionSchema, SourcingDecisionV2Schema]).nullable().default(null),
-  /** Current pipeline stage for this item. */
-  stage: PipelineStageEnum,
+  /**
+   * Current pipeline stage for this item. Slice 5b native: hydrated rows
+   * preserve the STORED spelling (v1 until the separately authorized
+   * storage activation), so the row schema accepts either spelling.
+   * Canonical v2 is the runtime authority; compare/branch only through
+   * the canonical vocabulary helpers, and serialize per wire version at
+   * the transport boundary. Unknown literals fail closed (never coerce).
+   */
+  stage: z.union([PipelineStageEnum, LegacyPipelineStageEnum]),
   /** Status within the current stage. */
   stageStatus: StageStatusEnum,
   /** Preflight / controlled release hold flag: 1 when held from worker processing. */
@@ -2178,90 +2207,21 @@ export const ProfileBlockedItemSchema = z.object({
 });
 export type ProfileBlockedItem = z.infer<typeof ProfileBlockedItemSchema>;
 
-// ─── Batch Preflight & Controlled Release ─────────────────────────────────────
+// ─── Missing-brand groups (attention queue) ───────────────────────────────────
 
-export const PreflightSampleProductSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  upc: z.string().nullable().optional(),
-  sku: z.string().nullable().optional(),
-});
-export type PreflightSampleProduct = z.infer<typeof PreflightSampleProductSchema>;
-
-export const PreflightBrandGroupSchema = z.object({
+export const MissingBrandGroupSchema = z.object({
   key: z.string(),
   suggestedBrand: z.string().nullable(),
   itemCount: z.number().int(),
   itemIds: z.array(z.string()),
   sampleProductNames: z.array(z.string()),
-  sampleProducts: z.array(PreflightSampleProductSchema).optional(),
 });
-export type PreflightBrandGroup = z.infer<typeof PreflightBrandGroupSchema>;
+export type MissingBrandGroup = z.infer<typeof MissingBrandGroupSchema>;
 
-export const PreflightDomainBlockerSchema = z.object({
-  brand: z.string(),
-  itemCount: z.number().int(),
-  itemIds: z.array(z.string()),
-  urlPattern: z.string().nullable().optional(),
-  sampleProductNames: z.array(z.string()).optional(),
-  sampleProducts: z.array(PreflightSampleProductSchema).optional(),
-});
-export type PreflightDomainBlocker = z.infer<typeof PreflightDomainBlockerSchema>;
-
-export const PreflightRoutingBlockerSchema = z.object({
-  brand: z.string(),
-  itemCount: z.number().int(),
-  itemIds: z.array(z.string()),
-  preferredDistributorIds: z.array(z.string()).default(() => []),
-  sourcingPolicy: z.enum(['advisory', 'preferred_then_fallback', 'preferred_only']).default('preferred_then_fallback'),
-  sampleProductNames: z.array(z.string()).optional(),
-  sampleProducts: z.array(PreflightSampleProductSchema).optional(),
-});
-export type PreflightRoutingBlocker = z.infer<typeof PreflightRoutingBlockerSchema>;
-
-export const BatchPreflightMetricsSchema = z.object({
-  brandResolvedCount: z.number().int(),
-  brandResolvedPercent: z.number(),
-  ambiguousBrandCount: z.number().int(),
-  missingBrandCount: z.number().int(),
-  domainMappedCount: z.number().int(),
-  domainMappedPercent: z.number(),
-  missingDomainBrandCount: z.number().int(),
-  distributorRoutedCount: z.number().int(),
-  distributorRoutedPercent: z.number(),
-  unroutedBrandCount: z.number().int(),
-});
-export type BatchPreflightMetrics = z.infer<typeof BatchPreflightMetricsSchema>;
-
-export const BatchPreflightBlockersSchema = z.object({
-  needsBrandGroups: z.array(PreflightBrandGroupSchema),
-  missingDomainBrands: z.array(PreflightDomainBlockerSchema),
-  unroutedBrands: z.array(PreflightRoutingBlockerSchema),
-});
-export type BatchPreflightBlockers = z.infer<typeof BatchPreflightBlockersSchema>;
-
-export const PreflightAvailableDistributorSchema = z.object({
-  id: z.string(),
-  distributorId: z.string(),
-  connectorType: z.string(),
-  enabled: z.boolean(),
-});
-export type PreflightAvailableDistributor = z.infer<typeof PreflightAvailableDistributorSchema>;
-
-export const BatchPreflightResponseSchema = z.object({
+export const MissingBrandGroupsResponseSchema = z.object({
   batchId: z.string(),
-  batchName: z.string(),
-  executionState: BatchExecutionStateEnum,
-  totalItems: z.number().int(),
-  readyCount: z.number().int(),
-  heldCount: z.number().int(),
-  readyItemIds: z.array(z.string()),
-  heldItemIds: z.array(z.string()),
-  metrics: BatchPreflightMetricsSchema,
-  blockers: BatchPreflightBlockersSchema,
-  availableDistributors: z.array(PreflightAvailableDistributorSchema),
-  knownBrands: z.array(z.string()).optional(),
+  groups: z.array(MissingBrandGroupSchema),
 });
-export type BatchPreflightResponse = z.infer<typeof BatchPreflightResponseSchema>;
+export type MissingBrandGroupsResponse = z.infer<typeof MissingBrandGroupsResponseSchema>;
 
 export { SourcingPolicyEnum, type SourcingPolicy } from './distributor';

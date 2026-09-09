@@ -510,52 +510,104 @@ export function normalizePageAssignments(
   // 4. Cross-species safety
   // Determine the primary species from evidence
   const speciesLower = species.map(s => s.toLowerCase());
-  const hasDog = speciesLower.some(s => s.includes('dog'));
-  const hasCat = speciesLower.some(s => s.includes('cat'));
-  const hasFish = speciesLower.some(s => s.includes('fish'));
-  const hasBird = speciesLower.some(s => s.includes('bird'));
+  const hasDog = speciesLower.some(s => s.includes('dog') || s.includes('canine'));
+  const hasCat = speciesLower.some(s => s.includes('cat') || s.includes('feline'));
+  const hasFish = speciesLower.some(s => s.includes('fish') || s.includes('aquatic'));
+  const hasBird = speciesLower.some(s => s.includes('bird') || s.includes('avian'));
+  const hasHorse = speciesLower.some(s => s.includes('horse') || s.includes('equine'));
+  const hasPoultry = speciesLower.some(s => s.includes('poultry') || s.includes('chicken') || s.includes('fowl'));
+  const hasLivestock = speciesLower.some(s => s.includes('livestock') || s.includes('cattle') || s.includes('swine') || s.includes('goat') || s.includes('sheep'));
 
   if (hasDog && !hasCat) {
     result = result.filter(p => {
       const name = p.pageName.toLowerCase();
-      // Remove pages that are explicitly cat/small-animal/fish/reptile/bird
-      // but keep "Cat" inside words like "Category" or multi-species pages
-      // Check for word-boundary species tokens
-      if (/\bcat\b/.test(name) && !/\bdog\b/.test(name)) return false;
-      if (/\bfish\b/.test(name) && !/\bdog\b/.test(name)) return false;
-      if (/\bbird\b/.test(name) && !/\bdog\b/.test(name)) return false;
-      if (/\bsmall animal\b/.test(name) && !/\bdog\b/.test(name)) return false;
-      if (/\breptile\b/.test(name) && !/\bdog\b/.test(name)) return false;
+      // Keep if the page explicitly mentions dog
+      if (/\bdog\b/.test(name)) return true;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      if (/\b(horse|equine)\b/.test(name)) return false;
+      if (/\b(poultry|chicken feed|chicken coop)\b/.test(name)) return false;
+      if (/\blivestock\b/.test(name)) return false;
       return true;
     });
   } else if (hasCat && !hasDog) {
     result = result.filter(p => {
       const name = p.pageName.toLowerCase();
-      if (/\bdog\b/.test(name) && !/\bcat\b/.test(name)) return false;
-      if (/\bfish\b/.test(name) && !/\bcat\b/.test(name)) return false;
-      if (/\bbird\b/.test(name) && !/\bcat\b/.test(name)) return false;
-      if (/\bsmall animal\b/.test(name) && !/\bcat\b/.test(name)) return false;
-      if (/\breptile\b/.test(name) && !/\bcat\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      if (/\b(horse|equine)\b/.test(name)) return false;
+      if (/\b(poultry|chicken feed|chicken coop)\b/.test(name)) return false;
+      if (/\blivestock\b/.test(name)) return false;
+      return true;
+    });
+  } else if (hasHorse && !hasDog && !hasCat) {
+    result = result.filter(p => {
+      const name = p.pageName.toLowerCase();
+      if (/\b(horse|equine)\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      return true;
+    });
+  } else if (hasPoultry && !hasDog && !hasCat) {
+    result = result.filter(p => {
+      const name = p.pageName.toLowerCase();
+      if (/\b(poultry|chicken feed|chicken coop)\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\b(horse|equine)\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      return true;
+    });
+  } else if (hasLivestock && !hasDog && !hasCat) {
+    result = result.filter(p => {
+      const name = p.pageName.toLowerCase();
+      if (/\blivestock\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
       return true;
     });
   } else if (hasFish && !hasDog && !hasCat) {
     result = result.filter(p => {
       const name = p.pageName.toLowerCase();
-      if (/\bdog\b/.test(name) && !/\bfish\b/.test(name)) return false;
-      if (/\bcat\b/.test(name) && !/\bfish\b/.test(name)) return false;
-      if (/\bbird\b/.test(name) && !/\bfish\b/.test(name)) return false;
-      if (/\bsmall animal\b/.test(name) && !/\bfish\b/.test(name)) return false;
-      if (/\breptile\b/.test(name) && !/\bfish\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      if (/\b(horse|equine)\b/.test(name)) return false;
+      if (/\b(poultry|chicken feed|chicken coop)\b/.test(name)) return false;
+      if (/\blivestock\b/.test(name)) return false;
       return true;
     });
   } else if (hasBird && !hasDog && !hasCat) {
     result = result.filter(p => {
       const name = p.pageName.toLowerCase();
-      if (/\bdog\b/.test(name) && !/\bbird\b/.test(name)) return false;
-      if (/\bcat\b/.test(name) && !/\bbird\b/.test(name)) return false;
-      if (/\bfish\b/.test(name) && !/\bbird\b/.test(name)) return false;
-      if (/\bsmall animal\b/.test(name) && !/\bbird\b/.test(name)) return false;
-      if (/\breptile\b/.test(name) && !/\bbird\b/.test(name)) return false;
+      if (/\bbird\b/.test(name)) return true;
+      if (/\bdog\b/.test(name)) return false;
+      if (/\bcat\b/.test(name)) return false;
+      if (/\bfish\b/.test(name)) return false;
+      if (/\bsmall animal\b/.test(name)) return false;
+      if (/\breptile\b/.test(name)) return false;
+      if (/\b(horse|equine)\b/.test(name)) return false;
+      if (/\blivestock\b/.test(name)) return false;
       return true;
     });
   }

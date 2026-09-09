@@ -203,7 +203,8 @@ function collectCurationStalled(workspaceId: string, ctx: InboxCollectorContext)
   const maxRefs = ctx.maxSourceRefs ?? 50;
   const candidates: InboxCandidate[] = [];
   for (const batch of listBatches(workspaceId)) {
-    const curationItems = listItemsByBatchStaged(batch.id).curation;
+    // Slice 5b native: staged grouping is canonical v2-keyed.
+    const curationItems = listItemsByBatchStaged(batch.id).prepare_listing;
     const stale = curationItems.filter(
       (item) =>
         (item.stageStatus === 'in_progress' || item.stageStatus === 'failed') &&

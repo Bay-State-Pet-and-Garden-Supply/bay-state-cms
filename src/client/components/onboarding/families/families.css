@@ -82,9 +82,11 @@
 
 .fw-progress-fill {
   height: 100%;
+  width: 100%;
   background-color: var(--color-seedling-green);
   border-radius: var(--rounded-full);
-  transition: width var(--transition-normal);
+  transform-origin: left center;
+  transition: transform var(--transition-normal);
 }
 
 .fw-progress-fill-blocked {

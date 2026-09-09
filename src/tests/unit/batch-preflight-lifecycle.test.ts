@@ -9,22 +9,15 @@ import {
 } from '../../db/repositories/onboarding-batch-repo';
 import {
   insertItems,
+  findItemById,
   claimItemsForProcessing,
   releaseBatchItems,
   holdBatchItems,
   bulkAssignBrandToItems,
-  findItemById,
 } from '../../db/repositories/onboarding-item-repo';
-import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
-import {
-  createDistributor,
-  createConnection,
-  updateConnection,
-  upsertBrandAdvisoryProfile,
-} from '../../db/repositories/distributor-repo';
-import { analyzeBatchPreflight } from '../../onboarding/preflight-service';
+import { partitionBatchByBrand, buildMissingBrandGroups } from '../../onboarding/batch-release';
 
-describe('Batch Preflight & Controlled Release Lifecycle', () => {
+describe('Batch Start & Controlled Release Lifecycle', () => {
   const workspaceId = 'ws-preflight-test';
 
   beforeEach(() => {
@@ -113,26 +106,7 @@ describe('Batch Preflight & Controlled Release Lifecycle', () => {
     expect(claimedAfterRelease[0].upc).toBe('022222222222');
   });
 
-  it('analyzes preflight metrics and structures grouped exceptions', () => {
-    // 1. Setup brand sites and distributor connections
-    upsertBrandSite('ACANA', 'acana.com');
-    createDistributor({ id: 'dist_phillips', name: 'Phillips Pet Food' });
-    const conn = createConnection({
-      id: 'conn_phillips',
-      workspaceId,
-      distributorId: 'dist_phillips',
-      connectorType: 'api',
-      configuration: {},
-    });
-    updateConnection(conn.id, workspaceId, { enabled: true });
-
-    upsertBrandAdvisoryProfile({
-      workspaceId,
-      brand: 'ACANA',
-      preferredDistributorIds: ['dist_phillips'],
-      sourcingPolicy: 'preferred_then_fallback',
-    });
-
+  it('partitions ready/held by brand presence and groups missing brands for assignment', () => {
     const batch = createBatch({
       workspaceId,
       name: 'Mixed Readiness Batch',
@@ -144,49 +118,122 @@ describe('Batch Preflight & Controlled Release Lifecycle', () => {
       batch.id,
       [
         { upc: '111111111111', name: 'Acana Singles Lamb 25lb', brandHint: 'ACANA', rowNumber: 1 },
-        { upc: '222222222222', name: 'CustomBrandX Chew Stick', brandHint: 'CustomBrandX', rowNumber: 2 }, // has brand, missing domain & routing
-        { upc: '333333333333', name: 'Fromm Four-Star Duck 15lb', brandHint: null, rowNumber: 3 }, // missing brand, suggest Fromm
-        { upc: '444444444444', name: 'Fromm Four-Star Salmon 15lb', brandHint: null, rowNumber: 4 }, // missing brand, suggest Fromm
+        { upc: '222222222222', name: 'CustomBrandX Chew Stick', brandHint: 'CustomBrandX', rowNumber: 2 },
+        { upc: '333333333333', name: 'Fromm Four-Star Duck 15lb', brandHint: null, rowNumber: 3 },
+        { upc: '444444444444', name: 'Fromm Four-Star Salmon 15lb', brandHint: null, rowNumber: 4 },
       ],
       'sourcing',
       1,
     );
 
-    const preflight = analyzeBatchPreflight(workspaceId, batch.id);
+    // Ready = non-empty trimmed brandHint (no distributor exemption).
+    const { readyItemIds, heldItemIds } = partitionBatchByBrand(batch.id);
+    expect(readyItemIds).toEqual([inserted[0].id, inserted[1].id]);
+    expect(heldItemIds).toEqual([inserted[2].id, inserted[3].id]);
 
-    expect(preflight.totalItems).toBe(4);
-    expect(preflight.readyCount).toBe(2); // ACANA & CustomBrandX have brands
-    expect(preflight.heldCount).toBe(2); // 2 Fromm items missing brand
+    // Missing-brand groups cluster the held items with a suggestion.
+    const groups = buildMissingBrandGroups(batch.id);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].suggestedBrand?.toLowerCase()).toBe('fromm');
+    expect(groups[0].itemCount).toBe(2);
+    expect(groups[0].itemIds).toEqual([inserted[2].id, inserted[3].id]);
 
-    // Metrics verification
-    expect(preflight.metrics.brandResolvedCount).toBe(2);
-    expect(preflight.metrics.brandResolvedPercent).toBe(50);
-    expect(preflight.metrics.domainMappedCount).toBe(1); // Only ACANA has domain
-    expect(preflight.metrics.missingDomainBrandCount).toBe(1); // CustomBrandX is missing domain
-    expect(preflight.metrics.distributorRoutedCount).toBe(1); // Only ACANA is routed
-    expect(preflight.metrics.unroutedBrandCount).toBe(1); // CustomBrandX is unrouted
+    // Bulk assign brand to the Fromm group resolves the partition.
+    bulkAssignBrandToItems(batch.id, groups[0].itemIds, 'Fromm Family');
+    const updated = partitionBatchByBrand(batch.id);
+    expect(updated.readyItemIds).toHaveLength(4);
+    expect(updated.heldItemIds).toHaveLength(0);
+    expect(buildMissingBrandGroups(batch.id)).toHaveLength(0);
+  });
 
-    // Blockers verification
-    expect(preflight.blockers.needsBrandGroups).toHaveLength(1);
-    expect(preflight.blockers.needsBrandGroups[0].suggestedBrand?.toLowerCase()).toBe('fromm');
-    expect(preflight.blockers.needsBrandGroups[0].itemCount).toBe(2);
-    expect(preflight.blockers.needsBrandGroups[0].itemIds).toEqual([inserted[2].id, inserted[3].id]);
+  it('treats empty/whitespace brand hints as held', () => {
+    const batch = createBatch({
+      workspaceId,
+      name: 'Whitespace Batch',
+      fileName: 'ws.csv',
+      totalItems: 5,
+    });
 
-    expect(preflight.blockers.missingDomainBrands).toHaveLength(1);
-    expect(preflight.blockers.missingDomainBrands[0].brand).toBe('CustomBrandX');
+    const inserted = insertItems(
+      batch.id,
+      [
+        { upc: '511111111111', name: 'Blank One', brandHint: '', rowNumber: 1 },
+        { upc: '522222222222', name: 'Blank Two', brandHint: '   ', rowNumber: 2 },
+        { upc: '533333333333', name: 'Blank Three', brandHint: '\t', rowNumber: 3 },
+        { upc: '544444444444', name: 'Blank Four', brandHint: null, rowNumber: 4 },
+        { upc: '555555555555', name: 'Padded Brand', brandHint: '  Acana  ', rowNumber: 5 },
+      ],
+      'sourcing',
+      1,
+    );
 
-    expect(preflight.blockers.unroutedBrands).toHaveLength(1);
-    expect(preflight.blockers.unroutedBrands[0].brand).toBe('CustomBrandX');
+    const { readyItemIds, heldItemIds } = partitionBatchByBrand(batch.id);
+    expect(readyItemIds).toEqual([inserted[4].id]);
+    expect(heldItemIds).toEqual([inserted[0].id, inserted[1].id, inserted[2].id, inserted[3].id]);
+  });
 
-    // Bulk assign brand to Fromm group
-    const frommItemIds = preflight.blockers.needsBrandGroups[0].itemIds;
-    bulkAssignBrandToItems(batch.id, frommItemIds, 'Fromm Family');
+  it('does not exempt brandless distributor_record items from the hold partition', () => {
+    const batch = createBatch({
+      workspaceId,
+      name: 'Distributor Batch',
+      fileName: 'dist.csv',
+      totalItems: 1,
+    });
 
-    // Re-analyze preflight after brand assignment
-    const updatedPreflight = analyzeBatchPreflight(workspaceId, batch.id);
-    expect(updatedPreflight.readyCount).toBe(4);
-    expect(updatedPreflight.heldCount).toBe(0);
-    expect(updatedPreflight.blockers.needsBrandGroups).toHaveLength(0);
-    expect(updatedPreflight.metrics.brandResolvedCount).toBe(4);
+    const [item] = insertItems(
+      batch.id,
+      [{ upc: '611111111111', name: 'Distributor Kibble 5lb', brandHint: null, rowNumber: 1 }],
+      'sourcing',
+      1,
+    );
+    // insertItems hardcodes official_page; flip the row to a
+    // distributor record directly — release still requires a brand.
+    getDb().run(`UPDATE onboarding_items SET source_type = 'distributor_record' WHERE id = ?`, [item.id]);
+    expect(findItemById(item.id)?.sourceType).toBe('distributor_record');
+
+    const { readyItemIds, heldItemIds } = partitionBatchByBrand(batch.id);
+    expect(readyItemIds).toHaveLength(0);
+    expect(heldItemIds).toEqual([item.id]);
+  });
+
+  it('release-all clears every hold; pause/resume preserve holds; draft brand edits keep draft', () => {
+    const batch = createBatch({
+      workspaceId,
+      name: 'Hold Lifecycle Batch',
+      fileName: 'holds.csv',
+      totalItems: 3,
+      executionState: 'draft',
+    });
+    expect(findBatchById(batch.id)?.executionState).toBe('draft');
+
+    const items = insertItems(
+      batch.id,
+      [
+        { upc: '711111111111', name: 'Branded One', brandHint: 'ACANA', rowNumber: 1 },
+        { upc: '722222222222', name: 'Unbranded Two', brandHint: null, rowNumber: 2 },
+        { upc: '733333333333', name: 'Unbranded Three', brandHint: null, rowNumber: 3 },
+      ],
+      'sourcing',
+      1,
+    );
+    holdBatchItems(batch.id, [items[1].id, items[2].id], 'unresolved_brand');
+
+    // Brand edits while draft do not flip execution state.
+    bulkAssignBrandToItems(batch.id, [items[1].id], 'Fromm');
+    releaseBatchItems(batch.id, [items[1].id]);
+    expect(findBatchById(batch.id)?.executionState).toBe('draft');
+    expect(findItemById(items[1].id)?.isHeld).toBe(false);
+
+    // Pause/resume only flip execution state; holds survive both.
+    updateBatchExecutionState(batch.id, 'paused');
+    expect(findItemById(items[2].id)?.isHeld).toBe(true);
+    expect(findItemById(items[2].id)?.heldReason).toBe('unresolved_brand');
+    updateBatchExecutionState(batch.id, 'running');
+    expect(findItemById(items[2].id)?.isHeld).toBe(true);
+
+    // Release-all with no id list clears every remaining hold.
+    releaseBatchItems(batch.id);
+    expect(findItemById(items[2].id)?.isHeld).toBe(false);
+    expect(findItemById(items[2].id)?.heldReason).toBeNull();
   });
 });

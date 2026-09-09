@@ -13,13 +13,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../classification/curation-target-ranker', () => ({
+vi.mock('@/classification/curation-target-ranker', () => ({
   llmRankOptions: vi.fn(),
 }));
 
 // Mirror curation-target-processor.test.ts's mock set so bun:sqlite
 // transitive dependencies never load.
-vi.mock('../../classification/config-loader', () => ({
+vi.mock('@/classification/config-loader', () => ({
   loadClassificationConfig: vi.fn(() => ({
     curationTargets: [],
     productTypes: [],
@@ -27,21 +27,21 @@ vi.mock('../../classification/config-loader', () => ({
   })),
 }));
 
-vi.mock('../../classification/curation-target-resolver', () => ({
+vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
 }));
 
-vi.mock('../../classification/cohort-page-coordinator', () => ({
+vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: vi.fn(),
 }));
 
-vi.mock('../../classification/page-assignment-llm', () => ({
+vi.mock('@/classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn(),
   extractProductContext: vi.fn(),
   llmAssignCategoryPages: vi.fn(),
 }));
 
-vi.mock('../../classification/evidence-targeting', () => ({
+vi.mock('@/classification/evidence-targeting', () => ({
   buildEvidenceTargetPacket: vi.fn(() => ({
     promptText: 'Premium chicken recipe for adult dogs. Complete and balanced nutrition.',
     evidenceIds: ['ev-1'],
@@ -54,8 +54,8 @@ vi.mock('../../classification/evidence-targeting', () => ({
   tokenGroundingSupport: vi.fn(() => false),
 }));
 
-vi.mock('../../classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
-vi.mock('../../onboarding/model-policy-snapshot', () => ({ modelPolicyViewFromConfig: vi.fn(() => null) }));
+vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('@/onboarding/model-policy-snapshot', () => ({ modelPolicyViewFromConfig: vi.fn(() => null) }));
 
 import { processProductTypeTarget } from '../../classification/curation-target-processor';
 import { llmRankOptions } from '../../classification/curation-target-ranker';

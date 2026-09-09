@@ -1247,4 +1247,68 @@ describe('nameConsolidationStage — color guarantee', () => {
     // Fallback: brand → color → size, each guarantee in order (size final).
     expect(result.output.metadata?.curatedTitle).toBe('Acme Widget Red 5 lb');
   });
+
+  it('passes packaging OCR flavor, species, and productForm to consolidateProductTitle', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({
+      title: 'Acme Wild Prairie Dog Food Chicken & Rice 5 lb',
+      source: 'llm',
+    });
+
+    const evidence: ClassificationEvidence[] = [
+      makeEvidence({
+        source: 'spreadsheet',
+        sourceField: 'brand',
+        value: 'Acme',
+      }),
+      makeEvidence({
+        source: 'spreadsheet',
+        sourceField: 'name',
+        value: 'ACME WP DOG CHKN 5#',
+      }),
+      makeEvidence({
+        source: 'visual_product_evidence',
+        sourceField: 'name',
+        value: 'Acme Wild Prairie Dog Food',
+      }),
+      makeEvidence({
+        source: 'visual_product_evidence',
+        sourceField: 'flavor',
+        value: 'Chicken & Rice',
+      }),
+      makeEvidence({
+        source: 'visual_product_evidence',
+        sourceField: 'species',
+        value: 'Dog',
+      }),
+      makeEvidence({
+        source: 'visual_product_evidence',
+        sourceField: 'productForm',
+        value: 'Dry Kibble',
+      }),
+      makeEvidence({
+        source: 'visual_product_evidence',
+        sourceField: 'weight',
+        value: '5 lb',
+      }),
+    ];
+
+    const result = await nameConsolidationStage.execute(
+      makeInput({ evidence }),
+      makeContext(),
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(consolidateProductTitle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'ACME WP DOG CHKN 5#',
+        ocrTitle: 'Acme Wild Prairie Dog Food',
+        ocrFlavor: 'Chicken & Rice',
+        ocrSpecies: 'Dog',
+        ocrProductForm: 'Dry Kibble',
+        ocrWeight: '5 lb',
+      }),
+      null,
+      undefined,
+    );
+  });
 });

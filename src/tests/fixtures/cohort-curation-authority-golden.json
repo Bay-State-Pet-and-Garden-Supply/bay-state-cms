@@ -1,0 +1,160 @@
+{
+  "$comment": "Slice 0 baseline golden \u2014 literal outputs from unmodified implementation. Do NOT regenerate expected hashes from a changed implementation; stop on mismatch.",
+  "baseline": {
+    "gitHEAD": "b1782f5ff1d00d39adbe22a8ec21ab7b82fd44d7",
+    "bun": "1.3.5",
+    "generatedAt": "2026-09-08",
+    "suites": {
+      "cohort-freeze.test.ts": {
+        "pass": 49,
+        "fail": 0,
+        "exit": 0
+      },
+      "cohort-worker.test.ts": {
+        "pass": 53,
+        "fail": 0,
+        "exit": 0
+      },
+      "cohort-title-hash.test.ts": {
+        "pass": 51,
+        "fail": 0,
+        "exit": 0
+      },
+      "cohort-page-hash.test.ts": {
+        "pass": 44,
+        "fail": 0,
+        "exit": 0
+      }
+    }
+  },
+  "cases": {
+    "synthetic-two-member-official-page": {
+      "generatedBy": "slice0-baseline",
+      "implementationHashes": {
+        "src/onboarding/cohort-title-hash.ts": "1707317d7fc8d4bc205ad2429253d909f0826451c56c9c0c74a41a486e10392d",
+        "src/onboarding/cohort-page-hash.ts": "47810346b9a1f076514d9b6a6a33b528d17bcdfaaff77667a992af4c886139a4"
+      },
+      "inputs": {
+        "run": {
+          "id": "run-slice0",
+          "workspaceId": "ws-slice0",
+          "cohortId": "cohort-slice0",
+          "candidateMembershipHash": "candidate-membership-slice0",
+          "finalMembershipHash": "final-membership-slice0",
+          "executionProductTypeId": "type-1",
+          "productTypeConfidence": 0.9,
+          "productTypeOutcome": "coherent"
+        },
+        "projection": {
+          "version": "execution-evidence-v1",
+          "members": [
+            {
+              "onboardingItemId": "item-1",
+              "ordinal": 0,
+              "productSku": "SKU-1",
+              "extractionComplete": true,
+              "sourceUrl": "https://brand.example/p1",
+              "extractionSourceUrl": "https://brand.example/p1",
+              "sourcingDecision": null,
+              "spreadsheetIdentity": {
+                "name": "RAW CHKN 5LB",
+                "expectedName": "Chicken 5 lb",
+                "brandHint": "PawCo",
+                "departmentHint": "Food",
+                "price": "19.99",
+                "quantity": 1,
+                "rowNumber": 2,
+                "upc": "SKU-1"
+              },
+              "extraction": {
+                "title": "PawCo Chicken Recipe 5 lb",
+                "description": "desc",
+                "brand": "PawCo",
+                "weight": "5 lb",
+                "bulletPoints": [],
+                "searchKeywords": "chicken",
+                "primaryImage": null,
+                "additionalImages": [],
+                "customFields": {},
+                "fieldProvenance": {},
+                "manualEvidenceAttestationId": null,
+                "manualReferenceUrl": null,
+                "packagingTitle": "PawCo Chicken 5 lb Pouch",
+                "ocr": {
+                  "outcome": null,
+                  "packagingOcrData": null,
+                  "ocrInputHash": "ocr-input-hash-1",
+                  "ocrExecutionDigest": "ocr-exec-digest-1"
+                },
+                "piEvidence": [],
+                "piImportComplete": true
+              },
+              "evidenceHash": "member-evidence-hash-0"
+            },
+            {
+              "onboardingItemId": "item-2",
+              "ordinal": 1,
+              "productSku": "SKU-2",
+              "extractionComplete": true,
+              "sourceUrl": "https://brand.example/p1",
+              "extractionSourceUrl": "https://brand.example/p1",
+              "sourcingDecision": null,
+              "spreadsheetIdentity": {
+                "name": "RAW CHKN 5LB",
+                "expectedName": "Chicken 5 lb",
+                "brandHint": "PawCo",
+                "departmentHint": "Food",
+                "price": "19.99",
+                "quantity": 1,
+                "rowNumber": 2,
+                "upc": "SKU-2"
+              },
+              "extraction": {
+                "title": "PawCo Chicken Recipe 5 lb",
+                "description": "desc",
+                "brand": "PawCo",
+                "weight": "5 lb",
+                "bulletPoints": [],
+                "searchKeywords": "chicken",
+                "primaryImage": null,
+                "additionalImages": [],
+                "customFields": {},
+                "fieldProvenance": {},
+                "manualEvidenceAttestationId": null,
+                "manualReferenceUrl": null,
+                "packagingTitle": "PawCo Chicken 5 lb Pouch",
+                "ocr": {
+                  "outcome": null,
+                  "packagingOcrData": null,
+                  "ocrInputHash": "ocr-input-hash-1",
+                  "ocrExecutionDigest": "ocr-exec-digest-1"
+                },
+                "piEvidence": [],
+                "piImportComplete": true
+              },
+              "evidenceHash": "member-evidence-hash-1"
+            }
+          ]
+        },
+        "pagePlan": {
+          "pages": [
+            {
+              "id": "page-1",
+              "name": "Dog Food",
+              "parentName": null
+            }
+          ],
+          "selectionMode": "single",
+          "maxPages": 1
+        }
+      },
+      "expected": {
+        "titleHashV2": "ab4245439963a0717f2456df2845caf8aa2b4b64f6a9b6016ed1cf71bf6a4685",
+        "pageHashV1": "819a7c499b045348569b9574f05baa1c237a76e26d10c2fded7d1c78dcea63dc",
+        "extractionHashH2": "cc94ea34ab319c2f16cf596465950d1a4ce37d4bde4a1471755c2cf70696c600",
+        "membershipHash": "4a0afc558f4049000a6eedb03d4dbc988810ade52d849318f194f38e8985a4f9"
+      },
+      "canonicalDraftContract": "PR8 DECISION-E: hashCanonicalJson over curatedTitle/titleSource/suggestedPages/searchKeywords/curatedDescription/curatedWeight/suggestedProductType/packagingOcrTitle + projection{fieldAssignments,pageAssignments,title}; ids/timestamps excluded; proven by pr8-acceptance.test.ts retry byte-identity"
+    }
+  }
+}

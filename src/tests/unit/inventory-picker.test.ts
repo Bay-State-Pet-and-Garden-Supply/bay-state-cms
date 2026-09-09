@@ -1,7 +1,7 @@
 // story: e07s02 + oracle picker S1
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../../db/repositories/brand-url-index-repo', () => ({
+vi.mock('@/db/repositories/brand-url-index-repo', () => ({
   findUrlsByDomain: vi.fn(),
   normalizeDomain: (d: string) => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim(),
 }));

@@ -32,7 +32,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { hashCanonicalJson } from '../shared/stable-id';
-import { sourceProvenanceFromMember } from '../onboarding/cohort-title-hash';
+import { sourceProvenanceFromMember } from './cohort-decision-authority';
 import type {
   ClassificationEvidence,
   BrandConfig,
@@ -345,6 +345,7 @@ function scoreTypeMatch(evidence: ClassificationEvidence[], options: ResolvedTar
     attributeId: null,
     sourceField: null,
     selectionMode: 'single',
+    includeProductTypeContext: true,
   });
   const text = packet.promptText;
   if (options.length === 0 || !text || text.length < 3) {

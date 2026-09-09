@@ -34,6 +34,7 @@ import type {
   StoreManagerTriggerOccurrence,
 } from '../../shared/schemas/store-manager-trigger';
 import { ModelUnavailableError } from './ai-sdk-model-resolver';
+import { toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 import {
   createTrigger,
   getTrigger,
@@ -292,14 +293,17 @@ function scopeJsonFor(scope: StoreManagerPinnedScope | null | undefined): string
   return scope ? JSON.stringify(scope) : null;
 }
 
-/** Terminal predicate per item (see module header for the vocabulary). */
+/** Terminal predicate per item (see module header for the vocabulary).
+ * Slice 5b native: canonical comparison (dual read — the observer passes
+ * stored v1 rows through byte-identical and refuses v2/unknown, so every
+ * observed literal normalizes here without misreading terminal state). */
 function classifyItem(item: OnboardingItemObservation):
   | { terminal: true; sku: string | null }
   | { terminal: false; reason: string } {
   if (item.isDuplicate && item.existingSku) {
     return { terminal: true, sku: item.existingSku };
   }
-  if (item.stage === 'promotion' && item.stageStatus === 'completed') {
+  if (toCanonicalStored(item.stage) === 'create_drafts' && item.stageStatus === 'completed') {
     return { terminal: true, sku: item.upc.trim() ? item.upc : null };
   }
   if (item.stageStatus === 'skipped' || item.stageStatus === 'failed') {
@@ -323,7 +327,7 @@ function observeImportFinishedBatch(
   const classified = items.map(classifyItem);
   const nonTerminal = classified.filter((c) => !c.terminal) as Array<{ terminal: false; reason: string }>;
   const missingSkuCount = classified.reduce(
-    (acc, c, i) => acc + (c.terminal && c.sku === null && items[i].stage === 'promotion' ? 1 : 0),
+    (acc, c, i) => acc + (c.terminal && c.sku === null && toCanonicalStored(items[i].stage) === 'create_drafts' ? 1 : 0),
     0,
   );
 

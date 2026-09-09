@@ -62,7 +62,7 @@ import {
   getCohortSnapshotByHash,
 } from '../../db/repositories/classification-cohort-run-repo';
 import { updateCohortStatus } from '../../db/repositories/curation-cohort-repo';
-import { freezeCohortForExecution } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
 import { parseExecutionEvidenceProjection, PROJECTION_VERSION_V3, ExecutionEvidenceProjectionV3Schema } from '../../shared/schemas/cohorts';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import type { ClassificationConfig } from '../../shared/schemas/classification';

@@ -110,7 +110,7 @@ describe('e04s02 stale gate + snapshot freeze', () => {
 
   it('cohortFrozenEvidence path does not re-read live DB — buildFrozenItem invariant', async () => {
     try {
-      const { buildFrozenItem } = await import('../../onboarding/cohort-curator');
+      const { buildFrozenItem } = await import('../../onboarding/cohort-curation/frozen-evidence');
       const liveItem = { id: 'live-id', upc: 'LIVEUPC', name: 'Live Name', extractionData: { title: 'Live Title', sourceUrl: 'https://evil.test/live' }, sourceType: 'official_page' } as any;
       const frozenProjection = { itemId: 'live-id', sourceUrl: null, extractionData: { title: 'Frozen Title', description: 'Frozen desc' } } as any;
       const frozen = buildFrozenItem(frozenProjection as any, liveItem as any);

@@ -25,8 +25,8 @@ const mocks = vi.hoisted(() => ({
   llmRankOptions: vi.fn(),
 }));
 
-vi.mock('../../classification/curation-target-ranker', () => ({ llmRankOptions: mocks.llmRankOptions }));
-vi.mock('../../classification/runtime-snapshot', () => ({
+vi.mock('@/classification/curation-target-ranker', () => ({ llmRankOptions: mocks.llmRankOptions }));
+vi.mock('@/classification/runtime-snapshot', () => ({
   buildModelCallContext: vi.fn((_snapshot, runId: string, operation: string, attempt: number) => ({
     runId,
     snapshotHash: 'snap-hash-1',
@@ -37,8 +37,8 @@ vi.mock('../../classification/runtime-snapshot', () => ({
     ruleVersion: '1',
   })),
 }));
-vi.mock('../../classification/config-loader', () => ({ loadClassificationConfig: vi.fn(() => { throw new Error('no disk reads in unit tests'); }) }));
-vi.mock('../../classification/curation-target-resolver', () => ({
+vi.mock('@/classification/config-loader', () => ({ loadClassificationConfig: vi.fn(() => { throw new Error('no disk reads in unit tests'); }) }));
+vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
   resolveTargetsFromSnapshot: vi.fn(),
 }));

@@ -149,4 +149,16 @@ describe('curation-applicability', () => {
     expect(missingFinding).toBeDefined();
     expect(missingFinding?.details?.productTypeId).toBe('broken-type');
   });
+
+  test('does not emit health findings when a curation target is disabled', () => {
+    const configWithDisabledTarget: ClassificationConfig = {
+      ...baseConfig,
+      curationTargets: baseConfig.curationTargets.map(t =>
+        t.catalogField === 'ProductField7' ? { ...t, enabled: false } : t,
+      ),
+    };
+
+    const { findings } = deriveCurationApplicability(configWithDisabledTarget);
+    expect(findings.filter(f => (f.details as any)?.catalogField === 'ProductField7')).toHaveLength(0);
+  });
 });

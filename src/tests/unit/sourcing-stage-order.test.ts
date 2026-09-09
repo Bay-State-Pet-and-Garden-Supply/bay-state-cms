@@ -206,7 +206,7 @@ describe('Sourcing Stage Order & Capability-Gated Entry (Issue #44)', () => {
     updateItemStageStatus(items[1].id, 'completed');
 
     const staged = listItemsByBatchStaged(batch.id);
-    expect(staged.sourcing.length).toBe(2);
+    expect(staged.route_sources.length).toBe(2);
 
     const res = fallbackSourcingItemsToDiscovery([items[0].id, items[1].id]);
     expect(res.moved).toEqual([items[0].id]);
@@ -245,31 +245,31 @@ describe('Sourcing Stage Order & Capability-Gated Entry (Issue #44)', () => {
 
     // bundle_to_curation is prohibited — the helper refuses it outright.
     expect(
-      completeSourcingWithDecision(item.id, decision('bundle_to_curation') as never, 'discovery'),
+      completeSourcingWithDecision(item.id, decision('bundle_to_curation') as never, 'find_product_page'),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('prohibited') });
 
     // Route/target mismatch fails closed.
     expect(
-      completeSourcingWithDecision(item.id, decision('evidence_to_discovery') as never, 'sourcing'),
-    ).toMatchObject({ ok: false, reason: expect.stringContaining('targets discovery') });
+      completeSourcingWithDecision(item.id, decision('evidence_to_discovery') as never, 'route_sources'),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining('targets find_product_page') });
 
     // needs_input_conflict requires the item to be in needs_input.
     expect(
-      completeSourcingWithDecision(item.id, decision('needs_input_conflict') as never, 'sourcing'),
+      completeSourcingWithDecision(item.id, decision('needs_input_conflict') as never, 'route_sources'),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('needs_input') });
 
-    // retry_provider_errors stays in sourcing/pending (target 'sourcing').
+    // retry_provider_errors stays in route_sources/pending (target 'route_sources').
     expect(
-      completeSourcingWithDecision(item.id, decision('retry_provider_errors') as never, 'sourcing'),
+      completeSourcingWithDecision(item.id, decision('retry_provider_errors') as never, 'route_sources'),
     ).toEqual({ ok: true });
     const retryItem = findItemById(item.id);
     expect(retryItem?.stage).toBe('sourcing');
     expect(retryItem?.stageStatus).toBe('pending');
 
-    // needs_input_conflict on a needs_input item keeps sourcing/needs_input.
+    // needs_input_conflict on a needs_input item keeps route_sources/needs_input (stored v1 spelling).
     updateItemStageStatus(item.id, 'needs_input', 'conflict');
     expect(
-      completeSourcingWithDecision(item.id, decision('needs_input_conflict') as never, 'sourcing'),
+      completeSourcingWithDecision(item.id, decision('needs_input_conflict') as never, 'route_sources'),
     ).toEqual({ ok: true });
     expect(findItemById(item.id)?.stageStatus).toBe('needs_input');
 
@@ -278,7 +278,7 @@ describe('Sourcing Stage Order & Capability-Gated Entry (Issue #44)', () => {
       { upc: '012345678911', name: 'Other Stage', rowNumber: 2, stage: 'discovery' },
     ]);
     expect(
-      completeSourcingWithDecision(otherItem.id, decision('evidence_to_discovery') as never, 'discovery'),
+      completeSourcingWithDecision(otherItem.id, decision('evidence_to_discovery') as never, 'find_product_page'),
     ).toMatchObject({ ok: false, reason: expect.stringContaining('not_eligible') });
   });
 

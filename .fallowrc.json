@@ -30,7 +30,8 @@
     "@baystate/baystate-cms"
   ],
   "ignoreDependencies": [
-    "cheerio"
+    "cheerio",
+    "typebox"
   ],
   "rules": {
     "unused-exports": "error",

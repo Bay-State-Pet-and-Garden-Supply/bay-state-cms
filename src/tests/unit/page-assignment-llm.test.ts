@@ -14,7 +14,7 @@ function asMock(fn: any): Mock {
 
 // ── Mocks (hoisted) ──────────────────────────────────────────────────────────
 
-vi.mock('../../onboarding/llm-client', () => {
+vi.mock('@/onboarding/llm-client', () => {
   const callLlmForTask = vi.fn();
   return {
     callLlmForTask,
@@ -30,7 +30,7 @@ vi.mock('../../onboarding/llm-client', () => {
   };
 });
 
-vi.mock('../../db/repositories/page-repo', () => ({
+vi.mock('@/db/repositories/page-repo', () => ({
   listPages: vi.fn(),
 }));
 
@@ -623,6 +623,40 @@ describe('normalizePageAssignments', () => {
   it('returns empty for empty input', () => {
     const result = normalizePageAssignments([], BASIC_PAGE_INDEX, null, [], 5);
     expect(result).toHaveLength(0);
+  });
+
+  it('filters companion pet pages when only horse/equine species evidence exists', () => {
+    const input = [
+      { pageId: 'h1', pageName: 'Horse Feed & Supplements', confidence: 0.95 },
+      { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.8 },
+      { pageId: 'p3', pageName: 'Cat Food Wet', confidence: 0.75 },
+    ];
+    const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, null, ['Horse'], 5);
+    expect(result).toHaveLength(1);
+    expect(result[0].pageName).toBe('Horse Feed & Supplements');
+  });
+
+  it('filters dog/cat pages when only poultry species evidence exists', () => {
+    const input = [
+      { pageId: 'pl1', pageName: 'Poultry Feed & Scratch', confidence: 0.95 },
+      { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.8 },
+      { pageId: 'p3', pageName: 'Cat Food Wet', confidence: 0.75 },
+    ];
+    const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, null, ['Poultry'], 5);
+    expect(result).toHaveLength(1);
+    expect(result[0].pageName).toBe('Poultry Feed & Scratch');
+  });
+
+  it('filters horse, poultry, and livestock pages when dog species evidence exists', () => {
+    const input = [
+      { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.9 },
+      { pageId: 'h1', pageName: 'Equine Supplements', confidence: 0.85 },
+      { pageId: 'pl1', pageName: 'Poultry Feed', confidence: 0.8 },
+      { pageId: 'lv1', pageName: 'Livestock Care', confidence: 0.75 },
+    ];
+    const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, null, ['Dog'], 5);
+    expect(result).toHaveLength(1);
+    expect(result[0].pageName).toBe('Dog Food Dry');
   });
 });
 

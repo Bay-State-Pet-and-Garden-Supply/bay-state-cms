@@ -32,7 +32,7 @@ import { buildCohortPrompt } from '../../onboarding/title-prompt-template';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import { validateFamilyTitleSet } from '../../classification/family-title-consistency';
 
-vi.mock('../../onboarding/llm-client', () => ({
+vi.mock('@/onboarding/llm-client', () => ({
   getLlmConfigForTask: vi.fn(() => ({
     provider: 'openai',
     apiKey: 'test-key',

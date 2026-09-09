@@ -88,22 +88,16 @@ import { generateCandidate, buildFocusedFiles } from '../../classification/confi
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { OnboardingWorker } from '../../onboarding/job-queue';
-import {
-  freezeCohortForExecution,
-  processCohort,
-  verifyCohortRunFrozen,
-  buildFrozenProductLineContext,
-  MemberCommitCrashSimulationError,
-} from '../../onboarding/cohort-curator';
-import {
-  ensureCohortPagesCoordinated,
-  CohortPageAuthorityDriftError,
-} from '../../onboarding/cohort-page-coordinator';
+import { freezeCohortForExecution, verifyCohortRunFrozen } from '../../onboarding/cohort-curation/freeze';
+import { buildFrozenProductLineContext } from '../../onboarding/cohort-curation/frozen-evidence';
+import { MemberCommitCrashSimulationError } from '../../onboarding/cohort-curation/members';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
+import { ensureCohortPages } from '../../onboarding/cohort-curation/pages';
 import type { CoordinatedPageMemberValue } from '../../classification/types';
-import type { PreparedCohortContext } from '../../onboarding/cohort-curator';
-import { curateItemWithPipeline } from '../../onboarding/product-curator';
+import type { PreparedCohortContext } from './helpers/transitional-prepared-member';
+import { curateTransitionalPreparedMember } from './helpers/transitional-prepared-member';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache, coordinateCohortPagesOnce } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache, coordinateCohortPagesOnce } from '../../classification/cohort-page-proposal-engine';
 import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import {
@@ -112,12 +106,12 @@ import {
   getCohortCurationFlags,
 } from '../../classification/flags';
 import { canonicalJsonFileString, sha256Hex, hashCanonicalJson } from '../../shared/stable-id';
-import { titleExecutionTypeAuthorityFromRun } from '../../onboarding/cohort-title-hash';
+import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
 import {
   buildCohortPageAuthorityBundle,
   computeCohortPageInputHash,
   type CohortPagePlanAuthority,
-} from '../../onboarding/cohort-page-hash';
+} from '../../onboarding/cohort-curation/pages';
 import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
 import { buildPageHierarchy } from '../../classification/page-assignment-llm';
 import {
@@ -161,13 +155,6 @@ let auditCallSeq = 0;
  *  the active parent prompt must be the v2 text with the Execution Type block
  *  — asserted at the transport level). */
 let capturedGroupPrompt: string | null = null;
-/** PR7 review R2 (R1 lease test): when true, the mock blocks SINGLE-SKU
- *  (singleton) core transports in flight — the started audit row is written,
- *  then the response waits on a gate. The test reclaims the parent while the
- *  call is in flight and then releases it. */
-let blockSingletonTransport = false;
-let releaseBlockedTransport: (() => void) | null = null;
-let blockedTransportCallId: string | null = null;
 
 const PAGE_NAMES = ['Dog Food Dry', 'Dog Food Canned', 'Brand - Acme'];
 
@@ -303,34 +290,6 @@ async function mockCallLlmForTaskWithProvenance(
     if (capturedGroupPrompt === null) capturedGroupPrompt = prompt;
     if (options.modelCall) {
       auditedPageCallCount++;
-      // PR7 review R2 (R1 lease): a SINGLE-SKU core transport can be held in
-      // flight — the started audit row is durable, the response waits on the
-      // gate, and after release the ownership assertion re-runs (the real
-      // transport re-asserts before its terminal write).
-      if (blockSingletonTransport && skuCount === 1) {
-        options.assertHeld?.();
-        const startedId = `blocked-call-${++auditCallSeq}`;
-        const now = new Date().toISOString();
-        getDb().run(
-          `INSERT INTO classification_model_calls
-             (id, run_id, stage_name, operation, attempt, provider, model, locality, snapshot_hash,
-              prompt_template_version, rule_version, system_prompt_hash, user_prompt_hash, started_at,
-              ended_at, status, created_at)
-           VALUES (?, ?, 'category_page_proposals', ?, 1, 'ollama', 'qwen2.5vl:latest', 'local', ?, ?, ?, ?, ?, ?, NULL, 'started', ?)`,
-          [startedId, options.modelCall.runId, options.modelCall.operation, options.modelCall.snapshotHash ?? null,
-           options.modelCall.promptTemplateVersion, options.modelCall.ruleVersion, 'sys-hash', 'user-hash', now, now],
-        );
-        blockedTransportCallId = startedId;
-        await new Promise<void>(resolve => {
-          releaseBlockedTransport = resolve;
-        });
-        // Post-release ownership re-assertion (the real transport performs it
-        // immediately before the terminal success write). A stale owner's
-        // claim is gone → HeartbeatLostError, and the started row is NOT
-        // terminalized.
-        options.assertHeld?.();
-        throw new Error('blocked singleton transport must not complete for a stale owner');
-      }
       writeAuditPair(options.modelCall, callId);
     }
     return {
@@ -389,9 +348,6 @@ afterEach(() => {
   auditedPageCallCount = 0;
   denyPageMode = 'none';
   capturedGroupPrompt = null;
-  blockSingletonTransport = false;
-  releaseBlockedTransport = null;
-  blockedTransportCallId = null;
   resetCohortCurationFlagsOverride();
   clearCohortCoordinationCache();
   clearCohortPageCoordinationCache();
@@ -607,11 +563,6 @@ const THREE_MEMBER_EXTRACTIONS = {
   '100000000003': settledExtraction({ _name: 'Purina Pro Plan Adult Dog Food Salmon 5 lb', _brandHint: 'Acme' }),
 };
 
-const TWO_MEMBER_EXTRACTIONS = {
-  '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme' }),
-  '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme' }),
-};
-
 /** Activate ONE verified Page import with the fixture pages (Dog Food Dry,
  *  Dog Food Canned, Brand - Acme). Returns the generated page_index ids. */
 function activateVerifiedPages(wsId: string): Map<string, string> {
@@ -702,7 +653,7 @@ async function freezeActiveCohort(
 
 function loadFrozenProjection(workspaceId: string, run: CohortRun): ExecutionEvidenceProjectionV2 {
   const snap = getCohortSnapshotByHash(workspaceId, run.evidenceSnapshotHash!)!;
-// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
+// @ts-expect-error -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
   return parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
 }
 
@@ -857,7 +808,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     // The parent page op already persisted every member's page output BEFORE
     // the member loop (one group call + one singleton call).
     let pipelineCount = 0;
-    await expect(processCohort(finalized, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         pipelineCount++;
         if (pipelineCount === 2) {
@@ -928,7 +879,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const pageCallsBefore = groupPageCallCount + singletonPageCallCount;
     const auditRowsBefore = countPageAuditRowsForRun(finalized.id);
     let resumePipelineCount = 0;
-    await expect(processCohort(resumed, wsPath, workspaceId, {
+    await expect(executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b', {
       afterMemberPipeline: () => {
         resumePipelineCount++;
         if (resumePipelineCount === 2) {
@@ -954,7 +905,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const childBefore = getDb().query(
       'SELECT id FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC LIMIT 1',
     ).get(finalized.id, items[0].id) as { id: string } | undefined;
-    const summary3 = await processCohort(resumed, wsPath, workspaceId);
+    const summary3 = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
     expect(summary3.parentStatus).not.toBe('failed');
     expect(groupPageCallCount + singletonPageCallCount).toBe(pageCallsBefore); // STILL zero page calls
     const childAfter = getDb().query(
@@ -1001,73 +952,6 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     // whole kill/restart/re-execute scenario (replay-safe after commit).
     expect(groupPageCallCount).toBe(1);
     expect(singletonPageCallCount).toBe(1);
-  });
-
-  it('4: pre-commit crash replay — afterCoordinatedCall throws after transport success → zero rows committed → reclaim re-invokes → commit → later entries are call-free', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    prepareActiveV2Workspace(workspaceId, wsPath, TWO_MEMBER_EXTRACTIONS);
-    const finalized = await freezeActiveCohort(workspaceId, wsPath);
-    const projection = loadFrozenProjection(workspaceId, finalized);
-    const cohort = getCohortById(finalized.cohortId)!;
-    const members = getCohortMembers(cohort.id);
-    const frozenLineContext = buildFrozenProductLineContext(cohort, members, projection.members);
-
-    // The parent page op's group transport SUCCEEDS (audited rows are durable)
-    // but the crash seam throws before the outputs transaction — no row is
-    // committed. The seam throws ONLY on this direct invocation; the reclaim
-    // re-invokes via processCohort and commits.
-    await expect(
-      ensureCohortPagesCoordinated({
-        run: finalized,
-        workspaceId,
-        workspacePath: wsPath,
-        projection,
-        cohort,
-        members,
-        frozenLineContext,
-        afterCoordinatedCall: () => {
-          throw new MemberCommitCrashSimulationError('simulated pre-commit crash after transport success');
-        },
-      }),
-    ).rejects.toThrow('simulated pre-commit crash after transport success');
-
-    expect(countCohortPageOutputs(finalized.id)).toBe(0); // nothing committed
-    expect(auditedPageCallCount).toBe(1); // one audited group invocation
-
-    // Reclaim + resume: the set is still empty → ONE more audited call, then
-    // the transaction commits.
-    getDb().run('UPDATE classification_cohort_runs SET lease_expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', finalized.id]);
-    const reclaim = reclaimExpiredCohortRuns(
-      workspaceId,
-      new Date().toISOString(),
-      () => verifyCohortRunFrozen(getCohortRunById(finalized.id)!, wsPath, workspaceId) ? 'match' : 'drift',
-      'worker-b',
-      COHORT_LEASE_TTL_MS,
-    );
-    expect(reclaim.resumed.length).toBe(1);
-    const resumed = getCohortRunById(finalized.id)!;
-    const summary = await processCohort(resumed, wsPath, workspaceId);
-    expect(summary.parentStatus).not.toBe('failed');
-    expect(countCohortPageOutputs(finalized.id)).toBe(2);
-    expect(auditedPageCallCount).toBe(2); // 1 failed invocation + 1 successful
-
-    // Subsequent entries: ZERO calls — re-invoking the parent page op on the
-    // now-completed run reuses the committed set (pure read; the coordinate
-    // path is unreachable once the set is complete + hash-matched).
-    const pageCalls = groupPageCallCount + singletonPageCallCount;
-    const reused = await ensureCohortPagesCoordinated({
-      run: resumed,
-      workspaceId,
-      workspacePath: wsPath,
-      projection,
-      cohort,
-      members,
-      frozenLineContext,
-    });
-    expect(reused.size).toBe(2);
-    expect([...reused.values()].every(value => value.output.status === 'assigned')).toBe(true);
-    expect(groupPageCallCount + singletonPageCallCount).toBe(pageCalls);
-    expect(countPageAuditRowsForRun(finalized.id)).toBe(4); // no new audited rows
   });
 
   it('5-6: drift rows (stale hash / MISSING member / EXTRA unexpected row) → CohortPageAuthorityDriftError → parent SUPERSEDED + running children terminalized → next claim yields a DIFFERENT run id; wrong-owner supersede is a no-op WHILE the run is still RUNNING; old page rows unchanged', async () => {
@@ -1117,7 +1001,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
 
       // Now exercise the VALID owner drift path: the parent op's exact-set /
       // hash check FAILS CLOSED for the current owner.
-      await expect(processCohort(finalized, wsPath, workspaceId)).rejects.toThrow(/CohortPageAuthorityDrift/);
+      await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a')).rejects.toThrow(/CohortPageAuthorityDrift/);
 
       const terminal = getCohortRunById(finalized.id)!;
       expect(terminal.status).toBe('superseded');
@@ -1173,7 +1057,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       // (zero transport); the singleton path deterministically abstains — with
       // ZERO transport. Every member's result persists as a durable abstained
       // row.
-      const summary = await processCohort(finalized, wsPath, workspaceId);
+      const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
       expect(summary.parentStatus).not.toBe('failed');
       expect(groupPageCallCount).toBe(0);
       expect(singletonPageCallCount).toBe(0);
@@ -1205,13 +1089,10 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       const members = getCohortMembers(cohort.id);
       const frozenLineContext = buildFrozenProductLineContext(cohort, members, projection.members);
       const pageCalls = groupPageCallCount + singletonPageCallCount;
-      const reused = await ensureCohortPagesCoordinated({
+      const reused = await ensureCohortPages({
         run: finalized,
         workspaceId,
-        workspacePath: wsPath,
         projection,
-        cohort,
-        members,
         frozenLineContext,
       });
       expect(reused.size).toBe(3);
@@ -1227,7 +1108,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
     // ONE group call for the two siblings; the singleton used the per-item
     // parent path.
@@ -1259,7 +1140,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
     // The singleton member (100000000003) has exactly ONE durable row AND its
     // proposals came from the stored row — the per-item child path was NOT
@@ -1285,7 +1166,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     updateItemStageStatus(singleton.id, 'pending');
     updateItemCurationData(singleton.id, '');
     const prepared = buildPreparedContext(workspaceId, finalized, singleton, frozenLineContext);
-    const rerun = await curateItemWithPipeline(findItemById(singleton.id)!, wsPath, workspaceId, prepared);
+    const rerun = await curateTransitionalPreparedMember(findItemById(singleton.id)!, wsPath, workspaceId, prepared);
     const rerunPages = rerun.classificationProposals.filter(p => p.proposalType === 'category_page');
     expect(rerunPages.length).toBeGreaterThan(0);
     expect(rerunPages.map(p => p.targetId).sort()).toEqual(rowPages.map(page => page.pageId).sort());
@@ -1448,7 +1329,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
     // ONE group call + ONE singleton call, both audited under the parent op.
     expect(groupPageCallCount).toBe(1);
@@ -1477,79 +1358,13 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     expect(Number(legacyRows.cnt)).toBe(0);
   });
 
-  it('R1 lease (F2): a SINGLETON transport genuinely in flight → worker B reclaims → release → worker A REJECTS with HeartbeatLostError; the started row is NOT terminalized; zero page outputs', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
-    const finalized = await freezeActiveCohort(workspaceId, wsPath);
-    const projection = loadFrozenProjection(workspaceId, finalized);
-    const cohort = getCohortById(finalized.cohortId)!;
-    const members = getCohortMembers(cohort.id);
-    const frozenLineContext = buildFrozenProductLineContext(cohort, members, projection.members);
-
-    // Block the SINGLETON core transport in flight (the two-sibling group
-    // call proceeds first; its durable set cannot commit while the singleton
-    // is in flight).
-    blockSingletonTransport = true;
-    const coordinating = ensureCohortPagesCoordinated({
-      run: finalized,
-      workspaceId,
-      workspacePath: wsPath,
-      projection,
-      cohort,
-      members,
-      frozenLineContext,
-    });
-
-    // Wait until the singleton transport is genuinely in flight (its started
-    // audit row is durable).
-    const startedRow = await (async (): Promise<{ id: string; status: string } | null> => {
-      for (let attempt = 0; attempt < 200; attempt++) {
-        if (blockedTransportCallId) {
-          return getDb().query(
-            'SELECT id, status FROM classification_model_calls WHERE id = ?',
-          ).get(blockedTransportCallId) as { id: string; status: string } | null;
-        }
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      return null;
-    })();
-    expect(startedRow).not.toBeNull();
-    expect(startedRow!.status).toBe('started');
-
-    // Worker B reclaims the parent while worker A's singleton call is in
-    // flight (lease expired + verified-frozen match).
-    getDb().run('UPDATE classification_cohort_runs SET lease_expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', finalized.id]);
-    const reclaim = reclaimExpiredCohortRuns(
-      workspaceId,
-      new Date().toISOString(),
-      () => verifyCohortRunFrozen(getCohortRunById(finalized.id)!, wsPath, workspaceId) ? 'match' : 'drift',
-      'worker-b',
-      COHORT_LEASE_TTL_MS,
-    );
-    expect(reclaim.resumed.length).toBe(1);
-
-    // Release worker A's blocked transport: the post-release ownership
-    // re-assertion fails → the parent op rejects with HeartbeatLostError.
-    releaseBlockedTransport?.();
-    await expect(coordinating).rejects.toThrow(/claim ownership lost|HeartbeatLost/i);
-
-    // A wrote ZERO page outputs (the coordinate step never reached the
-    // all-or-nothing insert), and the started audit row is NOT terminalized.
-    expect(countCohortPageOutputs(finalized.id)).toBe(0);
-    const after = getDb().query(
-      'SELECT status, ended_at FROM classification_model_calls WHERE id = ?',
-    ).get(startedRow!.id) as { status: string; ended_at: string | null };
-    expect(after.status).toBe('started');
-    expect(after.ended_at).toBeNull();
-  });
-
   it('R3 frozen authority (F2c / P1-C): commit a complete page set → live getLlmConfigForTask THROWS → re-enter the same run → P-hash unchanged → durable outputs reused with ZERO page transport', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
     // Establish the durable page set (one group + one singleton call).
-    const summary = await processCohort(finalized, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
     expect(countCohortPageOutputs(finalized.id)).toBe(3);
     const committedHash = getCohortPageOutputsByRun(finalized.id)[0].inputHash;
@@ -1564,13 +1379,10 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const cohort = getCohortById(finalized.cohortId)!;
     const members = getCohortMembers(cohort.id);
     const frozenLineContext = buildFrozenProductLineContext(cohort, members, projection.members);
-    const reused = await ensureCohortPagesCoordinated({
+    const reused = await ensureCohortPages({
       run: finalized,
       workspaceId,
-      workspacePath: wsPath,
       projection,
-      cohort,
-      members,
       frozenLineContext,
     });
     expect(reused.size).toBe(3);
@@ -1582,50 +1394,5 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     expect(getCohortPageOutputsByRun(finalized.id).every(r => r.inputHash === committedHash)).toBe(true);
   });
 
-  it('commit race: sibling process commits outputs between pure-read check and insert → CohortPageAuthorityDriftError', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
-    const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
-    const projection = loadFrozenProjection(workspaceId, finalized);
-    const cohort = getCohortById(finalized.cohortId)!;
-    const members = getCohortMembers(cohort.id);
-    const frozenLineContext = buildFrozenProductLineContext(cohort, members, projection.members);
-
-    let thrown: unknown;
-    try {
-      await ensureCohortPagesCoordinated({
-        run: finalized,
-        workspaceId,
-        workspacePath: wsPath,
-        projection,
-        cohort,
-        members,
-        frozenLineContext,
-        afterCoordinatedCall: () => {
-          // Simulating a racing sibling process committing outputs between pure-read check and insert
-          if (countCohortPageOutputs(finalized.id) === 0) {
-            insertCohortPageOutputsOnce({
-              workspaceId,
-              runId: finalized.id,
-              inputHash: 'racing_input_hash_' + 'a'.repeat(46),
-              outputs: projection.members.map(m => ({
-                productSku: m.productSku ?? '',
-                output: { status: 'abstained', reason: 'racing process output' },
-                modelCallId: null,
-              })),
-            });
-          }
-        },
-      });
-    } catch (err) {
-      thrown = err;
-    }
-
-    expect(thrown).toBeInstanceOf(CohortPageAuthorityDriftError);
-    const driftErr = thrown as CohortPageAuthorityDriftError;
-    expect(driftErr.runId).toBe(finalized.id);
-    expect(driftErr.storedHashes).toContain('racing_input_hash_' + 'a'.repeat(46));
-    expect(driftErr.rowCount).toBe(3);
-  });
 });

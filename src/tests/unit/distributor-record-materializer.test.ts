@@ -164,7 +164,7 @@ describe('Distributor-record materializer (Amendment A, Milestone D)', () => {
       sourceType: 'distributor_record',
       target: 'extraction',
     };
-    const res = completeSourcingWithDecision(itemId, decision, 'extraction');
+    const res = completeSourcingWithDecision(itemId, decision, 'collect_details');
     if (!res.ok) throw new Error(`routing failed: ${res.reason}`);
     return decision;
   }
@@ -933,7 +933,7 @@ describe('Distributor-record materializer (Amendment A, Milestone D)', () => {
       sourceType: 'distributor_record',
       target: 'extraction',
     };
-    const routed = completeSourcingWithDecision(itemId, decision, 'extraction');
+    const routed = completeSourcingWithDecision(itemId, decision, 'collect_details');
     expect(routed.ok).toBe(true);
     claimForExtraction();
 
@@ -1103,7 +1103,7 @@ describe('Distributor-record materializer v1/v2 authority dispatch (Amendment B,
       sourceType: 'distributor_record',
       target: 'extraction',
     };
-    const res = completeSourcingWithDecision(itemId, decision, 'extraction');
+    const res = completeSourcingWithDecision(itemId, decision, 'collect_details');
     if (!res.ok) throw new Error(`routing failed: ${res.reason}`);
     claimForExtraction();
 
@@ -1145,7 +1145,7 @@ describe('Distributor-record materializer v1/v2 authority dispatch (Amendment B,
       sourceType: 'distributor_record',
       target: 'extraction',
     };
-    const res = completeSourcingWithDecision(itemId, decision, 'extraction');
+    const res = completeSourcingWithDecision(itemId, decision, 'collect_details');
     if (!res.ok) throw new Error(`routing failed: ${res.reason}`);
 
     // Seed the durable v1 row exactly as a pre-deployment materialization would.

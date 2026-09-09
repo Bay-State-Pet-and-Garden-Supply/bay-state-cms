@@ -13,6 +13,7 @@
  */
 
 import { getDb } from '../connection';
+import { isStageV1String, isStageV2String } from '../../shared/onboarding-stage-vocabulary';
 
 export interface OnboardingBatchObservation {
   id: string;
@@ -61,14 +62,35 @@ export function listItemsForBatchObservation(batchId: string, limit = 1000): Onb
     `SELECT id, batch_id, upc, stage, stage_status, is_duplicate, existing_sku, updated_at
      FROM onboarding_items WHERE batch_id = ? ORDER BY row_number ASC LIMIT ?`,
   ).all(...[batchId, bounded]) as Record<string, unknown>[];
-  return rows.map((r) => ({
-    id: String(r.id),
-    batchId: String(r.batch_id),
-    upc: String(r.upc ?? ''),
-    stage: String(r.stage ?? ''),
-    stageStatus: String(r.stage_status ?? ''),
-    isDuplicate: Number(r.is_duplicate ?? 0) === 1,
-    existingSku: r.existing_sku ? String(r.existing_sku) : null,
-    updatedAt: String(r.updated_at ?? ''),
-  }));
+  return rows.map((r) => {
+    // Slice 5b native: refuse-v2 retained (downstream trigger comparisons
+    // are canonical/dual-read; the observer still passes stored v1 rows
+    // through byte-identical). v2/unknown literals fail closed here
+    // instead of silently misclassifying terminal/promotion state.
+    // Storage activation (v2 rows) is a separately authorized operational
+    // action that must revisit this seam first.
+    const rawStage = typeof r.stage === 'string' ? r.stage : '';
+    if (isStageV2String(rawStage)) {
+      throw new Error(
+        `[observer] Refusing v2 stage literal '${rawStage}' (item ${String(r.id ?? '?')}): ` +
+          `the observer bridge is v1-only until the 5b native cutover — refusing instead of misreading terminal state`,
+      );
+    }
+    if (!isStageV1String(rawStage)) {
+      throw new Error(
+        `[observer] Refusing unknown stage literal '${rawStage}' (item ${String(r.id ?? '?')}): ` +
+          `unknown stages are never coerced to the first stage`,
+      );
+    }
+    return {
+      id: String(r.id),
+      batchId: String(r.batch_id),
+      upc: String(r.upc ?? ''),
+      stage: rawStage,
+      stageStatus: String(r.stage_status ?? ''),
+      isDuplicate: Number(r.is_duplicate ?? 0) === 1,
+      existingSku: r.existing_sku ? String(r.existing_sku) : null,
+      updatedAt: String(r.updated_at ?? ''),
+    };
+  });
 }

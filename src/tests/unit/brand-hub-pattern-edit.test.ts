@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock extractor profile repo before importing patternEdit
-vi.mock('../../db/repositories/extractor-profile-repo', () => ({
+vi.mock('@/db/repositories/extractor-profile-repo', () => ({
   upsertProfile: vi.fn((domain: string, selectors: any) => ({ domain, ...selectors })),
   findProfileByDomain: vi.fn(),
 }));

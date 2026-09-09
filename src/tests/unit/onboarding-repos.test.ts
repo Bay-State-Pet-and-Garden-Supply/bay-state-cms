@@ -259,21 +259,21 @@ describe('Onboarding Repositories CRUD', () => {
     expect(r1.skipped).toBe(1);
 
     const staged = listItemsByBatchStaged(batch.id);
-    expect(staged.discovery.length).toBe(3); // All still in discovery since none advanced
-    expect(staged.extraction.length).toBe(0);
+    expect(staged.find_product_page.length).toBe(3); // All still in discovery since none advanced
+    expect(staged.collect_details.length).toBe(0);
 
     // Now mark item A as completed and advance it
     updateItemStageStatus(items[0].id, 'completed');
     const r2 = advanceItemsToNextStage([items[0].id]);
     expect(r2.advanced).toBe(1);
     const staged2 = listItemsByBatchStaged(batch.id);
-    expect(staged2.discovery.length).toBe(2); // B and C still in discovery
-    expect(staged2.extraction.length).toBe(1); // A advanced to extraction with pending
-    expect(staged2.extraction[0].id).toBe(items[0].id);
-    expect(staged2.extraction[0].stageStatus).toBe('pending');
-    expect(staged2.curation.length).toBe(0);
-    expect(staged2.review.length).toBe(0);
-    expect(staged2.promotion.length).toBe(0);
+    expect(staged2.find_product_page.length).toBe(2); // B and C still in discovery
+    expect(staged2.collect_details.length).toBe(1); // A advanced to extraction with pending
+    expect(staged2.collect_details[0].id).toBe(items[0].id);
+    expect(staged2.collect_details[0].stageStatus).toBe('pending');
+    expect(staged2.prepare_listing.length).toBe(0);
+    expect(staged2.review_listings.length).toBe(0);
+    expect(staged2.create_drafts.length).toBe(0);
   });
 
   it('should enforce advancement eligibility (only completed items advance)', () => {
@@ -374,11 +374,11 @@ describe('Onboarding Repositories CRUD', () => {
     ]);
 
     const counts = getStageCounts(batch.id);
-    expect(counts.discovery).toBe(4);
-    expect(counts.extraction).toBe(0);
-    expect(counts.curation).toBe(0);
-    expect(counts.review).toBe(0);
-    expect(counts.promotion).toBe(0);
+    expect(counts.find_product_page).toBe(4);
+    expect(counts.collect_details).toBe(0);
+    expect(counts.prepare_listing).toBe(0);
+    expect(counts.review_listings).toBe(0);
+    expect(counts.create_drafts).toBe(0);
   });
 
   it('should support getPendingItemsByStage with workspace filtering', () => {

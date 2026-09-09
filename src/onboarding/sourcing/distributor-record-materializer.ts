@@ -1,4 +1,5 @@
 import { getDb } from '../../db/connection';
+import { toCanonicalStage } from '../../shared/onboarding-stage-vocabulary';
 import {
   findItemById,
   updateItemStageStatus,
@@ -438,7 +439,19 @@ export function materializeDistributorRecordExtraction(
     if (item.sourceType !== 'distributor_record') {
       return { ok: false as const, code: DISTRIBUTOR_MATERIALIZATION_ERROR_CODES.wrong_decision, reasonCodes: [] };
     }
-    if (item.stage !== 'extraction' || item.stageStatus !== 'in_progress') {
+    // Slice 5b native: canonical stage check (dual read — either stored
+    // spelling of the extraction stage qualifies while claimed).
+    let canonicalStage: string;
+    try {
+      canonicalStage = toCanonicalStage(item.stage);
+    } catch {
+      return {
+        ok: false as const,
+        code: DISTRIBUTOR_MATERIALIZATION_ERROR_CODES.wrong_stage,
+        reasonCodes: [],
+      };
+    }
+    if (canonicalStage !== 'collect_details' || item.stageStatus !== 'in_progress') {
       return {
         ok: false as const,
         code: DISTRIBUTOR_MATERIALIZATION_ERROR_CODES.wrong_stage,

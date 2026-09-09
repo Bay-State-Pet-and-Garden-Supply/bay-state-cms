@@ -1,0 +1,5 @@
+-- Synthetic: DDL with stage default + check.
+CREATE TABLE t (
+  stage TEXT NOT NULL DEFAULT 'sourcing',
+  stage_status TEXT NOT NULL CHECK (stage_status IN ('pending', 'failed'))
+);

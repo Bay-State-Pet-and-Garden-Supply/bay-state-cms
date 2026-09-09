@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-export
-
 import { z } from 'zod';
 import { DEFAULT_LOCAL_VISION_MODEL } from '../vision-model-defaults';
 
@@ -942,11 +940,20 @@ export const ClassificationProposalDecisionSchema = z.object({
   actionToken: z.string().nullable().optional(),
   /** @deprecated database/backward-compatible alias for actionToken. */
   decisionKey: z.string().nullable().default(null),
+  decisionOrigin: z.string().nullable().optional(),
   supersededAt: z.string().nullable().default(null),
   createdAt: IsoDateTimeStringSchema,
 });
 
 export type ClassificationProposalDecision = z.infer<typeof ClassificationProposalDecisionSchema>;
+
+export type DecisionOrigin =
+  | 'human_review'
+  | 'system_auto_accept'
+  | 'system_override'
+  | 'migration_repair'
+  | 'unknown'
+  | string;
 
 /**
  * An audit/history event for a classification run.
@@ -1089,6 +1096,35 @@ export const CatalogClassificationRunDetailSchema = z.object({
 });
 
 export type CatalogClassificationRunDetail = z.infer<typeof CatalogClassificationRunDetailSchema>;
+
+export const TypeReviewDetailSchema = z.object({
+  reviewed: z.object({
+    id: z.string().nullable(),
+    label: z.string().nullable(),
+    decisionId: z.string().nullable(),
+    current: z.boolean(),
+  }),
+  executionPreview: z.object({
+    id: z.string().nullable(),
+    label: z.string().nullable(),
+    confidence: z.number().nullable(),
+    previewOnly: z.literal(true),
+  }).nullable(),
+  options: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    hierarchyPath: z.array(z.string()),
+  })),
+  evidence: z.object({
+    strength: z.string(),
+    supportingCount: z.number(),
+    contradictingCount: z.number(),
+    matchedWords: z.array(z.string()),
+  }),
+  refreshState: z.enum(['current', 'queued', 'running', 'failed', 'blocked']),
+});
+
+export type TypeReviewDetail = z.infer<typeof TypeReviewDetailSchema>;
 
 // ─── Benchmark / Evaluation Schemas ────────────────────────────────────────────
 

@@ -57,12 +57,11 @@ import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
 import { curateItemWithPipeline } from './product-curator';
 import { refreshCandidateCohorts } from './curation-cohort-service';
 import {
-  freezeCohortForExecution,
-  processCohort,
-  verifyCohortRunFrozen,
+  createCohortCuration,
   observeCohortShadowTypeResolution,
-} from './cohort-curator';
-import type { CohortShadowObservation } from './cohort-curator';
+} from './cohort-curation/index';
+import type { CohortCuration } from './cohort-curation/index';
+import type { CohortShadowObservation } from './cohort-curation/index';
 
 
 import { getCohortCurationFlags } from '../classification/flags';
@@ -124,8 +123,8 @@ function buildAutoStages(): PipelineStage[] {
   const includeSourcing =
     flags.effectiveEnabled && (flags.mode === 'manual' || flags.mode === 'automatic');
   return includeSourcing
-    ? ['sourcing', 'curation', 'extraction', 'discovery']
-    : ['curation', 'extraction', 'discovery'];
+    ? ['route_sources', 'prepare_listing', 'collect_details', 'find_product_page']
+    : ['prepare_listing', 'collect_details', 'find_product_page'];
 }
 
 // ─── Cohort-centric Curation V2 — see src/classification/flags.ts for rollout semantics ─────────────────
@@ -191,8 +190,12 @@ export function passesAuthorityGate(
 
 /**
  * Stage-based worker. Polls for items with stage_status = 'pending' across
- * all active batches. Processes items within their current stage but NEVER
- * auto-transitions to the next stage — advancement is always manual.
+ * all active batches. Processes items within their current stage; happy-path
+ * progression between stages is automation-owned (sweepAutoAdvance +
+ * sweepDomainReleases every poll for items satisfying their stage exit
+ * contract). Manual advancement is reserved for explicit human decisions —
+ * approval, export, source-conflict resolution, URL/profile exception
+ * resolution. Retries are idempotent (pending requeue, never backwards).
  */
 export class OnboardingWorker {
   private interval: ReturnType<typeof setInterval> | null = null;
@@ -216,6 +219,10 @@ export class OnboardingWorker {
   private workspacePath: string;
   private workspaceId: string;
   private workerId: string;
+  /** Cohort Curation execution seam (plan Slice 2): bound once, owns
+   *  freeze-or-resume ordering for claimed runs. The worker keeps
+   *  startup/poll reclaim, claim concurrency, dispatch, and advancement. */
+  private cohortCuration: CohortCuration;
   // PR4 C5: cohortId → last logged shadow observation line. The shadow
   // observer recomputes on every poll (ready cohorts are cheap and few); the
   // log line is emitted only when the outcome detail CHANGES so shadow mode
@@ -254,6 +261,7 @@ export class OnboardingWorker {
     this.maxConcurrency = maxConcurrency;
     this.maxExtractionConcurrency = maxExtractionConcurrency;
     this.workerId = randomUUID();
+    this.cohortCuration = createCohortCuration({ workspacePath, workspaceId });
     this.engineFactory = engineFactory ?? null;
     this.deps = deps ?? null;
   }
@@ -286,7 +294,7 @@ export class OnboardingWorker {
         const reclaim = reclaimExpiredCohortRuns(
           this.workspaceId,
           nowIso,
-          run => verifyCohortRunFrozen(run, this.workspacePath, this.workspaceId) ? 'match' : 'drift',
+          run => this.cohortCuration.verifyFrozen(run),
           this.workerId,
           COHORT_LEASE_TTL_MS,
         );
@@ -376,14 +384,14 @@ export class OnboardingWorker {
         if (this.running.size >= this.maxConcurrency) break;
 
         // Extraction has a separate concurrency limit to avoid bot detection
-        if (stage === 'extraction' && this.extractionRunning >= this.maxExtractionConcurrency) continue;
+        if (stage === 'collect_details' && this.extractionRunning >= this.maxExtractionConcurrency) continue;
 
         // PR3 M3 (issue #30): with the cohort flag active, Curation is
         // cohort-claimed EXCLUSIVELY — reclaim expired leases, reconcile
         // drift-before-claimable, claim ready cohorts and dispatch them to
-        // the freeze/execute path. `claimItemsForProcessing('curation', ...)`
+        // the freeze/execute path. `claimItemsForProcessing('prepare_listing', ...)`
         // is NEVER called in this mode; Discovery/Extraction stay per-item.
-        if (stage === 'curation' && isCohortCurationActive(getCohortCurationFlags())) {
+        if (stage === 'prepare_listing' && isCohortCurationActive(getCohortCurationFlags())) {
           this.claimAndDispatchCohortRuns(inFlightBatches);
           continue;
         }
@@ -393,7 +401,7 @@ export class OnboardingWorker {
         // NOTHING (no runs claimed, no PR4 columns, no dependency rows, no
         // model calls). The legacy per-item Curation path below then runs
         // unchanged — byte-identical PR3 shadow semantics.
-        if (stage === 'curation') {
+        if (stage === 'prepare_listing') {
           const curationFlags = getCohortCurationFlags();
           if (curationFlags.cohortCurationV2Enabled && curationFlags.cohortShadowOnly) {
             try {
@@ -427,7 +435,7 @@ export class OnboardingWorker {
           }
 
           // Re-check extraction concurrency limit in loop since processItem increments it synchronously
-          if (stage === 'extraction' && this.extractionRunning >= this.maxExtractionConcurrency) {
+          if (stage === 'collect_details' && this.extractionRunning >= this.maxExtractionConcurrency) {
             break;
           }
 
@@ -480,7 +488,7 @@ export class OnboardingWorker {
     stage: PipelineStage,
     claimedItems: Array<{ id: string; batchId: string }>,
   ): Array<{ id: string; batchId: string }> {
-    if (stage !== 'curation' || claimedItems.length === 0) return claimedItems;
+    if (stage !== 'prepare_listing' || claimedItems.length === 0) return claimedItems;
     const flags = getCohortCurationFlags();
     // Active OR shadow mode: the cohort path (or its legacy sibling under
     // shadow observation) owns claiming — never hold here.
@@ -517,7 +525,7 @@ export class OnboardingWorker {
     const newlyHeld = [...heldNow.keys()].filter(id => !this.lastHeldFamilyBarrierIds.has(id));
     for (const id of newlyHeld) {
       onboardingEvents.emitItemStatus(heldNow.get(id)!, id, 'pending', {
-        stage: 'curation',
+        stage: 'prepare_listing',
         familyBarrier: true,
       });
     }
@@ -554,7 +562,7 @@ export class OnboardingWorker {
       const reclaim = reclaimExpiredCohortRuns(
         this.workspaceId,
         nowIso,
-        run => verifyCohortRunFrozen(run, this.workspacePath, this.workspaceId) ? 'match' : 'drift',
+        run => this.cohortCuration.verifyFrozen(run),
         this.workerId,
         COHORT_LEASE_TTL_MS,
       );
@@ -599,7 +607,7 @@ export class OnboardingWorker {
       const itemMap = new Map(items.map(i => [i.id, i]));
       const allPastCuration = members.length > 0 && members.every(m => {
         const it = itemMap.get(m.onboardingItemId);
-        return it && (it.stage === 'review' || it.stage === 'promotion');
+        return it && (it.stage === 'review_listings' || it.stage === 'create_drafts');
       });
       if (allPastCuration) continue;
 
@@ -613,7 +621,7 @@ export class OnboardingWorker {
         console.warn(`[OnboardingWorker] Superseded cancelled run ${current.id} for ready cohort ${cohort.id} — slot reopened.`);
         continue;
       }
-      if (verifyCohortRunFrozen(current, this.workspacePath, this.workspaceId)) {
+      if (this.cohortCuration.verifyFrozen(current) === 'match') {
         // Frozen world still matches — the terminal run is the current
         // historical decision; a new run is NOT created.
         continue;
@@ -733,25 +741,21 @@ export class OnboardingWorker {
   }
 
   /**
-   * Execute one cohort run: `freezing` → freeze (CAS; superseded-on-drift is
-   * a normal outcome) → `running` → `processCohort`. Errors are logged and
-   * never break the poll loop; a run that fails to freeze stays claimed and
-   * is recovered by a later reclaim once its lease expires.
+   * Execute one cohort run through the Cohort Curation execution seam:
+   * `freezing` → freeze (CAS; superseded-on-drift is a normal outcome) →
+   * `running` → process. Errors are logged and never break the poll loop;
+   * a run that fails to freeze stays claimed and is recovered by a later
+   * reclaim once its lease expires. The worker supplies no hashes,
+   * projections, maps, or snapshots and sequences nothing itself.
    */
   private async processCohortRun(run: CohortRun): Promise<void> {
     if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[OnboardingWorker] Processing cohort run ${run.id} (cohort ${run.cohortId}, status=${run.status})`);
     try {
-      let current = run;
-      if (current.status === 'freezing') {
-        const finalized = await freezeCohortForExecution(current, this.workspacePath, this.workspaceId);
-        if (finalized.status !== 'running') {
-          console.warn(`[OnboardingWorker] Cohort run ${run.id} freeze did not finalize (${finalized.status}): ${finalized.errorMessage ?? 'no reason'}`);
-          return;
-        }
-        current = finalized;
-      }
-      if (current.status === 'running') {
-        await processCohort(current, this.workspacePath, this.workspaceId);
+      const disposition = await this.cohortCuration.executeClaim(run.id, this.workerId);
+      if (!disposition.executed && disposition.disposition !== 'freeze-not-finalized') {
+        console.warn(`[OnboardingWorker] Cohort run ${run.id} not executed (${disposition.disposition})`);
+      } else if (!disposition.executed) {
+        console.warn(`[OnboardingWorker] Cohort run ${run.id} freeze did not finalize`);
       }
     } catch (err) {
       console.error(`[OnboardingWorker] Cohort run ${run.id} failed:`, err);
@@ -765,16 +769,16 @@ export class OnboardingWorker {
 
     try {
       switch (stage) {
-        case 'sourcing':
+        case 'route_sources':
           await this.processSourcing(item);
           break;
-        case 'discovery':
+        case 'find_product_page':
           await this.processDiscovery(item);
           break;
-        case 'extraction':
+        case 'collect_details':
           await this.processExtraction(item);
           break;
-        case 'curation':
+        case 'prepare_listing':
           await this.processCuration(item);
           break;
         default:
@@ -820,13 +824,13 @@ export class OnboardingWorker {
     const complete = (
       route: SourcingDecision['route'],
       decision: SourcingDecision | SourcingDecisionV2,
-      targetStage: 'discovery' | 'extraction' | 'sourcing',
+      targetStage: 'find_product_page' | 'collect_details' | 'route_sources',
     ): boolean => {
       if (!generation) return false;
       const res = completeSourcingWithDecision(item.id, decision, targetStage);
       if (!res.ok) {
         updateItemStageStatus(item.id, 'failed', `Sourcing completion failed: ${res.reason}`);
-        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', { stage: 'sourcing', error: res.reason });
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', { stage: 'route_sources', error: res.reason });
         return false;
       }
       // Finalize the generation BEFORE the single terminal event: a failure
@@ -834,7 +838,7 @@ export class OnboardingWorker {
       // (the 'completed' event below never fires).
       completeSourcingGeneration(generation.id, 'completed');
       onboardingEvents.emitItemStatus(item.batchId, item.id, route === 'needs_input_conflict' ? 'needs_input' : 'completed', {
-        stage: 'sourcing',
+        stage: 'route_sources',
         route,
       });
       return true;
@@ -859,7 +863,7 @@ export class OnboardingWorker {
           warnings: [...warnings, 'Manual mode: operator must choose the route (Use distributor record / Continue to Discovery)'],
           decidedAt,
         },
-        'sourcing',
+        'route_sources',
       );
     };
 
@@ -944,7 +948,7 @@ export class OnboardingWorker {
             warnings: ['Legacy item excluded from automatic distributor routing (entry policy 0)'],
             decidedAt,
           },
-          'discovery',
+          'find_product_page',
         );
         return;
       }
@@ -972,7 +976,7 @@ export class OnboardingWorker {
                 warnings: ['Item has no UPC/GTIN for distributor lookup'],
                 decidedAt,
               },
-              'discovery',
+              'find_product_page',
             );
           }
           return;
@@ -999,7 +1003,7 @@ export class OnboardingWorker {
                 warnings: ['No enabled distributor connections'],
                 decidedAt,
               },
-              'discovery',
+              'find_product_page',
             );
           }
           return;
@@ -1082,7 +1086,7 @@ export class OnboardingWorker {
             warnings: reconcile.warnings,
             decidedAt,
           },
-          'sourcing',
+          'route_sources',
         );
         return;
       }
@@ -1124,7 +1128,7 @@ export class OnboardingWorker {
             sourceType: 'distributor_record',
             target: 'extraction',
           },
-          'extraction',
+          'collect_details',
         );
         return;
       }
@@ -1146,7 +1150,7 @@ export class OnboardingWorker {
             warnings: [...reconcile.warnings, ...sourceErrorWarnings(attempts)],
             decidedAt,
           },
-          'discovery',
+          'find_product_page',
         );
         return;
       }
@@ -1167,7 +1171,7 @@ export class OnboardingWorker {
             warnings: [...reconcile.warnings, 'Distributor lookups failed; continuing to Discovery'],
             decidedAt,
           },
-          'discovery',
+          'find_product_page',
         );
         return;
       }
@@ -1188,7 +1192,7 @@ export class OnboardingWorker {
           warnings: reconcile.warnings,
           decidedAt,
         },
-        'discovery',
+        'find_product_page',
       );
     } catch (err) {
       console.error(`[OnboardingWorker] Sourcing error for ${item.id}:`, err);
@@ -1203,7 +1207,7 @@ export class OnboardingWorker {
         }
       }
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-        stage: 'sourcing',
+        stage: 'route_sources',
         error: String(err),
       });
     }
@@ -1284,7 +1288,7 @@ export class OnboardingWorker {
         updateItemStageStatus(item.id, 'completed', reviewReason);
 
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-          stage: 'discovery',
+          stage: 'find_product_page',
           needsManualReview: true,
           manualReviewReason: reviewReason,
           sourcesCount: sources.length,
@@ -1374,7 +1378,7 @@ export class OnboardingWorker {
         if (sources.length > 0) insertSources(item.id, sources);
         if (discoveryRunId) completeDiscoveryRun(discoveryRunId, 'needs_input_ambiguous', `Variant resolution ${variantResolutionForDiscovery.status} — needs operator choice`);
         updateItemStageStatus(item.id, 'needs_input', `variant:${variantResolutionForDiscovery.status}: multiple variants require operator choice`);
-        onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', { stage: 'discovery', variantResolution: variantResolutionForDiscovery });
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', { stage: 'find_product_page', variantResolution: variantResolutionForDiscovery });
         return;
       }
 
@@ -1555,7 +1559,7 @@ export class OnboardingWorker {
 
         const topVerificationForEvent = verificationResults[0];
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-          stage: 'discovery',
+          stage: 'find_product_page',
           sourceUrl: shouldAutoSelect && autoSelectedSource ? autoSelectedSource.url : null,
           autoSelected: shouldAutoSelect,
           needsManualReview: !shouldAutoSelect,
@@ -1592,7 +1596,7 @@ export class OnboardingWorker {
         completeDiscoveryRun(discoveryRunId, 'needs_input_no_candidates', 'No matching product pages found');
         updateItemStageStatus(item.id, 'completed', 'No matching product pages found');
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-          stage: 'discovery',
+          stage: 'find_product_page',
           warning: 'No sources found',
           needsManualReview: true,
           manualReviewReason: 'No sources found',
@@ -1610,13 +1614,13 @@ export class OnboardingWorker {
       if (retry < 2) {
         updateItemStageStatus(item.id, 'pending');
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
-          stage: 'discovery',
+          stage: 'find_product_page',
           error: String(err),
         });
       } else {
         updateItemStageStatus(item.id, 'failed', String(err));
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-          stage: 'discovery',
+          stage: 'find_product_page',
           error: String(err),
         });
       }
@@ -1641,7 +1645,7 @@ export class OnboardingWorker {
       if (!item.sourceUrl) {
         updateItemStageStatus(item.id, 'failed', 'No confirmed source URL');
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-          stage: 'extraction',
+          stage: 'collect_details',
           error: 'No confirmed source URL',
         });
         return;
@@ -1660,7 +1664,7 @@ export class OnboardingWorker {
         const errorMsg = `No extractor profile for ${domain} — profile required`;
         updateItemStageStatus(item.id, 'failed', errorMsg);
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-          stage: 'extraction',
+          stage: 'collect_details',
           error: errorMsg,
         });
         return;
@@ -1762,7 +1766,7 @@ export class OnboardingWorker {
 
         updateItemStageStatus(item.id, 'completed');
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-          stage: 'extraction',
+          stage: 'collect_details',
           extractedData,
         });
 
@@ -1838,7 +1842,7 @@ export class OnboardingWorker {
           console.warn(`[OnboardingWorker] Variant gate ${code} for ${item.id} — parking as needs_input`);
           updateItemStageStatus(item.id, 'needs_input', `variant:${code}:${String(err)}`);
           onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', {
-            stage: 'extraction',
+            stage: 'collect_details',
             error: `variant:${code}`,
             variantFailureCode: code,
           });
@@ -1849,13 +1853,13 @@ export class OnboardingWorker {
         if (retry < 2) {
           updateItemStageStatus(item.id, 'pending');
           onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
-            stage: 'extraction',
+            stage: 'collect_details',
             error: String(err),
           });
         } else {
           updateItemStageStatus(item.id, 'failed', String(err));
           onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-            stage: 'extraction',
+            stage: 'collect_details',
             error: String(err),
           });
         }
@@ -1895,14 +1899,14 @@ export class OnboardingWorker {
       const errorMsg = `distributor_materialization:${DISTRIBUTOR_MATERIALIZATION_ERROR_CODES.internal_error}`;
       updateItemStageStatus(item.id, 'failed', errorMsg);
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-        stage: 'extraction',
+        stage: 'collect_details',
         error: errorMsg,
       });
       return;
     }
     if (result.ok) {
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-        stage: 'extraction',
+        stage: 'collect_details',
         extractedData: result.extractionData,
       });
       console.log(
@@ -1928,7 +1932,7 @@ export class OnboardingWorker {
     console.error(`[OnboardingWorker] Distributor-record extraction integrity failure for ${item.id}: ${result.code}`);
     updateItemStageStatus(item.id, 'failed', errorMsg);
     onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-      stage: 'extraction',
+      stage: 'collect_details',
       error: errorMsg,
     });
   }
@@ -2003,7 +2007,7 @@ export class OnboardingWorker {
       }
 
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
-        stage: 'curation',
+        stage: 'prepare_listing',
         curationData,
         consistencyWarnings: consistencyWarnings.length > 0 ? consistencyWarnings : undefined,
         semanticValidation: semanticSurface.mode === 'active' ? semanticSurface.semanticValidation : undefined,
@@ -2020,7 +2024,7 @@ export class OnboardingWorker {
       console.error(`[OnboardingWorker] Curation error for ${item.id}:`, err);
       updateItemStageStatus(item.id, 'failed', String(err));
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-        stage: 'curation',
+        stage: 'prepare_listing',
         error: String(err),
       });
     }

@@ -14,7 +14,7 @@
  *
  * Frozen vs live discipline (src/classification/runtime-snapshot.ts):
  * - Legacy per-SKU: buildRuntimeSnapshot + persistRuntimeSnapshot + run linked to snapshotHash (live config path).
- * - Cohort (preparedCohort): reuse frozen snapshot/member run + frozenBatchItems + coordinatedTitles/Pages; never re-read live DB for evidence/siblings — frozen-means-frozen (PR3/PR6/PR7).
+ * - Cohort (prepared member input): reuse frozen snapshot/member run + frozenBatchItems + settled member title/Page inputs; never re-read live DB for evidence/siblings — frozen-means-frozen (PR3/PR6/PR7).
  *
  * story: e04s01
  */
@@ -27,9 +27,8 @@ import { listItemsByBatch, findExtractionDataJsonRowById } from '../db/repositor
 import { getDb } from '../db/connection';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../classification/config-loader';
 import { createConfigSnapshot, syncConfigToCache, getPersistedConfigSnapshotId, upsertConfigSnapshot } from '../db/repositories/classification-config-repo';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot, getRuntimeSnapshotByHash, deepFreeze } from '../classification/runtime-snapshot';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../classification/runtime-snapshot';
-import { ensureMemberRun } from '../db/repositories/classification-cohort-run-repo';
 import {
   createRun,
   completeRun,
@@ -56,12 +55,14 @@ import { determineProductGroup } from './product-line-grouper';
 import { listDistinctProductPageNames } from '../db/repositories/page-repo';
 import { packagingOcrStage } from '../classification/stages/packaging-ocr-stage';
 import { getOcrStageFlags } from '../classification/ocr-stage-flags';
-import type { ProductLineItemSnapshot, StageDefinition, PipelineRunResult, ClassificationStageName } from '../classification/types';
+import type { ProductLineItemSnapshot, StageDefinition, PipelineRunResult, ClassificationStageName, CoordinatedPageMemberValue } from '../classification/types';
 import type { OnboardingItem, CurationData, ExtractionData } from '../shared/schemas/onboarding';
-import type { ClassificationEvidence } from '../shared/schemas/classification';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
-import { buildFrozenItem } from './cohort-curator';
-import type { PreparedCohortContext } from './cohort-curator';
+import type {
+  ExecutionEvidenceProjectionMemberV2,
+} from '../shared/schemas/cohorts';
+import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
+import type { PreparedProductLineGroup } from './cohort-curation/frozen-evidence';
 
 // ─── PR8 C3 — synthesis ordering guard (DECISION-C) ──────────────────────────
 
@@ -162,6 +163,131 @@ export function composeCurationPipelineStages(): StageDefinition[] {
   ];
 }
 
+// ─── Prepared-member narrow entry (Slice 5) ─────────────────────────────────
+/**
+ * Narrow prepared-member input (plan §2.3): everything the member pipeline
+ * needs, with cohort input construction already done BEFORE this seam by
+ * `cohort-curation/members.ts` — a constructed frozen item, persisted child
+ * identity, the immutable runtime snapshot, effective/execution type,
+ * actually-used frozen sibling context, settled MEMBER title/Page inputs,
+ * and the ownership assertion. It never recaptures authority and never
+ * accepts caller-built whole-cohort output maps as proof of correctness
+ * (the one-member Page map below is the member's own settled input, not a
+ * cohort set — the unchanged materializer reads only its own SKU's entry).
+ */
+export interface CuratePreparedMemberInput {
+  workspacePath: string;
+  workspaceId: string;
+  /** Live pipeline-state identity (id/upc/stage); semantic fields unused. */
+  item: OnboardingItem;
+  /** Executed member, constructed via `buildFrozenItem` before the seam. */
+  frozenItem: OnboardingItem;
+  /** Persisted child identity (ensured by the member executor). */
+  childRun: ClassificationRunRow;
+  /** Immutable member runtime snapshot (deep-frozen before the seam). */
+  runtimeSnapshot: RuntimeClassificationSnapshot;
+  modelPolicyView: ModelPolicyView | null;
+  verifiedPageIds: string[];
+  memberProjection: ExecutionEvidenceProjectionMemberV2;
+  memberExtractionMethod: string | null;
+  cohortExecutionType?: {
+    id: string | null;
+    confidence: number | null;
+    outcome: 'coherent' | 'coherent_with_abstentions' | 'conflicted' | 'abstained' | null;
+  };
+  effectiveType?: { id: string | null; source: 'reviewed' | 'execution' | 'none' };
+  productLineGroup: PreparedProductLineGroup | null;
+  productLineItems?: ProductLineItemSnapshot[];
+  /** Settled MEMBER title input (null = member-local naming path). */
+  titleInput: { title: string; source: 'llm_cohort' | 'cohort_fallback' } | null;
+  /** Settled MEMBER page input as a one-member map (absent = legacy gate path). */
+  coordinatedPages?: Map<string, CoordinatedPageMemberValue>;
+  pageCoordinationAbsent?: boolean;
+  assertOwnershipHeld?: () => void;
+}
+
+
+/**
+ * Resolve distributor-copy inputs for one executed item (moved verbatim out
+ * of the shared curation body in Slice 5; called by both the legacy preamble
+ * and the shared body so the Amendment B V1/V2 authority reads live in one
+ * place). `memberExtractionMethod` is the frozen projection's method in
+ * prepared mode, null in legacy mode (live provenance decides there).
+ */
+function resolveDistributorCopyInputs(
+  item: OnboardingItem,
+  ext: ExtractionData & Record<string, unknown>,
+  memberExtractionMethod: string | null,
+): { distributorSource: boolean; verifiedV2Distributor: boolean } {
+  // ADR 0014 / PI-6: distributor images are DISPLAY-ONLY (see body).
+  // Milestone E: distributor-record extraction data is IDENTITY-ONLY.
+  const distributorSource = item.sourceType === 'distributor_record';
+  // Amendment B (M5b-2): VERIFIED v2 merchandising authority (see body).
+  const liveDistributorProvenance = (ext as {
+    distributorRecordProvenance?: { extractionMethod?: string | null; evidenceHash?: string | null } | null;
+  } | null)?.distributorRecordProvenance ?? null;
+  const decisionEvidenceHash = (item.sourcingDecision as { evidenceHash?: string | null } | null)?.evidenceHash ?? null;
+  const verifiedV2Distributor =
+    distributorSource &&
+    (memberExtractionMethod === 'distributor_record_v2' ||
+      (liveDistributorProvenance?.extractionMethod === 'distributor_record_v2' &&
+        typeof liveDistributorProvenance.evidenceHash === 'string' &&
+        liveDistributorProvenance.evidenceHash.length > 0 &&
+        liveDistributorProvenance.evidenceHash === decisionEvidenceHash));
+  return { distributorSource, verifiedV2Distributor };
+}
+/**
+ * Narrow prepared-member entry (plan §2.3), used only by `members.ts`.
+ * Cohort input construction happened before this seam; this entry resolves
+ * nothing live and recaptures no authority — it maps the narrow input onto
+ * the single shared pipeline execution body below.
+ */
+export async function curatePreparedMember(input: CuratePreparedMemberInput): Promise<CurationData> {
+  return executeCurationPipeline({
+    item: input.frozenItem,
+    workspacePath: input.workspacePath,
+    workspaceId: input.workspaceId,
+    run: input.childRun,
+    runtimeSnapshot: input.runtimeSnapshot,
+    configSnapshotRef: input.runtimeSnapshot.configSnapshotRef,
+    runModelPolicyView: input.modelPolicyView,
+    legacyPageSnapshot: null,
+    memberExtractionMethod: input.memberExtractionMethod,
+    prepared: {
+      memberProjection: input.memberProjection,
+      cohortExecutionType: input.cohortExecutionType,
+      effectiveType: input.effectiveType,
+      productLineGroup: input.productLineGroup,
+      productLineItems: input.productLineItems,
+      preComputedTitle: input.titleInput?.title,
+      preComputedTitleSource: input.titleInput?.source,
+      coordinatedPages: input.coordinatedPages,
+      pageCoordinationAbsent: input.pageCoordinationAbsent,
+      verifiedPageIds: input.verifiedPageIds,
+      assertOwnershipHeld: input.assertOwnershipHeld,
+    },
+  });
+}
+
+/**
+ * Resolved prepared values consumed by the single shared pipeline execution
+ * body. Built by `curatePreparedMember` (production) or the transitional
+ * adapter (pre-Slice-6 tests) — never by spreading live semantic state.
+ */
+interface ResolvedPreparedInputs {
+  memberProjection: ExecutionEvidenceProjectionMemberV2;
+  cohortExecutionType: CuratePreparedMemberInput['cohortExecutionType'];
+  effectiveType: CuratePreparedMemberInput['effectiveType'];
+  productLineGroup: PreparedProductLineGroup | null;
+  productLineItems?: ProductLineItemSnapshot[];
+  preComputedTitle?: string;
+  preComputedTitleSource?: 'llm_cohort' | 'cohort_fallback';
+  coordinatedPages?: Map<string, CoordinatedPageMemberValue>;
+  pageCoordinationAbsent?: boolean;
+  verifiedPageIds: string[];
+  assertOwnershipHeld?: () => void;
+}
+
 /**
  * Runs the modular classification pipeline for a curated item.
  * Uses the Classification Configuration from store/classification/
@@ -178,22 +304,7 @@ export async function curateItemWithPipeline(
   item: OnboardingItem,
   workspacePath: string,
   workspaceId: string,
-  preparedCohort?: PreparedCohortContext,
 ): Promise<CurationData> {
-  // Prepared-cohort mode (issue #30 PR3 M2, amendment 6): the member executes
-  // against the FROZEN execution-evidence projection + freeze-persisted
-  // runtime snapshot. The item's live `extractionData`/`sourceUrl` (which may
-  // have mutated after the freeze) is overlaid with the frozen projection so
-  // the executed member never reads post-freeze mutations. Absent the
-  // prepared context, this function is byte-identical to today's behavior.
-  const cohortMode = preparedCohort !== undefined;
-  if (cohortMode) {
-    // PR3 hardening (Commit B / R2): prepared mode CONSTRUCTS the executed
-    // member FROM the frozen projection — identity from the live item, every
-    // semantic field from the projection (authoritative null sourceUrl stays
-    // null; NO live `...ext` spread).
-    item = buildFrozenItem(preparedCohort!.memberProjection, item);
-  }
   const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
 
   // ADR 0014 / PI-6: distributor images are DISPLAY-ONLY. The non-cohort
@@ -206,34 +317,11 @@ export async function curateItemWithPipeline(
   // fields (description, search keywords, custom fields) never feed
   // classification inputs for distributor-source items — even if a malformed
   // payload carried them.
-  const distributorSource = item.sourceType === 'distributor_record';
-
-  // Amendment B (M5b-2): VERIFIED v2 merchandising authority. Distributor
-  // copy unlocks ONLY for a verified `distributor_record_v2` materialization:
-  //  - live path: the payload's provenance declares distributor_record_v2 AND
-  //    its evidence hash equals the item's persisted sourcing decision (a
-  //    tampered/replaced payload never unlocks copy);
-  //  - prepared-cohort path: the FROZEN member projection's extractionMethod
-  //    is authoritative (validated at freeze) — live values are never
-  //    consulted for the executed member.
-  // V1 / unverified / tampered materializations keep the fail-closed
-  // suppression below (identity-only).
-  const liveDistributorProvenance = (ext as {
-    distributorRecordProvenance?: { extractionMethod?: string | null; evidenceHash?: string | null } | null;
-  } | null)?.distributorRecordProvenance ?? null;
-  const memberExtractionMethod = cohortMode
-    ? ((preparedCohort?.memberProjection as { extractionMethod?: string | null } | null)?.extractionMethod ?? null)
-    : null;
-  const decisionEvidenceHash = (item.sourcingDecision as { evidenceHash?: string | null } | null)?.evidenceHash ?? null;
-  const verifiedV2Distributor =
-    distributorSource &&
-    (memberExtractionMethod === 'distributor_record_v2' ||
-      (liveDistributorProvenance?.extractionMethod === 'distributor_record_v2' &&
-        typeof liveDistributorProvenance.evidenceHash === 'string' &&
-        liveDistributorProvenance.evidenceHash.length > 0 &&
-        liveDistributorProvenance.evidenceHash === decisionEvidenceHash));
-
-  if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[ProductCurator] Starting classification pipeline for: "${item.name}"`);
+  // Legacy path: live provenance decides (memberExtractionMethod is null —
+  // see `resolveDistributorCopyInputs`; the prepared path resolves its own
+  // frozen method inside `curatePreparedMember`).
+  const memberExtractionMethod: string | null = null;
+  const { distributorSource, verifiedV2Distributor } = resolveDistributorCopyInputs(item, ext, memberExtractionMethod);
 
   let configSnapshotRef: {
     id: string;
@@ -245,27 +333,11 @@ export async function curateItemWithPipeline(
   let runtimeSnapId: string;
   let runtimeSnapHash: string;
   let runModelPolicyView: ModelPolicyView | null;
-  // Legacy-only verified-Page capture result (null in prepared-cohort mode).
-  let legacyPageSnapshot: { pageImportId: string | null; verifiedPageIds: string[] } | null = null;
+  // Legacy-only verified-Page capture result (this entry is legacy-only;
+  // the prepared path resolves its verified Page set before the seam).
+  let legacyPageSnapshot: { pageImportId: string | null; verifiedPageIds: string[] } | null;
 
-  if (cohortMode) {
-    // ── Prepared-cohort mode (amendment 6) ─────────────────────────────────
-    // SKIP authority capture, per-SKU snapshot build and stale-run cleanup:
-    // the member runs against the freeze-persisted runtime snapshot (shared
-    // authorities captured ONCE at freeze) and the freeze-created child run.
-    const ctx = preparedCohort!;
-    const loadedSnapshot = getRuntimeSnapshotByHash(workspaceId, ctx.memberSnapshotHash);
-    if (!loadedSnapshot) {
-      throw new Error(
-        `Prepared-cohort mode: frozen member runtime snapshot ${ctx.memberSnapshotHash} not found; the freeze may not have persisted it.`,
-      );
-    }
-    runtimeSnapshot = deepFreeze(loadedSnapshot);
-    runtimeSnapId = ctx.memberSnapshotId;
-    runtimeSnapHash = ctx.memberSnapshotHash;
-    configSnapshotRef = runtimeSnapshot.configSnapshotRef;
-    runModelPolicyView = ctx.sharedAuthorities.modelPolicyView;
-  } else {
+  {
     // ── Legacy per-SKU mode (byte-identical to today) ─────────────────────
     // Load the authoritative runtime config (ACTIVE v2 bundle when present,
     // transitional v1 otherwise). The modular pipeline works even without
@@ -366,23 +438,8 @@ export async function curateItemWithPipeline(
     };
   }
 
-  let run: import('../db/repositories/classification-run-repo').ClassificationRunRow;
-  if (cohortMode) {
-    // ── Prepared-cohort mode ───────────────────────────────────────────────
-    // Reuse the freeze-created child run (idempotent ensureMemberRun) and link
-    // its config refs from the persisted member snapshot. No stale-run cleanup
-    // and no new createRun — the child already exists and is running.
-    const ctx = preparedCohort!;
-    run = ensureMemberRun(ctx.parentRunId, item.id, workspaceId, item.upc, ctx.memberSnapshotId, ctx.memberSnapshotHash);
-    if (run.configSnapshotId !== ctx.memberSnapshotId || run.configSnapshotHash !== ctx.memberSnapshotHash) {
-      // Crash-recovery re-creation (or a prior partial freeze) may have left
-      // stale refs — re-link from the freeze-persisted member snapshot.
-      getDb().run(
-        'UPDATE classification_runs SET config_snapshot_id = ?, config_snapshot_hash = ? WHERE id = ?',
-        [ctx.memberSnapshotId, ctx.memberSnapshotHash, run.id],
-      );
-    }
-  } else {
+  let run: ClassificationRunRow;
+  {
     // Fail any existing running classification runs for this onboarding item to ensure
     // we do not violate the UNIQUE constraint from a stale run.
     if (item.id) {
@@ -408,6 +465,58 @@ export async function curateItemWithPipeline(
     });
   }
 
+  return executeCurationPipeline({
+    item,
+    workspacePath,
+    workspaceId,
+    run,
+    runtimeSnapshot,
+    configSnapshotRef,
+    runModelPolicyView,
+    legacyPageSnapshot,
+    memberExtractionMethod: null,
+    prepared: null,
+  });
+}
+
+/**
+ * Single shared pipeline execution/assembly body (Slice 5): stage-context
+ * construction, `runPipeline`, the synthesis-ordering guard, and
+ * compatibility `CurationData` assembly. Used by BOTH the legacy per-item
+ * path (above) and the narrow prepared entry (`curatePreparedMember`) —
+ * never forked. Cohort input construction (frozen item, snapshot/child
+ * refs, sibling/title/page selection) happens BEFORE this seam, in the
+ * member executor or the transitional adapter.
+ */
+async function executeCurationPipeline(args: {
+  item: OnboardingItem;
+  workspacePath: string;
+  workspaceId: string;
+  run: ClassificationRunRow;
+  runtimeSnapshot: RuntimeClassificationSnapshot;
+  configSnapshotRef: { id: string; hash: string; sourceCommit: string | null; createdAt: string };
+  runModelPolicyView: ModelPolicyView | null;
+  legacyPageSnapshot: { pageImportId: string | null; verifiedPageIds: string[] } | null;
+  memberExtractionMethod: string | null;
+  prepared: ResolvedPreparedInputs | null;
+}): Promise<CurationData> {
+  const {
+    item,
+    workspacePath,
+    workspaceId,
+    run,
+    runtimeSnapshot,
+    configSnapshotRef,
+    runModelPolicyView,
+    legacyPageSnapshot,
+  } = args;
+  const cohortMode = args.prepared !== null;
+  const prepared = args.prepared;
+  const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
+  const { distributorSource, verifiedV2Distributor } = resolveDistributorCopyInputs(item, ext, args.memberExtractionMethod);
+
+  if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[ProductCurator] Starting classification pipeline for: "${item.name}"`);
+
   try {
     // ── Product-line grouping for family-aware curation ───────────────────
     // Determine sibling context before running the pipeline so
@@ -427,32 +536,25 @@ export async function curateItemWithPipeline(
     let batchItemsForCoordination: OnboardingItem[] = [];
 
     if (cohortMode) {
-      const frozenCtx = preparedCohort!;
-      // PR6 review fix (SHOULD-FIX 2): gate on the member's ACTUAL frozen
-      // `groupByProductLine` group size (the exact grouping the parent title
-      // op's coordinator uses) — never the all-cohort sibling count. A true
-      // singleton (size 1) has no durable output row and keeps the unchanged
-      // per-item `name_consolidation` path (no deterministic fallback, no
-      // warning). Hand-built test contexts that omit `memberGroupSizes` fall
-      // back to the all-cohort sibling count (uniform cohorts only).
-      const memberGroupSize =
-        frozenCtx.memberGroupSizes?.get(item.upc) ?? (frozenCtx.productLineContext?.siblingSkus.length ?? 0);
-      if (frozenCtx.productLineContext && memberGroupSize >= 2) {
+      // Prepared mode: the sibling group was constructed before the seam
+      // (`buildPreparedProductLineGroup` — the SHOULD-FIX-2 gate on the
+      // member's ACTUAL frozen group size lives there). Adapt it to the
+      // legacy `determineProductGroup` shape the stages consume.
+      const preparedGroup = prepared!.productLineGroup;
+      if (preparedGroup) {
         productLineGroup = {
-          groupId: frozenCtx.productLineContext.groupId,
-          groupLabel: frozenCtx.productLineContext.groupLabel,
+          groupId: preparedGroup.groupId,
+          groupLabel: preparedGroup.groupLabel,
           normalizedBrand: '',
           normalizedName: '',
-          siblingNames: frozenCtx.productLineContext.siblingNames,
-          siblingWebTitles: frozenCtx.productLineContext.siblingWebTitles,
-          siblingOcrTitles: frozenCtx.productLineContext.siblingOcrTitles,
-          siblingSkus: frozenCtx.productLineContext.siblingSkus,
+          siblingNames: preparedGroup.siblingNames,
+          siblingWebTitles: preparedGroup.siblingWebTitles,
+          siblingOcrTitles: preparedGroup.siblingOcrTitles,
+          siblingSkus: preparedGroup.siblingSkus,
           sizeVariantCount: 0,
           flavorVariantCount: 0,
         };
-        console.log(`[ProductCurator] Using frozen sibling context for ${item.upc}: group "${productLineGroup.groupId}"`);
       }
-      batchItemsForCoordination = frozenCtx.frozenBatchItems ?? [];
     } else {
       productLineGroup = (item as OnboardingItem & { siblingGroup?: ReturnType<typeof determineProductGroup> }).siblingGroup ?? null;
       if (!productLineGroup) {
@@ -486,7 +588,7 @@ export async function curateItemWithPipeline(
             acceptedEvidenceAttemptId: null,
             acceptedEvidenceAttemptIds: [],
             sourcingDecision: null,
-            stage: 'curation' as const,
+            stage: 'prepare_listing' as const,
             stageStatus: 'pending' as const,
             isHeld: false,
             heldReason: null,
@@ -525,7 +627,7 @@ export async function curateItemWithPipeline(
 
     const productLineItems: ProductLineItemSnapshot[] | undefined = cohortMode
       ? productLineGroup
-        ? preparedCohort!.productLineItems
+        ? prepared!.productLineItems
         : undefined
       : productLineGroup
         ? productLineGroup.siblingSkus.map((sku, index) => {
@@ -554,65 +656,12 @@ export async function curateItemWithPipeline(
     let preComputedTitleSource: 'llm_cohort' | 'cohort_fallback' | undefined;
     if ((productLineGroup?.siblingSkus.length ?? 0) >= 2) {
       if (cohortMode) {
-        // PR6 (issue #30): prepared children NEVER call
-        // `coordinateCohortItemsOnce()`. The parent title op
-        // (`ensureCohortTitlesCoordinated`) already persisted every group
-        // member's title into `classification_cohort_outputs` BEFORE the
-        // member loop; read it here. The coordinator + `cohortCache` are
-        // never consulted in active cohort mode.
-        //
-        // PR8 C2 (DECISION-B): a MISSING stored title output for a multi-item
-        // group member is a parent-op contract violation — the member FAILS
-        // with a deterministic error (no invented title). The DECISION-R
-        // warn+fallback is now parent-op-only in active cohort mode: a
-        // durable row with source 'cohort_fallback' is legitimate (the parent
-        // op wrote it), but a MISSING row (no durable output at all) can never
-        // be repaired by the child. The fail-closed throw is keyed on the
-        // FROZEN per-member group sizes (`memberGroupSizes` present AND this
-        // member's group >= 2 — the exact grouping the parent title op uses,
-        // attached by processCohort). Hand-built test contexts that omit
-        // `memberGroupSizes` (and legacy/shadow, which never reach this
-        // branch) keep the PR6 DECISION-R warn+fallback byte-identical. The
-        // title values on this map are already parsed through
-        // `CohortTitleOutputSchema` by the parent op (the map is built from
-        // parsed rows), so the child-side corrupt-title guard is STRUCTURAL —
-        // documented here, not duplicated.
-        // PR8 review R1 (identity): carry BOTH the member identity AND the
-        // parent run identity in the deterministic fail-closed error.
-        const selected = preparedCohort!.coordinatedTitles?.get(item.upc);
-        if (selected) {
-          // PR8 review R1 (BLOCKER 2d): a member-side defensive throw for an
-          // EMPTY title from the durable map. The parent op's writers can
-          // never emit an empty title and the reuse path fails corrupt/empty
-          // rows closed before the member loop, so this is reachable only for
-          // hand-built contexts (or a future writer bug) — the member FAILS
-          // closed instead of threading an empty title into
-          // name_consolidation (which would otherwise fall through to per-item
-          // synthesis and invent a title).
-          if (typeof selected.title !== 'string' || selected.title.trim().length === 0) {
-            throw new Error(
-              `Member ${item.upc ?? item.id} (run ${run.id}) has an EMPTY persisted cohort title output in active cohort mode ` +
-                '(PR8 review R1): failing closed — no title may be invented from a corrupt parent output.',
-            );
-          }
-          preComputedTitle = selected.title;
-          preComputedTitleSource = selected.source;
-        } else {
-          const memberGroupSize =
-            preparedCohort!.memberGroupSizes?.get(item.upc) ??
-            (preparedCohort!.productLineContext?.siblingSkus.length ?? 0);
-          if (preparedCohort!.memberGroupSizes !== undefined && memberGroupSize >= 2) {
-            throw new Error(
-              `Member ${item.upc ?? item.id} (run ${run.id}) is missing a persisted cohort title output in active cohort mode ` +
-                '(PR8 DECISION-B): the parent-op contract was violated and no title may be invented; the member fails closed.',
-            );
-          }
-          console.warn(
-            `[ProductCurator] Member ${item.upc} missing a persisted cohort title output — using deterministic fallback.`,
-          );
-          preComputedTitle = deterministicTitleWithVariants(item.name, item.upc, item.brandHint, itemVariantSources(item));
-          preComputedTitleSource = 'cohort_fallback';
-        }
+        // Prepared mode: the settled MEMBER title input was selected before
+        // the seam — prepared children NEVER call
+        // `coordinateCohortItemsOnce()` and never invent a title (PR6/PR8
+        // DECISION-B selection lives in `selectPreparedMemberTitleInput`).
+        preComputedTitle = prepared!.preComputedTitle;
+        preComputedTitleSource = prepared!.preComputedTitleSource;
       } else {
         try {
           const coordinated = await coordinateCohortItemsOnce(item.batchId, batchItemsForCoordination, runModelPolicyView);
@@ -647,13 +696,13 @@ export async function curateItemWithPipeline(
       // update (evidence/proposals/links/stage completion). A rejected
       // assertion throws `HeartbeatLostError` and the persistence is skipped.
       // Absent in legacy mode — zero behavior change.
-      assertHeld: preparedCohort?.assertOwnershipHeld,
+      assertHeld: prepared?.assertOwnershipHeld,
       // Prepared-cohort mode: the evidence stage consumes the frozen member
       // projection instead of reading onboarding_items (amendment 4). Current
       // freezes always write V2; historical V1 members normalize via the
       // shared adapter before reaching the pipeline (never passed raw).
       cohortFrozenEvidence: cohortMode
-        ? (preparedCohort!.memberProjection as import('../shared/schemas/cohorts').ExecutionEvidenceProjectionMemberV2)
+        ? prepared!.memberProjection
         : undefined,
       // PR4 C4b: cohort-level Execution Product Type resolved at freeze.
       // METADATA ONLY — no gate logic reads it in PR4 (review authority stays
@@ -662,7 +711,7 @@ export async function curateItemWithPipeline(
       // flag OFF / abstained / conflicted / legacy runs leave it absent. The
       // cohort executor consumes it AFTER runPipeline to stamp dependency
       // metadata rows inside the member-projection atomic commit.
-      cohortExecutionType: preparedCohort?.cohortExecutionType,
+      cohortExecutionType: prepared?.cohortExecutionType,
       productLineContext: productLineGroup
         ? {
             groupId: productLineGroup.groupId,
@@ -681,11 +730,11 @@ export async function curateItemWithPipeline(
       // absence). When present, the `category_page_proposals` stage skips the
       // reviewed-Type gate and both LLM paths and MATERIALIZES the stored
       // result with ZERO Page LLM calls.
-      coordinatedPages: preparedCohort?.coordinatedPages,
+      coordinatedPages: prepared?.coordinatedPages,
       // PR7 review R2 (F3.3): expected-empty marker — the child page stage
       // abstains with the clean legacy reason instead of warning about a
       // missing parent page output.
-      pageCoordinationAbsent: preparedCohort?.pageCoordinationAbsent,
+      pageCoordinationAbsent: prepared?.pageCoordinationAbsent,
     };
 
     // Initial evidence starts empty — evidence_extraction stage handles
@@ -762,12 +811,7 @@ export async function curateItemWithPipeline(
     // In prepared-cohort mode the verified Page identity comes from the
     // freeze-persisted shared authorities (never a live re-capture).
     const verifiedPageIdSet = cohortMode
-      ? new Set(
-          preparedCohort!.sharedAuthorities.pageImportId &&
-            preparedCohort!.sharedAuthorities.pages.state === 'verified'
-            ? preparedCohort!.sharedAuthorities.pages.records.filter(r => r.verified).map(r => r.pageId)
-            : [],
-        )
+      ? new Set(prepared!.verifiedPageIds)
       : new Set(legacyPageSnapshot?.pageImportId ? legacyPageSnapshot.verifiedPageIds : []);
     const seenPageIds = new Set<string>();
     const rawSuggestedPages: string[] = [];
@@ -984,11 +1028,11 @@ export async function curateItemWithPipeline(
       // PR5 (DECISION-J): expose the member's effective Curation Product Type
       // (reviewed-first / cohort Execution Product Type fallback / none) on
       // the curation data — read-only observability in prepared-cohort mode
-      // only. `preparedCohort.effectiveType` is always present in cohort mode;
+      // only. The prepared effective type is always present in cohort mode;
       // legacy (non-cohort) runs never carry the key (undefined keys are
       // dropped by JSON.stringify), keeping flag-OFF output byte-identical.
-      effectiveProductType: cohortMode && preparedCohort!.effectiveType
-        ? { id: preparedCohort!.effectiveType.id, source: preparedCohort!.effectiveType.source }
+      effectiveProductType: cohortMode && prepared!.effectiveType
+        ? { id: prepared!.effectiveType.id, source: prepared!.effectiveType.source }
         : undefined,
       // e05s01: review observability — additive, absent in legacy runs keeps byte-identical
       // story: e05s01
@@ -1002,7 +1046,6 @@ export async function curateItemWithPipeline(
         }));
       })(),
       categoryPageGating: (() => {
-        const catMeta = result.stageOutputs.category_page_proposals;
         // Gate reasons are encoded as abstention proposals; check proposals for reviewable_abstention target category_page_proposals
         const catAbstention = result.proposals.find(p => p.proposalType === 'reviewable_abstention' && String(p.targetId) === 'category_page_proposals');
         const reasonRaw = (catAbstention?.proposedValue as { reason?: string } | null)?.reason ?? null;
@@ -1024,7 +1067,7 @@ export async function curateItemWithPipeline(
         const snapHash = runtimeSnapshot.snapshotHash ?? null;
         const fileVersions = runtimeSnapshot.focusedFileHashes ?? {};
         const verifiedIds = Array.from(verifiedPageIdSet);
-        const effectiveTypeId = (cohortMode && preparedCohort!.effectiveType?.id) || suggestedProductType;
+        const effectiveTypeId = (cohortMode && prepared!.effectiveType?.id) || suggestedProductType;
         const profileEntry = effectiveTypeId
           ? runtimeSnapshot.attributeProfiles.find(p => p.productTypeId === effectiveTypeId) ?? null
           : runtimeSnapshot.attributeProfiles[0] ?? null;
@@ -1046,7 +1089,7 @@ export async function curateItemWithPipeline(
     // error that coincides with a lost claim never gets a terminal child
     // write from the stale owner — `assertOwnershipHeld` throws
     // `HeartbeatLostError` first and the child stays untouched.
-    preparedCohort?.assertOwnershipHeld?.();
+    prepared?.assertOwnershipHeld?.();
     completeRun(run.id, 'failed', redactTransportText(err instanceof Error ? err.message : String(err)));
     throw err;
   }

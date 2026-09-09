@@ -1,0 +1,4 @@
+// Synthetic: quoted v1 literals (must be found as operational-v1).
+const a = 'sourcing';
+const b = "discovery";
+const c = 'route_sources';

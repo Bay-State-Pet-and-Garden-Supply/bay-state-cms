@@ -449,7 +449,7 @@ describe('approval is durable and never implies export', () => {
 
     const approveEvent = events.find(e => e.status === 'approved');
     expect(approveEvent).toBeDefined();
-    expect(approveEvent!.data.stage).toBe('promotion');
+    expect(approveEvent!.data.stage).toBe('create_drafts');
     expect(approveEvent!.data.approvalOrigin).toBe('bulk');
   });
 

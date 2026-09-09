@@ -140,6 +140,7 @@ function parseFieldInput<T>(
 const OCR_CONTENT_SCALAR_FIELDS = [
   'productName', 'brand', 'upc', 'size', 'weight', 'count',
   'flavorVariety', 'color', 'material', 'lifeStage', 'breedSize', 'productForm',
+  'packagingType', 'npkRatio',
 ] as const;
 
 /** Array OCR fields whose non-empty presence counts as usable content. */

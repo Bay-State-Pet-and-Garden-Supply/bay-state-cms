@@ -10,6 +10,7 @@ import {
   type ResolveConflictRequest,
 } from '../../shared/schemas/distributor';
 import { recordAcceptances } from './onboarding-acceptance-repo';
+import { stagePredicateParams } from './onboarding-stage-vocabulary-repo';
 import { completeSourcingViaProjection } from './onboarding-item-repo';
 import type { ProjectionResolutionInput } from '../../onboarding/sourcing/distributor-record-projection';
 
@@ -422,9 +423,12 @@ export function resolveConflict(
     //    `evidence_to_discovery`. Never the previous blanket final step, and
     //    never Curation.
     if (remainingHard.count === 0) {
+      // Slice 5a bridge: dual-spelling sourcing guard (same pattern as the
+      // item-repo claim predicate).
+      const [conflictAltA, conflictAltB] = stagePredicateParams('route_sources');
       const item = db
-        .query("SELECT id FROM onboarding_items WHERE id = ? AND stage = 'sourcing' AND stage_status = 'needs_input'")
-        .get(conflict.itemId) as { id: string } | undefined;
+        .query("SELECT id FROM onboarding_items WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'needs_input'")
+        .get(conflict.itemId, conflictAltA, conflictAltB) as { id: string } | undefined;
       if (item) {
         const resolutions = listResolvedConflictResolutions(conflict.itemId);
         const res = completeSourcingViaProjection(conflict.itemId, resolutions);

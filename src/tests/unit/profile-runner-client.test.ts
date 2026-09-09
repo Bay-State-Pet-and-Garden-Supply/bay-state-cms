@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../server/extraction-worker-client', () => ({
+vi.mock('@/server/extraction-worker-client', () => ({
   trustedExtract: vi.fn(),
 }));
 

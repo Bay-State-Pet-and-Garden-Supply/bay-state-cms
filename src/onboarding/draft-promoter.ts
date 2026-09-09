@@ -26,6 +26,16 @@ import {
   getCurrentSourcingGeneration,
 } from '../db/repositories/onboarding-evidence-repo';
 import { findDistributorRecordExtraction } from '../db/repositories/onboarding-extraction-repo';
+import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
+
+/** Slice 5b native: canonical promotion-stage check (dual read). */
+function isPromotionStage(rawStage: unknown): boolean {
+  try {
+    return toCanonicalStage(rawStage) === 'create_drafts';
+  } catch {
+    return false;
+  }
+}
 import { listResolvedConflictResolutions } from '../db/repositories/onboarding-conflict-repo';
 import { buildDistributorRecordProjection, buildDistributorRecordProjectionV1 } from './sourcing/distributor-record-projection';
 import {
@@ -508,7 +518,7 @@ export function durableApprovalHolds(params: {
   if (!freshBatch || freshBatch.id !== batchId || freshBatch.workspaceId !== workspaceId) {
     return { ok: false, reason: 'wrong_batch' };
   }
-  if (freshItem.stage !== 'promotion') return { ok: false, reason: 'not_in_promotion' };
+  if (!isPromotionStage(freshItem.stage)) return { ok: false, reason: 'not_in_promotion' };
   if (freshItem.stageStatus !== 'pending') return { ok: false, reason: 'not_pending' };
   if (!reviewState || !reviewState.approvedAt) return { ok: false, reason: 'approval_missing' };
   if (reviewState.reviewInvalidatedAt) return { ok: false, reason: 'approval_invalidated' };
@@ -858,7 +868,7 @@ export async function promoteItems(
         // Only fail the promotion stage when the item is still in promotion —
         // an item already moved back to Review is legitimately awaiting
         // re-approval and must NOT be marked failed in the review stage.
-        if (freshItem && freshItem.stage === 'promotion') {
+        if (freshItem && isPromotionStage(freshItem.stage)) {
           completePromotionStage(item.id, false, errMsg);
         }
         failures.push({ itemId: item.id, error: errMsg });

@@ -15,6 +15,7 @@ import pageRoutes from './routes/page-routes';
 import dashboardRoutes from './routes/dashboard-routes';
 import onboardingRoutes from './routes/onboarding-routes';
 import onboardingWorkRoutes from './routes/onboarding-work-routes';
+import onboardingStageReadRoutes from './routes/onboarding-stage-read-routes';
 import distributorRoutes from './routes/distributor-routes';
 import classificationRoutes from './routes/classification-routes';
 import storeManagerRoutes from './routes/store-manager-routes';
@@ -90,6 +91,8 @@ app.route('/api', pageRoutes);
 app.route('/api', dashboardRoutes);
 app.route('/api', onboardingRoutes);
 app.route('/api', onboardingWorkRoutes);
+// Slice 1: dedicated v2 stage reads (read-only; same /api middleware).
+app.route('/api', onboardingStageReadRoutes);
 app.route('/api', distributorRoutes);
 app.route('/api', classificationRoutes);
 app.route('/api', storeManagerRoutes);

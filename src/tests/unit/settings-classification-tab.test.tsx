@@ -26,7 +26,7 @@ const { getLlmTaskConfigs, getClassificationConfig } = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('../../client/api', () => ({
+vi.mock('@/client/api', () => ({
   listFieldRegistry: vi.fn(async () => ({ entries: [] })),
   updateFieldRegistryEntry: vi.fn(async () => ({})),
   getConnection: vi.fn(async () => ({ connection: null })),
@@ -38,7 +38,7 @@ vi.mock('../../client/api', () => ({
   getCatalogHealthReport: vi.fn(async () => ({ issues: [] })),
 }));
 
-vi.mock('../../client/onboarding-api', async (importOriginal) => {
+vi.mock('@/client/onboarding-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../client/onboarding-api')>();
   return {
     ...actual,
@@ -58,7 +58,7 @@ vi.mock('../../client/onboarding-api', async (importOriginal) => {
   };
 });
 
-vi.mock('../../client/components/AiComputePanel', () => ({
+vi.mock('@/client/components/AiComputePanel', () => ({
   AiComputePanel: () => <div data-testid="ai-compute-panel">AI Compute</div>,
 }));
 

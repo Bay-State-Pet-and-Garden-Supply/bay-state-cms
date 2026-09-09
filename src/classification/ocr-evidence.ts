@@ -89,7 +89,7 @@ export function packagingOcrDataToEvidence(
       evidence.push({
         ...base,
         id: randomUUID(),
-        attributeId: null,
+        attributeId: 'species',
         reliability: reliability('species', 'medium') as ClassificationEvidence['reliability'],
         sourceField: 'species',
         snippet: val.slice(0, 300),
@@ -188,7 +188,7 @@ export function packagingOcrDataToEvidence(
     evidence.push({
       ...base,
       id: randomUUID(),
-      attributeId: 'lifeStage',
+      attributeId: 'life-stage',
       reliability: reliability('lifeStage', 'medium') as ClassificationEvidence['reliability'],
       sourceField: 'lifeStage',
       snippet: ocrData.lifeStage.slice(0, 300),
@@ -202,7 +202,7 @@ export function packagingOcrDataToEvidence(
     evidence.push({
       ...base,
       id: randomUUID(),
-      attributeId: 'breedSize',
+      attributeId: 'breed-size',
       reliability: reliability('breedSize', 'medium') as ClassificationEvidence['reliability'],
       sourceField: 'breedSize',
       snippet: ocrData.breedSize.slice(0, 300),
@@ -216,12 +216,40 @@ export function packagingOcrDataToEvidence(
     evidence.push({
       ...base,
       id: randomUUID(),
-      attributeId: 'productForm',
+      attributeId: 'food-form',
       reliability: reliability('productForm', 'medium') as ClassificationEvidence['reliability'],
       sourceField: 'productForm',
       snippet: ocrData.productForm.slice(0, 300),
       value: ocrData.productForm,
       metadata: { provenance: 'packaging_ocr', model, confidence: ocrData.confidenceByField?.productForm ?? null },
+    });
+  }
+
+  // packagingType
+  if (ocrData.packagingType) {
+    evidence.push({
+      ...base,
+      id: randomUUID(),
+      attributeId: 'packaging-type',
+      reliability: reliability('packagingType', 'medium') as ClassificationEvidence['reliability'],
+      sourceField: 'packagingType',
+      snippet: ocrData.packagingType.slice(0, 300),
+      value: ocrData.packagingType,
+      metadata: { provenance: 'packaging_ocr', model, confidence: ocrData.confidenceByField?.packagingType ?? null },
+    });
+  }
+
+  // npkRatio
+  if (ocrData.npkRatio) {
+    evidence.push({
+      ...base,
+      id: randomUUID(),
+      attributeId: 'npk-ratio',
+      reliability: reliability('npkRatio', 'medium') as ClassificationEvidence['reliability'],
+      sourceField: 'npkRatio',
+      snippet: ocrData.npkRatio.slice(0, 300),
+      value: ocrData.npkRatio,
+      metadata: { provenance: 'packaging_ocr', model, confidence: ocrData.confidenceByField?.npkRatio ?? null },
     });
   }
 
@@ -231,7 +259,7 @@ export function packagingOcrDataToEvidence(
       evidence.push({
         ...base,
         id: randomUUID(),
-        attributeId: 'healthConcern',
+        attributeId: 'health-benefits',
         reliability: reliability('healthConcernFunction', 'medium') as ClassificationEvidence['reliability'],
         sourceField: 'healthConcern',
         snippet: val.slice(0, 300),
@@ -247,7 +275,7 @@ export function packagingOcrDataToEvidence(
       evidence.push({
         ...base,
         id: randomUUID(),
-        attributeId: null,
+        attributeId: 'dietary-features',
         reliability: reliability('dietaryLabels', 'medium') as ClassificationEvidence['reliability'],
         sourceField: 'dietaryLabel',
         snippet: val.slice(0, 300),
@@ -298,7 +326,7 @@ export function packagingOcrDataToEvidence(
       evidence.push({
         ...base,
         id: randomUUID(),
-        attributeId: null,
+        attributeId: 'nutrition',
         reliability: reliability('ingredients', 'medium') as ClassificationEvidence['reliability'],
         sourceField: 'ingredient',
         snippet: val.slice(0, 300),

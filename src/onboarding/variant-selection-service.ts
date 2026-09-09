@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
+import { encodeForStorage, readStorageVersion, toCanonicalStored } from '../db/repositories/onboarding-stage-vocabulary-repo';
 
 export interface SelectVariantInput {
   itemId: string;
@@ -61,17 +62,19 @@ export function selectVariantService(
       e.code = 404;
       throw e;
     }
-    // Only discovery|extraction in needs_input (or pending/needs_input for extraction) may select variant
+    // Only find_product_page|collect_details in needs_input (or pending/needs_input for extraction) may select variant.
+    // Slice 5b native: canonical comparison (dual read — either stored spelling qualifies).
+    const rowCanonical = toCanonicalStored(itemRow.stage);
     const allowedStageStatus =
-      (itemRow.stage === 'discovery' && itemRow.stage_status === 'needs_input') ||
-      (itemRow.stage === 'extraction' && (itemRow.stage_status === 'needs_input' || itemRow.stage_status === 'pending' || itemRow.stage_status === 'failed'));
+      (rowCanonical === 'find_product_page' && itemRow.stage_status === 'needs_input') ||
+      (rowCanonical === 'collect_details' && (itemRow.stage_status === 'needs_input' || itemRow.stage_status === 'pending' || itemRow.stage_status === 'failed'));
     if (!allowedStageStatus) {
-      const e: any = new Error(`Variant selection requires discovery/needs_input or extraction/needs_input, got ${itemRow.stage}/${itemRow.stage_status}`);
+      const e: any = new Error(`Variant selection requires find_product_page/needs_input or collect_details/needs_input, got ${itemRow.stage}/${itemRow.stage_status}`);
       e.code = 409;
       throw e;
     }
     // Downstream extraction guard: if extraction already completed, reject unless invalidating (sibling cohort check done via stage_status)
-    if (itemRow.stage === 'extraction' && itemRow.stage_status === 'completed') {
+    if (rowCanonical === 'collect_details' && itemRow.stage_status === 'completed') {
       // Allow re-entry only for park→select→resume flow where item was re-queued to needs_input before selection; completed barrier is checked per-batch elsewhere
       const e: any = new Error('Extraction already completed');
       e.code = 409;
@@ -125,8 +128,9 @@ export function selectVariantService(
       created_at: now,
       updated_at: now,
     });
-    // update item source_url and requeue to extraction/pending (park→select→resume) within same transaction
-    db.prepare('UPDATE onboarding_items SET source_url = ?, stage = ?, stage_status = ?, updated_at = ? WHERE id = ?').run(chosen.deepLink, 'extraction', 'pending', now, input.itemId);
+    // update item source_url and requeue to collect_details/pending (park→select→resume) within same transaction.
+    // Slice 5b native: the write encodes this transaction's observed storage version.
+    db.prepare('UPDATE onboarding_items SET source_url = ?, stage = ?, stage_status = ?, updated_at = ? WHERE id = ?').run(chosen.deepLink, encodeForStorage('collect_details', readStorageVersion(db)), 'pending', now, input.itemId);
     // ensure a source row exists/selected
     const existing = db.prepare('SELECT id FROM onboarding_sources WHERE item_id = ? AND url = ?').get(input.itemId, chosen.deepLink) as any;
     if (existing) {

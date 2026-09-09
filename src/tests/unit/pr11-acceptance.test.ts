@@ -46,9 +46,10 @@ import { upsertConfigSnapshot } from '../../db/repositories/classification-confi
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
-import { freezeCohortForExecution, processCohort } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -694,7 +695,7 @@ describe('PR11 C4 — a blocked member in the promotion stage is refused per-ite
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, CONFLICTING_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     expect(summary.memberFailures[0].productSku).toBe('100000000002');
@@ -747,7 +748,7 @@ describe('PR11 C4 — a blocked member in the promotion stage is refused per-ite
     };
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, fixture);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     const items = prepared.items;
     for (const item of items) decideAllProposals(findItemById(item.id)!);
     placeInPromotion(items.map(item => findItemById(item.id)!));
@@ -774,7 +775,7 @@ describe('PR11 C4 — a cohort child of a SUPERSEDED parent never promotes (pare
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     const items = prepared.items;
 
@@ -806,7 +807,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     const items = prepared.items;
 
@@ -875,7 +876,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
   it('a coherent active-cohort member promotes (matching dependency => draft created)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
-    const run = await freezeActiveCohort(workspaceId, wsPath);    const summary = await processCohort(run, wsPath, workspaceId);
+    const run = await freezeActiveCohort(workspaceId, wsPath);    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     const items = prepared.items;
     for (const item of items) decideAllProposals(findItemById(item.id)!);
@@ -897,7 +898,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     const items = prepared.items;
     const member = findItemById(items[0].id)!;
@@ -950,7 +951,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     const items = prepared.items;
 
     for (const item of items) decideAllProposals(findItemById(item.id)!);
@@ -1013,7 +1014,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     const items = prepared.items;
 
     for (const item of items) {
@@ -1085,7 +1086,7 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE, BRAND_CONTROLLED_SEED);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     // The controlled `brand` attribute deterministically emits a field

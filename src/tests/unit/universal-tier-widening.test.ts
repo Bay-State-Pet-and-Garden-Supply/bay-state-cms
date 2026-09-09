@@ -23,12 +23,12 @@ import type { ResolvedTargets } from '../../classification/curation-target-resol
 import { attributeApplicabilityStage } from '../../classification/stages/attribute-applicability';
 import { productAttributeProposalsStage } from '../../classification/stages/attribute-proposals';
 
-vi.mock('../../classification/config-loader', () => ({ loadClassificationConfig: vi.fn(() => { throw new Error('no disk reads in unit tests'); }) }));
-vi.mock('../../classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
-vi.mock('../../db/repositories/classification-config-repo', () => ({ getCachedAttributeProfiles: vi.fn(() => []), getCachedAttributeMappings: vi.fn(() => []) }));
-vi.mock('../../db/repositories/classification-model-call-repo', () => ({ recordTerminalPreflight: vi.fn() }));
-vi.mock('../../onboarding/llm-client', () => ({ callLlmForTaskWithProvenance: vi.fn(), getLlmConfigForTask: vi.fn() }));
-vi.mock('../../classification/curation-target-resolver', () => ({
+vi.mock('@/classification/config-loader', () => ({ loadClassificationConfig: vi.fn(() => { throw new Error('no disk reads in unit tests'); }) }));
+vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('@/db/repositories/classification-config-repo', () => ({ getCachedAttributeProfiles: vi.fn(() => []), getCachedAttributeMappings: vi.fn(() => []) }));
+vi.mock('@/db/repositories/classification-model-call-repo', () => ({ recordTerminalPreflight: vi.fn() }));
+vi.mock('@/onboarding/llm-client', () => ({ callLlmForTaskWithProvenance: vi.fn(), getLlmConfigForTask: vi.fn() }));
+vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
   resolveTargetsFromSnapshot: vi.fn(),
 }));

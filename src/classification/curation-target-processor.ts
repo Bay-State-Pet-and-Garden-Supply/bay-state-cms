@@ -44,7 +44,7 @@ import {
   llmAssignCategoryPages,
   type PageAssignmentResult,
 } from './page-assignment-llm';
-import { coordinateCohortPagesOnce } from './cohort-page-coordinator';
+import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
 
 // ─── Shared Target Constants ──────────────────────────────────────────────────
 
@@ -803,6 +803,7 @@ async function processTargetInternal(
       selectionMode,
       proposedValue,
       isGroundingSupport: tokenGroundingSupport,
+      includeProductTypeContext: builder.kind === 'product_type',
     });
   const matchingPacket = buildPacket();
   const text = matchingPacket.promptText;

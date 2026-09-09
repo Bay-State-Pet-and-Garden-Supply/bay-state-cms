@@ -230,7 +230,7 @@ describe('Extraction Remedies and Validation Tests', () => {
         sourceType: 'distributor_record',
         target: 'extraction',
       } as never;
-      const res = completeSourcingWithDecision(itemId, decision as never, 'extraction');
+      const res = completeSourcingWithDecision(itemId, decision as never, 'collect_details');
       expect(res.ok).toBe(true);
       updateItemStageStatus(itemId, 'in_progress');
 
@@ -334,7 +334,7 @@ describe('Extraction Remedies and Validation Tests', () => {
         sourceType: 'distributor_record',
         target: 'extraction',
       } as never;
-      const routed = completeSourcingWithDecision(item.id, decision, 'extraction');
+      const routed = completeSourcingWithDecision(item.id, decision, 'collect_details');
       expect(routed.ok).toBe(true);
       updateItemStageStatus(item.id, 'in_progress');
       const materialized = materializeDistributorRecordExtraction(item.id, 'ws-remedy-2');

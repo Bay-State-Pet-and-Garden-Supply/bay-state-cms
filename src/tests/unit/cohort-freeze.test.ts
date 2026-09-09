@@ -40,19 +40,12 @@ import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-sta
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { buildRuntimeSnapshot, getRuntimeSnapshotByHash, buildModelCallContext } from '../../classification/runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
-import {
-  freezeCohortForExecution,
-  buildExecutionEvidenceProjection,
-  captureCohortAuthorities,
-  verifyCohortRunFrozen,
-  runFrozenOcrPullForward,
-  computeOcrExecutionDigest,
-  HeartbeatLostError,
-  buildFrozenItem,
-  buildFrozenProductLineContext,
-} from '../../onboarding/cohort-curator';
-import type { PreparedCohortContext } from '../../onboarding/cohort-curator';
-import { curateItemWithPipeline } from '../../onboarding/product-curator';
+import { freezeCohortForExecution, captureCohortAuthorities, verifyCohortRunFrozen, runFrozenOcrPullForward } from '../../onboarding/cohort-curation/freeze';
+import { buildExecutionEvidenceProjection, buildFrozenItem, buildFrozenProductLineContext, parseFreezeOcrRerunCap } from '../../onboarding/cohort-curation/frozen-evidence';
+import { computeOcrExecutionDigest } from '../../classification/runtime-snapshot';
+import { HeartbeatLostError } from '../../classification/heartbeat-errors';
+import type { PreparedCohortContext } from './helpers/transitional-prepared-member';
+import { curateTransitionalPreparedMember } from './helpers/transitional-prepared-member';
 import { resolveCohortProductType } from '../../classification/cohort-product-type-resolver';
 import { getReviewedTypeFromSnapshot } from '../../classification/effective-curation-type';
 import { canonicalJsonFileString, hashCanonicalJson, sha256Hex } from '../../shared/stable-id';
@@ -898,7 +891,7 @@ describe('two-phase freeze service (PR3 M2)', () => {
     };
 
     const mutatedLiveItem = findItemById(item.id)!;
-    const curationData = await curateItemWithPipeline(mutatedLiveItem, wsPath, workspaceId, prepared);
+    const curationData = await curateTransitionalPreparedMember(mutatedLiveItem, wsPath, workspaceId, prepared);
 
     // Evidence was built ONLY from the frozen projection: the mutation is
     // absent, the frozen web + OCR evidence is present, and the frozen child
@@ -2061,7 +2054,6 @@ describe('PR3 hardening — Commit A (recovery/atomicity)', () => {
   });
 
   it('P1-T3 rerun-cap parsing: missing/unparseable/negative → default 12; valid integers pass through', async () => {
-    const { parseFreezeOcrRerunCap } = await import('../../onboarding/cohort-curator');
     expect(parseFreezeOcrRerunCap(undefined)).toBe(12);
     expect(parseFreezeOcrRerunCap(null)).toBe(12);
     expect(parseFreezeOcrRerunCap('')).toBe(12);

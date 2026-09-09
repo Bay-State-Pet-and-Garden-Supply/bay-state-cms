@@ -607,20 +607,20 @@ An item's status within a Pipeline Stage: `pending`, `in_progress`, `completed`,
 _Avoid_: Item state, pipeline status, old status
 
 **Stage Advancement**:
-The action of moving one or more items from their current Pipeline Stage to the next. Items may be advanced individually or in selected groups, regardless of batch membership. Advancement is always manual — no item auto-transitions between stages. The worker only processes items within their current stage.
-_Avoid_: Batch promotion, phase transition, auto-advance
+The action of moving one or more items from their current Pipeline Stage to the next. Happy-path progression is automation-owned: the worker runs `sweepAutoAdvance` every poll (discovery→extraction→curation→review) plus `sweepDomainReleases`, so an item that satisfies its stage exit contract advances without an operator click. Manual advancement is reserved for explicit human decisions — approval, export, source-conflict resolution, URL/profile exception resolution. The worker only processes items within their current stage; retries are idempotent (`pending` requeue, never backwards). (Supersedes the pre-ADR-0016 “always manual” wording for the operator model; execution `stage` + `stage_status` diagnostics semantics unchanged.)
+_Avoid_: Batch promotion, phase transition, routine manual auto-advance
 
 **Stage Names**:
-The six declared Pipeline Stages: **Sourcing**, **Discovery**, **Extraction**, **Curation**, **Review**, and **Promotion**, in that order.
+The six declared Pipeline Stages (v1 storage vocabulary; v2 canonical vocabulary owner-approved 2026-09-08 — `route_sources` / Identify & Route Sources, `find_product_page` / Find product page, `collect_details` / Collect details, `prepare_listing` / Prepare listing, `review_listings` / Review listings, `create_drafts` / Create drafts): **Sourcing**, **Discovery**, **Extraction**, **Curation**, **Review**, and **Promotion**, in that order. Storage remains v1 until the separately gated migration; see ADR 0034.
 
-**Sourcing**:
+**Sourcing** (v2 canonical `route_sources` / Identify & Route Sources — owner-approved 2026-09-08):
 The first pipeline stage that evaluates distributor evidence against each imported product (ADR 0014 + Amendment A). The capability is **DEFAULT ON** (`BAYSTATE_CMS_SOURCING_ENABLED` absent = enabled, mode `automatic`; explicit `false|0|no` is the global kill switch; empty/whitespace/malformed values fail closed disabled; `BAYSTATE_CMS_SOURCING_MODE` selects `observe|manual|automatic`). Imports derive their entry stage from the effective capability (`manual`/`automatic` → **Sourcing**, otherwise **Discovery**) and write `sourcing_entry_policy_version = 1`; pre-Amendment rows (version 0, incl. the 148 legacy rows) are never claimed, observed, or backfilled and stay on the audited **Continue to Official Site Discovery** path. When active, the worker runs the provider-neutral engine (`src/onboarding/sourcing/`) — enabled distributor connections (Phillips/BCI Phase 1 REST `api` connectors; Orgill/PFX/Phillips-storefront/Bradley/Central Pet `html_scraper` **Distributor Scraper** connectors per Amendment B — the deferred Orgill/PFX SFTP plans and Central Pet EDI feed are superseded as primary transports), each invoked with an exact normalized UPC/GTIN lookup (brand is advisory only, never a filter and never implies `not_stocked`). Evidence attempts are immutable and generation-scoped (`sourcing_generations`); a retry supersedes the generation. The reconciler compares identity-critical fields (upc/gtin/MPN/weight/size/count/packCount/brand, plus variant axes incl. flavor/formula and connector-declared axes): a deterministic projection authority decides qualification; hard identity disagreements persist as durable conflicts (`sourcing/needs_input`) resolvable only via the operator workflow (use candidate / custom value / dismiss); no evidence or provider errors degrade to audited fallback routes. **A qualified distributor record SKIPS Discovery**: the route `distributor_record_to_extraction` moves the item to `extraction/pending` with `source_type='distributor_record'` and a null URL (never a fake official URL). Materialization is **merchandising-depth** (Amendment B): identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and image URLs (display-only); price/inventory stay excluded and the URL stays null. Merchandising fields merge with per-field provenance and never trigger conflicts — only identity-critical fields do. Modes: `observe` writes only generations+attempts (zero decisions/acceptances/conflicts/extractions); `manual` holds non-conflict outcomes at `needs_input` with a server-derived qualification view and two operator actions (**Use distributor record** / **Continue to Official Site Discovery**); `automatic` applies the full route table (hard conflicts always manual). `bundle_to_curation` is prohibited and unactionable everywhere; no Sourcing → Curation routing exists. Distributor images are display-only until PI-6 rights verification. See `docs/runbooks/sourcing-engine-rollout.md` for the rollout/rollback sequence and read-only observation queries.
 _Avoid_: Branding stage, distributor-to-curation routing, fake source URLs
 
-**Discovery**:
+**Discovery** (v2 canonical `find_product_page` / Find product page — owner-approved 2026-09-08):
 The pipeline stage that finds the official product page URL on brand sites via web search.
 
-**Extraction**:
+**Extraction** (v2 canonical `collect_details` / Collect details — owner-approved 2026-09-08):
 The pipeline stage that scrapes raw product details (titles, descriptions, images, prices) from confirmed URLs. **Source-dispatched (Amendment A + Amendment B):** official-page items keep the URL/profile/page-scrape path; `distributor_record` items bypass scraping entirely and are materialized **merchandising-depth** (identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and display-only image candidates) with a null URL, zero fetch/profile/OCR/model/image calls, and a dedicated `distributorRecordProvenance` (generation, evidence hash, sorted accepted attempt/provider ids, projection version, per-field merchandising provenance). Price, inventory, and commerce images stay absent. See `docs/runbooks/sourcing-engine-rollout.md`.
 
 **Domain Extractor Profile**:
@@ -691,13 +691,13 @@ _Avoid_: Training data, random URL, product approval
 A Profile Validation Sample whose source URL has been reviewed as the correct product page for its product.
 _Avoid_: Sitemap guess, search result, unreviewed candidate
 
-**Curation**:
+**Curation** (v2 canonical `prepare_listing` / Prepare listing — owner-approved 2026-09-08):
 The pipeline stage that synthesizes final clean store-ready titles (integrating spreadsheet hints, web scraped details, and local packaging OCR) and classifies products into internal product types and existing category pages.
 
-**Review**:
+**Review** (v2 canonical `review_listings` / Review listings — owner-approved 2026-09-08):
 The pipeline stage that surfaces curated drafts in a review drawer for user approval. Items in this stage can be approved individually.
 
-**Promotion**:
+**Promotion** (v2 canonical `create_drafts` / Create drafts — owner-approved 2026-09-08):
 The pipeline stage that creates CMS product drafts and links them to page directories. Items in this stage remain visible in the Promotion column. When all items in a batch reach Promotion (or are skipped/failed), the batch auto-archives.
 
 **Batch Archival**:
@@ -779,7 +779,7 @@ _Avoid_: Table view, item list, batch detail view
 - "status" was used to mean both batch lifecycle and item-level stage — resolved: use **Pipeline Stage** + **Stage Status** for items, and derived progress for batches.
 - "phase" was used interchangeably with "stage" — resolved: use **Pipeline Stage** exclusively.
 - "batch" was used as a lifecycle controller — resolved: batches are grouping/import containers with no lifecycle control.
-- "advance" was conflated with automated progression — resolved: **Stage Advancement** is always manual.
+- "advance" was conflated with automated progression — resolved: happy-path progression is automation-owned (`sweepAutoAdvance` + `sweepDomainReleases`); manual advancement is reserved for explicit human decisions (approval, export, source-conflict resolution, URL/profile exception resolution).
 - "review" was both a pipeline stage name and a UI drawer action — resolved: **Review** is the stage; the drawer is the **Review Drawer** within it.
 - "category" was used to mean both **Category Page** placement and **Product Type** classification — resolved: these are distinct concepts.
 - Customer-facing page names or hierarchy could be treated as direct product facts — resolved: they are **Page Context Evidence** and low-reliability.

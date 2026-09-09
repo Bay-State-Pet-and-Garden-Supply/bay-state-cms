@@ -9,8 +9,8 @@
  * and lets automation proceed to distributor lookups and official site discovery.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { PreflightBrandGroup } from '../../../../shared/schemas/onboarding';
-import { getBatchPreflight, assignBrandGroup } from '../../../onboarding-api';
+import type { MissingBrandGroup } from '../../../onboarding-api';
+import { getMissingBrandGroups, assignBrandGroup } from '../../../onboarding-api';
 import './attention.css';
 
 interface BrandAssignmentPanelProps {
@@ -28,7 +28,7 @@ export function BrandAssignmentPanel({
   batchId,
   onBrandAssigned,
 }: BrandAssignmentPanelProps): React.ReactElement | null {
-  const [groups, setGroups] = useState<PreflightBrandGroup[] | null>(null);
+  const [groups, setGroups] = useState<MissingBrandGroup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<Record<string, GroupRowState>>({});
 
@@ -37,12 +37,12 @@ export function BrandAssignmentPanel({
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await getBatchPreflight(batchId);
+      const res = await getMissingBrandGroups(batchId);
       if (!mounted.current) return;
-      setGroups(res.blockers.needsBrandGroups);
+      setGroups(res.groups);
       setRows((prev) => {
         const next: Record<string, GroupRowState> = {};
-        for (const group of res.blockers.needsBrandGroups) {
+        for (const group of res.groups) {
           next[group.key] = prev[group.key] ?? {
             brand: group.suggestedBrand ?? '',
             saving: false,
@@ -74,7 +74,7 @@ export function BrandAssignmentPanel({
   }, []);
 
   const handleSave = useCallback(
-    async (group: PreflightBrandGroup) => {
+    async (group: MissingBrandGroup) => {
       const draft = rows[group.key];
       const brandToAssign = (draft?.brand ?? group.suggestedBrand ?? '').trim();
       if (!brandToAssign) {

@@ -261,11 +261,11 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
       advanceDiscoveryItemToExtraction(item.id);
     });
 
-    const advanceEvent = events.find(e => e.itemId === item.id && e.data.stage === 'extraction');
+    const advanceEvent = events.find(e => e.itemId === item.id && e.data.stage === 'collect_details');
     expect(advanceEvent).toBeDefined();
     expect(advanceEvent!.data.status).toBe('pending');
     expect(advanceEvent!.data.autoAdvanced).toBe(true);
-    expect(advanceEvent!.data.fromStage).toBe('discovery');
+    expect(advanceEvent!.data.fromStage).toBe('find_product_page');
   });
 
   // ─── Auto-advance: Curation → Review ─────────────────────────────────────
@@ -486,11 +486,11 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
       advanceExtractionItemToCuration(item.id);
     });
 
-    const advanceEvent = events.find(e => e.itemId === item.id && e.data.stage === 'curation');
+    const advanceEvent = events.find(e => e.itemId === item.id && e.data.stage === 'prepare_listing');
     expect(advanceEvent).toBeDefined();
     expect(advanceEvent!.data.status).toBe('pending');
     expect(advanceEvent!.data.autoAdvanced).toBe(true);
-    expect(advanceEvent!.data.fromStage).toBe('extraction');
+    expect(advanceEvent!.data.fromStage).toBe('collect_details');
   });
 
   // ─── Legacy family barrier (epic #46 audit fix 2) ─────────────────────────

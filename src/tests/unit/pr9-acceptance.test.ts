@@ -53,7 +53,8 @@ import { upsertConfigSnapshot } from '../../db/repositories/classification-confi
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
-import { freezeCohortForExecution, processCohort } from '../../onboarding/cohort-curator';
+import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
+import { executeViaSeam } from './helpers/cohort-curation-harness';
 import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../../classification/consistency-validator';
 import { validateReviewCompletionGate, validateItemCategoryPagesAssigned } from '../../classification/review-completion-gate';
 import { validatePromotionGate } from '../../classification/promotion-gate';
@@ -64,7 +65,7 @@ import {
   validateCohortBrandCoherence,
 } from '../../classification/cohort-semantic-validator';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
-import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-coordinator';
+import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -520,7 +521,7 @@ describe('PR9 C4 — universal-attribute field_assignment proposals carry no pro
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
 
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(3);
 
@@ -557,7 +558,7 @@ describe('PR9 C4 — universal-attribute field_assignment proposals carry no pro
     seedReviewedTypeDecision(workspaceId, prepared.configSnapshotHash, prepared.items[0].upc, prepared.items[0].id, 'dog-food-dry');
     const run = await freezeActiveCohort(workspaceId, wsPath);
 
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const reviewedMember = findItemById(prepared.items[0].id)!;
@@ -639,7 +640,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
 
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(3);
 
@@ -668,7 +669,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -714,7 +715,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const siblingA = findItemById(items[0].id)!;
@@ -741,7 +742,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
       '100000000003': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Salmon 5 lb' }),
     });
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.memberFailures).toHaveLength(1);
     expect(summary.memberFailures[0].productSku).toBe('100000000002');
@@ -792,7 +793,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
       ['dog-food-wet', run.id],
     );
     const mutatedRun = getCohortRunById(run.id)!;
-    const summary = await processCohort(mutatedRun, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.completedMembers).toBe(3);
 
@@ -818,7 +819,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
     });
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     const stored = findItemById(items[0].id)!;
     expect(stored.stageStatus).toBe('completed');
@@ -841,7 +842,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
 
     // 'size' is a NON-universal attribute OUTSIDE the pet-food profile.
     let injected = false;
-    const summary = await processCohort(run, wsPath, workspaceId, {
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       beforeSemanticValidation: (curationData) => {
         if (injected) return;
         injected = true;
@@ -886,7 +887,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     // (a multi-value array in ONE proposal) into the FIRST member's curation
     // data immediately before semantic validation.
     let injected = false;
-    const summary = await processCohort(run, wsPath, workspaceId, {
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       beforeSemanticValidation: (curationData) => {
         if (injected) return;
         injected = true;
@@ -928,7 +929,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     // intact — exactly the state the R3 fix must block: the production call
     // site supplied an EMPTY proposal set against an assigned durable set.
     let stripped = false;
-    const summary = await processCohort(run, wsPath, workspaceId, {
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a', {
       beforeSemanticValidation: (curationData) => {
         if (stripped) return;
         stripped = true;
@@ -1164,7 +1165,7 @@ describe('PR9 review R2 — active review authority gate + coordinated correspon
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const member = findItemById(items[0].id)!;
@@ -1190,7 +1191,7 @@ describe('PR9 review R2 — active review authority gate + coordinated correspon
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    const summary = await processCohort(run, wsPath, workspaceId);
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const member = findItemById(items[0].id)!;
@@ -1217,7 +1218,7 @@ describe('PR9 review R2 — active review authority gate + coordinated correspon
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1246,7 +1247,7 @@ describe('PR9 review R2 — active review authority gate + coordinated correspon
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1441,7 +1442,7 @@ describe('e09 Phase C — review-completion gate codes + corrections (T9/P10)', 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1468,7 +1469,7 @@ describe('e09 Phase C — review-completion gate codes + corrections (T9/P10)', 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     // NOTE: deliberately NO reviewer decisions here — an accepted verified
@@ -1497,7 +1498,7 @@ describe('e09 Phase C — review-completion gate codes + corrections (T9/P10)', 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member); // accepts every proposal incl. category_page → targets are VERIFIED ids
@@ -1515,7 +1516,7 @@ describe('e09 Phase C — review-completion gate codes + corrections (T9/P10)', 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1556,7 +1557,7 @@ describe('e09 Phase C — review-completion gate codes + corrections (T9/P10)', 
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     // Accept non-page proposals; REJECT every category_page proposal.
@@ -1596,7 +1597,7 @@ describe('e09 Phase C — stale import between Review and Promotion (P10+P11 def
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1674,7 +1675,7 @@ describe('e09 Phase C — stale import between Review and Promotion (P10+P11 def
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     // Accept every NON-page proposal; REJECT every category_page proposal so
@@ -1754,7 +1755,7 @@ describe('Universal Category Page assignment requirement (operator mandate)', ()
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1776,7 +1777,7 @@ describe('Universal Category Page assignment requirement (operator mandate)', ()
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);
@@ -1829,7 +1830,7 @@ describe('Universal Category Page assignment requirement (operator mandate)', ()
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    await processCohort(run, wsPath, workspaceId);
+    await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
 
     const member = findItemById(items[0].id)!;
     decideAllProposals(member);

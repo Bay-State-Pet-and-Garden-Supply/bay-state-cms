@@ -63,6 +63,51 @@ export interface ValueAlias {
  */
 const GENERAL_TEXT_SOURCE_FIELDS = new Set(['name', 'title', 'description']);
 
+export const ATTRIBUTE_ID_CANONICAL_MAP: Record<string, string> = {
+  lifeStage: 'life-stage',
+  'life-stage': 'life-stage',
+  breedSize: 'breed-size',
+  'breed-size': 'breed-size',
+  productForm: 'food-form',
+  'food-form': 'food-form',
+  healthConcern: 'health-benefits',
+  'health-benefits': 'health-benefits',
+  dietaryLabel: 'dietary-features',
+  'dietary-features': 'dietary-features',
+  packagingType: 'packaging-type',
+  'packaging-type': 'packaging-type',
+  npkRatio: 'npk-ratio',
+  'npk-ratio': 'npk-ratio',
+  nutrition: 'nutrition',
+  ingredients: 'nutrition',
+};
+
+export function normalizeAttributeId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  return ATTRIBUTE_ID_CANONICAL_MAP[id] ?? id;
+}
+
+export const PRODUCT_TYPE_CONTEXT_SOURCE_FIELDS = new Set([
+  'name', 'title', 'description', 'species', 'productForm', 'food-form', 'flavor', 'lifeStage', 'breedSize', 'visible_text'
+]);
+
+/** True when an evidence record is general title/description text or product type context. */
+export function isPacketTextEvidence(evidence: ClassificationEvidence, includeProductTypeContext = false): boolean {
+  const sf = evidence.sourceField;
+  if (sf && GENERAL_TEXT_SOURCE_FIELDS.has(sf)) return true;
+  if (includeProductTypeContext) {
+    if (sf && PRODUCT_TYPE_CONTEXT_SOURCE_FIELDS.has(sf)) return true;
+    if (evidence.attributeId && (
+      evidence.attributeId === 'species' ||
+      evidence.attributeId === 'food-form' ||
+      evidence.attributeId === 'flavor' ||
+      evidence.attributeId === 'life-stage' ||
+      evidence.attributeId === 'breed-size'
+    )) return true;
+  }
+  return false;
+}
+
 /** True when an evidence record is general title/description text. */
 function isGeneralTextEvidence(evidence: ClassificationEvidence): boolean {
   return evidence.sourceField !== null && evidence.sourceField !== undefined
@@ -92,6 +137,11 @@ export interface EvidenceTargetPacketOptions {
   promptTextCap?: number;
   /** Per-value snippet cap (default 500 characters). */
   valueCap?: number;
+  /**
+   * When true, includes visual OCR context (species, productForm, food-form, visible_text)
+   * in the packet. Used for Product Type matching.
+   */
+  includeProductTypeContext?: boolean;
   /**
    * Deterministic grounding rule: when provided, a non-target-matching
    * evidence record may count as SUPPORTING only if its canonical assertion
@@ -149,6 +199,9 @@ export function evidenceMatchesTarget(
     ...(options.sourceFields ?? []),
   ];
   if (attributeId && evidence.attributeId === attributeId) return true;
+  const normTarget = normalizeAttributeId(attributeId);
+  const normEvidence = normalizeAttributeId(evidence.attributeId);
+  if (normTarget && normEvidence && normTarget === normEvidence) return true;
   if (evidence.attributeId) {
     // An explicit attributeId that disagrees with the target denies the
     // record — the source-field mapping never overrides an explicit
@@ -301,7 +354,7 @@ export function buildEvidenceTargetPacket(
     // selected canonical value it is SUPPORTING; otherwise it is bounded
     // context. Every other non-target record (color/weight/custom fields) is
     // excluded entirely — never context, never citable.
-    if (!isGeneralTextEvidence(record)) {
+    if (!isPacketTextEvidence(record, options.includeProductTypeContext)) {
       continue;
     }
     if (

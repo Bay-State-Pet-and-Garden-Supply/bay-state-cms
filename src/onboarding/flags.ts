@@ -262,3 +262,12 @@ export function getManualEvidenceFlags(): ManualEvidenceFlags {
   if (manualEvidenceOverride === null) return base;
   return { enabled: manualEvidenceOverride, reason: 'override' };
 }
+
+// ---------------------------------------------------------------------------
+// Stage-vocabulary compatibility (council plan Slice 0): mandatory, not optional.
+// The retired ONBOARDING_STAGE_RENAME_TOLERANT / ONBOARDING_EXECUTION_TAIL_WRITES
+// toggles are intentionally absent: once a DB can contain v2 stage values,
+// version-aware adapters + dual-read bridge handle both spellings permanently.
+// Compatibility is never an OFF combination that strands rows, and no durable
+// execution tail/heartbeat exists in this tranche (ephemeral-only strip).
+// ---------------------------------------------------------------------------

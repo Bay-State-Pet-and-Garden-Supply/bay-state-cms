@@ -12,66 +12,6 @@ export function getStoreCatalogPath(): string {
 
 export function migrateLegacyWorkspaceIfNeeded(): string {
   const targetDir = getStoreCatalogPath();
-  const legacyDir = path.resolve(process.cwd(), 'workspaces', 'Bay State');
-  const genericWorkspacesDir = path.resolve(process.cwd(), 'workspaces');
-  const recentFile = path.resolve(process.cwd(), '.recent-workspaces.json');
-
-  // Check if legacy workspace exists and target catalog is not yet migrated
-  const hasLegacyWorkspace = fs.existsSync(legacyDir);
-  const targetManifest = path.join(targetDir, 'store', 'manifest.json');
-  const targetDb = path.join(targetDir, '.shopsite-cms', 'app.db');
-
-  if (hasLegacyWorkspace && (!fs.existsSync(targetManifest) || !fs.existsSync(targetDb))) {
-    console.log(`[Migration] Migrating legacy workspace from "${legacyDir}" to "${targetDir}"...`);
-
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-
-    // 1. Move/Copy database folder (.shopsite-cms)
-    const srcDotShopsite = path.join(legacyDir, '.shopsite-cms');
-    const dstDotShopsite = path.join(targetDir, '.shopsite-cms');
-    if (fs.existsSync(srcDotShopsite)) {
-      copyOrMoveDirSync(srcDotShopsite, dstDotShopsite);
-    }
-
-    // 2. Move/Copy products folder
-    const srcProducts = path.join(legacyDir, 'products');
-    const dstProducts = path.join(targetDir, 'products');
-    if (fs.existsSync(srcProducts)) {
-      copyOrMoveDirSync(srcProducts, dstProducts);
-    }
-
-    // 3. Move/Copy store folder
-    const srcStore = path.join(legacyDir, 'store');
-    const dstStore = path.join(targetDir, 'store');
-    if (fs.existsSync(srcStore)) {
-      copyOrMoveDirSync(srcStore, dstStore);
-    }
-
-    // 4. Move/Copy exports folder
-    const srcExports = path.join(legacyDir, 'exports');
-    const dstExports = path.join(targetDir, 'exports');
-    if (fs.existsSync(srcExports)) {
-      copyOrMoveDirSync(srcExports, dstExports);
-    }
-
-    // 5. Move/Copy brand-domain-mappings.json
-    const srcBrandMappings = path.join(legacyDir, 'brand-domain-mappings.json');
-    const dstBrandMappings = path.join(targetDir, 'brand-domain-mappings.json');
-    if (fs.existsSync(srcBrandMappings)) {
-      fs.copyFileSync(srcBrandMappings, dstBrandMappings);
-    }
-
-    // 6. Move/Copy catalog .git repository
-    const srcGit = path.join(legacyDir, '.git');
-    const dstGit = path.join(targetDir, '.git');
-    if (fs.existsSync(srcGit)) {
-      copyOrMoveDirSync(srcGit, dstGit);
-    }
-
-    console.log(`[Migration] Files migrated to "${targetDir}". Updating database workspace record...`);
-  }
 
   // Ensure target directory structure exists even for fresh installations
   ensureCatalogStructure(targetDir);
@@ -81,19 +21,6 @@ export function migrateLegacyWorkspaceIfNeeded(): string {
   initDb(dbPath);
   runMigrations();
   updateWorkspaceRecord(targetDir);
-
-  // Clean up legacy workspaces folder & .recent-workspaces.json if migration succeeded
-  if (hasLegacyWorkspace && fs.existsSync(targetDb)) {
-    try {
-      fs.rmSync(genericWorkspacesDir, { recursive: true, force: true });
-      if (fs.existsSync(recentFile)) {
-        fs.rmSync(recentFile, { force: true });
-      }
-      console.log(`[Migration] Successfully cleaned up legacy workspaces directory.`);
-    } catch (err) {
-      console.warn(`[Migration] Failed to remove legacy workspaces directory:`, err);
-    }
-  }
 
   return targetDir;
 }
@@ -134,20 +61,4 @@ function updateWorkspaceRecord(targetDir: string): void {
   }
   // ADR-0030 Phase 3: the PI default approved-policy seed hook was removed
   // with the Agent Lab; workspaces bootstrap without PI state.
-}
-
-function copyOrMoveDirSync(src: string, dst: string): void {
-  if (!fs.existsSync(dst)) {
-    fs.mkdirSync(dst, { recursive: true });
-  }
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const dstPath = path.join(dst, entry.name);
-    if (entry.isDirectory()) {
-      copyOrMoveDirSync(srcPath, dstPath);
-    } else {
-      fs.copyFileSync(srcPath, dstPath);
-    }
-  }
 }

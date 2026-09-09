@@ -15,7 +15,7 @@
  */
 import { z } from 'zod';
 import { sha256 } from '../hash';
-import { PipelineStageEnum, StageStatusEnum, SourceTypeEnum } from './onboarding';
+import { PipelineStageEnum, LegacyPipelineStageEnum, StageStatusEnum, SourceTypeEnum } from './onboarding';
 
 // ─── Categories ─────────────────────────────────────────────────────────────────
 
@@ -218,8 +218,12 @@ export const OnboardingWorkStateSchema = z.object({
   family: OnboardingFamilyStateSchema.nullable().default(null),
   /** Durable review/approval state. */
   reviewState: ReviewStateEnum.nullable().default(null),
-  /** Raw pipeline stage — secondary diagnostics, never the primary UI. */
-  stage: PipelineStageEnum,
+  /**
+   * Raw pipeline stage — secondary diagnostics, never the primary UI.
+   * Slice 5b native: preserves the STORED spelling (either vocabulary);
+   * compare through the canonical vocabulary helpers.
+   */
+  stage: z.union([PipelineStageEnum, LegacyPipelineStageEnum]),
   /** Raw pipeline stage status — secondary diagnostics. */
   stageStatus: StageStatusEnum,
   // ── Lightweight identity for filters/search/rendering (additive) ──

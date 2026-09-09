@@ -1,5 +1,4 @@
-import path from 'path';
-import { findWorkspace, updateWorkspacePaths } from '../../db/repositories/workspace-repo';
+import { findWorkspace } from '../../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext, ClassificationConfigLoadError, ClassificationConfigNotConfiguredError } from '../../classification/config-loader';
 import { syncConfigToCache, getPersistedConfigSnapshotId, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { migrateLegacyWorkspaceIfNeeded, getStoreCatalogPath } from './migration-service';
@@ -64,18 +63,6 @@ export function getCurrentWorkspace(): Workspace | null {
     attachClassificationConfig(ws, catalogPath);
   }
   return ws;
-}
-
-export function loadWorkspace(workspacePath?: string): Workspace | null {
-  const targetPath = workspacePath ? path.resolve(workspacePath.trim()) : getStoreCatalogPath();
-  const ws = findWorkspace();
-  if (ws && ws.workspacePath !== targetPath) {
-    const gitPath = path.join(targetPath, '.git');
-    updateWorkspacePaths(ws.id, targetPath, gitPath);
-    ws.workspacePath = targetPath;
-    ws.gitPath = gitPath;
-  }
-  return getCurrentWorkspace();
 }
 
 /**

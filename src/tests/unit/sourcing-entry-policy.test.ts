@@ -25,31 +25,31 @@ describe('Sourcing entry policy', () => {
   });
 
   describe('deriveSourcingEntryStage', () => {
-    it('routes to sourcing when effectively enabled in automatic mode', () => {
-      expect(deriveSourcingEntryStage(flags({ effectiveEnabled: true }))).toBe('sourcing');
+    it('routes to route_sources when effectively enabled in automatic mode', () => {
+      expect(deriveSourcingEntryStage(flags({ effectiveEnabled: true }))).toBe('route_sources');
     });
 
-    it('routes to sourcing in manual mode', () => {
-      expect(deriveSourcingEntryStage(flags({ mode: 'manual' }))).toBe('sourcing');
+    it('routes to route_sources in manual mode', () => {
+      expect(deriveSourcingEntryStage(flags({ mode: 'manual' }))).toBe('route_sources');
     });
 
-    it('routes to discovery in observe mode (imports are never claimed by Sourcing)', () => {
-      expect(deriveSourcingEntryStage(flags({ mode: 'observe' }))).toBe('discovery');
+    it('routes to find_product_page in observe mode (imports are never claimed by Sourcing)', () => {
+      expect(deriveSourcingEntryStage(flags({ mode: 'observe' }))).toBe('find_product_page');
     });
 
-    it('routes to discovery when disabled (regardless of raw switch)', () => {
+    it('routes to find_product_page when disabled (regardless of raw switch)', () => {
       expect(
         deriveSourcingEntryStage(flags({ sourcingEngineEnabled: false, effectiveEnabled: false })),
-      ).toBe('discovery');
+      ).toBe('find_product_page');
       // Invalid mode: declared available but fail-closed effective state.
       expect(
         deriveSourcingEntryStage(flags({ mode: null, effectiveEnabled: false })),
-      ).toBe('discovery');
+      ).toBe('find_product_page');
     });
 
     it('only returns pipeline-stage entry values', () => {
       const stage = deriveSourcingEntryStage(flags({ effectiveEnabled: true }));
-      expect(['sourcing', 'discovery']).toContain(stage);
+      expect(['route_sources', 'find_product_page']).toContain(stage);
     });
   });
 

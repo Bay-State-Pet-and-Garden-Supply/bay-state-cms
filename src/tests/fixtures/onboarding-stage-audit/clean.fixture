@@ -1,0 +1,4 @@
+// Synthetic: no stage references at all (must produce zero findings).
+export function add(a: number, b: number): number {
+  return a + b;
+}

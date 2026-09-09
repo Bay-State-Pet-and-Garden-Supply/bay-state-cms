@@ -14,13 +14,13 @@ import { act } from 'react';
 import type { BatchWorkState, OnboardingWorkState } from '../../shared/schemas/onboarding-work-state';
 import type { CohortListResponse } from '../../shared/schemas/cohorts';
 
-vi.mock('../../client/onboarding-work-api', () => ({
+vi.mock('@/client/onboarding-work-api', () => ({
   getBatchWorkState: vi.fn(),
   getBatchWorkStateCounts: vi.fn(),
   getBatchWorkStateItems: vi.fn(),
   subscribeBatchEvents: vi.fn(() => () => {}),
 }));
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('@/client/onboarding-api', () => ({
   getBatchCohorts: vi.fn(),
 }));
 

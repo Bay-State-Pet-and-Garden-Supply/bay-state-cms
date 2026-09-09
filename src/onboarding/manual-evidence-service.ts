@@ -1,6 +1,8 @@
 import { getDb } from '../db/connection';
 import { getManualEvidenceFlags } from './flags';
 import { findItemById } from '../db/repositories/onboarding-item-repo';
+import { encodeForStorage, readStorageVersion, stagePredicateParams } from '../db/repositories/onboarding-stage-vocabulary-repo';
+import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
 import {
   insertExtraction,
   getLatestExtraction,
@@ -156,21 +158,32 @@ export function submitManualEvidence(
   if (!batch || batch.workspace_id !== input.workspaceId) {
     return { ok: false, code: 'workspace_mismatch', reason: 'Item belongs to a different workspace.' };
   }
-  if (item.stage === 'sourcing') {
+  // Slice 5b native: canonical stage guards (dual read — either stored spelling).
+  let canonicalStage: string;
+  try {
+    canonicalStage = toCanonicalStage(item.stage);
+  } catch {
+    return {
+      ok: false,
+      code: 'extraction_not_failed',
+      reason: `Manual evidence entry is only from extraction/failed (item is ${item.stage}/${item.stageStatus}).`,
+    };
+  }
+  if (canonicalStage === 'route_sources') {
     return {
       ok: false,
       code: 'sourcing_curation_bypass_rejected',
       reason: 'Manual evidence is never reachable from sourcing; sourcing items must go through discovery first.',
     };
   }
-  if (item.stage === 'discovery') {
+  if (canonicalStage === 'find_product_page') {
     return {
       ok: false,
       code: 'discovery_to_manual_rejected',
       reason: 'Discovery must resolve first; manual evidence is submitted from extraction.',
     };
   }
-  if (item.stage !== 'extraction') {
+  if (canonicalStage !== 'collect_details') {
     return {
       ok: false,
       code: 'extraction_not_failed',
@@ -181,7 +194,7 @@ export function submitManualEvidence(
   // ACTIVE attestation returns the existing ids (double-click safe) instead
   // of writing a second row. Withdraw-then-resubmit still creates fresh
   // rows because withdrawal supersedes the attestation.
-  if (item.stage === 'extraction' && item.stageStatus === 'completed') {
+  if (canonicalStage === 'collect_details' && item.stageStatus === 'completed') {
     const latestCompleted = getLatestExtraction(input.itemId);
     if (latestCompleted && latestCompleted.extraction_method === MANUAL_EVIDENCE_METHOD) {
       const activeCompleted = getActiveManualEvidenceAttestationForItem(input.itemId);
@@ -417,12 +430,13 @@ export function submitManualEvidence(
       confidence: 0,
     });
     const now = new Date().toISOString();
+    const [extA, extB] = stagePredicateParams('collect_details');
     const updated = db.query(
       `UPDATE onboarding_items
        SET stage_status = 'completed', error_message = NULL, manual_reference_url = ?,
            extraction_data_json = ?, updated_at = ?
-       WHERE id = ? AND stage = 'extraction' AND stage_status = 'failed'`,
-    ).run(familyReferenceUrl, JSON.stringify(extractionData), now, input.itemId);
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'failed'`,
+    ).run(familyReferenceUrl, JSON.stringify(extractionData), now, input.itemId, extA, extB);
     if (updated.changes === 0) {
       // A concurrent mutation won the race: the transaction rolls back
       // (attestation + extraction rows unwritten) and the caller retries.
@@ -502,10 +516,10 @@ export function withdrawManualEvidence(
     const now = new Date().toISOString();
     db.query(
       `UPDATE onboarding_items
-       SET stage = 'extraction', stage_status = 'failed',
+       SET stage = ?, stage_status = 'failed',
            error_message = ?, manual_reference_url = NULL, extraction_data_json = NULL, updated_at = ?
        WHERE id = ?`,
-    ).run(`No extractor profile for ${domain} (manual evidence withdrawn)`, now, input.itemId);
+    ).run(encodeForStorage('collect_details', readStorageVersion(db)), `No extractor profile for ${domain} (manual evidence withdrawn)`, now, input.itemId);
     return { ok: true as const, supersededAttestationId: active.attestation_id };
   })();
 }

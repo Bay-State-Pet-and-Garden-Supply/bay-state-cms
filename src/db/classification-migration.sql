@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS classification_evidence (
   onboarding_item_id TEXT,
   product_sku TEXT NOT NULL,
   stage_name TEXT NOT NULL,
-  source TEXT NOT NULL CHECK (source IN ('spreadsheet', 'official_product_page', 'distributor_record', 'third_party_page', 'visual_product_evidence', 'page_context', 'approved_product_example', 'catalog_manager_guidance', 'catalog_product')),
+  source TEXT NOT NULL CHECK (source IN ('spreadsheet', 'official_product_page', 'distributor_record', 'third_party_page', 'visual_product_evidence', 'page_context', 'approved_product_example', 'catalog_manager_guidance', 'catalog_product', 'operator_manual')),
   reliability TEXT NOT NULL DEFAULT 'unknown' CHECK (reliability IN ('high', 'medium', 'low', 'conflicting', 'unknown')),
   attribute_id TEXT,
   source_url TEXT,

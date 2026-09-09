@@ -36,7 +36,6 @@ export interface CurationApplicabilitySummary {
 
 export type CurationHealthFindingCode =
   | 'target_unused_by_profiles'
-  | 'profile_attribute_target_disabled'
   | 'profile_attribute_unmapped'
   | 'product_type_profile_missing'
   | 'profile_attribute_unknown';
@@ -97,7 +96,7 @@ export function deriveCurationApplicability(config: ClassificationConfig): Curat
     }
   }
 
-  // Check 2: profile_attribute_unknown & profile_attribute_unmapped & profile_attribute_target_disabled
+  // Check 2: profile_attribute_unknown & profile_attribute_unmapped
   for (const profile of config.attributeProfiles) {
     for (const entry of profile.attributes) {
       const attr = attributeMap.get(entry.attributeId);
@@ -120,16 +119,6 @@ export function deriveCurationApplicability(config: ClassificationConfig): Curat
             message: `Profile "${profile.name}" (${profile.id}) requires attribute "${attr.name}" (${attr.id}), but it has no Catalog Field mapping.`,
             details: { profileId: profile.id, attributeId: entry.attributeId },
           });
-        } else {
-          const target = targetByCatalogField.get(mapping.catalogField);
-          if (target && !target.enabled) {
-            findings.push({
-              code: 'profile_attribute_target_disabled',
-              severity: 'warning',
-              message: `Profile "${profile.name}" (${profile.id}) includes attribute "${attr.name}" (${attr.id}), but its Curation Target (${mapping.catalogField}) is disabled.`,
-              details: { profileId: profile.id, attributeId: entry.attributeId, catalogField: mapping.catalogField },
-            });
-          }
         }
       }
     }
