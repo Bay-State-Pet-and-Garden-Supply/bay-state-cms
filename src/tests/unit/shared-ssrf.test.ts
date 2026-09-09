@@ -80,3 +80,39 @@ describe('isPrivateOrLinkLocal', () => {
     expect(isPrivateOrLinkLocal('8.8.8.8')).toBe(false);
   });
 });
+
+describe('isPrivateOrLinkLocalHost', () => {
+  it('blocks literal private/loopback IPs and localhost', async () => {
+    const { isPrivateOrLinkLocalHost } = await import('../../shared/ssrf');
+    expect(await isPrivateOrLinkLocalHost('localhost')).toBe(true);
+    expect(await isPrivateOrLinkLocalHost('127.0.0.1')).toBe(true);
+    expect(await isPrivateOrLinkLocalHost('10.0.0.1')).toBe(true);
+    expect(await isPrivateOrLinkLocalHost('169.254.169.254')).toBe(true);
+  });
+
+  it('allows literal public IPs without DNS lookup', async () => {
+    const { isPrivateOrLinkLocalHost } = await import('../../shared/ssrf');
+    const mockLookup = async () => { throw new Error('DNS should not be called'); };
+    expect(await isPrivateOrLinkLocalHost('8.8.8.8', { lookup: mockLookup as any })).toBe(false);
+  });
+
+  it('resolves DNS for hostnames and blocks private targets', async () => {
+    const { isPrivateOrLinkLocalHost } = await import('../../shared/ssrf');
+    const mockLookupPrivate = async () => [{ address: '127.0.0.1' }];
+    expect(await isPrivateOrLinkLocalHost('spoof.example.com', { lookup: mockLookupPrivate as any })).toBe(true);
+  });
+
+  it('resolves DNS for hostnames and allows public targets', async () => {
+    const { isPrivateOrLinkLocalHost } = await import('../../shared/ssrf');
+    const mockLookupPublic = async () => [{ address: '93.184.215.14' }];
+    expect(await isPrivateOrLinkLocalHost('example.com', { lookup: mockLookupPublic as any })).toBe(false);
+  });
+
+  it('fails closed when DNS lookup fails or returns no records', async () => {
+    const { isPrivateOrLinkLocalHost } = await import('../../shared/ssrf');
+    const mockLookupError = async () => { throw new Error('ENOTFOUND'); };
+    const mockLookupEmpty = async () => [];
+    expect(await isPrivateOrLinkLocalHost('unknown-domain.invalid', { lookup: mockLookupError as any })).toBe(true);
+    expect(await isPrivateOrLinkLocalHost('nodata-domain.invalid', { lookup: mockLookupEmpty as any })).toBe(true);
+  });
+});

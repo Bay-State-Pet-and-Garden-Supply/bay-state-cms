@@ -172,6 +172,49 @@ export function isPrivateOrLinkLocal(address: string): boolean {
 }
 
 /**
+ * Asynchronously check if a hostname (or literal IP) is private or link-local.
+ * Resolves DNS for hostnames and checks all returned IP addresses using `classifyIp`.
+ * Returns true if the hostname or any of its DNS-resolved IP addresses is private/link-local,
+ * or if DNS resolution fails or returns no addresses (failing closed).
+ */
+export async function isPrivateOrLinkLocalHost(
+  hostname: string,
+  opts: { lookup?: typeof dnsLookup } = {}
+): Promise<boolean> {
+  const hostLower = hostname.toLowerCase().replace(/^\[|\]$/g, '').trim();
+  if (!hostLower || hostLower === 'localhost' || hostLower.endsWith('.local')) {
+    return true;
+  }
+
+  const literalKind = classifyIp(hostLower);
+  if (literalKind === 'private' || literalKind === 'link_local') {
+    return true;
+  }
+  if (literalKind === 'public') {
+    return false;
+  }
+
+  // It's a domain hostname — resolve DNS
+  const doLookup = opts.lookup ?? dnsLookup;
+  let addrs: Array<{ address: string }>;
+  try {
+    addrs = (await doLookup(hostLower, { all: true } as any)) as any;
+  } catch {
+    return true; // Fail closed on DNS lookup error
+  }
+  if (!addrs || addrs.length === 0) {
+    return true; // Fail closed if no DNS records
+  }
+  for (const a of addrs) {
+    const kind = classifyIp(a.address);
+    if (kind !== 'public') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Shared destination assertion for variant/discovery network boundary.
  * Reused by job-queue and variant-url-resolver to prevent drift.
  * Validates protocol, credentials, port, official-domain, literal IP, and DNS-resolved IPs.
