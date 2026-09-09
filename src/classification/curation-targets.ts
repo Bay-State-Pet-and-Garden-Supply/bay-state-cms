@@ -6,22 +6,22 @@ import {
   type ClassificationConfig,
   type CurationTargetConfig,
   type ProductAttributeConfig,
-  type AttributeMappingConfig,
 } from '../shared/schemas/classification';
 import { canonicalForm } from './controlled-value-identity';
+
+import { composeMerchandisingFieldSpecs } from './merchandising-field-spec';
+import { projectCurationFieldCandidates } from './merchandising-field-spec-projections';
+import type {
+  FieldObservations,
+  RegistryMetadata,
+  ProductFieldCurationCandidate,
+} from '../shared/schemas/merchandising-field-spec';
+
+export type { ProductFieldCurationCandidate };
 
 export interface CurationTargetOption {
   value: string;
   label: string;
-}
-
-export interface ProductFieldCurationCandidate {
-  catalogField: string;
-  label: string;
-  dataType: string;
-  values: string[];
-  target: CurationTargetConfig | null;
-  attributeId: string | null;
 }
 
 export interface CurationTargetCandidates {
@@ -52,28 +52,6 @@ function uniqueSorted(values: Array<string | null | undefined>): string[] {
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
-function parseSampleValues(sampleValuesJson: string | null): string[] {
-  if (!sampleValuesJson) return [];
-  try {
-    const parsed = JSON.parse(sampleValuesJson);
-    if (!Array.isArray(parsed)) return [];
-    // ShopSite multi-select fields use | as separator. Split each sample
-    // value so "Dog|Food" becomes ["Dog", "Food"].
-    const result: string[] = [];
-    for (const v of parsed) {
-      const str = String(v);
-      if (str.includes('|')) {
-        result.push(...str.split('|').map(s => canonicalForm(s)).filter(Boolean));
-      } else {
-        result.push(canonicalForm(str));
-      }
-    }
-    return result;
-  } catch {
-    // Ignore malformed legacy sample values.
-  }
-  return [];
-}
 
 export function listCatalogFieldOptions(catalogField: string, limit = 250): string[] {
   if (!/^[a-zA-Z0-9_]+$/.test(catalogField)) return [];
@@ -192,70 +170,54 @@ export function listCurationTargetCandidates(
       return true;
     })
     .map(page => ({ value: page.name, label: page.name }));
-  const registry = listRegistry(workspaceId)
-    .filter(entry => entry.kind === 'custom' || entry.xmlField.startsWith('ProductField'));
+  const rawRegistry = listRegistry(workspaceId);
+  const registry: RegistryMetadata[] = rawRegistry.map(entry => ({
+    xmlField: entry.xmlField,
+    label: entry.label,
+    kind: entry.kind,
+    dataType: entry.dataType,
+    editable: entry.editable,
+    required: entry.required,
+    uiGroup: entry.uiGroup,
+    sampleValuesJson: entry.sampleValuesJson,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  }));
 
   // Build a set of fields already covered by the registry so we can discover
   // fields that exist in the live catalog but were never registered during sync.
-  const registryFieldNames = new Set(registry.map(entry => entry.xmlField));
+  const registryFieldNames = new Set(
+    registry
+      .filter(entry => entry.kind === 'custom' || entry.xmlField.startsWith('ProductField'))
+      .map(entry => entry.xmlField),
+  );
   const discoveredFieldNames = listDistinctCustomFieldKeys()
     .filter(key => !registryFieldNames.has(key));
 
-  const productFields: ProductFieldCurationCandidate[] = [
-    // Registry-backed entries (richest metadata).
-    ...registry.map(entry => {
-      const mapping = config.attributeMappings.find(m => m.catalogField === entry.xmlField) ?? null;
-      const target = (config.curationTargets ?? []).find(t =>
-        t.kind === 'product_field' && (t.catalogField === entry.xmlField || (mapping && t.attributeId === mapping.attributeId)),
-      ) ?? null;
-      const attribute = mapping ? config.attributes.find(a => a.id === mapping.attributeId) ?? null : null;
-      const isControlled = attribute ? attribute.valueMode === 'controlled' : true;
-      const liveValues = isControlled ? listCatalogFieldOptions(entry.xmlField) : [];
-      const sampleValues = isControlled ? parseSampleValues(entry.sampleValuesJson) : [];
-      const configuredValues = (isControlled && attribute)
-        ? attribute.allowedValues ?? []
-        : [];
-
-      return {
-        catalogField: entry.xmlField,
-        label: entry.label || entry.xmlField,
-        dataType: entry.dataType,
-        values: uniqueSorted([...liveValues, ...sampleValues, ...configuredValues]),
-        target,
-        attributeId: mapping?.attributeId ?? target?.attributeId ?? null,
-      };
-    }),
-    // Fields discovered from live catalog data that the registry never captured.
-    ...discoveredFieldNames.map(fieldName => {
-      const mapping = config.attributeMappings.find(m => m.catalogField === fieldName) ?? null;
-      const target = (config.curationTargets ?? []).find(t =>
-        t.kind === 'product_field' && (t.catalogField === fieldName || (mapping && t.attributeId === mapping.attributeId)),
-      ) ?? null;
-      const attribute = mapping ? config.attributes.find(a => a.id === mapping.attributeId) ?? null : null;
-      const isControlled = attribute ? attribute.valueMode === 'controlled' : true;
-      const liveValues = isControlled ? listCatalogFieldOptions(fieldName) : [];
-      const configuredValues = (isControlled && attribute)
-        ? attribute.allowedValues ?? []
-        : [];
-
-      return {
-        catalogField: fieldName,
-        label: fieldName,
-        dataType: 'string',
-        values: uniqueSorted([...liveValues, ...configuredValues]),
-        target,
-        attributeId: mapping?.attributeId ?? target?.attributeId ?? null,
-      };
-    }),
+  const candidateFields = [
+    ...registry.filter(entry => entry.kind === 'custom' || entry.xmlField.startsWith('ProductField')).map(e => e.xmlField),
+    ...discoveredFieldNames,
   ];
 
-  // Sort by numeric suffix so ProductField24 comes after ProductField5,
-  // not lexicographically.
-  productFields.sort((a, b) => {
-    const numA = parseInt(a.catalogField.replace(/\D/g, ''), 10) || 0;
-    const numB = parseInt(b.catalogField.replace(/\D/g, ''), 10) || 0;
-    return numA - numB || a.catalogField.localeCompare(b.catalogField);
+  const observations: Record<string, FieldObservations> = {};
+  for (const fieldName of candidateFields) {
+    const mapping = config.attributeMappings.find(m => m.catalogField === fieldName);
+    const attribute = mapping ? config.attributes.find(a => a.id === mapping.attributeId) : null;
+    const isControlled = attribute ? attribute.valueMode === 'controlled' : true;
+    const liveValues = isControlled ? listCatalogFieldOptions(fieldName) : [];
+    observations[fieldName] = {
+      liveOptions: { status: 'available', data: liveValues },
+    };
+  }
+
+  const model = composeMerchandisingFieldSpecs({
+    configuration: { status: 'complete', config },
+    registry: { status: 'available', data: registry },
+    discoveredCatalogFields: discoveredFieldNames,
+    observations,
   });
+
+  const productFields = projectCurationFieldCandidates(model);
 
   return { productTypes, productFields, pages };
 }

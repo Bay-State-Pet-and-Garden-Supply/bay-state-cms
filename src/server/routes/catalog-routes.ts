@@ -4,6 +4,14 @@ import { listRegistry } from '../../db/repositories/field-registry-repo';
 import { listPages } from '../../db/repositories/page-repo';
 import { getDb } from '../../db/connection';
 import { loadRuntimeConfig } from '../../classification/config-loader';
+import { composeMerchandisingFieldSpecs } from '../../classification/merchandising-field-spec';
+import { projectCatalogFieldSummaries } from '../../classification/merchandising-field-spec-projections';
+import type {
+  ConfigurationReadInput,
+  FieldObservations,
+  RegistryMetadata,
+} from '../../shared/schemas/merchandising-field-spec';
+
 const route = new Hono();
 
 /**
@@ -53,16 +61,6 @@ function computeFieldStats(xmlFields: string[]): Record<string, {
   return stats;
 }
 
-/**
- * Infer a value mode for a field based on its distinct/total ratio.
- */
-function inferValueMode(field: { distinctCount: number; nonEmptyCount: number }): 'controlled' | 'freeText' | 'measured' | 'unknown' {
-  if (field.nonEmptyCount === 0) return 'unknown';
-  const ratio = field.distinctCount / field.nonEmptyCount;
-  if (ratio <= 0.15 && field.distinctCount <= 100) return 'controlled';
-  if (ratio > 0.8) return 'freeText';
-  return 'measured';
-}
 
 /**
  * GET /api/catalog/schema-summary
@@ -129,66 +127,57 @@ route.get('/catalog/fields', (c) => {
   const ws = getCurrentWorkspace();
   if (!ws) return c.json({ error: 'No workspace loaded.' }, 400);
 
-  const registry = listRegistry(ws.id);
-  const xmlFields = registry.map(r => r.xmlField);
+  const rawRegistry = listRegistry(ws.id);
+  const xmlFields = rawRegistry.map(r => r.xmlField);
   const stats = computeFieldStats(xmlFields);
 
-  // Load mapping info from classification config
-  let mappings: Array<{ attributeId: string; catalogField: string; isStale: boolean }> = [];
+  let configInput: ConfigurationReadInput;
   try {
     const config = loadRuntimeConfig(ws.workspacePath, ws.id);
-    mappings = config.attributeMappings.map(m => ({
-      attributeId: m.attributeId,
-      catalogField: m.catalogField,
-      isStale: m.isStale,
-    }));
-  } catch { /* no config yet */ }
-
-  const mappedFields = new Map(mappings.map(m => [m.catalogField, m]));
-
-  const fields = registry.map(r => {
-    const fieldStats = stats[r.xmlField] ?? { nonEmptyCount: 0, distinctCount: 0, sampleValues: [], topValues: [] };
-    const mapping = mappedFields.get(r.xmlField);
-    return {
-      xmlField: r.xmlField,
-      label: r.label || r.xmlField,
-      kind: r.kind as 'core' | 'system' | 'custom',
-      dataType: r.dataType as 'string' | 'number' | 'boolean' | 'html' | 'image' | 'list' | 'raw_xml',
-      uiGroup: r.uiGroup,
-      nonEmptyCount: fieldStats.nonEmptyCount,
-      distinctCount: fieldStats.distinctCount,
-      inferredValueMode: inferValueMode(fieldStats),
-      mappedAttributeId: mapping?.attributeId ?? null,
-      isCurationTarget: false, // computed below
-      isStale: mapping?.isStale ?? false,
-      warning: null as string | null,
-    };
-  });
-
-  // Check curation targets
-  try {
-    const config = loadRuntimeConfig(ws.workspacePath, ws.id);
-    const curationFields = new Set(
-      (config.curationTargets ?? [])
-        .filter(t => t.kind === 'product_field' && t.catalogField)
-        .map(t => t.catalogField!)
-    );
-    for (const f of fields) {
-      if (curationFields.has(f.xmlField)) {
-        f.isCurationTarget = true;
-      }
-    }
-  } catch { /* no config */ }
-
-  // Compute warnings
-  for (const f of fields) {
-    if (f.kind === 'custom' && (!f.label || f.label === f.xmlField)) {
-      f.warning = 'Unlabeled field';
-    } else if (f.isStale) {
-      f.warning = 'Stale mapping — field not in latest pull';
-    }
+    configInput = { status: 'complete', config };
+  } catch {
+    configInput = { status: 'unavailable', reason: 'source_failed' };
   }
 
+  const registry: RegistryMetadata[] = rawRegistry.map(r => ({
+    xmlField: r.xmlField,
+    label: r.label,
+    kind: r.kind,
+    dataType: r.dataType,
+    editable: r.editable,
+    required: r.required,
+    uiGroup: r.uiGroup,
+    sampleValuesJson: r.sampleValuesJson,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+
+  const observations: Record<string, FieldObservations> = {};
+  for (const field of xmlFields) {
+    const fieldStats = stats[field];
+    observations[field] = {
+      liveOptions: { status: 'unavailable', reason: 'not_loaded' },
+      catalogStats: fieldStats
+        ? {
+            status: 'available',
+            data: {
+              nonEmptyCount: fieldStats.nonEmptyCount,
+              distinctCount: fieldStats.distinctCount,
+              sampleValues: fieldStats.sampleValues,
+              topValues: fieldStats.topValues,
+            },
+          }
+        : null,
+    };
+  }
+
+  const model = composeMerchandisingFieldSpecs({
+    configuration: configInput,
+    registry: { status: 'available', data: registry },
+    observations,
+  });
+
+  const fields = projectCatalogFieldSummaries(model, 'catalog');
   return c.json({ fields });
 });
 
@@ -201,30 +190,56 @@ route.get('/catalog/fields/:xmlField', (c) => {
   if (!ws) return c.json({ error: 'No workspace loaded.' }, 400);
   const xmlField = c.req.param('xmlField');
 
-  const registry = listRegistry(ws.id);
-  const entry = registry.find(r => r.xmlField === xmlField);
+  const rawRegistry = listRegistry(ws.id);
+  const entry = rawRegistry.find(r => r.xmlField === xmlField);
   if (!entry) return c.json({ error: 'Field not found in registry.' }, 404);
 
   const stats = computeFieldStats([xmlField]);
   const fieldStats = stats[xmlField] ?? { nonEmptyCount: 0, distinctCount: 0, sampleValues: [], topValues: [] };
 
-  let mappedAttributeId: string | null = null;
-  let isCurationTarget = false;
-  let isStale = false;
+  let configInput: ConfigurationReadInput;
   try {
     const config = loadRuntimeConfig(ws.workspacePath, ws.id);
-    const mapping = config.attributeMappings.find(m => m.catalogField === xmlField);
-    mappedAttributeId = mapping?.attributeId ?? null;
-    isStale = mapping?.isStale ?? false;
-    isCurationTarget = (config.curationTargets ?? []).some(t => t.kind === 'product_field' && t.catalogField === xmlField);
-  } catch { /* no config yet */ }
-
-  let warning: string | null = null;
-  if (entry.kind === 'custom' && (!entry.label || entry.label === entry.xmlField)) {
-    warning = 'Unlabeled field';
-  } else if (isStale) {
-    warning = 'Stale mapping — field not in latest pull';
+    configInput = { status: 'complete', config };
+  } catch {
+    configInput = { status: 'unavailable', reason: 'source_failed' };
   }
+
+  const regMetadata: RegistryMetadata = {
+    xmlField: entry.xmlField,
+    label: entry.label,
+    kind: entry.kind,
+    dataType: entry.dataType,
+    editable: entry.editable,
+    required: entry.required,
+    uiGroup: entry.uiGroup,
+    sampleValuesJson: entry.sampleValuesJson,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  };
+
+  const observations: Record<string, FieldObservations> = {
+    [xmlField]: {
+      liveOptions: { status: 'unavailable', reason: 'not_loaded' },
+      catalogStats: {
+        status: 'available',
+        data: {
+          nonEmptyCount: fieldStats.nonEmptyCount,
+          distinctCount: fieldStats.distinctCount,
+          sampleValues: fieldStats.sampleValues,
+          topValues: fieldStats.topValues,
+        },
+      },
+    },
+  };
+
+  const model = composeMerchandisingFieldSpecs({
+    configuration: configInput,
+    registry: { status: 'available', data: [regMetadata] },
+    observations,
+  });
+
+  const [summary] = projectCatalogFieldSummaries(model, 'catalog');
 
   // Get empty count & total
   let emptyCount = 0;
@@ -275,18 +290,18 @@ route.get('/catalog/fields/:xmlField', (c) => {
   }
 
   return c.json({
-    xmlField: entry.xmlField,
-    label: entry.label || entry.xmlField,
-    kind: entry.kind as 'core' | 'system' | 'custom',
-    dataType: entry.dataType as 'string' | 'number' | 'boolean' | 'html' | 'image' | 'list' | 'raw_xml',
-    uiGroup: entry.uiGroup,
-    nonEmptyCount: fieldStats.nonEmptyCount,
-    distinctCount: fieldStats.distinctCount,
-    inferredValueMode: inferValueMode(fieldStats),
-    mappedAttributeId,
-    isCurationTarget,
-    isStale,
-    warning,
+    xmlField: summary.xmlField,
+    label: summary.label,
+    kind: summary.kind,
+    dataType: summary.dataType,
+    uiGroup: summary.uiGroup,
+    nonEmptyCount: summary.nonEmptyCount,
+    distinctCount: summary.distinctCount,
+    inferredValueMode: summary.inferredValueMode,
+    mappedAttributeId: summary.mappedAttributeId,
+    isCurationTarget: summary.isCurationTarget,
+    isStale: summary.isStale,
+    warning: summary.warning,
     sampleValues: fieldStats.sampleValues,
     topValues: topValuesWithSkus,
     emptyCount,

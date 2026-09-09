@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { listCatalogFields, listFieldRegistry, listAttributeMappings } from '../../api';
 import { getCurationTargets } from '../../onboarding-api';
+import { composeMerchandisingFieldSpecs } from '../../../classification/merchandising-field-spec';
+import { projectCatalogFieldSummaries } from '../../../classification/merchandising-field-spec-projections';
+import type {
+  ReadSlice,
+  RegistryMetadata,
+  MappingReference,
+} from '../../../shared/schemas/merchandising-field-spec';
+import type { CurationTargetConfig } from '../../../shared/schemas/classification';
 import type { CatalogFieldSummary } from './types';
 import { CatalogFieldDrawer } from './CatalogFieldDrawer';
 
@@ -57,32 +65,35 @@ export function CatalogFieldsView({ onSelectProduct }: CatalogFieldsViewProps) {
         try {
           const [reg, mappingsRes, targetsRes] = await Promise.allSettled([
             listFieldRegistry(),
-            listAttributeMappings().catch(() => ({ mappings: [] })),
-            getCurationTargets().catch(() => ({ targets: [], candidates: { productFields: [], pages: [] } })),
+            listAttributeMappings(),
+            getCurationTargets(),
           ]);
 
-          const regEntries = reg.status === 'fulfilled' ? reg.value.entries : [];
-          const mappings = mappingsRes.status === 'fulfilled' ? mappingsRes.value.mappings : [];
-          const curationFields = new Set(
-            (targetsRes.status === 'fulfilled' ? (targetsRes.value as any)?.targets ?? [] : [])
-              .filter((t: any) => t.kind === 'product_field' && t.catalogField)
-              .map((t: any) => t.catalogField)
-          );
-          const mappedFields = new Map(mappings.map((m: any) => [m.catalogField, m.attributeId]));
-          const fallbackFields: CatalogFieldSummary[] = regEntries.map(r => ({
-            xmlField: r.xmlField,
-            label: r.label || r.xmlField,
-            kind: r.kind as any,
-            dataType: r.dataType as any,
-            uiGroup: r.uiGroup,
-            nonEmptyCount: 0,
-            distinctCount: 0,
-            inferredValueMode: 'unknown' as const,
-            mappedAttributeId: mappedFields.get(r.xmlField) ?? null,
-            isCurationTarget: curationFields.has(r.xmlField),
-            isStale: false,
-            warning: (!r.label || r.label === r.xmlField) ? 'Unlabeled field' : null,
-          }));
+          const registry: ReadSlice<RegistryMetadata> =
+            reg.status === 'fulfilled' && reg.value?.entries
+              ? { status: 'available', data: reg.value.entries }
+              : { status: 'unavailable', reason: 'source_failed' };
+
+          const mappings: ReadSlice<MappingReference> =
+            mappingsRes.status === 'fulfilled' && mappingsRes.value?.mappings
+              ? { status: 'available', data: mappingsRes.value.mappings }
+              : { status: 'unavailable', reason: 'source_failed' };
+
+          const targets: ReadSlice<CurationTargetConfig> =
+            targetsRes.status === 'fulfilled' && (targetsRes.value as any)?.targets
+              ? { status: 'available', data: (targetsRes.value as any).targets }
+              : { status: 'unavailable', reason: 'source_failed' };
+
+          const model = composeMerchandisingFieldSpecs({
+            configuration: {
+              status: 'references_only',
+              mappings,
+              targets,
+            },
+            registry,
+          });
+
+          const fallbackFields = projectCatalogFieldSummaries(model, 'legacy-client-fallback');
           if (!cancelled) setFields(fallbackFields);
         } catch {
           if (!cancelled) setFields([]);

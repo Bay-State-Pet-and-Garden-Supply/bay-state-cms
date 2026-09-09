@@ -841,14 +841,8 @@ export interface CurationTargetOption {
   label: string;
 }
 
-export interface ProductFieldCurationCandidate {
-  catalogField: string;
-  label: string;
-  dataType: string;
-  values: string[];
-  target: CurationTargetConfig | null;
-  attributeId: string | null;
-}
+import type { ProductFieldCurationCandidate } from '../shared/schemas/merchandising-field-spec';
+export type { ProductFieldCurationCandidate };
 
 export interface CurationTargetCandidates {
   productTypes: CurationTargetOption[];

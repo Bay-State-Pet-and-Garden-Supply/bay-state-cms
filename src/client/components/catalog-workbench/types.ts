@@ -1,5 +1,3 @@
-import type { FieldRegistryEntry } from '../../../shared/schemas/field-registry';
-
 // ── Client API response types for catalog schema workbench ─────────
 
 export interface CatalogSchemaSummary {
@@ -14,20 +12,8 @@ export interface CatalogSchemaSummary {
   productsMissingRequiredMappedField: number;
 }
 
-export interface CatalogFieldSummary {
-  xmlField: string;
-  label: string;
-  kind: 'core' | 'system' | 'custom';
-  dataType: FieldRegistryEntry['dataType'];
-  uiGroup: string | null;
-  nonEmptyCount: number;
-  distinctCount: number;
-  inferredValueMode: 'controlled' | 'freeText' | 'measured' | 'unknown';
-  mappedAttributeId: string | null;
-  isCurationTarget: boolean;
-  isStale: boolean;
-  warning: string | null;
-}
+import type { CatalogFieldSummary } from '../../../shared/schemas/merchandising-field-spec';
+export type { CatalogFieldSummary };
 
 export interface TopValueEntry {
   value: string;

@@ -200,6 +200,84 @@ describe('catalog schema routes', () => {
     expect(staleDetail).toMatchObject({ mappedAttributeId: 'legacy-attr', isStale: true, warning: 'Stale mapping — field not in latest pull' });
   });
 
+  it('pins acquisition call count: list endpoint loads runtime config exactly once (Ticket #130 / W3)', async () => {
+    const app = makeApp();
+    const configSpy = vi.mocked(loadRuntimeConfig);
+    configSpy.mockClear();
+
+    const res = await app.request('/api/catalog/fields');
+    expect(res.status).toBe(200);
+    // With Ticket #130, /catalog/fields loads config exactly once via the field-spec seam
+    expect(configSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('pins warning precedence, registry ordering, and core/system handling (Ticket #127 / W0)', async () => {
+    const customRegistry = [
+      { id: 'f-core', workspaceId: 'ws-1', xmlField: 'name', label: 'name', kind: 'core', dataType: 'string', editable: false, required: true, uiGroup: 'Core', sampleValuesJson: null, createdAt: '', updatedAt: '' },
+      { id: 'f-sys', workspaceId: 'ws-1', xmlField: 'id', label: 'id', kind: 'system', dataType: 'string', editable: false, required: true, uiGroup: 'System', sampleValuesJson: null, createdAt: '', updatedAt: '' },
+      { id: 'f-unlabeled-stale', workspaceId: 'ws-1', xmlField: 'ProductField99', label: 'ProductField99', kind: 'custom', dataType: 'string', editable: true, required: false, uiGroup: 'Custom', sampleValuesJson: null, createdAt: '', updatedAt: '' },
+    ];
+    vi.mocked(listRegistry).mockReturnValueOnce(customRegistry as any);
+    vi.mocked(loadRuntimeConfig).mockReturnValue({
+      ...config,
+      attributeMappings: [
+        { id: 'm-99', attributeId: 'attr-99', catalogField: 'ProductField99', serialization: { format: 'plain' }, isStale: true },
+      ],
+      curationTargets: [
+        { id: 't-99', attributeId: 'attr-99', catalogField: 'ProductField99', kind: 'product_field', enabled: false, mandatory: false, selectionMode: 'single', optionSource: 'configured', label: 'Disabled Target', sortOrder: 1, requiresReview: false },
+      ],
+    } as any);
+
+    const app = makeApp();
+    const res = await app.request('/api/catalog/fields');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    // 1. Registry order is strictly preserved (core, then sys, then custom)
+    expect(body.fields.map((f: { xmlField: string }) => f.xmlField)).toEqual(['name', 'id', 'ProductField99']);
+
+    // 2. Core and system fields do NOT get 'Unlabeled field' warning even when label === xmlField
+    expect(body.fields[0].warning).toBeNull();
+    expect(body.fields[1].warning).toBeNull();
+
+    // 3. For custom fields that are both unlabeled AND stale, 'Unlabeled field' takes precedence
+    expect(body.fields[2].warning).toBe('Unlabeled field');
+
+    // 4. Disabled targets are still counted as isCurationTarget: true in catalog fields list
+    expect(body.fields[2].isCurationTarget).toBe(true);
+  });
+
+  it('pins missing config behavior: degrades safely with unmapped fields and no warnings (Ticket #127 / W0)', async () => {
+    vi.mocked(loadRuntimeConfig).mockImplementation(() => {
+      throw new Error('Config missing or corrupt');
+    });
+
+    const app = makeApp();
+    const listRes = await app.request('/api/catalog/fields');
+    expect(listRes.status).toBe(200);
+    const listBody = await listRes.json();
+    for (const f of listBody.fields) {
+      expect(f.mappedAttributeId).toBeNull();
+      expect(f.isCurationTarget).toBe(false);
+      expect(f.isStale).toBe(false);
+    }
+
+    const detailRes = await app.request('/api/catalog/fields/ProductField24');
+    expect(detailRes.status).toBe(200);
+    const detailBody = await detailRes.json();
+    expect(detailBody.mappedAttributeId).toBeNull();
+    expect(detailBody.isCurationTarget).toBe(false);
+    expect(detailBody.isStale).toBe(false);
+  });
+
+  it('returns 404 for fields not present in registry (Ticket #127 / W0)', async () => {
+    const app = makeApp();
+    const res = await app.request('/api/catalog/fields/NonExistentField');
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('Field not found in registry.');
+  });
+
   it('returns Category Page tree with stable identities and product counts', async () => {
     const res = await makeApp().request('/api/catalog/pages/tree');
     expect(res.status).toBe(200);
