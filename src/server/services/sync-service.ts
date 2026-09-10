@@ -213,7 +213,7 @@ export function bootstrapFromXml(
     const git = new GitClient(workspacePath);
     try {
       git.add(['products/', 'store/', '.gitignore']);
-      const versionInfo = `ShopSite XML version ${parsed.productXmlVersion}`;
+      const versionInfo = `ShopSite XML version ${decoded.xmlVersion}`;
       git.commit(`Initial ShopSite product bootstrap (${products.length} products, ${versionInfo})`);
       const commitHash = git.getHeadHash();
 
