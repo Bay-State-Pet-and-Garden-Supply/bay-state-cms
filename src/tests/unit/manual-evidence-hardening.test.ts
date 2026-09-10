@@ -2,7 +2,7 @@
 // Runs under vitest.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { MANUAL_EVIDENCE_ACTIVE_RETRY_CODE } from '../../onboarding/manual-evidence-eligibility';
 
 const SRC_ROOT = join(__dirname, '..', '..', '..');
@@ -38,7 +38,7 @@ describe('hardening: the automated worker can never write manual rows', () => {
     ]);
     const offenders: string[] = [];
     for (const file of listSourceFiles(SRC_ROOT)) {
-      const rel = file.replace(/\\/g, '/').split('bay-state-cms/').pop() ?? file;
+      const rel = relative(SRC_ROOT, file).replace(/\\/g, '/');
       if (rel.startsWith('src/tests/')) continue;
       if (allowed.has(rel)) continue;
       const content = readFileSync(file, 'utf8');
