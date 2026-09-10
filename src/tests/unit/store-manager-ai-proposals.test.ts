@@ -345,6 +345,7 @@ describe('generateAiProposals integration (epic #42, #39)', () => {
         taxable: true,
         media: { primary: null, additional: [] },
         seo: { fileName: `${sku}.html`, searchKeywords: null, googleProductCategory: '' },
+        productOnPages: [],
       },
       customFields: { ProductField24: value },
       shopsite: {

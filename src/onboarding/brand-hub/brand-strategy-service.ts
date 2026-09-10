@@ -1,5 +1,4 @@
 // story: e08s01 — aggregation projection (exact normalized-brand authority, singleton workspace, never union)
-import { getDb } from '../../db/connection';
 import { listAllBrandSites } from '../../db/repositories/brand-site-repo';
 import { getDomainProfileState } from '../../db/repositories/domain-profile-state-repo';
 import { getSitemapInventory } from '../sitemap-inventory-service';
@@ -7,8 +6,14 @@ import { requireServerSingletonWorkspace } from '../../db/repositories/workspace
 import { deriveBrandStrategies, type StrategyApprovalInput } from './brand-strategy-derive';
 import { BrandStrategySchema } from '../../shared/schemas/brand-strategy';
 import type { BrandStrategy } from '../../shared/schemas/brand-strategy';
-import { SourcingPolicyEnum } from '../../shared/schemas/distributor';
-import { listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
+import {
+  listStrategyApprovalInputs,
+  computeBrandStrategyConfigurationToken,
+  normalizeBrandKey,
+} from '../../db/repositories/brand-strategy-approval-repo';
+import { listBrandAdvisoryProfiles, listDistributors, listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
+import { listSupportedDistributorIds } from '../sourcing/connector-registry';
+import { getSourcingFlags } from '../flags';
 
 export { deriveBrandStrategies } from './brand-strategy-derive';
 
@@ -23,26 +28,53 @@ function readinessForDomain(domain: string): BrandStrategy['extractorReadiness']
   }
 }
 
-export function listBrandStrategies(): BrandStrategy[] {
+/** Best-effort configuration token for guarded editing (undefined when unreadable). */
+function readToken(workspaceId: string, normalizedBrand: string): string | undefined {
+  try {
+    return computeBrandStrategyConfigurationToken(workspaceId, normalizedBrand);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Best-effort sourcing capability snapshot (fail-closed when unreadable). */
+function readFlags(): { effectiveEnabled: boolean; reason: string } | null {
+  try {
+    const f = getSourcingFlags();
+    return { effectiveEnabled: f.effectiveEnabled, reason: f.reason };
+  } catch {
+    return null;
+  }
+}
+
+function buildStrategies(): BrandStrategy[] {
   const workspace = requireServerSingletonWorkspace();
   const brandSites = listAllBrandSites();
-  let advisoryProfiles: Array<{ brand: string; aliases: string[]; preferredDistributorIds: string[]; sourcingPolicy: BrandStrategy['sourcingPolicy'] }> = [];
-  {
-    const db = getDb();
-    const rows = db.query('SELECT brand, aliases_json, preferred_distributor_ids_json, sourcing_policy FROM brand_advisory_profiles WHERE workspace_id = ?').all(workspace.id) as Array<{ brand: string; aliases_json: string; preferred_distributor_ids_json: string; sourcing_policy: string | null }>;
-    advisoryProfiles = rows.map((r) => {
-      let aliases: unknown = null;
-      let preferred: unknown = null;
-      try { aliases = JSON.parse(r.aliases_json); } catch { aliases = null; }
-      try { preferred = JSON.parse(r.preferred_distributor_ids_json); } catch { preferred = null; }
-      const safeAliases = Array.isArray(aliases) ? (aliases as string[]).filter((v) => typeof v === 'string') : [];
-      const safePreferred = Array.isArray(preferred) ? (preferred as string[]).filter((v) => typeof v === 'string') : [];
-      const policyParse = SourcingPolicyEnum.safeParse(r.sourcing_policy);
-      const sourcingPolicy = policyParse.success ? policyParse.data : 'preferred_then_fallback';
-      return { brand: r.brand, aliases: safeAliases, preferredDistributorIds: safePreferred, sourcingPolicy };
-    });
+  // Repository-owned reads: advisory profiles via the distributor repo,
+  // approvals via the strategy approval repo (no inline SQL here).
+  let advisoryProfiles: Array<{ brand: string; aliases: string[]; preferredDistributorIds: string[]; sourcingPolicy: BrandStrategy['sourcingPolicy'] }>;
+  try {
+    advisoryProfiles = listBrandAdvisoryProfiles(workspace.id).map((p) => ({
+      brand: p.brand,
+      aliases: p.aliases,
+      preferredDistributorIds: p.preferredDistributorIds,
+      sourcingPolicy: p.sourcingPolicy as BrandStrategy['sourcingPolicy'],
+    }));
+  } catch {
+    advisoryProfiles = [];
   }
-  const enabledDistributorIds = [...new Set(listConnectionsByWorkspace(workspace.id, true).map((c) => c.distributorId))];
+  let enabledDistributorIds: string[];
+  try {
+    enabledDistributorIds = [...new Set(listConnectionsByWorkspace(workspace.id, true).map((c) => c.distributorId))];
+  } catch {
+    enabledDistributorIds = [];
+  }
+  let knownDistributorIds: string[];
+  try {
+    knownDistributorIds = [...new Set([...listDistributors().map((d) => d.id), ...listSupportedDistributorIds()])];
+  } catch {
+    knownDistributorIds = [...listSupportedDistributorIds()];
+  }
   const sitemapByDomain = new Map<string, { totalUrls: number; lastRefreshAt: string | null; activeCount: number }>();
   const readinessByDomain = new Map<string, BrandStrategy['extractorReadiness']>();
   const domains = new Set(brandSites.map((s) => s.domain));
@@ -52,30 +84,75 @@ export function listBrandStrategies(): BrandStrategy[] {
     readinessByDomain.set(d, readinessForDomain(d));
   }
   // Spec #120: approved strategies are explicit rows; absence means awaiting approval.
-  const approvals = new Map<string, StrategyApprovalInput>();
-  try {
-    const db = getDb();
-    const approvedRows = db.query(
-      'SELECT normalized_brand, sources_json, revision, approved, approved_at, approved_by FROM brand_sourcing_strategies WHERE workspace_id = ?',
-    ).all(workspace.id) as Array<{ normalized_brand: string; sources_json: string; revision: number; approved: number; approved_at: string | null; approved_by: string | null }>;
-    for (const row of approvedRows) {
-      let sources: StrategyApprovalInput['sources'] = undefined;
-      try {
-        const parsed: unknown = JSON.parse(row.sources_json);
-        if (Array.isArray(parsed)) sources = parsed as NonNullable<StrategyApprovalInput['sources']>;
-      } catch { sources = undefined; }
-      approvals.set(row.normalized_brand, {
-        approved: row.approved === 1,
-        revision: row.revision,
-        approvedAt: row.approved_at,
-        approvedBy: row.approved_by,
-        sources,
-      });
+  const approvals: Map<string, StrategyApprovalInput> = listStrategyApprovalInputs(workspace.id);
+  const strategies = deriveBrandStrategies(
+    { brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), advisoryProfiles, sitemapByDomain, readinessByDomain, enabledDistributorIds, knownDistributorIds, approvals },
+    readinessForDomain,
+  );
+  const flags = (() => {
+    try {
+      return getSourcingFlags();
+    } catch {
+      return null;
     }
-  } catch {
-    // Minimal test DBs without the strategy table: every brand reads as awaiting approval.
+  })();
+  const executionAvailability = flags
+    ? { enabled: flags.effectiveEnabled, reason: flags.reason }
+    : { enabled: false, reason: 'unknown' };
+  for (const s of strategies) {
+    try {
+      s.configurationToken = computeBrandStrategyConfigurationToken(workspace.id, s.normalizedBrand);
+    } catch {
+      s.configurationToken = undefined;
+    }
+    s.executionAvailability = executionAvailability;
+    BrandStrategySchema.parse(s);
   }
-  const strategies = deriveBrandStrategies({ brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), advisoryProfiles, sitemapByDomain, readinessByDomain, enabledDistributorIds, approvals }, readinessForDomain);
-  for (const s of strategies) BrandStrategySchema.parse(s);
   return strategies;
+}
+
+export function listBrandStrategies(): BrandStrategy[] {
+  return buildStrategies();
+}
+
+/**
+ * Builder slice B1: single-brand detail for the builder (Settings New and
+ * Stage 1 newly assigned brands). Returns one unapproved projection with
+ * revision 0 and an empty-configuration token when nothing is stored — and
+ * writes nothing (no advisory/strategy rows are created by reads).
+ */
+export function getBrandStrategyDetail(brand: string): BrandStrategy | null {
+  if (!brand || !brand.trim()) return null;
+  const normalized = normalizeBrandKey(brand);
+  const strategies = buildStrategies();
+  const found = strategies.find((s) => s.normalizedBrand === normalized);
+  if (found) return found;
+  // Brand unknown to every store: synthesize an explicit unapproved
+  // projection so the builder can edit without synthetic writes.
+  const workspace = requireServerSingletonWorkspace();
+  const token = readToken(workspace.id, normalized);
+  const flags = readFlags();
+  const detail: BrandStrategy = {
+    brandKey: brand.trim(),
+    normalizedBrand: normalized,
+    aliases: [],
+    preferredDistributorIds: [],
+    sourcingPolicy: 'advisory',
+    fallbackTier: [],
+    officialDomains: [],
+    extractorReadiness: 'not_configured',
+    ambiguous: [],
+    unmatched: true,
+    possibleMatches: [],
+    approval: { approved: false, revision: 0, approvedAt: null, approvedBy: null },
+    approvedSources: undefined,
+    sourceAvailability: [],
+    collectionReadiness: 'awaiting_approval',
+    proposalSources: [],
+    sourceOptions: [],
+    configurationToken: token,
+    executionAvailability: flags ? { enabled: flags.effectiveEnabled, reason: flags.reason } : { enabled: false, reason: 'unknown' },
+  };
+  BrandStrategySchema.parse(detail);
+  return detail;
 }

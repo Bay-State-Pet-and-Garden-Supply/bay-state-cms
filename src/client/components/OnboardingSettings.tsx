@@ -64,6 +64,13 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
   const [localDomain, setLocalDomain] = useState('');
   const [settingsTab, setSettingsTab] = useState<OnboardingSettingsTab>(resolveOnboardingSettingsTab(initialTab));
   const [sourcingEngineEnabled, setSourcingEngineEnabled] = useState(false);
+  // B4 — Brands stays mounted while hidden; bump the signal so it refetches
+  // server facts when the operator returns from Distributors/Profiles.
+  const [brandsRefreshSignal, setBrandsRefreshSignal] = useState(0);
+
+  useEffect(() => {
+    if (settingsTab === 'brands') setBrandsRefreshSignal((n) => n + 1);
+  }, [settingsTab]);
 
   useEffect(() => {
     getOnboardingCapabilities()
@@ -702,10 +709,10 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
             Brands & Sourcing Strategy Hub
           </h2>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
-            Unified brand strategy — sourcing tier, official domain & sitemap health, and governed extractor readiness. Distributor-only brands surface as profile bypass eligible.
+            Unified brand strategy — sourcing tier, official domain & sitemap health, and governed extractor readiness. Distributor-only brands surface as profile bypass eligible. Saving a strategy approves it immediately as the next revision; active collection attempts keep their current revision.
           </p>
         </div>
-        <BrandStrategyView />
+        <BrandStrategyView refreshSignal={brandsRefreshSignal} />
       </div>
 
       <div style={{ display: settingsTab === 'distributors' ? 'block' : 'none' }}>

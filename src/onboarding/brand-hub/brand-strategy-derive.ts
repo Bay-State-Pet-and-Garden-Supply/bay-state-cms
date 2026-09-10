@@ -1,5 +1,6 @@
 // story: e08s01 — pure derivation for Brand Strategy (no DB, no side effects)
-import type { BrandStrategy, BrandStrategyOfficialDomain, BrandStrategySourceAvailability, BrandStrategyCollectionReadiness } from '../../shared/schemas/brand-strategy';
+import type { BrandStrategy, BrandStrategyOfficialDomain, BrandStrategySourceAvailability, BrandStrategyCollectionReadiness, BrandStrategySourceOption, StrategySourceRef } from '../../shared/schemas/brand-strategy';
+import { isKnownRetailerOrDistributorDomain } from '../discovery/retailer-domain-list';
 
 function normalizeExact(value: string): string {
   return value.toLowerCase().trim();
@@ -21,6 +22,8 @@ export interface StrategyApprovalInput {
   revision: number;
   approvedAt: string | null;
   approvedBy: string | null;
+  /** Display spelling of the stored brand (fallback for approval-only brands). */
+  brand?: string;
   /** Explicitly approved source refs; when absent the proposal is derived. */
   sources?: Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>;
 }
@@ -33,12 +36,16 @@ export interface DeriveParams {
   enabledDistributorIds?: string[];
   /** Approved strategies keyed by normalized brand (absence = awaiting approval). */
   approvals?: Map<string, StrategyApprovalInput>;
+  /** Known distributor ids (registry-supported + configured) for source options. */
+  knownDistributorIds?: string[];
 }
 
 export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: (domain: string) => BrandStrategy['extractorReadiness']): BrandStrategy[] {
   const exactKeys = new Set<string>();
   for (const s of params.brandSites) exactKeys.add(normalizeExact(s.brandName));
   for (const p of params.advisoryProfiles) exactKeys.add(normalizeExact(p.brand));
+  // Approval-only brands persist in reads even after mappings/profiles vanish.
+  for (const k of params.approvals?.keys() ?? []) exactKeys.add(k);
 
   const diagnosticIndex = new Map<string, string[]>();
   for (const key of exactKeys) {
@@ -97,12 +104,12 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
 
     const unmatched = !advisory || sites.length === 0;
 
-    const displayBrand = advisory?.brand ?? params.brandSites.find((s) => normalizeExact(s.brandName) === exact)?.brandName ?? exact;
+    const approvalInput = params.approvals?.get(exact) ?? null;
+    const displayBrand = advisory?.brand ?? params.brandSites.find((s) => normalizeExact(s.brandName) === exact)?.brandName ?? approvalInput?.brand ?? exact;
     const fallbackTier = enabledIds.filter((id) => !preferredDistributorIds.includes(id));
 
     // Spec #120: approval state is explicit — a proposal, mapping, or
     // distributor preference never constitutes approval.
-    const approvalInput = params.approvals?.get(exact) ?? null;
     const approval = approvalInput
       ? { approved: approvalInput.approved, revision: approvalInput.revision, approvedAt: approvalInput.approvedAt, approvedBy: approvalInput.approvedBy }
       : { approved: false, revision: 0, approvedAt: null, approvedBy: null };
@@ -185,6 +192,75 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
       collectionReadiness = 'ready_partial';
     }
 
+    // Canonical server-derived live proposal: all mapped official domains
+    // plus preferred and enabled-fallback distributors, deduplicated.
+    const proposalSources: StrategySourceRef[] = [];
+    {
+      const seen = new Set<string>();
+      for (const d of officialDomains) {
+        const key = `official_page:${d.domain}`;
+        if (!seen.has(key)) { seen.add(key); proposalSources.push({ kind: 'official_page', domain: d.domain }); }
+      }
+      for (const id of [...preferredDistributorIds, ...fallbackTier]) {
+        const key = `distributor_record:${id.toLowerCase()}`;
+        if (!seen.has(key)) { seen.add(key); proposalSources.push({ kind: 'distributor_record', distributorId: id }); }
+      }
+    }
+
+    // Source catalog for the builder: mapped domains + known distributors +
+    // retained approved refs (visible even when unmapped/unknown).
+    const sourceOptions: BrandStrategySourceOption[] = [];
+    {
+      const seen = new Set<string>();
+      const readinessByDomainLocal = params.readinessByDomain;
+      for (const d of officialDomains) {
+        const key = `official_page:${d.domain}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const denylisted = isKnownRetailerOrDistributorDomain(d.domain);
+        const readiness = readinessByDomainLocal?.get(d.domain);
+        const healthy = readiness === 'active' || readiness === 'degraded';
+        sourceOptions.push({
+          kind: 'official_page',
+          ref: d.domain,
+          displayName: d.domain,
+          selectable: !denylisted,
+          reason: denylisted ? 'retailer_host' : healthy ? 'ready' : readiness === 'not_configured' || !readiness ? 'no_profile' : 'profile_not_healthy',
+          available: healthy && !denylisted,
+        });
+      }
+      const knownIds = [...new Set([...(params.knownDistributorIds ?? []), ...preferredDistributorIds, ...fallbackTier, ...enabledIds])];
+      for (const id of knownIds) {
+        const key = `distributor_record:${id.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const available = enabledSet.has(id);
+        sourceOptions.push({
+          kind: 'distributor_record',
+          ref: id,
+          displayName: id,
+          selectable: true,
+          reason: available ? 'ready' : 'connection_not_configured',
+          available,
+        });
+      }
+      for (const src of approvalInput?.sources ?? []) {
+        const ref = src.kind === 'official_page' ? (src.domain ?? '').toLowerCase() : (src.distributorId ?? '');
+        if (!ref) continue;
+        const key = `${src.kind}:${ref.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        sourceOptions.push({
+          kind: src.kind,
+          ref,
+          displayName: ref,
+          selectable: false,
+          reason: src.kind === 'official_page' ? 'unmapped_domain' : 'removed_source',
+          available: false,
+        });
+      }
+    }
+
     result.push({
       brandKey: displayBrand,
       normalizedBrand: exact,
@@ -201,6 +277,8 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
       approvedSources: approvalInput?.sources ? [...approvalInput.sources] : undefined,
       sourceAvailability,
       collectionReadiness,
+      proposalSources,
+      sourceOptions,
     });
   }
 

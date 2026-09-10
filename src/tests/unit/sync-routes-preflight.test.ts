@@ -60,6 +60,7 @@ function createSampleProduct(sku: string): Product {
         searchKeywords: null,
         googleProductCategory: null,
       },
+      productOnPages: [],
     },
     customFields: {},
     shopsite: {

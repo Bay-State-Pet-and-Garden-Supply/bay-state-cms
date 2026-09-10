@@ -1,5 +1,4 @@
-import { parseProductsXml, type ParsedProductList } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { sanitizeXml } from '../../shopsite/xml-sanitizer';
 import { writeProductFile, writeStoreConfig } from '../../git/workspace-files';
 import { skuToProductFilePath } from '../../git/product-file-path';
@@ -92,29 +91,28 @@ export function bootstrapFromXml(
   try {
     updateBootstrapStatus(workspaceId, 'running');
 
-    // Sanitize and parse XML
+    // Sanitize and decode XML via ShopSiteProductCodec
     const cleanXml = sanitizeXml(xmlContent);
-    const parsed: ParsedProductList = parseProductsXml(cleanXml);
+    const decoded = ShopSiteProductCodec.decode(cleanXml, { workspaceId });
 
     addSyncJobEvent({
       syncJobId: job.id, level: 'info',
-      message: `Parsed ${parsed.products.length} products from XML (version ${parsed.productXmlVersion})`,
+      message: `Parsed ${decoded.products.length} products from XML (version ${decoded.xmlVersion})`,
     });
 
-    if (parsed.products.length === 0) {
+    if (decoded.products.length === 0) {
       errors.push('No products found in XML data.');
       completeSyncJob(job.id, 'failed', { errorSummary: errors.join('; '), productCount: 0 });
       updateBootstrapStatus(workspaceId, 'failed');
       return { success: false, productCount: 0, errors, warnings };
     }
 
-    // Normalize products and build registry
+    // Filter valid products and collect registry observations
     const products: Product[] = [];
-    const allRegistryEntries: Omit<FieldRegistryEntry, 'id'>[] = [];
+    const allRegistryEntries: Omit<FieldRegistryEntry, 'id'>[] = [...decoded.registryObserved];
     const seenSkus = new Set<string>();
 
-    for (const parsedProduct of parsed.products) {
-      const { product, registryObserved } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of decoded.products) {
       if (!product.sku) {
         warnings.push(`Product "${product.core.name || '(unnamed)'}" has no SKU and will be skipped.`);
         continue;
@@ -126,7 +124,6 @@ export function bootstrapFromXml(
       }
       seenSkus.add(skuTrimmed);
       products.push(product);
-      allRegistryEntries.push(...registryObserved);
     }
 
     if (products.length === 0) {
@@ -216,7 +213,7 @@ export function bootstrapFromXml(
     const git = new GitClient(workspacePath);
     try {
       git.add(['products/', 'store/', '.gitignore']);
-      const versionInfo = `ShopSite XML version ${parsed.productXmlVersion}`;
+      const versionInfo = `ShopSite XML version ${decoded.xmlVersion}`;
       git.commit(`Initial ShopSite product bootstrap (${products.length} products, ${versionInfo})`);
       const commitHash = git.getHeadHash();
 
