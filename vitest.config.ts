@@ -161,6 +161,8 @@ export default defineConfig({
       'src/tests/unit/distributor-v2.test.ts',
       // DB-backed (bun:sqlite) — run under `bun test` via test:db
       'src/tests/unit/distributor-image-verification.test.ts',
+      // Image-fetch SSRF gate adversarial suite (bun:test — run under `bun test` via test:db)
+      'src/tests/unit/image-downloader-ssrf.test.ts',
       'src/tests/unit/pi-reuse-policies.test.ts',
       'src/tests/unit/acceptance-migration.test.ts',
       'src/tests/unit/conflict-resolution.test.ts',

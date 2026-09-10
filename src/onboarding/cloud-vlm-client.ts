@@ -31,6 +31,9 @@ import { PACKAGING_OCR_PROMPT, parseJsonFromVlmResponse, coercePackagingOcrData 
 import type { PackagingOcrData } from '../shared/schemas/onboarding';
 import { sha256Hex } from '../shared/stable-id';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
+import { DeterministicNetworkGate } from './image-verification/network-gate';
+
+const vlmImageGate = new DeterministicNetworkGate();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,14 +69,20 @@ class ImageFetchAbortError extends Error {
 async function fetchImageAsBase64(url: string): Promise<{ base64: string; mimeType: string } | null> {
   const logUrl = redactImageUrl(url);
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; BaystateCMS/1.0)',
-        Accept: 'image/*',
+    const response = await vlmImageGate.fetch(
+      url,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; BaystateCMS/1.0)',
+          Accept: 'image/*',
+        },
+        signal: AbortSignal.timeout(30_000),
       },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(30_000),
-    });
+      {
+        allowedContentTypes: ['image/', 'application/octet-stream'],
+        maxResponseBytes: 25 * 1024 * 1024,
+      },
+    );
 
     if (!response.ok) {
       console.warn(`[CloudVlm] HTTP ${response.status} fetching image: ${logUrl}`);
