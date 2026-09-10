@@ -175,6 +175,7 @@ export function normalizeProduct(
         searchKeywords: fields['SearchKeywords'] ?? null,
         googleProductCategory: gtin ? 'GTIN:' + gtin : null,
       },
+      productOnPages: [],
     },
     customFields,
     shopsite: {

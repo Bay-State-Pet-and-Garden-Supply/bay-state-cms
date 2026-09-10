@@ -102,6 +102,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           taxable: true,
           media: { primary: null, additional: [] },
           seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+          productOnPages: [],
         },
         customFields: {},
         shopsite: {
@@ -162,6 +163,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           taxable: true,
           media: { primary: null, additional: [] },
           seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+          productOnPages: [],
         },
         customFields: {},
         shopsite: {
@@ -211,6 +213,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           taxable: true,
           media: { primary: null, additional: [] },
           seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+          productOnPages: [],
         },
         customFields,
         shopsite: {
@@ -253,6 +256,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           taxable: true,
           media: { primary: null, additional: [] },
           seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+          productOnPages: [],
         },
         customFields: {
           'ProductField 1 with spaces': 'bad-tag-val',
@@ -301,6 +305,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
             searchKeywords: 'keywords & tags, special <chars>, ]]> inside',
             googleProductCategory: null,
           },
+          productOnPages: [],
         },
         customFields: {},
         shopsite: {
@@ -523,6 +528,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           taxable: true,
           media: { primary: null, additional: [] },
           seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+          productOnPages: [],
         },
         customFields: {},
         shopsite: {
@@ -574,6 +580,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
             taxable: true,
             media: { primary: null, additional: [] },
             seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+            productOnPages: [],
           },
           customFields: {
             DisplayMoreInformationPage: optOut,

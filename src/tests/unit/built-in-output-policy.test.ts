@@ -35,6 +35,7 @@ function createRichProduct(): Product {
         ],
       },
       seo: { fileName: '', searchKeywords: 'policy, builtin', googleProductCategory: '' },
+      productOnPages: [],
     },
     customFields: {
       ProductField1: 'custom-a',

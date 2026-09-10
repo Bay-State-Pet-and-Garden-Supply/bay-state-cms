@@ -43,6 +43,7 @@ function makeProduct(overrides: {
         searchKeywords: null,
         googleProductCategory: null,
       },
+      productOnPages: [],
     },
     customFields,
     shopsite: {

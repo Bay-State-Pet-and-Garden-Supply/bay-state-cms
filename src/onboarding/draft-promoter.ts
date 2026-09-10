@@ -950,6 +950,7 @@ export async function promoteItems(
           searchKeywords: item.curationData?.searchKeywords || extractionData.searchKeywords || null,
           googleProductCategory: null,
         },
+        productOnPages: [],
       };
 
       // --- Apply accepted classification proposals ---

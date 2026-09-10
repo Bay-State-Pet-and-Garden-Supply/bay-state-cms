@@ -37,6 +37,7 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
           searchKeywords: 'compat, test, escaping, xml',
           googleProductCategory: 'Pet Supplies',
         },
+        productOnPages: [],
       },
       customFields: {
         ProductField1: 'custom-val-1',
@@ -210,6 +211,7 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
         taxable: true,
         media: { primary: 'img.jpg', additional: [] },
         seo: { fileName: '', searchKeywords: '', googleProductCategory: '' },
+        productOnPages: [],
       },
       customFields: {},
       shopsite: {
