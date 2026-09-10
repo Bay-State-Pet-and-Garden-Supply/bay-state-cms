@@ -88,4 +88,29 @@ describe('profile-capture // story: e07s03', () => {
     const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
     await expect(captureProfilePage({ url: 'https://example.com/missing', runtime: 'static' })).rejects.toThrow(/fetch failed 404/);
   });
+
+  it('blocks private, loopback, and decimal IP addresses (SSRF guard)', async () => {
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    const blockedUrls = [
+      'http://127.0.0.1/secret',
+      'http://10.0.0.1/admin',
+      'http://2130706433/internal',
+    ];
+    for (const url of blockedUrls) {
+      await expect(captureProfilePage({ url, runtime: 'static' })).rejects.toThrow(/blocked private destination/);
+    }
+  });
+
+  it('fails closed when DNS resolution fails for unresolvable hostnames', async () => {
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    await expect(captureProfilePage({ url: 'http://invalid-nonexistent-domain-xyz987.invalid/p/1', runtime: 'static' })).rejects.toThrow(/blocked private destination/);
+  });
+
+  it('allows public 172.x Cloudflare IP addresses without false-positive blocking', async () => {
+    const html = '<html><body><h1>Public Cloudflare Host</h1></body></html>';
+    global.fetch = vi.fn(async () => new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })) as unknown as typeof fetch;
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    const res = await captureProfilePage({ url: 'http://172.67.182.1/p/1', runtime: 'static' });
+    expect(res.dom).toBe(html);
+  });
 });

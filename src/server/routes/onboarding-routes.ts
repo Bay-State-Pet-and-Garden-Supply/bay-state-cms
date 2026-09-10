@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono';
-import { isPrivateOrLinkLocal } from '../../shared/ssrf';
+import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
 import { OLLAMA_VLM_SERVICE_NAME, DEFAULT_LOCAL_VISION_MODEL } from '../../ai/vision-model-defaults';
 import { streamSSE } from 'hono/streaming';
@@ -3470,7 +3470,7 @@ route.post('/onboarding/settings/profile-tooling/fetch-html', async (c) => {
       return c.json({ ok: false, error: 'Only http and https protocols are allowed' }, 400);
     }
     const hostname = parsedUrl.hostname.replace(/^\[|\]$/g, '');
-    if (hostname === 'localhost' || isPrivateOrLinkLocal(hostname)) {
+    if (await isPrivateOrLinkLocalHost(hostname)) {
       return c.json({ ok: false, error: 'URL points to a private network address' }, 400);
     }
   } catch {
@@ -3488,7 +3488,7 @@ route.post('/onboarding/settings/profile-tooling/fetch-html', async (c) => {
           return c.json({ ok: false, error: 'Only http and https protocols are allowed' }, 400);
         }
         const curHostname = parsedCurrent.hostname.replace(/^\[|\]$/g, '');
-        if (curHostname === 'localhost' || isPrivateOrLinkLocal(curHostname)) {
+        if (await isPrivateOrLinkLocalHost(curHostname)) {
           return c.json({ ok: false, error: 'URL points to a private network address' }, 400);
         }
       } catch {
