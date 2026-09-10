@@ -53,6 +53,7 @@ import type { CohortRun } from '../shared/schemas/cohorts';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import type { ClassificationProposal } from '../shared/schemas/classification';
 import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
+import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
 import { getPageIdentityId, pageNameFromPageValue } from '../shared/proposal-display';
 import {
@@ -62,6 +63,44 @@ import {
   serializeAttributeValue,
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
+
+/**
+ * Spec #136 ticket #142: promotion slot resolution through active
+ * Attribute Mappings. Semantic promotion inputs (Brand, the new-arrival
+ * date tag) resolve their target Catalog Field from the workspace's active
+ * attribute mappings; the physical slot constants below are fallbacks used
+ * ONLY when no usable mapping exists. No other `ProductFieldN` literal may
+ * appear in promotion logic.
+ */
+const BRAND_ATTRIBUTE_ID = 'brand';
+const ARRIVAL_DATE_ATTRIBUTE_ID = 'arrival_date';
+const FALLBACK_BRAND_CATALOG_FIELD = 'ProductField16';
+const FALLBACK_ARRIVAL_DATE_CATALOG_FIELD = 'ProductField1';
+
+/**
+ * Resolve the Catalog Field for a semantic promotion attribute. A mapping
+ * that is stale or carries an empty catalog field is treated as absent so
+ * promotion fails closed to the documented fallback slot instead of
+ * writing to a field that no longer exists in the live store XML.
+ */
+function resolvePromotionCatalogField(
+  mappings: AttributeMappingConfig[],
+  attributeId: string,
+  fallbackField: string,
+): string {
+  const mapping = mappings.find(m => m.attributeId === attributeId);
+  if (!mapping || mapping.isStale) return fallbackField;
+  const field = mapping.catalogField?.trim();
+  return field ? field : fallbackField;
+}
+
+export function resolveBrandCatalogField(mappings: AttributeMappingConfig[]): string {
+  return resolvePromotionCatalogField(mappings, BRAND_ATTRIBUTE_ID, FALLBACK_BRAND_CATALOG_FIELD);
+}
+
+export function resolveArrivalDateCatalogField(mappings: AttributeMappingConfig[]): string {
+  return resolvePromotionCatalogField(mappings, ARRIVAL_DATE_ATTRIBUTE_ID, FALLBACK_ARRIVAL_DATE_CATALOG_FIELD);
+}
 
 function slugify(text: string): string {
   return text
@@ -186,16 +225,6 @@ async function downloadAndProcessImages(
   return result;
 }
 
-
-/** Escape XML special characters in a string. */
-function escapeXml(str: string): string {
-  return str
-    .replace(/&(?!#(?:[0-9]+|x[0-9a-fA-F]+);|[a-zA-Z0-9]+;)/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 /**
  * PR11/PR12 gate inputs for one item: run-pointer validation + the
@@ -726,9 +755,12 @@ export async function promoteItems(
     const finalTitle = item.curationData?.curatedTitle || extractionData.title || item.name;
     const existingApproved = readProductFile(workspacePath, item.upc);
 
-    // Resolve brand name
-    let brandName = existingApproved?.customFields?.['ProductField16'] || item.brandHint || 'unbranded';
-    if (!existingApproved?.customFields?.['ProductField16'] && item.brandHint && workspace) {
+    // Resolve brand name from the mapped Brand slot (#142: mapping-routed,
+    // fallback ProductField16 only when no usable brand mapping exists).
+    const phaseBCachedMappings = getCachedAttributeMappings(workspaceId);
+    const phaseBBrandField = resolveBrandCatalogField(phaseBCachedMappings);
+    let brandName = existingApproved?.customFields?.[phaseBBrandField] || item.brandHint || 'unbranded';
+    if (!existingApproved?.customFields?.[phaseBBrandField] && item.brandHint && workspace) {
       try {
         const brands = getCachedBrands(workspace.id);
         const resolved = resolveBrand(item.brandHint, brands);
@@ -950,7 +982,9 @@ export async function promoteItems(
           searchKeywords: item.curationData?.searchKeywords || extractionData.searchKeywords || null,
           googleProductCategory: null,
         },
-        productOnPages: [],
+        // First-class Category Page assignments (#142) are populated below
+        // from verified classification proposals — never XML fragments.
+        productOnPages: [] as string[],
       };
 
       // --- Apply accepted classification proposals ---
@@ -994,9 +1028,12 @@ export async function promoteItems(
       const verifiedPageOptions = listVerifiedPageOptions(batch.workspaceId);
       const verifiedPageIds = new Set(verifiedPageOptions.map(p => p.id));
       const verifiedNameById = new Map(verifiedPageOptions.map(p => [p.id, p.name]));
+      // #142: semantic promotion slots resolve through the workspace's
+      // active Attribute Mappings; physical slots are fallback-only.
+      const mappings = getCachedAttributeMappings(workspaceId);
+      const brandCatalogField = resolveBrandCatalogField(mappings);
+      const arrivalDateCatalogField = resolveArrivalDateCatalogField(mappings);
       if (activeProposals.length > 0) {
-        const mappings = getCachedAttributeMappings(workspaceId);
-
         for (const proposal of activeProposals) {
           // Effective reviewed target/value win over the immutable prediction.
           const targetId = getEffectiveProposalTargetId(proposal);
@@ -1085,19 +1122,23 @@ export async function promoteItems(
         ...classificationCustomFields,
       };
 
-      // Set ProductField1 to new{todaysDate} in MMDDYY format for new products
+      // New-arrival date tag (new{todaysDate} in MMDDYY format) for new
+      // products. The target slot resolves through the active `arrival_date`
+      // attribute mapping (#142); ProductField1 is fallback-only.
       if (!existingApproved) {
         const d = new Date();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
         const yy = String(d.getFullYear()).slice(-2);
-        mergedCustomFields['ProductField1'] = `new${mm}${dd}${yy}`;
+        mergedCustomFields[arrivalDateCatalogField] = `new${mm}${dd}${yy}`;
       }
 
       // ── Brand resolution ─────────────────────────────────────────────
       // Brand is set from brandHint or title fallback via deterministic
-      // brand resolution against cached workspace catalog brands.
-      if (!mergedCustomFields['ProductField16']?.trim()) {
+      // brand resolution against cached workspace catalog brands. The target
+      // slot resolves through the active `brand` attribute mapping (#142);
+      // ProductField16 is fallback-only.
+      if (!mergedCustomFields[brandCatalogField]?.trim()) {
         const brandInput = item.brandHint || coreProduct.name || item.name;
         if (brandInput) {
           try {
@@ -1106,16 +1147,16 @@ export async function promoteItems(
               const brands = getCachedBrands(workspace.id);
               const resolved = resolveBrand(brandInput, brands);
               if (resolved?.brandName) {
-                mergedCustomFields['ProductField16'] = resolved.brandName;
+                mergedCustomFields[brandCatalogField] = resolved.brandName;
               } else if (item.brandHint) {
-                mergedCustomFields['ProductField16'] = item.brandHint;
+                mergedCustomFields[brandCatalogField] = item.brandHint;
               }
             } else if (item.brandHint) {
-              mergedCustomFields['ProductField16'] = item.brandHint;
+              mergedCustomFields[brandCatalogField] = item.brandHint;
             }
           } catch (err: any) {
             console.warn(`[DraftPromoter] Brand resolution failed for ${item.upc}: ${err.message}`);
-            if (item.brandHint) mergedCustomFields['ProductField16'] = item.brandHint;
+            if (item.brandHint) mergedCustomFields[brandCatalogField] = item.brandHint;
           }
         }
       }
@@ -1124,7 +1165,7 @@ export async function promoteItems(
       const missingFields: string[] = [];
       if (!coreProduct.name?.trim()) missingFields.push('Name');
       if (!coreProduct.price?.trim()) missingFields.push('Price');
-      if (!mergedCustomFields['ProductField16']?.trim()) missingFields.push('Brand (ProductField16)');
+      if (!mergedCustomFields[brandCatalogField]?.trim()) missingFields.push(`Brand (${brandCatalogField})`);
       if (!coreProduct.media.primary) missingFields.push('Primary Image');
 
       // Pages are mandatory — only VERIFIED assignments count. Unverified
@@ -1181,22 +1222,19 @@ export async function promoteItems(
         },
       };
 
-      // ── Inject ProductOnPages into preserved unknown elements ─────────
-      // Serialize ONLY the verified assignments (they carry the verified
-      // catalog's display names). Never re-read unverified/name-only DB rows:
-      // an unchecked persisted name must not reach ProductOnPages.
+      // ── First-class Category Page assignments (#142) ─────────────────
+      // Write ONLY the verified assignments (they carry the verified
+      // catalog's display names) directly to core.productOnPages, deduped.
+      // Never re-read unverified/name-only DB rows: an unchecked persisted
+      // name must not reach productOnPages. The codec serializes this array
+      // to DTD-compliant ProductOnPages XML at export — no XML strings here.
       const pageNames: string[] = [];
       for (const pp of classificationPageProposals) {
         if (pp.pageName && !pageNames.includes(pp.pageName)) {
           pageNames.push(pp.pageName);
         }
       }
-
-      // Inject into preserved unknown elements as raw XML children
-      if (pageNames.length > 0) {
-        const pagesXml = pageNames.map(n => `<Name>${escapeXml(n)}</Name>`).join('\n    ');
-        product.shopsite.preserved.unknownElements['ProductOnPages'] = `\n    ${pagesXml}\n  `;
-      }
+      coreProduct.productOnPages = pageNames;
 
       const draftJsonStr = deterministicStringify(product);
       const draftHash = hashJson(product);

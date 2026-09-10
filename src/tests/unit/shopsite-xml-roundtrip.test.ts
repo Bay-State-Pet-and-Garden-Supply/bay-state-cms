@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
-import { denormalizeProduct } from '../../shopsite/product-denormalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { sanitizeXml } from '../../shopsite/xml-sanitizer';
 import type { Product } from '../../shared/types';
 import fs from 'fs';
@@ -75,8 +73,8 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
       },
     };
 
-    // 1. Denormalize into XML
-    const denorm = denormalizeProduct(mockProduct);
+    // 1. Encode into XML through the codec
+    const denorm = ShopSiteProductCodec.encode(mockProduct);
     expect(denorm.xml).toBeTruthy();
     expect(denorm.xml).toContain('<SKU>SKU-COMPAT-99</SKU>');
     expect(denorm.xml).toContain('<Price>99.99</Price>');
@@ -88,12 +86,14 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
     expect(denorm.xml).toContain('<ProductOnPages>');
     expect(denorm.xml).toContain('<Name>Dog Treats Shop All</Name>');
 
-    // 2. Parse generated XML
-    const parsed = parseProductsXml(denorm.xml);
+    // 2. Decode generated XML back through the codec
+    const parsed = ShopSiteProductCodec.decode(denorm.xml);
     expect(parsed.products.length).toBe(1);
 
-    // 3. Normalize parsed XML back to Product
-    const { product: roundtripped } = normalizeProduct(parsed.products[0], 'test-workspace');
+    // 3. The decoded domain Product is the round-tripped value
+    const roundtripped = parsed.products[0];
+    // Legacy advanced-block page assignments decode to first-class pages.
+    expect(roundtripped.core.productOnPages).toEqual(['Dog Treats Shop All']);
 
     // 4. Assert core identities and values match exactly
     expect(roundtripped.sku).toBe(mockProduct.sku);
@@ -123,36 +123,83 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
     expect(roundtripped.shopsite.preserved.advancedBlocks['ProductOptions']).toContain('<Option>Red</Option>');
   });
 
-  // Test case 2: Real-world catalog round-trip testing loaded directly from the Bay State workspace
-  it('should verify round-trip integrity on actual product files from the Bay State workspace', () => {
-    const bayStateProductsDir = '/Users/nickborrello/Desktop/Projects/baystate-cms/workspaces/Bay State/products';
-    
-    if (!fs.existsSync(bayStateProductsDir)) {
-      console.log(`[Roundtrip Test] Bay State products directory not found at "${bayStateProductsDir}". Skipping real product round-trip assertions.`);
-      return;
-    }
+  // Test case 1b (#142): multi-page first-class productOnPages round-trip
+  it('should round-trip MULTIPLE first-class productOnPages in order with dedup', () => {
+    const multiPageProduct: Product = {
+      schemaVersion: 1,
+      id: 'test-multi-pages',
+      sku: 'SKU-MULTI-PAGES',
+      status: 'active',
+      core: {
+        name: 'Multi Page Product',
+        price: '29.99',
+        salePrice: null,
+        description: null,
+        inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null },
+        availability: null,
+        weight: null,
+        taxable: true,
+        media: { primary: null, additional: [] },
+        seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: ['Alpha Page', 'Beta Page', 'Alpha Page'],
+      },
+      customFields: {},
+      shopsite: {
+        productId: null,
+        productGuid: null,
+        xmlVersion: '15.0',
+        lastPulledAt: null,
+        lastRemoteHash: null,
+        lastSyncedAt: null,
+        source: { dbname: 'products', uniqueName: 'SKU' },
+        preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} },
+      },
+      metadata: {
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:00.000Z',
+        archivedAt: null,
+      },
+    };
 
-    const files = fs.readdirSync(bayStateProductsDir).filter(f => f.endsWith('.json'));
-    expect(files.length).toBeGreaterThan(0);
+    const encoded = ShopSiteProductCodec.encode(multiPageProduct);
+    expect(encoded.xml).toContain('<ProductOnPages>');
+    expect(encoded.xml).toContain('<Name>Alpha Page</Name>');
+    expect(encoded.xml).toContain('<Name>Beta Page</Name>');
 
-    // Pick 5 arbitrary products from the catalog to ensure broad coverage
-    const sampleFiles = files.slice(0, 5);
+    const decoded = ShopSiteProductCodec.decode(encoded.xml);
+    expect(decoded.products.length).toBe(1);
+    // Order preserved, duplicates collapsed — the promoter → export contract.
+    expect(decoded.products[0].core.productOnPages).toEqual(['Alpha Page', 'Beta Page']);
+  });
 
-    for (const file of sampleFiles) {
-      const filePath = path.join(bayStateProductsDir, file);
-      const originalProduct = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Product;
+  // Test case 2 (#143 FIX 5): committed-fixture catalog round-trip. The old
+  // machine-local workspace path silently skipped every assertion on CI;
+  // this exercises real catalog-shaped data on every machine with zero
+  // filesystem assumptions beyond the repo itself — fail-open, never a
+  // silent return.
+  it('should verify round-trip integrity on the committed ShopSite fixture catalog', () => {
+    const fixtureCatalogPath = path.resolve(import.meta.dirname, '../fixtures/shopsite-products-sample.xml');
+    expect(fs.existsSync(fixtureCatalogPath)).toBe(true);
+    const fixtureCatalogXml = fs.readFileSync(fixtureCatalogPath, 'utf-8');
+    const catalogDecoded = ShopSiteProductCodec.decode(fixtureCatalogXml);
+    expect(catalogDecoded.products.length).toBeGreaterThan(0);
 
-      // 1. Denormalize into XML
-      const denorm = denormalizeProduct(originalProduct);
+    // Every decoded fixture product must survive an encode→decode cycle.
+    const sampleFiles = catalogDecoded.products;
+
+    for (const originalProduct of sampleFiles) {
+
+      // 1. Encode into XML through the codec
+      const denorm = ShopSiteProductCodec.encode(originalProduct);
       expect(denorm.xml).toBeTruthy();
       expect(denorm.xml).toContain(`<SKU>${originalProduct.sku}</SKU>`);
 
-      // 2. Parse back
-      const parsedList = parseProductsXml(denorm.xml);
+      // 2. Decode back through the codec
+      const parsedList = ShopSiteProductCodec.decode(denorm.xml);
       expect(parsedList.products.length).toBe(1);
 
-      // 3. Re-normalize
-      const { product: recreatedProduct } = normalizeProduct(parsedList.products[0], originalProduct.shopsite.productId || 'temp-ws');
+      // 3. The decoded domain Product is the recreated value
+      const recreatedProduct = parsedList.products[0];
 
       // 4. Audit round-trip accuracy
       expect(recreatedProduct.sku).toBe(originalProduct.sku);
@@ -233,7 +280,7 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
 
     it('should default MinimumQuantity to 0 and ProductType to Tangible when omitted', () => {
       const prod = createBaseProduct();
-      const res = denormalizeProduct(prod);
+      const res = ShopSiteProductCodec.encode(prod);
       expect(res.xml).toContain('<MinimumQuantity>0</MinimumQuantity>');
       expect(res.xml).toContain('<ProductType>Tangible</ProductType>');
     });
@@ -241,25 +288,25 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
     it('should preserve non-default MinimumQuantity from customFields or preserved unknownElements', () => {
       const prodCustom = createBaseProduct();
       prodCustom.customFields['MinimumQuantity'] = '5';
-      expect(denormalizeProduct(prodCustom).xml).toContain('<MinimumQuantity>5</MinimumQuantity>');
+      expect(ShopSiteProductCodec.encode(prodCustom).xml).toContain('<MinimumQuantity>5</MinimumQuantity>');
 
       const prodPreserved = createBaseProduct();
       prodPreserved.shopsite.preserved.unknownElements['MinimumQuantity'] = '10';
-      expect(denormalizeProduct(prodPreserved).xml).toContain('<MinimumQuantity>10</MinimumQuantity>');
+      expect(ShopSiteProductCodec.encode(prodPreserved).xml).toContain('<MinimumQuantity>10</MinimumQuantity>');
     });
 
     it('should preserve explicit ShopSite ProductType and NOT overwrite with internal Primary Product Type', () => {
       const prod = createBaseProduct();
       prod.customFields['ProductType'] = 'Download';
-      expect(denormalizeProduct(prod).xml).toContain('<ProductType>Download</ProductType>');
-      expect(denormalizeProduct(prod).xml).not.toContain('<ProductType>dog_food_dry</ProductType>');
+      expect(ShopSiteProductCodec.encode(prod).xml).toContain('<ProductType>Download</ProductType>');
+      expect(ShopSiteProductCodec.encode(prod).xml).not.toContain('<ProductType>dog_food_dry</ProductType>');
     });
 
     it('should preserve explicit custom/preserved FileName and MoreInformationText', () => {
       const prod = createBaseProduct();
       prod.customFields['FileName'] = 'custom-page-name.html';
       prod.customFields['MoreInformationText'] = 'Custom detail text for more info.';
-      const res = denormalizeProduct(prod);
+      const res = ShopSiteProductCodec.encode(prod);
       expect(res.xml).toContain('<FileName>custom-page-name.html</FileName>');
       expect(res.xml).toContain('<MoreInformationText><![CDATA[Custom detail text for more info.]]></MoreInformationText>');
     });
@@ -267,25 +314,24 @@ describe('ShopSite XML Round-trip & Compatibility', () => {
     it('should keep descriptions stable across export/import cycles (name-in-ProductDescription convention)', () => {
       const prod = createBaseProduct();
       prod.core.description = 'Long-form catalog copy.';
-      const first = denormalizeProduct(prod);
+      const first = ShopSiteProductCodec.encode(prod);
       // Upload shape: NAME in ProductDescription, descriptive copy in
       // MoreInformationText with the More Info page flag enabled.
       expect(first.xml).toContain(`<ProductDescription><![CDATA[${prod.core.name}]]></ProductDescription>`);
       expect(first.xml).toContain('<MoreInformationText><![CDATA[Long-form catalog copy.]]></MoreInformationText>');
       expect(first.xml).toContain('<DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
       // Re-import must not mistake the echoed name for the description.
-      const reparsed = parseProductsXml(first.xml).products[0];
-      const { product: reimported } = normalizeProduct(reparsed, 'test-workspace');
+      const reimported = ShopSiteProductCodec.decode(first.xml).products[0];
       expect(reimported.core.description).toBe('Long-form catalog copy.');
-      const second = denormalizeProduct(reimported);
+      const second = ShopSiteProductCodec.encode(reimported);
       expect(second.xml).toContain('<ProductDescription><![CDATA[Builtin Policy Test Product]]></ProductDescription>');
       expect(second.xml).toContain('<MoreInformationText><![CDATA[Long-form catalog copy.]]></MoreInformationText>');
       // Legacy exports store the description directly in ProductDescription.
       const legacyXml = '<Product><SKU>L1</SKU><Name>Legacy Prod</Name>'
         + '<ProductDescription><![CDATA[Legacy copy.]]></ProductDescription></Product>';
-      const { product: legacy } = normalizeProduct(parseProductsXml(legacyXml).products[0], 'test-workspace');
+      const legacy = ShopSiteProductCodec.decode(legacyXml).products[0];
       expect(legacy.core.description).toBe('Legacy copy.');
-      const legacyOut = denormalizeProduct(legacy);
+      const legacyOut = ShopSiteProductCodec.encode(legacy);
       expect(legacyOut.xml).toContain('<ProductDescription><![CDATA[Legacy Prod]]></ProductDescription>');
       expect(legacyOut.xml).toContain('<MoreInformationText><![CDATA[Legacy copy.]]></MoreInformationText>');
     });

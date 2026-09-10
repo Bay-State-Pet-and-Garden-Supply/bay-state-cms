@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
-import { denormalizeProduct } from '../../shopsite/product-denormalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { buildProductsXml } from '../../shopsite/xml-builder';
 import type { Product } from '../../shared/types';
 import fs from 'fs';
@@ -13,15 +11,15 @@ const sampleFixtureXml = fs.readFileSync(sampleFixturePath, 'utf-8');
 describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket #137)', () => {
   describe('Fixture 1: Sample Products XML Decoding & Field Extraction', () => {
     it('decodes the version and product count accurately', () => {
-      const parsed = parseProductsXml(sampleFixtureXml);
-      expect(parsed.productXmlVersion).toBe('15.0');
+      const parsed = ShopSiteProductCodec.decode(sampleFixtureXml);
+      expect(parsed.xmlVersion).toBe('15.0');
       expect(parsed.products.length).toBe(2);
     });
 
     it('pins exact decoded product structure for single-item product (Dog Food)', () => {
-      const parsed = parseProductsXml(sampleFixtureXml);
-      const dogFoodParsed = parsed.products[0];
-      const { product, registryObserved } = normalizeProduct(dogFoodParsed, 'test-workspace');
+      const parsed = ShopSiteProductCodec.decode(sampleFixtureXml, { workspaceId: 'test-workspace' });
+      const product = parsed.products[0];
+      const { registryObserved } = parsed;
 
       // Core properties
       expect(product.sku).toBe('ABC-123');
@@ -61,9 +59,8 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
     });
 
     it('pins exact decoded product structure for complex product with images and subproducts (Cat Toy)', () => {
-      const parsed = parseProductsXml(sampleFixtureXml);
-      const catToyParsed = parsed.products[1];
-      const { product } = normalizeProduct(catToyParsed, 'test-workspace');
+      const parsed = ShopSiteProductCodec.decode(sampleFixtureXml);
+      const product = parsed.products[1];
 
       expect(product.sku).toBe('XYZ-789');
       expect(product.core.name).toBe('Cat Toy Deluxe');
@@ -78,9 +75,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
       ]);
 
       // Advanced blocks preserved
-      expect(catToyParsed.hasAdvanced).toBe(true);
-      expect(catToyParsed.advancedBlocks['Subproducts']).toContain('<Subproduct>');
-      expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toBe(catToyParsed.advancedBlocks['Subproducts']);
+      expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toContain('<Subproduct>');
     });
   });
 
@@ -118,7 +113,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         metadata: { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
       };
 
-      const { xml, warnings } = denormalizeProduct(minimalProduct);
+      const { xml, warnings } = ShopSiteProductCodec.encode(minimalProduct);
       expect(warnings).toEqual([]);
 
       // Verify exact line presence and DTD defaults
@@ -229,7 +224,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         metadata: { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
       };
 
-      const { xml } = denormalizeProduct(product);
+      const { xml } = ShopSiteProductCodec.encode(product);
 
       // Verify that ProductField1 precedes ProductField2 precedes ProductField10 (natural numeric sort)
       const matches = Array.from(xml.matchAll(/<ProductField(\d+)>/g)).map(m => parseInt(m[1], 10));
@@ -275,7 +270,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         metadata: { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
       };
 
-      const { xml, warnings } = denormalizeProduct(product);
+      const { xml, warnings } = ShopSiteProductCodec.encode(product);
       expect(warnings.length).toBe(1);
       expect(warnings[0]).toContain('Skipping custom field "ProductField 1 with spaces"');
       expect(xml).toContain('<ProductField1>valid-val</ProductField1>');
@@ -321,7 +316,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         metadata: { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
       };
 
-      const { xml } = denormalizeProduct(product);
+      const { xml } = ShopSiteProductCodec.encode(product);
 
       // Name is escaped in text
       expect(xml).toContain('<Name>Dog &amp; Cat Bowl &lt;Special&gt; &quot;Quotes&quot;</Name>');
@@ -352,13 +347,14 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
   </ProductOnPages>
 </Product>`;
 
-      const parsed = parseProductsXml(xmlWithPages);
+      const parsed = ShopSiteProductCodec.decode(xmlWithPages);
       expect(parsed.products.length).toBe(1);
-      const prodParsed = parsed.products[0];
-      expect(prodParsed.advancedBlocks['ProductOnPages']).toContain('<PageLink>');
+      const product = parsed.products[0];
+      expect(product.shopsite.preserved.advancedBlocks['ProductOnPages']).toContain('<PageLink>');
+      // Legacy and modern page markup both decode to first-class pages.
+      expect(product.core.productOnPages).toEqual(['Dogs & Puppies', 'Natural Pet Care']);
 
-      const { product } = normalizeProduct(prodParsed, 'test-workspace');
-      const denorm = denormalizeProduct(product);
+      const denorm = ShopSiteProductCodec.encode(product);
 
       // Verified output format
       expect(denorm.xml).toContain('<ProductOnPages>');
@@ -377,9 +373,10 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
   </ProductOnPages>
 </Product>`;
 
-      const parsed = parseProductsXml(xmlWithLegacyPages);
-      const { product } = normalizeProduct(parsed.products[0], 'test-workspace');
-      const denorm = denormalizeProduct(product);
+      const parsed = ShopSiteProductCodec.decode(xmlWithLegacyPages);
+      const product = parsed.products[0];
+      expect(product.core.productOnPages).toEqual(['Cat Supplies', 'Dry Food']);
+      const denorm = ShopSiteProductCodec.encode(product);
 
       // Denormalizer emits DTD-compliant PageLink tags even if source was legacy flat Name tags
       expect(denorm.xml).toContain('<ProductOnPages>');
@@ -411,9 +408,9 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
   </Subproducts>
 </Product>`;
 
-      const parsed = parseProductsXml(complexXml);
+      const parsed = ShopSiteProductCodec.decode(complexXml);
       expect(parsed.products.length).toBe(1);
-      const { product } = normalizeProduct(parsed.products[0], 'test-workspace');
+      const product = parsed.products[0];
 
       // Preserved unknown elements
       expect(product.shopsite.preserved.unknownElements['DimensionOptions']).toBe('1');
@@ -425,8 +422,8 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
       expect(product.shopsite.preserved.advancedBlocks['ProductOptions']).toContain('<Option name="Size">');
       expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toContain('<SKU>ADV-SUB-1</SKU>');
 
-      // Denormalize and verify presence
-      const denorm = denormalizeProduct(product);
+      // Encode and verify presence
+      const denorm = ShopSiteProductCodec.encode(product);
       expect(denorm.xml).toContain('  <DimensionOptions>1</DimensionOptions>');
       expect(denorm.xml).toContain('  <Template>BB-Product.sst</Template>');
       expect(denorm.xml).toContain('  <DisplayAddToCart>All Pages</DisplayAddToCart>');
@@ -446,18 +443,16 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         return;
       }
       const exportXml = fs.readFileSync(exportFixturePath, 'utf-8');
-      const parsed = parseProductsXml(exportXml);
+      const parsed = ShopSiteProductCodec.decode(exportXml);
       expect(parsed.products.length).toBe(12);
 
-      for (const p of parsed.products) {
-        const { product } = normalizeProduct(p, 'test-workspace');
-        const denorm = denormalizeProduct(product);
+      for (const product of parsed.products) {
+        const denorm = ShopSiteProductCodec.encode(product);
         // Verify XML serialization contains the SKU and XML-escaped Name
         expect(denorm.xml).toContain(`<SKU>${product.sku}</SKU>`);
 
-        // Re-parse and re-normalize to verify true mathematical round-trip parity
-        const reparsed = parseProductsXml(denorm.xml).products[0];
-        const { product: reloaded } = normalizeProduct(reparsed, 'test-workspace');
+        // Re-decode to verify true mathematical round-trip parity
+        const reloaded = ShopSiteProductCodec.decode(denorm.xml).products[0];
 
         expect(reloaded.sku).toBe(product.sku);
         expect(reloaded.core.name).toBe(product.core.name);
@@ -488,13 +483,13 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         const filePath = path.join(catalogProductsDir, file);
         const originalProduct = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Product;
 
-        const denorm = denormalizeProduct(originalProduct);
+        const denorm = ShopSiteProductCodec.encode(originalProduct);
         expect(denorm.xml).toContain(`<SKU>${originalProduct.sku}</SKU>`);
 
-        const parsed = parseProductsXml(denorm.xml);
+        const parsed = ShopSiteProductCodec.decode(denorm.xml);
         expect(parsed.products.length).toBe(1);
 
-        const { product: reloaded } = normalizeProduct(parsed.products[0], originalProduct.shopsite.productId || 'temp-ws');
+        const reloaded = parsed.products[0];
         expect(reloaded.sku).toBe(originalProduct.sku);
         expect(reloaded.core.name).toBe(originalProduct.core.name);
         expect(reloaded.core.price).toBe(originalProduct.core.price);
@@ -552,11 +547,11 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         core: { ...activeTaxable.core, taxable: false },
       };
 
-      const denorm1 = denormalizeProduct(activeTaxable);
+      const denorm1 = ShopSiteProductCodec.encode(activeTaxable);
       expect(denorm1.xml).toContain('<ProductDisabled>uncheck</ProductDisabled>');
       expect(denorm1.xml).toContain('<Taxable>checked</Taxable>');
 
-      const denorm2 = denormalizeProduct(draftNonTaxable);
+      const denorm2 = ShopSiteProductCodec.encode(draftNonTaxable);
       expect(denorm2.xml).toContain('<ProductDisabled>checked</ProductDisabled>');
       expect(denorm2.xml).toContain('<Taxable>uncheck</Taxable>');
     });
@@ -598,7 +593,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
           metadata: { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
         };
 
-        const { xml } = denormalizeProduct(prod);
+        const { xml } = ShopSiteProductCodec.encode(prod);
         expect(xml).toContain('<DisplayMoreInformationPage>uncheck</DisplayMoreInformationPage>');
         expect(xml).toContain('<MoreInformationText><![CDATA[Product copy here]]></MoreInformationText>');
       }

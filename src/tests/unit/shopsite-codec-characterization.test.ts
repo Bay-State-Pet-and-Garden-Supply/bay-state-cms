@@ -2,17 +2,17 @@
  * Characterization Tests — ShopSite Product XML Codec
  *
  * Issue #137: Pin characterization fixtures & parity tests for ShopSite
- * product XML. These tests capture the EXACT behavior of the current
- * parse → normalize → denormalize pipeline against the repository fixture
- * (`shopsite-products-sample.xml`). Every assertion here is a parity
- * contract that the replacement ShopSiteProductCodec (#140) must satisfy.
+ * product XML. These tests capture the EXACT behavior of the ShopSite XML
+ * pipeline against the repository fixture (`shopsite-products-sample.xml`).
  *
- * This file intentionally tests PRODUCTION code with NO modifications.
+ * Issue #143 (contract phase): rewired to exercise ShopSiteProductCodec
+ * directly through its external decode/encode seam — no parser, normalizer,
+ * denormalizer, or ParsedProduct internals. Documented round-trip quirks
+ * below are codec-verified behaviors, not legacy accidents.
  */
 import { describe, it, expect } from 'vitest';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
-import { denormalizeProduct } from '../../shopsite/product-denormalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
+import type { Product } from '../../shared/types';
 import fs from 'fs';
 import path from 'path';
 
@@ -25,7 +25,7 @@ const fixtureXml = fs.readFileSync(fixturePath, 'utf-8');
  * Normalize a parsed product for stable comparison by stripping volatile
  * fields (id, timestamps) that change on every invocation.
  */
-function stableProduct(p: ReturnType<typeof normalizeProduct>['product']) {
+function stableProduct(p: Product) {
   return {
     sku: p.sku,
     status: p.status,
@@ -45,10 +45,10 @@ function stableProduct(p: ReturnType<typeof normalizeProduct>['product']) {
 //  1. FIXTURE DECODE — Pinned Product objects
 // ═══════════════════════════════════════════════════════════════════════
 describe('Characterization: Fixture Decode', () => {
-  const parsed = parseProductsXml(fixtureXml);
+  const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
   it('should detect XML version 15.0', () => {
-    expect(parsed.productXmlVersion).toBe('15.0');
+    expect(parsed.xmlVersion).toBe('15.0');
   });
 
   it('should parse exactly 2 products', () => {
@@ -57,7 +57,7 @@ describe('Characterization: Fixture Decode', () => {
 
   // ── Dog Food (Product 1) ──
   describe('Dog Food (ABC-123)', () => {
-    const { product } = normalizeProduct(parsed.products[0], 'test-workspace');
+    const product = parsed.products[0];
 
     it('should decode core identity fields', () => {
       expect(product.sku).toBe('ABC-123');
@@ -127,14 +127,14 @@ describe('Characterization: Fixture Decode', () => {
       expect(product.shopsite.preserved.advancedBlocks).toEqual({});
     });
 
-    it('should set hasAdvanced = false on parsed product', () => {
-      expect(parsed.products[0].hasAdvanced).toBe(false);
+    it('should carry no advanced blocks on a simple product', () => {
+      expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toBeUndefined();
     });
   });
 
   // ── Cat Toy (Product 2) ──
   describe('Cat Toy (XYZ-789)', () => {
-    const { product } = normalizeProduct(parsed.products[1], 'test-workspace');
+    const product = parsed.products[1];
 
     it('should decode core identity fields', () => {
       expect(product.sku).toBe('XYZ-789');
@@ -189,8 +189,8 @@ describe('Characterization: Fixture Decode', () => {
       expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toContain('XYZ-789-BLUE');
     });
 
-    it('should set hasAdvanced = true on parsed product', () => {
-      expect(parsed.products[1].hasAdvanced).toBe(true);
+    it('should carry the Subproducts advanced block on a complex product', () => {
+      expect(Object.keys(product.shopsite.preserved.advancedBlocks)).toContain('Subproducts');
     });
   });
 });
@@ -199,11 +199,11 @@ describe('Characterization: Fixture Decode', () => {
 //  2. FIXTURE ENCODE — Pinned XML output strings
 // ═══════════════════════════════════════════════════════════════════════
 describe('Characterization: Fixture Encode', () => {
-  const parsed = parseProductsXml(fixtureXml);
+  const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
   describe('Dog Food XML output', () => {
-    const { product } = normalizeProduct(parsed.products[0], 'test-workspace');
-    const { xml, warnings } = denormalizeProduct(product);
+    const product = parsed.products[0];
+    const { xml, warnings } = ShopSiteProductCodec.encode(product);
 
     it('should produce zero warnings', () => {
       expect(warnings).toEqual([]);
@@ -317,8 +317,8 @@ describe('Characterization: Fixture Encode', () => {
   });
 
   describe('Cat Toy XML output', () => {
-    const { product } = normalizeProduct(parsed.products[1], 'test-workspace');
-    const { xml, warnings } = denormalizeProduct(product);
+    const product = parsed.products[1];
+    const { xml, warnings } = ShopSiteProductCodec.encode(product);
 
     it('should produce zero warnings', () => {
       expect(warnings).toEqual([]);
@@ -390,16 +390,16 @@ describe('Characterization: Fixture Encode', () => {
 //  3. ROUND-TRIP STABILITY — decode → encode → decode must be idempotent
 // ═══════════════════════════════════════════════════════════════════════
 describe('Characterization: Round-trip Stability', () => {
-  const parsed = parseProductsXml(fixtureXml);
+  const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
   // ── Dog Food: known round-trip quirks ──
   describe('Dog Food', () => {
-    const { product: first } = normalizeProduct(parsed.products[0], 'test-workspace');
-    const { xml: firstXml } = denormalizeProduct(first);
+    const first = parsed.products[0];
+    const { xml: firstXml } = ShopSiteProductCodec.encode(first);
 
-    const reparsed = parseProductsXml(firstXml);
-    const { product: second } = normalizeProduct(reparsed.products[0], 'test-workspace');
-    const { xml: secondXml } = denormalizeProduct(second);
+    const reparsed = ShopSiteProductCodec.decode(firstXml);
+    const second = reparsed.products[0];
+    const { xml: secondXml } = ShopSiteProductCodec.encode(second);
 
     it('should produce the same SKU, name, price', () => {
       expect(second.sku).toBe(first.sku);
@@ -444,9 +444,9 @@ describe('Characterization: Round-trip Stability', () => {
     // Each pass adds a duplicate <ProductType> from unknownElements,
     // and fast-xml-parser concatenates them: "Tangible" → "Tangible,Tangible".
     it('should accumulate ProductType on repeated round-trips (known quirk — never stabilizes)', () => {
-      const reparsed2 = parseProductsXml(secondXml);
-      const { product: third } = normalizeProduct(reparsed2.products[0], 'test-workspace');
-      const { xml: thirdXml } = denormalizeProduct(third);
+      const reparsed2 = ShopSiteProductCodec.decode(secondXml);
+      const third = reparsed2.products[0];
+      const { xml: thirdXml } = ShopSiteProductCodec.encode(third);
       // Third pass has "Tangible,Tangible" because secondXml already has
       // ProductType emitted from both DTD default and unknownElements
       expect(thirdXml).toContain('<ProductType>Tangible,Tangible</ProductType>');
@@ -455,12 +455,12 @@ describe('Characterization: Round-trip Stability', () => {
 
   // ── Cat Toy: known round-trip quirks ──
   describe('Cat Toy', () => {
-    const { product: first } = normalizeProduct(parsed.products[1], 'test-workspace');
-    const { xml: firstXml } = denormalizeProduct(first);
+    const first = parsed.products[1];
+    const { xml: firstXml } = ShopSiteProductCodec.encode(first);
 
-    const reparsed = parseProductsXml(firstXml);
-    const { product: second } = normalizeProduct(reparsed.products[0], 'test-workspace');
-    const { xml: secondXml } = denormalizeProduct(second);
+    const reparsed = ShopSiteProductCodec.decode(firstXml);
+    const second = reparsed.products[0];
+    const { xml: secondXml } = ShopSiteProductCodec.encode(second);
 
     it('should produce the same SKU, name, price, salePrice', () => {
       expect(second.sku).toBe(first.sku);
@@ -499,9 +499,9 @@ describe('Characterization: Round-trip Stability', () => {
 
     // KNOWN QUIRK: Same ProductType accumulation as Dog Food (see above).
     it('should accumulate ProductType on repeated round-trips (known quirk — never stabilizes)', () => {
-      const reparsed2 = parseProductsXml(secondXml);
-      const { product: third } = normalizeProduct(reparsed2.products[0], 'test-workspace');
-      const { xml: thirdXml } = denormalizeProduct(third);
+      const reparsed2 = ShopSiteProductCodec.decode(secondXml);
+      const third = reparsed2.products[0];
+      const { xml: thirdXml } = ShopSiteProductCodec.encode(third);
       expect(thirdXml).toContain('<ProductType>Tangible,Tangible</ProductType>');
     });
   });
@@ -519,12 +519,12 @@ describe('Characterization: Unknown Element Preservation', () => {
       <DimensionOptions>1</DimensionOptions>
       <DisplayAddToCart>All Pages</DisplayAddToCart>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.shopsite.preserved.unknownElements['Template']).toBe('BB-Product.sst');
     expect(product.shopsite.preserved.unknownElements['DimensionOptions']).toBe('1');
     expect(product.shopsite.preserved.unknownElements['DisplayAddToCart']).toBe('All Pages');
 
-    const { xml: roundTripped } = denormalizeProduct(product);
+    const { xml: roundTripped } = ShopSiteProductCodec.encode(product);
     expect(roundTripped).toContain('<Template>BB-Product.sst</Template>');
     expect(roundTripped).toContain('<DimensionOptions>1</DimensionOptions>');
     expect(roundTripped).toContain('<DisplayAddToCart>All Pages</DisplayAddToCart>');
@@ -539,8 +539,8 @@ describe('Characterization: Unknown Element Preservation', () => {
       <Availability>in_stock</Availability>
       <MoreInformationGraphic>img.jpg</MoreInformationGraphic>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
 
     // These tags are governed by the denormalizer — they should appear exactly once
     // even though they exist in preserved.unknownElements
@@ -556,13 +556,11 @@ describe('Characterization: Unknown Element Preservation', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('Characterization: Advanced Block Preservation', () => {
   it('should preserve Subproducts block through round-trip', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const catToyParsed = parsed.products[1];
-    expect(catToyParsed.hasAdvanced).toBe(true);
-    expect(catToyParsed.advancedBlocks['Subproducts']).toContain('<Subproduct>');
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
+    const product = parsed.products[1];
+    expect(product.shopsite.preserved.advancedBlocks['Subproducts']).toContain('<Subproduct>');
 
-    const { product } = normalizeProduct(catToyParsed, 'test-workspace');
-    const { xml } = denormalizeProduct(product);
+    const { xml } = ShopSiteProductCodec.encode(product);
     expect(xml).toContain('<Subproducts>');
     expect(xml).toContain('XYZ-789-RED');
     expect(xml).toContain('XYZ-789-BLUE');
@@ -574,10 +572,10 @@ describe('Characterization: Advanced Block Preservation', () => {
       <Name>Options Test</Name>
       <ProductOptions><Option>Red</Option><Option>Blue</Option></ProductOptions>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.shopsite.preserved.advancedBlocks['ProductOptions']).toContain('<Option>Red</Option>');
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<ProductOptions>');
     expect(output).toContain('<Option>Red</Option>');
     expect(output).toContain('<Option>Blue</Option>');
@@ -589,12 +587,13 @@ describe('Characterization: Advanced Block Preservation', () => {
       <Name>Pages Test</Name>
       <ProductOnPages><PageLink><Name>Dog Treats Shop All</Name></PageLink><PageLink><Name>New Arrivals</Name></PageLink></ProductOnPages>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
 
-    // ProductOnPages is captured as an advancedBlock
+    // ProductOnPages is captured as an advancedBlock AND as first-class pages
     expect(product.shopsite.preserved.advancedBlocks['ProductOnPages']).toBeDefined();
+    expect(product.core.productOnPages).toEqual(['Dog Treats Shop All', 'New Arrivals']);
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     // Denormalizer rebuilds with proper PageLink/Name structure
     expect(output).toContain('<ProductOnPages>');
     expect(output).toContain('<PageLink>');
@@ -611,29 +610,29 @@ describe('Characterization: Advanced Block Preservation', () => {
 describe('Characterization: CDATA Wrapping', () => {
   it('should wrap ProductDescription in CDATA', () => {
     const xml = `<Product><SKU>CD-01</SKU><Name>CDATA Test</Name></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<ProductDescription><![CDATA[CDATA Test]]></ProductDescription>');
   });
 
   it('should wrap MoreInformationText in CDATA', () => {
     const xml = `<Product><SKU>CD-02</SKU><Name>MI Test</Name><ProductDescription><![CDATA[Descriptive copy.]]></ProductDescription></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<MoreInformationText><![CDATA[Descriptive copy.]]></MoreInformationText>');
   });
 
   it('should wrap SearchKeywords in CDATA', () => {
     const xml = `<Product><SKU>CD-03</SKU><Name>KW Test</Name><SearchKeywords><![CDATA[keyword1, keyword2]]></SearchKeywords></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<SearchKeywords><![CDATA[keyword1, keyword2]]></SearchKeywords>');
   });
 
   it('should NOT use CDATA for text-encoded fields (Name, SKU, Price)', () => {
     const xml = `<Product><SKU>CD-04</SKU><Name>No CDATA</Name><Price>9.99</Price></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<Name>No CDATA</Name>');
     expect(output).toContain('<SKU>CD-04</SKU>');
     expect(output).toContain('<Price>9.99</Price>');
@@ -649,26 +648,26 @@ describe('Characterization: CDATA Wrapping', () => {
 describe('Characterization: Boolean Representations', () => {
   it('should use checked/uncheck for Taxable', () => {
     const xmlChecked = `<Product><SKU>BOOL-01</SKU><Name>Taxed</Name><Taxable>checked</Taxable></Product>`;
-    const { product: p1 } = normalizeProduct(parseProductsXml(xmlChecked).products[0], 'test-workspace');
+    const p1 = ShopSiteProductCodec.decode(xmlChecked).products[0];
     expect(p1.core.taxable).toBe(true);
-    expect(denormalizeProduct(p1).xml).toContain('<Taxable>checked</Taxable>');
+    expect(ShopSiteProductCodec.encode(p1).xml).toContain('<Taxable>checked</Taxable>');
 
     const xmlUnchecked = `<Product><SKU>BOOL-02</SKU><Name>Not Taxed</Name><Taxable>uncheck</Taxable></Product>`;
-    const { product: p2 } = normalizeProduct(parseProductsXml(xmlUnchecked).products[0], 'test-workspace');
+    const p2 = ShopSiteProductCodec.decode(xmlUnchecked).products[0];
     expect(p2.core.taxable).toBe(false);
-    expect(denormalizeProduct(p2).xml).toContain('<Taxable>uncheck</Taxable>');
+    expect(ShopSiteProductCodec.encode(p2).xml).toContain('<Taxable>uncheck</Taxable>');
   });
 
   it('should use checked/uncheck for ProductDisabled', () => {
     const xmlActive = `<Product><SKU>BOOL-03</SKU><Name>Active</Name><ProductDisabled>uncheck</ProductDisabled></Product>`;
-    const { product: p1 } = normalizeProduct(parseProductsXml(xmlActive).products[0], 'test-workspace');
+    const p1 = ShopSiteProductCodec.decode(xmlActive).products[0];
     expect(p1.status).toBe('active');
-    expect(denormalizeProduct(p1).xml).toContain('<ProductDisabled>uncheck</ProductDisabled>');
+    expect(ShopSiteProductCodec.encode(p1).xml).toContain('<ProductDisabled>uncheck</ProductDisabled>');
 
     const xmlDisabled = `<Product><SKU>BOOL-04</SKU><Name>Disabled</Name><ProductDisabled>checked</ProductDisabled></Product>`;
-    const { product: p2 } = normalizeProduct(parseProductsXml(xmlDisabled).products[0], 'test-workspace');
+    const p2 = ShopSiteProductCodec.decode(xmlDisabled).products[0];
     expect(p2.status).toBe('draft');
-    expect(denormalizeProduct(p2).xml).toContain('<ProductDisabled>checked</ProductDisabled>');
+    expect(ShopSiteProductCodec.encode(p2).xml).toContain('<ProductDisabled>checked</ProductDisabled>');
   });
 
   it('should use checked/uncheck for DisplayMoreInformationPage', () => {
@@ -678,8 +677,8 @@ describe('Characterization: Boolean Representations', () => {
       <MoreInformationText><![CDATA[Some copy.]]></MoreInformationText>
       <DisplayMoreInformationPage>uncheck</DisplayMoreInformationPage>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<DisplayMoreInformationPage>uncheck</DisplayMoreInformationPage>');
   });
 });
@@ -689,8 +688,8 @@ describe('Characterization: Boolean Representations', () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe('Characterization: DTD Default Emissions', () => {
   const xml = `<Product><SKU>DTD-01</SKU><Name>Minimal Product</Name></Product>`;
-  const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-  const { xml: output } = denormalizeProduct(product);
+  const product = ShopSiteProductCodec.decode(xml).products[0];
+  const { xml: output } = ShopSiteProductCodec.encode(product);
 
   it('should emit MinimumQuantity = 0 by default', () => {
     expect(output).toContain('<MinimumQuantity>0</MinimumQuantity>');
@@ -708,32 +707,26 @@ describe('Characterization: DTD Default Emissions', () => {
     expect(output).toContain('<MoreInformationGraphic>none</MoreInformationGraphic>');
   });
 
-  // KNOWN QUIRK: MinimumQuantity is in the parser's coreFields set (so it
-  // goes to fields, not unknownElements), but the normalizer does NOT extract
-  // it into customFields or preserved.unknownElements. The denormalizer then
-  // falls back to the DTD default of 0, losing non-default values.
+  // KNOWN QUIRK (codec-verified): MinimumQuantity is a governed core tag —
+  // decode surfaces it in neither customFields nor preserved.unknownElements,
+  // so encode falls back to the DTD default of 0, losing non-default values.
   it('should lose non-default MinimumQuantity from XML on round-trip (known quirk)', () => {
     const xml2 = `<Product><SKU>DTD-02</SKU><Name>MQ Test</Name><MinimumQuantity>5</MinimumQuantity></Product>`;
-    const mqParsed = parseProductsXml(xml2).products[0];
-    // Parser puts it in fields (coreFields member) but NOT in unknownElements
-    expect(mqParsed.fields['MinimumQuantity']).toBe('5');
-    expect(mqParsed.unknownElements['MinimumQuantity']).toBeUndefined();
-
-    const { product: p2 } = normalizeProduct(mqParsed, 'test-workspace');
-    // Normalizer doesn't capture it anywhere
+    const p2 = ShopSiteProductCodec.decode(xml2).products[0];
+    // Codec captures it nowhere
     expect(p2.customFields['MinimumQuantity']).toBeUndefined();
     expect(p2.shopsite.preserved.unknownElements['MinimumQuantity']).toBeUndefined();
 
-    // Denormalizer falls back to DTD default 0
-    const { xml: out2 } = denormalizeProduct(p2);
+    // Encoder falls back to DTD default 0
+    const { xml: out2 } = ShopSiteProductCodec.encode(p2);
     expect(out2).toContain('<MinimumQuantity>0</MinimumQuantity>');
   });
 
   it('should preserve non-default ProductType from customFields', () => {
     const xml2 = `<Product><SKU>DTD-03</SKU><Name>PT Test</Name></Product>`;
-    const { product: p2 } = normalizeProduct(parseProductsXml(xml2).products[0], 'test-workspace');
+    const p2 = ShopSiteProductCodec.decode(xml2).products[0];
     p2.customFields['ProductType'] = 'Download';
-    const { xml: out2 } = denormalizeProduct(p2);
+    const { xml: out2 } = ShopSiteProductCodec.encode(p2);
     expect(out2).toContain('<ProductType>Download</ProductType>');
     expect(out2).not.toContain('<ProductType>Tangible</ProductType>');
   });
@@ -745,17 +738,17 @@ describe('Characterization: DTD Default Emissions', () => {
 describe('Characterization: XML Escaping', () => {
   it('should escape ampersands in text-encoded fields', () => {
     const xml = `<Product><SKU>ESC-01</SKU><Name>Dog &amp; Cat Supplies</Name><Price>5.99</Price></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.name).toBe('Dog & Cat Supplies');
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<Name>Dog &amp; Cat Supplies</Name>');
   });
 
   it('should escape angle brackets in text-encoded fields', () => {
     const xml = `<Product><SKU>ESC-02</SKU><Name>Size 10&lt;12</Name></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('&lt;');
   });
 });
@@ -767,10 +760,10 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
   it('should put product name in ProductDescription, descriptive copy in MoreInformationText', () => {
     const xml = `<Product><SKU>NC-01</SKU><Name>Test Prod</Name>
       <ProductDescription><![CDATA[Test description]]></ProductDescription></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.description).toBe('Test description');
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<ProductDescription><![CDATA[Test Prod]]></ProductDescription>');
     expect(output).toContain('<MoreInformationText><![CDATA[Test description]]></MoreInformationText>');
     expect(output).toContain('<DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
@@ -779,7 +772,7 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
   it('should treat ProductDescription=Name as no-description on import', () => {
     const xml = `<Product><SKU>NC-02</SKU><Name>Echo Name</Name>
       <ProductDescription><![CDATA[Echo Name]]></ProductDescription></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.description).toBeNull();
   });
 
@@ -787,16 +780,16 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
     const xml = `<Product><SKU>NC-03</SKU><Name>Pref Test</Name>
       <ProductDescription><![CDATA[Pref Test]]></ProductDescription>
       <MoreInformationText><![CDATA[The real description.]]></MoreInformationText></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.description).toBe('The real description.');
   });
 
   it('should omit MoreInformationText when there is no description', () => {
     const xml = `<Product><SKU>NC-04</SKU><Name>No Desc</Name></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.description).toBeNull();
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).not.toContain('<MoreInformationText>');
     expect(output).not.toContain('<DisplayMoreInformationPage>');
     // ProductDescription still carries the name
@@ -807,8 +800,8 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
     const xml = `<Product><SKU>NC-05</SKU><Name>Single Emit</Name>
       <ProductDescription><![CDATA[Legacy copy]]></ProductDescription>
       <MoreInformationText><![CDATA[Legacy copy]]></MoreInformationText></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect((output.match(/<MoreInformationText>/g) || []).length).toBe(1);
     expect((output.match(/<DisplayMoreInformationPage>/g) || []).length).toBe(1);
   });
@@ -820,15 +813,15 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
 describe('Characterization: GTIN Derivation', () => {
   it('should derive GTIN from 13-digit numeric SKU', () => {
     const xml = `<Product><SKU>0123456789012</SKU><Name>UPC Product</Name></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<GTIN>0123456789012</GTIN>');
   });
 
   it('should NOT derive GTIN from non-numeric SKU', () => {
     const xml = `<Product><SKU>ABC-123</SKU><Name>Text SKU</Name></Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
-    const { xml: output } = denormalizeProduct(product);
+    const product = ShopSiteProductCodec.decode(xml).products[0];
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).not.toContain('<GTIN>');
   });
 });
@@ -844,11 +837,11 @@ describe('Characterization: MoreInformationGraphic', () => {
       <Graphic>media/thumb.jpg</Graphic>
       <MoreInformationGraphic>media/detail.jpg</MoreInformationGraphic>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.media.primary).toBe('media/thumb.jpg');
     expect(product.shopsite.preserved.unknownElements['MoreInformationGraphic']).toBe('media/detail.jpg');
 
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<Graphic>media/thumb.jpg</Graphic>');
     expect(output).toContain('<MoreInformationGraphic>media/detail.jpg</MoreInformationGraphic>');
   });
@@ -860,12 +853,12 @@ describe('Characterization: MoreInformationGraphic', () => {
       <Graphic>media/same.jpg</Graphic>
       <MoreInformationGraphic>media/same.jpg</MoreInformationGraphic>
     </Product>`;
-    const { product } = normalizeProduct(parseProductsXml(xml).products[0], 'test-workspace');
+    const product = ShopSiteProductCodec.decode(xml).products[0];
     // When same, normalizer does NOT preserve in unknownElements
     expect(product.shopsite.preserved.unknownElements['MoreInformationGraphic']).toBeUndefined();
 
     // Denormalizer falls back to primary image
-    const { xml: output } = denormalizeProduct(product);
+    const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).toContain('<MoreInformationGraphic>media/same.jpg</MoreInformationGraphic>');
   });
 });

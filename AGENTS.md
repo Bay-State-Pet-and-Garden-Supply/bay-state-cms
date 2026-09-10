@@ -1,9 +1,9 @@
 # AI Agent Guidelines (AGENTS.md)
 
-Welcome! This document provides the necessary context and rules for AI agents working on the **Baystate CMS** project.
+Welcome! This document provides the necessary context and rules for AI agents working on the **Bay State CMS** project.
 
 ## Project Context
-Baystate CMS is a standalone local content management system for ShopSite 15 stores.
+Bay State CMS is a standalone local content management system for ShopSite 15 stores.
 - **Backend:** Bun + Hono API (`src/server`).
 - **Frontend:** React + Vite SPA (`src/client`).
 - **Local State:** SQLite via `bun:sqlite` (`src/db`).
@@ -18,7 +18,7 @@ Baystate CMS is a standalone local content management system for ShopSite 15 sto
 
 ## Architectural Guidelines
 1. **Database Interactions:** Use the repository pattern located in `src/db/repositories`. Avoid direct SQL queries outside of these repositories.
-2. **ShopSite XML:** Use `src/shopsite/xml-builder.ts` for generating XML and `src/shopsite/product-parser.ts` for parsing. Preserving unknown fields is a core requirement—always use the established normalizer/denormalizer patterns.
+2. **ShopSite XML:** Use `src/shopsite/product-codec.ts` (`ShopSiteProductCodec.decode`/`encode`, `extractPageNamesFromBlock` for Category Page assignments) for bidirectional XML translation, with `src/shopsite/xml-builder.ts` as the thin encode delegate. Preserving unknown fields is a core requirement—the codec owns round-trip preservation internally.
 3. **Git Workspaces:** The system treats a Git repository as the source of truth for the catalog. All approved changes must be committed to Git.
 4. **Shared Schemas:** Use Zod schemas in `src/shared/schemas` for data validation across both frontend and backend.
 
@@ -32,8 +32,8 @@ Baystate CMS is a standalone local content management system for ShopSite 15 sto
 ShopSite's XML schema is complex and often undocumented. When adding support for new fields:
 1. Identify the field name from a `db_xml.cgi` export.
 2. Update the Zod schemas in `src/shared/schemas/product.ts`.
-3. Update `src/shopsite/product-normalizer.ts` and `src/shopsite/product-denormalizer.ts`.
-4. Add unit tests in `src/tests/unit/shopsite-normalizer.test.ts`.
+3. Update the codec's internal field handling in `src/shopsite/product-codec.ts` (consult the authoritative `src/shopsite/field-catalog.ts` for tags, types, and DTD defaults).
+4. Add unit tests exercising `ShopSiteProductCodec.decode`/`encode` in `src/tests/unit/shopsite-normalizer.test.ts` (codec seam tests) or `src/tests/unit/shopsite-xml-roundtrip.test.ts`.
 
 ## Onboarding Pipeline & Curation Stage
 Six stages: Sourcing → Discovery → Extraction → Curation → Review → Promotion. See `CONTEXT.md` for authoritative domain model, stage terminology, and sourcing modes.

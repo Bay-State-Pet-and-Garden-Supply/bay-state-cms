@@ -7,7 +7,6 @@ import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
 import { authorityConfigHashMatches, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
-import { mergeProductOnPages } from '../shopsite/product-page-assignments';
 import { getActiveVerifiedPageIds } from '../shopsite/page-import-service';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from './assignment-projection';
 import { pageNameFromPageValue } from '../shared/proposal-display';
@@ -159,35 +158,36 @@ export async function applyCatalogClassification(
     }
   }
 
-  // Merge into ProductOnPages
-  const currentUnknownElements: Record<string, unknown> = product.shopsite?.preserved?.unknownElements ?? {};
-  const updatedPagesXml = mergeProductOnPages(
-    { unknownElements: currentUnknownElements },
-    additionalPages,
-  );
+  // Merge into first-class core.productOnPages (additive only). Any stale
+  // ProductOnPages fragment in preserved state is dropped — the codec
+  // serializes core.productOnPages to DTD-compliant XML at export.
+  const mergedPages = [...(product.core.productOnPages ?? [])];
+  for (const pageName of additionalPages) {
+    if (!mergedPages.includes(pageName)) mergedPages.push(pageName);
+  }
+  const remainingUnknownElements = { ...(product.shopsite?.preserved?.unknownElements ?? {}) };
+  delete remainingUnknownElements['ProductOnPages'];
 
   // Build updated product
   const updatedProduct: Product = {
     ...product,
+    core: {
+      ...product.core,
+      productOnPages: mergedPages,
+    },
     customFields: mergedCustomFields,
+    shopsite: {
+      ...product.shopsite,
+      preserved: {
+        ...product.shopsite.preserved,
+        unknownElements: remainingUnknownElements,
+      },
+    },
     metadata: {
       ...product.metadata,
       updatedAt: now(),
     },
   };
-
-  if (updatedPagesXml) {
-    updatedProduct.shopsite = {
-      ...updatedProduct.shopsite,
-      preserved: {
-        ...updatedProduct.shopsite.preserved,
-        unknownElements: {
-          ...updatedProduct.shopsite.preserved.unknownElements,
-          ProductOnPages: updatedPagesXml,
-        },
-      },
-    };
-  }
 
   // Create change set
   const workspace = findWorkspace();

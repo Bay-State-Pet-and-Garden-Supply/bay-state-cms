@@ -1,4 +1,4 @@
-# Tech Stack — Baystate CMS
+# Tech Stack — Bay State CMS
 
 > Exhaustive scan 2026-08-19 — 1,076 source files (~80k lines), 27 ADRs, 120+ test suites. Inferred draft replaced by `map-codebase`.
 
@@ -12,7 +12,7 @@
 | DB | SQLite | `bun:sqlite` + 30+ repositories (`src/db/repositories/*-repo.ts` + `store-manager-*-repo.ts`) |
 | Canonical | Git CLI | Workspace dir (`workspaces/`) — approved catalog truth, every approval → commit |
 | Schemas | Zod 4 + TypeBox 1.3.7 | `src/shared/schemas` (product), PI `StructuredSubmissionSchema` + TypeBox mirror |
-| ShopSite | CGI adapter | `db_xml.cgi` / `dbupload.cgi` / `dbmake.cgi` / `generate.cgi` — `xml-builder.ts` + `product-parser.ts` + `product-normalizer.ts`/`product-denormalizer.ts` (preserve unknown fields) + `shopsite-http-client.ts`, `multipart-upload.ts` (redaction), `zip-generator.ts`, Basic auth v1 |
+| ShopSite | CGI adapter | `db_xml.cgi` / `dbupload.cgi` / `dbmake.cgi` / `generate.cgi` — `product-codec.ts` (`ShopSiteProductCodec.decode`/`encode`, owns unknown-field preservation) + `xml-builder.ts` (thin delegate) + `shopsite-http-client.ts`, `multipart-upload.ts` (redaction), `zip-generator.ts`, Basic auth v1 |
 | Scraping | Crawlee 3 + Playwright 1.58 + Camoufox-js + Cheerio 1 | `src/extraction-worker/server.ts` (separate worker, `preload/crawlee-storage.mjs`), `src/onboarding/extraction/`, `src/shopsite/page-*.ts`, `sharp` for images |
 | AI — routing | `src/ai` | `model-registry.ts` + `provider-registry.ts` + `provider-connections.ts` + `inference-dispatcher.ts` + `network-transport.ts` + `local-runtime-coordinator.ts` + `evals/*-scorer.ts` |
 | AI — VLM OCR | Ollama native `/api/chat` | `src/onboarding/vlm-client.ts` + `cloud-vlm-client.ts`, `api_keys.service='ollama_vlm'`, `qwen2.5vl:latest` |
@@ -88,7 +88,7 @@ src/extraction-worker (standalone Node — Crawlee + Playwright) ↔ profile-run
 
 ## Gray areas & debt
 
-- **ShopSite XML** partial/undocumented — unknown fields MUST be preserved (normalizer/denormalizer + `src/tests/unit/shopsite-normalizer.test.ts`).
+- **ShopSite XML** partial/undocumented — unknown fields MUST be preserved (`ShopSiteProductCodec` in `src/shopsite/product-codec.ts` + `src/tests/unit/shopsite-normalizer.test.ts`).
 - **Lint debt** ~2,600 errors outside issue-17 — CI skips lint; do not gate unrelated work on lint.
 - **Classification releases** bay-state-v3/v4 snapshots in `src/classification/releases` + `snapshots/` — frozen manifests; new taxonomy goes via `config-loader` + `config-store`.
 - **Sourcing generations** — amendment B: merchandising-depth distributor images are display-only until PI-6 rights verification; promotion revalidates provenance.
@@ -98,5 +98,5 @@ src/extraction-worker (standalone Node — Crawlee + Playwright) ↔ profile-run
 ## Entry points for agents
 
 - **Spec:** `CONTEXT.md` (authoritative language) → `AGENTS.md` (security + arch mandates) → `specs/product/SCOPE_LATEST.yaml` + `VISION_LATEST.yaml` + `GLOSSARY_LATEST.yaml` → `specs/tech-architecture/*` → `docs/adr/*`.
-- **Code:** `src/server/routes`, `src/db/repositories`, `src/shopsite/*-normalizer.ts`, `src/onboarding/job-queue.ts`, `src/onboarding/image-verification/*`.
+- **Code:** `src/server/routes`, `src/db/repositories`, `src/shopsite/product-codec.ts`, `src/onboarding/job-queue.ts`, `src/onboarding/image-verification/*`.
 - **Never:** hardcode credentials; raw SQL outside repos; drop unknown XML fields; invent taxonomy IDs in PI.

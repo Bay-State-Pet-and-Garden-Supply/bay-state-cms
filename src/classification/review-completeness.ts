@@ -3,8 +3,10 @@
  *
  * Mirrors — WITHOUT modifying — the promotion mandatory checklist in
  * src/onboarding/draft-promoter.ts (~976–996) and its field-resolution
- * chains (effective title 629/753; brand ProductField16 resolution;
- * price cleanup; distributor image approvals; verified-pages-only rule),
+ * chains (effective title 629/753; mapping-routed Brand resolution via
+ * resolveBrandCatalogField over active attributeMappings with a
+ * ProductField16 fallback; price cleanup; distributor image approvals;
+ * verified-pages-only rule),
  * so an item that passes review-complete can never later fail promotion
  * on a mandatory field. The promoter keeps its own checks (defense in
  * depth); this module is the EARLY, review-time authority.
@@ -34,8 +36,9 @@ export type {
 } from '../shared/schemas/onboarding';
 import { listVerifiedPageOptions, getProductPageAssignments, getActivePageImportHash } from '../db/repositories/page-repo';
 import { getProposalsByRun } from '../db/repositories/classification-run-repo';
-import { getCachedBrands } from '../db/repositories/classification-config-repo';
+import { getCachedBrands, getCachedAttributeMappings } from '../db/repositories/classification-config-repo';
 import { resolveBrand } from './brand-resolution';
+import { resolveBrandCatalogField } from '../onboarding/draft-promoter';
 import { readProductFile } from '../git/workspace-files';
 import { getPageIdentityId } from '../shared/proposal-display';
 import { CorrectedCategoryPageRecordSchema } from '../shared/schemas/onboarding';
@@ -64,10 +67,10 @@ export interface ReviewCompletenessContext {
   /** e10s04: reviewer media selection (curation_data.reviewedMedia); absent until first media save. */
   reviewedMedia?: { primaryImage?: string | null; orderedAdditional?: string[]; suppressed?: string[] } | null;
   /**
-   * ProductField16-equivalent after the FULL promoter brand-resolution
-   * chain (existing approved catalog value → resolveBrand over cached
-   * workspace brands → raw brandHint). Null means the promoter's mandatory
-   * Brand check would fail.
+   * Mapped Brand slot value after the FULL promoter brand-resolution
+   * chain (existing approved catalog value at the mapped slot →
+   * resolveBrand over cached workspace brands → raw brandHint). Null
+   * means the promoter's mandatory Brand check would fail.
    */
   resolvedBrandName: string | null;
   /** Undecided proposals remain in the item's active classification run. */
@@ -229,7 +232,7 @@ export function evaluateReviewCompleteness(ctx: ReviewCompletenessContext): Revi
     blockers.push('missing_price');
   }
 
-  // 3. Brand (promoter mandatory check #3 — ProductField16)
+  // 3. Brand (promoter mandatory check #3 — mapped Brand slot)
   if (!trimOrNull(ctx.resolvedBrandName)) {
     blockers.push('missing_brand');
   }
@@ -383,18 +386,20 @@ export function countReviewPageAssignments(
 
 /**
  * Brand resolution mirroring the promoter's pre-mandatory-check chain
- * (draft-promoter.ts ~920–951): an existing approved catalog ProductField16
- * wins outright; otherwise resolveBrand runs against cached workspace brands
- * over brandHint → effective name → item name; unresolved input falls back
- * to the raw brandHint (and to nothing when there is no hint).
+ * (draft-promoter.ts ~920–951): an existing approved catalog value at the
+ * MAPPED Brand slot (resolveBrandCatalogField over active
+ * attributeMappings, fallback ProductField16) wins outright; otherwise
+ * resolveBrand runs against cached workspace brands over brandHint →
+ * effective name → item name; unresolved input falls back to the raw
+ * brandHint (and to nothing when there is no hint).
  */
 export function resolveReviewBrand(
   item: ReviewCompletenessItemLike,
-  existingApprovedBrandField16: string | null,
+  existingApprovedBrandField: string | null,
   effectiveName: string | null,
   brands: ReturnType<typeof getCachedBrands>,
 ): string | null {
-  if (trimOrNull(existingApprovedBrandField16)) return existingApprovedBrandField16!.trim();
+  if (trimOrNull(existingApprovedBrandField)) return existingApprovedBrandField!.trim();
 
   // Promoter-parity note: the caller feeds the UNTRIMMED effective title
   // into this chain (draft-promoter.ts feeds raw finalTitle); trimming is
@@ -448,17 +453,29 @@ export function buildReviewCompletenessContext(
     unverifiedAcceptedPageCount: 0,
   };
 
-  // Brand parity (draft-promoter.ts ~954/962): the promoter feeds the RAW,
-  // untrimmed finalTitle into its brand-resolution chain — resolveEffectivePromotedName's
-  // trimmed form is used ONLY for the mandatory emptiness verdict inside the evaluator.
+  // Brand parity (draft-promoter.ts ~954/962): the promoter reads the
+  // existing approved product at the MAPPED Brand slot (never a hardcoded
+  // slot) and feeds the RAW, untrimmed finalTitle into its
+  // brand-resolution chain — resolveEffectivePromotedName's trimmed form
+  // is used ONLY for the mandatory emptiness verdict inside the evaluator.
   const rawFinalTitle =
     provisionalCtx.curatedTitle || provisionalCtx.extractionData?.title || provisionalCtx.itemName || '';
 
-  let existingApprovedBrandField16: string | null = null;
+  let existingApprovedBrandField: string | null = null;
   try {
+    // Same seam as the promoter (draft-promoter.ts phase-B): the slot is
+    // resolved from active attributeMappings so review and promotion
+    // agree even under a custom brand mapping. Mapping reads fail closed
+    // to the documented fallback (ProductField16).
+    let brandCatalogField = 'ProductField16';
+    try {
+      brandCatalogField = resolveBrandCatalogField(getCachedAttributeMappings(options.workspaceId));
+    } catch {
+      // Mapping cache unreadable — keep the documented fallback slot.
+    }
     const existingApproved = readProductFile(options.workspacePath, item.upc);
-    existingApprovedBrandField16 =
-      str(existingApproved?.customFields?.['ProductField16']);
+    existingApprovedBrandField =
+      str(existingApproved?.customFields?.[brandCatalogField]);
   } catch {
     // No readable approved product file — identical to the promoter's
     // `existingApproved` being undefined.
@@ -485,7 +502,7 @@ export function buildReviewCompletenessContext(
 
   return {
     ...provisionalCtx,
-    resolvedBrandName: resolveReviewBrand(item, existingApprovedBrandField16, rawFinalTitle, brands),
+    resolvedBrandName: resolveReviewBrand(item, existingApprovedBrandField, rawFinalTitle, brands),
     hasPendingProposals,
     verifiedPageAssignmentCount: pages.verifiedPageAssignmentCount,
     unverifiedAcceptedPageCount: pages.unverifiedAcceptedPageCount,

@@ -6,10 +6,8 @@ import {
   slugifyFileName,
   normalizeFileName,
 } from '../../shopsite/file-name';
-import { denormalizeProduct } from '../../shopsite/product-denormalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { buildProductsXml } from '../../shopsite/xml-builder';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
 import type { Product } from '../../shared/types';
 
 function makeProduct(overrides: {
@@ -105,11 +103,11 @@ describe('resolveBaseFileName precedence (issue #107)', () => {
 
   it('denormalizer ignores blank or extensionless stored values consistently', () => {
     const blank = makeProduct({ name: 'Real Name', customFileName: '   ' });
-    expect(fileNameOf(denormalizeProduct(blank).xml)).toBe('real-name.html');
+    expect(fileNameOf(ShopSiteProductCodec.encode(blank).xml)).toBe('real-name.html');
     const noExt = makeProduct({ name: 'Real Name', preservedFileName: 'custom-page' });
-    expect(fileNameOf(denormalizeProduct(noExt).xml)).toBe('custom-page.html');
+    expect(fileNameOf(ShopSiteProductCodec.encode(noExt).xml)).toBe('custom-page.html');
     const upper = makeProduct({ name: 'Real Name', preservedFileName: 'Custom-Page.HTML' });
-    expect(fileNameOf(denormalizeProduct(upper).xml)).toBe('Custom-Page.HTML');
+    expect(fileNameOf(ShopSiteProductCodec.encode(upper).xml)).toBe('Custom-Page.HTML');
   });
 });
 
@@ -224,13 +222,13 @@ describe('buildProductsXml batch uniqueness (issue #107)', () => {
 describe('healed FileName round-trip (issue #107)', () => {
   it('preserves a healed FileName across export and re-import', () => {
     const healed = makeProduct({ sku: 'UPC-9', name: 'Same Name', customFileName: 'same-name-2.html' });
-    const first = denormalizeProduct(healed);
+    const first = ShopSiteProductCodec.encode(healed);
     expect(fileNameOf(first.xml)).toBe('same-name-2.html');
 
-    const parsed = parseProductsXml(first.xml);
+    const parsed = ShopSiteProductCodec.decode(first.xml);
     expect(parsed.products).toHaveLength(1);
-    const { product: reimported } = normalizeProduct(parsed.products[0], 'ws-test');
-    const second = denormalizeProduct(reimported);
+    const reimported = parsed.products[0];
+    const second = ShopSiteProductCodec.encode(reimported);
     expect(fileNameOf(second.xml)).toBe('same-name-2.html');
   });
 });

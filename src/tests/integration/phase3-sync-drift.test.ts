@@ -12,8 +12,8 @@ import os from 'os';
 import { buildUploadMultipart, extractDbmakeQuery, redactCredentials, isDbmakeSuccessful, isValidXmlTagName, escapeCdata } from '../../shopsite/multipart-upload';
 import { detectDrift } from '../../shopsite/drift';
 import { buildProductsXml } from '../../shopsite/xml-builder';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
+
 import { createWorkspaceDirs, writeGitignore, writeProductFile } from '../../git/workspace-files';
 import { GitClient } from '../../git/git-client';
 import { initDb, getDb } from '../../db/connection';
@@ -229,9 +229,8 @@ describe('Phase 3: Drift Detection', () => {
     git.init();
 
     // Bootstrap products from fixture
-    const parsed = parseProductsXml(fixtureXml);
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
+    for (const product of parsed.products) {
       if (!product.sku) continue;
       writeProductFile(testDir, product);
     }
@@ -349,11 +348,9 @@ describe('Phase 3: Drift Repository', () => {
 describe('Phase 3: Full Push Flow Mock', () => {
 
   it('should build delta XML for changed products matching expected format', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const wsId = 'test-flow-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
     const products = [];
-    for (const pp of parsed.products) {
-      const { product } = normalizeProduct(pp, wsId);
+    for (const product of parsed.products) {
       if (product.sku) products.push(product);
     }
 
