@@ -43,6 +43,9 @@ import {
   payloadsEquivalentForDistributorRecord,
 } from './sourcing/distributor-record-materializer';
 import { verifyDistributorImageryForItem } from './distributor-imagery';
+import { DeterministicNetworkGate } from './image-verification/network-gate';
+
+const imageGate = new DeterministicNetworkGate();
 import { SourcingDecisionV2Schema } from '../shared/schemas/onboarding';
 import { getCohortRunById,
   listDependenciesForProposal,
@@ -175,13 +178,19 @@ async function downloadAndProcessImages(
     }
 
     try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; BaystateCMS/1.0)',
-          'Accept': 'image/*',
+      const response = await imageGate.fetch(
+        url,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; BaystateCMS/1.0)',
+            'Accept': 'image/*',
+          },
         },
-        redirect: 'follow',
-      });
+        {
+          allowedContentTypes: ['image/', 'application/octet-stream'],
+          maxResponseBytes: 25 * 1024 * 1024,
+        },
+      );
 
       if (!response.ok) {
         console.warn(`[DraftPromoter] Failed to fetch image ${url} (${response.status})`);
