@@ -5,7 +5,7 @@ import { getCurrentWorkspace } from '../services/workspace-service';
 import { syncFieldRegistryFromProductIndex } from '../services/workspace-service';
 import { indexProductPageAssignments } from '../../db/repositories/page-repo';
 import { getChangeSetDetail } from '../services/change-set-service';
-import { buildProductsXml } from '../../shopsite/xml-builder';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { buildUploadMultipart, extractDbmakeQuery, redactCredentials, isDbmakeSuccessful } from '../../shopsite/multipart-upload';
 import { publishStore } from '../../shopsite/publish';
 import { buildCgiScriptUrl } from '../../shopsite/url-utils';
@@ -259,7 +259,7 @@ async function runDirectSync(options: {
       preflight.sourceHash,
       productsFromApprovedItems(items),
     );
-    const xml = buildProductsXml(products);
+    const xml = ShopSiteProductCodec.encodeMany(products).xml;
     addSyncJobEvent({ syncJobId: job.id, level: 'info', message: `Generated XML for ${products.length} product(s)` });
 
     // Generate brand-organized images ZIP

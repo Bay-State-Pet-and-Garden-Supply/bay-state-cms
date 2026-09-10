@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { buildProductsXml } from './xml-builder';
+import { ShopSiteProductCodec } from './product-codec';
 import { deterministicStringify } from '../git/deterministic-json';
 import { createImagesZip, assertZipHasImages } from './zip-generator';
 import type { Product } from '../shared/types';
@@ -34,10 +34,10 @@ export async function createExportPackage(
   }
 
   // Generate XML
-  const xml = buildProductsXml(products, {
+  const xml = ShopSiteProductCodec.encodeMany(products, {
     xmlVersion: options?.xmlVersion,
     newProductTag: options?.newProductTag,
-  });
+  }).xml;
 
   const xmlPath = path.join(exportDir, 'shopsite-products.xml');
   fs.writeFileSync(xmlPath, xml, 'utf-8');

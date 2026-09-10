@@ -1,6 +1,5 @@
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
-import { parseProductsXml, type ParsedProductList } from './product-parser';
-import { normalizeProduct } from './product-normalizer';
+import { ShopSiteProductCodec } from './product-codec';
 import { sanitizeXml } from './xml-sanitizer';
 import { createDrift, type DriftRow } from '../db/repositories/drift-repo';
 import { findProductBySku, insertProductIndex, updateProductIndex } from '../db/repositories/product-index-repo';
@@ -34,10 +33,9 @@ export function detectDrift(
 
   try {
     const cleanXml = sanitizeXml(remoteXml);
-    const parsed: ParsedProductList = parseProductsXml(cleanXml);
+    const decoded = ShopSiteProductCodec.decode(cleanXml, { workspaceId });
 
-    for (const parsedProduct of parsed.products) {
-      const { product: remoteProduct } = normalizeProduct(parsedProduct, workspaceId);
+    for (const remoteProduct of decoded.products) {
       const sku = remoteProduct.sku;
       if (!sku) continue;
 

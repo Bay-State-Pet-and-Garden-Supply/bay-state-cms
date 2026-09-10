@@ -157,15 +157,6 @@ export class ShopSiteProductCodec {
       const fields: Record<string, string | null> = {};
       const rawUnknownElements: Record<string, unknown> = {};
 
-      // Extract raw advanced blocks
-      for (const bTag of BLOCK_TAGS) {
-        const blockRegex = new RegExp(`<${bTag}>[\\s\\S]*?<\\/${bTag}>`, 'i');
-        const bMatch = block.match(blockRegex);
-        if (bMatch) {
-          advancedBlocks[bTag] = bMatch[0];
-        }
-      }
-
       // Parse structured tags via fast-xml-parser
       const parser = new XMLParser({
         ignoreAttributes: false,
@@ -192,7 +183,11 @@ export class ShopSiteProductCodec {
           if (tagName === 'Product' || tagName === 'product') continue;
 
           if (BLOCK_TAGS.has(tagName)) {
-            // Already preserved in advancedBlocks
+            const blockRegex = new RegExp(`<${tagName}>[\\s\\S]*?<\\/${tagName}>`, 'i');
+            const bMatch = block.match(blockRegex);
+            if (bMatch) {
+              advancedBlocks[tagName] = bMatch[0];
+            }
             continue;
           }
 
@@ -209,9 +204,17 @@ export class ShopSiteProductCodec {
         while ((fm = fieldRegex.exec(block)) !== null) {
           const [, tag, val] = fm;
           const trimmed = val.trim() || null;
-          fields[tag] = trimmed;
-          if (!CORE_FIELDS.has(tag) && !BLOCK_TAGS.has(tag)) {
-            rawUnknownElements[tag] = trimmed;
+          if (BLOCK_TAGS.has(tag)) {
+            const blockRegex = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'i');
+            const bMatch = block.match(blockRegex);
+            if (bMatch) {
+              advancedBlocks[tag] = bMatch[0];
+            }
+          } else {
+            fields[tag] = trimmed;
+            if (!CORE_FIELDS.has(tag)) {
+              rawUnknownElements[tag] = trimmed;
+            }
           }
         }
       }
