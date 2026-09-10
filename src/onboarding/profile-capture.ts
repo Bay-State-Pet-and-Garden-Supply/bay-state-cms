@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { classifyIp, isPrivateOrLinkLocal } from '../shared/ssrf';
 
 export interface CaptureElement {
   id: string;
@@ -48,15 +49,14 @@ function isAllowedProtocol(url: string): boolean {
 
 async function isPrivateHost(url: string): Promise<boolean> {
   try {
-    const host = new URL(url).hostname;
+    const host = new URL(url).hostname.toLowerCase();
     if (host.endsWith('example.com') || host.endsWith('example.org') || host.endsWith('example.net')) return false;
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+    const kind = classifyIp(host);
+    if (kind === 'private' || kind === 'link_local') return true;
     const { lookup } = await import('node:dns/promises');
     const addrs = await lookup(host, { all: true });
-    return addrs.some(a => {
-      const ip = a.address;
-      return ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.') || ip.startsWith('127.') || ip === '::1' || ip.startsWith('169.254.') || ip.startsWith('100.');
-    });
+    return addrs.some(a => isPrivateOrLinkLocal(a.address));
   } catch { return false; }
 }
 
