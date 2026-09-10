@@ -1,5 +1,5 @@
 /**
- * Canonical profile field catalog for the Baystate CMS extraction system.
+ * Canonical profile field catalog for the Bay State CMS extraction system.
  *
  * This file is the single source of truth for ALL extractable product fields.
  * It defines:

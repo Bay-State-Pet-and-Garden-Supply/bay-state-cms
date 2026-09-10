@@ -3,7 +3,7 @@
 # Epic #47 tail — remaining issues #58/#59/#60 after core #48-#56 landed through e4c6642
 release:
   version: "0.4.0"
-  codename: "Baystate CMS — Workbench + Strategy Hub (e07 29 BCP + e08 19 BCP)"
+  codename: "Bay State CMS — Workbench + Strategy Hub (e07 29 BCP + e08 19 BCP)"
   status: done
   semantic_release: true
   bump_hint: minor

@@ -1,5 +1,5 @@
 /**
- * Provider Registry for Baystate AI Infrastructure.
+ * Provider Registry for Bay State AI Infrastructure.
  *
  * Defines metadata, locality, transport, and default endpoint behaviors
  * for supported LLM providers without determining task routing.

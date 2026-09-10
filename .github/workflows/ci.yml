@@ -1,6 +1,6 @@
 name: ci
 
-# Minimal, boring, required-on-main validation for the Baystate CMS.
+# Minimal, boring, required-on-main validation for the Bay State CMS.
 # Gates: typecheck + Vitest suite + Bun DB suite. Lint is intentionally NOT
 # included: the repository carries ~2,600 pre-existing lint errors in files
 # outside the issue-17 remediation scope (documented in the review handoff);

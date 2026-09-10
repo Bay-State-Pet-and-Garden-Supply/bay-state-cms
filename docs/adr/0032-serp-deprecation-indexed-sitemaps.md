@@ -14,7 +14,7 @@ Historically, the onboarding discovery stage depended on external search engines
 
 ## Decision
 
-Baystate CMS fully deprecates all external search engines and SERP API usage across the entire platform. The application standardizes 100% on a local, two-tier indexed discovery system:
+Bay State CMS fully deprecates all external search engines and SERP API usage across the entire platform. The application standardizes 100% on a local, two-tier indexed discovery system:
 
 ### 1. Tier 1: Local Brand URL Index (`brand_url_index`)
 - Official brand domains are registered and configured by the operator in Brand Hub (`brand_sites`).

@@ -1,6 +1,6 @@
-# Baystate CMS
+# Bay State CMS
 
-Baystate CMS manages store product data as local product drafts that can be reviewed, approved, and published to a ShopSite store.
+Bay State CMS manages store product data as local product drafts that can be reviewed, approved, and published to a ShopSite store.
 
 ## Language
 

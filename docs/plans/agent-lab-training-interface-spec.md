@@ -15,7 +15,7 @@
 ## 1. Executive Summary & Architectural Pillars
 
 ### 1.1 The Core Operating Loop
-Agent Lab is a **Human-in-the-Loop Agent Training, Alignment, and Curriculum Management Studio** for the Baystate CMS Product Intelligence worker.
+Agent Lab is a **Human-in-the-Loop Agent Training, Alignment, and Curriculum Management Studio** for the Bay State CMS Product Intelligence worker.
 
 The foundational workflow is:
 $$\textbf{Workbench} \longrightarrow \textbf{Correct} \longrightarrow \textbf{Teach} \longrightarrow \textbf{Evaluate} \longrightarrow \textbf{Promote}$$

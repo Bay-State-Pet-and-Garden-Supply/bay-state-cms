@@ -1,5 +1,5 @@
 /**
- * Provider Connections & Trust Zones for Baystate AI Infrastructure.
+ * Provider Connections & Trust Zones for Bay State AI Infrastructure.
  *
  * Implements the ProviderConnection abstraction, AiTrustZone governance,
  * connection-addressed ModelTarget definitions, and inherited workload routing.

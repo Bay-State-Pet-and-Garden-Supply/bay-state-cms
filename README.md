@@ -1,4 +1,4 @@
-# Baystate CMS
+# Bay State CMS
 
 A standalone local content management system for ShopSite stores.
 
@@ -7,7 +7,7 @@ A standalone local content management system for ShopSite stores.
 
 ## Overview
 
-Baystate CMS is a local web application that provides modern product management capabilities for ShopSite e-commerce stores. It uses Git as canonical storage for approved catalog state, SQLite for local operational state, and syncs product changes to ShopSite stores.
+Bay State CMS is a local web application that provides modern product management capabilities for ShopSite e-commerce stores. It uses Git as canonical storage for approved catalog state, SQLite for local operational state, and syncs product changes to ShopSite stores.
 
 ## Architecture
 

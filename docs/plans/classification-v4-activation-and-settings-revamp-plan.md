@@ -1,7 +1,7 @@
 # Classification Hardening Roadmap: v4 Activation, Settings UI Revamp, Attribute Disposition
 
 **Status:** PLAN (no code changes made by this planning pass)
-**Scope owner:** Baystate CMS classification subsystem (ADR 0004 / 0011 / 0013 lineage)
+**Scope owner:** Bay State CMS classification subsystem (ADR 0004 / 0011 / 0013 lineage)
 **Governing docs:** `CONTEXT.md`, `docs/adr/0004`, `docs/adr/0011`, `docs/adr/0013`, `src/classification/workspace-state.ts` header, `src/classification/releases/bay-state-v4/*`
 **Verdict honored:** KEEP-AND-HARDEN the type→profile→fields curation system (oracle). No replacement.
 

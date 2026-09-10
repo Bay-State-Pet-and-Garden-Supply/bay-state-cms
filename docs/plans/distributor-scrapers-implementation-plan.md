@@ -1,6 +1,6 @@
 # Distributor Scrapers Migration — Implementation-Ready Plan
 
-**Project:** Baystate CMS (`/Users/nickborrello/Desktop/Projects/shopsite-cms`)  
+**Project:** Bay State CMS (`/Users/nickborrello/Desktop/Projects/shopsite-cms`)  
 **Authority:** ADR 0014 Amendment B, `CONTEXT.md`, and the ratified handoff in `docs/plans/distributor-scrapers-migration-plan.md`  
 **Plan status:** Ready for sequential implementation and required review  
 **Scope:** Five `html_scraper` connectors (`orgill`, `pet_food_experts`, `phillips_storefront`, `bradley`, `central_pet`) plus merchandising-depth distributor-record materialization

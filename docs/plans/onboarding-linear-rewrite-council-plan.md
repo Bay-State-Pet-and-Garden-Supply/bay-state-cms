@@ -1,4 +1,4 @@
-# Baystate CMS — council-conformant onboarding linear rewrite, v1
+# Bay State CMS — council-conformant onboarding linear rewrite, v1
 
 **Status: implementation-ready design, conditional on the approvals at the end. PLAN ONLY: no application edits, migrations, DB writes, network calls, or ShopSite sync changes are authorized by this artifact.**
 
