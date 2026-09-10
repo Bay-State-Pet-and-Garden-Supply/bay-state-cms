@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { initDb } from '../../db/connection';
+import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -33,6 +33,7 @@ import {
   parseStrategyCollectionResult,
   usableContributions,
 } from '../../onboarding/sourcing/strategy-collection-result';
+import { ApproveBrandStrategySchema } from '../../shared/schemas/brand-strategy';
 import {
   assessListingEvidenceGap,
   openPreparationGap,
@@ -419,6 +420,25 @@ describe('listing evidence gaps (ticket #124)', () => {
 });
 
 describe('builder guarded atomic Save (slice B1)', () => {
+  it('whitespace-only brand fails closed with nothing persisted (review-loop R1 P0-1)', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    const parsed = ApproveBrandStrategySchema.safeParse({
+      brand: '   ',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    expect(parsed.success).toBe(false);
+    expect(() => saveBrandStrategy(workspaceId, {
+      brand: '   ',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    })).toThrow(/Invalid brand strategy approval/);
+    const strays = getDb().query(
+      `SELECT COUNT(*) AS n FROM brand_sourcing_strategies WHERE normalized_brand = ''`,
+    ).get() as { n: number };
+    expect(strays.n).toBe(0);
+  });
+
   it('config-only Save applies mapping delta + preferences atomically and bumps exactly once', () => {
     createDistributor({ id: 'dist_phillips', name: 'Phillips' });
     const first = saveBrandStrategy(workspaceId, {

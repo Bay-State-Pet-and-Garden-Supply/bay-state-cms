@@ -107,6 +107,7 @@ import { recordAcceptances } from '../db/repositories/onboarding-acceptance-repo
 import { completeSourcingWithDecision } from '../db/repositories/onboarding-item-repo';
 import { listConnectionsByWorkspace } from '../db/repositories/distributor-repo';
 import { getApprovedBrandStrategy } from '../db/repositories/brand-strategy-approval-repo';
+import { getGenerationStrategyBinding } from '../db/repositories/brand-strategy-generation-repo';
 import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onboarding';
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
@@ -1062,6 +1063,30 @@ export class OnboardingWorker {
         if (runResult.strategyRevision != null && runResult.attempts.length === 0) {
           setupAttentionHold([`Approved strategy revision ${runResult.strategyRevision} produced no usable distributor evidence; official sources are not supported`]);
           return;
+        }
+      }
+
+      // Builder slice B2 (review-loop R1 P1-1): the reuse path pins the
+      // boundary too, but only where a boundary exists to bypass. The engine
+      // is the sole binding capturer and only runs on fresh generations, so
+      // a current generation that already holds evidence but no binding
+      // while an approved strategy exists is pre-builder work that predates
+      // the approval — park visibly instead of reconciling under a boundary
+      // that was never pinned. Generations without any approval keep legacy
+      // reuse (a later fresh generation captures its own binding).
+      if (getCurrentGenerationAttempts(item.id).length > 0) {
+        const approvedForReuse = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null);
+        if (approvedForReuse) {
+          let reuseBindingOk = false;
+          try {
+            reuseBindingOk = getGenerationStrategyBinding(generation.id) !== null;
+          } catch {
+            reuseBindingOk = false;
+          }
+          if (!reuseBindingOk) {
+            setupAttentionHold(['Strategy binding is missing or invalid for this generation; retry in a new generation']);
+            return;
+          }
         }
       }
 

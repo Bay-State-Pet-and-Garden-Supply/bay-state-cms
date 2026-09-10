@@ -14,7 +14,7 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems, findItemById } from '../../db/repositories/onboarding-item-repo';
-import { startSourcingGeneration } from '../../db/repositories/onboarding-evidence-repo';
+import { startSourcingGeneration, insertEvidenceAttempt } from '../../db/repositories/onboarding-evidence-repo';
 import { createDistributor, createConnection, updateConnection } from '../../db/repositories/distributor-repo';
 import { addBrandSiteMapping } from '../../db/repositories/brand-site-repo';
 import { saveBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
@@ -90,6 +90,42 @@ describe('Brand strategy setup attention (observable processSourcing parking)', 
     expect(after?.stageStatus).toBe('needs_input');
     expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
     expect(after?.sourcingDecision?.warnings.join(' ')).toContain('official sources are not supported');
+  });
+
+  test('pre-builder generation with evidence but no binding parks at needs_input instead of reconciling', async () => {
+    // Review-loop R1 P1-1: the reuse path pins the boundary too. Evidence
+    // collected before an approval, with no captured binding, must not
+    // reconcile under the new approved boundary — park visibly.
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acme',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const item = makeSourcingItem('Acme', '012345678903', 'Pre-builder Evidence Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const conn = getDb().query('SELECT id FROM distributor_connections WHERE workspace_id = ?').get(workspaceId) as { id: string };
+    insertEvidenceAttempt({
+      itemId: item.id,
+      providerId: 'provider_dist_phillips',
+      distributorConnectionId: conn.id,
+      sourcingGenerationId: generation.id,
+      lookupUpc: '012345678903',
+      outcome: 'not_stocked',
+      confidence: 0,
+      evidenceUrl: null,
+      matchedFields: [],
+      identityJson: null,
+      warningsJson: '[]',
+      errorCode: null,
+      errorMessage: null,
+    });
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+
+    const after = findItemById(item.id);
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('binding is missing or invalid');
   });
 
   test('corrupt strategy binding parks at needs_input instead of dispatching', async () => {

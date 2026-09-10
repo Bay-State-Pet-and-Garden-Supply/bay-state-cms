@@ -100,6 +100,13 @@ export function BrandStrategyView({ strategies: initial, loading, refreshSignal 
   const [dialog, setDialog] = useState<DialogState>(null);
   const [builderKey, setBuilderKey] = useState(0);
   const lastFocus = useRef<HTMLElement | null>(null);
+  // Review-loop R1 P0-2: Settings New resolves the brand name first, then
+  // mounts the builder once for the typed brand (never brand='').
+  const [createName, setCreateName] = useState('');
+  const [createBrand, setCreateBrand] = useState<string | null>(null);
+  // Review-loop R1 P1-3: shell dismiss (backdrop/Escape) must not bypass
+  // the builder's discard confirmation while edits are dirty.
+  const dialogDirty = useRef(false);
 
   async function refetch() {
     setFetching(true);
@@ -140,16 +147,31 @@ export function BrandStrategyView({ strategies: initial, loading, refreshSignal 
   function openDialog(next: DialogState, invoker?: HTMLElement | null) {
     lastFocus.current = invoker ?? null;
     setBuilderKey((k) => k + 1);
+    setCreateName('');
+    setCreateBrand(null);
+    dialogDirty.current = false;
     setDialog(next);
   }
 
   function closeDialog() {
     setDialog(null);
+    setCreateName('');
+    setCreateBrand(null);
+    dialogDirty.current = false;
     lastFocus.current?.focus?.();
+  }
+
+  /** Shell dismiss: refuse to discard dirty builder edits (use Cancel). */
+  function requestCloseDialog() {
+    if (dialogDirty.current) return;
+    closeDialog();
   }
 
   function handleSaved() {
     setDialog(null);
+    setCreateName('');
+    setCreateBrand(null);
+    dialogDirty.current = false;
     lastFocus.current?.focus?.();
     void refetch();
   }
@@ -235,23 +257,65 @@ export function BrandStrategyView({ strategies: initial, loading, refreshSignal 
           aria-label={dialog.mode === 'create' ? 'New brand strategy' : `Edit strategy — ${dialog.brand}`}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) closeDialog();
+            if (e.target === e.currentTarget) requestCloseDialog();
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') closeDialog();
+            if (e.key === 'Escape') requestCloseDialog();
           }}
         >
           <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: 640, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
               {dialog.mode === 'create' ? 'New brand strategy' : `Edit strategy — ${dialog.brand}`}
             </h3>
-            <BrandStrategyBuilder
-              key={`${dialog.mode}-${dialog.mode === 'edit' ? dialog.brand : 'new'}-${builderKey}`}
-              brand={dialog.mode === 'edit' ? dialog.brand : ''}
-              brandEditable={dialog.mode === 'create'}
-              onSaved={handleSaved}
-              onCancel={closeDialog}
-            />
+            {dialog.mode === 'create' && createBrand === null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 12, color: '#374151' }}>
+                  Brand name
+                  <input
+                    aria-label="Brand name"
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && createName.trim()) setCreateBrand(createName.trim());
+                    }}
+                    style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
+                    placeholder="Fromm"
+                  />
+                </label>
+                <div>
+                  <button
+                    type="button"
+                    disabled={!createName.trim()}
+                    onClick={() => setCreateBrand(createName.trim())}
+                    style={{ border: '1px solid #14532d', borderRadius: 6, padding: '6px 14px', fontSize: 13, background: '#14532d', color: '#fff', cursor: createName.trim() ? 'pointer' : 'not-allowed', opacity: createName.trim() ? 1 : 0.5 }}
+                  >
+                    Look up
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {dialog.mode === 'create' && createBrand !== null && (
+                  <div style={{ fontSize: 12, color: '#374151', marginBottom: 8 }}>
+                    Brand: <strong>{createBrand}</strong>{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setCreateBrand(null); dialogDirty.current = false; }}
+                      style={{ border: 'none', background: 'transparent', color: '#2563eb', textDecoration: 'underline', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                    >
+                      Use a different brand name
+                    </button>
+                  </div>
+                )}
+                <BrandStrategyBuilder
+                  key={`${dialog.mode}-${dialog.mode === 'edit' ? dialog.brand : createBrand ?? 'new'}-${builderKey}`}
+                  brand={dialog.mode === 'edit' ? dialog.brand : (createBrand ?? '')}
+                  onSaved={handleSaved}
+                  onCancel={closeDialog}
+                  onDirtyChange={(d) => { dialogDirty.current = d; }}
+                />
+              </>
+            )}
           </div>
         </div>
       )}

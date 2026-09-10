@@ -130,6 +130,76 @@ describe('BrandStrategyView settings integration', () => {
     expect(getBrandStrategies).toHaveBeenCalledTimes(2);
   });
 
+  it('New flow resolves the typed brand name before the builder can save (review-loop R1 P0-2)', async () => {
+    await renderView();
+    const create = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '+ New Brand Strategy') as HTMLButtonElement;
+    await act(async () => {
+      create.click();
+    });
+    // Name first: no builder, no Save until the brand is resolved.
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Save strategy')).toBe(false);
+    const input = container.querySelector('input[aria-label="Brand name"]') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, 'Newbrand');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const lookup = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Look up') as HTMLButtonElement;
+    expect(lookup.disabled).toBe(false);
+    await act(async () => {
+      lookup.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(getBrandStrategyDetail).toHaveBeenCalledWith('Newbrand');
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement;
+    expect(saveBtn).toBeDefined();
+    expect(saveBtn.disabled).toBe(false);
+    await act(async () => {
+      saveBtn.click();
+    });
+    expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(saveBrandStrategy).mock.calls[0][0] as Record<string, unknown>;
+    expect(payload).toMatchObject({ brand: 'Newbrand', expectedRevision: 1, expectedConfigurationToken: 'tok-1' });
+  });
+
+  it('dirty edits survive Escape/backdrop while a clean dialog closes (review-loop R1 P1-3)', async () => {
+    await renderView();
+    const edit = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Edit strategy') as HTMLButtonElement;
+    await act(async () => {
+      edit.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    // Clean dialog: Escape closes.
+    const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
+    await act(async () => {
+      dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    // Reopen and dirty the edit via the proposal shortcut.
+    const edit2 = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Edit strategy') as HTMLButtonElement;
+    await act(async () => {
+      edit2.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    const stageProposal = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement;
+    await act(async () => {
+      stageProposal.click();
+    });
+    const dialog2 = container.querySelector('[role="dialog"]') as HTMLElement;
+    await act(async () => {
+      dialog2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    // Dirty: the shell must not discard — the builder stays open.
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Save strategy')).toBe(true);
+  });
+
   it('prop updates replace table facts without stale state', async () => {
     await renderView({ strategies: [row()], refreshSignal: 0 });
     expect(container.textContent).toMatch(/Approved revision 1/);

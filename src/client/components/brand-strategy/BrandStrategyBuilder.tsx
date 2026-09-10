@@ -39,6 +39,8 @@ export interface BrandStrategyBuilderProps {
   api?: BuilderApi;
   onSaved?: (revision: number) => void;
   onCancel?: () => void;
+  /** Shell gating (dialog backdrop/Escape): reports edit dirtiness. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function readinessText(strategy: BrandStrategy | null): string {
@@ -63,6 +65,7 @@ export function BrandStrategyBuilder({
   api = defaultBuilderApi,
   onSaved,
   onCancel,
+  onDirtyChange,
 }: BrandStrategyBuilderProps) {
   const builder = useBrandStrategyBuilder(brand, api);
   const { strategy, loading, loadError, saving } = builder;
@@ -109,6 +112,15 @@ export function BrandStrategyBuilder({
     [edit, brandInput, brandEditable, strategy],
   );
   const validation = useMemo(() => (edit ? validateEdit({ ...edit, brand: brandEditable ? brandInput : edit.brand }) : null), [edit, brandInput, brandEditable]);
+
+  // Shell dismiss gating (review-loop R1 P1-3): report dirtiness so dialog
+  // backdrops/Escape can refuse to discard unsaved edits.
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  const dirtyNow = summary?.dirty === true;
+  useEffect(() => {
+    onDirtyChangeRef.current?.(dirtyNow);
+  }, [dirtyNow]);
 
   useEffect(() => {
     if ((builder.saveError || builder.conflict) && errorRef.current) {

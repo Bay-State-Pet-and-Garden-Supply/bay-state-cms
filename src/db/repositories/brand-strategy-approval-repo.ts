@@ -234,6 +234,11 @@ export function saveBrandStrategy(workspaceId: string, input: SaveBrandStrategyI
   ensureTables();
   const db = getDb();
   const displayBrand = parsed.data.brand.trim();
+  // Defense in depth (schema already trims): an empty identity must fail
+  // closed as 400, never persist normalized_brand="" (review-loop R1 P0-1).
+  if (!displayBrand) {
+    throw new Error('Invalid brand strategy approval: brand must be nonblank');
+  }
   const normalized = normalizeBrandKey(displayBrand);
   const now = new Date().toISOString();
   const canonicalSources = canonicalizeSources(parsed.data.sources);

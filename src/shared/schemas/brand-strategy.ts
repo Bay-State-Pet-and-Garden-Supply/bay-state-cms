@@ -53,7 +53,9 @@ export const StrategyConfigurationSchema = z.object({
 export type StrategyConfiguration = z.infer<typeof StrategyConfigurationSchema>;
 
 export const ApproveBrandStrategySchema = z.object({
-  brand: z.string().min(1).max(128),
+  // Trimmed: whitespace-only brands must fail closed as 400, never persist
+  // an empty normalized identity (review-loop R1 P0-1).
+  brand: z.string().trim().min(1).max(128),
   sources: z.array(StrategySourceRefSchema).min(1).max(25),
   /**
    * Optimistic-concurrency guard (REQUIRED since builder Amendment B1):

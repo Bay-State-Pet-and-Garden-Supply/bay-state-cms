@@ -1454,6 +1454,7 @@ export function StageItemsView({
                           type="button"
                           data-testid={`intake-strategy-use-proposal-${item.itemId}`}
                           onClick={() => toggleStrategyEditor(brandName, true)}
+                          title="Stages the live proposal locally — requires explicit Save to create a revision."
                           style={{
                             fontSize: '0.6875rem',
                             fontWeight: 400,
@@ -1466,7 +1467,7 @@ export function StageItemsView({
                             textDecoration: 'underline',
                           }}
                         >
-                          Save current proposal as new revision
+                          Review proposal as new revision
                         </button>
                       )}
                       {unsupported.length > 0 && (
