@@ -1,14 +1,17 @@
-# Bay State Store Pages — Known List (Partial)
+# Bay State Store Pages — Bootstrap List (Partial)
 
-ProductOnPages assignments must match a real page `Name` exactly. This file is the offline validation list. It is **partial by construction** — anything not listed here must be verified in ShopSite (pages table) before use, never invented.
+ProductOnPages assignments must match a real page `Name` exactly. The live authority is `GET /pages/verified-options`: rows in `page_index` under the ACTIVE page import with verified identity and `available` status (`listVerifiedPageOptions`, `src/db/repositories/page-repo.ts`). This file is only the offline bootstrap for when no import is active. It is **partial by construction** — anything not listed here must be verified against verified-options before use, never invented.
 
 ## Refresh procedure (full 211-page list)
 
-Download the live pages table any sync and replace the category section below:
+Populate the real authority, then regenerate the category section from it:
 
-- `db_xml.cgi` with `dbname=pages` (see `shopsite-database` for parameters)
-- Take each `<Page>` block's `<Name>` value verbatim (entity-decoded: `&amp;` → `&`)
-- Keep system pages in the list — assignments to them fail validation unless the owner approves
+1. POST `/pages/import/download` with `dbname=pages`, review the preview, POST `/pages/import/activate`
+2. Read back `GET /pages/verified-options` (names where the import is active, verified, and available)
+3. Replace the category section below with those names verbatim (entity-decoded: `&amp;` → `&`)
+4. Keep system pages in the list — assignments to them fail validation unless the owner approves
+
+Note: local DBs currently hold no page import (`page_index` empty), so verified-options is empty until the first activation — that is why this bootstrap exists.
 
 ## Category pages observed on live products (15)
 
