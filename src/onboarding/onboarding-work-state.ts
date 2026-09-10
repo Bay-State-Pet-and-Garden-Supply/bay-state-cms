@@ -22,7 +22,9 @@
 import { getManualEvidenceFlags } from './flags';
 import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
-import { listCohortsByBatch } from '../db/repositories/curation-cohort-repo';
+import { listCohortsByBatch, getCohortMembersForCohorts } from '../db/repositories/curation-cohort-repo';
+import { getLatestExtractionBindingsByItemIds } from '../db/repositories/onboarding-extraction-repo';
+import { getCurrentCohortRunsForCohorts } from '../db/repositories/classification-cohort-run-repo';
 import { buildCohortView } from './curation-cohort-service';
 import {
   listReviewStates,
@@ -147,7 +149,13 @@ function normalizeHost(url: string | null | undefined): string | null {
  * load inside `buildCohortView`).
  */
 export function buildCohortContext(batchId: string, items: OnboardingItem[]): Map<string, FamilyCohortState> {
-  const views: CurationCohortView[] = listCohortsByBatch(batchId, { includeSuperseded: true }).map(cohort => buildCohortView(cohort, items));
+  const cohorts = listCohortsByBatch(batchId, { includeSuperseded: true });
+  const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
+  const views: CurationCohortView[] = cohorts.map(cohort =>
+    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId),
+  );
   const map = new Map<string, FamilyCohortState>();
   for (const view of views) {
     const blockedCount = Math.max(0, view.memberCount - view.readyCount - view.waitingOn.length);

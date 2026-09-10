@@ -511,6 +511,31 @@ export function getCohortMembers(cohortId: string): CurationCohortMember[] {
   return rows.map(mapCohortMemberRow);
 }
 
+/**
+ * Bulk-load members for multiple cohorts in a single batched query (or chunked queries for large sets).
+ */
+export function getCohortMembersForCohorts(cohortIds: string[]): Map<string, CurationCohortMember[]> {
+  const map = new Map<string, CurationCohortMember[]>();
+  for (const id of cohortIds) map.set(id, []);
+  if (cohortIds.length === 0) return map;
+
+  const CHUNK_SIZE = 500;
+  for (let i = 0; i < cohortIds.length; i += CHUNK_SIZE) {
+    const chunk = cohortIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(', ');
+    const rows = getDb().query(
+      `SELECT * FROM curation_cohort_members WHERE cohort_id IN (${placeholders}) ORDER BY ordinal ASC`,
+    ).all(...chunk) as Record<string, any>[];
+
+    for (const row of rows) {
+      const member = mapCohortMemberRow(row);
+      map.get(member.cohortId)?.push(member);
+    }
+  }
+
+  return map;
+}
+
 export function updateCohortStatus(
   id: string,
   status: string,

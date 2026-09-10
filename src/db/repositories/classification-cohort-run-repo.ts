@@ -1059,6 +1059,36 @@ export function getCurrentCohortRun(cohortId: string): CohortRun | null {
   return row ? mapCohortRunRow(row) : null;
 }
 
+/**
+ * Bulk-load current (non-superseded) cohort runs for multiple cohorts in a single query.
+ */
+export function getCurrentCohortRunsForCohorts(cohortIds: string[]): Map<string, CohortRun> {
+  const map = new Map<string, CohortRun>();
+  if (cohortIds.length === 0) return map;
+
+  const CHUNK_SIZE = 500;
+  for (let i = 0; i < cohortIds.length; i += CHUNK_SIZE) {
+    const chunk = cohortIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(', ');
+    const rows = getDb().query(
+      `SELECT * FROM (
+         SELECT r.*, ROW_NUMBER() OVER (
+           PARTITION BY r.cohort_id
+           ORDER BY r.created_at DESC, r.rowid DESC
+         ) AS rn
+         FROM classification_cohort_runs r
+         WHERE r.cohort_id IN (${placeholders}) AND r.status != 'superseded'
+       ) WHERE rn = 1`,
+    ).all(...chunk) as Record<string, any>[];
+
+    for (const row of rows) {
+      map.set(row.cohort_id, mapCohortRunRow(row));
+    }
+  }
+
+  return map;
+}
+
 export function getCohortRunById(id: string): CohortRun | null {
   const row = getDb().query(
     'SELECT * FROM classification_cohort_runs WHERE id = ?',
