@@ -106,6 +106,8 @@ import {
 import { recordAcceptances } from '../db/repositories/onboarding-acceptance-repo';
 import { completeSourcingWithDecision } from '../db/repositories/onboarding-item-repo';
 import { listConnectionsByWorkspace } from '../db/repositories/distributor-repo';
+import { getApprovedBrandStrategy } from '../db/repositories/brand-strategy-approval-repo';
+import { getGenerationStrategyBinding } from '../db/repositories/brand-strategy-generation-repo';
 import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onboarding';
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
@@ -844,6 +846,30 @@ export class OnboardingWorker {
       return true;
     };
 
+    /**
+     * Builder slice B2: approved-strategy setup attention. An approved
+     * generation with no usable/implemented source parks visibly at
+     * needs_input — never an unapproved fallback, never fake evidence.
+     * Mirrors the manual-hold decision shape (same route/stage).
+     */
+    const setupAttentionHold = (warnings: string[], providerIds: string[] = []): void => {
+      updateItemStageStatus(item.id, 'needs_input', warnings[0] ?? 'Approved strategy has no usable source');
+      complete(
+        'needs_input_conflict',
+        {
+          schemaVersion: 2,
+          route: 'needs_input_conflict',
+          origin: 'automatic_policy',
+          acceptedEvidenceAttemptIds: [],
+          providerIds,
+          conflicts: durableConflictsForDecision(item.id),
+          warnings,
+          decidedAt,
+        },
+        'route_sources',
+      );
+    };
+
     /** Manual mode hold: every non-conflict outcome waits at needs_input. */
     const manualHold = (warnings: string[], providerIds: string[] = []): void => {
       updateItemStageStatus(item.id, 'needs_input', 'Manual mode: awaiting operator route selection');
@@ -984,6 +1010,14 @@ export class OnboardingWorker {
 
         const enabledConnections = listConnectionsByWorkspace(this.workspaceId, true);
         if (enabledConnections.length === 0) {
+          // Builder slice B2: an approved strategy pins the collection
+          // boundary — zero usable connections is setup attention, never an
+          // unapproved fallback to arbitrary official discovery.
+          const approvedForHold = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null);
+          if (approvedForHold) {
+            setupAttentionHold([`Approved strategy revision ${approvedForHold.revision} has no usable distributor connection; official sources are not supported`]);
+            return;
+          }
           // Zero enabled connections -> audited automatic pass-through.
           if (manual) {
             manualHold(['No enabled distributor connections']);
@@ -1009,7 +1043,10 @@ export class OnboardingWorker {
           return;
         }
 
-        await engine.runGeneration({
+        // Builder slice B2: the engine result is consumed, not discarded.
+        // An approved generation with no usable/implemented source parks in
+        // setup attention; a corrupt/uncertain binding fails closed here.
+        const runResult = await engine.runGeneration({
           itemId: item.id,
           generationId: generation.id,
           workspaceId: this.workspaceId,
@@ -1019,6 +1056,38 @@ export class OnboardingWorker {
           signal: AbortSignal.timeout(60_000),
           deadlineAt: new Date(Date.now() + 60_000).toISOString(),
         });
+        if (runResult.skipped.some((s) => s.reason === 'strategy_binding_invalid')) {
+          setupAttentionHold(['Strategy binding is invalid or uncertain; retry in a new generation']);
+          return;
+        }
+        if (runResult.strategyRevision != null && runResult.attempts.length === 0) {
+          setupAttentionHold([`Approved strategy revision ${runResult.strategyRevision} produced no usable distributor evidence; official sources are not supported`]);
+          return;
+        }
+      }
+
+      // Builder slice B2 (review-loop R1 P1-1): the reuse path pins the
+      // boundary too, but only where a boundary exists to bypass. The engine
+      // is the sole binding capturer and only runs on fresh generations, so
+      // a current generation that already holds evidence but no binding
+      // while an approved strategy exists is pre-builder work that predates
+      // the approval — park visibly instead of reconciling under a boundary
+      // that was never pinned. Generations without any approval keep legacy
+      // reuse (a later fresh generation captures its own binding).
+      if (getCurrentGenerationAttempts(item.id).length > 0) {
+        const approvedForReuse = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null);
+        if (approvedForReuse) {
+          let reuseBindingOk = false;
+          try {
+            reuseBindingOk = getGenerationStrategyBinding(generation.id) !== null;
+          } catch {
+            reuseBindingOk = false;
+          }
+          if (!reuseBindingOk) {
+            setupAttentionHold(['Strategy binding is missing or invalid for this generation; retry in a new generation']);
+            return;
+          }
+        }
       }
 
       // CURRENT-GENERATION CAS (ADR 0014): a retry that superseded this

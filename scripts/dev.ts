@@ -76,7 +76,7 @@ const vite = spawn(
   },
 );
 
-console.log(`Baystate CMS dev mode started.`);
+console.log(`Bay State CMS dev mode started.`);
 console.log(`API token: ${apiToken}`);
 console.log(`Server bound to 127.0.0.1:${process.env.PORT ?? '3030'}`);
 console.log(`Worker bound to 127.0.0.1:3032`);

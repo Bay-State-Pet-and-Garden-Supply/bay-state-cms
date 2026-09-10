@@ -103,7 +103,7 @@ export class BrightDataScraperClient {
   }
 
   /**
-   * Normalizes raw Bright Data dataset output into Baystate CMS ScrapedProductEvidence.
+   * Normalizes raw Bright Data dataset output into Bay State CMS ScrapedProductEvidence.
    */
   normalizeChewyItem(item: BrightDataChewyItem): ScrapedProductEvidence | null {
     const rawUrl = item.url || (item.input && typeof item.input === 'object' && (item.input as any).url);

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { isPrivateOrLinkLocalHost } from '../shared/ssrf';
 
 export interface CaptureElement {
   id: string;
@@ -50,14 +51,8 @@ async function isPrivateHost(url: string): Promise<boolean> {
   try {
     const host = new URL(url).hostname;
     if (host.endsWith('example.com') || host.endsWith('example.org') || host.endsWith('example.net')) return false;
-    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
-    const { lookup } = await import('node:dns/promises');
-    const addrs = await lookup(host, { all: true });
-    return addrs.some(a => {
-      const ip = a.address;
-      return ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.') || ip.startsWith('127.') || ip === '::1' || ip.startsWith('169.254.') || ip.startsWith('100.');
-    });
-  } catch { return false; }
+    return await isPrivateOrLinkLocalHost(host);
+  } catch { return true; }
 }
 
 async function assertAllowedUrl(url: string): Promise<void> {

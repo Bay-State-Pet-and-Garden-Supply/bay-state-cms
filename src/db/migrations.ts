@@ -11,6 +11,7 @@ const STAGE_PIPELINE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'stage-p
 const COHORT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'cohort-migration.sql');
 const DISTRIBUTOR_V2_MIGRATION_PATH = path.resolve(import.meta.dirname, 'distributor-v2-migration.sql');
 const BRAND_STRATEGY_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-migration.sql');
+const BRAND_STRATEGY_BUILDER_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-builder-migration.sql');
 const OPERATOR_STATE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'operator-state-migration.sql');
 
 /**
@@ -3851,6 +3852,21 @@ export function runMigrations(): void {
       db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('brand_strategy_schema_version', '1');");
     })();
     console.log('[Migrations] Brand sourcing strategy schema migration complete.');
+  }
+
+  // Brand strategy builder slice B2: durable per-generation strategy binding.
+  // Additive-only append-only table; idempotent via CREATE TABLE IF NOT EXISTS.
+  // No backfill of historical generations, no alteration of existing tables.
+  const brandStrategyBuilderVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('brand_strategy_builder_schema_version') as { value: string } | undefined;
+  if (!brandStrategyBuilderVersion) {
+    db.transaction(() => {
+      const builderSql = fs.readFileSync(BRAND_STRATEGY_BUILDER_MIGRATION_PATH, 'utf-8');
+      db.exec(builderSql);
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('brand_strategy_builder_schema_version', '1');");
+    })();
+    console.log('[Migrations] Brand strategy builder schema migration complete.');
   }
 
   // ── Evidence connection index repair (ADR 0014) ────────────────────────────

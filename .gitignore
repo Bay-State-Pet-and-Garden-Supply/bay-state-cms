@@ -28,7 +28,9 @@ storage/
 *.db-wal
 
 # ── Agent tooling artifacts & working docs ────────────────────────────────────
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 skills-lock.json
 .pi-subagents/
 .pi/

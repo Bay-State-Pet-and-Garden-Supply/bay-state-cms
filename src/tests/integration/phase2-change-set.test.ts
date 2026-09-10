@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
+
 import { createWorkspaceDirs, writeGitignore, writeProductFile, readProductFile } from '../../git/workspace-files';
 import { deterministicStringify } from '../../git/deterministic-json';
 import { skuToProductFilePath } from '../../git/product-file-path';
@@ -28,11 +28,9 @@ describe('Phase 2: Change Sets and Approval', () => {
   });
 
   it('should create baseline from fixture', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (!product.sku) continue;
       writeProductFile(testDir, product);
     }
@@ -65,12 +63,10 @@ describe('Phase 2: Change Sets and Approval', () => {
   });
 
   it('should generate XML from approved products', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
     const products = [];
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (product.sku) products.push(product);
     }
 
@@ -89,12 +85,10 @@ describe('Phase 2: Change Sets and Approval', () => {
   });
 
   it('should create export package with manifest and instructions', async () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
     const products = [];
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (product.sku) products.push(product);
     }
 
@@ -139,17 +133,15 @@ describe('Phase 2: Change Sets and Approval', () => {
   });
 
   it('should handle products without SKU gracefully', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const products = parsed.products.filter(p => (p.fields['SKU'] ?? p.fields['sku'] ?? '') !== '');
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
+    const products = parsed.products.filter(p => (p.sku ?? '') !== '');
     expect(products.length).toBeLessThanOrEqual(parsed.products.length);
   });
 
   it('should write deterministic product files', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (!product.sku) continue;
 
       writeProductFile(testDir, product);

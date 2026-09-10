@@ -416,6 +416,23 @@ export function deleteBrandAdvisoryProfile(workspaceId: string, brand: string): 
   return res.changes > 0;
 }
 
+/**
+ * Builder slice B1: advisory profiles colliding on one exact normalized
+ * brand (e.g. 'Acme' vs 'ACME' stored as separate rows). A collision is a
+ * bounded conflict — the builder never edits one arbitrarily or deletes
+ * historical rows.
+ */
+export function listBrandAdvisoryProfilesByNormalized(
+  workspaceId: string,
+  normalizedBrand: string,
+): BrandAdvisoryProfile[] {
+  const db = getDb();
+  const rows = db
+    .query('SELECT * FROM brand_advisory_profiles WHERE workspace_id = ? AND LOWER(brand) = LOWER(?) ORDER BY brand ASC')
+    .all(workspaceId, normalizedBrand) as BrandProfileRow[];
+  return rows.map(mapBrandProfileRow);
+}
+
 /** Advisory ordering only — never filters, never implies `not_stocked`. */
 export function getPreferredDistributorOrder(workspaceId: string, brand: string | null): string[] | null {
   if (!brand) return null;

@@ -149,7 +149,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Baystate Store Catalog Setup</h1>
+      <h1 style={styles.title}>Bay State Store Catalog Setup</h1>
 
       {error && <div style={styles.error}>{error}</div>}
       {result && <div style={styles.result}>{result}</div>}

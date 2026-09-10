@@ -1,5 +1,5 @@
 /**
- * Model capabilities metadata structures for Baystate AI model profiles.
+ * Model capabilities metadata structures for Bay State AI model profiles.
  */
 
 export type Modality = 'text' | 'image' | 'audio';

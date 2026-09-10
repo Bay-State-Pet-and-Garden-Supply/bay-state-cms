@@ -1,0 +1,1135 @@
+/**
+ * Authoritative ShopSite Field Catalog Module.
+ *
+ * Grounded in the documented 100+ product fields and 11-type system from
+ * ShopSite 15. Embeds and preserves the immutable
+ * `shopsite-built-in-output-policy-v1` contract so ADR-0011 provenance
+ * is maintained while providing a unified, deep field definition registry.
+ */
+
+import {
+  SHOP_SITE_BUILT_IN_OUTPUT_POLICY_V1,
+  SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
+  builtInDefaultValue,
+  getBuiltInOutputRule,
+  isBuiltInOutputField,
+  type BuiltInFieldOutputRule,
+  type BuiltInFieldEncoding,
+  type BuiltInOmissionRule,
+  type BuiltInCardinality,
+} from './built-in-output-policy';
+
+export const SHOP_SITE_FIELD_CATALOG_VERSION = 'shopsite-field-catalog-v1';
+
+export {
+  SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
+  SHOP_SITE_BUILT_IN_OUTPUT_POLICY_V1,
+  builtInDefaultValue,
+  getBuiltInOutputRule,
+  isBuiltInOutputField,
+  type BuiltInFieldOutputRule,
+};
+
+/** The 11 authoritative ShopSite field data types. */
+export type ShopSiteFieldType =
+  | 'text'
+  | 'textarea'
+  | 'checkbox'
+  | 'number'
+  | 'image'
+  | 'popup'
+  | 'radio'
+  | 'date'
+  | 'url'
+  | 'composite'
+  | 'system';
+
+export type ShopSiteFieldCategory = 'core' | 'system' | 'custom';
+export type ShopSiteFieldEncoding = BuiltInFieldEncoding;
+export type ShopSiteFieldOmission = BuiltInOmissionRule;
+export type ShopSiteFieldCardinality = BuiltInCardinality;
+
+export interface ShopSiteFieldDefinition {
+  readonly xmlTag: string;
+  readonly displayName: string;
+  readonly dataType: ShopSiteFieldType;
+  readonly category: ShopSiteFieldCategory;
+  readonly encoding: ShopSiteFieldEncoding;
+  readonly omission: ShopSiteFieldOmission;
+  readonly cardinality: ShopSiteFieldCardinality;
+  readonly dtdDefault?: string;
+  readonly description?: string;
+  readonly governedByOutputPolicy: boolean;
+}
+
+function deepFreeze<T extends readonly unknown[]>(arr: T): T {
+  for (const item of arr) {
+    if (item && typeof item === 'object') {
+      Object.freeze(item);
+    }
+  }
+  return Object.freeze(arr) as T;
+}
+
+const rawCatalog: ShopSiteFieldDefinition[] = [
+  // ── 1. Governed Built-in Output Policy Fields (ADR-0011) ─────────────────
+  {
+    xmlTag: 'Name',
+    displayName: 'Product Name',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    governedByOutputPolicy: true,
+    description: 'Product name / title displayed across storefront and administrative views.',
+  },
+  {
+    xmlTag: 'FileName',
+    displayName: 'Product Page File Name',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    governedByOutputPolicy: true,
+    description: 'HTML file name for the more information page.',
+  },
+  {
+    xmlTag: 'Price',
+    displayName: 'Price',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Regular product selling price.',
+  },
+  {
+    xmlTag: 'SaleAmount',
+    displayName: 'Sale Price',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Discounted sale price when sale is active.',
+  },
+  {
+    xmlTag: 'ProductDescription',
+    displayName: 'Description',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Store page product description (per upload convention carries the Name).',
+  },
+  {
+    xmlTag: 'MinimumQuantity',
+    displayName: 'Minimum Quantity',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    dtdDefault: '0',
+    governedByOutputPolicy: true,
+    description: 'Minimum order quantity required for customer purchase.',
+  },
+  {
+    xmlTag: 'ProductType',
+    displayName: 'Product Type',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    dtdDefault: 'Tangible',
+    governedByOutputPolicy: true,
+    description: 'ShopSite item delivery mode (Tangible, Download, etc.).',
+  },
+  {
+    xmlTag: 'Weight',
+    displayName: 'Weight',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Product shipping weight.',
+  },
+  {
+    xmlTag: 'Graphic',
+    displayName: 'Primary Image',
+    dataType: 'image',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    dtdDefault: 'none',
+    governedByOutputPolicy: true,
+    description: 'Main product storefront graphic file path.',
+  },
+  {
+    xmlTag: 'MoreInformationGraphic',
+    displayName: 'Detail Image',
+    dataType: 'image',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    dtdDefault: 'none',
+    governedByOutputPolicy: true,
+    description: 'Primary graphic for product more information page.',
+  },
+  {
+    xmlTag: 'MoreInformationText',
+    displayName: 'More Information Text',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Rich description rendered on the more info page.',
+  },
+  {
+    xmlTag: 'SearchKeywords',
+    displayName: 'Search Keywords',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: true,
+    description: 'Search indexing keywords and phrases.',
+  },
+  // Additional image slots (MoreInfoImage1 to MoreInfoImage20)
+  ...Array.from({ length: 20 }, (_, index) => ({
+    xmlTag: `MoreInfoImage${index + 1}`,
+    displayName: `More Info Image ${index + 1}`,
+    dataType: 'image' as const,
+    category: 'core' as const,
+    encoding: 'text' as const,
+    omission: 'omit-empty' as const,
+    cardinality: 'zero-or-one' as const,
+    governedByOutputPolicy: true,
+    description: `Supplemental gallery image ${index + 1}.`,
+  })),
+
+  // ── 2. Other Core Product Identity & Merchandising Fields ─────────────────
+  {
+    xmlTag: 'SKU',
+    displayName: 'SKU',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    governedByOutputPolicy: false,
+    description: 'Stock keeping unit identifier; primary database match key.',
+  },
+  {
+    xmlTag: 'Taxable',
+    displayName: 'Taxable',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    governedByOutputPolicy: false,
+    description: 'Whether sales tax applies to product.',
+  },
+  {
+    xmlTag: 'QuantityOnHand',
+    displayName: 'Quantity On Hand',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Available warehouse inventory count.',
+  },
+  {
+    xmlTag: 'Availability',
+    displayName: 'Availability',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Inventory status indicator (instock, outofstock, etc.).',
+  },
+  {
+    xmlTag: 'ProductOnPages',
+    displayName: 'Product On Pages',
+    dataType: 'composite',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Category and department page assignments.',
+  },
+  {
+    xmlTag: 'Brand',
+    displayName: 'Brand',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Manufacturer / brand name.',
+  },
+  {
+    xmlTag: 'ManufacturerPartNumber',
+    displayName: 'Manufacturer Part Number',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Manufacturer MPN code.',
+  },
+  {
+    xmlTag: 'Template',
+    displayName: 'Product Template',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'ShopSite template file applied to item.',
+  },
+  {
+    xmlTag: 'Subproducts',
+    displayName: 'Subproducts',
+    dataType: 'composite',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Child SKU variant definitions.',
+  },
+  {
+    xmlTag: 'ProductOptions',
+    displayName: 'Product Options',
+    dataType: 'composite',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Drop-down and checkbox ordering options.',
+  },
+  {
+    xmlTag: 'LowStockThreshold',
+    displayName: 'Low Stock Threshold',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Inventory count triggering low stock notification.',
+  },
+  {
+    xmlTag: 'OutOfStockLimit',
+    displayName: 'Out Of Stock Limit',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Inventory floor below which sales are halted.',
+  },
+  {
+    xmlTag: 'SaleOn',
+    displayName: 'Sale On',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Toggle activating sale price display.',
+  },
+
+  // ── 3. Display & Layout Formatting Elements ──────────────────────────────
+  {
+    xmlTag: 'DisplayGraphic',
+    displayName: 'Display Graphic',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Whether to show image on store pages.',
+  },
+  {
+    xmlTag: 'DisplayMoreInformationPage',
+    displayName: 'Display More Information Page',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Enable dedicated detail page for this item.',
+  },
+  {
+    xmlTag: 'DisplayMoreInformationPage_',
+    displayName: 'Display More Information Page (Legacy)',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Legacy variant of more info page flag.',
+  },
+  {
+    xmlTag: 'DisplayName',
+    displayName: 'Display Name',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Display product name on store page.',
+  },
+  {
+    xmlTag: 'DisplayPrice',
+    displayName: 'Display Price',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Display price on store page.',
+  },
+  {
+    xmlTag: 'DisplaySKU',
+    displayName: 'Display SKU',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Display SKU on store page.',
+  },
+  {
+    xmlTag: 'DisplayOrderQuantity',
+    displayName: 'Display Order Quantity',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Show quantity input box.',
+  },
+  {
+    xmlTag: 'DisplayOrderingOptions',
+    displayName: 'Display Ordering Options',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Display options dropdowns.',
+  },
+  {
+    xmlTag: 'DisplayQuantityPricing',
+    displayName: 'Display Quantity Pricing',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Show volume tier pricing chart.',
+  },
+  {
+    xmlTag: 'DisplayAddToCart',
+    displayName: 'Display Add To Cart',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Add to cart button placement rule.',
+  },
+  {
+    xmlTag: 'ImageAlignment',
+    displayName: 'Image Alignment',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Image alignment (Left, Right, Center).',
+  },
+  {
+    xmlTag: 'ProductImageSize',
+    displayName: 'Product Image Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Image display sizing tier.',
+  },
+  {
+    xmlTag: 'ProductImageDesc',
+    displayName: 'Product Image Description',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Alt attribute text for primary image.',
+  },
+  {
+    xmlTag: 'MoreInfoImageSize',
+    displayName: 'More Info Image Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Image size tier on detail page.',
+  },
+  {
+    xmlTag: 'MoreInfoImageExtraSize',
+    displayName: 'More Info Image Extra Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Supplemental image size tier.',
+  },
+  {
+    xmlTag: 'MoreInformationImageDesc',
+    displayName: 'More Information Image Description',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Alt text for detail image.',
+  },
+  {
+    xmlTag: 'MoreInfoTitle',
+    displayName: 'More Info Title',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Custom browser HTML title for product page.',
+  },
+  {
+    xmlTag: 'MoreInfoMetaDescription',
+    displayName: 'More Info Meta Description',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'SEO meta description for detail page.',
+  },
+  {
+    xmlTag: 'MoreInfoMetaKeywords',
+    displayName: 'More Info Meta Keywords',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'SEO meta keywords for detail page.',
+  },
+  {
+    xmlTag: 'DescriptionSize',
+    displayName: 'Description Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'DescriptionStyle',
+    displayName: 'Description Style',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'NameSize',
+    displayName: 'Name Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'NameStyle',
+    displayName: 'Name Style',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'PriceSize',
+    displayName: 'Price Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'PriceStyle',
+    displayName: 'Price Style',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'SKUSize',
+    displayName: 'SKU Size',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'SKUStyle',
+    displayName: 'SKU Style',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'TextWrap',
+    displayName: 'Text Wrap',
+    dataType: 'popup',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+
+  // ── 4. Rich Merchandising & Narrative Fields ─────────────────────────────
+  {
+    xmlTag: 'ItemSize',
+    displayName: 'Item Size',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'MaterialsOrIngredients',
+    displayName: 'Materials Or Ingredients',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'HowToUse',
+    displayName: 'How To Use',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'Specifications',
+    displayName: 'Specifications',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'Warranty',
+    displayName: 'Warranty',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'Returns',
+    displayName: 'Returns',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'MerchantProductInstructions',
+    displayName: 'Merchant Product Instructions',
+    dataType: 'textarea',
+    category: 'core',
+    encoding: 'cdata',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'Video',
+    displayName: 'Video URL',
+    dataType: 'url',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+
+  // ── 5. Shipping & Rates Fields ───────────────────────────────────────────
+  {
+    xmlTag: 'ExtraHandlingCharge',
+    displayName: 'Extra Handling Charge',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GroundShipping',
+    displayName: 'Ground Shipping',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'SecondDayShipping',
+    displayName: 'Second Day Shipping',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'NextDayShipping',
+    displayName: 'Next Day Shipping',
+    dataType: 'number',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'NoShippingCharges',
+    displayName: 'No Shipping Charges',
+    dataType: 'checkbox',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  ...Array.from({ length: 7 }, (_, i) => ({
+    xmlTag: `Shipping${i + 3}`,
+    displayName: `Shipping Method ${i + 3}`,
+    dataType: 'number' as const,
+    category: 'core' as const,
+    encoding: 'text' as const,
+    omission: 'omit-empty' as const,
+    cardinality: 'zero-or-one' as const,
+    governedByOutputPolicy: false,
+  })),
+  {
+    xmlTag: 'ShippingDetails',
+    displayName: 'Shipping Details',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'ProhibitedShippingMethods',
+    displayName: 'Prohibited Shipping Methods',
+    dataType: 'text',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+
+  // ── 6. Google Base / Shopping Feed Fields ─────────────────────────────────
+  {
+    xmlTag: 'GTIN',
+    displayName: 'GTIN/UPC',
+    dataType: 'text',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleGTIN',
+    displayName: 'Google GTIN',
+    dataType: 'text',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'Google_GTIN',
+    displayName: 'Google GTIN (legacy)',
+    dataType: 'text',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleProductCategory',
+    displayName: 'Google Product Category',
+    dataType: 'text',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleProductType',
+    displayName: 'Google Product Type',
+    dataType: 'text',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleAgeGroup',
+    displayName: 'Google Age Group',
+    dataType: 'popup',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleGender',
+    displayName: 'Google Gender',
+    dataType: 'popup',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleCondition',
+    displayName: 'Google Condition',
+    dataType: 'popup',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleCustomProduct',
+    displayName: 'Google Custom Product',
+    dataType: 'checkbox',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleListAsFreeShipping',
+    displayName: 'Google List As Free Shipping',
+    dataType: 'checkbox',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'GoogleBase',
+    displayName: 'Google Base Enable',
+    dataType: 'checkbox',
+    category: 'custom',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+
+  // ── 7. Custom Fields (ProductField1 through ProductField32) ───────────────
+  ...Array.from({ length: 32 }, (_, index) => ({
+    xmlTag: `ProductField${index + 1}`,
+    displayName: `Custom Field ${index + 1}`,
+    dataType: 'text' as const,
+    category: 'custom' as const,
+    encoding: 'text' as const,
+    omission: 'omit-empty' as const,
+    cardinality: 'zero-or-one' as const,
+    governedByOutputPolicy: false,
+    description: `ShopSite store custom attribute slot ${index + 1}.`,
+  })),
+
+  // ── 8. System & Internal Administrative Fields ───────────────────────────
+  {
+    xmlTag: 'ProductID',
+    displayName: 'ShopSite Product ID',
+    dataType: 'system',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'ShopSite internal numeric integer product ID.',
+  },
+  {
+    xmlTag: 'ProductGUID',
+    displayName: 'ShopSite GUID',
+    dataType: 'system',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'ShopSite unique global GUID identifier.',
+  },
+  {
+    xmlTag: 'ProductDisabled',
+    displayName: 'Product Disabled',
+    dataType: 'checkbox',
+    category: 'system',
+    encoding: 'text',
+    omission: 'always',
+    cardinality: 'one',
+    governedByOutputPolicy: false,
+    description: 'Item status toggle (checked = disabled/draft, uncheck = active).',
+  },
+  {
+    xmlTag: 'QBImport',
+    displayName: 'QuickBooks Import ID',
+    dataType: 'system',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'DobaItemID',
+    displayName: 'Doba Item ID',
+    dataType: 'system',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'ProductDistributor',
+    displayName: 'Product Distributor',
+    dataType: 'system',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'ProductDownloadLocation',
+    displayName: 'Product Download Location',
+    dataType: 'popup',
+    category: 'system',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+  },
+  {
+    xmlTag: 'OptionDisplayType',
+    displayName: 'Option Display Type',
+    dataType: 'radio',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Selector style for product options (radio button vs dropdown).',
+  },
+  {
+    xmlTag: 'OrderQuantityType',
+    displayName: 'Order Quantity Type',
+    dataType: 'radio',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Ordering interface widget (radio button vs quantity box).',
+  },
+  {
+    xmlTag: 'DateAdded',
+    displayName: 'Date Added',
+    dataType: 'date',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Date timestamp when the product was added to the catalog.',
+  },
+  {
+    xmlTag: 'DateCreated',
+    displayName: 'Date Created',
+    dataType: 'date',
+    category: 'core',
+    encoding: 'text',
+    omission: 'omit-empty',
+    cardinality: 'zero-or-one',
+    governedByOutputPolicy: false,
+    description: 'Catalog record creation date.',
+  },
+];
+
+/** Frozen authoritative catalog of all documented ShopSite fields. */
+export const SHOP_SITE_FIELD_CATALOG: readonly ShopSiteFieldDefinition[] = deepFreeze(rawCatalog);
+
+// ── Indexes for O(1) Fast Querying ──────────────────────────────────────────
+const tagIndex = new Map<string, ShopSiteFieldDefinition>();
+const displayNameIndex = new Map<string, ShopSiteFieldDefinition>();
+const categoryIndex = new Map<ShopSiteFieldCategory, ShopSiteFieldDefinition[]>();
+
+for (const field of SHOP_SITE_FIELD_CATALOG) {
+  tagIndex.set(field.xmlTag.toLowerCase(), field);
+  displayNameIndex.set(field.displayName.toLowerCase(), field);
+
+  let list = categoryIndex.get(field.category);
+  if (!list) {
+    list = [];
+    categoryIndex.set(field.category, list);
+  }
+  list.push(field);
+}
+
+for (const [cat, list] of categoryIndex.entries()) {
+  categoryIndex.set(cat, Object.freeze(list) as ShopSiteFieldDefinition[]);
+}
+
+/** Get all defined product fields in the catalog. */
+export function getAllFields(): readonly ShopSiteFieldDefinition[] {
+  return SHOP_SITE_FIELD_CATALOG;
+}
+
+/** Get field definition by XML tag (case-insensitive). */
+export function getFieldByTag(xmlTag: string): ShopSiteFieldDefinition | null {
+  if (!xmlTag) return null;
+  return tagIndex.get(xmlTag.trim().toLowerCase()) ?? null;
+}
+
+/** Get field definition by human-readable display name (case-insensitive). */
+export function getFieldByDisplayName(displayName: string): ShopSiteFieldDefinition | null {
+  if (!displayName) return null;
+  return displayNameIndex.get(displayName.trim().toLowerCase()) ?? null;
+}
+
+/** Get all fields belonging to a given category ('core', 'system', 'custom'). */
+export function getFieldsByCategory(category: ShopSiteFieldCategory): readonly ShopSiteFieldDefinition[] {
+  return categoryIndex.get(category) ?? [];
+}
+
+/** Check if XML tag is a governed ShopSite built-in output field (ADR-0011). */
+export function isGovernedBuiltIn(xmlTag: string): boolean {
+  return isBuiltInOutputField(xmlTag);
+}
+
+/** Resolve effective DTD default value for an XML tag. */
+export function getDtdDefault(xmlTag: string): string | null {
+  const field = getFieldByTag(xmlTag);
+  return field?.dtdDefault ?? builtInDefaultValue(xmlTag);
+}

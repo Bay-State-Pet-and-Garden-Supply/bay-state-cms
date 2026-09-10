@@ -4,11 +4,48 @@ import {
   buildAssignmentProjection,
 } from '../../classification/assignment-projection';
 import {
-  parseProductOnPages,
-  buildProductOnPagesFragment,
-  mergeProductOnPages,
-} from '../../shopsite/product-page-assignments';
-import type { ClassificationProposal, AttributeMappingConfig } from '../../shared/types';
+  ShopSiteProductCodec,
+  extractPageNamesFromBlock,
+} from '../../shopsite/product-codec';
+import { ownProductPageNames } from '../../classification/catalog-product-source';
+import type { ClassificationProposal, AttributeMappingConfig, Product } from '../../shared/types';
+
+function makePageTestProduct(
+  productOnPages: string[],
+  preserved?: Product['shopsite']['preserved'],
+): Product {
+  return {
+    schemaVersion: 1,
+    id: 'page-test-1',
+    sku: 'PAGE-TEST-1',
+    status: 'active',
+    core: {
+      name: 'Page Test Product',
+      price: '9.99',
+      salePrice: null,
+      description: null,
+      inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null },
+      availability: null,
+      weight: null,
+      taxable: true,
+      media: { primary: null, additional: [] },
+      seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+      productOnPages,
+    },
+    customFields: {},
+    shopsite: {
+      productId: null,
+      productGuid: null,
+      xmlVersion: '15.0',
+      lastPulledAt: null,
+      lastRemoteHash: null,
+      lastSyncedAt: null,
+      source: { dbname: 'products', uniqueName: 'SKU' },
+      preserved: preserved ?? { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} },
+    },
+    metadata: { createdAt: '2026-08-04T00:00:00Z', updatedAt: '2026-08-04T00:00:00Z', archivedAt: null },
+  };
+}
 
 // ─── assignment-projection.ts ─────────────────────────────────────────────────
 
@@ -327,66 +364,67 @@ describe('buildAssignmentProjection', () => {
   });
 });
 
-// ─── product-page-assignments.ts ──────────────────────────────────────────────
+// ─── first-class Category Page assignments (#142/#143) ───────────────────────
+// The shallow product-page-assignments module is deleted. Page-name
+// extraction lives behind the codec seam (extractPageNamesFromBlock),
+// product reads use ownProductPageNames (first-class with legacy fallback),
+// and serialization goes through ShopSiteProductCodec.encode.
 
-describe('parseProductOnPages', () => {
-  it('returns empty array for undefined preserved', () => {
-    expect(parseProductOnPages(undefined)).toEqual([]);
+describe('extractPageNamesFromBlock', () => {
+  it('returns empty array for empty input', () => {
+    expect(extractPageNamesFromBlock('')).toEqual([]);
   });
 
-  it('returns empty array for missing ProductOnPages', () => {
-    expect(parseProductOnPages({ unknownElements: {} })).toEqual([]);
+  it('extracts page names from legacy flat <Name> fragments', () => {
+    expect(extractPageNamesFromBlock('\n    <Name>Dog Food</Name>\n    <Name>Treats</Name>\n  ')).toEqual(['Dog Food', 'Treats']);
   });
 
-  it('extracts page names from ProductOnPages XML', () => {
-    const preserved = { unknownElements: { ProductOnPages: '\n    <Name>Dog Food</Name>\n    <Name>Treats</Name>\n  ' } };
-    expect(parseProductOnPages(preserved)).toEqual(['Dog Food', 'Treats']);
+  it('handles single-page fragments', () => {
+    expect(extractPageNamesFromBlock('<Name>Cat Food</Name>')).toEqual(['Cat Food']);
   });
 
-  it('handles single-page ProductOnPages', () => {
-    const preserved = { unknownElements: { ProductOnPages: '<Name>Cat Food</Name>' } };
-    expect(parseProductOnPages(preserved)).toEqual(['Cat Food']);
-  });
-
-  it('returns empty array for empty ProductOnPages', () => {
-    const preserved = { unknownElements: { ProductOnPages: '' } };
-    expect(parseProductOnPages(preserved)).toEqual([]);
+  it('extracts page names from modern <PageLink><Name> fragments', () => {
+    expect(extractPageNamesFromBlock('<ProductOnPages><PageLink><Name>Dog Food</Name></PageLink></ProductOnPages>')).toEqual(['Dog Food']);
   });
 });
 
-describe('buildProductOnPagesFragment', () => {
-  it('returns empty string for empty list', () => {
-    expect(buildProductOnPagesFragment([])).toBe('');
+describe('ownProductPageNames', () => {
+  it('returns empty array when no assignments exist', () => {
+    expect(ownProductPageNames(makePageTestProduct([]))).toEqual([]);
   });
 
-  it('builds XML fragment with deduplicated page names', () => {
-    const result = buildProductOnPagesFragment(['Dog Food', 'Treats', 'Dog Food']);
-    expect(result).toContain('<Name>Dog Food</Name>');
-    expect(result).toContain('<Name>Treats</Name>');
-    const matches = result.match(/<Name>Dog Food<\/Name>/g);
-    expect(matches).toHaveLength(1);
+  it('prefers first-class core.productOnPages', () => {
+    expect(ownProductPageNames(makePageTestProduct(['Dog Food', 'Treats']))).toEqual(['Dog Food', 'Treats']);
   });
 
-  it('escapes XML special characters', () => {
-    const result = buildProductOnPagesFragment(['Cat & Dog']);
-    expect(result).toContain('<Name>Cat &amp; Dog</Name>');
+  it('falls back to legacy unknown-elements fragments', () => {
+    const product = makePageTestProduct([], { unknownElements: { ProductOnPages: '<Name>Cat Food</Name>' }, advancedBlocks: {}, rawAttributes: {} });
+    expect(ownProductPageNames(product)).toEqual(['Cat Food']);
+  });
+
+  it('falls back to legacy advanced-block fragments', () => {
+    const product = makePageTestProduct([], { unknownElements: {}, advancedBlocks: { ProductOnPages: '<ProductOnPages><PageLink><Name>Legacy Page</Name></PageLink></ProductOnPages>' }, rawAttributes: {} });
+    expect(ownProductPageNames(product)).toEqual(['Legacy Page']);
   });
 });
 
-describe('mergeProductOnPages', () => {
-  it('preserves existing pages and adds new ones', () => {
-    const preserved = { unknownElements: { ProductOnPages: '\n    <Name>Dog Food</Name>\n  ' } };
-    const result = mergeProductOnPages(preserved, ['Treats']);
-
-    expect(result).toContain('<Name>Dog Food</Name>');
-    expect(result).toContain('<Name>Treats</Name>');
+describe('first-class page assignment serialization', () => {
+  it('emits no ProductOnPages block for empty assignments', () => {
+    const { xml } = ShopSiteProductCodec.encode(makePageTestProduct([]));
+    expect(xml).not.toContain('<ProductOnPages>');
   });
 
-  it('deduplicates pages that already exist', () => {
-    const preserved = { unknownElements: { ProductOnPages: '\n    <Name>Dog Food</Name>\n  ' } };
-    const result = mergeProductOnPages(preserved, ['Dog Food']);
-
-    const matches = result.match(/<Name>Dog Food<\/Name>/g);
+  it('serializes first-class pages as DTD-compliant <PageLink><Name>', () => {
+    const { xml } = ShopSiteProductCodec.encode(makePageTestProduct(['Dog Food', 'Treats', 'Dog Food']));
+    expect(xml).toContain('<ProductOnPages>');
+    expect(xml).toContain('<Name>Dog Food</Name>');
+    expect(xml).toContain('<Name>Treats</Name>');
+    const matches = xml.match(/<Name>Dog Food<\/Name>/g);
     expect(matches).toHaveLength(1);
+  });
+
+  it('escapes XML special characters in page names', () => {
+    const { xml } = ShopSiteProductCodec.encode(makePageTestProduct(['Cat & Dog']));
+    expect(xml).toContain('<Name>Cat &amp; Dog</Name>');
   });
 });

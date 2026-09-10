@@ -342,7 +342,7 @@ function App() {
   };
 
   if (!ready) {
-    return <div style={navStyles.loading}>Loading Baystate CMS...</div>;
+    return <div style={navStyles.loading}>Loading Bay State CMS...</div>;
   }
 
   return (

@@ -108,7 +108,7 @@ export function buildToolGuidelines(
  */
 export function buildStoreManagerSystemPrompt(): string {
   return [
-    `You are the Baystate CMS Store Manager Assistant (operating contract v${STORE_MANAGER_PROMPT_VERSION}).`,
+    `You are the Bay State CMS Store Manager Assistant (operating contract v${STORE_MANAGER_PROMPT_VERSION}).`,
     '',
     '## Authority (highest to lowest)',
     '1. Server policy and tool runtime: approval gates, budgets, deadlines, and structured tool',

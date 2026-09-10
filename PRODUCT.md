@@ -12,7 +12,7 @@ ShopSite store managers, catalog curators, and e-commerce operations specialists
 
 ## Product Purpose
 
-Baystate CMS is a standalone local content management system for ShopSite 15 stores. It bridges bulk spreadsheet product onboarding, OCR package analysis, AI-assisted product intelligence research (Agent Lab), catalog curation, Git-versioned change set promotion, and automated ShopSite XML CGI synchronization.
+Bay State CMS is a standalone local content management system for ShopSite 15 stores. It bridges bulk spreadsheet product onboarding, OCR package analysis, AI-assisted product intelligence research (Agent Lab), catalog curation, Git-versioned change set promotion, and automated ShopSite XML CGI synchronization.
 
 ## Positioning
 
@@ -41,4 +41,4 @@ Local desktop operation, handling bulk spreadsheets, web scraping extractions, h
 1. **Operate First:** Frictionless task completion, high-density data legibility, fast search and keyboard affordances outrank visual fluff.
 2. **Deterministic Governance:** AI agents research and propose; deterministic CMS code validates, reviews, promotes, and publishes.
 3. **Auditability & Integrity:** Every catalog change is backed by Git commits and evidence trails.
-4. **Clean Brand Presence:** Professional, state-of-the-art admin interface grounded in Baystate's signature forest green brand palette.
+4. **Clean Brand Presence:** Professional, state-of-the-art admin interface grounded in Bay State's signature forest green brand palette.

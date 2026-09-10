@@ -193,6 +193,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
         availability: null, weight: null, taxable: true,
         media: { primary: `products/${sku}/images/primary.jpg`, additional: [] },
         seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: { ProductField16: 'Test Brand' },
       shopsite: {
@@ -232,6 +233,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
         availability: null, weight: null, taxable: true,
         media: { primary: `products/${sku}/images/primary.jpg`, additional: [] },
         seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: { ProductField16: 'Test Brand' },
       shopsite: {
@@ -284,6 +286,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
         availability: null, weight: null, taxable: true,
         media: { primary: null, additional: [] },
         seo: { fileName: 'healed-product-7.html', searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: { ProductField16: 'Test Brand' },
       shopsite: {

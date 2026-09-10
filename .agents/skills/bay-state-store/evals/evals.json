@@ -1,0 +1,51 @@
+{
+  "evals": [
+    {
+      "id": "bay-state-eval-1",
+      "name": "House-style product draft",
+      "description": "Test that the skill drafts a new distributor product in full Bay State house style",
+      "prompt": "Draft this new distributor product for our store: Brand: Victor, Product: Hi-Pro Plus Dry Dog Food, Size: 40 lb, UPC: 074501111112, category: Dog Food / Dry Food, page: Dog Food, images: victor-hi-pro-plus-40lb.jpg plus 2 alternates.",
+      "expected_output": [
+        "Name follows BRAND product size pattern (Victor Hi-Pro Plus Dry Dog Food 40 lb)",
+        "SKU and GTIN both set to the 12-digit UPC",
+        "FileName is the slugified lowercase name with .html",
+        "ProductField1 set as newMMDDYY arrival code, ProductField16 set to Victor with correct casing",
+        "ProductField24/25 set to Dog Food / Dry Food, derived fresh from the product rather than copied from existing products",
+        "ProductOnPages proposes the Dog Food page only with a verification step against the defined pages table (never invents page names)",
+        "SearchKeywords follow the Name, breadcrumb pattern",
+        "Images use victor/ subdirectory paths with numbered sequence",
+        "ProductDisabled is checked (never pre-enabled)"
+      ],
+      "relevant_references": []
+    },
+    {
+      "id": "bay-state-eval-2",
+      "name": "Convention-violation review",
+      "description": "Test that the skill flags house-style violations and treats open questions correctly",
+      "prompt": "Review this draft against our conventions: Name '40 lb victor hi-pro plus', SKU 074501111112, no GTIN, brand 'victor' lowercase, no PF24/25, Availability in_stock, ProductDisabled uncheck.",
+      "expected_output": [
+        "Flags name order violation (size first, brand not leading)",
+        "Flags missing GTIN mirror of the UPC SKU",
+        "Flags lowercase brand as a data error to normalize",
+        "Fails the draft on missing PF24/25 taxonomy (required going forward)",
+        "Flags pre-enabled ProductDisabled as a workflow violation (owner enables on ShopSite after review)",
+        "Mentions the instock vs in_stock discrepancy as an open note, not a failure"
+      ],
+      "relevant_references": []
+    },
+    {
+      "id": "bay-state-eval-3",
+      "name": "Taxonomy question",
+      "description": "Test that the skill answers taxonomy questions from PF24/25 authority",
+      "prompt": "Where should a new grain-free salmon dry dog food go in our taxonomy, and what fields carry that?",
+      "expected_output": [
+        "States PF24/25 (category/subcategory) are required and must be clean values derived from the product, not copied from existing (known-messy) assignments",
+        "Explains ProductOnPages carries the ShopSite page assignment alongside PF24/25",
+        "Assigns only pages from the defined ShopSite page list and fails validation on unknown page names",
+        "References the validation checklist for the remaining required fields",
+        "Notes page-tree redesign is out of scope for this skill (fields first)"
+      ],
+      "relevant_references": []
+    }
+  ]
+}

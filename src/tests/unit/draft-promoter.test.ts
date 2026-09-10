@@ -62,18 +62,19 @@ describe('Draft Promoter Service', () => {
     try { rmSync(tempWorkspaceDir, { recursive: true, force: true }); } catch { /* ok */ }
   });
 
-  function seedAttributeMapping(db: any, attributeId: string, catalogField: string) {
+  function seedAttributeMapping(db: any, attributeId: string, catalogField: string, isStale = 0) {
     const now = new Date().toISOString();
     db.run(
       `INSERT OR IGNORE INTO classification_attribute_mappings
        (workspace_id, id, attribute_id, catalog_field, serialization_json, is_stale, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         wsId,
         `map-${attributeId}`,
         attributeId,
         catalogField,
         JSON.stringify({ format: 'direct', separator: ', ', prefix: '', suffix: '' }),
+        isStale,
         now,
         now,
       ],
@@ -647,6 +648,416 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     const expectedField1Value = `new${mm}${dd}${yy}`;
     
     expect(draftProduct.customFields['ProductField1']).toBe(expectedField1Value);
+  });
+
+  it('routes Brand to the mapped catalog slot instead of hardcoded ProductField16 (#142)', async () => {
+    const db = getDb();
+    seedAttributeMapping(db, 'brand', 'ProductField12');
+    const batch = createBatch({
+      workspaceId: wsId,
+      name: 'Onboard Brand Slot',
+      fileName: 'brand-slot.xlsx',
+      totalItems: 1
+    });
+    const extractionData: ExtractionData = ExtractionDataSchema.parse({
+      title: 'Mapped Brand Toy',
+      brand: 'SlotCo',
+      description: 'Brand slot routing test.',
+      bulletPoints: [],
+      primaryImage: 'products/445544554455/images/primary.jpg',
+      additionalImages: [],
+      price: '$9.99',
+      weight: null,
+      dimensions: null,
+      seoFileName: null,
+      searchKeywords: null,
+      packagingTitle: null,
+      packagingOcrData: null,
+      customFields: {},
+      sourceUrl: 'https://slotco.com/toy',
+      confidence: 0.9,
+      fieldProvenance: { title: 'json-ld' }
+    });
+    const items = insertItems(batch.id, [{
+      upc: '445544554455',
+      name: 'Mapped Brand Toy',
+      price: '$9.99',
+      brandHint: 'SlotCo',
+      rowNumber: 1
+    }]);
+    const item = items[0];
+    db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+      JSON.stringify(extractionData),
+      JSON.stringify({
+        curatedTitle: 'Mapped Brand Toy',
+        titleSource: 'web',
+        suggestedPages: ['Toys'],
+        suggestedProductType: 'Toy',
+        curatedAt: new Date().toISOString(),
+        curationMethod: 'auto',
+      }),
+      item.id
+    );
+    seedAcceptedCategoryProposal(db, '445544554455', 'Brand Slot Toys');
+    seedApproved(item.id, batch.id);
+    const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoteRes.failures).toHaveLength(0);
+    expect(promoteRes.count).toBe(1);
+    const csItems = listChangeSetItems(promoteRes.changeSetId!);
+    const draftProduct = JSON.parse(csItems[0].draftJson);
+    expect(draftProduct.customFields['ProductField12']).toBe('SlotCo');
+    expect(draftProduct.customFields['ProductField16']).toBeUndefined();
+    db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-brand']);
+  });
+
+  it('routes the new-arrival date tag to the mapped catalog slot instead of hardcoded ProductField1 (#142)', async () => {
+    const db = getDb();
+    seedAttributeMapping(db, 'arrival_date', 'ProductField7');
+    const batch = createBatch({
+      workspaceId: wsId,
+      name: 'Onboard Date Slot',
+      fileName: 'date-slot.xlsx',
+      totalItems: 1
+    });
+    const extractionData: ExtractionData = ExtractionDataSchema.parse({
+      title: 'Mapped Date Toy',
+      brand: 'DateCo',
+      description: 'Date slot routing test.',
+      bulletPoints: [],
+      primaryImage: 'products/446644664466/images/primary.jpg',
+      additionalImages: [],
+      price: '$9.99',
+      weight: null,
+      dimensions: null,
+      seoFileName: null,
+      searchKeywords: null,
+      packagingTitle: null,
+      packagingOcrData: null,
+      customFields: {},
+      sourceUrl: 'https://dateco.com/toy',
+      confidence: 0.9,
+      fieldProvenance: { title: 'json-ld' }
+    });
+    const items = insertItems(batch.id, [{
+      upc: '446644664466',
+      name: 'Mapped Date Toy',
+      price: '$9.99',
+      brandHint: 'DateCo',
+      rowNumber: 1
+    }]);
+    const item = items[0];
+    db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+      JSON.stringify(extractionData),
+      JSON.stringify({
+        curatedTitle: 'Mapped Date Toy',
+        titleSource: 'web',
+        suggestedPages: ['Toys'],
+        suggestedProductType: 'Toy',
+        curatedAt: new Date().toISOString(),
+        curationMethod: 'auto',
+      }),
+      item.id
+    );
+    seedAcceptedCategoryProposal(db, '446644664466', 'Date Slot Toys');
+    seedApproved(item.id, batch.id);
+    const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoteRes.failures).toHaveLength(0);
+    expect(promoteRes.count).toBe(1);
+    const csItems = listChangeSetItems(promoteRes.changeSetId!);
+    const draftProduct = JSON.parse(csItems[0].draftJson);
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    expect(draftProduct.customFields['ProductField7']).toBe(`new${mm}${dd}${yy}`);
+    expect(draftProduct.customFields['ProductField1']).toBeUndefined();
+    db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-arrival_date']);
+  });
+
+  it('writes verified Category Page assignments to first-class core.productOnPages (#142)', async () => {
+    const db = getDb();
+    const batch = createBatch({
+      workspaceId: wsId,
+      name: 'Onboard First Class Pages',
+      fileName: 'first-class-pages.xlsx',
+      totalItems: 1
+    });
+    const extractionData: ExtractionData = ExtractionDataSchema.parse({
+      title: 'First Class Pages Toy',
+      brand: 'PageCo',
+      description: 'First-class pages test.',
+      bulletPoints: [],
+      primaryImage: 'products/447744774477/images/primary.jpg',
+      additionalImages: [],
+      price: '$9.99',
+      weight: null,
+      dimensions: null,
+      seoFileName: null,
+      searchKeywords: null,
+      packagingTitle: null,
+      packagingOcrData: null,
+      customFields: {},
+      sourceUrl: 'https://pageco.com/toy',
+      confidence: 0.9,
+      fieldProvenance: { title: 'json-ld' }
+    });
+    const items = insertItems(batch.id, [{
+      upc: '447744774477',
+      name: 'First Class Pages Toy',
+      price: '$9.99',
+      brandHint: 'PageCo',
+      rowNumber: 1
+    }]);
+    const item = items[0];
+    db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+      JSON.stringify(extractionData),
+      JSON.stringify({
+        curatedTitle: 'First Class Pages Toy',
+        titleSource: 'web',
+        suggestedPages: ['Toys'],
+        suggestedProductType: 'Toy',
+        curatedAt: new Date().toISOString(),
+        curationMethod: 'auto',
+      }),
+      item.id
+    );
+    seedAcceptedCategoryProposal(db, '447744774477', 'First Class Toys');
+    seedApproved(item.id, batch.id);
+    const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoteRes.failures).toHaveLength(0);
+    expect(promoteRes.count).toBe(1);
+    const csItems = listChangeSetItems(promoteRes.changeSetId!);
+    const draftProduct = JSON.parse(csItems[0].draftJson);
+    expect(draftProduct.core.productOnPages).toEqual(['First Class Toys']);
+    expect(draftProduct.shopsite.preserved.unknownElements.ProductOnPages).toBeUndefined();
+  });
+
+  it('promotes MULTIPLE verified pages to core.productOnPages in order (#142)', async () => {
+    const db = getDb();
+    const batch = createBatch({
+      workspaceId: wsId,
+      name: 'Onboard Multi Pages',
+      fileName: 'multi-pages.xlsx',
+      totalItems: 1
+    });
+    const sku = '448844884488';
+    const extractionData: ExtractionData = ExtractionDataSchema.parse({
+      title: 'Multi Pages Toy',
+      brand: 'MultiCo',
+      description: 'Multi-page promotion test.',
+      bulletPoints: [],
+      primaryImage: `products/${sku}/images/primary.jpg`,
+      additionalImages: [],
+      price: '$9.99',
+      weight: null,
+      dimensions: null,
+      seoFileName: null,
+      searchKeywords: null,
+      packagingTitle: null,
+      packagingOcrData: null,
+      customFields: {},
+      sourceUrl: 'https://multico.com/toy',
+      confidence: 0.9,
+      fieldProvenance: { title: 'json-ld' }
+    });
+    const items = insertItems(batch.id, [{
+      upc: sku,
+      name: 'Multi Pages Toy',
+      price: '$9.99',
+      brandHint: 'MultiCo',
+      rowNumber: 1
+    }]);
+    const item = items[0];
+    const runId = `run-${sku}`;
+    const now = new Date().toISOString();
+    db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+      JSON.stringify(extractionData),
+      JSON.stringify({
+        curatedTitle: 'Multi Pages Toy',
+        titleSource: 'web',
+        suggestedPages: ['Toys'],
+        suggestedProductType: 'Toy',
+        curatedAt: now,
+        curationMethod: 'auto',
+        classificationRunId: runId,
+      }),
+      item.id
+    );
+    // ONE active import carrying BOTH verified pages — sequential
+    // single-page activations would supersede each other (only the latest
+    // import is active), leaving the first proposal unverified.
+    activatePageImportFromRecords({
+      workspaceId: wsId,
+      sourceHash: createHash('sha256').update('multi-pages-import').digest('hex'),
+      parserFormatVersion: 'pages-xml-1',
+      records: [
+        { identity: { kind: 'exported_guid' as const, key: 'guid-multi-a', status: 'verified' as const }, name: 'Multi Toys A', parentRef: null, availability: 'available' as const },
+        { identity: { kind: 'exported_guid' as const, key: 'guid-multi-b', status: 'verified' as const }, name: 'Multi Toys B', parentRef: null, availability: 'available' as const },
+      ],
+      activatedBy: 'test',
+    });
+    const pageA = listVerifiedPageOptions(wsId).find(p => p.name === 'Multi Toys A');
+    const pageB = listVerifiedPageOptions(wsId).find(p => p.name === 'Multi Toys B');
+    expect(pageA).toBeDefined();
+    expect(pageB).toBeDefined();
+    db.run(
+      `INSERT OR IGNORE INTO classification_runs
+       (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [runId, wsId, item.id, sku, 'completed', now]
+    );
+    for (const page of [{ id: pageA!.id, name: 'Multi Toys A' }, { id: pageB!.id, name: 'Multi Toys B' }]) {
+      const proposalId = `prop-${sku}-${page.name.replace(/\s+/g, '-').toLowerCase()}`;
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [proposalId, runId, sku, 'category_page', page.id, JSON.stringify({ pageId: page.id, pageName: page.name }), 1.0, 'accepted', now]
+      );
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposal_decisions
+         (id, proposal_id, decision, decision_key, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)`,
+        [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
+      );
+    }
+    seedApproved(item.id, batch.id);
+    const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoteRes.failures).toHaveLength(0);
+    expect(promoteRes.count).toBe(1);
+    const csItems = listChangeSetItems(promoteRes.changeSetId!);
+    const draftProduct = JSON.parse(csItems[0].draftJson);
+    expect(draftProduct.core.productOnPages).toEqual(['Multi Toys A', 'Multi Toys B']);
+  });
+
+  it('falls back to ProductField16 when the brand mapping is stale (#142)', async () => {
+    const db = getDb();
+    seedAttributeMapping(db, 'brand', 'ProductField12', 1);
+    try {
+      const batch = createBatch({
+        workspaceId: wsId,
+        name: 'Onboard Stale Brand Slot',
+        fileName: 'stale-brand-slot.xlsx',
+        totalItems: 1
+      });
+      const sku = '449944994499';
+      const extractionData: ExtractionData = ExtractionDataSchema.parse({
+        title: 'Stale Brand Toy',
+        brand: 'StaleCo',
+        description: 'Stale mapping fallback test.',
+        bulletPoints: [],
+        primaryImage: `products/${sku}/images/primary.jpg`,
+        additionalImages: [],
+        price: '$9.99',
+        weight: null,
+        dimensions: null,
+        seoFileName: null,
+        searchKeywords: null,
+        packagingTitle: null,
+        packagingOcrData: null,
+        customFields: {},
+        sourceUrl: 'https://staleco.com/toy',
+        confidence: 0.9,
+        fieldProvenance: { title: 'json-ld' }
+      });
+      const items = insertItems(batch.id, [{
+        upc: sku,
+        name: 'Stale Brand Toy',
+        price: '$9.99',
+        brandHint: 'StaleCo',
+        rowNumber: 1
+      }]);
+      const item = items[0];
+      db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+        JSON.stringify(extractionData),
+        JSON.stringify({
+          curatedTitle: 'Stale Brand Toy',
+          titleSource: 'web',
+          suggestedPages: ['Toys'],
+          suggestedProductType: 'Toy',
+          curatedAt: new Date().toISOString(),
+          curationMethod: 'auto',
+        }),
+        item.id
+      );
+      seedAcceptedCategoryProposal(db, sku, 'Stale Brand Toys');
+      seedApproved(item.id, batch.id);
+      const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+      expect(promoteRes.failures).toHaveLength(0);
+      expect(promoteRes.count).toBe(1);
+      const csItems = listChangeSetItems(promoteRes.changeSetId!);
+      const draftProduct = JSON.parse(csItems[0].draftJson);
+      expect(draftProduct.customFields['ProductField16']).toBe('StaleCo');
+      expect(draftProduct.customFields['ProductField12']).toBeUndefined();
+    } finally {
+      db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-brand']);
+    }
+  });
+
+  it('falls back to ProductField1 when the arrival-date mapping is empty (#142)', async () => {
+    const db = getDb();
+    seedAttributeMapping(db, 'arrival_date', '   ');
+    try {
+      const batch = createBatch({
+        workspaceId: wsId,
+        name: 'Onboard Empty Date Slot',
+        fileName: 'empty-date-slot.xlsx',
+        totalItems: 1
+      });
+      const sku = '450045004500';
+      const extractionData: ExtractionData = ExtractionDataSchema.parse({
+        title: 'Empty Date Toy',
+        brand: 'DateCo',
+        description: 'Empty mapping fallback test.',
+        bulletPoints: [],
+        primaryImage: `products/${sku}/images/primary.jpg`,
+        additionalImages: [],
+        price: '$9.99',
+        weight: null,
+        dimensions: null,
+        seoFileName: null,
+        searchKeywords: null,
+        packagingTitle: null,
+        packagingOcrData: null,
+        customFields: {},
+        sourceUrl: 'https://dateco.com/toy',
+        confidence: 0.9,
+        fieldProvenance: { title: 'json-ld' }
+      });
+      const items = insertItems(batch.id, [{
+        upc: sku,
+        name: 'Empty Date Toy',
+        price: '$9.99',
+        brandHint: 'DateCo',
+        rowNumber: 1
+      }]);
+      const item = items[0];
+      db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
+        JSON.stringify(extractionData),
+        JSON.stringify({
+          curatedTitle: 'Empty Date Toy',
+          titleSource: 'web',
+          suggestedPages: ['Toys'],
+          suggestedProductType: 'Toy',
+          curatedAt: new Date().toISOString(),
+          curationMethod: 'auto',
+        }),
+        item.id
+      );
+      seedAcceptedCategoryProposal(db, sku, 'Empty Date Toys');
+      seedApproved(item.id, batch.id);
+      const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+      expect(promoteRes.failures).toHaveLength(0);
+      expect(promoteRes.count).toBe(1);
+      const csItems = listChangeSetItems(promoteRes.changeSetId!);
+      const draftProduct = JSON.parse(csItems[0].draftJson);
+      const d = new Date();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yy = String(d.getFullYear()).slice(-2);
+      expect(draftProduct.customFields['ProductField1']).toBe(`new${mm}${dd}${yy}`);
+    } finally {
+      db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-arrival_date']);
+    }
   });
 
   it('should fail promotion if no accepted category proposals exist', async () => {
@@ -1435,8 +1846,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       'SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1',
     ).get(item.upc) as { draft_json: string };
     const draft = JSON.parse(changeSetItem.draft_json);
-    // The verified page must be serialized into ProductOnPages.
-    expect(draft.shopsite.preserved.unknownElements.ProductOnPages).toContain('Verified Food');
+    // The verified page must be written to first-class core.productOnPages
+    // (the codec serializes it to ProductOnPages XML at export).
+    expect(draft.core.productOnPages).toEqual(['Verified Food']);
+    expect(draft.shopsite.preserved.unknownElements.ProductOnPages).toBeUndefined();
   });
 
   it('BLOCKS promotion when the only accepted page proposal is NOT in the active import (fail-closed page gate)', async () => {
@@ -1700,11 +2113,11 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       'SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1',
     ).get(item.upc) as { draft_json: string };
     const draft = JSON.parse(changeSetItem.draft_json);
-    const pagesXml = draft.shopsite?.preserved?.unknownElements?.ProductOnPages;
-    // The Page ID must never be serialized as a page name.
-    expect(pagesXml ?? '').not.toContain(verifiedNameless!.id);
-    // The verified catalog's display name IS serialized.
-    expect(pagesXml ?? '').toContain('Nameless Page');
+    // The Page ID must never appear as a page name in first-class assignments.
+    expect(draft.core.productOnPages).not.toContain(verifiedNameless!.id);
+    // The verified catalog's display name IS assigned.
+    expect(draft.core.productOnPages).toEqual(['Nameless Page']);
+    expect(draft.shopsite?.preserved?.unknownElements?.ProductOnPages).toBeUndefined();
   });
 
   it('refuses a PR9-blocked member in the promotion stage PER-ITEM and promotes its siblings (PR11 C2 promotion gate)', async () => {

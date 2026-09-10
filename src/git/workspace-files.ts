@@ -40,7 +40,7 @@ export function writeGitignore(workspacePath: string): void {
     fs.writeFileSync(
       gitignorePath,
       [
-        '# Baystate CMS ignores',
+        '# Bay State CMS ignores',
         '.baystate-cms/app.db',
         '.baystate-cms/secrets.json',
         '.baystate-cms/logs/',

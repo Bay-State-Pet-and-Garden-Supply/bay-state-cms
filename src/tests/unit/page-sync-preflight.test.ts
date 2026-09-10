@@ -217,6 +217,7 @@ describe('preflightPagesSync', () => {
     const renamed = await preflightPagesSync({ workspaceId, client: createFetcher(UPDATED_PAGES_XML) });
     const product = {
       sku: 'SKU-RENAME',
+      core: { productOnPages: [] },
       shopsite: {
         preserved: {
           unknownElements: { ProductOnPages: '<Name>Dog Food</Name>' },
@@ -225,7 +226,10 @@ describe('preflightPagesSync', () => {
       },
     } as unknown as Product;
     const reconciled = reconcileProductsToActivePages(workspaceId, renamed.sourceHash, [product])[0];
-    expect(String(reconciled.shopsite.preserved.unknownElements.ProductOnPages)).toContain('Dog Food &amp; Treats');
+    // Verified names land on first-class core.productOnPages (raw display
+    // name — the codec escapes at export); stale fragments are cleared.
+    expect(reconciled.core.productOnPages).toEqual(['Dog Food & Treats']);
+    expect(reconciled.shopsite.preserved.unknownElements.ProductOnPages).toBeUndefined();
     expect(reconciled.shopsite.preserved.advancedBlocks.ProductOnPages).toBeUndefined();
 
     const staleFragment = {

@@ -1,0 +1,56 @@
+{
+  "evals": [
+    {
+      "id": "page-fields-eval-1",
+      "name": "Build the page XML write path",
+      "description": "Test that the skill points at the existing parser/import seams and scopes new work to the missing write path",
+      "prompt": "I need to add page XML emit support to the CMS so we can write page data back to ShopSite. Where do I start?",
+      "expected_output": [
+        "Explains that page parsing, Zod identities, and import/preflight services already exist (page-parser.ts, schemas/page.ts) and must not be rebuilt",
+        "References page-xml-structure.md for the confirmed root/DOCTYPE/identity tags and page-codebase-gaps.md for the write-path scope",
+        "Recommends starting from the real-export fixture (src/tests/fixtures/shopsite-pages-bay-state-redacted.xml) as the shape reference",
+        "Outlines the remaining work: emit layer → tests → HTTP client, following the product codec encode pattern",
+        "Cross-references the ShopSiteProductCodec encode pattern (explicit emit + unknown/block preservation) for implementation guidance",
+        "Warns that unlisted field tags and emit-side relationship encoding still need export confirmation; root, DTD, and identity tags are already confirmed",
+        "Notes the preservation constraints that must be followed"
+      ],
+      "relevant_references": [
+        "references/page-xml-structure.md",
+        "references/page-codebase-gaps.md"
+      ]
+    },
+    {
+      "id": "page-fields-eval-2",
+      "name": "Page layout fields reference",
+      "description": "Test that the skill correctly identifies layout-related page fields",
+      "prompt": "What page fields control the layout and display of products on a ShopSite page?",
+      "expected_output": [
+        "References page-field-catalog.md Layout section",
+        "Lists: Columns, Page Link Columns, Item Alignment, Display column borders?, Page Width, Order, Products Sort Field, Pages Sort Field, Products First, Number Products, Text Wrap, Template",
+        "Gives type and default for each field",
+        "Notes that XML tag names are inferred and recommends confirming from a real export",
+        "Explains what each field does at a high level"
+      ],
+      "relevant_references": [
+        "references/page-field-catalog.md"
+      ]
+    },
+    {
+      "id": "page-fields-eval-3",
+      "name": "ProductOnPages current handling",
+      "description": "Test that the skill explains the current ProductOnPages handling as a first-class codec field",
+      "prompt": "How is ProductOnPages currently handled in the codebase? What does that mean for page-product relationships?",
+      "expected_output": [
+        "Explains that ProductOnPages is a first-class core.productOnPages array resolved by the product codec (extractPageNamesFromBlock / resolveProductPageNames)",
+        "References page-codebase-gaps.md for the detailed explanation",
+        "Describes the extractPageNamesFromBlock function in src/shopsite/product-codec.ts:670-700 that parses page names from <Name>/<PageName>/<PageLink> tags, and the <ProductOnPages><PageLink><Name> emit layout",
+        "Points out that the CMS round-trips product page assignments but cannot emit page XML or manage assignments from the page side",
+        "Notes that ProductLinks (page-side) is parsed but page-side emission is not yet implemented",
+        "Recommends the real-export fixture as the shape reference before implementing page-side emit support"
+      ],
+      "relevant_references": [
+        "references/page-codebase-gaps.md"
+      ]
+    }
+  ]
+}
