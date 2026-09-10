@@ -77,4 +77,24 @@ describe('fetch-html SSRF & Local File Disclosure protection', () => {
       expect(json.error).toBe('URL points to a private network address');
     }
   });
+
+  it('rejects domain names that resolve to private or loopback IP addresses (SSRF DNS bypass)', async () => {
+    const targets = [
+      'http://127.0.0.1.nip.io/secret',
+      'http://spoof.127.0.0.1.nip.io/admin',
+    ];
+
+    for (const url of targets) {
+      const res = await app.request('/api/onboarding/settings/profile-tooling/fetch-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      expect(res.status).toBe(400);
+      const json = await res.json() as { ok: boolean; error: string };
+      expect(json.ok).toBe(false);
+      expect(json.error).toBe('URL points to a private network address');
+    }
+  });
 });
