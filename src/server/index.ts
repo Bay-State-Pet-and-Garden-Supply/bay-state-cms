@@ -83,7 +83,7 @@ const server = serve({
   idleTimeout: 60, // SSE connections need longer idle timeout than Bun's default of 10s
 });
 
-console.log(`Baystate CMS API server running on http://${HOST}:${PORT}`);
+console.log(`Bay State CMS API server running on http://${HOST}:${PORT}`);
 console.log(`Store Manager scheduler: ${schedulerStarted ? 'running' : 'inert (flag off or kill switch on)'}`);
 console.log(`Store Manager event worker: ${eventWorkerStarted ? 'running' : 'inert (flag off or kill switch on)'}`);
 console.log(`Store Manager retention: ${retentionStarted ? 'running (startup + hourly)' : 'inert (flag off or kill switch on)'}`);

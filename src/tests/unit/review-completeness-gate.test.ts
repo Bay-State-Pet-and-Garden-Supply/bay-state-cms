@@ -36,10 +36,13 @@ import onboardingRoutes from '../../server/routes/onboarding-routes';
 import {
   evaluateReviewCompleteness,
   countReviewPageAssignments,
+  buildReviewCompletenessContext,
   resolveReviewBrand,
   type ReviewCompletenessContext,
   type ReviewCompletenessItemLike,
 } from '../../classification/review-completeness';
+import { writeProductFile } from '../../git/workspace-files';
+import type { Product } from '../../shared/types';
 
 // ─── Pure evaluator fixtures ─────────────────────────────────────────────────
 
@@ -492,6 +495,95 @@ function updateExtractionData(itemId: string, data: Record<string, unknown>): vo
     itemId,
   ]);
 }
+
+describe('buildReviewCompletenessContext (promoter brand-slot parity, #142)', () => {
+  function seedBrandMapping(catalogField: string): void {
+    const now = new Date().toISOString();
+    getDb().run(
+      `INSERT OR IGNORE INTO classification_attribute_mappings
+       (workspace_id, id, attribute_id, catalog_field, serialization_json, is_stale, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      [
+        workspaceId,
+        'map-brand',
+        'brand',
+        catalogField,
+        JSON.stringify({ format: 'direct', separator: ', ', prefix: '', suffix: '' }),
+        now,
+        now,
+      ],
+    );
+  }
+
+  function clearBrandMapping(): void {
+    getDb().run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [
+      workspaceId,
+      'map-brand',
+    ]);
+  }
+
+  function writeApprovedProduct(upc: string, customFields: Record<string, string>): void {
+    const now = new Date().toISOString();
+    const product: Product = {
+      schemaVersion: 1,
+      id: randomUUID(),
+      sku: upc,
+      status: 'active',
+      core: {
+        name: 'Approved Product',
+        price: '9.99',
+        salePrice: null,
+        description: null,
+        inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null },
+        availability: null,
+        weight: null,
+        taxable: true,
+        media: { primary: null, additional: [] },
+        seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
+      },
+      customFields,
+      shopsite: {
+        productId: null,
+        productGuid: null,
+        xmlVersion: '15.0',
+        lastPulledAt: null,
+        lastRemoteHash: null,
+        lastSyncedAt: null,
+        source: { dbname: 'products', uniqueName: 'SKU' },
+        preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} },
+      },
+      metadata: { createdAt: now, updatedAt: now, archivedAt: null },
+    };
+    writeProductFile(workspacePath, product);
+  }
+
+  it('reads the existing approved brand from the MAPPED slot, agreeing with the promoter', () => {
+    seedBrandMapping('ProductField12');
+    try {
+      const batchId = makeBatch('brand-slot-parity');
+      const upc = `BRANDMAP-${randomUUID().slice(0, 6)}`;
+      const id = createItem(batchId, { upc, brandHint: null });
+      // The approved file carries the brand ONLY at the mapped slot; the
+      // legacy fallback slot holds a decoy that the promoter would ignore.
+      writeApprovedProduct(upc, { ProductField12: 'MappedBrandCo', ProductField16: 'DecoyBrand' });
+      const ctx = buildReviewCompletenessContext(findItemById(id)!, { workspaceId, workspacePath });
+      expect(ctx.resolvedBrandName).toBe('MappedBrandCo');
+    } finally {
+      clearBrandMapping();
+    }
+  });
+
+  it('falls back to ProductField16 when no brand mapping exists (promoter parity)', () => {
+    clearBrandMapping();
+    const batchId = makeBatch('brand-slot-fallback');
+    const upc = `BRANDFB-${randomUUID().slice(0, 6)}`;
+    const id = createItem(batchId, { upc, brandHint: null });
+    writeApprovedProduct(upc, { ProductField16: 'FallbackBrand' });
+    const ctx = buildReviewCompletenessContext(findItemById(id)!, { workspaceId, workspacePath });
+    expect(ctx.resolvedBrandName).toBe('FallbackBrand');
+  });
+});
 
 describe('POST /api/onboarding/items/review-complete — e10s01 completeness gate', () => {
   it('rejects with STRUCTURED blockers and mutates nothing when mandatory fields are missing', async () => {

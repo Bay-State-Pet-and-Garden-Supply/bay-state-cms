@@ -366,7 +366,7 @@ function narrativeToMarkdown(output: NarrativeOutput): string {
 }
 
 const NARRATIVE_SYSTEM_PROMPT =
-  'You are a summarization assistant for the Baystate CMS Store Manager. ' +
+  'You are a summarization assistant for the Bay State CMS Store Manager. ' +
   'You receive a bounded evidence bundle and produce a SHORT executive summary. ' +
   'You never add counts, severity labels, SKUs, field names, proposals, change sets, ' +
   'or recommended actions that are not present in the supplied evidence.';

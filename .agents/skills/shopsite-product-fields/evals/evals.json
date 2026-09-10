@@ -1,0 +1,77 @@
+{
+  "evals": [
+    {
+      "id": "product-fields-eval-1",
+      "name": "Add MinimumQuantity field support",
+      "description": "Test that the skill guides adding MinimumQuantity field support, including flagging the DTD-default-0 emit precedence",
+      "prompt": "I need to add support for the ShopSite MinimumQuantity field to the CMS so users can set minimum purchase quantities per product. What do I need to change?",
+      "expected_output": [
+        "References product-field-catalog.md for field documentation (Numeric type, default 0, positive integer values)",
+        "References product-xml-mapping.md for current status (decoded; emitted with customFields → preserved → DTD-default-0 precedence in codec encode §4)",
+        "References codebase-integration.md for the step-by-step workflow",
+        "Explains the current emit precedence in ShopSiteProductCodec.encode (product-codec.ts:453-459) and that customFields['MinimumQuantity'] overrides the DTD default",
+        "Recommends: (a) possibly add to CoreProductSchema or as a separate field, (b) set customFields['MinimumQuantity'] (or extend the decode mapping) so encode emits the stored value instead of the default, (c) add round-trip tests",
+        "Mentions that the tag <MinimumQuantity> is confirmed (in CORE_FIELDS, product-codec.ts:51-63)",
+        "Warns about DTD requirement (always emitted) and the need to handle null/empty gracefully"
+      ],
+      "relevant_references": [
+        "references/product-field-catalog.md",
+        "references/product-xml-mapping.md",
+        "references/codebase-integration.md"
+      ]
+    },
+    {
+      "id": "product-fields-eval-2",
+      "name": "QuantityOnHand type and delta behavior",
+      "description": "Test that the skill correctly explains the Numeric type with delta update support for QuantityOnHand",
+      "prompt": "What type is the ShopSite Quantity On Hand field and how does delta updating work for it?",
+      "expected_output": [
+        "Identifies QuantityOnHand as a Numeric type field (from field-type-system.md)",
+        "Documents the delta update convention: +5 adds to current inventory, -10 subtracts",
+        "Mentions spreadsheet cell must be set to text-only to preserve the + sign",
+        "References the field-type-system.md Numeric Entry section",
+        "Notes current codebase handling: decoded to integer .core.inventory.quantityOnHand and re-emitted by ShopSiteProductCodec.encode",
+        "Default is 0"
+      ],
+      "relevant_references": [
+        "references/product-field-catalog.md",
+        "references/field-type-system.md",
+        "references/product-xml-mapping.md"
+      ]
+    },
+    {
+      "id": "product-fields-eval-3",
+      "name": "Pass-through only fields listing",
+      "description": "Test that the skill correctly identifies which product fields are currently pass-through only and explains what that means",
+      "prompt": "Which product fields are currently pass-through only in the codebase? What does pass-through only mean for what I can do through the CMS?",
+      "expected_output": [
+        "Explains that pass-through means the field survives XML round-trips in unknownElements but cannot be independently edited through the Product model",
+        "Lists the major pass-through groups: display/style fields (Name Style, Price Style, etc.), shipping cost fields, Google Merchant Center fields (Brand, MPN, etc.), quantity pricing fields, dimensional shipping fields, options/customer text fields",
+        "References product-xml-mapping.md for the complete table with handling status per field",
+        "Notes that only 18 of 100+ fields have entries in KNOWN_FIELD_LABELS (src/shopsite/product-codec.ts:70-97)",
+        "Explains the practical implication: the CMS preserves these fields when round-tripping data to/from ShopSite, but users cannot modify them through the current UI"
+      ],
+      "relevant_references": [
+        "references/product-xml-mapping.md",
+        "references/product-field-catalog.md"
+      ]
+    },
+    {
+      "id": "product-fields-eval-4",
+      "name": "Google Merchant Center field mapping",
+      "description": "Test that the skill correctly maps Google Merchant Center fields to the Product schema with handling status per field",
+      "prompt": "Map the Google Merchant Center fields (Brand, GTIN, MPN, Google Product Category, Availability, Condition) to our Product schema and tell me which ones are currently handled.",
+      "expected_output": [
+        "References product-field-catalog.md Google Merchant Center section and product-xml-mapping.md for exact status",
+        "Maps fields with handling status: GTIN (fully handled via customFields/GTIN/GoogleGTIN), Availability (fully handled in .core.availability), Brand (pass-through only), MPN (pass-through only), Google Product Category (partial in .core.seo.googleProductCategory but auto-set from GTIN), Google Condition (pass-through only)",
+        "Explains the GTIN fallback chain: customFields['GTIN'] > customFields['GoogleGTIN'] > numeric SKU (8-14 digits)",
+        "Notes that <GoogleGTIN> is only emitted when customFields['GoogleGTIN'] is explicitly set",
+        "Notes that most Google Shopping fields are pass-through and cannot be independently edited"
+      ],
+      "relevant_references": [
+        "references/product-field-catalog.md",
+        "references/product-xml-mapping.md"
+      ]
+    }
+  ]
+}

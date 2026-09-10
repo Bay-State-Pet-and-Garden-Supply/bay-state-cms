@@ -3,7 +3,6 @@ import { getActivePageImport } from '../db/repositories/page-import-repo';
 import { getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
 import { activatePageImportFromRecords } from './page-import-service';
 import { extractPageNamesFromPreserved } from './page-candidate-importer';
-import { buildProductOnPagesFragment } from './product-page-assignments';
 import type { Product } from '../shared/types';
 
 export interface PagesPreflightResult {
@@ -132,7 +131,8 @@ export function reconcileProductsToActivePages(
   for (const product of products) {
     const preserved = product.shopsite?.preserved;
     const fragmentNames = extractPageNamesFromPreserved(preserved);
-    if (fragmentNames.length === 0) continue;
+    const firstClassNames = product.core?.productOnPages ?? [];
+    if (fragmentNames.length === 0 && firstClassNames.length === 0) continue;
 
     const assignments = getProductPageAssignments(product.sku);
     if (assignments.length === 0) {
@@ -160,13 +160,15 @@ export function reconcileProductsToActivePages(
     }
 
     // Replace both preserved sources so a stale advanced block cannot re-add
-    // an old name after the verified current names are written.
-    delete preserved.unknownElements['ProductOnPages'];
-    delete preserved.advancedBlocks['ProductOnPages'];
-    delete preserved.advancedBlocks['productOnPages'];
-    if (currentNames.length > 0) {
-      preserved.unknownElements['ProductOnPages'] = buildProductOnPagesFragment(currentNames);
+    // an old name after the verified current names are written. Verified
+    // names land on first-class core.productOnPages; the codec serializes
+    // them to DTD-compliant ProductOnPages XML at export.
+    if (preserved) {
+      delete preserved.unknownElements['ProductOnPages'];
+      delete preserved.advancedBlocks['ProductOnPages'];
+      delete preserved.advancedBlocks['productOnPages'];
     }
+    product.core.productOnPages = currentNames;
   }
   return products;
 }

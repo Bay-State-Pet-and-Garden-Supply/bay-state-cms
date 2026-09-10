@@ -40,6 +40,7 @@ function makeProduct(sku: string, fieldValue: string): Product {
       availability: null, weight: null, taxable: true,
       media: { primary: null, additional: [] },
       seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+      productOnPages: [],
     },
     customFields: { ProductField24: fieldValue },
     shopsite: {

@@ -27,8 +27,7 @@ import { attributeApplicabilityStage } from './stages/attribute-applicability';
 import { productAttributeProposalsStage } from './stages/attribute-proposals';
 import { categoryPageProposalsStage } from './stages/category-page-proposals';
 import { productDraftProjectionStage } from './stages/draft-projection';
-import { computeProductHash } from './catalog-product-source';
-import { parseProductOnPages } from '../shopsite/product-page-assignments';
+import { computeProductHash, ownProductPageNames } from './catalog-product-source';
 import type { StageDefinition, StageContext, StageInput } from './types';
 import type { Product } from '../shared/types';
 
@@ -111,7 +110,7 @@ export async function classifyCatalogProduct(
   //    creation. The verified Page catalog (captured above, before readiness)
   //    is frozen into the snapshot; page context is the product's own
   //    name-only observations (never every store Page).
-  const ownPageNames = parseProductOnPages(product.shopsite?.preserved);
+  const ownPageNames = ownProductPageNames(product);
   const runtimeSnapshot = buildRuntimeSnapshot({
     workspaceId,
     workspacePath,

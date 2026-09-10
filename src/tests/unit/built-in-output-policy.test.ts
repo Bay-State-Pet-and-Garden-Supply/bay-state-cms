@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { denormalizeProduct } from '../../shopsite/product-denormalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import {
   SHOP_SITE_BUILT_IN_OUTPUT_POLICY_V1,
   SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
@@ -35,6 +34,7 @@ function createRichProduct(): Product {
         ],
       },
       seo: { fileName: '', searchKeywords: 'policy, builtin', googleProductCategory: '' },
+      productOnPages: [],
     },
     customFields: {
       ProductField1: 'custom-a',
@@ -55,13 +55,10 @@ function createRichProduct(): Product {
 }
 
 function emittedElements(xml: string): string[] {
-  const parsed = parseProductsXml(xml);
-  if (parsed.products.length === 0) return [];
-  const raw = parsed.products[0].rawXml ?? xml;
   const names = new Set<string>();
   const regex = /<([A-Za-z_][A-Za-z0-9_]*)[\s>]/g;
   let m: RegExpExecArray | null;
-  while ((m = regex.exec(raw)) !== null) {
+  while ((m = regex.exec(xml)) !== null) {
     // Exclude XML prolog/declaration and closing tags.
     if (m[1].startsWith('?') || m[1] === 'Product') continue;
     names.add(m[1]);
@@ -117,7 +114,7 @@ describe('ShopSite built-in output policy (issue #17 J)', () => {
   });
 
   it('proves every built-in emitted by the denormalizer is declared and no custom ProductField is in the policy', () => {
-    const { xml } = denormalizeProduct(createRichProduct());
+    const { xml } = ShopSiteProductCodec.encode(createRichProduct());
     // All twenty image slots + core fields populated → every governed built-in
     // appears in the emitted XML.
     for (const element of SHOP_SITE_BUILT_IN_OUTPUT_POLICY_V1) {
@@ -147,7 +144,7 @@ describe('ShopSite built-in output policy (issue #17 J)', () => {
     product.core.media.primary = '';
     product.core.media.additional = [];
     product.core.seo.searchKeywords = '';
-    const { xml } = denormalizeProduct(product);
+    const { xml } = ShopSiteProductCodec.encode(product);
     expect(xml).not.toContain('<SaleAmount>');
     expect(xml).not.toContain('<Weight>');
     expect(xml).not.toContain('<SearchKeywords>');

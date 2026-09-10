@@ -135,6 +135,7 @@ function createEmptyProduct(sku: string): Product {
       availability: null, weight: null, taxable: true,
       media: { primary: null, additional: [] },
       seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+      productOnPages: [],
     },
     customFields: {},
     shopsite: {

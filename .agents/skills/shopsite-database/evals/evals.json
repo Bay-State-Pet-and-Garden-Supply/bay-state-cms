@@ -1,0 +1,23 @@
+{
+  "skill_name": "shopsite-database",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to update existing products in ShopSite by SKU, but I do not want to create any brand-new records. Our CGI path is https://store.example.com/cgi-bin/merchant. Can you show me the documented dbupload.cgi parameters and a safe example request?",
+      "expected_output": "Grounded upload guidance with dbname=products, uniqueName=SKU, newRecords=no, a warning that unmatched rows will be ignored, and a reminder to publish after import.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We have about 25,000 products to import into ShopSite and the last upload timed out halfway through. What is the safest documented batch strategy, and how would I resume if it stalls again?",
+      "expected_output": "A batching plan that recommends splitting uploads, using defer_linking=yes on interim batches, treating checkpoint as version-variable (older doc capture), using use_optimizer/batchsize per the official MIME example, mentioning restart=1 or Continue Upload when relevant, and reminding the user to finish linking/publish.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Can you give me the full official XML schema for ShopSite pages so I can build a pages upload from scratch?",
+      "expected_output": "A refusal to invent the page XML schema, a clear statement that the crawlable docs do not publish a full official page XML example, and a recommendation to export a ShopSite-generated sample as the authoritative template.",
+      "files": []
+    }
+  ]
+}

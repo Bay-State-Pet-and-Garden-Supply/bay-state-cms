@@ -51,6 +51,28 @@ function normalizeDistributorId(raw: string): string {
 }
 
 /**
+ * Builder slice B1: known distributor ids the registry can serve (pure
+ * metadata — never starts a connector, resolves no secret). Used to reject
+ * invented distributor ids in strategy Saves while still displaying
+ * retained-but-unknown approved refs as unavailable.
+ */
+export function listSupportedDistributorIds(): string[] {
+  return [
+    ...Object.keys(API_CONNECTOR_BY_DISTRIBUTOR),
+    'bradley',
+    'central_pet',
+    'orgill',
+    'pet_food_experts',
+    'phillips_storefront',
+  ];
+}
+
+export function isSupportedDistributorId(raw: unknown): boolean {
+  if (typeof raw !== 'string' || !raw.trim()) return false;
+  return listSupportedDistributorIds().includes(normalizeDistributorId(raw));
+}
+
+/**
  * Amendment B (M2): public Distributor Scraper pairs that run WITHOUT a
  * secret. Everything else fails closed to `true` (a secret is required) —
  * an unknown pair is never presented as secretly healthy. This drives the

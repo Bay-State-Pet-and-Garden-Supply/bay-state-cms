@@ -2431,6 +2431,46 @@ route.post('/onboarding/items/:id/select-source', async (c) => {
     return c.json({ error: 'Source candidate not found' }, 404);
   }
 
+  // Builder slice B2: strategy-bound manual selection cannot admit a
+  // non-official candidate as the official source. When the item's brand
+  // has an approved strategy, the candidate host must fall inside the
+  // approved official domains (exact-or-subdomain authority). Legacy
+  // unbound rows keep their historical semantics (no check).
+  try {
+    const { getApprovedBrandStrategy } = await import('../../db/repositories/brand-strategy-approval-repo');
+    const { isOfficialDomainMatch } = await import('../../onboarding/domain-utils');
+    const strategyWorkspace = findWorkspace();
+    const approved = strategyWorkspace
+      ? getApprovedBrandStrategy(strategyWorkspace.id, (item as { brandHint?: string | null }).brandHint ?? null)
+      : null;
+    if (approved) {
+      const allowed = approved.sources
+        .filter((s) => s.kind === 'official_page' && s.domain)
+        .map((s) => (s.domain as string).toLowerCase());
+      let host = '';
+      try {
+        host = new URL(selected.url).hostname.toLowerCase().replace(/^www\./, '');
+      } catch {
+        host = '';
+      }
+      const admitted = allowed.some((d) => isOfficialDomainMatch(host, d));
+      if (!admitted) {
+        return c.json(
+          { error: 'strategy_source_not_approved', code: 'strategy_source_not_approved', message: 'Selected source is outside the approved brand strategy' },
+          409,
+        );
+      }
+    }
+  } catch (err) {
+    // A guard evaluation failure fails closed (never an unguarded write).
+    if (err instanceof Response) throw err;
+    if (err && typeof err === 'object' && 'status' in (err as Record<string, unknown>)) throw err;
+    return c.json(
+      { error: 'strategy_guard_unavailable', code: 'strategy_guard_unavailable', message: 'Strategy guard could not be evaluated' },
+      503,
+    );
+  }
+
   selectSource(sourceId);
   setDiscoverySourceUrl(itemId, selected.url);
 

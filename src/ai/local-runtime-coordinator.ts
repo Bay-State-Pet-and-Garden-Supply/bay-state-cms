@@ -1,5 +1,5 @@
 /**
- * Local Runtime Coordinator for Baystate AI Infrastructure.
+ * Local Runtime Coordinator for Bay State AI Infrastructure.
  *
  * Provides a unified local concurrency gate (semaphore) shared across
  * local text LLM requests and vision VLM requests. Concurrency is operator-configured

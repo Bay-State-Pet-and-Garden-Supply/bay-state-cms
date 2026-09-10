@@ -30,7 +30,7 @@ export class GitClient {
 
   init(): string {
     const output = execFileSync('git', ['init', '-b', 'main'], { cwd: this.repoPath, encoding: 'utf-8' });
-    this.ensureConfig('user.name', 'Baystate CMS');
+    this.ensureConfig('user.name', 'Bay State CMS');
     this.ensureConfig('user.email', 'cms@shopsite.local');
     return output.trim();
   }

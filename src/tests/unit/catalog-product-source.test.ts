@@ -26,6 +26,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
         searchKeywords: 'bermuda grass, pet grass',
         googleProductCategory: null,
       },
+      productOnPages: [],
     },
     customFields: {
       ProductField16: 'Kaytee',

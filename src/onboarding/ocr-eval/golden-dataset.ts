@@ -125,7 +125,7 @@ export function loadGoldenDatasetFromJson(raw: string): LoadedGoldenDataset {
   // still accepted (the schema itself gates the floor).
   if (result.data.schemaVersion > GOLDEN_DATASET_SCHEMA_VERSION) {
     throw new Error(
-      `Golden OCR dataset schemaVersion ${result.data.schemaVersion} is newer than the supported version ${GOLDEN_DATASET_SCHEMA_VERSION}; upgrade Baystate CMS before evaluating.`,
+      `Golden OCR dataset schemaVersion ${result.data.schemaVersion} is newer than the supported version ${GOLDEN_DATASET_SCHEMA_VERSION}; upgrade Bay State CMS before evaluating.`,
     );
   }
   const seen = new Set<string>();

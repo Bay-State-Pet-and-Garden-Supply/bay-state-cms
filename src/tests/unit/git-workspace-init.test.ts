@@ -64,6 +64,7 @@ describe('Git Workspace Init', () => {
         taxable: true,
         media: { primary: null, additional: [] },
         seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: {},
       shopsite: {

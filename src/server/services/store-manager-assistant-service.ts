@@ -127,7 +127,7 @@ export async function generateAiProposals(
   // Limit value count to avoid huge context window issues
   const truncatedValues = valuesForPrompt.slice(0, 100);
 
-  const systemPrompt = `You are a professional ecommerce catalog data architect and the Baystate CMS Store Manager AI Assistant.
+  const systemPrompt = `You are a professional ecommerce catalog data architect and the Bay State CMS Store Manager AI Assistant.
 Your task is to analyze product attribute values, identify formatting issues, casing duplicates, typos, taxonomy drift, and semantic duplicates, and suggest canonical replacements.
 Return ONLY valid JSON matching this schema:
 {

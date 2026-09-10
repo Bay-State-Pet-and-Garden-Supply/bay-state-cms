@@ -89,6 +89,7 @@ describe('Catalog Health Check', () => {
         taxable: true,
         media: { primary: '/images/healthy.jpg', additional: [] },
         seo: { fileName: 'healthy-widget.html', searchKeywords: 'healthy, widget', googleProductCategory: '' },
+        productOnPages: [],
       },
       customFields: {
         ProductField1: 'Acme Corp', // required field filled
@@ -124,6 +125,7 @@ describe('Catalog Health Check', () => {
         taxable: true,
         media: { primary: '', additional: [] }, // warning: missing image
         seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: {
         ProductField1: 'Brandless', // required field filled
@@ -158,6 +160,7 @@ describe('Catalog Health Check', () => {
         taxable: true,
         media: { primary: '/images/bad.jpg', additional: [] },
         seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
       },
       customFields: {
         ProductField1: '', // blocker: missing required custom field

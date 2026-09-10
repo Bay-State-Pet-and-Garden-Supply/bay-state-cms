@@ -9,7 +9,25 @@ import { hashCanonicalJson } from '../shared/stable-id';
 import type { Product } from '../shared/types';
 import type { NormalizedEvidenceInput } from './product-evidence-extractor';
 import type { PageRow } from '../db/repositories/page-repo';
-import { parseProductOnPages } from '../shopsite/product-page-assignments';
+import { extractPageNamesFromBlock } from '../shopsite/product-codec';
+
+/**
+ * Resolve a product's OWN Category Page observations for classification
+ * context. Reads first-class `core.productOnPages`, falling back to legacy
+ * preserved `ProductOnPages` fragments (unknown-elements string or
+ * advanced block) for drafts written before the #142 promotion seam — the
+ * same precedence the codec uses at export. Name-only review context; never
+ * store-wide identities.
+ */
+export function ownProductPageNames(product: Product): string[] {
+  const firstClass = product.core.productOnPages ?? [];
+  if (firstClass.length > 0) return [...firstClass];
+  const preserved = product.shopsite?.preserved;
+  const raw = preserved?.unknownElements?.['ProductOnPages']
+    ?? preserved?.advancedBlocks?.['ProductOnPages']
+    ?? preserved?.advancedBlocks?.['productOnPages'];
+  return raw ? extractPageNamesFromBlock(String(raw)) : [];
+}
 
 export interface CatalogProductSource {
   productHash: string;
@@ -43,7 +61,7 @@ export function buildCatalogProductEvidenceInput(
   const productHash = computeProductHash(product);
 
   // Resolve the product's OWN page observations (name-only review context).
-  const ownPageNames = parseProductOnPages(product.shopsite?.preserved);
+  const ownPageNames = ownProductPageNames(product);
   const existingPages = ownPageNames.map(pageName => ({ pageId: pageName, pageName }));
   const existingPageNames = existingPages.map(p => p.pageName);
 
@@ -93,6 +111,6 @@ export function computeProductHash(product: Product): string {
     primaryImage: product.core.media?.primary,
     additionalImages: product.core.media?.additional,
     searchKeywords: product.core.seo?.searchKeywords,
-    productPageNames: parseProductOnPages(product.shopsite?.preserved),
+    productPageNames: ownProductPageNames(product),
   });
 }

@@ -242,4 +242,12 @@ describe('bootstrapFromXml label preservation (Extra Fields mirror)', () => {
     const attested = readAttestationRaw().entries.find(entry => entry.xmlField === 'ProductField28');
     expect(attested?.label).toBe('Operator Label');
   });
+
+  it('regression: bootstrapFromXml includes commitHash and shopSite version info without ReferenceError', () => {
+    const ws: Workspace = { id: workspaceId, workspacePath: root, name: 'test' } as Workspace;
+    const result = bootstrapFromXml(ws, XML, 'xml_text');
+    expect(result.success).toBe(true);
+    expect(result.commitHash).toBeDefined();
+    expect(typeof result.commitHash).toBe('string');
+  });
 });

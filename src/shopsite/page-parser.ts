@@ -6,8 +6,8 @@ import type { PageRecord } from '../shared/schemas/page';
  * ShopSite Pages XML parser.
  *
  * Parses a real ShopSite Pages export (root `<ShopSitePages version="15.0">`,
- * `<Response>` block, `<Pages>` containing `<Page>` elements). Mirrors the
- * product-parser approach: raw `<Page>` fragments are preserved verbatim and
+ * `<Response>` block, `<Pages>` containing `<Page>` elements). Raw `<Page>`
+ * fragments are preserved verbatim and
  * each fragment is parsed structurally with fast-xml-parser, so unknown
  * elements and nested blocks are never lost.
  *

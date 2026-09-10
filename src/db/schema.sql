@@ -1,4 +1,4 @@
--- Baystate CMS SQLite Schema
+-- Bay State CMS SQLite Schema
 -- SQLite is not canonical catalog storage. It is local operational state:
 -- setup, indexing, drafts, validation, sync jobs, logs, and drift.
 

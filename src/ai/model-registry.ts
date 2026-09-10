@@ -1,5 +1,5 @@
 /**
- * Model Registry for Baystate AI Infrastructure.
+ * Model Registry for Bay State AI Infrastructure.
  *
  * Describes candidate model characteristics and capabilities without deciding routing.
  */

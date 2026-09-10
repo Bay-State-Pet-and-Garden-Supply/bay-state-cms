@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { parseProductsXml } from '../../shopsite/product-parser';
-import { normalizeProduct } from '../../shopsite/product-normalizer';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
+
 import { createWorkspaceDirs, writeGitignore, writeProductFile, writeStoreConfig } from '../../git/workspace-files';
 import { skuToProductFilePath } from '../../git/product-file-path';
 import { hashJson } from '../../git/deterministic-json';
@@ -26,17 +26,15 @@ describe('Phase 2: Bootstrap from fixture XML', () => {
   });
 
   it('should parse fixture XML into products', () => {
-    const parsed = parseProductsXml(fixtureXml);
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
     expect(parsed.products.length).toBeGreaterThanOrEqual(2);
-    expect(parsed.productXmlVersion).toBe('15.0');
+    expect(parsed.xmlVersion).toBe('15.0');
   });
 
   it('should normalize and write product files', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (!product.sku) continue;
 
       writeProductFile(testDir, product);
@@ -86,18 +84,16 @@ describe('Phase 2: Bootstrap from fixture XML', () => {
 
   it('should handle products without SKU gracefully', () => {
     // Products missing SKU should be filtered during bootstrap
-    const parsed = parseProductsXml(fixtureXml);
-    const products = parsed.products.filter(p => (p.fields['SKU'] ?? p.fields['sku'] ?? '') !== '');
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
+    const products = parsed.products.filter(p => (p.sku ?? '') !== '');
     expect(products.length).toBeLessThanOrEqual(parsed.products.length);
   });
 
   it('should produce deterministic product JSON hash', () => {
-    const parsed = parseProductsXml(fixtureXml);
-    const workspaceId = 'test-ws';
+    const parsed = ShopSiteProductCodec.decode(fixtureXml);
     const hashes: string[] = [];
 
-    for (const parsedProduct of parsed.products) {
-      const { product } = normalizeProduct(parsedProduct, workspaceId);
+    for (const product of parsed.products) {
       if (!product.sku) continue;
       const h = hashJson(product);
       expect(h).toBeTruthy();

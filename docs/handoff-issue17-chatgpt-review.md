@@ -8,7 +8,7 @@ pushed to `origin/main` on 2026-08-09.
 ## 1. What this change set is
 
 Remediation of adversarial-audit issue #17 for the classification/curation
-subsystem of the Baystate CMS (Bun + Hono + SQLite; React SPA). The work is
+subsystem of the Bay State CMS (Bun + Hono + SQLite; React SPA). The work is
 organized as passes A–M from `docs/plans/` (post-recovery issue-17 plan) and
 completes the earlier M0–M11 recovery. Every pass was adversarial-reviewed
 (read-only reviewer, multiple rounds) before acceptance; the closing
