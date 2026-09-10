@@ -1,13 +1,18 @@
 // story: e08s02 — Brands Hub editor + sitemap/readiness enrichment + Profile Workspace links (Preferred/Fallback tier, profile bypass eligible)
-import React, { useEffect, useState } from 'react';
+// B4 — Settings mounts the shared BrandStrategyBuilder: approval/revision/readiness,
+// single combined Save, no advisory-profile Save path, no misleading strategy Delete.
+import React, { useEffect, useRef, useState } from 'react';
 import { KNOWN_RETAILER_OR_DISTRIBUTOR_DOMAINS } from '../../../onboarding/discovery/retailer-domain-list';
 import type { BrandStrategy } from '../../../shared/schemas/brand-strategy';
 import { getProfileWorkspacePath } from '../profile-workspace/route';
-import { upsertBrandProfile, deleteBrandProfile, getDistributors } from '../../onboarding-api';
+import { getBrandStrategies } from '../../onboarding-api';
+import { BrandStrategyBuilder } from './BrandStrategyBuilder';
 
 type Props = {
   strategies?: BrandStrategy[];
   loading?: boolean;
+  /** Incremented when the Brands tab becomes active — refetches without touching open-editor state. */
+  refreshSignal?: number;
 };
 
 function formatRefresh(lastRefreshAt: string | null): string {
@@ -55,98 +60,98 @@ function ReadinessBadge({ strategy }: { strategy: BrandStrategy }) {
   return <span style={{ background: v.bg, color: v.fg, borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>{v.label}</span>;
 }
 
-export function BrandStrategyView({ strategies: initial, loading }: Props) {
+/** Text approval state — never color-only. */
+function ApprovalState({ strategy }: { strategy: BrandStrategy }) {
+  const approval = strategy.approval;
+  const readiness = strategy.collectionReadiness;
+  const approved = approval?.approved === true;
+  const sources = strategy.approvedSources ?? [];
+  const summary = sources.length === 0
+    ? 'no approved sources'
+    : sources.map((s) => (s.kind === 'official_page' ? `Official website (${s.domain})` : `Distributor (${s.distributorId})`)).join(' + ');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
+      <span style={{ fontWeight: 700, color: approved ? '#166534' : '#92400e' }}>
+        {approved ? `Approved revision ${approval.revision}` : 'Awaiting approval'}
+      </span>
+      {approved && <span style={{ color: '#374151' }}>{summary}</span>}
+      {readiness && (
+        <span style={{ color: '#6b7280' }}>
+          {readiness === 'awaiting_approval' && 'Readiness: awaiting approval'}
+          {readiness === 'setup_attention' && 'Readiness: setup attention — no usable sources'}
+          {readiness === 'ready' && 'Readiness: ready'}
+          {readiness === 'ready_partial' && 'Readiness: Partial Source Collection'}
+          {readiness === 'unknown' && 'Readiness: unknown'}
+        </span>
+      )}
+      {(strategy.sourceAvailability ?? []).filter((s) => !s.available && s.reason === 'not_supported').length > 0 && (
+        <span style={{ color: '#6b7280' }}>Official collection not yet supported — selectable, never Ready.</span>
+      )}
+    </div>
+  );
+}
+
+type DialogState = { mode: 'edit'; brand: string } | { mode: 'create' } | null;
+
+export function BrandStrategyView({ strategies: initial, loading, refreshSignal }: Props) {
   const [strategies, setStrategies] = useState<BrandStrategy[]>(initial ?? []);
   const [fetching, setFetching] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<BrandStrategy | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newBrandInput, setNewBrandInput] = useState('');
-  const [aliasesInput, setAliasesInput] = useState('');
-  const [preferredInput, setPreferredInput] = useState<string[]>([]);
-  const [policyInput, setPolicyInput] = useState<BrandStrategy['sourcingPolicy']>('preferred_then_fallback');
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [distributors, setDistributors] = useState<Array<{ id: string; name: string }>>([]);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [builderKey, setBuilderKey] = useState(0);
+  const lastFocus = useRef<HTMLElement | null>(null);
+
+  async function refetch() {
+    setFetching(true);
+    setError(null);
+    try {
+      const res = await getBrandStrategies();
+      setStrategies(res.strategies ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFetching(false);
+    }
+  }
 
   useEffect(() => {
     if (initial) return;
-    setFetching(true);
-    fetch('/api/onboarding/brands/strategy')
-      .then(async (r) => {
-        if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          throw new Error(j.error ?? `HTTP ${r.status}`);
-        }
-        return r.json();
-      })
-      .then((j) => setStrategies(j.strategies ?? []))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setFetching(false));
-  }, [initial]);
-
-  useEffect(() => {
-    getDistributors().then((r) => setDistributors(r.distributors.map((d) => ({ id: d.id, name: d.name })))).catch(() => {});
+    void refetch();
   }, []);
 
-  function openEdit(s: BrandStrategy) {
-    setEditing(s);
-    setCreating(false);
-    setAliasesInput(s.aliases.join(', '));
-    setPreferredInput([...s.preferredDistributorIds]);
-    setPolicyInput(s.sourcingPolicy);
-    setSaveError(null);
-  }
+  // Prop-driven refresh: supplied strategies updates replace the table facts.
+  // The open editor owns its own projection, so this never clobbers dirty edits.
+  useEffect(() => {
+    if (initial) setStrategies(initial);
+  }, [initial]);
 
-  function openCreate() {
-    setCreating(true);
-    setEditing(null);
-    setNewBrandInput('');
-    setAliasesInput('');
-    setPreferredInput([]);
-    setPolicyInput('preferred_then_fallback');
-    setSaveError(null);
-  }
-
-  async function handleSave() {
-    const target = editing ?? (creating ? { brandKey: newBrandInput.trim() } as BrandStrategy : null);
-    if (!target || !target.brandKey.trim()) {
-      setSaveError('Brand name is required');
+  // Returning to the Brands tab refetches server facts; same-brand edits in
+  // the dialog keep their own guards and are never overwritten.
+  const firstSignal = useRef(true);
+  useEffect(() => {
+    if (firstSignal.current) {
+      firstSignal.current = false;
       return;
     }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const aliases = aliasesInput.split(',').map((v) => v.trim()).filter(Boolean);
-      const preferredDistributorIds = [...preferredInput];
-      await upsertBrandProfile({ brand: target.brandKey.trim(), aliases, preferredDistributorIds, sourcingPolicy: policyInput });
-      const r = await fetch('/api/onboarding/brands/strategy');
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j.error ?? `HTTP ${r.status}`);
-      }
-      const res = await r.json();
-      setStrategies(res.strategies ?? []);
-      setEditing(null);
-      setCreating(false);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
+    if (initial) return;
+    void refetch();
+  }, [refreshSignal]);
+
+  function openDialog(next: DialogState, invoker?: HTMLElement | null) {
+    lastFocus.current = invoker ?? null;
+    setBuilderKey((k) => k + 1);
+    setDialog(next);
   }
 
-  async function handleDelete(s: BrandStrategy) {
-    if (!confirm(`Delete strategy for "${s.brandKey}"?`)) return;
-    try {
-      await deleteBrandProfile(s.brandKey);
-      const r = await fetch('/api/onboarding/brands/strategy');
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const res = await r.json();
-      setStrategies(res.strategies ?? []);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e));
-    }
+  function closeDialog() {
+    setDialog(null);
+    lastFocus.current?.focus?.();
+  }
+
+  function handleSaved() {
+    setDialog(null);
+    lastFocus.current?.focus?.();
+    void refetch();
   }
 
   const isLoading = loading || fetching;
@@ -160,7 +165,12 @@ export function BrandStrategyView({ strategies: initial, loading }: Props) {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <button onClick={openCreate} style={{ background: '#14532d', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>+ New Brand Strategy</button>
+        <button
+          onClick={(e) => openDialog({ mode: 'create' }, e.currentTarget)}
+          style={{ background: '#14532d', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
+        >
+          + New Brand Strategy
+        </button>
       </div>
       <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -170,12 +180,13 @@ export function BrandStrategyView({ strategies: initial, loading }: Props) {
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Sourcing tier</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Official Domain & Sitemap</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Extraction Readiness</th>
+              <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Strategy Approval</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {strategies.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>No brands configured</td></tr>
+              <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>No brands configured</td></tr>
             )}
             {strategies.map((s) => (
               <tr key={s.normalizedBrand} style={{ borderBottom: '1px solid #f3f4f6' }}>
@@ -202,9 +213,14 @@ export function BrandStrategyView({ strategies: initial, loading }: Props) {
                   )}
                 </td>
                 <td style={{ padding: '12px' }}><ReadinessBadge strategy={s} /></td>
+                <td style={{ padding: '12px' }}><ApprovalState strategy={s} /></td>
                 <td style={{ padding: '12px', display: 'flex', gap: 6 }}>
-                  <button onClick={() => openEdit(s)} style={{ background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>Edit strategy</button>
-                  <button onClick={() => handleDelete(s)} style={{ background: '#fff', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#991b1b' }}>Delete</button>
+                  <button
+                    onClick={(e) => openDialog({ mode: 'edit', brand: s.brandKey }, e.currentTarget)}
+                    style={{ background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    Edit strategy
+                  </button>
                 </td>
               </tr>
             ))}
@@ -212,60 +228,30 @@ export function BrandStrategyView({ strategies: initial, loading }: Props) {
         </table>
       </div>
 
-      {(editing || creating) && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: 520, maxWidth: '90vw', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>{creating ? 'New brand strategy' : `Edit strategy — ${editing?.brandKey}`}</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {creating && (
-                <label style={{ fontSize: 12, color: '#374151' }}>Brand name
-                  <input value={newBrandInput} onChange={(e) => setNewBrandInput(e.target.value)} style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }} placeholder="Fromm" />
-                </label>
-              )}
-              <label style={{ fontSize: 12, color: '#374151' }}>Aliases (comma-separated)
-                <input value={aliasesInput} onChange={(e) => setAliasesInput(e.target.value)} style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }} placeholder="alias1, alias2" />
-                <span style={{ fontSize: 11, color: '#6b7280' }}>Advisory only — not used for matching</span>
-              </label>
-              <div style={{ fontSize: 12, color: '#374151' }}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Preferred distributors</div>
-                {distributors.length === 0 ? (
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>No enabled distributors — add a connection in Distributors tab first.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1px solid #d1d5db', borderRadius: 6, padding: '8px', maxHeight: 140, overflowY: 'auto', background: '#f9fafb' }}>
-                    {distributors.map((d) => (
-                      <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={preferredInput.includes(d.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setPreferredInput([...preferredInput, d.id]);
-                            else setPreferredInput(preferredInput.filter((id) => id !== d.id));
-                          }}
-                        />
-                        <span style={{ fontWeight: 500 }}>{d.name}</span>
-                        <span style={{ color: '#6b7280', fontSize: 11 }}>({d.id})</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {preferredInput.length === 0 && <span style={{ fontSize: 11, color: '#6b7280', marginTop: 4, display: 'block' }}>No preferred — all enabled distributors will be queried (All Enabled).</span>}
-                {preferredInput.filter((id) => !distributors.some((d) => d.id === id)).length > 0 && (
-                  <span style={{ fontSize: 11, color: '#b45309', marginTop: 4, display: 'block' }}>Stale: {preferredInput.filter((id) => !distributors.some((d) => d.id === id)).join(', ')} — no longer enabled.</span>
-                )}
-              </div>
-              <label style={{ fontSize: 12, color: '#374151' }}>Sourcing policy
-                <select value={policyInput} onChange={(e) => setPolicyInput(e.target.value as BrandStrategy['sourcingPolicy'])} style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}>
-                  <option value="advisory">advisory</option>
-                  <option value="preferred_then_fallback">preferred_then_fallback</option>
-                  <option value="preferred_only">preferred_only</option>
-                </select>
-              </label>
-              {saveError && <div style={{ color: '#991b1b', fontSize: 12 }}>{saveError}</div>}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                <button onClick={() => { setEditing(null); setCreating(false); }} style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 14px', fontSize: 13, background: '#fff', cursor: 'pointer' }}>Cancel</button>
-                <button onClick={handleSave} disabled={saving} style={{ background: '#14532d', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving…' : 'Save'}</button>
-              </div>
-            </div>
+      {dialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={dialog.mode === 'create' ? 'New brand strategy' : `Edit strategy — ${dialog.brand}`}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDialog();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') closeDialog();
+          }}
+        >
+          <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: 640, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
+              {dialog.mode === 'create' ? 'New brand strategy' : `Edit strategy — ${dialog.brand}`}
+            </h3>
+            <BrandStrategyBuilder
+              key={`${dialog.mode}-${dialog.mode === 'edit' ? dialog.brand : 'new'}-${builderKey}`}
+              brand={dialog.mode === 'edit' ? dialog.brand : ''}
+              brandEditable={dialog.mode === 'create'}
+              onSaved={handleSaved}
+              onCancel={closeDialog}
+            />
           </div>
         </div>
       )}

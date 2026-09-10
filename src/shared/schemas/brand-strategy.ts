@@ -43,13 +43,36 @@ export const StrategySourceRefSchema = z.object({
 });
 export type StrategySourceRef = z.infer<typeof StrategySourceRefSchema>;
 
-export const ApproveBrandStrategySchema = z.object({
-  brand: z.string().min(1),
-  sources: z.array(StrategySourceRefSchema).min(1).max(25),
-  /** Optimistic-concurrency guard: reject when the stored revision differs. */
-  expectedRevision: z.number().int().min(0).optional(),
-  approvedBy: z.string().min(1).max(128).optional(),
+export const StrategyConfigurationSchema = z.object({
+  /** Complete replacement of this brand's editable official-domain set. */
+  officialDomains: z.array(z.string().min(1).max(253)).max(25),
+  aliases: z.array(z.string().min(1).max(128)).max(50),
+  preferredDistributorIds: z.array(z.string().min(1).max(128)).max(50),
+  sourcingPolicy: SourcingPolicySchema,
 }).strict();
+export type StrategyConfiguration = z.infer<typeof StrategyConfigurationSchema>;
+
+export const ApproveBrandStrategySchema = z.object({
+  brand: z.string().min(1).max(128),
+  sources: z.array(StrategySourceRefSchema).min(1).max(25),
+  /**
+   * Optimistic-concurrency guard (REQUIRED since builder Amendment B1):
+   * 0 matches only the absent-row case. Missing guard is 400, never an
+   * unguarded write. Every accepted explicit Save creates one revision.
+   */
+  expectedRevision: z.number().int().min(0),
+  /**
+   * Optional complete configuration replacement applied atomically with the
+   * approval. When present, `expectedConfigurationToken` is required.
+   */
+  configuration: StrategyConfigurationSchema.optional(),
+  expectedConfigurationToken: z.string().min(1).max(256).optional(),
+  approvedBy: z.string().min(1).max(128).optional(),
+}).strict().superRefine((v, ctx) => {
+  if (v.configuration !== undefined && !v.expectedConfigurationToken) {
+    ctx.addIssue({ code: 'custom', message: 'configuration saves require expectedConfigurationToken' });
+  }
+});
 export type ApproveBrandStrategy = z.infer<typeof ApproveBrandStrategySchema>;
 
 export const ApprovedBrandStrategySchema = z.object({
@@ -105,6 +128,27 @@ export const BrandStrategyCollectionReadinessSchema = z.enum([
 ]);
 export type BrandStrategyCollectionReadiness = z.infer<typeof BrandStrategyCollectionReadinessSchema>;
 
+export const BrandStrategySourceOptionSchema = z.object({
+  kind: StrategySourceKindSchema,
+  /** Distributor id or canonical domain. */
+  ref: z.string().min(1).max(253),
+  /** Human-readable label (never a credential or raw error). */
+  displayName: z.string().min(1).max(253),
+  /** False for retained-but-unrepairable refs (visible, not selectable). */
+  selectable: z.boolean(),
+  /** Bounded machine-readable selectability/setup reason. */
+  reason: z.string().min(1).max(64),
+  /** Current point-in-time setup availability (not proof of stock). */
+  available: z.boolean(),
+});
+export type BrandStrategySourceOption = z.infer<typeof BrandStrategySourceOptionSchema>;
+
+export const BrandStrategyExecutionAvailabilitySchema = z.object({
+  enabled: z.boolean(),
+  reason: z.string().min(1).max(64),
+});
+export type BrandStrategyExecutionAvailability = z.infer<typeof BrandStrategyExecutionAvailabilitySchema>;
+
 export const BrandStrategySchema = z.object({
   brandKey: z.string().min(1),
   normalizedBrand: z.string().min(1),
@@ -113,6 +157,14 @@ export const BrandStrategySchema = z.object({
   sourcingPolicy: SourcingPolicySchema,
   fallbackTier: z.array(z.string()),
   officialDomains: z.array(BrandStrategyOfficialDomainSchema),
+  /** Canonical server-derived live proposal (preferred + fallback options). */
+  proposalSources: z.array(StrategySourceRefSchema).optional(),
+  /** Selectable/visible source catalog for the builder. */
+  sourceOptions: z.array(BrandStrategySourceOptionSchema).optional(),
+  /** Guard token for mapping/preference edits (absent-profile set is deterministic). */
+  configurationToken: z.string().min(1).max(256).optional(),
+  /** Effective sourcing capability (separate from approval). */
+  executionAvailability: BrandStrategyExecutionAvailabilitySchema.optional(),
   extractorReadiness: z.enum(['active', 'degraded', 'draft', 'needs_testing', 'not_configured', 'profile_bypass_eligible']),
   ambiguous: z.array(BrandStrategyDiagnosticSchema),
   unmatched: z.boolean(),

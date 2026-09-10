@@ -618,7 +618,7 @@ The first pipeline stage that evaluates distributor evidence against each import
 _Avoid_: Branding stage, distributor-to-curation routing, fake source URLs
 
 **Brand Sourcing Strategy**:
-A system-proposed, operator-approved reusable plan for gathering product evidence from one or more legitimate sources for a brand; an official website is optional. Complementary evidence remains attributable to its sources and is collected for consolidation during **Prepare listing**, rather than requiring one exclusive source.
+A system-proposed, operator-approved reusable plan for gathering product evidence from one or more legitimate sources for a brand; an official website is optional. Each explicit Save is the approval command and immediately produces the next approved revision. Complementary evidence remains attributable to its sources and is collected for consolidation during **Prepare listing**, rather than requiring one exclusive source.
 _Avoid_: Official-domain requirement, single-source route, extractor profile
 
 **Partial Source Collection**:

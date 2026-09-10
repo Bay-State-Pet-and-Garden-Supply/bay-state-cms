@@ -26,7 +26,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, fonts, rounded } from '../../theme';
 import { assignBrandGroup, assignItemBrand, getBrandSites, getExtractorProfiles } from '../../onboarding-api';
-import { assignBatchBrandDomain, getBrandDomainBlockers, approveBrandStrategy } from '../../onboarding-work-api';
+import { assignBatchBrandDomain, getBrandDomainBlockers } from '../../onboarding-work-api';
+import { BrandStrategyBuilder } from '../brand-strategy/BrandStrategyBuilder';
 import { BrandCombobox } from './BrandCombobox';
 import { getBrandOptions, registerBrandOption, resetBrandOptionsCache, resolveCanonicalBrand } from './brand-combobox-logic';
 import {
@@ -347,9 +348,11 @@ export function StageItemsView({
   const [drawerInputs, setDrawerInputs] = useState<Record<string, string>>({});
   const [drawerSaving, setDrawerSaving] = useState<Record<string, boolean>>({});
   const [drawerErrors, setDrawerErrors] = useState<Record<string, string | null>>({});
-  // Spec #120: per-brand strategy approval state (keyboard-operable inline action).
-  const [strategyApproving, setStrategyApproving] = useState<string | null>(null);
-  const [strategyApproveErrors, setStrategyApproveErrors] = useState<Record<string, string | null>>({});
+  // B5 — shared strategy editor: at most one active editor per normalized
+  // brand. Expanded state is brand-keyed so same-brand rows share one
+  // revision; the builder mounts once in the brand's first visible row.
+  const [expandedStrategyBrand, setExpandedStrategyBrand] = useState<string | null>(null);
+  const [strategyFromProposal, setStrategyFromProposal] = useState(false);
   // Per-row "+ Add Domain" inline inputs (#119).
   const [rowDomainOpen, setRowDomainOpen] = useState<Record<string, boolean>>({});
   const [rowDomainInputs, setRowDomainInputs] = useState<Record<string, string>>({});
@@ -486,6 +489,7 @@ export function StageItemsView({
         const body = await res.json() as { strategies?: Array<{
           normalizedBrand?: unknown; approval?: { approved?: unknown; revision?: unknown; approvedAt?: unknown; approvedBy?: unknown } | null;
           preferredDistributorIds?: unknown; officialDomains?: Array<{ domain?: unknown }>; fallbackTier?: unknown;
+          proposalSources?: Array<{ kind?: unknown; distributorId?: unknown; domain?: unknown }>;
           approvedSources?: Array<{ kind?: unknown; distributorId?: unknown; domain?: unknown }>;
           sourceAvailability?: Array<{ kind?: unknown; ref?: unknown; available?: unknown; reason?: unknown }>;
           collectionReadiness?: unknown;
@@ -494,12 +498,22 @@ export function StageItemsView({
         for (const s of Array.isArray(body?.strategies) ? body.strategies : []) {
           const key = typeof s?.normalizedBrand === 'string' ? s.normalizedBrand.trim().toLowerCase() : '';
           if (!key || map.has(key)) continue;
+          // B5 — server-owned proposal boundary. Legacy rows without the
+          // additive field fall back to the mapped-domain + preferred
+          // reconstruction; the builder always reads its own detail.
           const proposalSources: StrategyReadinessView['sources'] = [];
+          if (Array.isArray(s?.proposalSources)) {
+            for (const p of s.proposalSources) {
+              if (p?.kind === 'official_page' && typeof p?.domain === 'string' && p.domain.trim()) proposalSources.push({ kind: 'official_page', domain: p.domain.trim().toLowerCase() });
+              else if (p?.kind === 'distributor_record' && typeof p?.distributorId === 'string' && p.distributorId.trim()) proposalSources.push({ kind: 'distributor_record', distributorId: p.distributorId.trim() });
+            }
+          } else {
           for (const d of Array.isArray(s?.officialDomains) ? s.officialDomains : []) {
             if (typeof d?.domain === 'string' && d.domain.trim()) proposalSources.push({ kind: 'official_page', domain: d.domain.trim().toLowerCase() });
           }
           for (const id of Array.isArray(s?.preferredDistributorIds) ? s.preferredDistributorIds : []) {
             if (typeof id === 'string' && id.trim()) proposalSources.push({ kind: 'distributor_record', distributorId: id.trim() });
+          }
           }
           // Stored approved boundary (additive GET field; absent on legacy rows).
           const approvedSources: StrategyReadinessView['approvedSources'] = [];
@@ -692,6 +706,18 @@ export function StageItemsView({
     [stage, items, kpiFilter, brandDomainMap, profileDomains],
   );
 
+  // B5 — first visible row per normalized brand: only that row mounts the
+  // shared editor, so same-brand rows share one revision and one save.
+  const firstItemIdForBrand = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of visibleItems) {
+      if (!item.brand) continue;
+      const key = brandKeyOf(item.brand);
+      if (!map.has(key)) map.set(key, item.itemId);
+    }
+    return map;
+  }, [visibleItems]);
+
   const toggleSelect = useCallback((itemId: string) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -800,36 +826,21 @@ export function StageItemsView({
     }
   }, [rowDomainInputs, rowDomainSaving, batchId, refreshEpoch]);
 
-  // Spec #120 (ticket #121): approve the proposed strategy for one brand,
-  // or re-approve when the live proposal drifted from the approved boundary.
-  // Only an explicit click writes; viewing the proposal never approves.
-  const runStrategyApprove = useCallback(async (brand: string) => {
+  // B5 — Review strategy expander sharing the Settings builder and the same
+  // guarded command. Viewing or expanding never writes; only the builder's
+  // explicit Save strategy persists (one combined request). Successful Save
+  // reloads intake references without requeue or recollection.
+  const toggleStrategyEditor = useCallback((brand: string, fromProposal: boolean) => {
     const key = brandKeyOf(brand);
-    const view = strategyViews.get(key) ?? null;
-    if (!view || strategyApproving) return;
-    // Initial approval sends the proposal; re-approval sends the drifted
-    // proposal (never the stale stored boundary). No-op when approved and
-    // the proposal already matches the stored boundary.
-    const approvedSources = view.approvedSources ?? [];
-    const proposalSources = view.proposalSources ?? view.sources;
-    const drifted = view.approved && approvedSources.length > 0
-      && !strategySourcesEqual(proposalSources, approvedSources);
-    const toApprove = !view.approved ? view.sources : (drifted ? proposalSources : null);
-    if (!toApprove || toApprove.length === 0) return;
-    setStrategyApproving(key);
-    setStrategyApproveErrors((prev) => ({ ...prev, [key]: null }));
-    try {
-      await approveBrandStrategy({ brand: brand.trim(), sources: toApprove, expectedRevision: view.revision });
-      await loadIntakeRefs();
-    } catch (err) {
-      setStrategyApproveErrors((prev) => ({
-        ...prev,
-        [key]: err instanceof Error ? err.message : String(err),
-      }));
-    } finally {
-      setStrategyApproving(null);
-    }
-  }, [strategyViews, strategyApproving, loadIntakeRefs]);
+    setExpandedStrategyBrand((prev) => (prev === key && !fromProposal ? null : key));
+    setStrategyFromProposal(fromProposal);
+  }, []);
+
+  const handleStrategySaved = useCallback(async () => {
+    setExpandedStrategyBrand(null);
+    setStrategyFromProposal(false);
+    await loadIntakeRefs();
+  }, [loadIntakeRefs]);
 
   const handleOpenProfileBuilder = useCallback(
     (domain: string) => {
@@ -1390,33 +1401,39 @@ export function StageItemsView({
                   >
                     {strategy.strategyLabel}
                   </span>
-                  {strategiesLoaded && item.brand && strategyView && (() => {
-                    const needsApprove = !strategyView.approved && strategyView.sources.length > 0;
-                    // Re-approval only when the live proposal drifted from the
-                    // stored approved boundary.
-                    const approvedSources = strategyView.approvedSources ?? [];
-                    const proposalSources = strategyView.proposalSources ?? strategyView.sources;
-                    const needsReapprove = strategyView.approved
-                      && approvedSources.length > 0
+                  {strategiesLoaded && item.brand && (() => {
+                    // B5 — Review strategy expander sharing the Settings builder
+                    // and the same guarded command. Rendered for every assigned
+                    // brand: approved, drifted, new, or unavailable. The
+                    // approved boundary stays label authority while editing;
+                    // expanding never writes.
+                    const brandName = item.brand as string;
+                    const brandKey = brandKeyOf(brandName);
+                    const approvedSources = strategyView?.approvedSources ?? [];
+                    const proposalSources = strategyView?.proposalSources ?? strategyView?.sources ?? [];
+                    const drifted = !!strategyView?.approved && approvedSources.length > 0
                       && !strategySourcesEqual(proposalSources, approvedSources);
-                    if (!needsApprove && !needsReapprove) return null;
-                    const unsupported = strategyView.availability.filter((a) => !a.available && a.reason === 'not_supported');
+                    const expanded = expandedStrategyBrand === brandKey;
+                    const isFirstOfBrand = firstItemIdForBrand.get(brandKey) === item.itemId;
+                    const unsupported = (strategyView?.availability ?? []).filter((a) => !a.available && a.reason === 'not_supported');
+                    const editorId = `strategy-editor-${item.itemId}`;
                     return (
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
-                      {needsReapprove && (
+                      {strategyView?.approved && (
                         <span
                           data-testid={`intake-strategy-approved-${item.itemId}`}
-                          title={`Approved revision ${strategyView.revision}: ${strategySummaryLabel({ ...strategyView, sources: approvedSources })}`}
+                          title={`Approved revision ${strategyView.revision}`}
                           style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}
                         >
-                          Approved rev {strategyView.revision}: {strategySummaryLabel({ ...strategyView, sources: approvedSources })} — proposal differs
+                          Approved rev {strategyView.revision}: {strategySummaryLabel({ ...strategyView, sources: approvedSources })}{drifted ? ' — proposal differs' : ''}
                         </span>
                       )}
                       <button
                         type="button"
-                        data-testid={`intake-strategy-approve-${item.itemId}`}
-                        onClick={() => item.brand && void runStrategyApprove(item.brand)}
-                        disabled={strategyApproving === brandKeyOf(item.brand)}
+                        data-testid={`intake-strategy-review-${item.itemId}`}
+                        aria-expanded={expanded}
+                        aria-controls={editorId}
+                        onClick={() => toggleStrategyEditor(brandName, false)}
                         style={{
                           fontSize: '0.75rem',
                           fontWeight: 600,
@@ -1425,21 +1442,57 @@ export function StageItemsView({
                           border: `1px solid ${colors.uniformGreen}`,
                           borderRadius: rounded.md,
                           padding: '0.25rem 0.625rem',
-                          cursor: strategyApproving === brandKeyOf(item.brand) ? 'not-allowed' : 'pointer',
+                          cursor: 'pointer',
                           width: 'fit-content',
                           minHeight: 28,
                         }}
                       >
-                        {strategyApproving === brandKeyOf(item.brand) ? 'Approving…' : needsReapprove ? 'Re-approve updated strategy' : 'Approve strategy'}
+                        {expanded ? 'Close strategy editor' : 'Review strategy'}
                       </button>
+                      {!strategyView?.approved && proposalSources.length > 0 && !expanded && (
+                        <button
+                          type="button"
+                          data-testid={`intake-strategy-use-proposal-${item.itemId}`}
+                          onClick={() => toggleStrategyEditor(brandName, true)}
+                          style={{
+                            fontSize: '0.6875rem',
+                            fontWeight: 400,
+                            color: colors.mulchBrown,
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            width: 'fit-content',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          Save current proposal as new revision
+                        </button>
+                      )}
                       {unsupported.length > 0 && (
                         <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
                           {unsupported.map((u) => u.ref).join(', ')}: official collection not yet supported — other sources still run
                         </span>
                       )}
-                      {strategyApproveErrors[brandKeyOf(item.brand)] && (
-                        <span role="alert" style={{ fontSize: '0.75rem', color: colors.signetBurgundy }}>
-                          {strategyApproveErrors[brandKeyOf(item.brand)]} — strategy unchanged.
+                      {expanded && !isFirstOfBrand && (
+                        <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
+                          Strategy editor open in this brand&apos;s first row — one editor per brand.
+                        </span>
+                      )}
+                      {expanded && isFirstOfBrand && (
+                        <span
+                          id={editorId}
+                          role="region"
+                          aria-label={`Strategy editor for ${brandName}`}
+                          data-testid={`intake-strategy-editor-${item.itemId}`}
+                          style={{ display: 'block', border: `1px solid ${colors.uniformGreen}`, borderRadius: rounded.md, padding: '0.5rem', backgroundColor: '#fff' }}
+                        >
+                          <BrandStrategyBuilder
+                            brand={brandName}
+                            startFromProposal={strategyFromProposal}
+                            onSaved={() => { void handleStrategySaved(); }}
+                            onCancel={() => setExpandedStrategyBrand(null)}
+                          />
                         </span>
                       )}
                     </span>

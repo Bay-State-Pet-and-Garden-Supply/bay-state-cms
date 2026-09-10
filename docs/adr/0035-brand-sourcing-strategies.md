@@ -56,3 +56,25 @@ complementary evidence within that boundary; Prepare listing consolidates it.**
   distinguishable states instead of one domain/profile flag.
 - Historical single-source rows and protected legacy sourcing rows are
   untouched; no backfill, no replay, no silent approval.
+
+## Amendment B1 — Save is explicit approval (brand strategy builder)
+
+- **Supersedes the identical-source idempotency rule.** Every accepted
+  explicit Save (`POST /api/onboarding/brands/strategy/approve`) creates
+  exactly one new approved revision — including identical-source,
+  source-only, and mapping/preference-only Saves. A retransmission carrying
+  the same previous `expectedRevision` returns 409 and creates no revision.
+- `expectedRevision` is required (0 matches only the absent-row case) and
+  `expectedConfigurationToken` is required whenever `configuration` is
+  present. Missing guards are 400, never unguarded writes. The approval,
+  mapping, and advisory writes commit atomically; any failure rolls all
+  three back together.
+- No persisted draft, auto-save, approve-later workflow, or approval caused
+  by a read, proposal view, mapping edit elsewhere, or brand assignment.
+- **Runtime-support caveat.** Approved `official_page` sources remain
+  explicitly `not_supported`: no collection path executes them. Active
+  generations stay pinned to the revision/source set captured when execution
+  began (`sourcing_generation_strategy_snapshots`); retries and new
+  generations capture the latest approval. Broader official-page
+  multi-source orchestration and collection-to-preparation blending are
+  separate follow-ups and remain activation blockers where required.

@@ -1,11 +1,24 @@
 import { getDb } from '../connection';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import {
   ApproveBrandStrategySchema,
   ApprovedBrandStrategySchema,
   type ApprovedBrandStrategy,
   type StrategySourceRef,
 } from '../../shared/schemas/brand-strategy';
+import { normalizeOfficialDomainInput } from '../../shared/schemas/brand-strategy-domain';
+import { isKnownRetailerOrDistributorDomain } from '../../onboarding/discovery/retailer-domain-list';
+import { isSupportedDistributorId } from '../../onboarding/sourcing/connector-registry';
+import {
+  findBrandSites,
+  addBrandSiteMapping,
+  removeBrandSiteMapping,
+} from './brand-site-repo';
+import {
+  upsertBrandAdvisoryProfile,
+  listBrandAdvisoryProfilesByNormalized,
+  getDistributorById,
+} from './distributor-repo';
 
 /** Normalize brand identity independently of domain mappings (exact authority). */
 export function normalizeBrandKey(brand: string): string {
@@ -63,6 +76,85 @@ function ensureTables(): void {
     UNIQUE(workspace_id, normalized_brand))`);
 }
 
+function codedError(code: string, message: string): Error & { code: string } {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  return err;
+}
+
+/**
+ * Builder slice B1: deterministic configuration token for guarded editing.
+ *
+ * Covers workspace id, exact normalized brand, sorted brand mapping
+ * identities/domains/authority metadata, and editable advisory fields with
+ * the advisory row identity. Excludes noisy mapping success counts and
+ * last-used timestamps; excludes connector health so incidental availability
+ * changes never discard edits. Deterministic for the absent-profile set.
+ */
+export function computeBrandStrategyConfigurationToken(workspaceId: string, brand: string | null): string {
+  const normalized = normalizeBrandKey(brand ?? '');
+  const db = getDb();
+  let mappings: Array<{ id: string; domain: string; url_pattern: string | null }>;
+  try {
+    mappings = (
+      db.query(
+        'SELECT id, domain, url_pattern FROM brand_sites WHERE brand_name = ? ORDER BY domain ASC, id ASC',
+      ).all(normalized) as Array<{ id: string; domain: string; url_pattern: string | null }>
+    );
+  } catch {
+    mappings = [];
+  }
+  let advisory: Array<{ id: string; brand: string; aliases_json: string; preferred_distributor_ids_json: string; sourcing_policy: string | null }>;
+  try {
+    advisory = (
+      db.query(
+        'SELECT id, brand, aliases_json, preferred_distributor_ids_json, sourcing_policy FROM brand_advisory_profiles WHERE workspace_id = ? AND LOWER(brand) = LOWER(?) ORDER BY brand ASC, id ASC',
+      ).all(workspaceId, normalized) as Array<{ id: string; brand: string; aliases_json: string; preferred_distributor_ids_json: string; sourcing_policy: string | null }>
+    );
+  } catch {
+    advisory = [];
+  }
+  return createHash('sha256')
+    .update(JSON.stringify({ workspaceId, normalized, mappings, advisory }))
+    .digest('hex');
+}
+
+export interface StrategyApprovalInput {
+  approved: boolean;
+  revision: number;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  sources?: StrategySourceRef[];
+}
+
+/**
+ * Builder slice B1: all stored strategy rows for a workspace (approved or
+ * not), keyed by exact normalized brand. Lets the read model include
+ * approval-only brands instead of deriving only mapped/advisory brands.
+ */
+export function listStrategyApprovalInputs(workspaceId: string): Map<string, StrategyApprovalInput> {
+  ensureTables();
+  const db = getDb();
+  const out = new Map<string, StrategyApprovalInput>();
+  let rows: StrategyRow[];
+  try {
+    rows = db.query('SELECT * FROM brand_sourcing_strategies WHERE workspace_id = ?').all(workspaceId) as StrategyRow[];
+  } catch {
+    return out;
+  }
+  for (const row of rows) {
+    const parsedSources = parseSourcesJson(row.sources_json);
+    out.set(row.normalized_brand, {
+      approved: row.approved === 1,
+      revision: row.revision,
+      approvedAt: row.approved_at,
+      approvedBy: row.approved_by,
+      sources: parsedSources,
+    });
+  }
+  return out;
+}
+
 export function getApprovedBrandStrategy(workspaceId: string, brand: string | null): ApprovedBrandStrategy | null {
   if (!brand || !brand.trim()) return null;
   ensureTables();
@@ -85,67 +177,203 @@ export function getBrandStrategyRow(workspaceId: string, brand: string | null): 
   return row ? mapRow(row) : null;
 }
 
+export interface SaveBrandStrategyInput {
+  brand: string;
+  sources: StrategySourceRef[];
+  /** REQUIRED: 0 matches only the absent-row case. Missing guard never writes. */
+  expectedRevision: number;
+  configuration?: {
+    officialDomains: string[];
+    aliases: string[];
+    preferredDistributorIds: string[];
+    sourcingPolicy: 'advisory' | 'preferred_then_fallback' | 'preferred_only';
+  };
+  expectedConfigurationToken?: string;
+  approvedBy?: string;
+}
+
+function canonicalizeSources(sources: StrategySourceRef[]): StrategySourceRef[] {
+  const out: StrategySourceRef[] = [];
+  const seen = new Set<string>();
+  for (const s of sources) {
+    if (s.kind === 'distributor_record') {
+      if (s.domain !== undefined) throw new Error('Invalid brand strategy approval: distributor_record sources must not carry domain');
+      const id = (s.distributorId ?? '').trim();
+      if (!id) throw new Error('Invalid brand strategy approval: distributor_record sources require distributorId');
+      const key = `distributor_record:${id.toLowerCase()}`;
+      if (seen.has(key)) throw new Error('Invalid brand strategy approval: duplicate source references');
+      seen.add(key);
+      out.push({ kind: 'distributor_record', distributorId: id });
+    } else {
+      if (s.distributorId !== undefined) throw new Error('Invalid brand strategy approval: official_page sources must not carry distributorId');
+      const domain = (s.domain ?? '').toLowerCase().replace(/^www\./, '').trim();
+      if (!domain) throw new Error('Invalid brand strategy approval: official_page sources require domain');
+      const key = `official_page:${domain}`;
+      if (seen.has(key)) throw new Error('Invalid brand strategy approval: duplicate source references');
+      seen.add(key);
+      out.push({ kind: 'official_page', domain });
+    }
+  }
+  return out;
+}
+
 /**
- * Approve (or re-approve) a reusable brand strategy. Viewing or generating a
- * proposal never writes; only this explicit command persists approval.
- * Stale writes guarded by expectedRevision; repeat identical approvals are
- * idempotent (no revision bump when the source set is unchanged).
+ * Guarded atomic Save — the sole writer for brand strategies (Amendment B1).
+ *
+ * Each accepted explicit Save creates exactly one new approved revision,
+ * including identical-source and mapping/preference-only Saves. Mapping
+ * deltas, the advisory profile, and the approval commit together; any
+ * stale/validation/database failure rolls all three back. Viewing,
+ * generating, or editing a proposal never writes.
  */
-export function approveBrandStrategy(
-  workspaceId: string,
-  input: { brand: string; sources: StrategySourceRef[]; expectedRevision?: number; approvedBy?: string },
-): ApprovedBrandStrategy {
+export function saveBrandStrategy(workspaceId: string, input: SaveBrandStrategyInput): ApprovedBrandStrategy {
   const parsed = ApproveBrandStrategySchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(`Invalid brand strategy approval: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
   }
   ensureTables();
   const db = getDb();
-  const normalized = normalizeBrandKey(parsed.data.brand);
+  const displayBrand = parsed.data.brand.trim();
+  const normalized = normalizeBrandKey(displayBrand);
   const now = new Date().toISOString();
-  const existing = db.query(
-    'SELECT * FROM brand_sourcing_strategies WHERE workspace_id = ? AND normalized_brand = ?',
-  ).get(workspaceId, normalized) as StrategyRow | undefined;
+  const canonicalSources = canonicalizeSources(parsed.data.sources);
 
-  if (parsed.data.expectedRevision !== undefined && existing && existing.revision !== parsed.data.expectedRevision) {
-    const err = new Error(`stale_revision: expected ${parsed.data.expectedRevision}, stored ${existing.revision}`) as Error & { code: string };
-    err.code = 'stale_revision';
-    throw err;
-  }
-
-  const sourcesJson = JSON.stringify(parsed.data.sources);
-  if (existing) {
-    // Idempotent repeat approval: same sources → no bump, refresh attestation.
-    if (existing.sources_json === sourcesJson && existing.approved === 1) {
-      db.query('UPDATE brand_sourcing_strategies SET approved_at = ?, approved_by = ?, updated_at = ? WHERE id = ?')
-        .run(now, parsed.data.approvedBy ?? existing.approved_by, now, existing.id);
-      return getBrandStrategyRow(workspaceId, parsed.data.brand)!;
+  const run = db.transaction(() => {
+    const existing = db.query(
+      'SELECT * FROM brand_sourcing_strategies WHERE workspace_id = ? AND normalized_brand = ?',
+    ).get(workspaceId, normalized) as StrategyRow | undefined;
+    const currentRevision = existing?.revision ?? 0;
+    if (parsed.data.expectedRevision !== currentRevision) {
+      throw codedError(
+        'stale_revision',
+        `stale_revision: expected ${parsed.data.expectedRevision}, stored ${currentRevision}`,
+      );
     }
-    const nextRevision = existing.revision + 1;
-    db.query(`UPDATE brand_sourcing_strategies SET brand = ?, sources_json = ?, revision = ?,
-      approved = 1, approved_at = ?, approved_by = ?, updated_at = ? WHERE id = ?`)
-      .run(parsed.data.brand.trim(), sourcesJson, nextRevision, now, parsed.data.approvedBy ?? null, now, existing.id);
-    return getBrandStrategyRow(workspaceId, parsed.data.brand)!;
-  }
 
-  const id = `bss_${randomUUID().slice(0, 8)}`;
-  try {
-    db.query(`INSERT INTO brand_sourcing_strategies
-      (id, workspace_id, brand, normalized_brand, sources_json, revision, approved, approved_at, approved_by, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)`)
-      .run(id, workspaceId, parsed.data.brand.trim(), normalized, sourcesJson, now, parsed.data.approvedBy ?? null, now, now);
-  } catch (err) {
-    // Concurrent first approvals race the SELECT above: surface the
-    // UNIQUE(workspace_id, normalized_brand) violation as stale_revision
-    // (fail-safe — the winner's row is untouched) instead of a 500.
-    if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
-      const race = new Error(`stale_revision: brand strategy for '${parsed.data.brand}' was created concurrently`) as Error & { code: string };
-      race.code = 'stale_revision';
-      throw race;
+    // Configuration delta (brand-scoped only — never whole-domain).
+    if (parsed.data.configuration !== undefined) {
+      const currentToken = computeBrandStrategyConfigurationToken(workspaceId, normalized);
+      if (parsed.data.expectedConfigurationToken !== currentToken) {
+        throw codedError('stale_configuration', 'stale_configuration: brand mappings or preferences changed since read');
+      }
+      const requestedDomains: string[] = [];
+      const seenDomains = new Set<string>();
+      for (const raw of parsed.data.configuration.officialDomains) {
+        const norm = normalizeOfficialDomainInput(raw);
+        if (!norm) {
+          throw new Error(`Invalid brand strategy approval: official domain '${String(raw).slice(0, 80)}' is not an acceptable hostname`);
+        }
+        if (seenDomains.has(norm)) {
+          throw new Error('Invalid brand strategy approval: duplicate official domains');
+        }
+        seenDomains.add(norm);
+        requestedDomains.push(norm);
+      }
+      const currentPairs = findBrandSites(normalized);
+      const currentDomains = new Set(currentPairs.map((p) => p.domain.toLowerCase().replace(/^www\./, '').trim()));
+      const requestedSet = new Set(requestedDomains);
+      // Removal ownership: every removed domain must belong to this brand.
+      for (const domain of currentDomains) {
+        if (!requestedSet.has(domain)) {
+          const owned = currentPairs.some(
+            (p) => p.domain.toLowerCase().replace(/^www\./, '').trim() === domain,
+          );
+          if (!owned) throw codedError('stale_configuration', 'stale_configuration: brand mapping changed since read');
+          removeBrandSiteMapping(normalized, domain);
+        }
+      }
+      for (const domain of requestedDomains) {
+        if (!currentDomains.has(domain)) addBrandSiteMapping(normalized, domain);
+      }
+      // Advisory identity: colliding exact spellings fail closed.
+      const colliding = listBrandAdvisoryProfilesByNormalized(workspaceId, normalized);
+      const foreign = colliding.filter((p) => p.brand !== displayBrand);
+      if (foreign.length > 0) {
+        throw codedError(
+          'advisory_identity_conflict',
+          `advisory_identity_conflict: multiple advisory profiles match '${displayBrand}' (${foreign.map((p) => p.brand).join(', ')})`,
+        );
+      }
+      upsertBrandAdvisoryProfile({
+        workspaceId,
+        brand: displayBrand,
+        aliases: parsed.data.configuration.aliases,
+        preferredDistributorIds: parsed.data.configuration.preferredDistributorIds,
+        sourcingPolicy: parsed.data.configuration.sourcingPolicy,
+      });
     }
-    throw err;
+
+    // Final source validation against final mappings + known distributors.
+    const finalDomains = new Set(
+      findBrandSites(normalized).map((p) => p.domain.toLowerCase().replace(/^www\./, '').trim()),
+    );
+    for (const s of canonicalSources) {
+      if (s.kind === 'official_page') {
+        const domain = s.domain as string;
+        if (!finalDomains.has(domain)) {
+          throw new Error(`Invalid brand strategy approval: official domain '${domain}' is not mapped for this brand`);
+        }
+        if (isKnownRetailerOrDistributorDomain(domain)) {
+          throw new Error(`Invalid brand strategy approval: '${domain}' is a known retailer/distributor host, not an official brand domain`);
+        }
+      } else {
+        const id = s.distributorId as string;
+        if (!getDistributorById(id) && !isSupportedDistributorId(id)) {
+          throw new Error(`Invalid brand strategy approval: unknown distributor '${id}'`);
+        }
+      }
+    }
+
+    const sourcesJson = JSON.stringify(canonicalSources);
+    if (existing) {
+      const nextRevision = existing.revision + 1;
+      const res = db.query(
+        `UPDATE brand_sourcing_strategies SET brand = ?, sources_json = ?, revision = ?,
+         approved = 1, approved_at = ?, approved_by = ?, updated_at = ? WHERE id = ? AND revision = ?`,
+      ).run(displayBrand, sourcesJson, nextRevision, now, parsed.data.approvedBy ?? null, now, existing.id, existing.revision);
+      if (res.changes === 0) {
+        throw codedError('stale_revision', `stale_revision: brand strategy for '${displayBrand}' changed since read`);
+      }
+    } else {
+      const id = `bss_${randomUUID().slice(0, 8)}`;
+      try {
+        db.query(`INSERT INTO brand_sourcing_strategies
+          (id, workspace_id, brand, normalized_brand, sources_json, revision, approved, approved_at, approved_by, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)`)
+          .run(id, workspaceId, displayBrand, normalized, sourcesJson, now, parsed.data.approvedBy ?? null, now, now);
+      } catch (err) {
+        if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
+          throw codedError('stale_revision', `stale_revision: brand strategy for '${displayBrand}' was created concurrently`);
+        }
+        throw err;
+      }
+    }
+  });
+
+  // The transaction rolls back on any throw above; a successful return
+  // means mappings, advisory profile, and approval committed together.
+  run();
+  return getBrandStrategyRow(workspaceId, displayBrand)!;
+}
+
+/**
+ * Compatibility seam (pre-builder callers): source-only approval through the
+ * same guarded atomic path. `expectedRevision` is required — callers without
+ * a guard must read the current revision first instead of writing unguarded.
+ */
+export function approveBrandStrategy(
+  workspaceId: string,
+  input: { brand: string; sources: StrategySourceRef[]; expectedRevision?: number; approvedBy?: string },
+): ApprovedBrandStrategy {
+  if (input.expectedRevision === undefined) {
+    throw new Error('Invalid brand strategy approval: expectedRevision is required');
   }
-  return getBrandStrategyRow(workspaceId, parsed.data.brand)!;
+  return saveBrandStrategy(workspaceId, {
+    brand: input.brand,
+    sources: input.sources,
+    expectedRevision: input.expectedRevision,
+    approvedBy: input.approvedBy,
+  });
 }
 
 export function listApprovedBrandStrategies(workspaceId: string): ApprovedBrandStrategy[] {

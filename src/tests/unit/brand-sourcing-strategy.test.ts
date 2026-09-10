@@ -13,7 +13,17 @@ import {
 import {
   approveBrandStrategy,
   getApprovedBrandStrategy,
+  getBrandStrategyRow,
+  saveBrandStrategy,
+  computeBrandStrategyConfigurationToken,
 } from '../../db/repositories/brand-strategy-approval-repo';
+import { upsertBrandSite, findBrandSites } from '../../db/repositories/brand-site-repo';
+import { upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-repo';
+import {
+  captureGenerationStrategyBinding,
+  getGenerationStrategyBinding,
+} from '../../db/repositories/brand-strategy-generation-repo';
+import { supersedeCurrentSourcingGeneration } from '../../db/repositories/onboarding-evidence-repo';
 import { deriveBrandStrategies } from '../../onboarding/brand-hub/brand-strategy-derive';
 import { DefaultSourcingEngine } from '../../onboarding/sourcing/engine';
 import type { ConnectorRegistry } from '../../onboarding/sourcing/connector-registry';
@@ -107,11 +117,12 @@ function seedConnections() {
   }
 }
 
-describe('brand sourcing strategy approval (ticket #121)', () => {
+describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: Save is approval)', () => {
   it('distributor-only strategy with no domain persists, reloads, and pins a revision', () => {
     const approved = approveBrandStrategy(workspaceId, {
       brand: 'Acana',
-      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }, { kind: 'distributor_record', distributorId: 'dist_bci' }],
+      sources: [{ kind: 'distributor_record', distributorId: 'phillips' }, { kind: 'distributor_record', distributorId: 'bci' }],
+      expectedRevision: 0,
       approvedBy: 'operator-1',
     });
     expect(approved.revision).toBe(1);
@@ -121,29 +132,58 @@ describe('brand sourcing strategy approval (ticket #121)', () => {
     expect(reloaded?.revision).toBe(1);
   });
 
-  it('stale expectedRevision is rejected without mutating the approved row', () => {
-    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }] });
+  it('missing expectedRevision never writes', () => {
     expect(() => approveBrandStrategy(workspaceId, {
       brand: 'Acana',
-      sources: [{ kind: 'distributor_record', distributorId: 'dist_bci' }],
+      sources: [{ kind: 'distributor_record', distributorId: 'phillips' }],
+    } as never)).toThrow(/expectedRevision/);
+    expect(getApprovedBrandStrategy(workspaceId, 'Acana')).toBeNull();
+  });
+
+  it('stale expectedRevision is rejected without mutating the approved row', () => {
+    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'phillips' }], expectedRevision: 0 });
+    expect(() => approveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'bci' }],
       expectedRevision: 99,
     })).toThrow(/stale_revision/);
     expect(getApprovedBrandStrategy(workspaceId, 'Acana')?.sources).toEqual([
-      { kind: 'distributor_record', distributorId: 'dist_phillips' },
+      { kind: 'distributor_record', distributorId: 'phillips' },
     ]);
   });
 
-  it('repeat identical approval is idempotent (no revision bump)', () => {
-    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }] });
-    const again = approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }] });
-    expect(again.revision).toBe(1);
+  it('every explicit Save creates a new revision, even identical sources', () => {
+    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'phillips' }], expectedRevision: 0 });
+    const again = approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'phillips' }], expectedRevision: 1 });
+    expect(again.revision).toBe(2);
+  });
+
+  it('guarded replay with the same previous revision is rejected without a new row', () => {
+    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'phillips' }], expectedRevision: 0 });
+    expect(() => approveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'phillips' }],
+      expectedRevision: 0,
+    })).toThrow(/stale_revision/);
+    expect(getApprovedBrandStrategy(workspaceId, 'Acana')?.revision).toBe(1);
   });
 
   it('unknown source refs are rejected by shared validation', () => {
-    expect(() => approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [] })).toThrow();
+    expect(() => approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [], expectedRevision: 0 })).toThrow();
     expect(() => approveBrandStrategy(workspaceId, {
-      brand: 'Acana', sources: [{ kind: 'distributor_record' } as never],
+      brand: 'Acana', sources: [{ kind: 'distributor_record' } as never], expectedRevision: 0,
     })).toThrow();
+    expect(() => approveBrandStrategy(workspaceId, {
+      brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'invented_distributor_xyz' }], expectedRevision: 0,
+    })).toThrow(/unknown distributor/);
+    expect(() => approveBrandStrategy(workspaceId, {
+      brand: 'Acana', sources: [{ kind: 'official_page', domain: 'unmapped.example.com' }], expectedRevision: 0,
+    })).toThrow(/not mapped/);
+    expect(() => approveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'official_page', domain: 'acme.com', distributorId: 'phillips' } as never],
+      expectedRevision: 0,
+    })).toThrow(/must not carry/);
   });
 
   it('derive marks unapproved brands awaiting approval and approved distributor-only brands ready', () => {
@@ -156,7 +196,8 @@ describe('brand sourcing strategy approval (ticket #121)', () => {
     expect(before[0].approval?.approved).toBe(false);
     expect(before[0].collectionReadiness).toBe('awaiting_approval');
 
-    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }] });
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }], expectedRevision: 0 });
     const after = deriveBrandStrategies({
       ...params,
       approvals: new Map([['acana', { approved: true, revision: 1, approvedAt: new Date().toISOString(), approvedBy: 'op' }]]),
@@ -168,9 +209,12 @@ describe('brand sourcing strategy approval (ticket #121)', () => {
   });
 
   it('approving a strict subset pins derive readiness/label to that subset', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    createDistributor({ id: 'dist_bci', name: 'BCI' });
     approveBrandStrategy(workspaceId, {
       brand: 'Acana',
       sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
     });
     const strategies = deriveBrandStrategies({
       brandSites: [],
@@ -226,6 +270,7 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
     approveBrandStrategy(workspaceId, {
       brand: 'Acana',
       sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }, { kind: 'distributor_record', distributorId: 'dist_bci' }],
+      expectedRevision: 0,
     });
     const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
     const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
@@ -252,6 +297,7 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
     approveBrandStrategy(workspaceId, {
       brand: 'Acana',
       sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
     });
     const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
     const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
@@ -273,12 +319,14 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
 
   it('approved official source is recorded as skipped (not_supported), distributors still run', async () => {
     seedConnections();
+    upsertBrandSite('Acana', 'acme.com');
     approveBrandStrategy(workspaceId, {
       brand: 'Acana',
       sources: [
         { kind: 'official_page', domain: 'acme.com' },
         { kind: 'distributor_record', distributorId: 'dist_phillips' },
       ],
+      expectedRevision: 0,
     });
     const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
     const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
@@ -301,9 +349,13 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
   });
 
   it('approved strategy with no usable source yields setup attention, not a fake result', async () => {
+    // Known distributor (row exists) but no enabled connection: valid Save,
+    // zero usable sources at execution.
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
     approveBrandStrategy(workspaceId, {
       brand: 'Acana',
       sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
     });
     const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
     const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
@@ -363,5 +415,230 @@ describe('listing evidence gaps (ticket #124)', () => {
     expect(resolved.correction).toEqual({ description: 'Operator text' });
     expect(hasUnresolvedPreparationGap('item-9')).toBe(false);
     expect(getPreparationGap('item-9')?.status).toBe('resolved');
+  });
+});
+
+describe('builder guarded atomic Save (slice B1)', () => {
+  it('config-only Save applies mapping delta + preferences atomically and bumps exactly once', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    const first = saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+      approvedBy: 'op',
+    });
+    expect(first.revision).toBe(1);
+    const token = computeBrandStrategyConfigurationToken(workspaceId, 'Acana');
+    const second = saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 1,
+      configuration: {
+        officialDomains: ['acme.com'],
+        aliases: ['acana pet'],
+        preferredDistributorIds: ['dist_phillips'],
+        sourcingPolicy: 'preferred_then_fallback',
+      },
+      expectedConfigurationToken: token,
+      approvedBy: 'op',
+    });
+    expect(second.revision).toBe(2);
+    expect(findBrandSites('acana').map((s) => s.domain)).toEqual(['acme.com']);
+  });
+
+  it('external mapping edit between read and Save is stale_configuration; counter-only updates do not invalidate', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    upsertBrandSite('Acana', 'acme.com');
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const staleToken = computeBrandStrategyConfigurationToken(workspaceId, 'Acana');
+    // External Domain Configuration edit (mapping add outside the builder).
+    upsertBrandSite('Acana', 'other.example.org');
+    expect(() => saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 1,
+      configuration: {
+        officialDomains: ['acme.com'],
+        aliases: [],
+        preferredDistributorIds: ['dist_phillips'],
+        sourcingPolicy: 'advisory',
+      },
+      expectedConfigurationToken: staleToken,
+    })).toThrow(/stale_configuration/);
+    expect(getBrandStrategyRow(workspaceId, 'Acana')?.revision).toBe(1);
+
+    // Pure usage-counter updates do not invalidate the token.
+    const freshToken = computeBrandStrategyConfigurationToken(workspaceId, 'Acana');
+    upsertBrandSite('Acana', 'acme.com');
+    upsertBrandSite('Acana', 'other.example.org');
+    expect(computeBrandStrategyConfigurationToken(workspaceId, 'Acana')).toBe(freshToken);
+    const saved = saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 1,
+      configuration: {
+        officialDomains: ['acme.com', 'other.example.org'],
+        aliases: [],
+        preferredDistributorIds: ['dist_phillips'],
+        sourcingPolicy: 'advisory',
+      },
+      expectedConfigurationToken: freshToken,
+    });
+    expect(saved.revision).toBe(2);
+  });
+
+  it('advisory collision rolls back mappings and approval together', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    // Historical colliding spelling stored outside the builder.
+    upsertBrandAdvisoryProfile({ workspaceId, brand: 'ACANA', aliases: [], preferredDistributorIds: [] });
+    const token = computeBrandStrategyConfigurationToken(workspaceId, 'Acana');
+    expect(() => saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+      configuration: {
+        officialDomains: ['acme.com'],
+        aliases: [],
+        preferredDistributorIds: ['dist_phillips'],
+        sourcingPolicy: 'advisory',
+      },
+      expectedConfigurationToken: token,
+    })).toThrow(/advisory_identity_conflict/);
+    // Complete rollback: the staged mapping is gone (only the migration-seeded
+    // acana.com remains) and no approval row was created.
+    expect(findBrandSites('acana').map((s) => s.domain).sort()).toEqual(['acana.com']);
+    expect(getBrandStrategyRow(workspaceId, 'Acana')).toBeNull();
+  });
+
+  it('removing a mapping deletes only this brand pair; other brands on the domain are untouched', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    upsertBrandSite('Acana', 'shared.example.com');
+    upsertBrandSite('Orijen', 'shared.example.com');
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+      configuration: {
+        officialDomains: [],
+        aliases: [],
+        preferredDistributorIds: ['dist_phillips'],
+        sourcingPolicy: 'advisory',
+      },
+      expectedConfigurationToken: computeBrandStrategyConfigurationToken(workspaceId, 'Acana'),
+    });
+    // Only this brand's pair is removed (the migration-seeded acana.com is
+    // replaced by the configuration delta); the other brand keeps both rows.
+    expect(findBrandSites('acana').map((s) => s.domain).sort()).toEqual([]);
+    expect(findBrandSites('orijen').map((s) => s.domain).sort()).toEqual(['orijenpetfoods.com', 'shared.example.com']);
+  });
+
+  it('concurrent first Saves: one winner, one stale_revision, no loser write', () => {
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    createDistributor({ id: 'dist_bci', name: 'BCI' });
+    const winner = saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    expect(winner.revision).toBe(1);
+    expect(() => saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_bci' }],
+      expectedRevision: 0,
+    })).toThrow(/stale_revision/);
+    expect(getApprovedBrandStrategy(workspaceId, 'Acana')?.sources).toEqual([
+      { kind: 'distributor_record', distributorId: 'dist_phillips' },
+    ]);
+  });
+});
+
+describe('durable generation binding (slice B2)', () => {
+  it('active generation keeps its revision across a later Save; retry captures the newest', async () => {
+    seedConnections();
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
+    const registry = new TestRegistry();
+    registry.register('dist_phillips', new MockConnector('dist_phillips'));
+    registry.register('dist_bci', new MockConnector('dist_bci'));
+    const engine = new DefaultSourcingEngine(registry);
+
+    const g1 = startSourcingGeneration(item.id);
+    const r1 = await engine.runGeneration({
+      itemId: item.id, generationId: g1.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(r1.strategyRevision).toBe(1);
+    expect(r1.attempts).toHaveLength(1);
+
+    // Save revision 2 mid-flight: G1 stays pinned to revision 1.
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [
+        { kind: 'distributor_record', distributorId: 'dist_phillips' },
+        { kind: 'distributor_record', distributorId: 'dist_bci' },
+      ],
+      expectedRevision: 1,
+    });
+    expect(getGenerationStrategyBinding(g1.id)).toMatchObject({ mode: 'approved', strategyRevision: 1 });
+    // Re-entering G1 re-reads the same persisted binding.
+    const r1b = await engine.runGeneration({
+      itemId: item.id, generationId: g1.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(r1b.strategyRevision).toBe(1);
+
+    // Explicit retry supersedes G1 and captures revision 2.
+    const g2 = supersedeCurrentSourcingGeneration(item.id, 'operator_retry');
+    const r2 = await engine.runGeneration({
+      itemId: item.id, generationId: g2.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(r2.strategyRevision).toBe(2);
+    expect(r2.attempts).toHaveLength(2);
+  });
+
+  it('evidence without a binding is uncertain; tampered and foreign bindings fail closed', async () => {
+    seedConnections();
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
+    const registry = new TestRegistry();
+    registry.register('dist_phillips', new MockConnector('dist_phillips'));
+    registry.register('dist_bci', new MockConnector('dist_bci'));
+    const engine = new DefaultSourcingEngine(registry);
+    const gen = startSourcingGeneration(item.id);
+    await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+
+    // Simulate pre-builder evidence: remove the snapshot, keep the attempts.
+    const { getDb } = await import('../../db/connection');
+    getDb().query('DELETE FROM sourcing_generation_strategy_snapshots WHERE sourcing_generation_id = ?').run(gen.id);
+    expect(() => captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen.id }))
+      .toThrow(/binding_uncertain/);
+
+    // Tampered version fails closed on read.
+    const gen2 = supersedeCurrentSourcingGeneration(item.id, 'operator_retry');
+    captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen2.id });
+    getDb().query("UPDATE sourcing_generation_strategy_snapshots SET binding_version = 'strategy-binding-v999' WHERE sourcing_generation_id = ?").run(gen2.id);
+    expect(() => getGenerationStrategyBinding(gen2.id)).toThrow(/binding_invalid/);
+
+    // Foreign workspace capture fails closed.
+    expect(() => captureGenerationStrategyBinding({ workspaceId: 'ws-foreign', itemId: item.id, generationId: gen2.id }))
+      .toThrow(/binding_invalid/);
   });
 });

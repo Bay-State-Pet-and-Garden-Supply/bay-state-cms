@@ -7,6 +7,8 @@
   },
   "version": 1,
   "vitestSafe": {
+    "src/tests/unit/brand-strategy-builder-schema.test.ts": "textual bun mention only; collects under Vitest",
+    "src/tests/unit/brand-strategy-routes.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/domain-profile-state.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/e04s01-curation-determinism.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/e04s02-curation-provenance.test.ts": "textual bun mention only; collects under Vitest",

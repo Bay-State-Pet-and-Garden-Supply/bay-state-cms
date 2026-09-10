@@ -1623,6 +1623,33 @@ export async function getBrandStrategies(): Promise<{ strategies: import('../sha
   return request(`/brands/strategy`);
 }
 
+/**
+ * Builder slice B1: single-brand strategy detail (synthesized revision-0
+ * projection for unknown brands; the read writes nothing).
+ */
+export async function getBrandStrategyDetail(
+  brand: string,
+): Promise<{ strategy: import('../shared/schemas/brand-strategy').BrandStrategy | null; strategies: import('../shared/schemas/brand-strategy').BrandStrategy[] }> {
+  return request(`/brands/strategy?brand=${encodeURIComponent(brand)}`);
+}
+
+/**
+ * Builder slice B1: sole typed client writer for brand strategy Saves.
+ * Every accepted Save creates one approved revision; callers pass the
+ * current `expectedRevision` (0 for first Save) and, when sending
+ * `configuration`, the current `expectedConfigurationToken`. Throws
+ * OnboardingApiError with structured `code` (`invalid_strategy`,
+ * `stale_revision`, `stale_configuration`, `advisory_identity_conflict`).
+ */
+export async function saveBrandStrategy(
+  input: import('../shared/schemas/brand-strategy').ApproveBrandStrategy,
+): Promise<{ strategy: import('../shared/schemas/brand-strategy').ApprovedBrandStrategy }> {
+  return request(`/brands/strategy/approve`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 
 
 // ─── Taxonomy release status + sanctioned activation (P4) ─────────────────────

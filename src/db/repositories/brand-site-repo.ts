@@ -146,6 +146,41 @@ export function deleteBrandSite(id: string): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Builder slice B1: brand-scoped mapping delta primitives.
+ *
+ * Unlike `upsertBrandSite` (which increments `success_count` on repeat use)
+ * these helpers never manufacture usage: adds insert with `success_count 0`
+ * and leave existing rows (ids, counters, timestamps, url_pattern) fully
+ * untouched; removals delete only this brand's pair. Callers own the
+ * surrounding transaction. Never touches other brands sharing the domain.
+ */
+export function addBrandSiteMapping(brandName: string, domain: string): BrandSite {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const normalizedBrand = brandName.toLowerCase().trim();
+  const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').trim();
+  db.query(
+    `INSERT OR IGNORE INTO brand_sites (id, brand_name, domain, url_pattern, success_count, last_used_at, created_at)
+     VALUES (?, ?, ?, NULL, 0, NULL, ?)`,
+  ).run(randomUUID(), normalizedBrand, normalizedDomain, now);
+  const row = db.query(
+    'SELECT * FROM brand_sites WHERE brand_name = ? AND domain = ?',
+  ).get(normalizedBrand, normalizedDomain) as BrandSiteRow | undefined;
+  if (!row) throw new Error(`Failed to add brand site mapping for '${normalizedBrand}'`);
+  return mapRowToBrandSite(row);
+}
+
+export function removeBrandSiteMapping(brandName: string, domain: string): boolean {
+  const db = getDb();
+  const normalizedBrand = brandName.toLowerCase().trim();
+  const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').trim();
+  const result = db.query(
+    'DELETE FROM brand_sites WHERE brand_name = ? AND domain = ?',
+  ).run(normalizedBrand, normalizedDomain);
+  return result.changes > 0;
+}
+
 export function deleteBrandSitesByDomain(domain: string): number {
   const db = getDb();
   const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').trim();
