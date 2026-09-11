@@ -289,6 +289,24 @@ function computePromotionGate(
       ? getRuntimeSnapshotByHash(workspaceId, activeRun.configSnapshotHash)
       : null;
   const effectiveTypeId = resolvePromotionEffectiveTypeId(parentRun, activeProposals, snapshot);
+  // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
+  // BEFORE any image side effects (phase-a gate), mirroring the approve
+  // guard. Tolerant of minimal DBs without the gaps table.
+  try {
+    const gapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(item.id) as
+      | { status: string }
+      | undefined;
+    if (gapRow?.status === 'open') {
+      return {
+        ok: false,
+        reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap before promotion',
+        activeRun,
+        activeProposals,
+      };
+    }
+  } catch {
+    // Minimal DBs without the gaps table: no gap can be open.
+  }
   // PR12 C2 (DECISION-A): the CURRENT authority value-hashes recomputed from
   // the SAME inputs the target comparison uses — the parent run's current
   // execution type id + confidence (the `getCohortRunById` row carries
@@ -549,7 +567,8 @@ export function durableApprovalHolds(params: {
         | 'not_in_promotion'
         | 'not_pending'
         | 'approval_missing'
-        | 'approval_invalidated';
+        | 'approval_invalidated'
+        | 'preparation_gap_unresolved';
     } {
   const { freshItem, freshBatch, reviewState, batchId, workspaceId } = params;
   if (!freshItem) return { ok: false, reason: 'not_found' };
@@ -560,6 +579,17 @@ export function durableApprovalHolds(params: {
   if (freshItem.stageStatus !== 'pending') return { ok: false, reason: 'not_pending' };
   if (!reviewState || !reviewState.approvedAt) return { ok: false, reason: 'approval_missing' };
   if (reviewState.reviewInvalidatedAt) return { ok: false, reason: 'approval_invalidated' };
+  // Ticket #124: final draft-write authorization rechecks the gap (a gap
+  // opened after approval — e.g. re-preparation found new insufficiency —
+  // can never draft even with a stale approval row).
+  try {
+    const gapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(freshItem.id) as
+      | { status: string }
+      | undefined;
+    if (gapRow?.status === 'open') return { ok: false, reason: 'preparation_gap_unresolved' };
+  } catch {
+    // Minimal DBs without the gaps table: no gap can be open.
+  }
   return { ok: true };
 }
 
@@ -569,7 +599,8 @@ type ApprovalRefusalReason =
   | 'not_in_promotion'
   | 'not_pending'
   | 'approval_missing'
-  | 'approval_invalidated';
+  | 'approval_invalidated'
+  | 'preparation_gap_unresolved';
 
 const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
   not_found: 'Item not found',
@@ -578,6 +609,7 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
   not_pending: 'Item promotion state already moved',
   approval_missing: 'Durable approval is required before export-draft creation',
   approval_invalidated: 'Approval was invalidated after review; re-approve before exporting',
+  preparation_gap_unresolved: 'An unresolved Listing Evidence Gap blocks export; resolve it in Prepare listing',
 };
 
 /**

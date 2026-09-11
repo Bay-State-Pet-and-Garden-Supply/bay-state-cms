@@ -44,7 +44,8 @@ import {
   assessListingEvidenceGap,
   openPreparationGap,
   getPreparationGap,
-  resolvePreparationGap,
+  recordGapCorrection,
+  resolveAfterValidation,
 } from '../../db/repositories/preparation-gap-repo';
 import { approveAndAdvanceItems } from '../../db/repositories/onboarding-review-repo';
 import { materializeStrategyCollectionExtraction } from '../../onboarding/sourcing/distributor-record-materializer';
@@ -310,7 +311,15 @@ describe('ticket #122: complementary distributor-only collection', () => {
       itemIds: [item.id], batchId: batch.id, approvedBy: 'op', requestHash: 'd'.repeat(64),
     });
     expect(blocked.rejected.some((r) => r.itemId === item.id && r.reason === 'preparation_gap_unresolved')).toBe(true);
-    resolvePreparationGap({ itemId: item.id, correction: { description: 'Operator text' }, resolvedBy: 'op' });
+    // Ticket #124: gaps clear only through the validated record + resolve
+    // flow (the direct-resolve bypass is removed).
+    const { envelope } = recordGapCorrection({
+      itemId: item.id, values: { description: 'Operator text' }, actor: 'op', role: 'catalog_approver',
+    });
+    resolveAfterValidation({
+      itemId: item.id, revision: envelope.revision, correctionHash: envelope.correctionHash,
+      evidenceHash: 'c'.repeat(64), resolvedBy: 'op',
+    });
     const retry = approveAndAdvanceItems({
       itemIds: [item.id], batchId: batch.id, approvedBy: 'op', requestHash: 'e'.repeat(64),
     });

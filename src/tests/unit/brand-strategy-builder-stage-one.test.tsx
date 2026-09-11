@@ -34,6 +34,9 @@ vi.mock('../../client/onboarding-api', () => {
     getExtractorProfiles: vi.fn(),
     getBrandStrategyDetail: vi.fn(),
     saveBrandStrategy: vi.fn(),
+    getPreparationGap: vi.fn(),
+    submitGapCorrection: vi.fn(),
+    generateGapIdempotencyKey: vi.fn(() => 'test-gap-key'),
     OnboardingApiError: FakeApiError,
   };
 });
@@ -50,6 +53,7 @@ import {
   getBrandSites,
   getBrandStrategyDetail,
   getExtractorProfiles,
+  getPreparationGap,
   OnboardingApiError,
   saveBrandStrategy,
 } from '../../client/onboarding-api';
@@ -238,5 +242,66 @@ describe('Stage 1 builder integration', () => {
     expect(dialog?.getAttribute('aria-label')).toMatch(/Review strategy — Beta/);
     // Text readiness, not color-only: awaiting-approval wording is present.
     expect(container.textContent).toMatch(/Awaiting approval/);
+  });
+
+  it('prepare gap dialog opens labelled, Escape closes and restores invoker focus (T-8)', async () => {
+    const prepRow = {
+      ...betaRow('item_p1'),
+      upc: '000000009', name: 'Prep product', brand: 'Prep',
+      stage: 'prepare_listing', stageStatus: 'pending',
+    };
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
+      if (url.includes('/api/onboarding/brands/strategy')) {
+        return { ok: true, status: 200, json: async () => ({ strategies: [] }) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schemaVersion: 2, stageVocabularyVersion: 2, batchId: 'b1',
+          filterFingerprint: 'a'.repeat(32), projectionHealth: healthy(),
+          items: [prepRow], nextCursor: null, scannedRows: 1, queryCount: 1,
+        }),
+      } as any;
+    });
+    vi.mocked(getPreparationGap).mockResolvedValue({
+      gap: {
+        id: 'pgap_1', itemId: 'item_p1', batchId: 'b1', missingFields: ['description'],
+        reason: 'No description from collected sources.', evidenceHash: null,
+        status: 'open', correctionRevision: 0, correctionEnvelope: null,
+        updatedAt: '2026-09-11T00:00:00.000Z',
+      },
+    } as never);
+    await act(async () => {
+      root.render(<StageItemsView batchId="b1" stage="prepare_listing" />);
+    });
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="prepare-gap-open-item_p1"]')).not.toBeNull();
+    });
+    const opener = container.querySelector('[data-testid="prepare-gap-open-item_p1"]') as HTMLButtonElement;
+    expect(opener.getAttribute('aria-haspopup')).toBe('dialog');
+    opener.focus();
+    await act(async () => { opener.click(); });
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="prepare-gap-dialog"]')).not.toBeNull();
+    });
+    await act(async () => {});
+    const dialog = container.querySelector('[data-testid="prepare-gap-dialog"]');
+    expect(dialog?.getAttribute('role')).toBe('dialog');
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-label')).toMatch(/Resolve listing gap — Prep product/);
+    // The panel loaded the persisted request for help inside the dialog.
+    await vi.waitFor(() => {
+      expect(container.querySelector('form[aria-label="Correct listing information for Prep product"]')).not.toBeNull();
+    });
+    await act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="prepare-gap-dialog"]')).toBeNull();
+    });
+    // Invoker focus restored — keyboard users land back on the row trigger.
+    expect(document.activeElement).toBe(opener);
   });
 });

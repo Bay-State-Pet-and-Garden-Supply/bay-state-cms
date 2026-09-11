@@ -442,6 +442,19 @@ export type ImportedIdentityMemberProvenance = z.infer<typeof ImportedIdentityMe
 export const ExecutionEvidenceProjectionMemberV3Schema =
   ExecutionEvidenceProjectionMemberV2Schema.extend({
     version: z.literal('execution-evidence-v3'),
+    /**
+     * Ticket #124: operator gap-correction overlay frozen at freeze time.
+     * Absent unless the member item holds an open gap with a recorded
+     * correction envelope — absent members hash byte-identically to
+     * before. Present overlays participate in the projection hash, so a
+     * post-freeze correction can never reuse this frozen decision.
+     */
+    correctionOverlay: z.object({
+      correctionHash: z.string().regex(/^[a-f0-9]{64}$/),
+      revision: z.number().int().min(1),
+      actor: z.string().min(1).max(128),
+      values: z.record(z.string().min(1).max(64), z.string().min(1).max(2000)),
+    }).optional(),
     importedIdentity: ImportedIdentityMemberProvenanceSchema.default({
       rawEnvelope: null,
       normalizedEnvelope: null,

@@ -353,6 +353,29 @@ export function buildExecutionEvidenceProjectionMember(
   const lossy = (item as any).identityLossy ?? (rawEnvelope === null && normalizedEnvelope !== null);
   const source = rawEnvelope === null && normalizedEnvelope !== null && version === 0 ? 'legacy_operational_backfill' as const : 'spreadsheet' as const;
 
+  // Ticket #124: freeze an open gap's recorded correction envelope into
+  // the member (attributed overlay for execution). Absent unless a
+  // recorded/preparing envelope exists — omission keeps historical bytes
+  // and hashes identical. The envelope row is immutable; the frozen copy
+  // participates in the projection hash, so post-freeze corrections can
+  // never reuse this frozen decision.
+  let correctionOverlay: { correctionHash: string; revision: number; actor: string; values: Record<string, string> } | undefined;
+  try {
+    const { getPreparationGap } = require('../../db/repositories/preparation-gap-repo') as typeof import('../../db/repositories/preparation-gap-repo');
+    const gap = getPreparationGap(item.id);
+    const envelope = gap?.status === 'open' ? gap.correctionEnvelope : null;
+    if (envelope && (envelope.status === 'recorded' || envelope.status === 'preparing')) {
+      correctionOverlay = {
+        correctionHash: envelope.correctionHash,
+        revision: envelope.revision,
+        actor: envelope.actor,
+        values: envelope.values,
+      };
+    }
+  } catch {
+    correctionOverlay = undefined;
+  }
+
   return ExecutionEvidenceProjectionV3Schema.shape.members.element.parse({
     version: 'execution-evidence-v3',
     onboardingItemId: item.id,
@@ -425,6 +448,7 @@ export function buildExecutionEvidenceProjectionMember(
       piImportComplete,
     },
     evidenceHash,
+    ...(correctionOverlay ? { correctionOverlay } : {}),
   });
 }
 

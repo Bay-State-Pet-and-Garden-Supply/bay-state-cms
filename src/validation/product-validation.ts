@@ -23,10 +23,12 @@ export interface ValidationOptions {
 }
 
 /**
- * Run all validation rules for a single product draft.
- * Returns the list of validation results.
+ * Resolve a rule's effective severity under optional store configuration.
+ * Exported for preparation-gap derivation (ticket #124): gaps open only
+ * on BLOCKING requirements, never on warnings — additive export, existing
+ * callers unchanged.
  */
-function getRuleSeverity(
+export function getRuleSeverity(
   code: string,
   defaultSeverity: 'blocker' | 'warning' | 'info',
   context: ValidationContext,

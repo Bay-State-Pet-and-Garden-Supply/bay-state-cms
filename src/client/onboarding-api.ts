@@ -1618,6 +1618,48 @@ export async function saveBrandStrategy(
   });
 }
 
+export interface PreparationGapView {
+  id: string;
+  itemId: string;
+  batchId: string;
+  missingFields: string[];
+  reason: string;
+  evidenceHash: string | null;
+  status: 'open' | 'resolved';
+  correctionRevision: number;
+  correctionEnvelope: {
+    revision: number;
+    values: Record<string, string>;
+    actor: string;
+    status: string;
+  } | null;
+  updatedAt: string;
+}
+
+export async function getPreparationGap(itemId: string): Promise<{ gap: PreparationGapView | null }> {
+  return request(`/preparation-gaps/${encodeURIComponent(itemId)}`);
+}
+
+export function generateGapIdempotencyKey(): string {
+  return `gap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export async function submitGapCorrection(
+  itemId: string,
+  input: {
+    values: Record<string, string>;
+    expectedEvidenceHash?: string | null;
+    expectedUpdatedAt?: string | null;
+  },
+  opts?: { idempotencyKey?: string },
+): Promise<{ gap: PreparationGapView; envelope: PreparationGapView['correctionEnvelope']; receiptId: string; replay: boolean }> {
+  return request(`/preparation-gaps/${encodeURIComponent(itemId)}/correct`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': opts?.idempotencyKey ?? generateGapIdempotencyKey() },
+    body: JSON.stringify(input),
+  });
+}
+
 
 
 // ─── Taxonomy release status + sanctioned activation (P4) ─────────────────────

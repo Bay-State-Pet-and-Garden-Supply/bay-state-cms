@@ -27,6 +27,7 @@ import { colors, fonts, rounded } from '../../theme';
 import { assignBrandGroup, assignItemBrand, getBrandSites, getExtractorProfiles } from '../../onboarding-api';
 import { assignBatchBrandDomain, getBrandDomainBlockers } from '../../onboarding-work-api';
 import { BrandStrategyBuilder } from '../brand-strategy/BrandStrategyBuilder';
+import { GapCorrectionPanel } from './GapCorrectionPanel';
 import { BrandCombobox } from './BrandCombobox';
 import { getBrandOptions, registerBrandOption, resetBrandOptionsCache, resolveCanonicalBrand } from './brand-combobox-logic';
 import {
@@ -356,6 +357,12 @@ export function StageItemsView({
   const strategyDialogDirty = useRef(false);
   const strategyDialogLastFocus = useRef<HTMLElement | null>(null);
   const strategyDialogCardRef = useRef<HTMLDivElement | null>(null);
+  // Ticket #124 — per-row gap-correction dialog for Prepare listing rows.
+  // Opening never writes; only the panel's explicit submit records a
+  // correction (gap clears on re-preparation validation, never on open).
+  const [gapDialog, setGapDialog] = useState<{ itemId: string; itemName: string } | null>(null);
+  const gapDialogLastFocus = useRef<HTMLElement | null>(null);
+  const gapDialogCardRef = useRef<HTMLDivElement | null>(null);
   // Per-row "+ Add Domain" inline inputs (#119).
   const [rowDomainOpen, setRowDomainOpen] = useState<Record<string, boolean>>({});
   const [rowDomainInputs, setRowDomainInputs] = useState<Record<string, string>>({});
@@ -883,6 +890,26 @@ export function StageItemsView({
 
   const isReviewStage = stage === 'review_listings';
   const isDraftsStage = stage === 'create_drafts';
+  const isPrepareStage = stage === 'prepare_listing';
+  const openGapDialog = useCallback((itemId: string, itemName: string, invoker?: HTMLElement | null) => {
+    gapDialogLastFocus.current = invoker ?? (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setGapDialog({ itemId, itemName });
+  }, []);
+  const closeGapDialog = useCallback(() => {
+    setGapDialog(null);
+    gapDialogLastFocus.current?.focus?.();
+  }, []);
+  useEffect(() => {
+    if (!gapDialog) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeGapDialog();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [gapDialog, closeGapDialog]);
+  useEffect(() => {
+    if (gapDialog) gapDialogCardRef.current?.focus?.();
+  }, [gapDialog]);
 
   return (
     <div id="bws-stage-panel" role="tabpanel" aria-labelledby={`bws-stage-tab-${stage}`} data-testid={`stage-items-${stage}`}>
@@ -1268,6 +1295,7 @@ export function StageItemsView({
               <th>Stage status</th>
               {isReviewStage && <th>Review</th>}
               <th>Source</th>
+              {isPrepareStage && <th>Listing help</th>}
             </tr>
           </thead>
           <tbody>
@@ -1295,6 +1323,30 @@ export function StageItemsView({
                   {sourceTypeLabel(item.sourceType)}
                   {item.domain ? <div style={{ fontSize: '0.6875rem' }}>{item.domain}</div> : null}
                 </td>
+                {isPrepareStage && (
+                  <td>
+                    <button
+                      type="button"
+                      data-testid={`prepare-gap-open-${item.itemId}`}
+                      aria-haspopup="dialog"
+                      onClick={(e) => openGapDialog(item.itemId, item.name || item.upc, e.currentTarget)}
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: colors.uniformGreen,
+                        backgroundColor: 'transparent',
+                        border: `1px solid ${colors.uniformGreen}`,
+                        borderRadius: rounded.md,
+                        padding: '0.25rem 0.625rem',
+                        cursor: 'pointer',
+                        width: 'fit-content',
+                        minHeight: 28,
+                      }}
+                    >
+                      Resolve gap
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -1635,6 +1687,34 @@ export function StageItemsView({
         >
           {loading ? 'Loading…' : 'Load more'}
         </button>
+      )}
+      {gapDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Resolve listing gap — ${gapDialog.itemName}`}
+          data-testid="prepare-gap-dialog"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeGapDialog();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') closeGapDialog();
+          }}
+        >
+          <div
+            ref={gapDialogCardRef}
+            tabIndex={-1}
+            style={{ background: '#fff', borderRadius: 12, padding: 20, width: 560, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', outline: 'none' }}
+          >
+            <GapCorrectionPanel
+              itemId={gapDialog.itemId}
+              itemName={gapDialog.itemName}
+              onChanged={() => { void load(null, facet, debouncedQ); }}
+            />
+            <button type="button" onClick={closeGapDialog} style={{ marginTop: 12 }}>Close</button>
+          </div>
+        </div>
       )}
       {strategyDialog && (
         <div
