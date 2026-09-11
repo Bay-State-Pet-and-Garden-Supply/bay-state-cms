@@ -518,6 +518,12 @@ export interface SourcingGenerationRunResult {
   strategyRevision?: number | null;
   /** Normalized brand the strategy was resolved for (null when unbranded). */
   strategyBrand?: string | null;
+  /**
+   * Ticket #122: approved distributor sources with no enabled connection at
+   * collection time. Preserved (never silently dropped) so the completed
+   * envelope records an explicit `unavailable` outcome per source.
+   */
+  unavailableStrategySources?: string[];
 }
 
 export interface SourcingGenerationAttemptSummary {

@@ -10,6 +10,11 @@ import {
   getEvidenceAttemptsByItemAndGeneration,
 } from '../../db/repositories/onboarding-evidence-repo';
 import { getCurrentGenerationAcceptedAttemptIds } from '../../db/repositories/onboarding-acceptance-repo';
+import { getStrategyCollectionResult } from '../../db/repositories/strategy-collection-result-repo';
+import {
+  usableContributions,
+  type CollectionContribution,
+} from './strategy-collection-result';
 import { listResolvedConflictResolutions } from '../../db/repositories/onboarding-conflict-repo';
 import {
   insertExtraction,
@@ -752,4 +757,240 @@ function parseStoredAcceptedIds(raw: string | null): string[] {
   } catch {
     return [];
   }
+}
+
+// ─── Ticket #122: strategy-collection materialization ───────────────────────
+
+export const STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES = {
+  not_owned: 'not_owned',
+  wrong_stage: 'wrong_stage',
+  wrong_decision: 'wrong_decision',
+  malformed_decision: 'malformed_decision',
+  stale_generation: 'stale_generation',
+  acceptance_mismatch: 'acceptance_mismatch',
+  missing_envelope: 'missing_envelope',
+  invalid_envelope: 'invalid_envelope',
+  hash_mismatch: 'hash_mismatch',
+  stored_payload_diverged: 'stored_payload_diverged',
+} as const;
+export type StrategyCollectionMaterializationErrorCode =
+  (typeof STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES)[keyof typeof STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES];
+
+export type StrategyCollectionMaterializationResult =
+  | { ok: true; extractionId: string; idempotent: boolean; extractionData: Record<string, unknown> }
+  | { ok: false; code: StrategyCollectionMaterializationErrorCode };
+
+/** Merge keys consolidated from compatible contributions (first nonblank wins, deterministic order). */
+const STRATEGY_MERGE_KEYS = ['name', 'description', 'brand', 'weight', 'distributorSku'] as const;
+
+function consolidateStrategyFields(usable: CollectionContribution[]): {
+  merged: Record<string, string>;
+  attribution: Record<string, string>;
+} {
+  const merged: Record<string, string> = {};
+  const attribution: Record<string, string> = {};
+  const ordered = [...usable].sort((a, b) => (a.providerId < b.providerId ? -1 : 1));
+  for (const key of STRATEGY_MERGE_KEYS) {
+    for (const c of ordered) {
+      const value = c.fields[key];
+      if (typeof value === 'string' && value.trim() && !merged[key]) {
+        merged[key] = value;
+        attribution[key] = c.providerId;
+      }
+    }
+  }
+  return { merged, attribution };
+}
+
+/**
+ * Materialize a `completed_strategy_collection` decision from its validated
+ * envelope. All rechecks and all writes happen inside ONE transaction; any
+ * integrity failure returns `{ ok: false, code }` before any write.
+ *
+ * - Usable contributions consolidate merchandising fields (attribution
+ *   preserved per field; connector completion order never decides).
+ * - Completed-empty (zero usable contributions) preserves safe IMPORTED
+ *   evidence (spreadsheet name/brand hint) with explicit
+ *   `importedEvidence` provenance — never a fabricated qualified record,
+ *   never a fake URL.
+ * - Zero external calls: no fetch/profile/OCR/model/image work.
+ */
+export function materializeStrategyCollectionExtraction(
+  itemId: string,
+  workspaceId: string,
+): StrategyCollectionMaterializationResult {
+  const db = getDb();
+
+  return db.transaction(() => {
+    const item = findItemById(itemId);
+    if (!item) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.not_owned };
+    }
+    if (item.sourceType !== 'distributor_record') {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.wrong_decision };
+    }
+    let canonicalStage: string;
+    try {
+      canonicalStage = toCanonicalStage(item.stage);
+    } catch {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.wrong_stage };
+    }
+    if (canonicalStage !== 'collect_details' || item.stageStatus !== 'in_progress') {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.wrong_stage };
+    }
+    const batch = findBatchById(item.batchId);
+    if (!batch || batch.workspaceId !== workspaceId) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.not_owned };
+    }
+    if (item.sourcingDecision == null) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.malformed_decision };
+    }
+    const decisionParse = SourcingDecisionV2Schema.safeParse(item.sourcingDecision);
+    if (!decisionParse.success) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.malformed_decision };
+    }
+    const decision = decisionParse.data;
+    if (decision.route !== 'completed_strategy_collection') {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.wrong_decision };
+    }
+    const generation = getCurrentSourcingGeneration(itemId);
+    if (!generation || generation.id !== decision.sourcingGenerationId) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.stale_generation };
+    }
+    const acceptedIds = getCurrentGenerationAcceptedAttemptIds(itemId);
+    if (!sameSet(acceptedIds, decision.acceptedEvidenceAttemptIds)) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.acceptance_mismatch };
+    }
+
+    // Validated envelope authority (fails closed; legacy rows without an
+    // envelope never reach this function — the caller dispatches those to
+    // the legacy materializer).
+    let envelope: { envelope: import('./strategy-collection-result').StrategyCollectionResult; hash: string };
+    try {
+      envelope = getStrategyCollectionResult(generation.id);
+    } catch (err) {
+      const code = err instanceof Error ? (err as Error & { code?: string }).code : undefined;
+      return {
+        ok: false as const,
+        code: code === 'missing_envelope'
+          ? STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.missing_envelope
+          : STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.invalid_envelope,
+      };
+    }
+    if (decision.evidenceHash !== envelope.hash) {
+      return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.hash_mismatch };
+    }
+
+    const usable = usableContributions(envelope.envelope);
+    const { merged, attribution } = consolidateStrategyFields(usable);
+    // Safe imported evidence fills what no source supplied — attributed as
+    // imported, never presented as a source extraction.
+    const importedEvidence: Record<string, boolean> = {};
+    const title = merged.name ?? item.name ?? null;
+    if (!merged.name) importedEvidence.title = true;
+    const brand = merged.brand ?? item.brandHint ?? null;
+    if (!merged.brand) importedEvidence.brand = true;
+    const description = merged.description ?? null;
+    if (!merged.description) importedEvidence.description = true;
+    const fieldProvenance: Record<string, string | null> = {};
+    for (const key of STRATEGY_MERGE_KEYS) {
+      const outKey = key === 'name' ? 'title' : key;
+      fieldProvenance[outKey] = attribution[key] ?? (importedEvidence[outKey] ? 'imported_evidence' : null);
+    }
+    const providerIds = Array.from(new Set(envelope.envelope.contributions.map((c) => c.providerId))).sort();
+    const outcome: 'completed' | 'exhausted' = usable.length > 0 ? 'completed' : 'exhausted';
+
+    const extractionData: Record<string, unknown> = {
+      title,
+      brand,
+      description,
+      bulletPoints: [],
+      primaryImage: null,
+      additionalImages: [],
+      price: null,
+      weight: merged.weight ? canonicalMaterializedWeight(merged.weight) : null,
+      dimensions: null,
+      seoFileName: null,
+      searchKeywords: null,
+      sourceType: 'distributor_record',
+      distributorProviderId: usable[0]?.providerId ?? null,
+      distributorEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
+      distributorProviderIds: providerIds,
+      distributorSku: merged.distributorSku ?? null,
+      manufacturerPartNumber: null,
+      variantAttributes: {},
+      distributorRecordProvenance: {
+        sourcingGenerationId: generation.id,
+        evidenceHash: envelope.hash,
+        acceptedEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
+        providerIds,
+      },
+      strategyCollectionProvenance: {
+        sourcingGenerationId: generation.id,
+        strategyRevision: envelope.envelope.strategyRevision,
+        strategyBrand: envelope.envelope.strategyBrand,
+        strategyCollectionHash: envelope.hash,
+        outcome,
+        acceptedEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
+        providerIds,
+        contributionOutcomes: envelope.envelope.contributions.map((c) => ({
+          providerId: c.providerId,
+          kind: c.kind,
+          outcome: c.outcome,
+          reasonCode: c.reasonCode ?? null,
+        })),
+      },
+      importedEvidence,
+      sourceUrl: null,
+      confidence: 0,
+      fieldProvenance,
+      packagingTitle: null,
+      packagingOcrData: null,
+      ocrOutcome: null,
+      customFields: {},
+    };
+    const extractionDataJson = JSON.stringify(extractionData);
+    const now = new Date().toISOString();
+
+    // Idempotent retry: an existing strategy_collection_v1 row for the same
+    // generation+hash is reused; a diverged row fails closed.
+    const existing = db.query(
+      `SELECT * FROM onboarding_extractions
+       WHERE item_id = ? AND extraction_method = 'strategy_collection_v1'
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    ).get(itemId) as
+      | { id: string; sourcing_generation_id: string | null; evidence_hash: string | null; extraction_data_json: string }
+      | undefined;
+    if (existing) {
+      if (
+        existing.sourcing_generation_id !== generation.id ||
+        existing.evidence_hash !== envelope.hash ||
+        existing.extraction_data_json !== extractionDataJson
+      ) {
+        return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.stored_payload_diverged };
+      }
+      db.query('UPDATE onboarding_items SET extraction_data_json = ?, updated_at = ? WHERE id = ?')
+        .run(extractionDataJson, now, itemId);
+      updateItemStageStatus(itemId, 'completed');
+      return { ok: true as const, extractionId: existing.id, idempotent: true, extractionData };
+    }
+
+    const row = insertExtraction({
+      itemId,
+      sourceType: 'distributor_record',
+      sourceUrl: null,
+      extractionDataJson,
+      extractionMethod: 'strategy_collection_v1',
+      confidence: 0,
+      imagesJson: null,
+      rawStructuredDataJson: JSON.stringify(extractionData.strategyCollectionProvenance),
+      sourcingGenerationId: generation.id,
+      acceptedEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
+      evidenceHash: envelope.hash,
+    });
+    db.query('UPDATE onboarding_items SET extraction_data_json = ?, updated_at = ? WHERE id = ?')
+      .run(extractionDataJson, now, itemId);
+    updateItemStageStatus(itemId, 'completed');
+    return { ok: true as const, extractionId: row.id, idempotent: false, extractionData };
+  })();
 }

@@ -42,7 +42,7 @@ export type InsertExtractionInput = { itemId: string; extractionDataJson: string
   | {
       sourceType: 'distributor_record';
       sourceUrl: null | undefined;
-      extractionMethod: 'distributor_record_v1' | 'distributor_record_v2';
+      extractionMethod: 'distributor_record_v1' | 'distributor_record_v2' | 'strategy_collection_v1';
       sourcingGenerationId: string;
       acceptedEvidenceAttemptIds: string[];
       evidenceHash: string;
@@ -244,15 +244,20 @@ function validateAndResolveExtractionInput(
     if (input.sourceUrl !== null && input.sourceUrl !== undefined) {
       throw new Error('distributor_record extraction requires a NULL source URL (never a fabricated URL)');
     }
-    if (input.extractionMethod !== 'distributor_record_v1' && input.extractionMethod !== 'distributor_record_v2') {
+    // Ticket #122: strategy-collection rows carry their own explicit
+    // method and may have zero accepted attempts (completed-empty branch
+    // preserves safe imported evidence). Legacy v1/v2 rows keep the
+    // non-empty accepted-set invariant below.
+    const isStrategyCollection = input.extractionMethod === 'strategy_collection_v1';
+    if (!isStrategyCollection && input.extractionMethod !== 'distributor_record_v1' && input.extractionMethod !== 'distributor_record_v2') {
       throw new Error(
-        `distributor_record extraction requires extractionMethod 'distributor_record_v1' or 'distributor_record_v2' (got '${input.extractionMethod}')`,
+        `distributor_record extraction requires extractionMethod 'distributor_record_v1', 'distributor_record_v2', or 'strategy_collection_v1' (got '${input.extractionMethod}')`,
       );
     }
     if (!input.sourcingGenerationId) {
       throw new Error('distributor_record extraction requires a sourcing generation id');
     }
-    if (!Array.isArray(input.acceptedEvidenceAttemptIds) || input.acceptedEvidenceAttemptIds.length === 0) {
+    if (!Array.isArray(input.acceptedEvidenceAttemptIds) || (!isStrategyCollection && input.acceptedEvidenceAttemptIds.length === 0)) {
       throw new Error('distributor_record extraction requires non-empty accepted evidence attempt ids');
     }
     if (new Set(input.acceptedEvidenceAttemptIds).size !== input.acceptedEvidenceAttemptIds.length) {

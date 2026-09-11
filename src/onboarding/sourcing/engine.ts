@@ -141,6 +141,11 @@ export class DefaultSourcingEngine implements SourcingEngine {
           }
         }
       }
+      // Ticket #122: selected distributors with no enabled connection are
+      // preserved as explicit unavailable sources (never silently dropped)
+      // so the completed envelope records one `unavailable` outcome each.
+      const enabledDistributorIds = new Set(byDistributorId.keys());
+      const unavailableStrategySources = selectedIds.filter((id) => !enabledDistributorIds.has(id));
       if (selectedConns.length === 0) {
         // Approved but nothing usable: setup attention, not a fake result.
         return {
@@ -149,6 +154,7 @@ export class DefaultSourcingEngine implements SourcingEngine {
           skipped: [{ connectionId: '', reason: 'strategy_no_usable_source' }],
           strategyRevision: approvedStrategy.revision,
           strategyBrand: approvedStrategy.normalizedBrand,
+          unavailableStrategySources,
         };
       }
       const work = selectedConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
@@ -166,6 +172,7 @@ export class DefaultSourcingEngine implements SourcingEngine {
         skipped,
         strategyRevision: approvedStrategy.revision,
         strategyBrand: approvedStrategy.normalizedBrand,
+        unavailableStrategySources,
       };
     }
 
