@@ -81,8 +81,8 @@ function ApprovalState({ strategy }: { strategy: BrandStrategy }) {
           {readiness === 'unknown' && 'Readiness: unknown'}
         </span>
       )}
-      {(strategy.sourceAvailability ?? []).filter((s) => !s.available && s.reason === 'not_supported').length > 0 && (
-        <span style={{ color: '#6b7280' }}>Official collection not yet supported — selectable, never Ready.</span>
+      {(strategy.sourceAvailability ?? []).filter((s) => !s.available && (s.reason === 'no_profile' || s.reason === 'profile_not_healthy')).length > 0 && (
+        <span style={{ color: '#6b7280' }}>Official source needs profile setup — distributors still collect.</span>
       )}
     </div>
   );

@@ -118,6 +118,7 @@ import {
   openPreparationGap,
 } from '../db/repositories/preparation-gap-repo';
 import type { StrategyCollectionResult } from './sourcing/strategy-collection-result';
+import { usableContributions } from './sourcing/strategy-collection-result';
 import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onboarding';
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
@@ -1042,12 +1043,18 @@ export class OnboardingWorker {
         if (enabledConnections.length === 0) {
           // Builder slice B2: an approved strategy pins the collection
           // boundary — zero usable connections is setup attention, never an
-          // unapproved fallback to arbitrary official discovery.
+          // unapproved fallback to arbitrary official discovery. Ticket
+          // #123: approved official_page sources need no distributor
+          // connection, so they proceed to the engine instead of holding.
           const approvedForHold = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null);
-          if (approvedForHold) {
-            setupAttentionHold([`Approved strategy revision ${approvedForHold.revision} has no usable distributor connection; official sources are not supported`]);
+          const holdHasOfficial = (approvedForHold?.sources ?? []).some((s) => s.kind === 'official_page');
+          if (approvedForHold && !holdHasOfficial) {
+            setupAttentionHold([`Approved strategy revision ${approvedForHold.revision} has no usable distributor connection`]);
             return;
           }
+          if (approvedForHold && holdHasOfficial) {
+            // Fall through to engine execution for the official legs.
+          } else {
           // Zero enabled connections -> audited automatic pass-through.
           if (manual) {
             manualHold(['No enabled distributor connections']);
@@ -1071,6 +1078,7 @@ export class OnboardingWorker {
             );
           }
           return;
+          }
         }
 
         // Builder slice B2: the engine result is consumed, not discarded.
@@ -1095,7 +1103,7 @@ export class OnboardingWorker {
           return;
         }
         if (runResult.strategyRevision != null && runResult.attempts.length === 0) {
-          setupAttentionHold([`Approved strategy revision ${runResult.strategyRevision} produced no usable distributor evidence; official sources are not supported`]);
+          setupAttentionHold([`Approved strategy revision ${runResult.strategyRevision} produced no usable evidence; retry in a new generation`]);
           return;
         }
       }
@@ -1134,6 +1142,67 @@ export class OnboardingWorker {
         // generation's worker can claim and route it.
         updateItemStageStatus(item.id, 'pending', null);
         return;
+      }
+
+      // Ticket #123: resume unfinished official legs. Engine execution was
+      // skipped above (attempts already exist), but an approved
+      // official-bearing boundary whose planned official sources lack
+      // terminal attempts is INTERRUPTED, not complete — re-run the engine
+      // (idempotent legs skip finished sources) instead of reconciling
+      // partial evidence. Monotonic: every run persists terminal outcomes
+      // or parks, so this cannot loop forever. Distributor-only and legacy
+      // boundaries keep the existing reuse contract below.
+      if (getCurrentGenerationAttempts(item.id).length > 0) {
+        let resumeBinding: import('../db/repositories/brand-strategy-generation-repo').GenerationStrategyBinding | null = null;
+        try {
+          resumeBinding = getGenerationStrategyBinding(generation.id);
+        } catch {
+          resumeBinding = null;
+        }
+        const resumeOfficial = (resumeBinding?.mode === 'approved' ? resumeBinding.sources : [])
+          .filter((s) => s.kind === 'official_page' && (s as { domain?: string | null }).domain)
+          .map((s) => ((s as { domain?: string | null }).domain as string).toLowerCase());
+        if (resumeOfficial.length > 0) {
+          let envelopeDone = false;
+          try {
+            getStrategyCollectionResult(generation.id);
+            envelopeDone = true;
+          } catch {
+            envelopeDone = false;
+          }
+          if (!envelopeDone) {
+            const officialDone = new Set(
+              getCurrentGenerationAttempts(item.id)
+                .filter((a) => (a.providerId ?? '').toLowerCase().startsWith('official_page:'))
+                .map((a) => (a.providerId as string).slice('official_page:'.length).toLowerCase()),
+            );
+            if (resumeOfficial.some((d) => !officialDone.has(d))) {
+              const resumeResult = await engine.runGeneration({
+                itemId: item.id,
+                generationId: generation.id,
+                workspaceId: this.workspaceId,
+                upc: String(item.upc),
+                gtin: null,
+                brandHint: item.brandHint ?? null,
+                signal: AbortSignal.timeout(60_000),
+                deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+              });
+              if (resumeResult.skipped.some((s) => s.reason === 'strategy_binding_invalid')) {
+                setupAttentionHold(['Strategy binding is invalid or uncertain; retry in a new generation']);
+                return;
+              }
+              if (resumeResult.skipped.some((s) => s.reason === 'strategy_binding_policy_retired')) {
+                setupAttentionHold(['This generation used retired brand routing settings. Retry to start a new generation under query-all routing.']);
+                return;
+              }
+              if (getCurrentSourcingGeneration(item.id)?.id !== generation.id) {
+                console.log(`[OnboardingWorker] Sourcing generation ${generation.id} superseded during resume for ${item.id} — abandoning stale routing`);
+                updateItemStageStatus(item.id, 'pending', null);
+                return;
+              }
+            }
+          }
+        }
       }
 
       const attempts = getCurrentGenerationAttempts(item.id);
@@ -1213,24 +1282,30 @@ export class OnboardingWorker {
       }
 
       // AUTOMATIC mode route table (Amendment A).
-      // Ticket #122: distributor-only approved boundary — finalize the
+      // Tickets #122/#123: approved strategy boundaries finalize the
       // completed-collection envelope BEFORE onward routing, then stay
-      // inside Collect details (never Discovery for this boundary).
-      // Scoped to approved bindings whose frozen sources are ALL
-      // distributor_record; every other boundary keeps the route table
-      // below (the general post-attempt boundary fix stays separate).
-      let strategyDistributorOnly = false;
+      // inside Collect details (never Discovery for these boundaries).
+      // Distributor-only boundaries keep the qualified-evidence contract;
+      // mixed (official-bearing) boundaries ALWAYS take the envelope path —
+      // even when their distributor projection qualifies — so official
+      // contributions are never discarded by a distributor-only decision.
+      // Scoped to approved bindings whose frozen sources are ALL known
+      // kinds (the general post-attempt boundary fix stays separate).
+      let strategyBoundary: { mixed: boolean } | null = null;
       try {
         const strategyBinding = getGenerationStrategyBinding(generation.id);
-        strategyDistributorOnly =
+        if (
           strategyBinding?.mode === 'approved' &&
           strategyBinding.sources.length > 0 &&
-          strategyBinding.sources.every((s) => s.kind === 'distributor_record');
+          strategyBinding.sources.every((s) => s.kind === 'distributor_record' || s.kind === 'official_page')
+        ) {
+          strategyBoundary = { mixed: strategyBinding.sources.some((s) => s.kind === 'official_page') };
+        }
       } catch {
-        strategyDistributorOnly = false;
+        strategyBoundary = null;
       }
-      if (strategyDistributorOnly) {
-        let finalizedEnvelope: { hash: string };
+      if (strategyBoundary) {
+        let finalizedEnvelope: { envelope: StrategyCollectionResult; hash: string };
         try {
           finalizedEnvelope = finalizeStrategyCollectionForGeneration({
             workspaceId: this.workspaceId,
@@ -1242,7 +1317,23 @@ export class OnboardingWorker {
           setupAttentionHold([`Strategy collection could not complete (${code}); retry in a new generation`]);
           return;
         }
-        if (projection.qualified) {
+        // Ticket #123: a completed envelope with nothing usable AND no
+        // distributor attempt at all is not enrichable preparation input —
+        // it is a setup problem (e.g. official-only boundary with no
+        // healthy profile). Park visibly instead of preparing from pure
+        // spreadsheet identity. Any distributor attempt (even not_stocked)
+        // or any usable contribution proceeds to preparation.
+        const envelopeUsable = usableContributions(finalizedEnvelope.envelope);
+        const hasDistributorAttempts = attempts.some((a) => a.distributorConnectionId != null);
+        if (envelopeUsable.length === 0 && !hasDistributorAttempts) {
+          const unusable = finalizedEnvelope.envelope.contributions
+            .map((c) => `${c.providerId} (${c.reasonCode ?? c.outcome})`)
+            .sort()
+            .join('; ');
+          setupAttentionHold([`Approved strategy has no usable sources to collect from: ${unusable || 'no usable sources'}`]);
+          return;
+        }
+        if (projection.qualified && !strategyBoundary.mixed) {
           recordAcceptances(item.id, projection.acceptedAttemptIds, 'system', 'qualified distributor record');
           complete(
             'distributor_record_to_extraction',

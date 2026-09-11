@@ -913,7 +913,9 @@ export function materializeStrategyCollectionExtraction(
       seoFileName: null,
       searchKeywords: null,
       sourceType: 'distributor_record',
-      distributorProviderId: usable[0]?.providerId ?? null,
+      // First usable DISTRIBUTOR provider (official-only envelopes leave
+      // this null rather than mislabeling an official domain as one).
+      distributorProviderId: usable.find((c) => c.kind === 'distributor_record')?.providerId ?? null,
       distributorEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
       distributorProviderIds: providerIds,
       distributorSku: merged.distributorSku ?? null,
@@ -938,6 +940,7 @@ export function materializeStrategyCollectionExtraction(
           kind: c.kind,
           outcome: c.outcome,
           reasonCode: c.reasonCode ?? null,
+          sourceUrl: c.sourceUrl ?? null,
         })),
       },
       importedEvidence,

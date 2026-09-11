@@ -10,7 +10,8 @@ import { DefaultConnectorRegistry } from './connector-registry';
 import { resolveSecret } from './secret-resolver';
 import { listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
 import { captureGenerationStrategyBinding, isRetiredStrategyBinding } from '../../db/repositories/brand-strategy-generation-repo';
-import { insertEvidenceAttempt } from '../../db/repositories/onboarding-evidence-repo';
+import { insertEvidenceAttempt, getEvidenceAttemptsByItemAndGeneration } from '../../db/repositories/onboarding-evidence-repo';
+import { collectOfficialDomain, officialSkipId, type OfficialCollectorDeps } from './official-collector';
 import { findItemById } from '../../db/repositories/onboarding-item-repo';
 import type { DistributorConnection } from '../../shared/schemas/distributor';
 import type { EvidenceLookupOutcome } from '../../shared/schemas/distributor-evidence';
@@ -43,6 +44,7 @@ export class DefaultSourcingEngine implements SourcingEngine {
   constructor(
     private readonly registry: ConnectorRegistry = new DefaultConnectorRegistry(),
     private readonly concurrency = 3,
+    private readonly officialDeps?: OfficialCollectorDeps,
   ) {}
 
   async runGeneration(request: {
@@ -100,11 +102,13 @@ export class DefaultSourcingEngine implements SourcingEngine {
         skipped: [{ connectionId: '', reason: 'strategy_binding_policy_retired' }],
       };
     }
-    // Spec #120 (ticket #122): an approved brand strategy pins the
-    // collection boundary. Every selected usable distributor source is
-    // attempted — a first success never short-circuits the others, and no
-    // unapproved fallback is added. Distributor-only strategies skip
-    // official discovery entirely (no fake URL, no profile).
+    // Spec #120 (tickets #122/#123): an approved brand strategy pins the
+    // collection boundary. Every selected usable source is attempted —
+    // distributor connections and approved official domains alike. A first
+    // success never short-circuits the others, and no unapproved fallback
+    // is added. Finished sources are never re-collected on resume: each
+    // leg is idempotent within the generation (durable attempts are the
+    // truth, re-read rather than re-fetched).
     const approvedBinding = binding.mode === 'approved' ? binding : null;
     if (approvedBinding) {
       const approvedStrategy = {
@@ -112,15 +116,33 @@ export class DefaultSourcingEngine implements SourcingEngine {
         normalizedBrand: approvedBinding.strategyBrand,
         sources: approvedBinding.sources,
       };
-      // No collection path executes official_page yet: approved official
-      // sources are reported (never silently dropped, never fake evidence).
-      for (const src of approvedStrategy.sources) {
-        if (src.kind === 'official_page') {
-          skipped.push({
-            connectionId: `strategy:official:${(src.domain ?? '').toLowerCase() || 'website'}`,
-            reason: 'strategy_official_not_yet_supported',
-          });
-        }
+      // Ticket #123: approved official_page sources execute inside the
+      // frozen boundary (strict profile-only collection, per-source
+      // terminal outcomes). Never silently dropped, never fake evidence.
+      const officialDomains = approvedStrategy.sources
+        .filter((s) => s.kind === 'official_page' && s.domain)
+        .map((s) => (s.domain as string).toLowerCase());
+      // Resume-safety: connections with a terminal durable attempt in this
+      // generation are finished — dispatch only the unfinished remainder.
+      // (Re-invoking a finished connector would spend budget and risk a
+      // late duplicate; the stored attempt is re-read as its summary.)
+      // Re-entered summaries are included in the returned attempts so
+      // callers observe the generation's full accounted work.
+      const existingAttempts = getEvidenceAttemptsByItemAndGeneration(request.itemId, request.generationId);
+      const finishedConnectionIds = new Set(
+        existingAttempts
+          .filter((a) => a.distributorConnectionId != null)
+          .map((a) => a.distributorConnectionId as string),
+      );
+      for (const a of existingAttempts) {
+        attempts.push({
+          attemptId: a.id,
+          connectionId: a.distributorConnectionId ?? '',
+          providerId: a.providerId,
+          outcome: a.outcome,
+          matchedIdentifier: null,
+          errorCode: a.errorCode ?? null,
+        });
       }
       const selectedIds = approvedStrategy.sources
         .filter((s) => s.kind === 'distributor_record' && s.distributorId)
@@ -146,7 +168,8 @@ export class DefaultSourcingEngine implements SourcingEngine {
       // so the completed envelope records one `unavailable` outcome each.
       const enabledDistributorIds = new Set(byDistributorId.keys());
       const unavailableStrategySources = selectedIds.filter((id) => !enabledDistributorIds.has(id));
-      if (selectedConns.length === 0) {
+      const unfinishedConns = selectedConns.filter((c) => !finishedConnectionIds.has(c.id));
+      if (unfinishedConns.length === 0 && officialDomains.length === 0) {
         // Approved but nothing usable: setup attention, not a fake result.
         return {
           generationId: request.generationId,
@@ -157,13 +180,31 @@ export class DefaultSourcingEngine implements SourcingEngine {
           unavailableStrategySources,
         };
       }
-      const work = selectedConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
-      const results = await runBounded(work, this.concurrency);
+      const distributorWork = unfinishedConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
+      // Ticket #123: one bounded official leg per approved domain, fanned
+      // out with the distributor legs (no first-success cancellation —
+      // every planned source contributes or records its own outcome).
+      const officialWork = officialDomains.map((domain) => () => collectOfficialDomain({
+        itemId: request.itemId,
+        generationId: request.generationId,
+        workspaceId: request.workspaceId,
+        domain,
+        identifier,
+        itemName: registerName,
+        brandHint: request.brandHint ?? null,
+        signal: request.signal,
+        deadlineAt: request.deadlineAt,
+        deps: this.officialDeps,
+      }));
+      const results = await runBounded([...distributorWork, ...officialWork], this.concurrency);
       for (const result of results) {
         if (result.kind === 'attempt') {
           attempts.push(result.summary);
         } else {
-          skipped.push({ connectionId: result.connectionId, reason: result.reason });
+          skipped.push({
+            connectionId: result.connectionId || officialSkipId('website'),
+            reason: result.reason,
+          });
         }
       }
       return {

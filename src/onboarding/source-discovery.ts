@@ -71,6 +71,15 @@ export async function discoverSources(
      * LLM page-selection calls route through it.
      */
     modelPolicy?: import('../classification/model-policy-gateway').ModelPolicyView | null;
+    /**
+     * Ticket #123: frozen single-brand domain boundary. When present,
+     * discovery runs ONLY these domains (already validated at strategy
+     * approval) instead of reloading live brand mappings — a running
+     * generation can never expand to a newly mapped domain, and there is
+     * no cross-domain short-circuit. Legacy callers omit it (live
+     * mappings preserved exactly).
+     */
+    frozenDomains?: string[];
   }
 ): Promise<{
   candidates: InsertSourceData[];
@@ -78,10 +87,19 @@ export async function discoverSources(
   noDomainMapped?: boolean;
   variantResolution?: DiscoveryVariantResolution | null;
 }> {
-  // Retrieve pre-mapped brand domains from database
+  // Retrieve pre-mapped brand domains from database — unless the caller
+  // pins a frozen boundary (ticket #123: strategy-driven collection uses
+  // the generation's frozen approved domains, never live mappings).
   const activeBrandHint = brandHint;
   const activeBrandDomains: string[] = [];
-  if (activeBrandHint) {
+  if (options?.frozenDomains !== undefined) {
+    for (const raw of options.frozenDomains) {
+      const bareDomain = cleanDomainString(raw);
+      if (bareDomain && !activeBrandDomains.includes(bareDomain)) {
+        activeBrandDomains.push(bareDomain);
+      }
+    }
+  } else if (activeBrandHint) {
     const knownSites = findBrandSites(activeBrandHint);
     for (const site of knownSites) {
       const bareDomain = cleanDomainString(site.domain);

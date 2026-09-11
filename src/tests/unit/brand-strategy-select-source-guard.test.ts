@@ -17,6 +17,8 @@ import { insertItems } from '../../db/repositories/onboarding-item-repo';
 import { insertSources } from '../../db/repositories/onboarding-source-repo';
 import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
 import { saveBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
+import { startSourcingGeneration } from '../../db/repositories/onboarding-evidence-repo';
+import { captureGenerationStrategyBinding } from '../../db/repositories/brand-strategy-generation-repo';
 import { createDistributor } from '../../db/repositories/distributor-repo';
 import app from '../../server/app';
 
@@ -103,5 +105,45 @@ describe('select-source strategy guard', () => {
       body: JSON.stringify({ sourceId: retailer.id }),
     });
     expect(res.status).toBe(200);
+  });
+
+  it('frozen generation boundary wins over a later live approval edit', async () => {
+    // Ticket #123: distributor-only rev1 pins the generation; rev2 later
+    // adds the official domain to the LIVE approval — manual selection of
+    // that domain must still hold (frozen authority, never live expansion).
+    upsertBrandSite('Frozen', 'frozen-official.com');
+    saveBrandStrategy(wsId, {
+      brand: 'Frozen',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const batch = createBatch({ workspaceId: wsId, name: 'frozen-b', fileName: 'frozen.csv', totalItems: 1 });
+    const [item] = insertItems(
+      batch.id,
+      [{ upc: '012345678905', name: 'Frozen Product', brandHint: 'Frozen', rowNumber: 1 }],
+      'sourcing',
+      1,
+    );
+    const [official] = insertSources(item.id, [
+      { url: 'https://frozen-official.com/products/1', domain: 'frozen-official.com', confidence: 0.9 },
+    ]);
+    const generation = startSourcingGeneration(item.id);
+    captureGenerationStrategyBinding({ workspaceId: wsId, itemId: item.id, generationId: generation.id });
+    // Live approval now admits the domain — the frozen pin does not.
+    saveBrandStrategy(wsId, {
+      brand: 'Frozen',
+      sources: [
+        { kind: 'official_page', domain: 'frozen-official.com' },
+        { kind: 'distributor_record', distributorId: 'dist_phillips' },
+      ],
+      expectedRevision: 1,
+    });
+    const res = await app.request(`/api/onboarding/items/${item.id}/select-source`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceId: official.id }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code?: string }).code).toBe('strategy_source_not_approved');
   });
 });

@@ -1,9 +1,11 @@
 /**
- * Ticket #122 (A-lite): durable completed strategy-collection envelope.
+ * Tickets #122 (A-lite) / #123 (mixed): durable completed strategy-collection envelope.
  *
  * Repository-owned persistence for the versioned multi-contribution
  * collection result (`strategy-collection-v1`). Generation-keyed,
- * write-once, immutable:
+ * write-once, immutable. Supports approved distributor-only AND mixed
+ * (official_page + distributor_record) boundaries; every planned source
+ * needs a terminal outcome before finalization (`incomplete_collection`).
  *
  * - `finalizeStrategyCollectionForGeneration` builds the envelope from the
  *   generation's FROZEN approved binding (distributor-only) plus its durable
@@ -182,8 +184,16 @@ export function finalizeStrategyCollectionForGeneration(input: {
   if (binding.mode !== 'approved') {
     throw codedError('not_distributor_only', 'strategy collection requires an approved strategy boundary');
   }
-  if (binding.sources.length === 0 || binding.sources.some((s) => s.kind !== 'distributor_record')) {
-    throw codedError('not_distributor_only', 'strategy collection requires an approved distributor-only boundary');
+  // Ticket #123: distributor-only AND mixed (official_page + distributor)
+  // boundaries finalize. Every source must be a typed, identified entry.
+  const plannedDistributors = binding.sources
+    .filter((s) => s.kind === 'distributor_record' && s.distributorId)
+    .map((s) => (s.distributorId as string).toLowerCase());
+  const plannedOfficial = binding.sources
+    .filter((s) => s.kind === 'official_page' && s.domain)
+    .map((s) => (s.domain as string).toLowerCase());
+  if (plannedDistributors.length + plannedOfficial.length !== binding.sources.length || binding.sources.length === 0) {
+    throw codedError('not_distributor_only', 'strategy collection requires an approved distributor or mixed-official boundary');
   }
 
   const attempts = getEvidenceAttemptsByItemAndGeneration(input.itemId, input.generationId);
@@ -199,29 +209,69 @@ export function finalizeStrategyCollectionForGeneration(input: {
   const attemptInputs: StrategyCollectionAttemptInput[] = [];
   for (const a of attempts) {
     if (a.outcome !== 'found' && a.outcome !== 'not_stocked' && a.outcome !== 'source_error') continue;
-    const distributorId = a.distributorConnectionId
-      ? distributorByConnection.get(a.distributorConnectionId) ?? null
-      : null;
-    if (!distributorId) {
-      throw codedError('unknown_connection', 'collection attempt references an unknown connection');
+    if (a.distributorConnectionId) {
+      const distributorId = distributorByConnection.get(a.distributorConnectionId) ?? null;
+      if (!distributorId) {
+        throw codedError('unknown_connection', 'collection attempt references an unknown connection');
+      }
+      attemptInputs.push({
+        attemptId: a.id,
+        connectionId: a.distributorConnectionId,
+        distributorId,
+        providerId: a.providerId,
+        outcome: a.outcome,
+        errorCode: a.errorCode,
+        identityJson: a.identityJson,
+      });
+      continue;
     }
+    // Ticket #123: official_page attempts carry a NULL connection and a
+    // provider of `official_page:<domain>`. Only attempts whose domain is
+    // inside the frozen boundary count — anything else is ignored (never
+    // trusted, never a silent expansion of the boundary).
+    const provider = (a.providerId ?? '').toLowerCase();
+    if (!provider.startsWith('official_page:')) continue;
+    const domain = provider.slice('official_page:'.length);
+    if (!plannedOfficial.includes(domain)) continue;
     attemptInputs.push({
       attemptId: a.id,
-      connectionId: a.distributorConnectionId as string,
-      distributorId,
+      connectionId: '',
+      distributorId: domain,
       providerId: a.providerId,
       outcome: a.outcome,
       errorCode: a.errorCode,
       identityJson: a.identityJson,
+      sourceUrl: a.evidenceUrl ?? null,
+      domain,
     });
   }
   if (attemptInputs.length === 0) {
     throw codedError('no_attempts', 'no usable collection attempts for this generation');
   }
-  const attemptedDistributors = new Set(attemptInputs.map((a) => a.distributorId.toLowerCase()));
+  const attemptedDistributors = new Set(
+    attemptInputs.filter((a) => !a.domain).map((a) => a.distributorId.toLowerCase()),
+  );
+  const attemptedOfficial = new Set(
+    attemptInputs.filter((a) => a.domain).map((a) => (a.domain as string).toLowerCase()),
+  );
   const unavailableDistributorIds = binding.sources
+    .filter((s) => s.kind === 'distributor_record')
     .map((s) => s.distributorId as string)
     .filter((id) => !enabledDistributors.has(id.toLowerCase()) && !attemptedDistributors.has(id.toLowerCase()));
+  // Terminal accounting for every planned source: a started collection
+  // that never recorded a terminal outcome for a planned source is
+  // interrupted, not complete — fail closed (explicit recollection in a
+  // new generation, or worker resume of the unfinished leg).
+  const unaccountedOfficial = plannedOfficial.filter((d) => !attemptedOfficial.has(d));
+  const unaccountedDistributor = plannedDistributors.filter(
+    (id) => !attemptedDistributors.has(id) && !unavailableDistributorIds.some((u) => u.toLowerCase() === id),
+  );
+  if (unaccountedOfficial.length > 0 || unaccountedDistributor.length > 0) {
+    throw codedError(
+      'incomplete_collection',
+      `collection has no terminal outcome for: ${[...unaccountedOfficial, ...unaccountedDistributor].join(', ')}`,
+    );
+  }
 
   const built = buildStrategyCollectionEnvelope({
     itemId: input.itemId,

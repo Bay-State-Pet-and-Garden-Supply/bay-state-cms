@@ -626,7 +626,11 @@ describe('ticket #122: P1 hardening — write-once, materializer, worker routing
     if (!missing.ok) expect(missing.code).toBe('missing_envelope');
   });
 
-  it('builder rejects mixed boundaries instead of silently filtering official sources', () => {
+  it('incomplete mixed without an official attempt fails closed (never synthesized)', () => {
+    // Ticket #123 lifted the old mixed-boundary rejection: mixed sources
+    // build envelopes once every planned source has a terminal attempt.
+    // A planned official domain with NO attempt is interrupted work — the
+    // builder returns null (finalization owns incomplete_collection).
     expect(buildStrategyCollectionEnvelope({
       itemId: 'item-1', generationId: 'gen-1', strategyRevision: 1, strategyBrand: 'acana',
       sources: [

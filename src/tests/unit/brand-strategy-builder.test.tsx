@@ -91,7 +91,7 @@ describe('BrandStrategyBuilder (mounted)', () => {
     const states = boxes.map((b) => b.checked);
     expect(states).toContain(true);
     expect(container.textContent).toMatch(/Live proposal/);
-    expect(container.textContent).toMatch(/not supported yet/);
+    expect(container.textContent).toMatch(/Official collection is not available for this source/);
   });
 
   it('Use current proposal changes the edit only; Save emits exactly one combined request', async () => {
