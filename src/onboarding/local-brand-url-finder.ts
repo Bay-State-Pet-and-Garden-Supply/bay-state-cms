@@ -9,6 +9,7 @@ import {
 } from '../db/repositories/brand-url-index-repo';
 import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
 import { callLlmForTask, getLlmConfigForTask } from './llm-client';
+import { canonicalGtinMatch } from '../shared/gtin';
 
 export type LocalMatchMethod = 'local_upc' | 'local_sku' | 'local_token_match' | 'local_llm_selected';
 export type LocalMatchType = 'upc_exact' | 'sku_exact' | 'token_overlap' | 'llm_selected';
@@ -122,7 +123,7 @@ export async function findLocalBrandCandidates(
   if (target.upc && target.upc.trim()) {
     const upcHit = lookupByUpc(normDomain, target.upc);
     if (upcHit) {
-      const isEnrichedUpc = upcHit.upc === target.upc.replace(/\D/g, '').trim();
+      const isEnrichedUpc = !!(upcHit.upc && canonicalGtinMatch(upcHit.upc, target.upc));
       const confidence = isEnrichedUpc ? 0.98 : 0.95;
       seenUrls.add(upcHit.url);
       results.push({

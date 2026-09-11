@@ -116,6 +116,23 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(match?.url).toBe('https://www.kongcompany.com/products/classic-dog-toy-035585111116');
     });
 
+    it('should find candidate by canonical GTIN equivalence when padded with leading zeros', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [{ url: 'https://kongcompany.com/products/classic-kong' }],
+        'https://kongcompany.com/sitemap.xml',
+      );
+
+      enrichUrlMetadata('https://kongcompany.com/products/classic-kong', {
+        upc: '0035585111116',
+      });
+
+      // Query with 12-digit UPC against enriched 13-digit EAN/GTIN
+      const match = lookupByUpc('kongcompany.com', '035585111116');
+      expect(match).not.toBeNull();
+      expect(match?.url).toBe('https://kongcompany.com/products/classic-kong');
+    });
+
     it('should find candidate by enriched UPC column after enrichment', () => {
       reconcileSitemapUrls(
         'kongcompany.com',
