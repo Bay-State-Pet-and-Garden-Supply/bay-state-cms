@@ -623,6 +623,31 @@ export const SourcingDecisionV2Schema = z.discriminatedUnion('route', [
   }).strict(),
   z.object({
     schemaVersion: z.literal(2),
+    // Ticket #122: completed strategy collection under an approved
+    // distributor-only boundary that did not qualify for the
+    // distributor_record_to_extraction contract (accepted-but-insufficient
+    // or started-and-exhausted). Carries the completed envelope hash —
+    // preparation consolidates the envelope's compatible contributions (or
+    // the completed-empty branch preserves safe imported evidence) instead
+    // of routing to official Discovery. Never an unapproved fallback.
+    route: z.literal('completed_strategy_collection'),
+    origin: SourcingRoutingOriginEnum,
+    acceptedEvidenceAttemptIds: z
+      .array(z.string().min(1))
+      .max(64)
+      .refine(UNIQUE_STRINGS, UNIQUE_STRINGS_MSG),
+    providerIds: z.array(z.string().min(1)).max(64).refine(UNIQUE_STRINGS, UNIQUE_STRINGS_MSG).default(() => []),
+    sourcingGenerationId: z.string().min(1),
+    /** Canonical SHA-256 hex of the finalized strategy-collection envelope. */
+    evidenceHash: z.string().regex(/^[0-9a-f]{64}$/, 'evidenceHash must be a canonical SHA-256 hex digest'),
+    sourceType: z.literal('distributor_record'),
+    target: z.literal('extraction'),
+    conflicts: z.array(SourcingConflictSchema).max(128).default(() => []),
+    warnings: z.array(z.string().max(500)).max(128).default(() => []),
+    decidedAt: z.string().datetime({ offset: true }),
+  }).strict(),
+  z.object({
+    schemaVersion: z.literal(2),
     route: z.literal('evidence_to_discovery'),
     origin: SourcingRoutingOriginEnum,
     acceptedEvidenceAttemptIds: z

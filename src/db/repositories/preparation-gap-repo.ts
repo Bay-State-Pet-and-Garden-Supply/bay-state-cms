@@ -117,8 +117,10 @@ export function assessListingEvidenceGap(input: {
 
 /**
  * Open (or refresh) a durable gap. Idempotent per item: an existing open gap
- * for the same missing set is returned unchanged; a changed set updates the
- * row without losing history of the open state.
+ * for the same missing set, reason, AND collection hash is returned
+ * unchanged; a changed set, reason, or hash updates the row without losing
+ * the open state. Ticket #122: the hash participates in idempotency so a
+ * re-finalized collection never leaves a stale hash behind.
  */
 export function openPreparationGap(input: PreparationGapInput): PreparationGap {
   if (input.missingFields.length === 0) throw new Error('Cannot open a gap with no missing fields');
@@ -127,10 +129,12 @@ export function openPreparationGap(input: PreparationGapInput): PreparationGap {
   const now = new Date().toISOString();
   const missing = [...new Set(input.missingFields.map((f) => f.trim()).filter(Boolean))].sort();
   const reason = safeReason(input.reason);
+  const evidenceHash = input.evidenceHash ?? null;
   const existing = db.query('SELECT * FROM preparation_gaps WHERE item_id = ?').get(input.itemId) as GapRow | undefined;
   if (existing && existing.status === 'open'
     && existing.missing_fields_json === JSON.stringify(missing)
-    && existing.reason === reason) {
+    && existing.reason === reason
+    && (existing.evidence_hash ?? null) === evidenceHash) {
     return mapRow(existing);
   }
   if (existing) {

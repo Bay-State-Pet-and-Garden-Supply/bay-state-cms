@@ -13,6 +13,7 @@ const DISTRIBUTOR_V2_MIGRATION_PATH = path.resolve(import.meta.dirname, 'distrib
 const BRAND_STRATEGY_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-migration.sql');
 const BRAND_STRATEGY_BUILDER_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-builder-migration.sql');
 const BRAND_ADVISORY_RETIREMENT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-advisory-retirement-migration.sql');
+const STRATEGY_COLLECTION_RESULT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'strategy-collection-result-migration.sql');
 const OPERATOR_STATE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'operator-state-migration.sql');
 
 /**
@@ -3868,6 +3869,21 @@ export function runMigrations(): void {
       db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('brand_strategy_builder_schema_version', '1');");
     })();
     console.log('[Migrations] Brand strategy builder schema migration complete.');
+  }
+
+  // Ticket #122: durable completed strategy-collection envelope (A-lite).
+  // Additive-only new table; idempotent via CREATE TABLE IF NOT EXISTS.
+  // No backfill of historical generations, no alteration of existing tables.
+  const strategyCollectionResultVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('strategy_collection_result_schema_version') as { value: string } | undefined;
+  if (!strategyCollectionResultVersion) {
+    db.transaction(() => {
+      const collectionSql = fs.readFileSync(STRATEGY_COLLECTION_RESULT_MIGRATION_PATH, 'utf-8');
+      db.exec(collectionSql);
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('strategy_collection_result_schema_version', '1');");
+    })();
+    console.log('[Migrations] Strategy collection result schema migration complete.');
   }
 
   // ── Evidence connection index repair (ADR 0014) ────────────────────────────

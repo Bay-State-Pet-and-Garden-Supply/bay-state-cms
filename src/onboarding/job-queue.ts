@@ -92,6 +92,7 @@ import { reconcileDistributorEvidence } from './sourcing-reconciler';
 import { buildDistributorRecordProjection } from './sourcing/distributor-record-projection';
 import {
   materializeDistributorRecordExtraction,
+  materializeStrategyCollectionExtraction,
   DISTRIBUTOR_MATERIALIZATION_ERROR_CODES,
   type DistributorMaterializationResult,
 } from './sourcing/distributor-record-materializer';
@@ -108,6 +109,15 @@ import { completeSourcingWithDecision } from '../db/repositories/onboarding-item
 import { listConnectionsByWorkspace } from '../db/repositories/distributor-repo';
 import { getApprovedBrandStrategy } from '../db/repositories/brand-strategy-approval-repo';
 import { getGenerationStrategyBinding, isRetiredStrategyBinding } from '../db/repositories/brand-strategy-generation-repo';
+import {
+  finalizeStrategyCollectionForGeneration,
+  getStrategyCollectionResult,
+} from '../db/repositories/strategy-collection-result-repo';
+import {
+  assessListingEvidenceGap,
+  openPreparationGap,
+} from '../db/repositories/preparation-gap-repo';
+import type { StrategyCollectionResult } from './sourcing/strategy-collection-result';
 import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onboarding';
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
@@ -824,7 +834,7 @@ export class OnboardingWorker {
     const manual = isManualMode(flags);
 
     const complete = (
-      route: SourcingDecision['route'],
+      route: SourcingDecision['route'] | SourcingDecisionV2['route'],
       decision: SourcingDecision | SourcingDecisionV2,
       targetStage: 'find_product_page' | 'collect_details' | 'route_sources',
     ): boolean => {
@@ -1203,6 +1213,83 @@ export class OnboardingWorker {
       }
 
       // AUTOMATIC mode route table (Amendment A).
+      // Ticket #122: distributor-only approved boundary — finalize the
+      // completed-collection envelope BEFORE onward routing, then stay
+      // inside Collect details (never Discovery for this boundary).
+      // Scoped to approved bindings whose frozen sources are ALL
+      // distributor_record; every other boundary keeps the route table
+      // below (the general post-attempt boundary fix stays separate).
+      let strategyDistributorOnly = false;
+      try {
+        const strategyBinding = getGenerationStrategyBinding(generation.id);
+        strategyDistributorOnly =
+          strategyBinding?.mode === 'approved' &&
+          strategyBinding.sources.length > 0 &&
+          strategyBinding.sources.every((s) => s.kind === 'distributor_record');
+      } catch {
+        strategyDistributorOnly = false;
+      }
+      if (strategyDistributorOnly) {
+        let finalizedEnvelope: { hash: string };
+        try {
+          finalizedEnvelope = finalizeStrategyCollectionForGeneration({
+            workspaceId: this.workspaceId,
+            itemId: item.id,
+            generationId: generation.id,
+          });
+        } catch (err) {
+          const code = err instanceof Error ? (err as Error & { code?: string }).code ?? 'finalize_failed' : 'finalize_failed';
+          setupAttentionHold([`Strategy collection could not complete (${code}); retry in a new generation`]);
+          return;
+        }
+        if (projection.qualified) {
+          recordAcceptances(item.id, projection.acceptedAttemptIds, 'system', 'qualified distributor record');
+          complete(
+            'distributor_record_to_extraction',
+            {
+              schemaVersion: 2,
+              route: 'distributor_record_to_extraction',
+              origin: 'automatic_policy',
+              acceptedEvidenceAttemptIds: projection.acceptedAttemptIds,
+              providerIds: projection.providerIds,
+              sourcingGenerationId: generation.id,
+              conflicts: [],
+              warnings: [...reconcile.warnings, ...sourceErrorWarnings(attempts)],
+              decidedAt,
+              evidenceHash: projection.evidenceHash,
+              sourceType: 'distributor_record',
+              target: 'extraction',
+            },
+            'collect_details',
+          );
+          return;
+        }
+        // Accepted-but-insufficient OR started-and-exhausted: the completed
+        // envelope (never attempts alone) proves completion and routes to
+        // Collect details for consolidation / preparation-gap assessment.
+        if (reconcile.acceptedAttemptIds.length > 0) {
+          recordAcceptances(item.id, reconcile.acceptedAttemptIds, 'system', 'coherent distributor evidence (strategy collection)');
+        }
+        complete(
+          'completed_strategy_collection',
+          {
+            schemaVersion: 2,
+            route: 'completed_strategy_collection',
+            origin: 'automatic_policy',
+            acceptedEvidenceAttemptIds: [...new Set(reconcile.acceptedAttemptIds)].sort(),
+            providerIds: [...new Set(reconcile.providerIds)].sort(),
+            sourcingGenerationId: generation.id,
+            evidenceHash: finalizedEnvelope.hash,
+            sourceType: 'distributor_record',
+            target: 'extraction',
+            conflicts: [],
+            warnings: [...reconcile.warnings, ...sourceErrorWarnings(attempts)],
+            decidedAt,
+          },
+          'collect_details',
+        );
+        return;
+      }
       if (projection.qualified) {
         recordAcceptances(item.id, projection.acceptedAttemptIds, 'system', 'qualified distributor record');
         complete(
@@ -1976,6 +2063,55 @@ export class OnboardingWorker {
    * and never blindly retried (unchanged evidence cannot heal them).
    */
   private async processDistributorRecordExtraction(item: any): Promise<void> {
+    // Ticket #122: `completed_strategy_collection` decisions dispatch by
+    // validated envelope BEFORE the legacy materializer: compatible
+    // contributions consolidate, and the completed-empty branch preserves
+    // safe imported evidence with explicit provenance. Legacy
+    // distributor_record_to_extraction decisions keep the legacy path
+    // (including qualified strategy collections, which carry both).
+    if ((item.sourcingDecision as { route?: string } | null)?.route === 'completed_strategy_collection') {
+      let result: import('./sourcing/distributor-record-materializer').StrategyCollectionMaterializationResult;
+      try {
+        result = materializeStrategyCollectionExtraction(item.id, this.workspaceId);
+      } catch (err) {
+        console.error(
+          `[OnboardingWorker] Strategy-collection extraction threw for ${item.id} (mapped to internal_error):`,
+          err,
+        );
+        const errorMsg = 'strategy_collection_materialization:internal_error';
+        updateItemStageStatus(item.id, 'failed', errorMsg);
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
+          stage: 'collect_details',
+          error: errorMsg,
+        });
+        return;
+      }
+      if (result.ok) {
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
+          stage: 'collect_details',
+          extractedData: result.extractionData,
+        });
+        console.log(
+          `[OnboardingWorker] ✓ Strategy-collection extraction complete for "${item.name}" (${item.upc}): ` +
+            `title="${String((result.extractionData as Record<string, unknown>).title ?? 'N/A')}", ` +
+            `strategy collection (no official page)${result.idempotent ? ' [idempotent retry]' : ''}`,
+        );
+        try {
+          await refreshCandidateCohorts(this.workspaceId, item.batchId);
+        } catch (err) {
+          console.warn(`[OnboardingWorker] Candidate cohort refresh failed for batch ${item.batchId} (non-blocking):`, err);
+        }
+        return;
+      }
+      const errorMsg = `strategy_collection_materialization:${result.code}`;
+      console.error(`[OnboardingWorker] Strategy-collection extraction integrity failure for ${item.id}: ${result.code}`);
+      updateItemStageStatus(item.id, 'failed', errorMsg);
+      onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
+        stage: 'collect_details',
+        error: errorMsg,
+      });
+      return;
+    }
     // Defense in depth (Milestone D round-8): the materializer must never
     // throw on malformed authority data — every parse is guarded and failures
     // return stable codes. If it still throws unexpectedly, map to a stable
@@ -2055,6 +2191,31 @@ export class OnboardingWorker {
     // product-curator.ts checks this first and falls back to its own internal query.
     (item as OnboardingItem & { siblingGroup?: typeof siblingGroup }).siblingGroup = siblingGroup;
 
+    // Ticket #122: strategy-collection authority gate. A distributor item
+    // whose current generation holds a finalized envelope curates ONLY
+    // under that frozen authority (never reconstructed from live config);
+    // a present-but-invalid envelope fails closed. Generations without an
+    // envelope keep the legacy interpretation (compat fallback).
+    let strategyEnvelope: { envelope: StrategyCollectionResult; hash: string } | null = null;
+    if (item.sourceType === 'distributor_record') {
+      try {
+        const curationGeneration = getCurrentSourcingGeneration(item.id);
+        strategyEnvelope = curationGeneration ? getStrategyCollectionResult(curationGeneration.id) : null;
+      } catch (err) {
+        const code = err instanceof Error ? (err as Error & { code?: string }).code ?? 'invalid_envelope' : 'invalid_envelope';
+        if (code !== 'missing_envelope') {
+          const errorMsg = `strategy_collection:${code}`;
+          console.error(`[OnboardingWorker] Strategy-collection authority failure for ${item.id}: ${code}`);
+          updateItemStageStatus(item.id, 'failed', errorMsg);
+          onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
+            stage: 'prepare_listing',
+            error: errorMsg,
+          });
+          return;
+        }
+      }
+    }
+
     try {
       const curationData = await curateItemWithPipeline(item, this.workspacePath, this.workspaceId);
 
@@ -2064,6 +2225,41 @@ export class OnboardingWorker {
         now,
         item.id,
       );
+
+      // Ticket #122: post-consolidation sufficiency for strategy items.
+      // Remaining required-information gaps persist as durable Prepare
+      // listing attention bound to the envelope version/hash (the approval
+      // guard refuses review approval while open); optional omissions never
+      // open a gap. Enforced through existing checks, never a display gate.
+      if (strategyEnvelope) {
+        let extractionDescription: string | null = null;
+        try {
+          const extractionPayload = item.extraction_data_json
+            ? (JSON.parse(item.extraction_data_json) as { description?: unknown })
+            : null;
+          extractionDescription = typeof extractionPayload?.description === 'string'
+            ? extractionPayload.description
+            : null;
+        } catch { extractionDescription = null; }
+        const { missing } = assessListingEvidenceGap({
+          consolidatedFields: {
+            title: (curationData as { curatedTitle?: unknown }).curatedTitle as string | null | undefined,
+            description: extractionDescription,
+          },
+          requiredFields: ['title', 'description'],
+        });
+        if (missing.length > 0) {
+          openPreparationGap({
+            workspaceId: this.workspaceId,
+            itemId: item.id,
+            batchId: item.batchId,
+            collectionResultVersion: 'strategy-collection-v1',
+            missingFields: missing,
+            reason: 'Strategy collection is missing required listing information.',
+            evidenceHash: strategyEnvelope.hash,
+          });
+        }
+      }
 
       updateItemStageStatus(item.id, 'completed');
 

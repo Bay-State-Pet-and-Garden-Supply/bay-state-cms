@@ -1619,11 +1619,13 @@ export function updateSourcingDecision(
  * Route/target matrix for Sourcing completion (ADR 0014). Sourcing advances
  * ONLY to adjacent Discovery; Curation is unreachable.
  */
-const SOURCING_COMPLETION_TARGETS: Record<SourcingDecision['route'], PipelineStage> = {
+const SOURCING_COMPLETION_TARGETS: Record<SourcingDecision['route'] | 'completed_strategy_collection', PipelineStage> = {
   evidence_to_discovery: 'find_product_page',
   fallback_to_discovery: 'find_product_page',
   degraded_fallback_to_discovery: 'find_product_page',
   distributor_record_to_extraction: 'collect_details',
+  // Ticket #122: completed strategy collection stays inside Collect details.
+  completed_strategy_collection: 'collect_details',
   needs_input_conflict: 'route_sources',
   retry_provider_errors: 'route_sources',
   // Legacy audit value: never creatable or actionable.
@@ -1695,8 +1697,8 @@ export function completeSourcingWithDecision(
       );
       return { ok: false, reason: 'invalid_v2_distributor_decision' };
     }
-    if (v2.data.route !== 'distributor_record_to_extraction') {
-      return { ok: false, reason: 'extraction target requires distributor_record_to_extraction route' };
+    if (v2.data.route !== 'distributor_record_to_extraction' && v2.data.route !== 'completed_strategy_collection') {
+      return { ok: false, reason: 'extraction target requires distributor_record_to_extraction or completed_strategy_collection route' };
     }
   }
 

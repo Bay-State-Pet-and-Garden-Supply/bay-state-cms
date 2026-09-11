@@ -13,7 +13,6 @@
 
 import { z } from 'zod';
 import {
-  SourcingDecisionSchema,
   SourcingDecisionReadSchema,
   OcrAttemptOutcomeSchema,
   PackagingOcrDataSchema,
@@ -159,7 +158,11 @@ export const ExecutionEvidenceProjectionMemberSchema = z.object({
   sourceUrl: z.string().nullable(),
   /** Latest onboarding_extractions.source_url (round-3 R4 provenance binding). */
   extractionSourceUrl: z.string().nullable(),
-  sourcingDecision: SourcingDecisionSchema.nullable(),
+  sourcingDecision: SourcingDecisionReadSchema.nullable(),
+  // Ticket #122: verbatim decision (V2 included), mirroring the V2/V3
+  // members below. The freeze producer passes the live decision through
+  // without stripping V2 authority; legacy historical bytes still parse
+  // (legacy ⊂ read union) and re-serialize identically.
   spreadsheetIdentity: z.object({
     name: z.string(),
     expectedName: z.string().nullable(),

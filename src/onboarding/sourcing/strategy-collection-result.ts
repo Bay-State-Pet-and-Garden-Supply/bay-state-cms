@@ -27,6 +27,18 @@ export const CollectionContributionSchema = z.object({
   reasonCode: z.string().max(64).optional(),
   /** Merchandising fields this contribution supplies (attribution, not authority). */
   fields: z.record(z.string(), z.string()).default({}),
+}).superRefine((v, ctx) => {
+  // Ticket #122: schema-level URL invariant — a distributor_record
+  // contribution must never carry a source URL (never a fake official
+  // URL), and a successful official_page contribution must carry one.
+  // Enforced at parse so persisted-envelope reads fail closed, not just
+  // the pure builder.
+  if (v.kind === 'distributor_record' && v.sourceUrl !== null) {
+    ctx.addIssue({ code: 'custom', message: 'distributor_record contributions must have sourceUrl null' });
+  }
+  if (v.kind === 'official_page' && v.outcome === 'success' && !v.sourceUrl) {
+    ctx.addIssue({ code: 'custom', message: 'successful official_page contributions require sourceUrl' });
+  }
 });
 
 export type CollectionContribution = z.infer<typeof CollectionContributionSchema>;
@@ -85,4 +97,209 @@ export function parseStrategyCollectionResult(raw: unknown): StrategyCollectionR
 export function usableContributions(result: StrategyCollectionResult): CollectionContribution[] {
   if (result.identityConflict) return [];
   return result.contributions.filter((c) => c.outcome === 'success');
+}
+
+// ─── Ticket #122: envelope construction from frozen binding + durable outcomes ──
+
+import { createHash } from 'node:crypto';
+import type { StrategySourceRef } from '../../shared/schemas/brand-strategy';
+
+/** One durable attempt outcome feeding envelope construction (repo-hydrated). */
+export interface StrategyCollectionAttemptInput {
+  attemptId: string;
+  connectionId: string;
+  distributorId: string;
+  providerId: string;
+  outcome: 'found' | 'not_stocked' | 'source_error';
+  /** Bounded stable error code for source_error attempts (never raw messages). */
+  errorCode?: string | null;
+  /** Persisted identity JSON for found attempts (merchandising attribution). */
+  identityJson?: string | null;
+  /** Persisted evidence URL (must be null for distributor attempts; enforced). */
+  sourceUrl?: string | null;
+}
+
+/** Merchandising fields extracted for attribution (bounded string values only). */
+const ENVELOPE_FIELD_KEYS = ['name', 'description', 'brand', 'weight', 'distributorSku'] as const;
+
+function extractEnvelopeFields(identityJson: string | null | undefined): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (!identityJson) return fields;
+  let identity: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(identityJson);
+    if (!parsed || typeof parsed !== 'object') return fields;
+    identity = parsed as Record<string, unknown>;
+  } catch {
+    return fields;
+  }
+  for (const key of ENVELOPE_FIELD_KEYS) {
+    const value = identity[key];
+    if (typeof value === 'string' && value.trim()) fields[key] = value.slice(0, 2000);
+  }
+  return fields;
+}
+
+function contributionSortKey(c: CollectionContribution): string {
+  return `${c.kind}|${c.providerId}|${c.connectionId ?? ''}|${[...c.attemptIds].sort().join(',')}`;
+}
+
+/**
+ * Canonical SHA-256 hex over the deterministic envelope payload. The
+ * contribution order is normalized (sorted) before hashing so acquisition
+ * order never affects the digest — connector completion order is not
+ * field precedence and must not perturb identity.
+ */
+export function computeStrategyCollectionHash(result: StrategyCollectionResult): string {
+  const canonical = {
+    version: result.version,
+    itemId: result.itemId,
+    sourcingGenerationId: result.sourcingGenerationId,
+    strategyRevision: result.strategyRevision,
+    strategyBrand: result.strategyBrand,
+    identityConflict: result.identityConflict,
+    contributions: [...result.contributions]
+      .sort((a, b) => (contributionSortKey(a) < contributionSortKey(b) ? -1 : 1))
+      .map((c) => ({
+        kind: c.kind,
+        connectionId: c.connectionId,
+        providerId: c.providerId,
+        attemptIds: [...c.attemptIds].sort(),
+        sourceUrl: c.sourceUrl,
+        outcome: c.outcome,
+        reasonCode: c.reasonCode ?? null,
+        fields: Object.fromEntries(Object.entries(c.fields).sort(([a], [b]) => (a < b ? -1 : 1))),
+      })),
+  };
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+/**
+ * Build a versioned collection envelope from the frozen strategy binding
+ * sources plus the generation's durable attempt outcomes. Pure.
+ *
+ * - Every distributor source in the frozen boundary yields at least one
+ *   contribution: per-connection outcomes where connections exist, or a
+ *   single `unavailable` contribution (connection_not_configured) where the
+ *   selected distributor has no enabled connection. Selected sources are
+ *   never silently dropped.
+ * - Contributions are sorted deterministically (acquisition order independent).
+ * - Fails closed (null): empty source set, any non-distributor source in the
+ *   boundary (official_page/mixed is never silently filtered — the caller
+ *   must gate to a distributor-only boundary first), distributor sourceUrl
+ *   present, or schema parse failure.
+ *
+ * Returns the result plus its canonical hash and the attempt inputs echoed
+ * for callers that persist provenance.
+ */
+export function buildStrategyCollectionEnvelope(input: {
+  itemId: string;
+  generationId: string;
+  strategyRevision: number;
+  strategyBrand: string;
+  sources: StrategySourceRef[];
+  attempts: StrategyCollectionAttemptInput[];
+  unavailableDistributorIds: string[];
+  identityConflict?: boolean;
+}): { result: StrategyCollectionResult; hash: string; attemptInputs: StrategyCollectionAttemptInput[] } | null {
+  if (!Number.isInteger(input.strategyRevision) || input.strategyRevision < 1) return null;
+  if (!input.itemId || !input.generationId || !input.strategyBrand) return null;
+  // Distributor-only boundary: any non-distributor source fails closed
+  // instead of being silently filtered (latent mixed-dispatch hole).
+  if (input.sources.some((s) => s.kind !== 'distributor_record')) return null;
+  const distributorSources = input.sources.filter((s) => s.kind === 'distributor_record' && s.distributorId);
+  if (distributorSources.length === 0) return null;
+
+  const attemptsByDistributor = new Map<string, StrategyCollectionAttemptInput[]>();
+  for (const a of input.attempts) {
+    const list = attemptsByDistributor.get(a.distributorId) ?? [];
+    list.push(a);
+    attemptsByDistributor.set(a.distributorId, list);
+  }
+
+  const contributions: CollectionContribution[] = [];
+  for (const src of distributorSources) {
+    const distributorId = src.distributorId as string;
+    const related = [...(attemptsByDistributor.get(distributorId) ?? [])]
+      .sort((a, b) => (a.attemptId < b.attemptId ? -1 : 1));
+    if (related.length === 0) {
+      // Selected but nothing attempted (e.g. no enabled connection at
+      // collection time): explicit unavailable, never a silent drop.
+      contributions.push({
+        kind: 'distributor_record',
+        connectionId: null,
+        providerId: distributorId,
+        attemptIds: [],
+        sourceUrl: null,
+        outcome: 'unavailable',
+        reasonCode: 'connection_not_configured',
+        fields: {},
+      });
+      continue;
+    }
+    for (const a of related) {
+      if (a.outcome === 'found') {
+        contributions.push({
+          kind: 'distributor_record',
+          connectionId: a.connectionId,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: null,
+          outcome: 'success',
+          fields: extractEnvelopeFields(a.identityJson),
+        });
+      } else if (a.outcome === 'not_stocked') {
+        contributions.push({
+          kind: 'distributor_record',
+          connectionId: a.connectionId,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: null,
+          outcome: 'no_match',
+          reasonCode: 'not_stocked',
+          fields: {},
+        });
+      } else {
+        contributions.push({
+          kind: 'distributor_record',
+          connectionId: a.connectionId,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: null,
+          outcome: 'failed',
+          reasonCode: (a.errorCode ?? 'source_error').slice(0, 64),
+          fields: {},
+        });
+      }
+    }
+  }
+  // Explicit unavailable markers for engine-reported missing connections
+  // not already covered above (defense in depth; deduped by distributor).
+  const covered = new Set(distributorSources.map((s) => (s.distributorId as string).toLowerCase()));
+  for (const id of input.unavailableDistributorIds) {
+    if (covered.has(id.toLowerCase())) continue;
+    contributions.push({
+      kind: 'distributor_record',
+      connectionId: null,
+      providerId: id,
+      attemptIds: [],
+      sourceUrl: null,
+      outcome: 'unavailable',
+      reasonCode: 'connection_not_configured',
+      fields: {},
+    });
+  }
+  if (contributions.length === 0) return null;
+  contributions.sort((a, b) => (contributionSortKey(a) < contributionSortKey(b) ? -1 : 1));
+
+  const result = buildStrategyCollectionResult({
+    itemId: input.itemId,
+    sourcingGenerationId: input.generationId,
+    strategyRevision: input.strategyRevision,
+    strategyBrand: input.strategyBrand,
+    contributions,
+    identityConflict: input.identityConflict ?? false,
+  });
+  if (!result) return null;
+  return { result, hash: computeStrategyCollectionHash(result), attemptInputs: input.attempts };
 }
