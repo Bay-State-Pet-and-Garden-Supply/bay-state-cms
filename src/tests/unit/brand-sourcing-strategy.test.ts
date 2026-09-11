@@ -132,6 +132,35 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
     expect(reloaded?.revision).toBe(1);
   });
 
+  it('approved distributor-only strategy is reusable across batches without re-approval (ticket #121)', () => {
+    const approved = approveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'phillips' }, { kind: 'distributor_record', distributorId: 'bci' }],
+      expectedRevision: 0,
+      approvedBy: 'operator-1',
+    });
+    expect(approved.revision).toBe(1);
+
+    // Two products in two batches share the same brand: both generations
+    // capture the same approved revision/sources with no further approval.
+    const batchA = createBatch({ workspaceId, name: 'batch-a', fileName: 'a.csv', totalItems: 1 });
+    const [itemA] = insertItems(batchA.id, [{ upc: '012345678905', name: 'Acana Food A', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
+    const genA = startSourcingGeneration(itemA.id);
+    const bindingA = captureGenerationStrategyBinding({ workspaceId, itemId: itemA.id, generationId: genA.id });
+    expect(bindingA).toMatchObject({ mode: 'approved', strategyRevision: 1 });
+
+    const batchB = createBatch({ workspaceId, name: 'batch-b', fileName: 'b.csv', totalItems: 1 });
+    const [itemB] = insertItems(batchB.id, [{ upc: '012345678906', name: 'Acana Food B', brandHint: 'ACANA', rowNumber: 1 }], 'sourcing', 1);
+    const genB = startSourcingGeneration(itemB.id);
+    const bindingB = captureGenerationStrategyBinding({ workspaceId, itemId: itemB.id, generationId: genB.id });
+    expect(bindingB).toMatchObject({ mode: 'approved', strategyRevision: 1 });
+    if (bindingA.mode === 'approved' && bindingB.mode === 'approved') {
+      expect(bindingB.sources).toEqual(bindingA.sources);
+    }
+    // Approval row itself is unchanged by reuse: still revision 1.
+    expect(getApprovedBrandStrategy(workspaceId, 'Acana')?.revision).toBe(1);
+  });
+
   it('missing expectedRevision never writes', () => {
     expect(() => approveBrandStrategy(workspaceId, {
       brand: 'Acana',
