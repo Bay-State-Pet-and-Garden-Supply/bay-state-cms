@@ -117,6 +117,8 @@ export interface StrategyCollectionAttemptInput {
   identityJson?: string | null;
   /** Persisted evidence URL (must be null for distributor attempts; enforced). */
   sourceUrl?: string | null;
+  /** Approved official domain for official_page attempts (null-connection rows). */
+  domain?: string | null;
 }
 
 /** Merchandising fields extracted for attribution (bounded string values only). */
@@ -204,11 +206,22 @@ export function buildStrategyCollectionEnvelope(input: {
 }): { result: StrategyCollectionResult; hash: string; attemptInputs: StrategyCollectionAttemptInput[] } | null {
   if (!Number.isInteger(input.strategyRevision) || input.strategyRevision < 1) return null;
   if (!input.itemId || !input.generationId || !input.strategyBrand) return null;
-  // Distributor-only boundary: any non-distributor source fails closed
-  // instead of being silently filtered (latent mixed-dispatch hole).
-  if (input.sources.some((s) => s.kind !== 'distributor_record')) return null;
+  // Ticket #123: distributor-only AND mixed (official_page + distributor)
+  // boundaries build envelopes. Every source must be a typed, identified
+  // boundary entry — anything else fails closed (never silently filtered,
+  // never an unapproved kind).
+  for (const s of input.sources) {
+    if (s.kind === 'distributor_record') {
+      if (!s.distributorId) return null;
+    } else if (s.kind === 'official_page') {
+      if (!s.domain) return null;
+    } else {
+      return null;
+    }
+  }
   const distributorSources = input.sources.filter((s) => s.kind === 'distributor_record' && s.distributorId);
-  if (distributorSources.length === 0) return null;
+  const officialSourceList = input.sources.filter((s) => s.kind === 'official_page' && s.domain);
+  if (distributorSources.length === 0 && officialSourceList.length === 0) return null;
 
   const attemptsByDistributor = new Map<string, StrategyCollectionAttemptInput[]>();
   for (const a of input.attempts) {
@@ -288,6 +301,66 @@ export function buildStrategyCollectionEnvelope(input: {
       reasonCode: 'connection_not_configured',
       fields: {},
     });
+  }
+  // Ticket #123: one contribution set per approved official domain.
+  // Profile/setup problems arrive as terminal attempts (profile_required /
+  // profile_not_healthy → unavailable); verification/extraction problems
+  // arrive as not_stocked / failed. A planned domain with no attempt at
+  // all is an interrupted collection — fail closed (finalization owns the
+  // incomplete_collection guard; the builder never invents coverage).
+  const officialSources = officialSourceList;
+  const attemptsByDomain = new Map<string, StrategyCollectionAttemptInput[]>();
+  for (const a of input.attempts) {
+    if (!a.domain) continue;
+    const list = attemptsByDomain.get(a.domain.toLowerCase()) ?? [];
+    list.push(a);
+    attemptsByDomain.set(a.domain.toLowerCase(), list);
+  }
+  for (const src of officialSources) {
+    const domain = (src.domain as string).toLowerCase();
+    const related = [...(attemptsByDomain.get(domain) ?? [])]
+      .sort((a, b) => (a.attemptId < b.attemptId ? -1 : 1));
+    if (related.length === 0) return null;
+    for (const a of related) {
+      if (a.outcome === 'found') {
+        // A verified official success without its verified URL is corrupt
+        // (never a URL-less official contribution).
+        if (!a.sourceUrl) return null;
+        contributions.push({
+          kind: 'official_page',
+          connectionId: null,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: a.sourceUrl,
+          outcome: 'success',
+          fields: extractEnvelopeFields(a.identityJson),
+        });
+      } else if (a.outcome === 'not_stocked') {
+        contributions.push({
+          kind: 'official_page',
+          connectionId: null,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: null,
+          outcome: 'no_match',
+          reasonCode: 'not_stocked',
+          fields: {},
+        });
+      } else {
+        const code = (a.errorCode ?? 'source_error').slice(0, 64);
+        const unavailable = code === 'profile_required' || code === 'profile_not_healthy';
+        contributions.push({
+          kind: 'official_page',
+          connectionId: null,
+          providerId: a.providerId,
+          attemptIds: [a.attemptId],
+          sourceUrl: null,
+          outcome: unavailable ? 'unavailable' : 'failed',
+          reasonCode: code,
+          fields: {},
+        });
+      }
+    }
   }
   if (contributions.length === 0) return null;
   contributions.sort((a, b) => (contributionSortKey(a) < contributionSortKey(b) ? -1 : 1));

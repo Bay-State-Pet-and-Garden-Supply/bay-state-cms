@@ -214,6 +214,22 @@ export interface CuratePreparedMemberInput {
  * place). `memberExtractionMethod` is the frozen projection's method in
  * prepared mode, null in legacy mode (live provenance decides there).
  */
+/**
+ * Ticket #123: hash-bound merchandising authority for strategy-collection
+ * envelopes. A validated envelope (validated at finalization and
+ * re-checked at materialization) authorizes its consolidated copy exactly
+ * when the envelope hash equals the decision hash — legacy v1/unverified
+ * distributor paths stay identity-only.
+ */
+export function isStrategyCollectionAuthorized(
+  ext: Record<string, unknown>,
+  decisionEvidenceHash: string | null,
+): boolean {
+  const hash = (ext as { strategyCollectionProvenance?: { strategyCollectionHash?: unknown } | null })
+    .strategyCollectionProvenance?.strategyCollectionHash;
+  return typeof hash === 'string' && hash.length > 0 && hash === decisionEvidenceHash;
+}
+
 function resolveDistributorCopyInputs(
   item: OnboardingItem,
   ext: ExtractionData & Record<string, unknown>,
@@ -233,7 +249,14 @@ function resolveDistributorCopyInputs(
       (liveDistributorProvenance?.extractionMethod === 'distributor_record_v2' &&
         typeof liveDistributorProvenance.evidenceHash === 'string' &&
         liveDistributorProvenance.evidenceHash.length > 0 &&
-        liveDistributorProvenance.evidenceHash === decisionEvidenceHash));
+        liveDistributorProvenance.evidenceHash === decisionEvidenceHash) ||
+      // Ticket #123: a validated strategy-collection envelope carries the
+      // same hash-bound authority for its consolidated merchandising copy
+      // (distributor and/or official contributions with per-field
+      // attribution). The materializer already rejects hash mismatches, so
+      // equality with the decision hash is the authority check — legacy
+      // v1/unverified distributor paths stay identity-only.
+      isStrategyCollectionAuthorized(ext as Record<string, unknown>, decisionEvidenceHash));
   return { distributorSource, verifiedV2Distributor };
 }
 /**

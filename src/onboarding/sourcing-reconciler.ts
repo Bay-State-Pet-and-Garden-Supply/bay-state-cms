@@ -222,6 +222,26 @@ export function evaluateDistributorEvidence(
     const distinctValues = Array.from(new Set(candidates.map(comparisonValue)));
 
     if (distinctValues.length > 1) {
+      // Ticket #123: an identity-critical disagreement SPANNING official
+      // and distributor evidence is a trust conflict, not a taste
+      // difference — it stays upstream (held, never blended). Same-kind
+      // disagreements keep the established consensus auto-resolution
+      // below (Amendment A behavior, covered by distributor e2e suites).
+      const spansAuthorities = new Set(
+        candidates.map((c) => (c.providerId.toLowerCase().startsWith('official_page:') ? 'official' : 'distributor')),
+      );
+      if (isHardField(field) && spansAuthorities.has('official') && spansAuthorities.has('distributor')) {
+        hasHardIdentityConflict = true;
+        hardConflictCount++;
+        conflicts.push({ field, severity: 'hard', candidates });
+        warnings.push(
+          clampWarning(
+            `Identity field '${field}' disagrees across official and distributor evidence ` +
+              `(${candidates.map((c) => `${c.providerId}='${formatWarningValue(c.value)}'`).join(', ')}) — held for operator review`,
+          ),
+        );
+        continue;
+      }
       // Auto-resolve multi-distributor discrepancies:
       // 1. Calculate frequency of each normalized comparison value (consensus)
       const counts = new Map<string, number>();

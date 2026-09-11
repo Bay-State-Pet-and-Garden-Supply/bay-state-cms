@@ -120,20 +120,28 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     // sources never require an extractor profile; only webpage sources do.
     // When an approved strategy pins an explicit source boundary, derive
     // from the approved sources so readiness/label describe what collection
-    // will actually run. No collection path executes official_page yet, so
-    // an approved official source is reported not_supported (never ready,
-    // never silently dropped). Without a stored boundary, fall back to the
-    // live proposal (unapproved brands stay awaiting_approval regardless).
+    // will actually run. Ticket #123: approved official_page sources
+    // execute inside the boundary — availability follows real profile
+    // readiness (healthy/active only). A profile/readiness issue is
+    // reported against that source (never bypassed, never silently
+    // dropped). Without a stored boundary, fall back to the live proposal
+    // (unapproved brands stay awaiting_approval regardless).
     const sourceAvailability: BrandStrategySourceAvailability[] = [];
     const enabledSet = new Set(enabledIds);
     if (approvedSources) {
       for (const src of approvedSources) {
         if (src.kind === 'official_page') {
+          const rawDomain = src.domain ?? officialDomains[0]?.domain ?? 'official website';
+          const domain = rawDomain.toLowerCase();
+          const readiness = params.readinessByDomain?.get(rawDomain)
+            ?? params.readinessByDomain?.get(domain)
+            ?? (readinessFallback ? readinessFallback(domain) : 'not_configured');
+          const healthy = readiness === 'active';
           sourceAvailability.push({
             kind: 'official_page',
-            ref: (src.domain ?? officialDomains[0]?.domain ?? 'official website').toLowerCase(),
-            available: false,
-            reason: 'not_supported',
+            ref: domain,
+            available: healthy,
+            reason: healthy ? 'ready' : readiness === 'not_configured' ? 'no_profile' : 'profile_not_healthy',
           });
         } else if (src.distributorId) {
           const available = enabledSet.has(src.distributorId);

@@ -107,8 +107,8 @@ describe('deriveBrandStrategies', () => {
     expect(strategies[0].unmatched).toBe(true);
   });
 
-  it('approved official_page refs stay not_supported, never ready', () => {
-    const strategies = deriveBrandStrategies({
+  it('approved official_page refs follow profile readiness: healthy is ready, missing/unhealthy never ready', () => {
+    const healthy = deriveBrandStrategies({
       brandSites: [{ brandName: 'Acana', domain: 'acana.com' }],
       approvals: new Map([['acana', {
         approved: true, revision: 1, approvedAt: null, approvedBy: null,
@@ -116,10 +116,24 @@ describe('deriveBrandStrategies', () => {
       }]]),
       readinessByDomain: new Map([['acana.com', 'active']]),
     });
-    const acana = strategies.find((s) => s.normalizedBrand === 'acana')!;
-    expect(acana.sourceAvailability).toEqual([
-      { kind: 'official_page', ref: 'acana.com', available: false, reason: 'not_supported' },
+    const ready = healthy.find((s) => s.normalizedBrand === 'acana')!;
+    expect(ready.sourceAvailability).toEqual([
+      { kind: 'official_page', ref: 'acana.com', available: true, reason: 'ready' },
     ]);
-    expect(acana.collectionReadiness).toBe('setup_attention');
+    expect(ready.collectionReadiness).toBe('ready');
+
+    const missing = deriveBrandStrategies({
+      brandSites: [{ brandName: 'Acana', domain: 'acana.com' }],
+      approvals: new Map([['acana', {
+        approved: true, revision: 1, approvedAt: null, approvedBy: null,
+        brand: 'Acana', sources: [{ kind: 'official_page', domain: 'acana.com' }],
+      }]]),
+      readinessByDomain: new Map([['acana.com', 'not_configured']]),
+    });
+    const unready = missing.find((s) => s.normalizedBrand === 'acana')!;
+    expect(unready.sourceAvailability).toEqual([
+      { kind: 'official_page', ref: 'acana.com', available: false, reason: 'no_profile' },
+    ]);
+    expect(unready.collectionReadiness).toBe('setup_attention');
   });
 });

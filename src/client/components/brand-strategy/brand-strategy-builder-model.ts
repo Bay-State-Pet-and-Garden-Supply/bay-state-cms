@@ -209,7 +209,7 @@ export function availabilityText(available: boolean, reason: string): string {
     profile_not_healthy: 'Extractor profile needs attention.',
     connection_disabled: 'Connector disabled — enable it in Distributors.',
     connection_not_configured: 'Connector not configured — finish setup in Distributors.',
-    not_supported: 'Official collection is not supported yet — selectable, but never Ready.',
+    not_supported: 'Official collection is not available for this source.',
     unknown: 'Availability unknown — refresh to re-check.',
   };
   return map[reason] ?? `Unavailable (${reason})`;

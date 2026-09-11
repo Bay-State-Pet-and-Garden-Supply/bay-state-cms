@@ -2433,28 +2433,47 @@ route.post('/onboarding/items/:id/select-source', async (c) => {
     return c.json({ error: 'Source candidate not found' }, 404);
   }
 
-  // Builder slice B2: strategy-bound manual selection cannot admit a
-  // non-official candidate as the official source. When the item's brand
-  // has an approved strategy, the candidate host must fall inside the
-  // approved official domains (exact-or-subdomain authority). Legacy
-  // unbound rows keep their historical semantics (no check).
+  // Builder slice B2 + ticket #123: strategy-bound manual selection cannot
+  // admit a non-official candidate as the official source. Authority is the
+  // item's CURRENT generation frozen binding first (a live approval edit
+  // can never expand a running generation), live approval as fallback.
+  // A known retailer/distributor host is never official (hard reject even
+  // before boundary evaluation). Legacy unbound rows keep their historical
+  // semantics (no check).
   try {
     const { getApprovedBrandStrategy } = await import('../../db/repositories/brand-strategy-approval-repo');
+    const { getGenerationStrategyBinding } = await import('../../db/repositories/brand-strategy-generation-repo');
+    const { getCurrentSourcingGeneration } = await import('../../db/repositories/onboarding-evidence-repo');
     const { isOfficialDomainMatch } = await import('../../onboarding/domain-utils');
-    const strategyWorkspace = findWorkspace();
-    const approved = strategyWorkspace
-      ? getApprovedBrandStrategy(strategyWorkspace.id, (item as { brandHint?: string | null }).brandHint ?? null)
-      : null;
-    if (approved) {
-      const allowed = approved.sources
-        .filter((s) => s.kind === 'official_page' && s.domain)
-        .map((s) => (s.domain as string).toLowerCase());
-      let host = '';
-      try {
-        host = new URL(selected.url).hostname.toLowerCase().replace(/^www\./, '');
-      } catch {
-        host = '';
-      }
+    const { isKnownRetailerOrDistributorDomain } = await import('../../onboarding/discovery/retailer-domain-list');
+    let host = '';
+    try {
+      host = new URL(selected.url).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      host = '';
+    }
+    if (host && isKnownRetailerOrDistributorDomain(host)) {
+      return c.json(
+        { error: 'strategy_source_not_approved', code: 'strategy_source_not_approved', message: 'Selected source is a retailer/distributor host, never an official source' },
+        409,
+      );
+    }
+    const officialOf = (sources: Array<{ kind: string; domain?: string | null }>): string[] =>
+      sources.filter((s) => s.kind === 'official_page' && s.domain).map((s) => (s.domain as string).toLowerCase());
+    let allowed: string[] | null = null;
+    // A corrupt binding propagates to the fail-closed 503 below (never a
+    // live-approval fallback past a pinned-but-unreadable boundary).
+    const generation = getCurrentSourcingGeneration(itemId);
+    const binding = generation ? getGenerationStrategyBinding(generation.id) : null;
+    if (binding?.mode === 'approved') allowed = officialOf(binding.sources);
+    if (allowed === null) {
+      const strategyWorkspace = findWorkspace();
+      const approved = strategyWorkspace
+        ? getApprovedBrandStrategy(strategyWorkspace.id, (item as { brandHint?: string | null }).brandHint ?? null)
+        : null;
+      if (approved) allowed = officialOf(approved.sources);
+    }
+    if (allowed !== null) {
       const admitted = allowed.some((d) => isOfficialDomainMatch(host, d));
       if (!admitted) {
         return c.json(

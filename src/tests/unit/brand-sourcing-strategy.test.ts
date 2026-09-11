@@ -263,7 +263,7 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
     expect(strategies[0].collectionReadiness).toBe('ready');
   });
 
-  it('an approved official source is reported not_supported, never ready', () => {
+  it('an approved official source with a healthy profile is ready; without one it is unavailable, never silently dropped', () => {
     const strategies = deriveBrandStrategies({
       brandSites: [{ brandName: 'Fromm', domain: 'frommfamily.com' }],
       readinessByDomain: new Map([['frommfamily.com', 'active' as const]]),
@@ -276,9 +276,25 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
         ],
       }]]),
     });
-    const official = strategies[0].sourceAvailability?.find((s) => s.kind === 'official_page');
-    expect(official).toMatchObject({ available: false, reason: 'not_supported' });
-    expect(strategies[0].collectionReadiness).toBe('ready_partial');
+    expect(strategies[0].sourceAvailability?.find((s) => s.kind === 'official_page'))
+      .toMatchObject({ available: true, reason: 'ready' });
+    expect(strategies[0].collectionReadiness).toBe('ready');
+
+    const unhealthy = deriveBrandStrategies({
+      brandSites: [{ brandName: 'Fromm', domain: 'frommfamily.com' }],
+      readinessByDomain: new Map([['frommfamily.com', 'degraded' as const]]),
+      enabledDistributorIds: ['dist_phillips'],
+      approvals: new Map([['fromm', {
+        approved: true, revision: 1, approvedAt: null, approvedBy: null,
+        sources: [
+          { kind: 'official_page', domain: 'frommfamily.com' },
+          { kind: 'distributor_record', distributorId: 'dist_phillips' },
+        ],
+      }]]),
+    });
+    expect(unhealthy[0].sourceAvailability?.find((s) => s.kind === 'official_page'))
+      .toMatchObject({ available: false, reason: 'profile_not_healthy' });
+    expect(unhealthy[0].collectionReadiness).toBe('ready_partial');
   });
 
   it('derive reports partial readiness when the official source lacks a profile', () => {
@@ -346,7 +362,7 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
     expect(result.attempts).toHaveLength(1);
   });
 
-  it('approved official source is recorded as skipped (not_supported), distributors still run', async () => {
+  it('approved official source executes inside the boundary; distributors still run; nothing silently dropped', async () => {
     seedConnections();
     upsertBrandSite('Acana', 'acme.com');
     approveBrandStrategy(workspaceId, {
@@ -365,16 +381,42 @@ describe('strategy-driven collection (tickets #122/#123)', () => {
     registry.register('dist_phillips', phillips);
     registry.register('dist_bci', bci);
     const generation = startSourcingGeneration(item.id);
-    const engine = new DefaultSourcingEngine(registry);
+    const officialUrl = 'https://acme.com/products/acana-adult';
+    const engine = new DefaultSourcingEngine(registry, 3, {
+      findProfile: (() => ({ id: 'prof-acme', domain: 'acme.com' })) as never,
+      isProfileHealthy: () => true,
+      discover: (async () => ({
+        candidates: [{ url: officialUrl, title: 'Acana Adult', snippet: null, domain: 'acme.com', confidence: 0.95 }],
+        consolidatedName: null,
+      })) as never,
+      verify: (async (candidates: Array<{ url: string }>) => candidates.map((c) => ({
+        candidate: c,
+        verificationScore: 100,
+        signals: {},
+        proofClass: 'gtin',
+        hasStrongProof: true,
+        extractedGtins: ['012345678905'],
+        decisionReason: 'verified',
+      }))) as never,
+      extract: (async () => ({
+        ok: true,
+        data: { title: 'Acana Adult Dog', description: 'Official description', brand: 'Acana', weight: null },
+        warnings: [],
+        fieldProvenance: {},
+      })) as never,
+    });
     const result = await engine.runGeneration({
       itemId: item.id, generationId: generation.id, workspaceId, upc: '012345678905',
       brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
     });
-    // No silent drop, no fake evidence: the official source is an explicit skip.
-    expect(result.skipped.map((s) => s.reason)).toContain('strategy_official_not_yet_supported');
+    // No blanket skip, no fake evidence: the official source is a durable
+    // terminal attempt alongside the distributor attempt.
+    expect(result.skipped.map((s) => s.reason)).not.toContain('strategy_official_not_yet_supported');
     expect(phillips.lookups).toBe(1);
     expect(bci.lookups).toBe(0);
-    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts).toHaveLength(2);
+    const official = result.attempts.find((a) => a.providerId === 'official_page:acme.com');
+    expect(official).toMatchObject({ outcome: 'found', errorCode: null });
   });
 
   it('approved strategy with no usable source yields setup attention, not a fake result', async () => {

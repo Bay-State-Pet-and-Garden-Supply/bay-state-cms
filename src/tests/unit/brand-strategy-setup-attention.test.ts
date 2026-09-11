@@ -84,12 +84,18 @@ describe('Brand strategy setup attention (observable processSourcing parking)', 
     });
     const item = makeSourcingItem('Acme');
 
-    await new OnboardingWorker(workspaceId, tempDir).poll();
+    const parkingWorker = new OnboardingWorker(workspaceId, tempDir);
+    await parkingWorker.poll();
+    await parkingWorker.drain();
 
     const after = findItemById(item.id);
     expect(after?.stageStatus).toBe('needs_input');
     expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
-    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('official sources are not supported');
+    // Ticket #123: official-only with no healthy profile is a setup
+    // problem (per-source reason), not a silent drop and not preparation
+    // from pure spreadsheet identity.
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('no usable sources');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('profile_required');
   });
 
   test('pre-builder generation with evidence but no binding parks at needs_input instead of reconciling', async () => {
