@@ -1,6 +1,13 @@
 -- Brand strategy builder slice B2: durable per-generation strategy binding.
 -- Additive only: one append-only table, never alters existing tables. Idempotent.
 --
+-- NOTE: the mode CHECK below intentionally carries the pre-retirement set
+-- ('approved', 'legacy_advisory'). The brand advisory retirement migration
+-- (brand-advisory-retirement-migration.sql, Amendment B1.1) widens it to
+-- include 'query_all' on upgrade; fresh databases reach the widened schema
+-- by running both steps. Do not widen the CHECK here without updating the
+-- retirement migration's final-schema verification to match.
+--
 -- Each row pins the exact strategy boundary captured when a sourcing
 -- generation actually started execution: either the approved revision/source
 -- set at that moment, or an explicit legacy/advisory marker recording that
