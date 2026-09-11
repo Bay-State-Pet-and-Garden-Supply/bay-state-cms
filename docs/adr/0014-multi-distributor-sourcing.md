@@ -129,3 +129,15 @@ Amendment A clauses 1–7, 9–11, 13–17 and the base ADR's `bundle_to_curatio
 
 1. **Distributor images are approved catalog assets (owner opt-in).** The store owner explicitly attests rights for images supplied through the authenticated distributor connections (the supplier/manufacturer channel: the store holds real distributor credentials). Amendment A clause 12 and the PI-6 deferral line above are **superseded for `html_scraper` distributor sources**: the deterministic materializer now writes a `distributorImageApprovals` entry for every image candidate (`rightsAttested: true`, `approvalOrigin: 'distributor_channel_opt_in'`, `approvedAt` = the projection's own `observedAt` — deterministic, never the clock), each carrying the exact `sourceAttemptIds` as the evidence reference. The draft promoter passes ONLY approved URLs to the image downloader — raw candidates without an approval entry still cannot reach commerce, and the M5b-2 deep-compare gate still rejects any payload divergence (a tampered approval entry is a row-tamper). Unknown-host/non-HTTPS/menu-artwork exclusions are unchanged.
 2. **Orgill storefront template repair (new markup, observed live 2026-08-15).** The orgill search flow now resolves a single-match UPC search directly to the product page with a new template: label/value rows render as plain `div`/`table` pairs and a combined meta block (`Item No.: …`, `Vendor: …`, `Model NO.: …`, `Retail UPC: …`, `Shelf Pack: …`, `Weight(lb): …`); the product image moved to `images1.orgill.com` with a backslash path; no-results renders as a `Viewing 1 - 0 of 0 results` page (no `pnlSearchResults`/`pnlNoResults`). The connector now (a) recognizes the new direct-PDP and no-results markers, (b) extracts the labeled pairs/block with a first-in-document-order rule (the product's own info precedes Similar/Recommended widgets), (c) normalizes image paths and adds `images1.orgill.com` to the asset hosts, (d) keeps every legacy selector as a fallback. Fixtures: `src/tests/fixtures/sourcing/html-scrapers/orgill/direct-pdp-new.html` + `no-results-new.html` (live captures, provenance-stamped).
+
+## Supersession note — brand advisory settings retired (issue #150 / ADR 0035 B1.1)
+
+The base ADR's optional workspace brand-profile registry (brand → ordered
+distributor IDs with `advisory` / `preferred_then_fallback` /
+`preferred_only` execution policy) is retired. New unapproved/no-brand
+collection generations always query all enabled workspace connections
+(query-all); the `preferred_only` spend-control knob and the
+`preferred_then_fallback` early stop no longer exist. Brand/register-name
+hints remain non-authoritative identity evidence, never distributor stock
+filters. Mapping authority and all other ADR 0014 invariants are untouched
+by this change.

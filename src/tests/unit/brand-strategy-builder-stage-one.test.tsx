@@ -2,10 +2,11 @@
 /**
  * B5 — Stage 1 builder integration: 409 handling, keyboard/a11y, drift.
  *
- * A 409 inside the Stage 1 expander preserves edits and offers
- * reload-discard / rebase without silent retry; the expander is
- * keyboard-operable with aria-expanded/controls and a labelled region;
- * drifted brands keep the approved boundary as label authority.
+ * A 409 inside the Stage 1 dialog preserves edits and offers
+ * reload-discard / rebase without silent retry; the dialog trigger is
+ * keyboard-operable with aria-haspopup="dialog" and a labelled modal dialog;
+ * the Strategy column stays compact (status + Review button, no inline
+ * revision details — those live in the dialog).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -64,10 +65,6 @@ function healthy() {
 const BETA_DETAIL = {
   brandKey: 'Beta',
   normalizedBrand: 'beta',
-  aliases: [],
-  preferredDistributorIds: ['Phillips'],
-  sourcingPolicy: 'preferred_then_fallback',
-  fallbackTier: [],
   officialDomains: [],
   proposalSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
   sourceOptions: [
@@ -88,10 +85,6 @@ const BETA_DETAIL = {
 const GAMMA = {
   brandKey: 'Gamma',
   normalizedBrand: 'gamma',
-  aliases: [],
-  preferredDistributorIds: ['Phillips', 'BCI'],
-  sourcingPolicy: 'preferred_then_fallback',
-  fallbackTier: [],
   officialDomains: [],
   proposalSources: [
     { kind: 'distributor_record', distributorId: 'Phillips' },
@@ -186,13 +179,18 @@ describe('Stage 1 builder integration', () => {
     });
   }
 
-  it('drifted brands keep the approved boundary as label authority with a proposal-differs note', async () => {
+  it('strategy column stays compact: status + Review button, no inline revision details', async () => {
     await renderStage();
-    const approved = container.querySelector('[data-testid="intake-strategy-approved-item_gamma"]');
-    expect(approved?.textContent).toMatch(/Approved rev 2/);
-    expect(approved?.textContent).toMatch(/proposal differs/);
-    // Label authority: the strategy cell names the approved boundary only.
-    expect(container.querySelector('[data-testid="intake-strategy-item_gamma"]')?.textContent).toMatch(/Phillips/);
+    // No verbose inline details in the table — revision/proposal text lives in the dialog.
+    expect(container.querySelector('[data-testid="intake-strategy-approved-item_gamma"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-use-proposal-item_beta"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/proposal differs/);
+    expect(container.textContent).not.toMatch(/official collection not yet supported/);
+    // Compact status + single trigger per row.
+    expect(container.querySelector('[data-testid="intake-readiness-item_gamma"]')?.textContent).toMatch(/Ready.*2 sources available/);
+    expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting strategy approval/);
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_gamma"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_beta"]')).not.toBeNull();
   });
 
   it('409 in the expander preserves context and requires an explicit second Save', async () => {
@@ -200,27 +198,30 @@ describe('Stage 1 builder integration', () => {
       new OnboardingApiError('stale', 409, 'stale_revision', { error: 'stale_revision', code: 'stale_revision', revision: 0 }),
     );
     await renderStage();
-    // The compact shortcut enters the shared builder with the proposal
-    // staged locally (still requiring explicit Save).
+    // Open the dialog via the single Review trigger, then stage the live
+    // proposal inside the builder (still requiring explicit Save).
     await act(async () => {
-      (container.querySelector('[data-testid="intake-strategy-use-proposal-item_beta"]') as HTMLButtonElement).click();
+      (container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement).click();
     });
     await settle();
-    expect(container.querySelector('[data-testid="intake-strategy-editor-item_beta"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement).click();
+    });
     await act(async () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement).click();
     });
     expect(container.textContent).toMatch(/changed while editing/);
-    // No silent retry: exactly one mutation call, editor still open.
+    // No silent retry: exactly one mutation call, dialog still open.
     expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-testid="intake-strategy-editor-item_beta"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
     await act(async () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Review changes against latest') as HTMLButtonElement).click();
     });
     expect(container.textContent).toMatch(/Rebased onto the latest revision/);
   });
 
-  it('expander is keyboard-operable with labelled region and readiness text (no color-only status)', async () => {
+  it('dialog trigger is keyboard-operable with a labelled modal dialog and readiness text (no color-only status)', async () => {
     await renderStage();
     const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
     review.focus();
@@ -229,10 +230,12 @@ describe('Stage 1 builder integration', () => {
       review.click();
     });
     await settle();
-    expect(review.getAttribute('aria-expanded')).toBe('true');
-    expect(review.getAttribute('aria-controls')).toBe('strategy-editor-item_beta');
-    const region = container.querySelector('[role="region"][aria-label="Strategy editor for Beta"]');
-    expect(region).not.toBeNull();
+    expect(review.getAttribute('aria-haspopup')).toBe('dialog');
+    const dialog = container.querySelector('[data-testid="intake-strategy-dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('role')).toBe('dialog');
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-label')).toMatch(/Review strategy — Beta/);
     // Text readiness, not color-only: awaiting-approval wording is present.
     expect(container.textContent).toMatch(/Awaiting approval/);
   });

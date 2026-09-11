@@ -13,10 +13,6 @@ import {
   updateConnectionPolicy,
   createCatalogSnapshot,
   getLatestSnapshotForConnection,
-  upsertBrandAdvisoryProfile,
-  listBrandAdvisoryProfiles,
-  getPreferredDistributorOrder,
-  deleteBrandAdvisoryProfile,
 } from '../../db/repositories/distributor-repo';
 import { DistributorConnectionSchema, InsertDistributorConnectionSchema, DistributorConnectorTypeEnum } from '../../shared/schemas/distributor';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -246,34 +242,29 @@ describe('Multi-Distributor V2 Entity & Repository Tests', () => {
     expect(latest?.id).toBe(snap1.id);
   });
 
-  test('advisory brand profiles are workspace-scoped, upsertable, and fall-open', () => {
-    upsertBrandAdvisoryProfile({
-      workspaceId: 'w1',
-      brand: 'Nutro',
-      aliases: ['nutro'],
-      preferredDistributorIds: ['phillips', 'unfi'],
-    });
-    // Upsert same brand with new ordering.
-    upsertBrandAdvisoryProfile({
-      workspaceId: 'w1',
-      brand: 'Nutro',
-      aliases: ['nutro', 'nutro max'],
-      preferredDistributorIds: ['unfi'],
-    });
-
-    const profiles = listBrandAdvisoryProfiles('w1');
-    expect(profiles.length).toBe(1);
-    expect(profiles[0].preferredDistributorIds).toEqual(['unfi']);
-    expect(profiles[0].aliases).toEqual(['nutro', 'nutro max']);
-    expect(listBrandAdvisoryProfiles('w2').length).toBe(0);
-
-    // Advisory ordering: missing profile falls open (null), never not_stocked.
-    expect(getPreferredDistributorOrder('w1', 'unknown-brand')).toBeNull();
-    expect(getPreferredDistributorOrder('w1', null)).toBeNull();
-    expect(getPreferredDistributorOrder('w1', 'Nutro')).toEqual(['unfi']);
-
-    expect(deleteBrandAdvisoryProfile('w2', 'Nutro')).toBe(false);
-    expect(deleteBrandAdvisoryProfile('w1', 'Nutro')).toBe(true);
+  test('final schema has no advisory table; distributor/connection/evidence APIs intact (issue #150)', () => {
+    // The advisory profile table is retired: no table, no advisory row
+    // helpers on the repository, and unrelated distributor/connection
+    // storage keeps working.
+    const tables = (getDb().query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((r) => r.name);
+    expect(tables).toContain('distributors');
+    expect(tables).toContain('distributor_connections');
+    expect(tables).not.toContain('brand_advisory_profiles');
+    const repo = require('../../db/repositories/distributor-repo') as Record<string, unknown>;
+    for (const retired of [
+      'upsertBrandAdvisoryProfile',
+      'listBrandAdvisoryProfiles',
+      'deleteBrandAdvisoryProfile',
+      'listBrandAdvisoryProfilesByNormalized',
+      'getPreferredDistributorOrder',
+      'getBrandSourcingConfig',
+    ]) {
+      expect(retired in repo).toBe(false);
+    }
+    // Connections remain workspace-scoped and creatable.
+    const dist = createDistributor({ id: 'nutro-dist', name: 'Nutro Dist' });
+    expect(dist.id).toBe('nutro-dist');
+    expect(listDistributors().map((x) => x.id)).toContain('nutro-dist');
   });
 
   test('distributor_connections storage default is disabled; raw inserts omitting enabled stay disabled (Amendment A)', () => {

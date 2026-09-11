@@ -44,9 +44,6 @@ brandStrategyRoutes.post('/onboarding/brands/strategy/approve', async (c) => {
         const current = getBrandStrategyRow(workspace.id, parsed.data.brand);
         return c.json({ error: 'stale_configuration', code: 'stale_configuration', revision: current?.revision ?? 0, message: err instanceof Error ? err.message : 'stale configuration' }, 409);
       }
-      if (code === 'advisory_identity_conflict') {
-        return c.json({ error: 'advisory_identity_conflict', code: 'advisory_identity_conflict', message: err instanceof Error ? err.message : 'advisory identity conflict' }, 409);
-      }
       // Semantic Save validation (duplicate/cross-kind refs, unmapped or
       // denylisted official domains, unknown distributors) throws plain
       // Errors from the repo — surface them as 400 invalid_strategy, never

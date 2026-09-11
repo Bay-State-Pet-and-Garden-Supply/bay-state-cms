@@ -15,8 +15,6 @@ import {
   removeBrandSiteMapping,
 } from './brand-site-repo';
 import {
-  upsertBrandAdvisoryProfile,
-  listBrandAdvisoryProfilesByNormalized,
   getDistributorById,
 } from './distributor-repo';
 
@@ -83,13 +81,16 @@ function codedError(code: string, message: string): Error & { code: string } {
 }
 
 /**
- * Builder slice B1: deterministic configuration token for guarded editing.
+ * Builder slice B1 (issue #150, Amendment B1.1): deterministic configuration
+ * token for guarded editing.
  *
- * Covers workspace id, exact normalized brand, sorted brand mapping
- * identities/domains/authority metadata, and editable advisory fields with
- * the advisory row identity. Excludes noisy mapping success counts and
- * last-used timestamps; excludes connector health so incidental availability
- * changes never discard edits. Deterministic for the absent-profile set.
+ * Covers workspace id, exact normalized brand, and sorted brand mapping
+ * identities/domains/authority metadata only. Advisory settings (aliases,
+ * preferred distributors, sourcing policy) are retired and never enter the
+ * token. The `brand-strategy-mapping-configuration-v2` hash domain
+ * invalidates every pre-retirement token, even for an empty advisory set.
+ * Excludes noisy mapping success counts and last-used timestamps; excludes
+ * connector health so incidental availability changes never discard edits.
  */
 export function computeBrandStrategyConfigurationToken(workspaceId: string, brand: string | null): string {
   const normalized = normalizeBrandKey(brand ?? '');
@@ -104,18 +105,8 @@ export function computeBrandStrategyConfigurationToken(workspaceId: string, bran
   } catch {
     mappings = [];
   }
-  let advisory: Array<{ id: string; brand: string; aliases_json: string; preferred_distributor_ids_json: string; sourcing_policy: string | null }>;
-  try {
-    advisory = (
-      db.query(
-        'SELECT id, brand, aliases_json, preferred_distributor_ids_json, sourcing_policy FROM brand_advisory_profiles WHERE workspace_id = ? AND LOWER(brand) = LOWER(?) ORDER BY brand ASC, id ASC',
-      ).all(workspaceId, normalized) as Array<{ id: string; brand: string; aliases_json: string; preferred_distributor_ids_json: string; sourcing_policy: string | null }>
-    );
-  } catch {
-    advisory = [];
-  }
   return createHash('sha256')
-    .update(JSON.stringify({ workspaceId, normalized, mappings, advisory }))
+    .update(JSON.stringify({ domain: 'brand-strategy-mapping-configuration-v2', workspaceId, normalized, mappings }))
     .digest('hex');
 }
 
@@ -124,6 +115,8 @@ export interface StrategyApprovalInput {
   revision: number;
   approvedAt: string | null;
   approvedBy: string | null;
+  /** Stored display spelling of the brand (approval-only identity fallback). */
+  brand?: string;
   sources?: StrategySourceRef[];
 }
 
@@ -149,6 +142,7 @@ export function listStrategyApprovalInputs(workspaceId: string): Map<string, Str
       revision: row.revision,
       approvedAt: row.approved_at,
       approvedBy: row.approved_by,
+      brand: row.brand,
       sources: parsedSources,
     });
   }
@@ -184,9 +178,6 @@ export interface SaveBrandStrategyInput {
   expectedRevision: number;
   configuration?: {
     officialDomains: string[];
-    aliases: string[];
-    preferredDistributorIds: string[];
-    sourcingPolicy: 'advisory' | 'preferred_then_fallback' | 'preferred_only';
   };
   expectedConfigurationToken?: string;
   approvedBy?: string;
@@ -218,13 +209,13 @@ function canonicalizeSources(sources: StrategySourceRef[]): StrategySourceRef[] 
 }
 
 /**
- * Guarded atomic Save — the sole writer for brand strategies (Amendment B1).
+ * Guarded atomic Save — the sole writer for brand strategies
+ * (Amendment B1, superseded in part by B1.1 / issue #150).
  *
  * Each accepted explicit Save creates exactly one new approved revision,
- * including identical-source and mapping/preference-only Saves. Mapping
- * deltas, the advisory profile, and the approval commit together; any
- * stale/validation/database failure rolls all three back. Viewing,
- * generating, or editing a proposal never writes.
+ * including identical-source and mapping-only Saves. Mapping deltas and the
+ * approval commit together; any stale/validation/database failure rolls
+ * both back. Viewing, generating, or editing a proposal never writes.
  */
 export function saveBrandStrategy(workspaceId: string, input: SaveBrandStrategyInput): ApprovedBrandStrategy {
   const parsed = ApproveBrandStrategySchema.safeParse(input);
@@ -290,22 +281,6 @@ export function saveBrandStrategy(workspaceId: string, input: SaveBrandStrategyI
       for (const domain of requestedDomains) {
         if (!currentDomains.has(domain)) addBrandSiteMapping(normalized, domain);
       }
-      // Advisory identity: colliding exact spellings fail closed.
-      const colliding = listBrandAdvisoryProfilesByNormalized(workspaceId, normalized);
-      const foreign = colliding.filter((p) => p.brand !== displayBrand);
-      if (foreign.length > 0) {
-        throw codedError(
-          'advisory_identity_conflict',
-          `advisory_identity_conflict: multiple advisory profiles match '${displayBrand}' (${foreign.map((p) => p.brand).join(', ')})`,
-        );
-      }
-      upsertBrandAdvisoryProfile({
-        workspaceId,
-        brand: displayBrand,
-        aliases: parsed.data.configuration.aliases,
-        preferredDistributorIds: parsed.data.configuration.preferredDistributorIds,
-        sourcingPolicy: parsed.data.configuration.sourcingPolicy,
-      });
     }
 
     // Final source validation against final mappings + known distributors.
@@ -356,7 +331,7 @@ export function saveBrandStrategy(workspaceId: string, input: SaveBrandStrategyI
   });
 
   // The transaction rolls back on any throw above; a successful return
-  // means mappings, advisory profile, and approval committed together.
+  // means mappings and approval committed together.
   run();
   return getBrandStrategyRow(workspaceId, displayBrand)!;
 }

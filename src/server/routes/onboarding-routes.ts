@@ -127,6 +127,8 @@ import {
   findBrandSites,
   updateBrandSiteDomain
 } from '../../db/repositories/brand-site-repo';
+import { listStrategyApprovalInputs } from '../../db/repositories/brand-strategy-approval-repo';
+import { getServerSingletonWorkspace, MultipleWorkspacesError } from '../../db/repositories/workspace-singleton';
 import { assignOfficialDomainForBrand } from '../../onboarding/brand-domain-service';
 import {
   MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
@@ -3261,7 +3263,7 @@ route.delete('/onboarding/settings/api-keys/:service', (c) => {
   return c.json({ success: true });
 });
 
-route.get('/onboarding/settings/brand-sites', (c) => {
+route.get('/onboarding/settings/brand-sites', async (c) => {
   const sites = listAllBrandSites();
   const db = getDb();
   
@@ -3309,16 +3311,25 @@ route.get('/onboarding/settings/brand-sites', (c) => {
     console.error('Failed to retrieve onboarding brand hints:', e);
   }
 
+  // Issue #150: advisory profiles retired. Suggestions retain catalog and
+  // onboarding-hint names (above) plus mapped names and current-workspace
+  // stored strategy display names via repository functions (no raw SQL, no
+  // multi-workspace union — singleton contract with its bounded conflict).
+  for (const site of sites) addBrand(site.brandName);
   try {
-    const advisoryRows = db.query(`
-      SELECT DISTINCT brand AS brandName
-      FROM brand_advisory_profiles
-      WHERE brand IS NOT NULL AND TRIM(brand) != ''
-      ORDER BY brand ASC
-    `).all() as { brandName: string }[];
-    for (const r of advisoryRows) addBrand(r.brandName);
-  } catch {
-    // brand_advisory_profiles may not exist in minimal test databases
+    const workspace = getServerSingletonWorkspace();
+    if (workspace) {
+      for (const input of listStrategyApprovalInputs(workspace.id).values()) {
+        if (input.brand) addBrand(input.brand);
+      }
+    }
+  } catch (err) {
+    // Singleton contract: ambiguous workspaces fail with the bounded
+    // conflict (never a multi-workspace union of approvals). Other read
+    // failures keep catalog/mapped names best-effort.
+    if (err instanceof MultipleWorkspacesError) {
+      return c.json({ error: 'multiple_workspaces', code: 'multiple_workspaces', workspaces: err.workspaces.map((w) => w.id), message: err.message }, 409);
+    }
   }
 
   catalogBrands.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));

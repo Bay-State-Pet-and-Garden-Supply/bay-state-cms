@@ -12,6 +12,7 @@ const COHORT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'cohort-migratio
 const DISTRIBUTOR_V2_MIGRATION_PATH = path.resolve(import.meta.dirname, 'distributor-v2-migration.sql');
 const BRAND_STRATEGY_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-migration.sql');
 const BRAND_STRATEGY_BUILDER_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-strategy-builder-migration.sql');
+const BRAND_ADVISORY_RETIREMENT_MIGRATION_PATH = path.resolve(import.meta.dirname, 'brand-advisory-retirement-migration.sql');
 const OPERATOR_STATE_MIGRATION_PATH = path.resolve(import.meta.dirname, 'operator-state-migration.sql');
 
 /**
@@ -5271,8 +5272,10 @@ export function runMigrations(): void {
       }
 
       // 3. brand_advisory_profiles.sourcing_policy
+      // Issue #150: skip when retirement already dropped the table (an
+      // absent table means retired, never a cue to recreate it).
       const brandCols = db.query('PRAGMA table_info(brand_advisory_profiles)').all() as Array<{ name: string }>;
-      if (!brandCols.some((c) => c.name === 'sourcing_policy')) {
+      if (brandCols.length > 0 && !brandCols.some((c) => c.name === 'sourcing_policy')) {
         db.exec("ALTER TABLE brand_advisory_profiles ADD COLUMN sourcing_policy TEXT NOT NULL DEFAULT 'advisory'");
       }
 
@@ -5856,6 +5859,66 @@ export function runMigrations(): void {
       db.exec("UPDATE app_meta SET value = '2' WHERE key = 'manual_evidence_schema_version';");
     })();
     console.log('[Migrations] Manual-evidence full-set migration complete (v2, additive).');
+  }
+
+  // Issue #150 (Amendment B1.1): retire brand advisory settings. Runs
+  // AFTER every historical advisory dependency above (distributor-v2 table
+  // creation, batch-preflight advisory ALTER). Fresh databases create the
+  // legacy schema in those historical steps and retire it here before
+  // startup completes; old markers are never reinterpreted. Any failure
+  // aborts startup/transaction — never a logged-and-swallowed success.
+  // A retired table that unexpectedly reappears with a completed marker
+  // fails verification instead of being silently used or deleted.
+  const brandAdvisoryRetirementVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('brand_advisory_retirement_schema_version') as { value: string } | undefined;
+  if (!brandAdvisoryRetirementVersion) {
+    db.transaction(() => {
+      const snapDef = db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sourcing_generation_strategy_snapshots'").get() as
+        | { sql: string | null }
+        | undefined;
+      if (snapDef?.sql && !snapDef.sql.includes('query_all')) {
+        const retirementSql = fs.readFileSync(BRAND_ADVISORY_RETIREMENT_MIGRATION_PATH, 'utf-8');
+        db.exec(retirementSql);
+      } else if (snapDef?.sql) {
+        // Snapshots already final (e.g. defensive DDL created it): drop the
+        // advisory table without touching snapshot rows.
+        db.exec('DROP TABLE IF EXISTS brand_advisory_profiles');
+      }
+      // Validate the final schema before writing the marker.
+      const advisoryLeft = db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'brand_advisory_profiles'").get() as
+        | { name: string }
+        | undefined;
+      if (advisoryLeft) {
+        throw new Error('[Migrations] brand advisory retirement failed: brand_advisory_profiles still exists');
+      }
+      const finalSnap = db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sourcing_generation_strategy_snapshots'").get() as
+        | { sql: string | null }
+        | undefined;
+      if (!finalSnap?.sql || !finalSnap.sql.includes('query_all') || !finalSnap.sql.includes('strategy-binding-v2')) {
+        throw new Error('[Migrations] brand advisory retirement failed: strategy snapshot table is not at the retired schema');
+      }
+      const retireFk = db.query('PRAGMA foreign_key_check').all() as Array<{ table: string }>;
+      if (retireFk.length > 0) {
+        throw new Error(`[Migrations] brand advisory retirement foreign_key_check failed: ${JSON.stringify(retireFk.slice(0, 5))}`);
+      }
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('brand_advisory_retirement_schema_version', '1');");
+    })();
+    console.log('[Migrations] Brand advisory retirement migration complete.');
+  } else {
+    // Rerun with the final marker verifies schema and writes no rows.
+    const advisoryResurrected = db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'brand_advisory_profiles'").get() as
+      | { name: string }
+      | undefined;
+    if (advisoryResurrected) {
+      throw new Error('[Migrations] brand_advisory_profiles reappeared after retirement — refusing boot (restore the verified pre-upgrade backup; never auto-delete unexpected data)');
+    }
+    const snapCheck = db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sourcing_generation_strategy_snapshots'").get() as
+      | { sql: string | null }
+      | undefined;
+    if (!snapCheck?.sql || !snapCheck.sql.includes('query_all')) {
+      throw new Error('[Migrations] sourcing_generation_strategy_snapshots lost its retired schema — refusing boot');
+    }
   }
 
   // Ticket #105 (review P1-1): enforce the manual-evidence invariants on

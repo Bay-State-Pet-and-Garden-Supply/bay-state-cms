@@ -33,7 +33,6 @@ import {
 } from '../../db/repositories/onboarding-evidence-repo';
 import {
   createConnection,
-  upsertBrandAdvisoryProfile,
   listConnectionsByWorkspace,
   updateConnection,
 } from '../../db/repositories/distributor-repo';
@@ -156,14 +155,14 @@ describe('Sourcing V2 recovery end-to-end acceptance (M7)', () => {
     }
   });
 
-  function makeItem(upc: string, name: string, stage: 'sourcing' | 'discovery' = 'sourcing') {
+  function makeItem(upc: string, name: string, stage: 'sourcing' | 'discovery' = 'sourcing', brandHint: string | null = null) {
     const batch = createBatch({ workspaceId, name: `Batch ${upc}`, fileName: `${upc}.csv`, totalItems: 1 });
     // Post-Amendment-A (Milestone B): worker-claimable sourcing fixtures carry
     // the current entry-policy version (1). The flag-OFF sentinel below stays
     // version 0 (legacy stranded semantics).
     const [item] = insertItems(
       batch.id,
-      [{ upc, name, rowNumber: 1, stage }],
+      [{ upc, name, brandHint, rowNumber: 1, stage }],
       stage,
       SOURCING_ENTRY_POLICY_VERSION,
     );
@@ -339,7 +338,7 @@ describe('Sourcing V2 recovery end-to-end acceptance (M7)', () => {
     expect(after?.sourcingDecision?.route).toBe('evidence_to_discovery');
   });
 
-  test('7. missing brand profile queries ALL enabled providers; a stale profile never implies not_stocked', async () => {
+  test('7. no-brand and unknown-brand scenarios query ALL enabled providers (issue #150)', async () => {
     const { item } = makeItem('012345678905', 'All Providers');
     const conn2 = createConnection({ workspaceId, distributorId: 'phillips', connectorType: 'api', secretRef: 'FIXTURE_PHILLIPS_KEY'});
     updateConnection(conn2.id, conn2.workspaceId, { enabled: true });
@@ -352,13 +351,14 @@ describe('Sourcing V2 recovery end-to-end acceptance (M7)', () => {
     expect(attempts.length).toBe(2);
     expect(new Set(attempts.map((a) => a.providerId))).toEqual(new Set(['phillips', 'bci']));
 
-    // A brand profile for an UNRELATED brand cannot suppress or reorder the
-    // query set: both providers are still invoked (fall-open).
-    upsertBrandAdvisoryProfile({ workspaceId, brand: 'UnrelatedBrand', preferredDistributorIds: ['phillips'] });
-    const { item: item2 } = makeItem('012345678999', 'Fall Open');
+    // An unrelated/unknown brand hint cannot suppress or reorder the query
+    // set: both providers are still invoked (query-all). Brand hints remain
+    // non-authoritative identity evidence, never distributor stock filters.
+    const { item: item2 } = makeItem('012345678999', 'Fall Open', 'sourcing', 'UnrelatedBrand');
     await settle(fixtureWorker(workspaceId, tempDir));
     const attempts2 = getCurrentGenerationAttempts(item2.id);
     expect(attempts2.length).toBe(2);
+    expect(new Set(attempts2.map((a) => a.providerId))).toEqual(new Set(['phillips', 'bci']));
   });
 
   test('8. missing/redacted credentials and connector failures produce bounded durable errors with NO secret leakage', async () => {

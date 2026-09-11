@@ -10,9 +10,10 @@
  * - #118 Enhanced bulk bar: checkboxes/select-all, live domain preview,
  *   inline quick-add, server dispatch (assignBrandGroup + optional
  *   assignBatchBrandDomain).
- * - #119 Enriched table: Missing Brand badge, Domain & Profile states
+ * - #119 Enriched table: Missing Brand badge, Domain states
  *   (Profile Ready / Profile Required → Settings / Missing Domain +
- *   Add Domain / distributor-exempt note), Source Route badges.
+ *   Add Domain / distributor-exempt note), compact Strategy column
+ *   (readiness status + Review trigger).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -406,7 +407,7 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(container.querySelector('[data-testid="stage-select-item_2"]')).not.toBeNull();
   });
 
-  it('#119 rows show brand, domain/profile, and source-route states', async () => {
+  it('#119 rows show brand, domain/profile, and compact strategy states', async () => {
     await mount();
     // Missing brand badge on the unbranded row.
     const missing = container.querySelector('[data-testid="intake-missing-brand-item_1"]');
@@ -420,11 +421,64 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(container.querySelector('[data-testid="intake-add-domain-item_3"]')).not.toBeNull();
     // Gamma: distributor-exempt note, no domain chase.
     expect(container.querySelector('[data-testid="intake-domain-item_4"]')?.textContent).toMatch(/Distributor record/);
-    // Source routes.
-    expect(container.querySelector('[data-testid="intake-route-item_1"]')?.textContent).toMatch(/Needs Brand\/Domain/);
-    expect(container.querySelector('[data-testid="intake-route-item_2"]')?.textContent).toMatch(/Official Site Discovery/);
-    expect(container.querySelector('[data-testid="intake-route-item_3"]')?.textContent).toMatch(/Needs Brand\/Domain/);
-    expect(container.querySelector('[data-testid="intake-route-item_4"]')?.textContent).toMatch(/Distributor Fast-Path/);
+    // Strategy column: compact readiness status + Review trigger (no route badges).
+    expect(container.querySelector('[data-testid="intake-route-item_1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-readiness-item_2"]')?.textContent).toMatch(/Awaiting strategy approval/);
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_2"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_1"]')).toBeNull();
+  });
+
+  it('#119 distributor-only approved strategy suppresses the Profile Required CTA', async () => {
+    // Solo: mapped domain in Brand Hub, no extractor profile, but an
+    // approved distributor-only strategy — official collection is out of
+    // scope, so no profile is needed and none is demanded.
+    vi.mocked(getBrandSites).mockResolvedValue({
+      brandSites: [{ brandName: 'Solo', domain: 'solo.example' }],
+      catalogBrands: ['Solo'],
+    } as never);
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
+    vi.mocked(getBrandDomainBlockers).mockResolvedValue({ blockers: [] } as never);
+    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
+      if (url.includes('/api/onboarding/brands/strategy')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            strategies: [{
+              normalizedBrand: 'solo',
+              approval: { approved: true, revision: 1, approvedAt: '2026-01-01', approvedBy: 'op' },
+              proposalSources: [],
+              approvedSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
+              sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: true, reason: 'ready' }],
+              collectionReadiness: 'ready',
+            }],
+          }),
+        } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schemaVersion: 2,
+          stageVocabularyVersion: 2,
+          batchId: 'b1',
+          filterFingerprint: 'a'.repeat(32),
+          projectionHealth: healthy(),
+          items: [makeRow(9, { brand: 'Solo', domain: null })],
+          nextCursor: null,
+          scannedRows: 1,
+          queryCount: 1,
+        }),
+      } as any;
+    });
+    await mount();
+    // Mapped domain still shown (factual), but neither profile chip nor CTA.
+    expect(container.querySelector('[data-testid="intake-domain-item_9"]')?.textContent).toMatch(/solo\.example/);
+    expect(container.querySelector('[data-testid="intake-profile-required-item_9"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-profile-ready-item_9"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-distributor-only-item_9"]')?.textContent).toMatch(/no profile needed/);
+    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(/Ready/);
   });
 
   it('#119 Profile Required links to Settings and Add Domain saves inline', async () => {

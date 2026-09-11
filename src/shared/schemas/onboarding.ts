@@ -2224,4 +2224,4 @@ export const MissingBrandGroupsResponseSchema = z.object({
 });
 export type MissingBrandGroupsResponse = z.infer<typeof MissingBrandGroupsResponseSchema>;
 
-export { SourcingPolicyEnum, type SourcingPolicy } from './distributor';
+// Issue #150: brand advisory settings retired — no SourcingPolicy re-export.

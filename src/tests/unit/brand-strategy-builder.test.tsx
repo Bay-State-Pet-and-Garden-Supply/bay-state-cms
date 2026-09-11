@@ -21,10 +21,6 @@ function approvedStrategy(): BrandStrategy {
   return {
     brandKey: 'Acme',
     normalizedBrand: 'acme',
-    aliases: [],
-    preferredDistributorIds: ['phillips'],
-    sourcingPolicy: 'preferred_then_fallback',
-    fallbackTier: [],
     officialDomains: [{ domain: 'acme.com', sitemap: { totalUrls: 5, freshCount: 5, lastRefreshAt: null, freshness: 'fresh' } }],
     proposalSources: [{ kind: 'distributor_record', distributorId: 'bci' }],
     sourceOptions: [
@@ -118,9 +114,6 @@ describe('BrandStrategyBuilder (mounted)', () => {
       expectedRevision: 2,
       configuration: {
         officialDomains: ['acme.com'],
-        aliases: [],
-        preferredDistributorIds: ['phillips'],
-        sourcingPolicy: 'preferred_then_fallback',
       },
       expectedConfigurationToken: 'tok-1',
     });
@@ -199,13 +192,13 @@ describe('BrandStrategyBuilder (mounted)', () => {
     await act(async () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement).click();
     });
-    expect(container.textContent).toMatch(/Mappings or settings changed/);
+    expect(container.textContent).toMatch(/Mappings changed/);
     const reload = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Reload latest / discard edits')!;
     await act(async () => {
       reload.click();
     });
     // Edit reset to the approved boundary: phillips re-included.
-    expect(container.textContent).not.toMatch(/Mappings or settings changed/);
+    expect(container.textContent).not.toMatch(/Mappings changed/);
   });
 
   it('uncertain transport outcome disables resubmit until refresh', async () => {
@@ -244,9 +237,14 @@ describe('BrandStrategyBuilder (mounted)', () => {
     expect(container.textContent).toMatch(/at least one source/);
     expect((Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement).disabled).toBe(true);
     // Fieldset legends + labelled controls exist for keyboard/AT users.
-    expect(container.querySelector('fieldset legend')?.textContent).toMatch(/Included vs Preferred/);
+    // Included is the collection boundary; unapproved collection queries all
+    // enabled connections until an Included set is approved.
+    expect(container.querySelector('fieldset legend')?.textContent).toMatch(/Approved sources/);
+    expect(container.querySelector('summary')).toBeNull();
+    expect(container.textContent).not.toMatch(/Legacy settings/);
     expect(container.querySelector('input[aria-label="Add official domain"]')).not.toBeNull();
-    expect(container.querySelector('input[aria-label="Aliases"]')).not.toBeNull();
-    expect(container.querySelector('select[aria-label="Sourcing policy"]')).not.toBeNull();
+    expect(container.querySelector('input[aria-label="Aliases"]')).toBeNull();
+    expect(container.querySelector('select[aria-label="Sourcing policy"]')).toBeNull();
+    expect(container.textContent).toMatch(/queries every enabled distributor connection/);
   });
 });

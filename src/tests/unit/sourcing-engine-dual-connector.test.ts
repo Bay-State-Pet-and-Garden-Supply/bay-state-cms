@@ -5,7 +5,7 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems } from '../../db/repositories/onboarding-item-repo';
-import { createConnection, updateConnection, upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-repo';
+import { createConnection, updateConnection } from '../../db/repositories/distributor-repo';
 import { startSourcingGeneration, getCurrentGenerationAttempts } from '../../db/repositories/onboarding-evidence-repo';
 import { DefaultSourcingEngine } from '../../onboarding/sourcing/engine';
 import type { DistributorConnector, SourcingLookupResult } from '../../onboarding/sourcing/contracts';
@@ -79,7 +79,7 @@ describe('Sourcing engine dual-connector org fanout (e08s02)', () => {
     return { item, gen };
   }
 
-  test('both phillips connections (api + html_scraper) invoked concurrently for preferred org', async () => {
+  test('both phillips connections (api + html_scraper) invoked concurrently', async () => {
     const { item, gen } = await makeItem();
     const apiConn = new Fake('phillips', found('012345678905'));
     const scrapeConn = new Fake('phillips_storefront', found('012345678905'));
@@ -94,7 +94,6 @@ describe('Sourcing engine dual-connector org fanout (e08s02)', () => {
     updateConnection(c1.id, c1.workspaceId, { enabled: true });
     const c2 = createConnection({ workspaceId: 'w1', distributorId: 'phillips', connectorType: 'html_scraper', secretRef: null });
     updateConnection(c2.id, c2.workspaceId, { enabled: true });
-    upsertBrandAdvisoryProfile({ workspaceId: 'w1', brand: 'TestCo', preferredDistributorIds: ['phillips'], sourcingPolicy: 'preferred_then_fallback' });
 
     const engine = new DefaultSourcingEngine(registry);
     const res = await engine.runGeneration({ itemId: item.id, generationId: gen.id, workspaceId: 'w1', upc: '012345678905', brandHint: 'TestCo', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString() });
@@ -105,7 +104,7 @@ describe('Sourcing engine dual-connector org fanout (e08s02)', () => {
     expect(attempts.length).toBe(2);
   });
 
-  test('fallback tier gated when preferred yields found', async () => {
+  test('no short-circuit: every enabled connection runs even after qualified found', async () => {
     const { item, gen } = await makeItem();
     const apiConn = new Fake('phillips', found('012345678905'));
     const scrapeConn = new Fake('phillips_storefront', found('012345678905'));
@@ -124,17 +123,17 @@ describe('Sourcing engine dual-connector org fanout (e08s02)', () => {
     updateConnection(c2.id, c2.workspaceId, { enabled: true });
     const c3 = createConnection({ workspaceId: 'w1', distributorId: 'bradley', connectorType: 'html_scraper', secretRef: null });
     updateConnection(c3.id, c3.workspaceId, { enabled: true });
-    upsertBrandAdvisoryProfile({ workspaceId: 'w1', brand: 'TestCo', preferredDistributorIds: ['phillips'], sourcingPolicy: 'preferred_then_fallback' });
 
     const engine = new DefaultSourcingEngine(registry);
     const res = await engine.runGeneration({ itemId: item.id, generationId: gen.id, workspaceId: 'w1', upc: '012345678905', brandHint: 'TestCo', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString() });
     expect(apiConn.calls.length).toBe(1);
     expect(scrapeConn.calls.length).toBe(1);
-    expect(bradleyConn.calls.length).toBe(0);
-    expect(res.skipped.some((s) => s.reason === 'policy_preferred_match_found')).toBe(true);
+    expect(bradleyConn.calls.length).toBe(1);
+    expect(res.attempts.length).toBe(3);
+    expect(res.skipped.some((s) => s.reason === 'policy_preferred_match_found')).toBe(false);
   });
 
-  test('fallback invoked when preferred yields no qualified distributor_record', async () => {
+  test('all connections invoked when one yields not_stocked', async () => {
     const { item, gen } = await makeItem();
     const apiConn = new Fake('phillips', notStocked());
     const bradleyConn = new Fake('bradley', found('012345678905'));
@@ -149,7 +148,6 @@ describe('Sourcing engine dual-connector org fanout (e08s02)', () => {
     updateConnection(c1.id, c1.workspaceId, { enabled: true });
     const c3 = createConnection({ workspaceId: 'w1', distributorId: 'bradley', connectorType: 'html_scraper', secretRef: null });
     updateConnection(c3.id, c3.workspaceId, { enabled: true });
-    upsertBrandAdvisoryProfile({ workspaceId: 'w1', brand: 'TestCo', preferredDistributorIds: ['phillips'], sourcingPolicy: 'preferred_then_fallback' });
 
     const engine = new DefaultSourcingEngine(registry);
     const res = await engine.runGeneration({ itemId: item.id, generationId: gen.id, workspaceId: 'w1', upc: '012345678905', brandHint: 'TestCo', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString() });

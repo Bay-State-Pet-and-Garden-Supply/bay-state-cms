@@ -68,7 +68,9 @@ complementary evidence within that boundary; Prepare listing consolidates it.**
   `expectedConfigurationToken` is required whenever `configuration` is
   present. Missing guards are 400, never unguarded writes. The approval,
   mapping, and advisory writes commit atomically; any failure rolls all
-  three back together.
+  three back together. *(Advisory-profile configuration and triple-write
+  clauses superseded by Amendment B1.1 below; explicit-approval and
+  optimistic-concurrency rules stand.)*
 - No persisted draft, auto-save, approve-later workflow, or approval caused
   by a read, proposal view, mapping edit elsewhere, or brand assignment.
 - **Runtime-support caveat.** Approved `official_page` sources remain
@@ -78,3 +80,60 @@ complementary evidence within that boundary; Prepare listing consolidates it.**
   generations capture the latest approval. Broader official-page
   multi-source orchestration and collection-to-preparation blending are
   separate follow-ups and remain activation blockers where required.
+
+## Amendment B1.1 — Retire brand advisory configuration (issue #150)
+
+This amendment supersedes B1's advisory-profile configuration and atomic
+triple-write clauses, not its explicit-approval or optimistic-concurrency
+rules.
+
+Brand strategies no longer contain editable aliases, sourcing policy, or
+preferred distributor IDs. The approve command rejects these retired keys
+(400, even empty/default-valued, at root and nested configuration).
+Optional configuration contains only this brand's complete official-domain
+mapping set and still requires `expectedConfigurationToken`. The token
+covers versioned (`brand-strategy-mapping-configuration-v2`), exact-brand
+mapping state, not retired advisory rows — pre-retirement tokens are stale
+(409). Mapping changes and approval commit atomically; any validation,
+stale guard, or persistence failure rolls both back. Every accepted
+explicit Save creates exactly one approved revision, including
+unchanged-source, source-only and mapping-only Saves; replay with the same
+previous revision returns 409. There is no auto-save or
+read/proposal/assignment-induced approval.
+
+An approved generation executes only its frozen Included source boundary,
+independent of proposals and any historical advisory settings. Approved
+official-page sources remain explicitly unsupported as stated in B1; this
+amendment does not implement official-page collection or blending.
+
+New collection generations with no approved strategy use the versioned
+query-all rule (`strategy-binding-v2`, mode `query_all`): attempt all
+enabled workspace distributor connections under existing identifier,
+authority, timeout and concurrency constraints. There is no preferred
+ordering, preferred-only filtering, or success short-circuit.
+Brand/register-name hints remain non-authoritative identity evidence, never
+distributor stock filters. This intentionally removes the former
+`preferred_only` spend-control knob and `preferred_then_fallback` early
+stop and can increase attempts, spend, latency and detected conflicts. An
+operator can bound future brand collection by explicitly approving Included
+sources; connection disablement and the global capability kill switch
+remain separate controls.
+
+New captures use `strategy-binding-v2` with `approved` or `query_all`
+mode. Existing valid approved pins (v1 or v2) remain frozen and executable
+under their captured source set. Existing v1 `legacy_advisory` pins are
+historical only and cannot execute or be silently relabeled query-all;
+actionable setup attention requires an explicit new-generation retry.
+Historical bindings/evidence are neither backfilled nor replayed. Raw
+historical preference snapshot bytes are retained for audit but are not
+configuration or execution authority.
+
+The advisory profile table, its CRUD APIs and corresponding UI/client/
+schema contracts are retired. Strategy identities/diagnostics use
+exact-normalized mapped and stored approval brand names; Settings
+suggestions also retain catalog/onboarding names. No alias-based/fuzzy
+authority or synthetic mapping/approval is introduced. Advisory-only
+settings and names may disappear from those settings lists and are
+recoverable from the verified upgrade backup. Proposals remain read-only
+suggestions and never imply approval (ADR 0035); ADR 0017
+source-authority restrictions remain unchanged.

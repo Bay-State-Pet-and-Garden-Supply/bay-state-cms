@@ -15,8 +15,9 @@ import { z } from 'zod';
  *   `secretRef` references a server-side secret.
  * - Authority policy is NARROWED to v1 identity fields: commerce
  *   price/inventory authority is deferred (not granted by ADR 0014).
- * - Brand profiles are workspace settings only — advisory and fall-open,
- *   never a Brand authority.
+ * - Brand strategy configuration is mapping-only: officialDomains drive binding.
+ *   Distributor connections are queried query-all in repository order; there is
+ *   no preference ordering, filtering, or fall-open brand profile.
  */
 
 // ─── Distributor Entity ────────────────────────────────────────────────────────
@@ -218,40 +219,6 @@ export const UpdateDistributorConnectionSchema = z
   .strict();
 
 export type UpdateDistributorConnection = z.infer<typeof UpdateDistributorConnectionSchema>;
-
-// ─── Advisory Brand Profile (workspace settings, ADR 0014) ────────────────────
-
-export const SourcingPolicyEnum = z.enum(['advisory', 'preferred_then_fallback', 'preferred_only']);
-export type SourcingPolicy = z.infer<typeof SourcingPolicyEnum>;
-
-/**
- * Optional brand → ordered distributor preference. Stores distributor routing preferences
- * and sourcing execution policy (advisory, preferred_then_fallback, preferred_only).
- */
-export const BrandAdvisoryProfileSchema = z.object({
-  id: z.string().min(1),
-  workspaceId: z.string().min(1),
-  brand: z.string().min(1),
-  aliases: z.array(z.string()).default(() => []),
-  /** Ordered distributor ids by preference (first = most preferred). */
-  preferredDistributorIds: z.array(z.string()).default(() => []),
-  /** Sourcing execution policy. Defaults to preferred_then_fallback. */
-  sourcingPolicy: SourcingPolicyEnum.default('preferred_then_fallback'),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export type BrandAdvisoryProfile = z.infer<typeof BrandAdvisoryProfileSchema>;
-
-export const InsertBrandAdvisoryProfileSchema = z.object({
-  workspaceId: z.string().min(1),
-  brand: z.string().min(1),
-  aliases: z.array(z.string()).optional().default(() => []),
-  preferredDistributorIds: z.array(z.string()).optional().default(() => []),
-  sourcingPolicy: SourcingPolicyEnum.optional().default('preferred_then_fallback'),
-});
-
-export type InsertBrandAdvisoryProfile = z.input<typeof InsertBrandAdvisoryProfileSchema>;
 
 // ─── Distributor Catalog Snapshot ─────────────────────────────────────────────
 

@@ -35,7 +35,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -46,7 +46,10 @@ import {
   holdBatchItems,
 } from '../../db/repositories/onboarding-item-repo';
 import { toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
-import { findBrandSites } from '../../db/repositories/brand-site-repo';
+import { findBrandSites, addBrandSiteMapping } from '../../db/repositories/brand-site-repo';
+import { createDistributor } from '../../db/repositories/distributor-repo';
+import { saveBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
+import { deleteBatch } from '../../db/repositories/onboarding-batch-repo';
 import { resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import app from '../../server/app';
 
@@ -383,7 +386,21 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(findBrandSites('ForeignBrand')).toHaveLength(0);
   });
 
+  it('GET /api/onboarding/settings/brand-sites fails closed on multiple workspaces (no approval union)', async () => {
+    // With two legacy workspaces the singleton contract is ambiguous: the
+    // enumeration refuses to union approvals across workspaces.
+    const res = await app.request('/api/onboarding/settings/brand-sites');
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('multiple_workspaces');
+  });
+
   it('GET /api/onboarding/settings/brand-sites includes brand hints from onboarding items and persists newly assigned brands', async () => {
+    // Collapse to the singleton contract: remove foreign dependents, then
+    // the foreign workspace row (FK-safe order: batches cascade to items).
+    const foreignBatches = (getDb().query('SELECT id FROM onboarding_batches WHERE workspace_id = ?').all(foreignWsId) as Array<{ id: string }>);
+    for (const b of foreignBatches) deleteBatch(b.id);
+    getDb().query('DELETE FROM workspace WHERE id = ?').run(foreignWsId);
     // 1. Initial brand-sites response
     const initialRes = await app.request('/api/onboarding/settings/brand-sites');
     expect(initialRes.status).toBe(200);
@@ -416,6 +433,36 @@ describe('ADR 0017 commitment 4 — assign_brand / assign_domain routes', () => 
     expect(resAfterAssign.status).toBe(200);
     const dataAfterAssign = await resAfterAssign.json();
     expect(dataAfterAssign.catalogBrands).toContain('BrandCraft');
+  });
+
+  it('brand-sites suggestions include mapping-only and approval-only names with stored spelling (no advisory table)', async () => {
+    // Mapping-only brand (no approval, no onboarding hint). Mappings
+    // store lowercase brand names; suggestions keep that spelling.
+    addBrandSiteMapping('Mapped Only Brand', 'mapped-only.example.com');
+    // Approval-only brand (no mapping): stored display spelling retained.
+    createDistributor({ id: 'approval_dist', name: 'Approval Dist' });
+    saveBrandStrategy(wsId, {
+      brand: 'Approval Only Brand',
+      sources: [{ kind: 'distributor_record', distributorId: 'approval_dist' }],
+      expectedRevision: 0,
+    });
+
+    const res = await app.request('/api/onboarding/settings/brand-sites');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    // Mapping-only, approval-only (stored spelling), and onboarding-only
+    // names are all suggested; trim/case duplicates combine deterministically.
+    expect(data.catalogBrands).toContain('mapped only brand');
+    expect(data.catalogBrands).toContain('Approval Only Brand');
+    expect(data.catalogBrands).toContain('BrandCraft');
+    const normalized = (data.catalogBrands as string[]).map((b) => b.trim().toLowerCase());
+    expect(normalized.filter((b) => b === 'mapped only brand')).toHaveLength(1);
+    // Existing assignment still does not approve.
+    const { getApprovedBrandStrategy } = await import('../../db/repositories/brand-strategy-approval-repo');
+    expect(getApprovedBrandStrategy(wsId, 'BrandCraft')).toBeNull();
+    // No advisory table is required for any of this.
+    const tables = (getDb().query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((r) => r.name);
+    expect(tables).not.toContain('brand_advisory_profiles');
   });
 });
 

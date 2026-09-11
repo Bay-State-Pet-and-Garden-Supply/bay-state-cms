@@ -4,22 +4,37 @@ import { getApprovedBrandStrategy } from './brand-strategy-approval-repo';
 import { findItemById } from './onboarding-item-repo';
 import { findBatchById } from './onboarding-batch-repo';
 import { getCurrentSourcingGeneration } from './onboarding-evidence-repo';
-import { getBrandSourcingConfig } from './distributor-repo';
 
-/** Versioned generation binding — the only supported version fails closed otherwise. */
-export const STRATEGY_BINDING_VERSION = 'strategy-binding-v1';
+/**
+ * Versioned generation binding (issue #150, Amendment B1.1).
+ *
+ * - `strategy-binding-v2` is the only capturable version. New captures are
+ *   `approved` (frozen Included boundary) or `query_all` (all enabled
+ *   workspace connections, no preference ordering/filter/short-circuit).
+ * - `strategy-binding-v1` rows are historical only: v1 `approved` pins
+ *   remain readable/executable under their captured source set; v1
+ *   `legacy_advisory` pins are immutable history and cannot execute —
+ *   execution reads surface them so the engine/worker can park visibly
+ *   (`binding_policy_retired`) instead of dispatching or silently
+ *   relabeling them query-all. Anything else fails closed.
+ */
+export const STRATEGY_BINDING_VERSION = 'strategy-binding-v2';
+export const STRATEGY_BINDING_VERSION_V1 = 'strategy-binding-v1';
 
 export type GenerationStrategyBinding =
   | {
-      version: typeof STRATEGY_BINDING_VERSION;
+      version: typeof STRATEGY_BINDING_VERSION | typeof STRATEGY_BINDING_VERSION_V1;
       mode: 'approved';
       strategyRevision: number;
       strategyBrand: string;
       sources: StrategySourceRef[];
-      preferredDistributorIds: string[];
     }
   | {
       version: typeof STRATEGY_BINDING_VERSION;
+      mode: 'query_all';
+    }
+  | {
+      version: typeof STRATEGY_BINDING_VERSION_V1;
       mode: 'legacy_advisory';
     };
 
@@ -44,39 +59,40 @@ function codedError(code: string, message: string): Error & { code: string } {
 }
 
 function parseBinding(row: SnapshotRow): GenerationStrategyBinding {
-  if (row.binding_version !== STRATEGY_BINDING_VERSION) {
+  if (row.binding_version !== STRATEGY_BINDING_VERSION && row.binding_version !== STRATEGY_BINDING_VERSION_V1) {
     throw codedError('binding_invalid', `binding_invalid: unsupported strategy binding version '${row.binding_version}'`);
   }
   if (row.mode === 'approved') {
     let sources: unknown;
-    let preferred: unknown;
     try {
       sources = JSON.parse(row.sources_json);
     } catch {
       throw codedError('binding_invalid', 'binding_invalid: corrupt strategy binding sources');
     }
-    try {
-      preferred = JSON.parse(row.preferred_distributor_ids_json);
-    } catch {
-      throw codedError('binding_invalid', 'binding_invalid: corrupt strategy binding preferences');
-    }
-    if (!Array.isArray(sources) || !Array.isArray(preferred)) {
+    if (!Array.isArray(sources)) {
       throw codedError('binding_invalid', 'binding_invalid: corrupt strategy binding payload');
     }
     if (!Number.isInteger(row.strategy_revision) || (row.strategy_revision as number) < 1 || !row.normalized_brand) {
       throw codedError('binding_invalid', 'binding_invalid: corrupt approved strategy binding');
     }
+    // Historical preference bytes are inert storage only: never parsed as
+    // authority and never gating approved execution.
     return {
-      version: STRATEGY_BINDING_VERSION,
+      version: row.binding_version as typeof STRATEGY_BINDING_VERSION | typeof STRATEGY_BINDING_VERSION_V1,
       mode: 'approved',
       strategyRevision: row.strategy_revision as number,
       strategyBrand: row.normalized_brand as string,
       sources: sources as StrategySourceRef[],
-      preferredDistributorIds: (preferred as unknown[]).filter((v): v is string => typeof v === 'string'),
     };
   }
+  if (row.mode === 'query_all') {
+    if (row.binding_version !== STRATEGY_BINDING_VERSION) {
+      throw codedError('binding_invalid', `binding_invalid: query_all requires '${STRATEGY_BINDING_VERSION}'`);
+    }
+    return { version: STRATEGY_BINDING_VERSION, mode: 'query_all' };
+  }
   if (row.mode === 'legacy_advisory') {
-    return { version: STRATEGY_BINDING_VERSION, mode: 'legacy_advisory' };
+    return { version: STRATEGY_BINDING_VERSION_V1, mode: 'legacy_advisory' };
   }
   throw codedError('binding_invalid', `binding_invalid: unknown strategy binding mode '${row.mode}'`);
 }
@@ -86,10 +102,10 @@ function ensureTables(): void {
   db.exec(`CREATE TABLE IF NOT EXISTS sourcing_generation_strategy_snapshots (
     sourcing_generation_id TEXT PRIMARY KEY REFERENCES sourcing_generations(id) ON DELETE CASCADE,
     workspace_id TEXT NOT NULL, item_id TEXT NOT NULL REFERENCES onboarding_items(id) ON DELETE CASCADE,
-    mode TEXT NOT NULL CHECK (mode IN ('approved', 'legacy_advisory')),
+    mode TEXT NOT NULL CHECK (mode IN ('approved', 'legacy_advisory', 'query_all')),
     strategy_revision INTEGER, normalized_brand TEXT,
     sources_json TEXT NOT NULL DEFAULT '[]', preferred_distributor_ids_json TEXT NOT NULL DEFAULT '[]',
-    binding_version TEXT NOT NULL DEFAULT 'strategy-binding-v1',
+    binding_version TEXT NOT NULL DEFAULT 'strategy-binding-v2',
     captured_at TEXT NOT NULL, created_at TEXT NOT NULL)`);
 }
 
@@ -101,6 +117,9 @@ function ensureTables(): void {
  * but no binding is pre-builder/uncertain and fails closed (explicit new
  * generation required) — history is preserved, never stamped with today's
  * approval.
+ *
+ * Approved capture reads only the frozen Included refs — never advisory
+ * settings — so it works with the advisory table absent.
  */
 export function captureGenerationStrategyBinding(input: {
   workspaceId: string;
@@ -150,18 +169,15 @@ export function captureGenerationStrategyBinding(input: {
 
     const brandHint = (item as { brandHint?: string | null }).brandHint ?? null;
     const approved = getApprovedBrandStrategy(input.workspaceId, brandHint);
-    let mode: 'approved' | 'legacy_advisory' = 'legacy_advisory';
+    let mode: 'approved' | 'query_all' = 'query_all';
     let revision: number | null = null;
     let normalizedBrand: string | null = null;
     let sourcesJson = '[]';
-    let preferredJson = '[]';
     if (approved) {
       mode = 'approved';
       revision = approved.revision;
       normalizedBrand = approved.normalizedBrand;
       sourcesJson = JSON.stringify(approved.sources);
-      const config = getBrandSourcingConfig(input.workspaceId, brandHint);
-      preferredJson = JSON.stringify(config?.preferredDistributorIds ?? []);
     }
     try {
       db.query(`INSERT INTO sourcing_generation_strategy_snapshots
@@ -170,7 +186,7 @@ export function captureGenerationStrategyBinding(input: {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(
           input.generationId, input.workspaceId, input.itemId, mode, revision, normalizedBrand,
-          sourcesJson, preferredJson, STRATEGY_BINDING_VERSION, now, now,
+          sourcesJson, '[]', STRATEGY_BINDING_VERSION, now, now,
         );
     } catch (err) {
       if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
@@ -206,4 +222,14 @@ export function getGenerationStrategyBinding(generationId: string): GenerationSt
   }
   if (!row) return null;
   return parseBinding(row);
+}
+
+/**
+ * True when a captured binding is retired history that must never execute:
+ * v1 `legacy_advisory` pins predate query-all routing. Callers park visibly
+ * (explicit new-generation retry) instead of dispatching, reconciling, or
+ * silently relabeling the pin.
+ */
+export function isRetiredStrategyBinding(binding: GenerationStrategyBinding | null): boolean {
+  return binding?.mode === 'legacy_advisory';
 }

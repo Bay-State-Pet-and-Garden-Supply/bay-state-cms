@@ -1,4 +1,8 @@
 // story: e08s01 — pure derivation for Brand Strategy (no DB, no side effects)
+// Issue #150 (Amendment B1.1): advisory settings (aliases, preferred
+// distributors, sourcing policy) are retired. Derivation authority is exact
+// normalized brand identity over mappings + stored approvals, plus live
+// enabled connections for proposals. No alias/fuzzy authority.
 import type { BrandStrategy, BrandStrategyOfficialDomain, BrandStrategySourceAvailability, BrandStrategyCollectionReadiness, BrandStrategySourceOption, StrategySourceRef } from '../../shared/schemas/brand-strategy';
 import { isKnownRetailerOrDistributorDomain } from '../discovery/retailer-domain-list';
 
@@ -30,7 +34,6 @@ export interface StrategyApprovalInput {
 
 export interface DeriveParams {
   brandSites: Array<{ brandName: string; domain: string }>;
-  advisoryProfiles: Array<{ brand: string; aliases: string[]; preferredDistributorIds: string[]; sourcingPolicy: BrandStrategy['sourcingPolicy'] }>;
   sitemapByDomain?: Map<string, { totalUrls: number; lastRefreshAt: string | null; activeCount: number }>;
   readinessByDomain?: Map<string, BrandStrategy['extractorReadiness']>;
   enabledDistributorIds?: string[];
@@ -43,8 +46,7 @@ export interface DeriveParams {
 export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: (domain: string) => BrandStrategy['extractorReadiness']): BrandStrategy[] {
   const exactKeys = new Set<string>();
   for (const s of params.brandSites) exactKeys.add(normalizeExact(s.brandName));
-  for (const p of params.advisoryProfiles) exactKeys.add(normalizeExact(p.brand));
-  // Approval-only brands persist in reads even after mappings/profiles vanish.
+  // Approval-only brands persist in reads even after mappings vanish.
   for (const k of params.approvals?.keys() ?? []) exactKeys.add(k);
 
   const diagnosticIndex = new Map<string, string[]>();
@@ -54,9 +56,6 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     list.push(key);
     diagnosticIndex.set(diag, list);
   }
-
-  const profileByExact = new Map<string, DeriveParams['advisoryProfiles'][number]>();
-  for (const p of params.advisoryProfiles) profileByExact.set(normalizeExact(p.brand), p);
 
   const sitesByExact = new Map<string, Array<{ domain: string }>>();
   for (const s of params.brandSites) {
@@ -69,7 +68,6 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
   const enabledIds = params.enabledDistributorIds ?? [];
   const result: BrandStrategy[] = [];
   for (const exact of [...exactKeys].sort()) {
-    const advisory = profileByExact.get(exact) ?? null;
     const sites = sitesByExact.get(exact) ?? [];
 
     const officialDomains: BrandStrategyOfficialDomain[] = sites.map(({ domain }) => {
@@ -84,15 +82,28 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
       };
     });
 
-    const aliases = advisory?.aliases ?? [];
-    const preferredDistributorIds = advisory?.preferredDistributorIds ?? [];
-    const sourcingPolicy = advisory?.sourcingPolicy ?? 'advisory';
+    const approvalInput = params.approvals?.get(exact) ?? null;
+    const displayBrand = params.brandSites.find((s) => normalizeExact(s.brandName) === exact)?.brandName ?? approvalInput?.brand ?? exact;
+
+    // Spec #120: approval state is explicit — a proposal or mapping never
+    // constitutes approval.
+    const approval = approvalInput
+      ? { approved: approvalInput.approved, revision: approvalInput.revision, approvedAt: approvalInput.approvedAt, approvedBy: approvalInput.approvedBy }
+      : { approved: false, revision: 0, approvedAt: null, approvedBy: null };
+
+    // Approved distributor-only boundary (for no-domain bypass eligibility).
+    const approvedSources = approval.approved && (approvalInput?.sources?.length ?? 0) > 0
+      ? (approvalInput!.sources as NonNullable<StrategyApprovalInput['sources']>)
+      : null;
+    const approvedDistributorIds = (approvedSources ?? [])
+      .filter((s) => s.kind === 'distributor_record' && s.distributorId)
+      .map((s) => s.distributorId as string);
 
     let extractorReadiness: BrandStrategy['extractorReadiness'];
     if (officialDomains.length === 0) {
-      const hasPreferred = preferredDistributorIds.length > 0;
-      const isEligible = sourcingPolicy === 'preferred_only' || hasPreferred;
-      extractorReadiness = isEligible ? 'profile_bypass_eligible' : 'not_configured';
+      // No-domain bypass is derived only from a nonempty approved
+      // distributor-only boundary — never from enabled connections alone.
+      extractorReadiness = approvedDistributorIds.length > 0 ? 'profile_bypass_eligible' : 'not_configured';
     } else {
       const first = officialDomains[0].domain;
       extractorReadiness = params.readinessByDomain?.get(first) ?? (readinessFallback ? readinessFallback(first) : 'not_configured');
@@ -102,17 +113,8 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     const collisions = (diagnosticIndex.get(diagKey) ?? []).filter((k) => k !== exact);
     const ambiguous = collisions.map((candidateBrand) => ({ candidateBrand, reason: 'whitespace-normalized match' }));
 
-    const unmatched = !advisory || sites.length === 0;
-
-    const approvalInput = params.approvals?.get(exact) ?? null;
-    const displayBrand = advisory?.brand ?? params.brandSites.find((s) => normalizeExact(s.brandName) === exact)?.brandName ?? approvalInput?.brand ?? exact;
-    const fallbackTier = enabledIds.filter((id) => !preferredDistributorIds.includes(id));
-
-    // Spec #120: approval state is explicit — a proposal, mapping, or
-    // distributor preference never constitutes approval.
-    const approval = approvalInput
-      ? { approved: approvalInput.approved, revision: approvalInput.revision, approvedAt: approvalInput.approvedAt, approvedBy: approvalInput.approvedBy }
-      : { approved: false, revision: 0, approvedAt: null, approvedBy: null };
+    // Unmatched means no mapped domain and no approved distributor source.
+    const unmatched = sites.length === 0 && approvedDistributorIds.length === 0;
 
     // Per-source availability with bounded reasons. Distributor-record
     // sources never require an extractor profile; only webpage sources do.
@@ -124,9 +126,6 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     // live proposal (unapproved brands stay awaiting_approval regardless).
     const sourceAvailability: BrandStrategySourceAvailability[] = [];
     const enabledSet = new Set(enabledIds);
-    const approvedSources = approval.approved && (approvalInput?.sources?.length ?? 0) > 0
-      ? (approvalInput!.sources as NonNullable<StrategyApprovalInput['sources']>)
-      : null;
     if (approvedSources) {
       for (const src of approvedSources) {
         if (src.kind === 'official_page') {
@@ -148,7 +147,7 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
       }
     }
     // Approved boundary above is authoritative; the live proposal stays
-    // exposed via preferredDistributorIds/officialDomains for diffing and
+    // exposed via officialDomains plus enabled connections for diffing and
     // re-approval, but is never mixed into availability. Proposal path:
     if (!approvedSources && officialDomains.length > 0) {
       const domain = officialDomains[0].domain;
@@ -165,7 +164,7 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
       });
     }
     if (!approvedSources) {
-      for (const distributorId of [...preferredDistributorIds, ...fallbackTier]) {
+      for (const distributorId of enabledIds) {
         const available = enabledSet.has(distributorId);
         sourceAvailability.push({
           kind: 'distributor_record',
@@ -193,7 +192,7 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     }
 
     // Canonical server-derived live proposal: all mapped official domains
-    // plus preferred and enabled-fallback distributors, deduplicated.
+    // plus every enabled distributor connection, deduplicated.
     const proposalSources: StrategySourceRef[] = [];
     {
       const seen = new Set<string>();
@@ -201,7 +200,7 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
         const key = `official_page:${d.domain}`;
         if (!seen.has(key)) { seen.add(key); proposalSources.push({ kind: 'official_page', domain: d.domain }); }
       }
-      for (const id of [...preferredDistributorIds, ...fallbackTier]) {
+      for (const id of enabledIds) {
         const key = `distributor_record:${id.toLowerCase()}`;
         if (!seen.has(key)) { seen.add(key); proposalSources.push({ kind: 'distributor_record', distributorId: id }); }
       }
@@ -229,7 +228,7 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
           available: healthy && !denylisted,
         });
       }
-      const knownIds = [...new Set([...(params.knownDistributorIds ?? []), ...preferredDistributorIds, ...fallbackTier, ...enabledIds])];
+      const knownIds = [...new Set([...(params.knownDistributorIds ?? []), ...enabledIds])];
       for (const id of knownIds) {
         const key = `distributor_record:${id.toLowerCase()}`;
         if (seen.has(key)) continue;
@@ -264,10 +263,6 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     result.push({
       brandKey: displayBrand,
       normalizedBrand: exact,
-      aliases,
-      preferredDistributorIds,
-      sourcingPolicy,
-      fallbackTier,
       officialDomains,
       extractorReadiness,
       ambiguous,

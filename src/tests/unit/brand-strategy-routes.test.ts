@@ -19,7 +19,7 @@ vi.mock('@/db/repositories/brand-strategy-approval-repo', () => ({
 }));
 
 vi.mock('@/onboarding/brand-hub/brand-strategy-service', () => ({
-  listBrandStrategies: vi.fn(() => [{ brandKey: 'fromm', normalizedBrand: 'fromm', aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory', fallbackTier: [], officialDomains: [], extractorReadiness: 'not_configured', ambiguous: [], unmatched: false, possibleMatches: [] }]),
+  listBrandStrategies: vi.fn(() => [{ brandKey: 'fromm', normalizedBrand: 'fromm', officialDomains: [], extractorReadiness: 'not_configured', ambiguous: [], unmatched: false, possibleMatches: [] }]),
 }));
 
 import { brandStrategyRoutes } from '../../server/routes/brand-strategy-routes';
@@ -105,7 +105,7 @@ describe('brandStrategyRoutes', () => {
         brand: 'Acana',
         sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
         expectedRevision: 0,
-        configuration: { officialDomains: [], aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory' },
+        configuration: { officialDomains: [] },
       }),
     });
     expect(res.status).toBe(400);
@@ -162,7 +162,7 @@ describe('brandStrategyRoutes', () => {
 
   it('POST approve maps stale_configuration to 409 with a distinct code', async () => {
     const repo = await import('../../db/repositories/brand-strategy-approval-repo');
-    const stale = new Error('stale_configuration: brand mappings or preferences changed since read') as Error & { code: string };
+    const stale = new Error('stale_configuration: brand mappings changed since read') as Error & { code: string };
     stale.code = 'stale_configuration';
     (repo.saveBrandStrategy as any).mockImplementation(() => { throw stale; });
     (repo.getBrandStrategyRow as any).mockImplementation(() => ({ revision: 3 }));
@@ -174,7 +174,7 @@ describe('brandStrategyRoutes', () => {
         brand: 'Acana',
         sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
         expectedRevision: 3,
-        configuration: { officialDomains: [], aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory' },
+        configuration: { officialDomains: [] },
         expectedConfigurationToken: 'stale-token',
       }),
     });
@@ -182,6 +182,33 @@ describe('brandStrategyRoutes', () => {
     const body = await res.json() as any;
     expect(body.code).toBe('stale_configuration');
     expect(body.revision).toBe(3);
+  });
+
+  it('POST approve rejects retired advisory keys with 400 and never calls Save', async () => {
+    const repo = await import('../../db/repositories/brand-strategy-approval-repo');
+    const app = makeApp();
+    for (const retired of [
+      { aliases: [] },
+      { preferredDistributorIds: [] },
+      { sourcingPolicy: 'advisory' },
+    ]) {
+      const res = await app.request('/api/onboarding/brands/strategy/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: 'Acana',
+          sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+          expectedRevision: 0,
+          ...retired,
+          configuration: { officialDomains: [], ...retired },
+          expectedConfigurationToken: 'tok',
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json() as any;
+      expect(body.code).toBe('invalid_strategy');
+    }
+    expect(repo.saveBrandStrategy as any).not.toHaveBeenCalled();
   });
 
   it('returns 409 on multiple_workspaces', async () => {

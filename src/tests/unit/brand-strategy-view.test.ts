@@ -7,16 +7,19 @@ describe('BrandStrategyView', () => {
   it('renders brand identity, tier pills not sequential, domain and readiness', async () => {
     const strategies = deriveBrandStrategies({
       brandSites: [{ brandName: 'Fromm', domain: 'frommfamily.com' }],
-      advisoryProfiles: [{ brand: 'Fromm', aliases: ['fromm family'], preferredDistributorIds: ['phillips', 'bradley'], sourcingPolicy: 'preferred_then_fallback' }],
       sitemapByDomain: new Map([['frommfamily.com', { totalUrls: 142, lastRefreshAt: new Date().toISOString(), activeCount: 142 }]]),
       readinessByDomain: new Map([['frommfamily.com', 'active']]),
+      enabledDistributorIds: ['phillips', 'bradley'],
     });
     const fromm = strategies.find((s) => s.normalizedBrand === 'fromm')!;
-    expect(fromm.preferredDistributorIds).toEqual(['phillips', 'bradley']);
+    // Live proposal carries mapped domains + enabled distributors (no tiers).
+    expect(fromm.proposalSources).toContainEqual({ kind: 'distributor_record', distributorId: 'phillips' });
     // Check view source contains required UI strings
     const src = fs.readFileSync('src/client/components/brand-strategy/BrandStrategyView.tsx', 'utf8');
-    expect(src).toContain('Preferred tier');
+    expect(src).toContain('Included:');
     expect(src).not.toContain('[1]->[2]');
+    expect(src).not.toContain('Preferred tier');
+    expect(src).not.toContain('Fallback tier');
     expect(src).toContain('No official site configured');
     expect(src).toContain('Profile bypass eligible when distributor evidence qualifies');
   });

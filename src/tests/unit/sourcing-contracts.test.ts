@@ -17,9 +17,9 @@ import {
   DistributorConnectorTypeEnum,
   DistributorConnectionConfigurationSchema,
   InsertDistributorConnectionSchema,
-  BrandAdvisoryProfileSchema,
   ResolveConflictRequestSchema,
 } from '../../shared/schemas/distributor';
+import * as DistributorSchemas from '../../shared/schemas/distributor';
 import {
   EvidenceAttemptSchema,
   InsertEvidenceAttempt,
@@ -789,20 +789,21 @@ describe('Sourcing contracts — evidence writer contract forbids raw snapshots 
   });
 });
 
-describe('Sourcing contracts — advisory brand profile and conflict resolution', () => {
-  test('BrandAdvisoryProfileSchema is workspace-scoped, advisory, credential-free', () => {
-    const res = BrandAdvisoryProfileSchema.safeParse({
-      id: 'bp1',
+describe('Sourcing contracts — advisory retirement and conflict resolution', () => {
+  test('advisory profile schemas and sourcing-policy exports are retired (issue #150)', () => {
+    for (const retired of [
+      'SourcingPolicyEnum',
+      'BrandAdvisoryProfileSchema',
+      'InsertBrandAdvisoryProfileSchema',
+    ]) {
+      expect(retired in DistributorSchemas).toBe(false);
+    }
+    // Connection/distributor schemas stay intact.
+    expect(InsertDistributorConnectionSchema.safeParse({
       workspaceId: 'w1',
-      brand: 'Nutro',
-      aliases: ['nutro'],
-      preferredDistributorIds: ['d1', 'd2'],
-      createdAt: '2026-08-13T00:00:00.000Z',
-      updatedAt: '2026-08-13T00:00:00.000Z',
-    });
-    expect(res.success).toBe(true);
-    // Missing brand fails (never a free-form registry)
-    expect(BrandAdvisoryProfileSchema.safeParse({ id: 'bp1', workspaceId: 'w1' }).success).toBe(false);
+      distributorId: 'phillips',
+      connectorType: 'api',
+    }).success).toBe(true);
   });
 
   test('ResolveConflictRequestSchema accepts exactly the three ADR actions', () => {

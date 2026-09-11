@@ -5,15 +5,11 @@ import {
   listConnectionsByWorkspace,
   createConnection,
   updateConnection,
-  upsertBrandAdvisoryProfile,
-  listBrandAdvisoryProfiles,
-  deleteBrandAdvisoryProfile,
 } from '../../db/repositories/distributor-repo';
 import { getServerSingletonWorkspace, MultipleWorkspacesError } from '../../db/repositories/workspace-singleton';
 import {
   InsertDistributorConnectionSchema,
   UpdateDistributorConnectionSchema,
-  InsertBrandAdvisoryProfileSchema,
   type DistributorConnection,
 } from '../../shared/schemas/distributor';
 import { resolveSecret } from '../../onboarding/sourcing/secret-resolver';
@@ -187,93 +183,6 @@ route.patch('/onboarding/settings/connections/:id', async (c) => {
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to update connection' }, 400);
   }
-});
-
-// ─── Advisory Brand Profiles (ADR 0014: workspace settings only) ───────────────
-
-// GET /api/onboarding/settings/brand-profiles
-route.get('/onboarding/settings/brand-profiles', (c) => {
-  let workspace;
-  try {
-    workspace = requireWorkspace();
-  } catch (err) {
-    if (err instanceof MultipleWorkspacesError) {
-      return c.json({ error: 'multiple_workspaces', workspaces: err.workspaces.map((w) => w.id), message: err.message }, 409);
-    }
-    throw err;
-  }
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const profiles = listBrandAdvisoryProfiles(workspace.id).map((p) => ({
-    id: p.id,
-    brand: p.brand,
-    aliases: p.aliases,
-    preferredDistributorIds: p.preferredDistributorIds,
-    sourcingPolicy: p.sourcingPolicy,
-  }));
-  return c.json({ profiles });
-});
-
-// POST /api/onboarding/settings/brand-profiles
-// Body = { brand, aliases?, preferredDistributorIds? } — workspace derived server-side.
-route.post('/onboarding/settings/brand-profiles', async (c) => {
-  let workspace;
-  try {
-    workspace = requireWorkspace();
-  } catch (err) {
-    if (err instanceof MultipleWorkspacesError) {
-      return c.json({ error: 'multiple_workspaces', workspaces: err.workspaces.map((w) => w.id), message: err.message }, 409);
-    }
-    throw err;
-  }
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const parse = InsertBrandAdvisoryProfileSchema.safeParse({ ...(body as object), workspaceId: workspace.id });
-  if (!parse.success) {
-    return c.json({ error: 'Invalid brand profile', details: parse.error.format() }, 400);
-  }
-
-  try {
-    const profile = upsertBrandAdvisoryProfile(parse.data);
-    return c.json({
-      profile: {
-        id: profile.id,
-        brand: profile.brand,
-        aliases: profile.aliases,
-        preferredDistributorIds: profile.preferredDistributorIds,
-        sourcingPolicy: profile.sourcingPolicy,
-      },
-    }, 201);
-  } catch (err) {
-    return c.json({ error: err instanceof Error ? err.message : 'Failed to save brand profile' }, 400);
-  }
-});
-
-// DELETE /api/onboarding/settings/brand-profiles/:brand
-route.delete('/onboarding/settings/brand-profiles/:brand', (c) => {
-  let workspace;
-  try {
-    workspace = requireWorkspace();
-  } catch (err) {
-    if (err instanceof MultipleWorkspacesError) {
-      return c.json({ error: 'multiple_workspaces', workspaces: err.workspaces.map((w) => w.id), message: err.message }, 409);
-    }
-    throw err;
-  }
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const brand = c.req.param('brand');
-  return c.json({ success: deleteBrandAdvisoryProfile(workspace.id, brand) });
 });
 
 export default route;

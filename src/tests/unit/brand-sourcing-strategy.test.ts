@@ -18,7 +18,6 @@ import {
   computeBrandStrategyConfigurationToken,
 } from '../../db/repositories/brand-strategy-approval-repo';
 import { upsertBrandSite, findBrandSites } from '../../db/repositories/brand-site-repo';
-import { upsertBrandAdvisoryProfile } from '../../db/repositories/distributor-repo';
 import {
   captureGenerationStrategyBinding,
   getGenerationStrategyBinding,
@@ -188,12 +187,15 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
   });
 
   it('derive marks unapproved brands awaiting approval and approved distributor-only brands ready', () => {
+    // Identity comes from stored approvals/mappings now — advisory-only
+    // names no longer create strategy-list rows.
     const params = {
       brandSites: [],
-      advisoryProfiles: [{ brand: 'Acana', aliases: [], preferredDistributorIds: ['dist_phillips'], sourcingPolicy: 'preferred_then_fallback' as const }],
       enabledDistributorIds: ['dist_phillips'],
+      approvals: new Map([['acana', { approved: false, revision: 0, approvedAt: null, approvedBy: null, brand: 'Acana' }]]),
     };
     const before = deriveBrandStrategies(params);
+    expect(before).toHaveLength(1);
     expect(before[0].approval?.approved).toBe(false);
     expect(before[0].collectionReadiness).toBe('awaiting_approval');
 
@@ -201,7 +203,7 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
     approveBrandStrategy(workspaceId, { brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }], expectedRevision: 0 });
     const after = deriveBrandStrategies({
       ...params,
-      approvals: new Map([['acana', { approved: true, revision: 1, approvedAt: new Date().toISOString(), approvedBy: 'op' }]]),
+      approvals: new Map([['acana', { approved: true, revision: 1, approvedAt: new Date().toISOString(), approvedBy: 'op', brand: 'Acana', sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }] }]]),
     });
     expect(after[0].approval?.approved).toBe(true);
     expect(after[0].collectionReadiness).toBe('ready');
@@ -219,7 +221,6 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
     });
     const strategies = deriveBrandStrategies({
       brandSites: [],
-      advisoryProfiles: [{ brand: 'Acana', aliases: [], preferredDistributorIds: ['dist_phillips', 'dist_bci'], sourcingPolicy: 'preferred_then_fallback' }],
       enabledDistributorIds: ['dist_phillips', 'dist_bci'],
       approvals: new Map([['acana', {
         approved: true, revision: 1, approvedAt: new Date().toISOString(), approvedBy: 'op',
@@ -236,7 +237,6 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
   it('an approved official source is reported not_supported, never ready', () => {
     const strategies = deriveBrandStrategies({
       brandSites: [{ brandName: 'Fromm', domain: 'frommfamily.com' }],
-      advisoryProfiles: [{ brand: 'Fromm', aliases: [], preferredDistributorIds: ['dist_phillips'], sourcingPolicy: 'advisory' }],
       readinessByDomain: new Map([['frommfamily.com', 'active' as const]]),
       enabledDistributorIds: ['dist_phillips'],
       approvals: new Map([['fromm', {
@@ -255,7 +255,6 @@ describe('brand sourcing strategy approval (ticket #121; builder Amendment B1: S
   it('derive reports partial readiness when the official source lacks a profile', () => {
     const strategies = deriveBrandStrategies({
       brandSites: [{ brandName: 'Fromm', domain: 'frommfamily.com' }],
-      advisoryProfiles: [{ brand: 'Fromm', aliases: [], preferredDistributorIds: ['dist_phillips', 'dist_bci'], sourcingPolicy: 'advisory' }],
       readinessByDomain: new Map([['frommfamily.com', 'not_configured' as const]]),
       enabledDistributorIds: ['dist_phillips', 'dist_bci'],
       approvals: new Map([['fromm', { approved: true, revision: 2, approvedAt: null, approvedBy: null }]]),
@@ -455,9 +454,6 @@ describe('builder guarded atomic Save (slice B1)', () => {
       expectedRevision: 1,
       configuration: {
         officialDomains: ['acme.com'],
-        aliases: ['acana pet'],
-        preferredDistributorIds: ['dist_phillips'],
-        sourcingPolicy: 'preferred_then_fallback',
       },
       expectedConfigurationToken: token,
       approvedBy: 'op',
@@ -483,9 +479,6 @@ describe('builder guarded atomic Save (slice B1)', () => {
       expectedRevision: 1,
       configuration: {
         officialDomains: ['acme.com'],
-        aliases: [],
-        preferredDistributorIds: ['dist_phillips'],
-        sourcingPolicy: 'advisory',
       },
       expectedConfigurationToken: staleToken,
     })).toThrow(/stale_configuration/);
@@ -502,36 +495,52 @@ describe('builder guarded atomic Save (slice B1)', () => {
       expectedRevision: 1,
       configuration: {
         officialDomains: ['acme.com', 'other.example.org'],
-        aliases: [],
-        preferredDistributorIds: ['dist_phillips'],
-        sourcingPolicy: 'advisory',
       },
       expectedConfigurationToken: freshToken,
     });
     expect(saved.revision).toBe(2);
   });
 
-  it('advisory collision rolls back mappings and approval together', () => {
+  it('invalid final source rolls back mapping delta and approval together', () => {
     createDistributor({ id: 'dist_phillips', name: 'Phillips' });
-    // Historical colliding spelling stored outside the builder.
-    upsertBrandAdvisoryProfile({ workspaceId, brand: 'ACANA', aliases: [], preferredDistributorIds: [] });
     const token = computeBrandStrategyConfigurationToken(workspaceId, 'Acana');
+    // Mapping delta (acme.com) stages first; the final source boundary then
+    // fails validation (unmapped domain) — both roll back atomically.
     expect(() => saveBrandStrategy(workspaceId, {
       brand: 'Acana',
-      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      sources: [{ kind: 'official_page', domain: 'unmapped.example.com' }],
       expectedRevision: 0,
       configuration: {
         officialDomains: ['acme.com'],
-        aliases: [],
-        preferredDistributorIds: ['dist_phillips'],
-        sourcingPolicy: 'advisory',
       },
       expectedConfigurationToken: token,
-    })).toThrow(/advisory_identity_conflict/);
+    })).toThrow(/not mapped/);
     // Complete rollback: the staged mapping is gone (only the migration-seeded
     // acana.com remains) and no approval row was created.
     expect(findBrandSites('acana').map((s) => s.domain).sort()).toEqual(['acana.com']);
     expect(getBrandStrategyRow(workspaceId, 'Acana')).toBeNull();
+  });
+
+  it('Save succeeds with the advisory table absent; retired keys are rejected', () => {
+    // Post-retirement schema: no advisory table, no advisory reads.
+    const tables = (getDb().query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((r) => r.name);
+    expect(tables).not.toContain('brand_advisory_profiles');
+    createDistributor({ id: 'dist_phillips', name: 'Phillips' });
+    const saved = saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+      configuration: { officialDomains: [] },
+      expectedConfigurationToken: computeBrandStrategyConfigurationToken(workspaceId, 'Acana'),
+    });
+    expect(saved.revision).toBe(1);
+    expect(() => saveBrandStrategy(workspaceId, {
+      brand: 'Beta',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+      configuration: { officialDomains: [], aliases: [] } as never,
+      expectedConfigurationToken: computeBrandStrategyConfigurationToken(workspaceId, 'Beta'),
+    })).toThrow(/Invalid brand strategy approval/);
   });
 
   it('removing a mapping deletes only this brand pair; other brands on the domain are untouched', () => {
@@ -544,9 +553,6 @@ describe('builder guarded atomic Save (slice B1)', () => {
       expectedRevision: 0,
       configuration: {
         officialDomains: [],
-        aliases: [],
-        preferredDistributorIds: ['dist_phillips'],
-        sourcingPolicy: 'advisory',
       },
       expectedConfigurationToken: computeBrandStrategyConfigurationToken(workspaceId, 'Acana'),
     });
@@ -660,5 +666,154 @@ describe('durable generation binding (slice B2)', () => {
     // Foreign workspace capture fails closed.
     expect(() => captureGenerationStrategyBinding({ workspaceId: 'ws-foreign', itemId: item.id, generationId: gen2.id }))
       .toThrow(/binding_invalid/);
+  });
+
+  it('new unapproved captures are query_all v2; later approval never relabels the pin', async () => {
+    seedConnections();
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'No Brand Food', rowNumber: 1 }], 'sourcing', 1);
+    const gen = startSourcingGeneration(item.id);
+    const binding = captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen.id });
+    expect(binding).toMatchObject({ version: 'strategy-binding-v2', mode: 'query_all' });
+    // A later brand approval does not move the active pin.
+    // (seedConnections already created dist_phillips/dist_bci.)
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    expect(getGenerationStrategyBinding(gen.id)).toMatchObject({ version: 'strategy-binding-v2', mode: 'query_all' });
+  });
+
+  it('v1 approved pins stay frozen and executable across a later Save', async () => {
+    seedConnections();
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
+    const gen = startSourcingGeneration(item.id);
+    const registry = new TestRegistry();
+    const phillips = new MockConnector('dist_phillips');
+    registry.register('dist_phillips', phillips);
+    registry.register('dist_bci', new MockConnector('dist_bci'));
+    const engine = new DefaultSourcingEngine(registry);
+    const r1 = await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(r1.strategyRevision).toBe(1);
+    expect(phillips.lookups).toBe(1);
+    // Backdate the pin to v1 history and Save revision 2: the v1 pin still
+    // executes its exact captured source set.
+    getDb().query("UPDATE sourcing_generation_strategy_snapshots SET binding_version = 'strategy-binding-v1' WHERE sourcing_generation_id = ?").run(gen.id);
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [
+        { kind: 'distributor_record', distributorId: 'dist_phillips' },
+        { kind: 'distributor_record', distributorId: 'dist_bci' },
+      ],
+      expectedRevision: 1,
+    });
+    expect(getGenerationStrategyBinding(gen.id)).toMatchObject({ version: 'strategy-binding-v1', mode: 'approved', strategyRevision: 1 });
+    const r2 = await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(r2.strategyRevision).toBe(1);
+    expect(r2.attempts).toHaveLength(1);
+  });
+
+  it('v1 legacy pins refuse dispatch with zero connector work and are never overwritten', async () => {
+    seedConnections();
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Legacy Food', brandHint: 'Legacy', rowNumber: 1 }], 'sourcing', 1);
+    const registry = new TestRegistry();
+    const phillips = new MockConnector('dist_phillips');
+    const bci = new MockConnector('dist_bci');
+    registry.register('dist_phillips', phillips);
+    registry.register('dist_bci', bci);
+    const engine = new DefaultSourcingEngine(registry);
+
+    // Legacy pin WITHOUT attempts: capture re-reads it, engine parks.
+    const gen = startSourcingGeneration(item.id);
+    captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen.id });
+    getDb().query("UPDATE sourcing_generation_strategy_snapshots SET mode = 'legacy_advisory', binding_version = 'strategy-binding-v1' WHERE sourcing_generation_id = ?").run(gen.id);
+    const parked = await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: 'Legacy', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(parked.attempts).toHaveLength(0);
+    expect(parked.skipped.map((x) => x.reason)).toContain('strategy_binding_policy_retired');
+    expect(phillips.lookups).toBe(0);
+    expect(bci.lookups).toBe(0);
+    // Not overwritten or relabeled by the refusal.
+    expect(getGenerationStrategyBinding(gen.id)).toMatchObject({ version: 'strategy-binding-v1', mode: 'legacy_advisory' });
+
+    // Legacy pin WITH attempts: same refusal, evidence untouched.
+    const gen2 = supersedeCurrentSourcingGeneration(item.id, 'operator_retry');
+    captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen2.id });
+    await engine.runGeneration({
+      itemId: item.id, generationId: gen2.id, workspaceId, upc: '012345678905',
+      brandHint: null, signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    const attemptsBefore = (getDb().query('SELECT COUNT(*) AS n FROM onboarding_evidence_attempts WHERE sourcing_generation_id = ?').get(gen2.id) as { n: number }).n;
+    expect(attemptsBefore).toBeGreaterThan(0);
+    getDb().query("UPDATE sourcing_generation_strategy_snapshots SET mode = 'legacy_advisory', binding_version = 'strategy-binding-v1' WHERE sourcing_generation_id = ?").run(gen2.id);
+    const parked2 = await engine.runGeneration({
+      itemId: item.id, generationId: gen2.id, workspaceId, upc: '012345678905',
+      brandHint: null, signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(parked2.skipped.map((x) => x.reason)).toContain('strategy_binding_policy_retired');
+    const attemptsAfter = (getDb().query('SELECT COUNT(*) AS n FROM onboarding_evidence_attempts WHERE sourcing_generation_id = ?').get(gen2.id) as { n: number }).n;
+    expect(attemptsAfter).toBe(attemptsBefore);
+  });
+
+  it('unknown binding versions and malformed pins fail closed without dispatch', async () => {
+    seedConnections();
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Weird Food', rowNumber: 1 }], 'sourcing', 1);
+    const gen = startSourcingGeneration(item.id);
+    captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen.id });
+    getDb().query("UPDATE sourcing_generation_strategy_snapshots SET binding_version = 'strategy-binding-v999' WHERE sourcing_generation_id = ?").run(gen.id);
+    expect(() => getGenerationStrategyBinding(gen.id)).toThrow(/binding_invalid/);
+    const registry = new TestRegistry();
+    registry.register('dist_phillips', new MockConnector('dist_phillips'));
+    const engine = new DefaultSourcingEngine(registry);
+    const result = await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: null, signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(result.attempts).toHaveLength(0);
+    expect(result.skipped.map((x) => x.reason)).toContain('strategy_binding_invalid');
+  });
+
+  it('inert historical preference bytes never gate approved capture or dispatch', async () => {
+    seedConnections();
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acana',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'sourcing', 1);
+    const gen = startSourcingGeneration(item.id);
+    const binding = captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: gen.id });
+    expect(binding).toMatchObject({ mode: 'approved', strategyRevision: 1 });
+    // Corrupt the historical-only preference bytes: capture/dispatch unaffected.
+    getDb().query('UPDATE sourcing_generation_strategy_snapshots SET preferred_distributor_ids_json = ? WHERE sourcing_generation_id = ?').run('not-json{{{', gen.id);
+    expect(getGenerationStrategyBinding(gen.id)).toMatchObject({ mode: 'approved', strategyRevision: 1 });
+    const registry = new TestRegistry();
+    registry.register('dist_phillips', new MockConnector('dist_phillips'));
+    registry.register('dist_bci', new MockConnector('dist_bci'));
+    const engine = new DefaultSourcingEngine(registry);
+    const result = await engine.runGeneration({
+      itemId: item.id, generationId: gen.id, workspaceId, upc: '012345678905',
+      brandHint: 'Acana', signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 10000).toISOString(),
+    });
+    expect(result.attempts).toHaveLength(1);
+    expect(result.strategyRevision).toBe(1);
   });
 });

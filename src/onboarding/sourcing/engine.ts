@@ -8,8 +8,8 @@ import { normalizeLookupIdentifier, parseSourcingLookupResult, recordSizeViolati
 import type { ConnectorRegistry } from './connector-registry';
 import { DefaultConnectorRegistry } from './connector-registry';
 import { resolveSecret } from './secret-resolver';
-import { listConnectionsByWorkspace, getPreferredDistributorOrder, getBrandSourcingConfig } from '../../db/repositories/distributor-repo';
-import { captureGenerationStrategyBinding } from '../../db/repositories/brand-strategy-generation-repo';
+import { listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
+import { captureGenerationStrategyBinding, isRetiredStrategyBinding } from '../../db/repositories/brand-strategy-generation-repo';
 import { insertEvidenceAttempt } from '../../db/repositories/onboarding-evidence-repo';
 import { findItemById } from '../../db/repositories/onboarding-item-repo';
 import type { DistributorConnection } from '../../shared/schemas/distributor';
@@ -20,11 +20,13 @@ import type { EvidenceLookupOutcome } from '../../shared/schemas/distributor-evi
  *
  * `runGeneration` for one item + generation:
  * 1. resolves the workspace's ENABLED connections;
- * 2. applies brand routing configuration and policy:
- *    - `advisory`: queries all enabled connections, preferred first;
- *    - `preferred_only`: queries ONLY preferred connections (falls open if none configured);
- *    - `preferred_then_fallback`: queries preferred connections first; if a match (`found`)
- *      is found, stops and skips fallback connections; otherwise queries remaining connections;
+ * 2. applies the versioned strategy binding (Amendment B1.1 / issue #150):
+ *    - `approved`: queries ONLY the frozen Included distributor sources;
+ *    - `query_all`: queries ALL enabled workspace connections, every
+ *      connection once, in repository order — no preference ordering,
+ *      no preferred-only filter, no success short-circuit;
+ *    - `legacy_advisory` (v1 history): never executes — fails closed with
+ *      a `strategy_binding_policy_retired` skip so the worker parks visibly;
  * 3. composes cancellation + deadline signals and invokes each connector
  *    with bounded concurrency and per-provider timeout;
  * 4. validates every connector result (`parseSourcingLookupResult` — a
@@ -86,6 +88,16 @@ export class DefaultSourcingEngine implements SourcingEngine {
         generationId: request.generationId,
         attempts,
         skipped: [{ connectionId: '', reason: 'strategy_binding_invalid' }],
+      };
+    }
+    // Amendment B1.1: retired v1 advisory pins are historical only. Park
+    // visibly with zero connector creation/secret resolution/dispatch or
+    // evidence writes — never silently relabel query-all, never execute.
+    if (isRetiredStrategyBinding(binding)) {
+      return {
+        generationId: request.generationId,
+        attempts,
+        skipped: [{ connectionId: '', reason: 'strategy_binding_policy_retired' }],
       };
     }
     // Spec #120 (ticket #122): an approved brand strategy pins the
@@ -161,97 +173,21 @@ export class DefaultSourcingEngine implements SourcingEngine {
       return { generationId: request.generationId, attempts, skipped };
     }
 
-    // Resolve brand routing profile & policy
-    const sourcingConfig = getBrandSourcingConfig(request.workspaceId, request.brandHint ?? null);
-    const policy = sourcingConfig?.sourcingPolicy ?? 'advisory';
-    const preferredIds = sourcingConfig?.preferredDistributorIds ?? [];
-
-    let preferredConns: DistributorConnection[] = [];
-    let fallbackConns: DistributorConnection[] = [];
-
-    if (preferredIds.length > 0) {
-      const byDistributorId = new Map<string, DistributorConnection[]>();
-      for (const c of connections) {
-        const list = byDistributorId.get(c.distributorId) ?? [];
-        list.push(c);
-        byDistributorId.set(c.distributorId, list);
-      }
-      const seen = new Set<string>();
-      for (const distributorId of preferredIds) {
-        const conns = byDistributorId.get(distributorId) ?? [];
-        for (const conn of conns) {
-          if (!seen.has(conn.id)) {
-            preferredConns.push(conn);
-            seen.add(conn.id);
-          }
-        }
-      }
-      fallbackConns = connections.filter((c) => !seen.has(c.id));
-    } else {
-      // Fall open: all connections are considered preferred
-      preferredConns = connections;
-      fallbackConns = [];
-    }
-
-    if (policy === 'preferred_only') {
-      // Query ONLY preferred connections. Fallback connections are skipped.
-      const work = preferredConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
-      const results = await runBounded(work, this.concurrency);
-      for (const result of results) {
-        if (result.kind === 'attempt') {
-          attempts.push(result.summary);
-        } else {
-          skipped.push({ connectionId: result.connectionId, reason: result.reason });
-        }
-      }
-      for (const fb of fallbackConns) {
-        skipped.push({ connectionId: fb.id, reason: 'policy_preferred_only' });
-      }
-    } else if (policy === 'preferred_then_fallback' && preferredIds.length > 0 && fallbackConns.length > 0) {
-      // Query preferred connections first
-      const workPref = preferredConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
-      const resultsPref = await runBounded(workPref, this.concurrency);
-      let foundMatch = false;
-      for (const result of resultsPref) {
-        if (result.kind === 'attempt') {
-          attempts.push(result.summary);
-          if (result.summary.outcome === 'found' && (result as { qualified?: boolean }).qualified) {
-            foundMatch = true;
-          }
-        } else {
-          skipped.push({ connectionId: result.connectionId, reason: result.reason });
-        }
-      }
-
-      if (foundMatch) {
-        // High-confidence match found in preferred distributors: skip fallbacks!
-        for (const fb of fallbackConns) {
-          skipped.push({ connectionId: fb.id, reason: 'policy_preferred_match_found' });
-        }
+    // Amendment B1.1 (issue #150): new unapproved/no-brand collection
+    // always queries every enabled workspace connection once, in repository
+    // order. No preference ordering, no preferred-only filter, no success
+    // short-circuit: a first qualified `found` never suppresses another
+    // connection, and failure/insufficiency never alters eligibility.
+    // Connection availability stays live; deadline/cancellation,
+    // per-connection idempotent evidence writes, and deterministic result
+    // ordering are unchanged.
+    const work = connections.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
+    const results = await runBounded(work, this.concurrency);
+    for (const result of results) {
+      if (result.kind === 'attempt') {
+        attempts.push(result.summary);
       } else {
-        // No match found in preferred distributors: query fallbacks
-        const workFallback = fallbackConns.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
-        const resultsFallback = await runBounded(workFallback, this.concurrency);
-        for (const result of resultsFallback) {
-          if (result.kind === 'attempt') {
-            attempts.push(result.summary);
-          } else {
-            skipped.push({ connectionId: result.connectionId, reason: result.reason });
-          }
-        }
-      }
-    } else {
-      // Advisory policy (or no preferred IDs configured): query all connections in preferred order
-      const ordered = [...preferredConns, ...fallbackConns];
-      const work = ordered.map((connection) => () => this.runOneConnection({ ...request, registerName }, connection, identifier));
-      const results = await runBounded(work, this.concurrency);
-
-      for (const result of results) {
-        if (result.kind === 'attempt') {
-          attempts.push(result.summary);
-        } else {
-          skipped.push({ connectionId: result.connectionId, reason: result.reason });
-        }
+        skipped.push({ connectionId: result.connectionId, reason: result.reason });
       }
     }
 
@@ -448,44 +384,6 @@ export class DefaultSourcingEngine implements SourcingEngine {
     });
   }
 }
-
-/**
- * Advisory brand preference ordering (ADR 0014): connections whose
- * DISTRIBUTOR id appears in the workspace brand profile come FIRST, in the
- * profile's configured order; everything else keeps creation order. Fall-open:
- * a null/unknown brand returns the original order unchanged and NEVER filters
- * connections.
- */
-function orderByBrandPreference(
-  connections: DistributorConnection[],
-  workspaceId: string,
-  brand: string | null,
-): DistributorConnection[] {
-  const preferred = getPreferredDistributorOrder(workspaceId, brand);
-  if (!preferred || preferred.length === 0) return connections;
-
-  const byDistributorId = new Map<string, DistributorConnection[]>();
-  for (const c of connections) {
-    const list = byDistributorId.get(c.distributorId) ?? [];
-    list.push(c);
-    byDistributorId.set(c.distributorId, list);
-  }
-  const preferredOrder: DistributorConnection[] = [];
-  const seen = new Set<string>();
-  for (const distributorId of preferred) {
-    const conns = byDistributorId.get(distributorId) ?? [];
-    for (const conn of conns) {
-      if (!seen.has(conn.id)) {
-        preferredOrder.push(conn);
-        seen.add(conn.id);
-      }
-    }
-  }
-  const rest = connections.filter((c) => !seen.has(c.id));
-  return [...preferredOrder, ...rest];
-}
-
-
 
 async function runBounded<T>(
   tasks: Array<() => Promise<T>>,

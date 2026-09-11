@@ -19,18 +19,14 @@ import { act } from 'react';
 vi.mock('@/client/onboarding-api', () => ({
   getDistributorConnections: vi.fn(),
   getDistributors: vi.fn(),
-  getBrandProfiles: vi.fn(),
   createDistributorConnection: vi.fn(),
   updateDistributorConnection: vi.fn(),
-  upsertBrandProfile: vi.fn(),
-  deleteBrandProfile: vi.fn(),
 }));
 
 import { DistributorConnectionsPanel } from '../../client/components/onboarding-settings/DistributorConnectionsPanel';
 import {
   getDistributorConnections,
   getDistributors,
-  getBrandProfiles,
   updateDistributorConnection,
 } from '../../client/onboarding-api';
 import type { DistributorConnectionView } from '../../client/onboarding-api';
@@ -147,7 +143,6 @@ describe('DistributorConnectionsPanel enable flow (jsdom)', () => {
     vi.clearAllMocks();
     vi.mocked(getDistributorConnections).mockResolvedValue({ connections: [conn()] });
     vi.mocked(getDistributors).mockResolvedValue({ distributors: [] });
-    vi.mocked(getBrandProfiles).mockResolvedValue({ profiles: [] });
     vi.mocked(updateDistributorConnection).mockResolvedValue({ connection: conn({ enabled: true }) });
   });
 
@@ -217,7 +212,6 @@ describe('DistributorConnectionsPanel html_scraper form (Amendment B)', () => {
     vi.clearAllMocks();
     vi.mocked(getDistributorConnections).mockResolvedValue({ connections: [] });
     vi.mocked(getDistributors).mockResolvedValue({ distributors: [] });
-    vi.mocked(getBrandProfiles).mockResolvedValue({ profiles: [] });
   });
 
   it('offers html_scraper as a connector type in the create form', () => {

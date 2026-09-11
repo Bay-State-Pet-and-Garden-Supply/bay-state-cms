@@ -11,7 +11,7 @@ import {
   computeBrandStrategyConfigurationToken,
   normalizeBrandKey,
 } from '../../db/repositories/brand-strategy-approval-repo';
-import { listBrandAdvisoryProfiles, listDistributors, listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
+import { listDistributors, listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
 import { listSupportedDistributorIds } from '../sourcing/connector-registry';
 import { getSourcingFlags } from '../flags';
 
@@ -50,19 +50,6 @@ function readFlags(): { effectiveEnabled: boolean; reason: string } | null {
 function buildStrategies(): BrandStrategy[] {
   const workspace = requireServerSingletonWorkspace();
   const brandSites = listAllBrandSites();
-  // Repository-owned reads: advisory profiles via the distributor repo,
-  // approvals via the strategy approval repo (no inline SQL here).
-  let advisoryProfiles: Array<{ brand: string; aliases: string[]; preferredDistributorIds: string[]; sourcingPolicy: BrandStrategy['sourcingPolicy'] }>;
-  try {
-    advisoryProfiles = listBrandAdvisoryProfiles(workspace.id).map((p) => ({
-      brand: p.brand,
-      aliases: p.aliases,
-      preferredDistributorIds: p.preferredDistributorIds,
-      sourcingPolicy: p.sourcingPolicy as BrandStrategy['sourcingPolicy'],
-    }));
-  } catch {
-    advisoryProfiles = [];
-  }
   let enabledDistributorIds: string[];
   try {
     enabledDistributorIds = [...new Set(listConnectionsByWorkspace(workspace.id, true).map((c) => c.distributorId))];
@@ -86,7 +73,7 @@ function buildStrategies(): BrandStrategy[] {
   // Spec #120: approved strategies are explicit rows; absence means awaiting approval.
   const approvals: Map<string, StrategyApprovalInput> = listStrategyApprovalInputs(workspace.id);
   const strategies = deriveBrandStrategies(
-    { brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), advisoryProfiles, sitemapByDomain, readinessByDomain, enabledDistributorIds, knownDistributorIds, approvals },
+    { brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), sitemapByDomain, readinessByDomain, enabledDistributorIds, knownDistributorIds, approvals },
     readinessForDomain,
   );
   const flags = (() => {
@@ -119,7 +106,7 @@ export function listBrandStrategies(): BrandStrategy[] {
  * Builder slice B1: single-brand detail for the builder (Settings New and
  * Stage 1 newly assigned brands). Returns one unapproved projection with
  * revision 0 and an empty-configuration token when nothing is stored — and
- * writes nothing (no advisory/strategy rows are created by reads).
+ * writes nothing (no strategy rows are created by reads).
  */
 export function getBrandStrategyDetail(brand: string): BrandStrategy | null {
   if (!brand || !brand.trim()) return null;
@@ -135,10 +122,6 @@ export function getBrandStrategyDetail(brand: string): BrandStrategy | null {
   const detail: BrandStrategy = {
     brandKey: brand.trim(),
     normalizedBrand: normalized,
-    aliases: [],
-    preferredDistributorIds: [],
-    sourcingPolicy: 'advisory',
-    fallbackTier: [],
     officialDomains: [],
     extractorReadiness: 'not_configured',
     ambiguous: [],

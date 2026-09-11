@@ -1696,6 +1696,11 @@ describe('Distributor V2 schema migration (ADR 0014)', () => {
     db.exec('DROP TABLE IF EXISTS brand_advisory_profiles');
     db.exec('DROP INDEX IF EXISTS idx_evidence_attempts_generation_provider');
     db.exec("DELETE FROM app_meta WHERE key = 'distributor_v2_schema_version'");
+    // Issue #150: a pre-retirement simulation must also reset the retirement
+    // marker/state intentionally — never leave a completed marker with the
+    // advisory table recreated by the V2 re-run (that combination fails
+    // closed as an unexpected resurrection).
+    db.exec("DELETE FROM app_meta WHERE key = 'brand_advisory_retirement_schema_version'");
 
     db.exec('PRAGMA foreign_keys = OFF');
     db.exec(`CREATE TABLE onboarding_evidence_attempts_13 (
@@ -1726,11 +1731,14 @@ describe('Distributor V2 schema migration (ADR 0014)', () => {
   }
 
   it('fresh install creates all V2 tables, columns, and the marker', () => {
+    // Issue #150: the historical V2 step still creates brand_advisory_profiles,
+    // but the retirement migration (same boot, later block) drops it before
+    // startup completes. Final schema: seven V2 tables, advisory absent.
     const tables = db
       .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sourcing_generations','distributors','distributor_connections','distributor_catalog_snapshots','onboarding_evidence_conflicts','onboarding_evidence_conflict_candidates','onboarding_item_evidence_acceptances','brand_advisory_profiles')")
       .all() as Array<{ name: string }>;
     expect(new Set(tables.map((t) => t.name))).toEqual(
-      new Set(['sourcing_generations','distributors','distributor_connections','distributor_catalog_snapshots','onboarding_evidence_conflicts','onboarding_evidence_conflict_candidates','onboarding_item_evidence_acceptances','brand_advisory_profiles']),
+      new Set(['sourcing_generations','distributors','distributor_connections','distributor_catalog_snapshots','onboarding_evidence_conflicts','onboarding_evidence_conflict_candidates','onboarding_item_evidence_acceptances']),
     );
 
     const cols = evidenceColumnNames();
@@ -1740,6 +1748,8 @@ describe('Distributor V2 schema migration (ADR 0014)', () => {
 
     const marker = db.query("SELECT value FROM app_meta WHERE key = 'distributor_v2_schema_version'").get() as { value: string };
     expect(marker.value).toBe('1');
+    const retirement = db.query("SELECT value FROM app_meta WHERE key = 'brand_advisory_retirement_schema_version'").get() as { value: string };
+    expect(retirement.value).toBe('1');
   });
 
   it('idempotent second run changes nothing', () => {

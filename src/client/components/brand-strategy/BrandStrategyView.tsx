@@ -1,6 +1,6 @@
-// story: e08s02 — Brands Hub editor + sitemap/readiness enrichment + Profile Workspace links (Preferred/Fallback tier, profile bypass eligible)
+// story: e08s02 — Brands Hub editor + sitemap/readiness enrichment + Profile Workspace links (profile bypass eligible)
 // B4 — Settings mounts the shared BrandStrategyBuilder: approval/revision/readiness,
-// single combined Save, no advisory-profile Save path, no misleading strategy Delete.
+// single combined Save, no misleading strategy Delete.
 import React, { useEffect, useRef, useState } from 'react';
 import { KNOWN_RETAILER_OR_DISTRIBUTOR_DOMAINS } from '../../../onboarding/discovery/retailer-domain-list';
 import type { BrandStrategy } from '../../../shared/schemas/brand-strategy';
@@ -26,23 +26,20 @@ function formatRefresh(lastRefreshAt: string | null): string {
   return `refreshed ${days}d ago`;
 }
 
-function TierPills({ strategy }: { strategy: BrandStrategy }) {
-  const preferred = strategy.preferredDistributorIds;
-  if (preferred.length === 0) return <span style={{ color: '#6b7280', fontSize: 12 }}>All Enabled</span>;
+function ApprovalSummary({ strategy }: { strategy: BrandStrategy }) {
+  const approved = strategy.approval?.approved === true;
+  const sources = strategy.approvedSources ?? [];
+  if (!approved) return <span style={{ color: '#6b7280', fontSize: 12 }}>Awaiting approval</span>;
+  if (sources.length === 0) return <span style={{ color: '#6b7280', fontSize: 12 }}>Approved — no sources</span>;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Preferred tier:</span>
-      {preferred.map((id) => (
-        <span key={id} style={{ background: '#e0f2fe', color: '#0c4a6e', borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{id}</span>
-      ))}
-      {strategy.fallbackTier.length > 0 && (
-        <>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>Fallback tier:</span>
-          {strategy.fallbackTier.map((id) => (
-            <span key={id} style={{ background: '#fef3c7', color: '#92400e', borderRadius: 999, padding: '2px 8px', fontSize: 11 }}>{id}</span>
-          ))}
-        </>
-      )}
+      <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Included:</span>
+      {sources.map((s) => {
+        const label = s.kind === 'official_page' ? s.domain : s.distributorId;
+        return (
+          <span key={`${s.kind}:${label}`} style={{ background: '#e0f2fe', color: '#0c4a6e', borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{label}</span>
+        );
+      })}
     </div>
   );
 }
@@ -199,7 +196,7 @@ export function BrandStrategyView({ strategies: initial, loading, refreshSignal 
           <thead>
             <tr style={{ background: '#f9fafb', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Brand Identity</th>
-              <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Sourcing tier</th>
+              <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Included sources</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Official Domain & Sitemap</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Extraction Readiness</th>
               <th style={{ padding: '10px 12px', fontWeight: 600, color: '#374151' }}>Strategy Approval</th>
@@ -214,11 +211,10 @@ export function BrandStrategyView({ strategies: initial, loading, refreshSignal 
               <tr key={s.normalizedBrand} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '12px' }}>
                   <div style={{ fontWeight: 600, color: '#111827' }}>{s.brandKey}</div>
-                  {s.aliases.length > 0 && <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{s.aliases.map((a) => <span key={a} style={{ background: '#f3f4f6', borderRadius: 999, padding: '1px 7px', fontSize: 11, color: '#4b5563' }}>{a}</span>)}</div>}
                   {s.ambiguous.length > 0 && <div style={{ marginTop: 6, fontSize: 11, color: '#92400e' }}>⚠ Ambiguous: {s.ambiguous.map((a) => `${a.candidateBrand} (${a.reason})`).join(', ')}</div>}
-                  {s.unmatched && <div style={{ marginTop: 4, fontSize: 11, color: '#6b7280' }}>{s.officialDomains.length === 0 && !s.aliases.length ? 'Unmatched advisory' : s.officialDomains.length === 0 ? 'No advisory profile' : 'No official domain'}</div>}
+                  {s.unmatched && <div style={{ marginTop: 4, fontSize: 11, color: '#6b7280' }}>{s.officialDomains.length === 0 ? 'No official domain' : 'No official domain'}</div>}
                 </td>
-                <td style={{ padding: '12px' }}><TierPills strategy={s} /></td>
+                <td style={{ padding: '12px' }}><ApprovalSummary strategy={s} /></td>
                 <td style={{ padding: '12px' }}>
                   {s.officialDomains.length === 0 ? (
                     <span style={{ color: '#6b7280', fontSize: 12 }}>No official site configured</span>

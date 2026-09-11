@@ -20,7 +20,7 @@ describe('ApproveBrandStrategySchema guards', () => {
   });
 
   it('requires expectedConfigurationToken whenever configuration is present', () => {
-    const configuration = { officialDomains: [], aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory' as const };
+    const configuration = { officialDomains: [] };
     expect(
       ApproveBrandStrategySchema.safeParse({ brand: 'Acana', sources: [distributor('phillips')], expectedRevision: 1, configuration }).success,
     ).toBe(false);
@@ -57,9 +57,36 @@ describe('ApproveBrandStrategySchema guards', () => {
     expect(
       StrategyConfigurationSchema.safeParse({
         officialDomains: Array.from({ length: 26 }, (_, i) => `d${i}.example.com`),
-        aliases: [], preferredDistributorIds: [], sourcingPolicy: 'advisory',
       }).success,
     ).toBe(false);
+  });
+
+  it('accepts an officialDomains-only configuration', () => {
+    expect(
+      StrategyConfigurationSchema.safeParse({ officialDomains: ['acme.com'] }).success,
+    ).toBe(true);
+  });
+
+  it('rejects each retired advisory key at root and nested configuration, even empty or default-valued', () => {
+    const base = { brand: 'Acana', sources: [distributor('phillips')], expectedRevision: 0 };
+    for (const key of ['aliases', 'preferredDistributorIds', 'sourcingPolicy'] as const) {
+      // Retired root-level keys are rejected by strict().
+      expect(
+        ApproveBrandStrategySchema.safeParse({ ...base, [key]: key === 'sourcingPolicy' ? 'advisory' : [] }).success,
+      ).toBe(false);
+      // Retired nested configuration keys are rejected even when empty.
+      expect(
+        ApproveBrandStrategySchema.safeParse({
+          ...base,
+          configuration: { officialDomains: [], [key]: key === 'sourcingPolicy' ? 'advisory' : [] },
+          expectedConfigurationToken: 'tok',
+        }).success,
+      ).toBe(false);
+      // ... and even when holding today's default value.
+      expect(
+        StrategyConfigurationSchema.safeParse({ officialDomains: [], [key]: key === 'sourcingPolicy' ? 'preferred_then_fallback' : [] }).success,
+      ).toBe(false);
+    }
   });
 });
 
@@ -88,10 +115,6 @@ describe('BrandStrategy read-model additions', () => {
     const parsed = BrandStrategySchema.safeParse({
       brandKey: 'Acana',
       normalizedBrand: 'acana',
-      aliases: [],
-      preferredDistributorIds: ['phillips'],
-      sourcingPolicy: 'advisory',
-      fallbackTier: ['bci'],
       officialDomains: [],
       extractorReadiness: 'profile_bypass_eligible',
       ambiguous: [],

@@ -107,7 +107,7 @@ import { recordAcceptances } from '../db/repositories/onboarding-acceptance-repo
 import { completeSourcingWithDecision } from '../db/repositories/onboarding-item-repo';
 import { listConnectionsByWorkspace } from '../db/repositories/distributor-repo';
 import { getApprovedBrandStrategy } from '../db/repositories/brand-strategy-approval-repo';
-import { getGenerationStrategyBinding } from '../db/repositories/brand-strategy-generation-repo';
+import { getGenerationStrategyBinding, isRetiredStrategyBinding } from '../db/repositories/brand-strategy-generation-repo';
 import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onboarding';
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
@@ -979,6 +979,26 @@ export class OnboardingWorker {
         return;
       }
 
+      // Amendment B1.1 (issue #150): a generation holding a retired v1
+      // advisory pin predates query-all routing and must never execute,
+      // reconcile, or slip through existing-evidence reuse or the automatic
+      // no-identifier/no-connection fallbacks below. Park visibly; the
+      // operator retries explicitly (a fresh generation captures query-all
+      // or the current approval). Scoped to captured retired/invalid
+      // bindings only — generations without a binding keep the existing
+      // missing-binding/no-current-approval legacy reuse contract.
+      // getGenerationStrategyBinding returns null when no row exists
+      // (fresh work proceeds) and throws only on a corrupt captured row.
+      try {
+        if (isRetiredStrategyBinding(getGenerationStrategyBinding(generation.id))) {
+          setupAttentionHold(['This generation used retired brand routing settings. Retry to start a new generation under query-all routing.']);
+          return;
+        }
+      } catch {
+        setupAttentionHold(['Strategy binding is invalid for this generation; retry in a new generation']);
+        return;
+      }
+
       // Deterministic re-run: reuse existing current-generation attempts.
       if (getCurrentGenerationAttempts(item.id).length === 0) {
         if (normalizeGtin(item.upc) === null) {
@@ -1058,6 +1078,10 @@ export class OnboardingWorker {
         });
         if (runResult.skipped.some((s) => s.reason === 'strategy_binding_invalid')) {
           setupAttentionHold(['Strategy binding is invalid or uncertain; retry in a new generation']);
+          return;
+        }
+        if (runResult.skipped.some((s) => s.reason === 'strategy_binding_policy_retired')) {
+          setupAttentionHold(['This generation used retired brand routing settings. Retry to start a new generation under query-all routing.']);
           return;
         }
         if (runResult.strategyRevision != null && runResult.attempts.length === 0) {

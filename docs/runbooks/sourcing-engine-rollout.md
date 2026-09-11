@@ -53,10 +53,19 @@ and non-secret (they expose no credentials or connection details).
   `phillips_storefront` (authenticated storefronts). The deferred Phase 2
   SFTP plans (Orgill/PFX) and Central Pet EDI feed are **superseded** as
   primary transports. Lookups are **exact normalized UPC/GTIN first**; brand
-  hints and brand profiles are advisory only. All enabled connections are
+  and register-name hints are non-authoritative identity evidence only (brand
+  profiles retired, issue #150). All enabled connections are
   queried per generation — the worker never stops at the first found record.
   The item is bounded to a 60-second budget and per-attempt `duration_ms` is
   persisted.
+- **Brand routing (issue #150 / ADR 0035 B1.1).** Brand advisory settings
+  (aliases, sourcing policy, preferred distributors) are retired. New
+  unapproved/no-brand generations use versioned query-all routing
+  (`strategy-binding-v2`); approved generations run only their frozen
+  Included boundary. Retired v1 advisory pins park visibly until an explicit
+  retry starts a new generation. See
+  `docs/runbooks/brand-advisory-retirement.md` for the cost disclosure,
+  compatibility table, backup, and rollback procedure.
 - **Evidence.** Attempts are immutable and generation-scoped
   (`sourcing_generations`); a retry **supersedes** the generation and starts a
   fresh one. Superseded evidence stays visible as history and can never

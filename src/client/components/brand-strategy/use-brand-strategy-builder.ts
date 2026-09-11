@@ -41,7 +41,7 @@ export const defaultBuilderApi: BuilderApi = {
   save: (input: ApproveBrandStrategy) => saveBrandStrategy(input),
 };
 
-export type BuilderConflictKind = 'stale_revision' | 'stale_configuration' | 'advisory_identity_conflict';
+export type BuilderConflictKind = 'stale_revision' | 'stale_configuration';
 
 export interface BuilderConflict {
   kind: BuilderConflictKind | 'other';
@@ -61,14 +61,7 @@ function toConflict(err: unknown): BuilderConflict {
   if (code === 'stale_configuration') {
     return {
       kind: 'stale_configuration',
-      message: 'Brand mappings or advisory settings changed outside this editor since you started.',
-      serverRevision,
-    };
-  }
-  if (code === 'advisory_identity_conflict') {
-    return {
-      kind: 'advisory_identity_conflict',
-      message: 'Another advisory profile uses this exact brand identity. Resolve it in Profiles, then retry.',
+      message: 'Brand mappings changed outside this editor since you started.',
       serverRevision,
     };
   }

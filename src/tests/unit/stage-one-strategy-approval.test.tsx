@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 /**
- * B5 — Stage 1 shared expander coverage (mounted StageItemsView).
+ * B5 — Stage 1 shared dialog coverage (mounted StageItemsView).
  *
  * Review strategy opens the SAME builder/command as Settings for
- * approved/drifted/new brands; the compact shortcut stages the live
- * proposal locally (still requiring explicit Save); two rows of one brand
- * share a single editor/refresh; a save resolving after the editor closed
+ * approved/drifted/new brands; the live proposal is staged from inside the
+ * dialog (still requiring explicit Save); two rows of one brand
+ * share a single dialog/refresh; a save resolving after the dialog closed
  * cannot apply; successful Save reloads intake references without
  * requeue/recollection. No direct approve call remains in this surface.
  */
@@ -82,10 +82,6 @@ function row(itemId: string, brand: string | null) {
 const ACME = {
   brandKey: 'Acme',
   normalizedBrand: 'acme',
-  aliases: [],
-  preferredDistributorIds: ['Phillips', 'BCI'],
-  sourcingPolicy: 'preferred_then_fallback',
-  fallbackTier: [],
   officialDomains: [],
   proposalSources: [
     { kind: 'distributor_record', distributorId: 'Phillips' },
@@ -115,10 +111,6 @@ const ACME = {
 const BETA = {
   brandKey: 'Beta',
   normalizedBrand: 'beta',
-  aliases: [],
-  preferredDistributorIds: ['Phillips'],
-  sourcingPolicy: 'advisory',
-  fallbackTier: [],
   officialDomains: [],
   proposalSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
   sourceOptions: [
@@ -151,7 +143,7 @@ function itemsPayload() {
   };
 }
 
-describe('Stage 1 strategy expander (mounted)', () => {
+describe('Stage 1 strategy dialog (mounted)', () => {
   let container: HTMLDivElement;
   let root: Root;
   let fetchCalls: string[];
@@ -205,39 +197,42 @@ describe('Stage 1 strategy expander (mounted)', () => {
   it('shows the approved label, suppresses Missing Domain for distributor-only brands, and expands the shared builder', async () => {
     await renderStage();
 
-    const acmeCell = container.querySelector('[data-testid="intake-strategy-item_acme"]');
-    expect(acmeCell?.textContent).toMatch(/Phillips \+ BCI/);
+    // Compact strategy column: readiness status + Review trigger, no verbose labels.
+    expect(container.querySelector('[data-testid="intake-strategy-item_acme"]')?.textContent).toMatch(/Ready.*2 sources available/);
+    expect(container.querySelector('[data-testid="intake-strategy-approved-item_acme"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting strategy approval/);
     expect(container.querySelector('[data-testid="intake-missing-domain-item_acme"]')).toBeNull();
     expect(container.querySelector('[data-testid="intake-missing-domain-item_beta"]')).not.toBeNull();
-    // No direct approve button remains — only the Review strategy expander.
+    // No direct approve button remains — only the Review strategy dialog trigger.
     expect(container.querySelector('[data-testid="intake-strategy-approve-item_beta"]')).toBeNull();
     const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
     expect(review).not.toBeNull();
-    expect(review.getAttribute('aria-expanded')).toBe('false');
+    expect(review.getAttribute('aria-haspopup')).toBe('dialog');
 
     await act(async () => {
       review.click();
     });
     await settle();
-    expect(review.getAttribute('aria-expanded')).toBe('true');
-    const region = container.querySelector('[data-testid="intake-strategy-editor-item_beta"]');
-    expect(region).not.toBeNull();
-    expect(region?.getAttribute('role')).toBe('region');
-    // Same builder copy as Settings: Included vs Preferred + save-approves note.
-    expect(container.textContent).toMatch(/Included vs Preferred/);
+    const dialog = container.querySelector('[data-testid="intake-strategy-dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('role')).toBe('dialog');
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    // Same builder copy as Settings: Included sources + save-approves note.
+    expect(container.textContent).toMatch(/Approved sources/);
     expect(container.textContent).toMatch(/Saving approves this strategy immediately/);
     expect(getBrandStrategyDetail).toHaveBeenCalledWith('Beta');
   });
 
-  it('Save current proposal shortcut stages the proposal and saves through the same guarded contract', async () => {
+  it('"Use current proposal" inside the dialog stages the proposal and saves through the same guarded contract', async () => {
     await renderStage();
-    const shortcut = container.querySelector('[data-testid="intake-strategy-use-proposal-item_beta"]') as HTMLButtonElement;
-    expect(shortcut).not.toBeNull();
     await act(async () => {
-      shortcut.click();
+      (container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement).click();
     });
     await settle();
-    expect(container.querySelector('[data-testid="intake-strategy-editor-item_beta"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement).click();
+    });
 
     const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement;
     const blockersBefore = vi.mocked(getBrandDomainBlockers).mock.calls.length;
@@ -251,10 +246,7 @@ describe('Stage 1 strategy expander (mounted)', () => {
       expectedRevision: 0,
       configuration: {
         officialDomains: [],
-        aliases: [],
-        preferredDistributorIds: ['Phillips'],
-        sourcingPolicy: 'advisory',
-      },
+                        },
       expectedConfigurationToken: 'tok-beta',
     });
     // Successful Save reloads intake references (no requeue/recollection path touched).
@@ -262,7 +254,7 @@ describe('Stage 1 strategy expander (mounted)', () => {
     expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBeGreaterThan(blockersBefore);
   });
 
-  it('two rows of the same brand share one editor and one refresh', async () => {
+  it('two rows of the same brand share one dialog and one detail load', async () => {
     vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
       const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
       if (url.includes('/api/onboarding/brands/strategy')) {
@@ -283,9 +275,9 @@ describe('Stage 1 strategy expander (mounted)', () => {
       review1.click();
     });
     await settle();
-    // One mounted editor (first row) + a shared-editor note in the second.
-    expect(container.querySelectorAll('[data-testid^="intake-strategy-editor-"]').length).toBe(1);
-    expect(container.textContent).toMatch(/one editor per brand/);
+    // One mounted dialog for the brand (no per-row inline editors).
+    expect(container.querySelectorAll('[data-testid="intake-strategy-dialog"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid^="intake-strategy-editor-"]')).toHaveLength(0);
     expect(getBrandStrategyDetail).toHaveBeenCalledTimes(1);
   });
 
@@ -310,7 +302,7 @@ describe('Stage 1 strategy expander (mounted)', () => {
     });
     expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
     const blockersBefore = vi.mocked(getBrandDomainBlockers).mock.calls.length;
-    // Operator reassigns the brand (editor unmounts) before the save resolves.
+    // Operator closes the dialog (editor unmounts) before the save resolves.
     // The edit is dirty, so Cancel first arms discard confirmation.
     await act(async () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
@@ -322,8 +314,8 @@ describe('Stage 1 strategy expander (mounted)', () => {
       resolveSave({ strategy: { revision: 1 } });
     });
     await settle();
-    // Stale response dropped: no intake refresh from the abandoned editor.
+    // Stale response dropped: no intake refresh from the abandoned dialog.
     expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBe(blockersBefore);
-    expect(container.querySelector('[data-testid^="intake-strategy-editor-"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).toBeNull();
   });
 });

@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-export const SourcingPolicySchema = z.enum(['advisory', 'preferred_then_fallback', 'preferred_only']);
-
 export const BrandStrategySitemapSchema = z.object({
   totalUrls: z.number().int().min(0),
   freshCount: z.number().int().min(0),
@@ -46,9 +44,6 @@ export type StrategySourceRef = z.infer<typeof StrategySourceRefSchema>;
 export const StrategyConfigurationSchema = z.object({
   /** Complete replacement of this brand's editable official-domain set. */
   officialDomains: z.array(z.string().min(1).max(253)).max(25),
-  aliases: z.array(z.string().min(1).max(128)).max(50),
-  preferredDistributorIds: z.array(z.string().min(1).max(128)).max(50),
-  sourcingPolicy: SourcingPolicySchema,
 }).strict();
 export type StrategyConfiguration = z.infer<typeof StrategyConfigurationSchema>;
 
@@ -154,16 +149,12 @@ export type BrandStrategyExecutionAvailability = z.infer<typeof BrandStrategyExe
 export const BrandStrategySchema = z.object({
   brandKey: z.string().min(1),
   normalizedBrand: z.string().min(1),
-  aliases: z.array(z.string()),
-  preferredDistributorIds: z.array(z.string()),
-  sourcingPolicy: SourcingPolicySchema,
-  fallbackTier: z.array(z.string()),
   officialDomains: z.array(BrandStrategyOfficialDomainSchema),
-  /** Canonical server-derived live proposal (preferred + fallback options). */
+  /** Canonical server-derived live proposal (query-all source options). */
   proposalSources: z.array(StrategySourceRefSchema).optional(),
   /** Selectable/visible source catalog for the builder. */
   sourceOptions: z.array(BrandStrategySourceOptionSchema).optional(),
-  /** Guard token for mapping/preference edits (absent-profile set is deterministic). */
+  /** Guard token for mapping-only edits (absent-profile set is deterministic). */
   configurationToken: z.string().min(1).max(256).optional(),
   /** Effective sourcing capability (separate from approval). */
   executionAvailability: BrandStrategyExecutionAvailabilitySchema.optional(),
@@ -174,7 +165,7 @@ export const BrandStrategySchema = z.object({
   // Spec #120 (additive, optional for backward compatibility):
   // operator approval state + per-source availability reasons.
   // approvedSources is the stored approved boundary (distinct from the
-  // live proposal in preferredDistributorIds/officialDomains); absent
+  // live proposal in officialDomains/enabled connections); absent
   // means no stored boundary (legacy rows) — never infer approval.
   approval: BrandStrategyApprovalStateSchema.optional(),
   approvedSources: z.array(StrategySourceRefSchema).optional(),

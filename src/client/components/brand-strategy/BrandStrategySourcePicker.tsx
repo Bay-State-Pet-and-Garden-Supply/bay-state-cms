@@ -1,9 +1,9 @@
 /**
  * B3 — controlled per-source checklist for the shared strategy builder.
  *
- * Typed labels, Included-versus-Preferred separation, availability and
- * remediation text. No API calls, no persistence — the parent builder owns
- * edit state. Retained-but-unrepairable approved refs render as
+ * Included selects the approved collection boundary. Availability and
+ * remediation text included. No API calls, no persistence — the parent
+ * builder owns edit state. Retained-but-unrepairable approved refs render as
  * visible-but-locked rows so they never silently vanish.
  */
 import React from 'react';
@@ -18,9 +18,7 @@ export interface SourcePickerProps {
   /** Approved refs absent from options (retained history, not selectable). */
   retainedRefs?: StrategySourceRef[];
   included: StrategySourceRef[];
-  preferredDistributorIds: string[];
   onToggleInclude: (ref: StrategySourceRef) => void;
-  onTogglePreferred: (distributorId: string) => void;
   disabled?: boolean;
 }
 
@@ -32,9 +30,7 @@ export function BrandStrategySourcePicker({
   options,
   retainedRefs = [],
   included,
-  preferredDistributorIds,
   onToggleInclude,
-  onTogglePreferred,
   disabled = false,
 }: SourcePickerProps) {
   const includedKeys = new Set(included.map(sourceKey));
@@ -42,11 +38,9 @@ export function BrandStrategySourcePicker({
     options.map((o) => `${o.kind}:${o.ref.trim().toLowerCase()}`),
   );
   const retained = retainedRefs.filter((r) => {
-    const k = sourceKey(r);
     const lookup = r.kind === 'official_page'
       ? `official_page:${(r.domain ?? '').trim().toLowerCase()}`
       : `distributor_record:${(r.distributorId ?? '').trim().toLowerCase()}`;
-    void k;
     return !optionKeys.has(lookup);
   });
 
@@ -55,11 +49,10 @@ export function BrandStrategySourcePicker({
       style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '10px 12px', margin: 0 }}
     >
       <legend style={{ fontSize: 12, fontWeight: 700, color: '#374151', padding: '0 6px' }}>
-        Approved sources — Included vs Preferred
+        Approved sources — Included
       </legend>
       <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 8px' }}>
-        Included authorizes collection attempts. Preferred is advisory only — checking
-        Preferred never checks Included.
+        Included authorizes collection attempts.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
         {options.length === 0 && (
@@ -71,9 +64,7 @@ export function BrandStrategySourcePicker({
             : { kind: 'distributor_record', distributorId: o.ref };
           const key = sourceKey(ref);
           const checked = includedKeys.has(key);
-          const isPreferred = o.kind === 'distributor_record' && preferredDistributorIds.includes(o.ref);
           const optionId = `strategy-src-${o.kind}-${o.ref.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
-          const preferredId = `${optionId}-preferred`;
           return (
             <div
               key={key}
@@ -102,21 +93,6 @@ export function BrandStrategySourcePicker({
                 )}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, marginLeft: 26 }}>
-                {o.kind === 'distributor_record' && (
-                  <label
-                    htmlFor={preferredId}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: disabled ? 'not-allowed' : 'pointer' }}
-                  >
-                    <input
-                      id={preferredId}
-                      type="checkbox"
-                      checked={isPreferred}
-                      disabled={disabled}
-                      onChange={() => onTogglePreferred(o.ref)}
-                    />
-                    Preferred (advisory)
-                  </label>
-                )}
                 <span style={{ fontSize: 11, color: o.available ? '#166534' : '#6b7280' }}>
                   {availabilityText(o.available, o.reason)}
                 </span>

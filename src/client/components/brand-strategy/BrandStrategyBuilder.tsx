@@ -8,7 +8,6 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { BrandStrategy } from '../../../shared/schemas/brand-strategy';
-import type { SourcingPolicy } from '../../../shared/schemas/onboarding';
 import {
   applyProposalToEdit,
   availabilityText,
@@ -19,7 +18,6 @@ import {
   stageRemoveMapping,
   summarizeEdit,
   toggleIncluded,
-  togglePreferred,
   validateEdit,
   type BuilderEdit,
 } from './brand-strategy-builder-model';
@@ -34,8 +32,6 @@ export interface BrandStrategyBuilderProps {
   /** Exact display brand. Empty + brandEditable for Settings New. */
   brand: string;
   brandEditable?: boolean;
-  /** Stage 1 shortcut: enter with the live proposal staged locally (still requires explicit Save). */
-  startFromProposal?: boolean;
   api?: BuilderApi;
   onSaved?: (revision: number) => void;
   onCancel?: () => void;
@@ -61,7 +57,6 @@ function readinessText(strategy: BrandStrategy | null): string {
 export function BrandStrategyBuilder({
   brand,
   brandEditable = false,
-  startFromProposal = false,
   api = defaultBuilderApi,
   onSaved,
   onCancel,
@@ -79,16 +74,16 @@ export function BrandStrategyBuilder({
   onSavedRef.current = onSaved;
 
   // Initialize from the approved boundary once the projection arrives.
-  // Never overwrite dirty local state on background refresh.
+  // Never overwrite dirty local state on background refresh. The live
+  // proposal is staged only via the explicit in-dialog button below.
   useEffect(() => {
     if (!loading && !loadError) {
       setEdit((prev) => {
         if (prev) return prev;
-        const base = initEditFromApproved(strategy, brandEditable ? '' : brand);
-        return startFromProposal ? applyProposalToEdit(base, strategy) : base;
+        return initEditFromApproved(strategy, brandEditable ? '' : brand);
       });
     }
-  }, [loading, loadError, strategy, brand, brandEditable, startFromProposal]);
+  }, [loading, loadError, strategy, brand, brandEditable]);
 
   // Brand switch: reset the local editor (late responses are already
   // guarded by the hook's request ids). Skipped on mount — the hook's own
@@ -235,9 +230,7 @@ export function BrandStrategyBuilder({
           options={strategy?.sourceOptions ?? []}
           retainedRefs={strategy?.approvedSources ?? []}
           included={effectiveEdit.included}
-          preferredDistributorIds={effectiveEdit.preferredDistributorIds}
           onToggleInclude={(ref) => update(toggleIncluded(effectiveEdit, ref))}
-          onTogglePreferred={(id) => update(togglePreferred(effectiveEdit, id))}
           disabled={saving}
         />
       )}
@@ -311,31 +304,9 @@ export function BrandStrategyBuilder({
         </div>
       </fieldset>
 
-      <fieldset style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '10px 12px', margin: 0 }}>
-        <legend style={{ fontSize: 12, fontWeight: 700, color: '#374151', padding: '0 6px' }}>Legacy advisory settings</legend>
-        <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 8 }}>
-          Aliases (comma-separated, advisory only)
-          <input
-            aria-label="Aliases"
-            value={effectiveEdit.aliases.join(', ')}
-            onChange={(e) => update({ ...effectiveEdit, aliases: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })}
-            style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
-          />
-        </label>
-        <label style={{ fontSize: 12, color: '#374151', display: 'block' }}>
-          Sourcing policy (advisory)
-          <select
-            aria-label="Sourcing policy"
-            value={effectiveEdit.sourcingPolicy}
-            onChange={(e) => update({ ...effectiveEdit, sourcingPolicy: e.target.value as SourcingPolicy })}
-            style={{ width: '100%', marginTop: 4, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 13 }}
-          >
-            <option value="advisory">advisory</option>
-            <option value="preferred_then_fallback">preferred_then_fallback</option>
-            <option value="preferred_only">preferred_only</option>
-          </select>
-        </label>
-      </fieldset>
+      <div style={{ fontSize: 12, color: '#374151', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px' }}>
+        New collection without an approved strategy queries every enabled distributor connection. Approving an Included set below bounds future collection to exactly those sources.
+      </div>
 
       {effectiveEdit.included.length === 0 && (
         <div role="note" style={{ fontSize: 12, color: '#92400e' }}>
@@ -362,15 +333,14 @@ export function BrandStrategyBuilder({
             <div>
               <div style={{ fontWeight: 700 }}>
                 {builder.conflict.kind === 'stale_revision' && 'Strategy changed while editing (stale revision).'}
-                {builder.conflict.kind === 'stale_configuration' && 'Mappings or settings changed while editing (stale configuration).'}
-                {builder.conflict.kind === 'advisory_identity_conflict' && 'Brand identity conflict.'}
+                {builder.conflict.kind === 'stale_configuration' && 'Mappings changed while editing (stale configuration).'}
                 {builder.conflict.kind === 'other' && 'Save failed.'}
               </div>
               <div style={{ marginTop: 4 }}>{builder.conflict.message} Your edits are preserved.</div>
               {builder.conflict.serverRevision != null && (
                 <div style={{ marginTop: 4 }}>Current approved revision: {builder.conflict.serverRevision}.</div>
               )}
-              {builder.conflict.kind !== 'advisory_identity_conflict' && (
+              {(
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button
                     type="button"

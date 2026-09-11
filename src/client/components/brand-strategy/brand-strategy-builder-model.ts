@@ -11,7 +11,6 @@ import type {
   StrategyConfiguration,
   StrategySourceRef,
 } from '../../../shared/schemas/brand-strategy';
-import type { SourcingPolicy } from '../../../shared/schemas/onboarding';
 
 /** Exact normalized-brand identity (trim/lowercase; no folding/merging). */
 export function normalizeBrandKey(brand: string): string {
@@ -55,10 +54,7 @@ export function sourceSetsEqual(
 export interface BuilderEdit {
   brand: string;
   included: StrategySourceRef[];
-  preferredDistributorIds: string[];
-  aliases: string[];
   officialDomains: string[];
-  sourcingPolicy: SourcingPolicy;
   baseRevision: number;
   baseConfigurationToken: string | null;
   usedProposal: boolean;
@@ -78,10 +74,7 @@ export function initEditFromApproved(strategy: BrandStrategy | null, brand: stri
   return {
     brand,
     included: approvedBoundary(strategy),
-    preferredDistributorIds: [...(strategy?.preferredDistributorIds ?? [])],
-    aliases: [...(strategy?.aliases ?? [])],
     officialDomains: (strategy?.officialDomains ?? []).map((d) => d.domain),
-    sourcingPolicy: strategy?.sourcingPolicy ?? 'preferred_then_fallback',
     baseRevision: currentRevision(strategy),
     baseConfigurationToken: strategy?.configurationToken ?? null,
     usedProposal: false,
@@ -114,10 +107,7 @@ export function summarizeEdit(edit: BuilderEdit, strategy: BrandStrategy | null)
     sourceSetsEqual(
       edit.officialDomains.map((d) => ({ kind: 'official_page' as const, domain: d })),
       (strategy?.officialDomains ?? []).map((d) => ({ kind: 'official_page' as const, domain: d.domain })),
-    ) === false ||
-    edit.aliases.join('\u0000') !== (strategy?.aliases ?? []).join('\u0000') ||
-    edit.preferredDistributorIds.join('\u0000') !== (strategy?.preferredDistributorIds ?? []).join('\u0000') ||
-    edit.sourcingPolicy !== (strategy?.sourcingPolicy ?? 'preferred_then_fallback');
+    ) === false;
   const proposal = canonicalizeSources(strategy?.proposalSources ?? []);
   const proposalDiffersFromApproved = !sourceSetsEqual(approved, proposal);
   return {
@@ -152,8 +142,6 @@ export function validateEdit(edit: BuilderEdit): BuilderValidation {
   );
   if (badDistributor.length > 0) errors.push('Distributor sources require a distributor id.');
   if (edit.officialDomains.length > 25) errors.push('At most 25 official domains.');
-  if (edit.aliases.length > 50) errors.push('At most 50 aliases.');
-  if (edit.preferredDistributorIds.length > 50) errors.push('At most 50 preferred distributors.');
   return { ok: errors.length === 0, errors };
 }
 
@@ -170,9 +158,6 @@ export function buildSavePayload(edit: BuilderEdit): ApproveBrandStrategy | { er
   }
   const configuration: StrategyConfiguration = {
     officialDomains: [...edit.officialDomains],
-    aliases: [...edit.aliases],
-    preferredDistributorIds: [...edit.preferredDistributorIds],
-    sourcingPolicy: edit.sourcingPolicy,
   };
   return {
     brand: edit.brand.trim(),
@@ -192,18 +177,6 @@ export function toggleIncluded(edit: BuilderEdit, ref: StrategySourceRef): Build
     included: has
       ? edit.included.filter((s) => sourceKey(s) !== key)
       : canonicalizeSources([...edit.included, ref]),
-  };
-}
-
-/** Toggle one distributor in the advisory Preferred set (never touches Included). */
-export function togglePreferred(edit: BuilderEdit, distributorId: string): BuilderEdit {
-  const id = distributorId.trim();
-  const has = edit.preferredDistributorIds.includes(id);
-  return {
-    ...edit,
-    preferredDistributorIds: has
-      ? edit.preferredDistributorIds.filter((v) => v !== id)
-      : [...edit.preferredDistributorIds, id],
   };
 }
 

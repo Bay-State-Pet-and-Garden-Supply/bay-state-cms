@@ -7,7 +7,6 @@ import { insertItems } from '../../db/repositories/onboarding-item-repo';
 import {
   createConnection,
   updateConnection,
-  upsertBrandAdvisoryProfile,
 } from '../../db/repositories/distributor-repo';
 import {
   startSourcingGeneration,
@@ -238,7 +237,7 @@ describe('Sourcing engine (ADR 0014 provider-neutral execution)', () => {
     expect(attempts[0].errorCode).toBe('identifier_mismatch');
   });
 
-  test('advisory brand preference orders connections without filtering', async () => {
+  test('unapproved dispatch queries all connections with no advisory table dependency', async () => {
     const { item, gen } = await makeItem();
     const seen: string[] = [];
     const connectorA = new FakeConnector('unfi', () => { seen.push('unfi'); return found('012345678905', 'B'); });
@@ -253,14 +252,13 @@ describe('Sourcing engine (ADR 0014 provider-neutral execution)', () => {
     updateConnection(conn.id, conn.workspaceId, { enabled: true });
     const conn2 = createConnection({ workspaceId: 'w1', distributorId: 'phillips', connectorType: 'api', secretRef: 'PHILLIPS_KEY'});
     updateConnection(conn2.id, conn2.workspaceId, { enabled: true });
-    upsertBrandAdvisoryProfile({ workspaceId: 'w1', brand: 'Nutro', preferredDistributorIds: ['phillips'], sourcingPolicy: 'advisory' });
-
-    // Both connections are still invoked (fall-open), phillips FIRST.
+    // Query-all: every enabled connection is invoked exactly once, in
+    // repository order — no preference ordering, no advisory table read.
     await engine.runGeneration({
       itemId: item.id, generationId: gen.id, workspaceId: 'w1', upc: '012345678905', brandHint: 'Nutro',
       signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString(),
     });
-    expect(seen).toEqual(['phillips', 'unfi']);
+    expect(seen).toEqual(['unfi', 'phillips']);
   });
 
   test('engine passes explicit distributorId to the registry; no __distributorId key leaks into configuration', async () => {

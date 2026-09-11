@@ -11,7 +11,7 @@
  *   and NEVER exposes secret_ref contents or resolved credentials;
  * - schema-validated create/update (credential-shaped config → 400);
  * - cross-workspace mutations fail closed (404);
- * - advisory brand-profile CRUD is workspace-scoped.
+ * - retired advisory brand-profile routes return 404 and never mutate.
  */
 import { describe, test, expect, beforeEach } from 'vitest';
 import { initDb, getDb } from '../../db/connection';
@@ -66,8 +66,10 @@ describe('Distributor settings routes (ADR 0014)', () => {
     });
     expect(patchRes.status).toBe(400);
 
+    // The retired advisory surface 404s even without a workspace (the
+    // route no longer exists; authenticated callers also get 404).
     const profilesRes = await distributorRoutes.request('/onboarding/settings/brand-profiles');
-    expect(profilesRes.status).toBe(400);
+    expect(profilesRes.status).toBe(404);
   });
 
   test('GET connections returns an empty list when none exist', async () => {
@@ -292,39 +294,25 @@ describe('Distributor settings routes (ADR 0014)', () => {
     expect(body.distributors.some((d: { id: string }) => d.id === 'phillips')).toBe(true);
   });
 
-  test('brand-profile CRUD is workspace-scoped', async () => {
+  test('retired brand-profile routes return 404 and never mutate advisory rows', async () => {
+    // GET/POST/DELETE on the removed surface 404 on the authenticated route
+    // surface — never empty successful lists or successful no-op writes.
     const empty = await distributorRoutes.request('/onboarding/settings/brand-profiles');
-    expect((await empty.json()).profiles).toEqual([]);
+    expect(empty.status).toBe(404);
 
     const postRes = await distributorRoutes.request('/onboarding/settings/brand-profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ brand: 'Nutro', aliases: ['nutro'], preferredDistributorIds: ['phillips', 'unfi'] }),
     });
-    expect(postRes.status).toBe(201);
-    const profile = (await postRes.json()).profile;
-    expect(profile.brand).toBe('Nutro');
-    expect(profile.preferredDistributorIds).toEqual(['phillips', 'unfi']);
-
-    const listRes = await distributorRoutes.request('/onboarding/settings/brand-profiles');
-    const listed = (await listRes.json()).profiles;
-    expect(listed.length).toBe(1);
-    expect(listed[0].aliases).toEqual(['nutro']);
+    expect(postRes.status).toBe(404);
 
     const delRes = await distributorRoutes.request('/onboarding/settings/brand-profiles/Nutro', { method: 'DELETE' });
-    expect(delRes.status).toBe(200);
-    expect((await delRes.json()).success).toBe(true);
+    expect(delRes.status).toBe(404);
 
-    const delAgain = await distributorRoutes.request('/onboarding/settings/brand-profiles/Nutro', { method: 'DELETE' });
-    expect((await delAgain.json()).success).toBe(false);
-
-    // Invalid payload → 400 (missing brand).
-    const badRes = await distributorRoutes.request('/onboarding/settings/brand-profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ preferredDistributorIds: [] }),
-    });
-    expect(badRes.status).toBe(400);
+    // No advisory table exists for anything to have mutated.
+    const tables = (getDb().query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map((r) => r.name);
+    expect(tables).not.toContain('brand_advisory_profiles');
   });
 
   test('secretRef accepts only reference names — raw credential values are rejected', async () => {

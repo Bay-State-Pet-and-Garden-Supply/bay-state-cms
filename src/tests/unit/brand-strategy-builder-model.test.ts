@@ -2,7 +2,7 @@
  * B3 — pure builder-model coverage (Vitest).
  *
  * Canonical keys, approved-first initialization, proposal application,
- * include/preferred/mapping effects, payload shape, and validation bounds.
+ * include/mapping effects, payload shape, and validation bounds.
  */
 import { describe, it, expect } from 'vitest';
 import type { BrandStrategy, StrategySourceRef } from '../../shared/schemas/brand-strategy';
@@ -17,7 +17,6 @@ import {
   stageRemoveMapping,
   summarizeEdit,
   toggleIncluded,
-  togglePreferred,
   validateEdit,
 } from '../../client/components/brand-strategy/brand-strategy-builder-model';
 
@@ -25,10 +24,6 @@ function strategy(overrides: Partial<BrandStrategy> = {}): BrandStrategy {
   return {
     brandKey: 'Acme',
     normalizedBrand: 'acme',
-    aliases: ['acme co'],
-    preferredDistributorIds: ['phillips'],
-    sourcingPolicy: 'preferred_then_fallback',
-    fallbackTier: [],
     officialDomains: [{ domain: 'acme.com', sitemap: { totalUrls: 10, freshCount: 10, lastRefreshAt: null, freshness: 'fresh' } }],
     proposalSources: [{ kind: 'distributor_record', distributorId: 'bci' }],
     sourceOptions: [
@@ -110,14 +105,13 @@ describe('builder edit init', () => {
 });
 
 describe('builder edit effects', () => {
-  it('include toggle, preferred toggle, and mapping removal have distinct effects', () => {
+  it('include toggle and mapping removal have distinct effects', () => {
     const base = initEditFromApproved(strategy(), 'Acme');
+    expect('preferredDistributorIds' in base).toBe(false);
+    expect('aliases' in base).toBe(false);
+    expect('sourcingPolicy' in base).toBe(false);
     const withoutPhillips = toggleIncluded(base, { kind: 'distributor_record', distributorId: 'phillips' });
     expect(withoutPhillips.included).toEqual([{ kind: 'official_page', domain: 'acme.com' }]);
-    // Preferred toggle never touches Included.
-    const unpreferred = togglePreferred(base, 'phillips');
-    expect(unpreferred.preferredDistributorIds).toEqual([]);
-    expect(unpreferred.included).toEqual(base.included);
 
     const removed = stageRemoveMapping(base, 'acme.com');
     expect(removed.officialDomains).toEqual([]);
@@ -142,11 +136,10 @@ describe('builder payload + validation', () => {
       expectedConfigurationToken: 'tok-1',
     });
     if ('error' in (payload as object)) throw new Error('expected payload');
-    expect((payload as { configuration: object }).configuration).toMatchObject({
+    expect((payload as { configuration: object }).configuration).toEqual({
       officialDomains: ['acme.com'],
-      aliases: ['acme co'],
-      preferredDistributorIds: ['phillips'],
     });
+    expect(Object.keys((payload as { configuration: object }).configuration)).toEqual(['officialDomains']);
   });
 
   it('rejects empty sets, oversized selections, and missing tokens', () => {

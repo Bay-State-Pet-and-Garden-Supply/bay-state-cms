@@ -27,7 +27,6 @@ import type {
   BrandUrlsListResponse,
   SitemapTestLookupResponse,
   SitemapTestLookupRequest,
-  SourcingPolicy,
   MediaSelectionRequest,
   FallbackSourcingItemsResponse,
 } from '../shared/schemas/onboarding';
@@ -1396,8 +1395,7 @@ export async function getWeeklyReport(startDate?: string, endDate?: string): Pro
 
 
 // ─── Multi-Distributor Sourcing (ADR 0014) ────────────────────────────────────
-// Typed client calls for the distributor connection/brand-profile Settings
-// surface and the item evidence-conflict review surface. Raw secrets never
+// Typed client calls for the distributor connection Settings surface and the item evidence-conflict review surface. Raw secrets never
 // travel over the wire: the server reports only a `secretConfigured` boolean.
 
 export interface DistributorConnectionView {
@@ -1413,14 +1411,6 @@ export interface DistributorConnectionView {
   authorityPolicy: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface BrandProfileView {
-  id: string;
-  brand: string;
-  aliases: string[];
-  preferredDistributorIds: string[];
-  sourcingPolicy: SourcingPolicy;
 }
 
 export type OnboardingConflictView = import('../shared/schemas/distributor').OnboardingEvidenceConflict;
@@ -1463,28 +1453,6 @@ export async function updateDistributorConnection(
 
 export async function getDistributors(): Promise<{ distributors: Array<{ id: string; name: string; status: string }> }> {
   return request<{ distributors: Array<{ id: string; name: string; status: string }> }>('/settings/distributors');
-}
-
-export async function getBrandProfiles(): Promise<{ profiles: BrandProfileView[] }> {
-  return request<{ profiles: BrandProfileView[] }>('/settings/brand-profiles');
-}
-
-export async function upsertBrandProfile(body: {
-  brand: string;
-  aliases?: string[];
-  preferredDistributorIds?: string[];
-  sourcingPolicy?: SourcingPolicy;
-}): Promise<{ profile: BrandProfileView }> {
-  return request<{ profile: BrandProfileView }>('/settings/brand-profiles', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
-
-export async function deleteBrandProfile(brand: string): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(`/settings/brand-profiles/${encodeURIComponent(brand)}`, {
-    method: 'DELETE',
-  });
 }
 
 export async function getItemConflicts(itemId: string): Promise<{ conflicts: OnboardingConflictView[] }> {
@@ -1639,7 +1607,7 @@ export async function getBrandStrategyDetail(
  * current `expectedRevision` (0 for first Save) and, when sending
  * `configuration`, the current `expectedConfigurationToken`. Throws
  * OnboardingApiError with structured `code` (`invalid_strategy`,
- * `stale_revision`, `stale_configuration`, `advisory_identity_conflict`).
+ * `stale_revision`, `stale_configuration`).
  */
 export async function saveBrandStrategy(
   input: import('../shared/schemas/brand-strategy').ApproveBrandStrategy,

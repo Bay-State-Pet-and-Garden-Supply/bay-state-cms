@@ -128,6 +128,123 @@ describe('Brand strategy setup attention (observable processSourcing parking)', 
     expect(after?.sourcingDecision?.warnings.join(' ')).toContain('binding is missing or invalid');
   });
 
+  test('retired v1 advisory binding parks at needs_input without dispatch, reuse, or fallback', async () => {
+    // Issue #150: legacy_advisory pins are historical only. The worker must
+    // detect the retired binding before existing-evidence reuse or the
+    // automatic no-identifier/no-connection fallbacks — park visibly.
+    const item = makeSourcingItem('LegacyBrand', '012345678904', 'Legacy Binding Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const now = new Date().toISOString();
+    getDb()
+      .query(
+        `INSERT INTO sourcing_generation_strategy_snapshots
+          (sourcing_generation_id, workspace_id, item_id, mode, strategy_revision, normalized_brand,
+           sources_json, preferred_distributor_ids_json, binding_version, captured_at, created_at)
+         VALUES (?, ?, ?, 'legacy_advisory', NULL, NULL, '[]', '["dist_phillips"]', 'strategy-binding-v1', ?, ?)`,
+      )
+      .run(generation.id, workspaceId, item.id, now, now);
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+
+    const after = findItemById(item.id);
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('retired brand routing');
+    // No dispatch happened: zero evidence attempts for the generation.
+    const attempts = getDb().query(
+      'SELECT COUNT(*) AS n FROM onboarding_evidence_attempts WHERE sourcing_generation_id = ?',
+    ).get(generation.id) as { n: number };
+    expect(attempts.n).toBe(0);
+    // Not reconciled, accepted, or advanced: still sourcing, no fallback route.
+    expect(after?.stage).toBe('sourcing');
+    expect(after?.sourcingDecision?.route).not.toBe('fallback_to_discovery');
+  });
+
+  test('retired binding with preexisting attempts parks without reconciling that evidence', async () => {
+    const item = makeSourcingItem('LegacyBrand', '012345678905', 'Legacy Evidence Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const conn = getDb().query('SELECT id FROM distributor_connections WHERE workspace_id = ?').get(workspaceId) as { id: string };
+    insertEvidenceAttempt({
+      itemId: item.id,
+      providerId: 'provider_dist_phillips',
+      distributorConnectionId: conn.id,
+      sourcingGenerationId: generation.id,
+      lookupUpc: '012345678905',
+      outcome: 'not_stocked',
+      confidence: 0,
+      evidenceUrl: null,
+      matchedFields: [],
+      identityJson: null,
+      warningsJson: '[]',
+      errorCode: null,
+      errorMessage: null,
+    });
+    const now = new Date().toISOString();
+    getDb()
+      .query(
+        `INSERT INTO sourcing_generation_strategy_snapshots
+          (sourcing_generation_id, workspace_id, item_id, mode, strategy_revision, normalized_brand,
+           sources_json, preferred_distributor_ids_json, binding_version, captured_at, created_at)
+         VALUES (?, ?, ?, 'legacy_advisory', NULL, NULL, '[]', '["dist_phillips"]', 'strategy-binding-v1', ?, ?)`,
+      )
+      .run(generation.id, workspaceId, item.id, now, now);
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+
+    const after = findItemById(item.id);
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('retired brand routing');
+    expect(after?.stage).toBe('sourcing');
+  });
+
+  test('retired binding parks even with zero enabled connections (no silent pass-through)', async () => {
+    getDb().query('UPDATE distributor_connections SET enabled = 0 WHERE workspace_id = ?').run(workspaceId);
+    const item = makeSourcingItem('LegacyBrand', '012345678906', 'Legacy Zero-conn Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const now = new Date().toISOString();
+    getDb()
+      .query(
+        `INSERT INTO sourcing_generation_strategy_snapshots
+          (sourcing_generation_id, workspace_id, item_id, mode, strategy_revision, normalized_brand,
+           sources_json, preferred_distributor_ids_json, binding_version, captured_at, created_at)
+         VALUES (?, ?, ?, 'legacy_advisory', NULL, NULL, '[]', '[]', 'strategy-binding-v1', ?, ?)`,
+      )
+      .run(generation.id, workspaceId, item.id, now, now);
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+
+    const after = findItemById(item.id);
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain('retired brand routing');
+    expect(after?.sourcingDecision?.route).not.toBe('fallback_to_discovery');
+  });
+
+  test('explicit retry after a retired pin captures a fresh query_all pin via the fake engine', async () => {
+    const { supersedeCurrentSourcingGeneration } = await import('../../db/repositories/onboarding-evidence-repo');
+    const { captureGenerationStrategyBinding } = await import('../../db/repositories/brand-strategy-generation-repo');
+    const item = makeSourcingItem('LegacyBrand', '012345678907', 'Legacy Retry Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const now = new Date().toISOString();
+    getDb()
+      .query(
+        `INSERT INTO sourcing_generation_strategy_snapshots
+          (sourcing_generation_id, workspace_id, item_id, mode, strategy_revision, normalized_brand,
+           sources_json, preferred_distributor_ids_json, binding_version, captured_at, created_at)
+         VALUES (?, ?, ?, 'legacy_advisory', NULL, NULL, '[]', '[]', 'strategy-binding-v1', ?, ?)`,
+      )
+      .run(generation.id, workspaceId, item.id, now, now);
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+    expect(findItemById(item.id)?.stageStatus).toBe('needs_input');
+
+    // The existing explicit retry/reset path supersedes the generation; the
+    // new generation captures a fresh query_all pin (fake engine, fixtures).
+    const fresh = supersedeCurrentSourcingGeneration(item.id, 'operator_retry');
+    const pin = captureGenerationStrategyBinding({ workspaceId, itemId: item.id, generationId: fresh.id });
+    expect(pin).toMatchObject({ version: 'strategy-binding-v2', mode: 'query_all' });
+  });
+
   test('corrupt strategy binding parks at needs_input instead of dispatching', async () => {
     const item = makeSourcingItem('Acme', '012345678902', 'Binding Invalid Item');
     const generation = startSourcingGeneration(item.id, 'automatic');

@@ -18,10 +18,9 @@
  * - Enhanced bulk brand bar: multiselect, canonical-brand autocomplete,
  *   live domain/profile preview, inline quick-add for unmapped brands.
  * - Enriched row columns: Brand (inline combobox + Missing Brand badge),
- *   Domain & Profile (domain + Profile Ready / Profile Required link /
- *   Missing Domain quick-add / distributor-exempt note), Source Route
- *   (Distributor Fast-Path / Official Site Discovery / Needs Brand-Domain),
- *   and pipeline Status.
+ *   Domain (domain + Profile Ready / Profile Required link /
+ *   Missing Domain quick-add / distributor-exempt note), Strategy (compact
+ *   readiness status + Review dialog trigger), and pipeline Status.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colors, fonts, rounded } from '../../theme';
@@ -71,7 +70,7 @@ type Facet = { category?: string; reviewState?: ReviewListFacet };
  *
  * Follow-up gap (spec #120): strategy readiness states (awaiting_approval,
  * setup_attention) have no dedicated chip/filter yet — strategy status is
- * visible per row (Brand strategy / Collection readiness columns) but not
+ * visible per row (Strategy column) but not
  * quick-filterable. See the todo test in stage-one-strategy-readiness.test.ts.
  */
 export type IntakeKpiFilter = 'all' | 'missing-brand' | 'missing-domain' | 'distributor' | 'ready';
@@ -348,11 +347,15 @@ export function StageItemsView({
   const [drawerInputs, setDrawerInputs] = useState<Record<string, string>>({});
   const [drawerSaving, setDrawerSaving] = useState<Record<string, boolean>>({});
   const [drawerErrors, setDrawerErrors] = useState<Record<string, string | null>>({});
-  // B5 — shared strategy editor: at most one active editor per normalized
-  // brand. Expanded state is brand-keyed so same-brand rows share one
-  // revision; the builder mounts once in the brand's first visible row.
-  const [expandedStrategyBrand, setExpandedStrategyBrand] = useState<string | null>(null);
-  const [strategyFromProposal, setStrategyFromProposal] = useState(false);
+  // B5 — shared strategy editor in a modal dialog: at most one open editor
+  // per normalized brand. Opening never writes; only the builder's explicit
+  // Save strategy persists (one combined request). Successful Save closes
+  // the dialog and reloads intake references without requeue or recollection.
+  const [strategyDialog, setStrategyDialog] = useState<{ brand: string } | null>(null);
+  const [strategyBuilderKey, setStrategyBuilderKey] = useState(0);
+  const strategyDialogDirty = useRef(false);
+  const strategyDialogLastFocus = useRef<HTMLElement | null>(null);
+  const strategyDialogCardRef = useRef<HTMLDivElement | null>(null);
   // Per-row "+ Add Domain" inline inputs (#119).
   const [rowDomainOpen, setRowDomainOpen] = useState<Record<string, boolean>>({});
   const [rowDomainInputs, setRowDomainInputs] = useState<Record<string, string>>({});
@@ -488,7 +491,8 @@ export function StageItemsView({
       if (res.ok) {
         const body = await res.json() as { strategies?: Array<{
           normalizedBrand?: unknown; approval?: { approved?: unknown; revision?: unknown; approvedAt?: unknown; approvedBy?: unknown } | null;
-          preferredDistributorIds?: unknown; officialDomains?: Array<{ domain?: unknown }>; fallbackTier?: unknown;
+          officialDomains?: Array<{ domain?: unknown }>;
+
           proposalSources?: Array<{ kind?: unknown; distributorId?: unknown; domain?: unknown }>;
           approvedSources?: Array<{ kind?: unknown; distributorId?: unknown; domain?: unknown }>;
           sourceAvailability?: Array<{ kind?: unknown; ref?: unknown; available?: unknown; reason?: unknown }>;
@@ -498,22 +502,16 @@ export function StageItemsView({
         for (const s of Array.isArray(body?.strategies) ? body.strategies : []) {
           const key = typeof s?.normalizedBrand === 'string' ? s.normalizedBrand.trim().toLowerCase() : '';
           if (!key || map.has(key)) continue;
-          // B5 — server-owned proposal boundary. Legacy rows without the
-          // additive field fall back to the mapped-domain + preferred
-          // reconstruction; the builder always reads its own detail.
+          // B5 — server-owned proposal boundary. Missing proposal data
+          // never authorizes a reconstructed boundary (issue #150 retired
+          // the preferred-based reconstruction): the proposal stays empty
+          // until the server derives one.
           const proposalSources: StrategyReadinessView['sources'] = [];
           if (Array.isArray(s?.proposalSources)) {
             for (const p of s.proposalSources) {
               if (p?.kind === 'official_page' && typeof p?.domain === 'string' && p.domain.trim()) proposalSources.push({ kind: 'official_page', domain: p.domain.trim().toLowerCase() });
               else if (p?.kind === 'distributor_record' && typeof p?.distributorId === 'string' && p.distributorId.trim()) proposalSources.push({ kind: 'distributor_record', distributorId: p.distributorId.trim() });
             }
-          } else {
-          for (const d of Array.isArray(s?.officialDomains) ? s.officialDomains : []) {
-            if (typeof d?.domain === 'string' && d.domain.trim()) proposalSources.push({ kind: 'official_page', domain: d.domain.trim().toLowerCase() });
-          }
-          for (const id of Array.isArray(s?.preferredDistributorIds) ? s.preferredDistributorIds : []) {
-            if (typeof id === 'string' && id.trim()) proposalSources.push({ kind: 'distributor_record', distributorId: id.trim() });
-          }
           }
           // Stored approved boundary (additive GET field; absent on legacy rows).
           const approvedSources: StrategyReadinessView['approvedSources'] = [];
@@ -706,18 +704,6 @@ export function StageItemsView({
     [stage, items, kpiFilter, brandDomainMap, profileDomains],
   );
 
-  // B5 — first visible row per normalized brand: only that row mounts the
-  // shared editor, so same-brand rows share one revision and one save.
-  const firstItemIdForBrand = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of visibleItems) {
-      if (!item.brand) continue;
-      const key = brandKeyOf(item.brand);
-      if (!map.has(key)) map.set(key, item.itemId);
-    }
-    return map;
-  }, [visibleItems]);
-
   const toggleSelect = useCallback((itemId: string) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -826,21 +812,53 @@ export function StageItemsView({
     }
   }, [rowDomainInputs, rowDomainSaving, batchId, refreshEpoch]);
 
-  // B5 — Review strategy expander sharing the Settings builder and the same
-  // guarded command. Viewing or expanding never writes; only the builder's
+  // B5 — Review strategy dialog sharing the Settings builder and the same
+  // guarded command. Viewing or opening never writes; only the builder's
   // explicit Save strategy persists (one combined request). Successful Save
-  // reloads intake references without requeue or recollection.
-  const toggleStrategyEditor = useCallback((brand: string, fromProposal: boolean) => {
-    const key = brandKeyOf(brand);
-    setExpandedStrategyBrand((prev) => (prev === key && !fromProposal ? null : key));
-    setStrategyFromProposal(fromProposal);
+  // closes the dialog and reloads intake references without requeue or
+  // recollection. The open dialog is keyed by normalized brand so same-brand
+  // rows share one revision.
+  const openStrategyDialog = useCallback((brand: string, invoker?: HTMLElement | null) => {
+    strategyDialogLastFocus.current = invoker ?? (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    strategyDialogDirty.current = false;
+    setStrategyBuilderKey((k) => k + 1);
+    setStrategyDialog({ brand });
   }, []);
 
+  const closeStrategyDialog = useCallback(() => {
+    setStrategyDialog(null);
+    strategyDialogDirty.current = false;
+    strategyDialogLastFocus.current?.focus?.();
+  }, []);
+
+  /** Shell dismiss: refuse to discard dirty builder edits (use Cancel). */
+  const requestCloseStrategyDialog = useCallback(() => {
+    if (strategyDialogDirty.current) return;
+    closeStrategyDialog();
+  }, [closeStrategyDialog]);
+
   const handleStrategySaved = useCallback(async () => {
-    setExpandedStrategyBrand(null);
-    setStrategyFromProposal(false);
+    setStrategyDialog(null);
+    strategyDialogDirty.current = false;
+    strategyDialogLastFocus.current?.focus?.();
     await loadIntakeRefs();
   }, [loadIntakeRefs]);
+
+  // Escape closes the dialog (refused while the builder is dirty). The
+  // overlay also handles Escape for pointer-focus parity with the Settings shell.
+  useEffect(() => {
+    if (!strategyDialog) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestCloseStrategyDialog();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [strategyDialog, requestCloseStrategyDialog]);
+
+  // Move focus into the dialog on open for keyboard/screen-reader users.
+  useEffect(() => {
+    if (strategyDialog) strategyDialogCardRef.current?.focus?.();
+  }, [strategyDialog, strategyBuilderKey]);
 
   const handleOpenProfileBuilder = useCallback(
     (domain: string) => {
@@ -1299,8 +1317,8 @@ export function StageItemsView({
               </th>
               <th>Product</th>
               <th>Brand</th>
-              <th>Brand strategy</th>
-              <th>Collection readiness</th>
+              <th>Domain</th>
+              <th>Strategy</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -1310,7 +1328,6 @@ export function StageItemsView({
               const brandValue = draft?.brand ?? item.brand ?? '';
               const saving = draft?.saving ?? false;
               const flags = deriveIntakeFlags(item, brandDomainMap, profileDomains);
-              const route = intakeSourceRoute(flags);
               const profileReady = flags.profileReady;
               // Spec #120: strategy-driven readiness from the same server
               // facts. A distributor-only approved strategy excuses Missing Domain.
@@ -1394,111 +1411,6 @@ export function StageItemsView({
                   </div>
                 </td>
                 <td data-testid={`intake-domain-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 180 }}>
-                  <span
-                    data-testid={`intake-strategy-${item.itemId}`}
-                    title={strategyView?.approved ? `Approved strategy revision ${strategyView.revision}` : 'No approved strategy yet'}
-                    style={{ display: 'block', fontWeight: 700, marginBottom: 4 }}
-                  >
-                    {strategy.strategyLabel}
-                  </span>
-                  {strategiesLoaded && item.brand && (() => {
-                    // B5 — Review strategy expander sharing the Settings builder
-                    // and the same guarded command. Rendered for every assigned
-                    // brand: approved, drifted, new, or unavailable. The
-                    // approved boundary stays label authority while editing;
-                    // expanding never writes.
-                    const brandName = item.brand as string;
-                    const brandKey = brandKeyOf(brandName);
-                    const approvedSources = strategyView?.approvedSources ?? [];
-                    const proposalSources = strategyView?.proposalSources ?? strategyView?.sources ?? [];
-                    const drifted = !!strategyView?.approved && approvedSources.length > 0
-                      && !strategySourcesEqual(proposalSources, approvedSources);
-                    const expanded = expandedStrategyBrand === brandKey;
-                    const isFirstOfBrand = firstItemIdForBrand.get(brandKey) === item.itemId;
-                    const unsupported = (strategyView?.availability ?? []).filter((a) => !a.available && a.reason === 'not_supported');
-                    const editorId = `strategy-editor-${item.itemId}`;
-                    return (
-                    <span style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 4 }}>
-                      {strategyView?.approved && (
-                        <span
-                          data-testid={`intake-strategy-approved-${item.itemId}`}
-                          title={`Approved revision ${strategyView.revision}`}
-                          style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}
-                        >
-                          Approved rev {strategyView.revision}: {strategySummaryLabel({ ...strategyView, sources: approvedSources })}{drifted ? ' — proposal differs' : ''}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        data-testid={`intake-strategy-review-${item.itemId}`}
-                        aria-expanded={expanded}
-                        aria-controls={editorId}
-                        onClick={() => toggleStrategyEditor(brandName, false)}
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: colors.uniformGreen,
-                          backgroundColor: 'transparent',
-                          border: `1px solid ${colors.uniformGreen}`,
-                          borderRadius: rounded.md,
-                          padding: '0.25rem 0.625rem',
-                          cursor: 'pointer',
-                          width: 'fit-content',
-                          minHeight: 28,
-                        }}
-                      >
-                        {expanded ? 'Close strategy editor' : 'Review strategy'}
-                      </button>
-                      {!strategyView?.approved && proposalSources.length > 0 && !expanded && (
-                        <button
-                          type="button"
-                          data-testid={`intake-strategy-use-proposal-${item.itemId}`}
-                          onClick={() => toggleStrategyEditor(brandName, true)}
-                          title="Stages the live proposal locally — requires explicit Save to create a revision."
-                          style={{
-                            fontSize: '0.6875rem',
-                            fontWeight: 400,
-                            color: colors.mulchBrown,
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            width: 'fit-content',
-                            textDecoration: 'underline',
-                          }}
-                        >
-                          Review proposal as new revision
-                        </button>
-                      )}
-                      {unsupported.length > 0 && (
-                        <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
-                          {unsupported.map((u) => u.ref).join(', ')}: official collection not yet supported — other sources still run
-                        </span>
-                      )}
-                      {expanded && !isFirstOfBrand && (
-                        <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
-                          Strategy editor open in this brand&apos;s first row — one editor per brand.
-                        </span>
-                      )}
-                      {expanded && isFirstOfBrand && (
-                        <span
-                          id={editorId}
-                          role="region"
-                          aria-label={`Strategy editor for ${brandName}`}
-                          data-testid={`intake-strategy-editor-${item.itemId}`}
-                          style={{ display: 'block', border: `1px solid ${colors.uniformGreen}`, borderRadius: rounded.md, padding: '0.5rem', backgroundColor: '#fff' }}
-                        >
-                          <BrandStrategyBuilder
-                            brand={brandName}
-                            startFromProposal={strategyFromProposal}
-                            onSaved={() => { void handleStrategySaved(); }}
-                            onCancel={() => setExpandedStrategyBrand(null)}
-                          />
-                        </span>
-                      )}
-                    </span>
-                    );
-                  })()}
                   {flags.distributorExempt ? (
                     <span className="bws-muted">— (Distributor record)</span>
                   ) : flags.missingBrand ? (
@@ -1506,7 +1418,16 @@ export function StageItemsView({
                   ) : flags.mappedDomain ? (
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span title="Official domain mapped in Brand Hub">🌐 {flags.mappedDomain}</span>
-                      {profileReady ? (
+                      {strategy.suppressMissingDomain ? (
+                        <span
+                          data-testid={`intake-distributor-only-${item.itemId}`}
+                          className="bws-muted"
+                          title="Approved distributor-only strategy — official collection is out of scope, so no extractor profile is needed"
+                          style={{ fontSize: '0.6875rem' }}
+                        >
+                          Distributor-only strategy — no profile needed
+                        </span>
+                      ) : profileReady ? (
                         <span
                           data-testid={`intake-profile-ready-${item.itemId}`}
                           role="status"
@@ -1645,23 +1566,38 @@ export function StageItemsView({
                     </span>
                   )}
                 </td>
-                <td data-testid={`intake-route-${item.itemId}`} style={{ fontSize: '0.75rem' }}>
+                <td data-testid={`intake-strategy-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 160 }}>
                   <span
                     data-testid={`intake-readiness-${item.itemId}`}
                     role="status"
                     title="Collection readiness: whether collection can run within the approved strategy"
-                    style={{ display: 'block', fontWeight: 700, marginBottom: 4 }}
+                    style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}
                   >
                     {strategy.label}
                   </span>
-                  {route === 'distributor' && (
-                    <span title="Qualified distributor record — skips discovery to collect_details">📦 Distributor Fast-Path</span>
-                  )}
-                  {route === 'discovery' && (
-                    <span title="Routed to official site discovery (find_product_page)">🌐 Official Site Discovery</span>
-                  )}
-                  {route === 'blocked' && !strategy.suppressMissingDomain && (
-                    <span className="bws-muted" title="Parked in Stage 1 until brand/domain is resolved">⏳ Needs Brand/Domain</span>
+                  {item.brand ? (
+                    <button
+                      type="button"
+                      data-testid={`intake-strategy-review-${item.itemId}`}
+                      aria-haspopup="dialog"
+                      onClick={(e) => openStrategyDialog(item.brand as string, e.currentTarget)}
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: colors.uniformGreen,
+                        backgroundColor: 'transparent',
+                        border: `1px solid ${colors.uniformGreen}`,
+                        borderRadius: rounded.md,
+                        padding: '0.25rem 0.625rem',
+                        cursor: 'pointer',
+                        width: 'fit-content',
+                        minHeight: 28,
+                      }}
+                    >
+                      Review strategy
+                    </button>
+                  ) : (
+                    <span className="bws-muted">—</span>
                   )}
                 </td>
                 <td>
@@ -1699,6 +1635,38 @@ export function StageItemsView({
         >
           {loading ? 'Loading…' : 'Load more'}
         </button>
+      )}
+      {strategyDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Review strategy — ${strategyDialog.brand}`}
+          data-testid="intake-strategy-dialog"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) requestCloseStrategyDialog();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') requestCloseStrategyDialog();
+          }}
+        >
+          <div
+            ref={strategyDialogCardRef}
+            tabIndex={-1}
+            style={{ background: '#fff', borderRadius: 12, padding: 20, width: 640, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', outline: 'none' }}
+          >
+            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
+              Review strategy — {strategyDialog.brand}
+            </h3>
+            <BrandStrategyBuilder
+              key={`${brandKeyOf(strategyDialog.brand)}-${strategyBuilderKey}`}
+              brand={strategyDialog.brand}
+              onSaved={() => { void handleStrategySaved(); }}
+              onCancel={closeStrategyDialog}
+              onDirtyChange={(dirty) => { strategyDialogDirty.current = dirty; }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

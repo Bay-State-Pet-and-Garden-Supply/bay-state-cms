@@ -10,8 +10,9 @@ import { z } from 'zod';
  * - Distributor evidence is supporting IDENTITY evidence for Discovery; it is
  *   never canonical merchandising authority.
  * - Lookups are UPC/GTIN-first with exact normalized identifier matching.
- *   Brand is advisory only: a missing or stale brand profile falls open to
- *   every enabled connection and never implies `not_stocked`.
+ *   Brand matching is exact-identity on officialDomains/approved brand names.
+ *   Unapproved generations query every enabled connection (query-all) and a
+ *   missing or stale mapping never implies `not_stocked`.
  * - A connector returns exactly one of `found` | `not_stocked` | `source_error`.
  *   An HTTP 200 with the wrong size/pack/variant is NEVER `found` — it is a
  *   hard conflict at reconciliation time or `not_stocked` here.
@@ -484,7 +485,8 @@ export interface SourcingGeneration {
  * Engine-level contract (implemented in `engine.ts`, Milestone 3).
  *
  * `runSourcingGeneration` resolves the workspace's enabled connections,
- * applies advisory brand ordering WITHOUT filtering, composes cancellation
+ * queries every enabled connection once in repository order (query-all, no
+ * preference filtering/ordering/short-circuit), composes cancellation
  * and deadline signals, invokes each connector with per-provider bounds,
  * validates every result, and persists exactly one durable evidence attempt
  * per invoked connection through the evidence writer.
@@ -512,7 +514,7 @@ export interface SourcingGenerationRunResult {
   attempts: SourcingGenerationAttemptSummary[];
   /** Connections that were enabled but could not be invoked (missing secret, unknown type). */
   skipped: Array<{ connectionId: string; reason: string }>;
-  /** Spec #120: approved strategy revision pinned for this generation (undefined = legacy advisory path). */
+  /** Spec #120: approved strategy revision pinned for this generation (undefined = unapproved query-all path). */
   strategyRevision?: number | null;
   /** Normalized brand the strategy was resolved for (null when unbranded). */
   strategyBrand?: string | null;

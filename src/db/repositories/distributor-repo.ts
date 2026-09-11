@@ -6,8 +6,6 @@ import {
   DistributorCatalogSnapshotSchema,
   InsertDistributorConnectionSchema,
   UpdateDistributorConnectionSchema,
-  BrandAdvisoryProfileSchema,
-  InsertBrandAdvisoryProfileSchema,
   type Distributor,
   type InsertDistributor,
   type DistributorConnection,
@@ -16,9 +14,6 @@ import {
   type DistributorCatalogSnapshot,
   DistributorAuthorityPolicySchema,
   type DistributorAuthorityPolicy,
-  type BrandAdvisoryProfile,
-  type InsertBrandAdvisoryProfile,
-  type SourcingPolicy,
 } from '../../shared/schemas/distributor';
 
 // ─── Row Types ─────────────────────────────────────────────────────────────────
@@ -54,17 +49,6 @@ interface DistributorCatalogSnapshotRow {
   expires_at: string | null;
   status: string;
   created_at: string;
-}
-
-interface BrandProfileRow {
-  id: string;
-  workspace_id: string;
-  brand: string;
-  aliases_json: string;
-  preferred_distributor_ids_json: string;
-  sourcing_policy?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 // ─── Mapping Functions ─────────────────────────────────────────────────────────
@@ -114,28 +98,6 @@ function mapSnapshotRow(row: DistributorCatalogSnapshotRow): DistributorCatalogS
     expiresAt: row.expires_at,
     status: row.status,
     createdAt: row.created_at,
-  });
-}
-
-function mapBrandProfileRow(row: BrandProfileRow): BrandAdvisoryProfile {
-  let aliases: string[] = [];
-  let preferredDistributorIds: string[] = [];
-  try {
-    if (row.aliases_json) aliases = JSON.parse(row.aliases_json);
-  } catch { /* malformed JSON -> ignore */ }
-  try {
-    if (row.preferred_distributor_ids_json) preferredDistributorIds = JSON.parse(row.preferred_distributor_ids_json);
-  } catch { /* malformed JSON -> ignore */ }
-
-  return BrandAdvisoryProfileSchema.parse({
-    id: row.id,
-    workspaceId: row.workspace_id,
-    brand: row.brand,
-    aliases,
-    preferredDistributorIds,
-    sourcingPolicy: (row.sourcing_policy || 'preferred_then_fallback') as SourcingPolicy,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
   });
 }
 
@@ -359,124 +321,4 @@ export function getLatestSnapshotForConnection(distributorConnectionId: string):
     )
     .get(distributorConnectionId) as DistributorCatalogSnapshotRow | undefined;
   return row ? mapSnapshotRow(row) : null;
-}
-
-// ─── Advisory Brand Profiles (ADR 0014: workspace settings only) ───────────────
-
-export function upsertBrandAdvisoryProfile(data: InsertBrandAdvisoryProfile & { id?: string }): BrandAdvisoryProfile {
-  const parsed = InsertBrandAdvisoryProfileSchema.safeParse(data);
-  if (!parsed.success) {
-    throw new Error(`Invalid brand advisory profile: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
-  }
-  const valid = parsed.data;
-
-  const db = getDb();
-  const now = new Date().toISOString();
-  const id = data.id || `bp_${randomUUID().slice(0, 8)}`;
-  const sourcingPolicy = valid.sourcingPolicy || 'preferred_then_fallback';
-
-  db.query(
-    `INSERT INTO brand_advisory_profiles (id, workspace_id, brand, aliases_json, preferred_distributor_ids_json, sourcing_policy, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(workspace_id, brand) DO UPDATE SET
-       aliases_json = excluded.aliases_json,
-       preferred_distributor_ids_json = excluded.preferred_distributor_ids_json,
-       sourcing_policy = excluded.sourcing_policy,
-       updated_at = excluded.updated_at`,
-  ).run(
-    id,
-    valid.workspaceId,
-    valid.brand,
-    JSON.stringify(valid.aliases ?? []),
-    JSON.stringify(valid.preferredDistributorIds ?? []),
-    sourcingPolicy,
-    now,
-    now,
-  );
-
-  const row = db
-    .query('SELECT * FROM brand_advisory_profiles WHERE workspace_id = ? AND brand = ?')
-    .get(valid.workspaceId, valid.brand) as BrandProfileRow;
-  return mapBrandProfileRow(row);
-}
-
-export function listBrandAdvisoryProfiles(workspaceId: string): BrandAdvisoryProfile[] {
-  const db = getDb();
-  const rows = db
-    .query('SELECT * FROM brand_advisory_profiles WHERE workspace_id = ? ORDER BY brand ASC')
-    .all(workspaceId) as BrandProfileRow[];
-  return rows.map(mapBrandProfileRow);
-}
-
-export function deleteBrandAdvisoryProfile(workspaceId: string, brand: string): boolean {
-  const db = getDb();
-  const res = db
-    .query('DELETE FROM brand_advisory_profiles WHERE workspace_id = ? AND brand = ?')
-    .run(workspaceId, brand);
-  return res.changes > 0;
-}
-
-/**
- * Builder slice B1: advisory profiles colliding on one exact normalized
- * brand (e.g. 'Acme' vs 'ACME' stored as separate rows). A collision is a
- * bounded conflict — the builder never edits one arbitrarily or deletes
- * historical rows.
- */
-export function listBrandAdvisoryProfilesByNormalized(
-  workspaceId: string,
-  normalizedBrand: string,
-): BrandAdvisoryProfile[] {
-  const db = getDb();
-  const rows = db
-    .query('SELECT * FROM brand_advisory_profiles WHERE workspace_id = ? AND LOWER(brand) = LOWER(?) ORDER BY brand ASC')
-    .all(workspaceId, normalizedBrand) as BrandProfileRow[];
-  return rows.map(mapBrandProfileRow);
-}
-
-/** Advisory ordering only — never filters, never implies `not_stocked`. */
-export function getPreferredDistributorOrder(workspaceId: string, brand: string | null): string[] | null {
-  if (!brand) return null;
-  const db = getDb();
-  const row = db
-    .query(
-      `SELECT preferred_distributor_ids_json FROM brand_advisory_profiles
-       WHERE workspace_id = ? AND (brand = ? OR LOWER(brand) = LOWER(?))
-       ORDER BY CASE WHEN brand = ? THEN 0 ELSE 1 END LIMIT 1`,
-    )
-    .get(workspaceId, brand, brand, brand) as { preferred_distributor_ids_json: string } | undefined;
-  if (!row) return null;
-  try {
-    const parsed = JSON.parse(row.preferred_distributor_ids_json);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get brand distributor routing config (preferred distributor IDs + sourcing policy).
- */
-export function getBrandSourcingConfig(
-  workspaceId: string,
-  brand: string | null,
-): { preferredDistributorIds: string[]; sourcingPolicy: SourcingPolicy } | null {
-  if (!brand) return null;
-  const db = getDb();
-  const row = db
-    .query(
-      `SELECT preferred_distributor_ids_json, sourcing_policy FROM brand_advisory_profiles
-       WHERE workspace_id = ? AND (brand = ? OR LOWER(brand) = LOWER(?))
-       ORDER BY CASE WHEN brand = ? THEN 0 ELSE 1 END LIMIT 1`,
-    )
-    .get(workspaceId, brand, brand, brand) as { preferred_distributor_ids_json: string; sourcing_policy?: string } | undefined;
-  if (!row) return null;
-  let preferredDistributorIds: string[] = [];
-  try {
-    const parsed = JSON.parse(row.preferred_distributor_ids_json);
-    if (Array.isArray(parsed)) preferredDistributorIds = parsed;
-  } catch {
-    preferredDistributorIds = [];
-  }
-  const sourcingPolicy = (row.sourcing_policy || 'preferred_then_fallback') as SourcingPolicy;
-  return { preferredDistributorIds, sourcingPolicy };
 }

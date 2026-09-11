@@ -27,6 +27,8 @@ export default defineConfig({
       'src/tests/unit/sourcing-policy.test.ts',
       // Brand sourcing strategy approval/engine/gap tests — use bun:sqlite, run under bun test (test:db)
       'src/tests/unit/brand-sourcing-strategy.test.ts',
+      // Brand advisory retirement migration — bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/brand-advisory-retirement-migration.test.ts',
       'src/tests/unit/brand-strategy-builder-migration.test.ts',
       'src/tests/unit/brand-strategy-select-source-guard.test.ts',
       // Strategy setup-attention worker test — bun:sqlite, run under bun test (test:db)

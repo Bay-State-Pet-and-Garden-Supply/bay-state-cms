@@ -41,6 +41,18 @@ describe('brand-combobox-logic: option pool', () => {
     expect(buildBrandOptions(null, undefined)).toEqual([]);
     expect(buildBrandOptions([], [])).toEqual([]);
   });
+
+  it('surfaces approval-only display names from catalog brands (stored spelling, no alias machinery)', () => {
+    // The server folds stored strategy display names into catalogBrands;
+    // the combobox shows them with the stored spelling, deduplicated
+    // case-insensitively against mapped names.
+    const opts = buildBrandOptions(
+      [{ brandName: 'Acana' }],
+      ['ACME Co.', 'acana', 'Wild Frontier'],
+    );
+    expect(opts).toEqual(['Acana', 'ACME Co.', 'Wild Frontier']);
+    expect(filterBrandOptions(opts, 'acme')).toEqual(['ACME Co.']);
+  });
 });
 
 describe('brand-combobox-logic: suggestion filtering', () => {

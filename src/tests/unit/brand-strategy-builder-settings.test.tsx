@@ -3,10 +3,10 @@
  * B4 — Settings full-builder integration (Vitest jsdom).
  *
  * The Brands table mounts the shared builder in Edit/New flows, displays
- * approval/revision/readiness, saves mappings + preferences + sources in one
- * guarded call, refreshes server facts, permits distributor-only brands
- * without Missing Domain/Profile warnings, and handles 409s like the
- * builder. No upsertBrandProfile Save path and no advisory Delete remain.
+ * approval/revision/readiness, saves mappings + sources in one guarded call,
+ * refreshes server facts, permits distributor-only brands without Missing
+ * Domain/Profile warnings, and handles 409s like the builder. No advisory
+ * Save path and no Delete remain.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -39,10 +39,6 @@ function row(overrides: Partial<BrandStrategy> = {}): BrandStrategy {
   return {
     brandKey: 'Acme',
     normalizedBrand: 'acme',
-    aliases: [],
-    preferredDistributorIds: ['phillips'],
-    sourcingPolicy: 'preferred_then_fallback',
-    fallbackTier: [],
     officialDomains: [],
     proposalSources: [{ kind: 'distributor_record', distributorId: 'phillips' }],
     sourceOptions: [
@@ -100,12 +96,12 @@ describe('BrandStrategyView settings integration', () => {
     expect(container.textContent).toMatch(/Distributor \(phillips\)/);
     // Distributor-only brand: no Missing Domain / profile warnings.
     expect(container.textContent).not.toMatch(/Missing Domain/);
-    expect(container.textContent).not.toMatch(/No advisory profile/);
+    expect(container.textContent).not.toMatch(/No official domain/);
     // No misleading Delete control.
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Delete')).toBe(false);
   });
 
-  it('Edit flow uses the shared builder and saves mappings + preferences + sources in one call', async () => {
+  it('Edit flow uses the shared builder and saves mappings + sources in one call', async () => {
     await renderView();
     const edit = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Edit strategy') as HTMLButtonElement;
     await act(async () => {
@@ -114,7 +110,8 @@ describe('BrandStrategyView settings integration', () => {
     await act(async () => {
       await new Promise((r) => setTimeout(r, 30));
     });
-    expect(container.textContent).toMatch(/Included vs Preferred/);
+    expect(container.textContent).toMatch(/Approved sources/);
+    expect(container.textContent).not.toMatch(/Legacy settings/);
     const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement;
     await act(async () => {
       saveBtn.click();
@@ -122,7 +119,7 @@ describe('BrandStrategyView settings integration', () => {
     expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
     const payload = vi.mocked(saveBrandStrategy).mock.calls[0][0] as Record<string, unknown>;
     expect(payload).toMatchObject({ brand: 'Acme', expectedRevision: 1, expectedConfigurationToken: 'tok-1' });
-    expect(payload.configuration).toMatchObject({ preferredDistributorIds: ['phillips'] });
+    expect(payload.configuration).toEqual({ officialDomains: [] });
     // Saved → dialog closed + server facts refreshed.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 30));
