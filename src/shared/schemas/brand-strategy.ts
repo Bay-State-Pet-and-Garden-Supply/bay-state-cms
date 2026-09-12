@@ -107,6 +107,9 @@ export const BrandStrategySourceAvailabilitySchema = z.object({
     'profile_not_healthy',
     'connection_disabled',
     'connection_not_configured',
+    // Ticket #125: engine-parity usability (registry support + secrets).
+    'connector_not_supported',
+    'credentials_missing',
     'not_approved',
     // No collection path executes this source yet (e.g. official_page
     // inside an approved strategy). Reported, never silently dropped.

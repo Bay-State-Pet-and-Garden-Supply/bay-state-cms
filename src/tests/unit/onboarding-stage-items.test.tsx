@@ -219,9 +219,10 @@ describe('StageItemsView route_sources inline brand assignment', () => {
       brandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await new Promise((r) => setTimeout(r, 20));
     });
-    // EXACT Step 0 BrandGateView mutation path: (itemId, brand).
+    // EXACT Step 0 BrandGateView mutation path: (itemId, brand) plus the
+    // Ticket #125 epoch guard (originating brand so stale editors 409).
     expect(assignItemBrand).toHaveBeenCalledTimes(1);
-    expect(assignItemBrand).toHaveBeenCalledWith('item_1', 'Acme');
+    expect(assignItemBrand).toHaveBeenCalledWith('item_1', 'Acme', 'Acme');
     // Refresh epoch: the stage list is re-read so counts/badges update.
     expect(stageReads().length).toBeGreaterThan(readsBefore);
   });

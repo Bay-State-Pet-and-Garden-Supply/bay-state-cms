@@ -41,6 +41,14 @@ export interface DeriveParams {
   approvals?: Map<string, StrategyApprovalInput>;
   /** Known distributor ids (registry-supported + configured) for source options. */
   knownDistributorIds?: string[];
+  /**
+   * Ticket #125: engine-parity usability inputs. Enabled connection alone
+   * is insufficient — the engine also checks registry support + required
+   * secrets. Absent sets preserve the legacy enabled-only behavior.
+   */
+  supportedDistributorIds?: string[];
+  distributorsRequiringSecret?: string[];
+  distributorsWithSecret?: string[];
 }
 
 export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: (domain: string) => BrandStrategy['extractorReadiness']): BrandStrategy[] {
@@ -128,6 +136,19 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     // (unapproved brands stay awaiting_approval regardless).
     const sourceAvailability: BrandStrategySourceAvailability[] = [];
     const enabledSet = new Set(enabledIds);
+    // Ticket #125: engine-parity usability — support + secret checks match
+    // the engine dispatch path. Absent sets preserve enabled-only behavior.
+    const supportedSet = params.supportedDistributorIds ? new Set(params.supportedDistributorIds) : null;
+    const requiresSecretSet = new Set(params.distributorsRequiringSecret ?? []);
+    const withSecretSet = new Set(params.distributorsWithSecret ?? []);
+    const distributorUsability = (distributorId: string): { available: boolean; reason: BrandStrategySourceAvailability['reason'] } => {
+      if (!enabledSet.has(distributorId)) return { available: false, reason: 'connection_not_configured' };
+      if (supportedSet && !supportedSet.has(distributorId)) return { available: false, reason: 'connector_not_supported' };
+      if (requiresSecretSet.has(distributorId) && !withSecretSet.has(distributorId)) {
+        return { available: false, reason: 'credentials_missing' };
+      }
+      return { available: true, reason: 'ready' };
+    };
     if (approvedSources) {
       for (const src of approvedSources) {
         if (src.kind === 'official_page') {
@@ -144,12 +165,12 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
             reason: healthy ? 'ready' : readiness === 'not_configured' ? 'no_profile' : 'profile_not_healthy',
           });
         } else if (src.distributorId) {
-          const available = enabledSet.has(src.distributorId);
+          const { available, reason } = distributorUsability(src.distributorId);
           sourceAvailability.push({
             kind: 'distributor_record',
             ref: src.distributorId,
             available,
-            reason: available ? 'ready' : 'connection_not_configured',
+            reason,
           });
         }
       }
@@ -173,12 +194,12 @@ export function deriveBrandStrategies(params: DeriveParams, readinessFallback?: 
     }
     if (!approvedSources) {
       for (const distributorId of enabledIds) {
-        const available = enabledSet.has(distributorId);
+        const { available, reason } = distributorUsability(distributorId);
         sourceAvailability.push({
           kind: 'distributor_record',
           ref: distributorId,
           available,
-          reason: available ? 'ready' : 'connection_not_configured',
+          reason,
         });
       }
     }

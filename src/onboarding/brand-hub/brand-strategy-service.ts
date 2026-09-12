@@ -12,7 +12,8 @@ import {
   normalizeBrandKey,
 } from '../../db/repositories/brand-strategy-approval-repo';
 import { listDistributors, listConnectionsByWorkspace } from '../../db/repositories/distributor-repo';
-import { listSupportedDistributorIds } from '../sourcing/connector-registry';
+import { listSupportedDistributorIds, connectorRequiresSecret } from '../sourcing/connector-registry';
+import { resolveSecret } from '../sourcing/secret-resolver';
 import { getSourcingFlags } from '../flags';
 
 export { deriveBrandStrategies } from './brand-strategy-derive';
@@ -72,8 +73,37 @@ function buildStrategies(): BrandStrategy[] {
   }
   // Spec #120: approved strategies are explicit rows; absence means awaiting approval.
   const approvals: Map<string, StrategyApprovalInput> = listStrategyApprovalInputs(workspace.id);
+  // Ticket #125: engine-parity usability inputs (support + secrets). Best
+  // effort: absent/unreadable inputs fall back to enabled-only behavior.
+  let supportedDistributorIds: string[] | undefined;
+  let distributorsRequiringSecret: string[] | undefined;
+  let distributorsWithSecret: string[] | undefined;
+  try {
+    supportedDistributorIds = [...listSupportedDistributorIds()];
+    const enabledConns = listConnectionsByWorkspace(workspace.id, true);
+    const requiring = new Set<string>();
+    const withSecret = new Set<string>();
+    for (const conn of enabledConns) {
+      try {
+        if (connectorRequiresSecret(conn.connectorType, conn.distributorId)) requiring.add(conn.distributorId);
+      } catch {
+        requiring.add(conn.distributorId);
+      }
+      try {
+        if (resolveSecret(conn.secretRef) !== null) withSecret.add(conn.distributorId);
+      } catch {
+        // Unreadable secret store: treat as missing (fail closed below).
+      }
+    }
+    distributorsRequiringSecret = [...requiring];
+    distributorsWithSecret = [...withSecret];
+  } catch {
+    supportedDistributorIds = undefined;
+    distributorsRequiringSecret = undefined;
+    distributorsWithSecret = undefined;
+  }
   const strategies = deriveBrandStrategies(
-    { brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), sitemapByDomain, readinessByDomain, enabledDistributorIds, knownDistributorIds, approvals },
+    { brandSites: brandSites.map((s) => ({ brandName: s.brandName, domain: s.domain })), sitemapByDomain, readinessByDomain, enabledDistributorIds, knownDistributorIds, approvals, supportedDistributorIds, distributorsRequiringSecret, distributorsWithSecret },
     readinessForDomain,
   );
   const flags = (() => {

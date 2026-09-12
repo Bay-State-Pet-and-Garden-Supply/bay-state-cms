@@ -61,7 +61,23 @@ import {
   loadV2CohortMembers,
   loadV2ExtractionBindings,
   loadV2ChangeSetStatusBySkus,
+  loadV2StrategyApprovals,
+  loadV2CollectionGenerations,
+  loadV2EnabledCollectionConnections,
+  loadV2OfficialProfilePresence,
+  loadV2ApiKeyPresence,
 } from '../db/repositories/onboarding-stage-read-repo';
+import {
+  deriveCollectionForItems,
+  type CollectionItemFacts,
+} from './onboarding-collection-read';
+import { deriveSourceUsability } from './strategy-collection-activation';
+import { getSourcingFlags } from './flags';
+import { normalizeBrandKey } from '../db/repositories/brand-strategy-approval-repo';
+import { isCurrentSourcingEntryPolicy } from './sourcing/entry-policy';
+import { normalizeGtin } from '../shared/gtin';
+import { listSupportedDistributorIds, connectorRequiresSecret } from './sourcing/connector-registry';
+import type { CollectionReadiness } from '../shared/schemas/onboarding-stage-read';
 import {
   resetWorkStateQueryCount,
   getWorkStateQueryCount,
@@ -130,6 +146,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'domain',
   'cohortId',
   'q',
+  'collectionReadiness',
+  'collectionPath',
   'cursor',
   'limit',
   'stageVocabularyVersion',
@@ -188,6 +206,16 @@ export function parseStageReadQueryParams(queries: Record<string, string[] | und
   const category = enumField('category', v => WorkStateCategoryEnum.safeParse(v).success ? (v as NonNullable<StageReadFilters['category']>) : undefined);
   const reviewState = enumField('reviewState', v => ReviewStateEnum.safeParse(v).success ? (v as NonNullable<StageReadFilters['reviewState']>) : undefined);
   const sourceType = enumField('sourceType', v => SourceTypeEnum.safeParse(v).success ? (v as NonNullable<StageReadFilters['sourceType']>) : undefined);
+  const collectionReadiness = enumField('collectionReadiness', v =>
+    (['ready', 'ready_partial', 'awaiting_approval', 'setup_attention', 'underway', 'unknown', 'unavailable'] as const).includes(v as never)
+      ? (v as NonNullable<StageReadFilters['collectionReadiness']>)
+      : undefined,
+  );
+  const collectionPath = enumField('collectionPath', v =>
+    (['approved_strategy', 'compatibility', 'blocked'] as const).includes(v as never)
+      ? (v as NonNullable<StageReadFilters['collectionPath']>)
+      : undefined,
+  );
   const blankToAbsent = (raw: string | undefined): string | undefined => {
     if (raw === undefined) return undefined;
     return raw.trim().length === 0 ? undefined : raw;
@@ -210,7 +238,7 @@ export function parseStageReadQueryParams(queries: Record<string, string[] | und
     limit = n;
   }
   return {
-    filters: { stage, stageStatus, category, reviewState, sourceType, domain, cohortId, q, cursor },
+    filters: { stage, stageStatus, category, reviewState, sourceType, domain, cohortId, q, collectionReadiness, collectionPath, cursor },
     limit,
   };
 }
@@ -473,13 +501,254 @@ export function buildPreparationByItem(
   return out;
 }
 
-/** Shared post-projection predicate: v1 facet semantics + canonical stage/status. */
+/**
+ * Ticket #125 — build server-owned collection decisions for matched
+ * route_sources items from bulk-loaded chunk facts. Pure mapping over the
+ * loaders below; bounded statements (approvals 1 + generations ≤3 +
+ * connections 1 + profiles ≤1 + api-keys ≤1).
+ */
+export function buildCollectionByItem(
+  items: OnboardingItemWithEntryPolicy[],
+  projectedById: Map<string, V2ChunkProjected>,
+  workspaceId: string,
+): Record<string, CollectionReadiness> {
+  const routeItems = items.filter((item) => {
+    const p = projectedById.get(item.id);
+    return p !== undefined && p.canonicalStage === 'route_sources';
+  });
+  if (routeItems.length === 0) return {};
+  const flags = (() => {
+    try {
+      const f = getSourcingFlags();
+      return { effectiveEnabled: f.effectiveEnabled, mode: f.mode };
+    } catch {
+      return { effectiveEnabled: false, mode: null };
+    }
+  })();
+  const approvals = loadV2StrategyApprovals(workspaceId);
+  const generations = loadV2CollectionGenerations(routeItems.map((i) => i.id));
+  const connections = loadV2EnabledCollectionConnections(workspaceId);
+  const enabledDistributorIds = new Set(connections.map((c) => c.distributorId));
+  let supportedDistributorIds: Set<string>;
+  try {
+    supportedDistributorIds = new Set(listSupportedDistributorIds());
+  } catch {
+    supportedDistributorIds = new Set(enabledDistributorIds);
+  }
+  const requiringSecret = new Set<string>();
+  const secretRefs: string[] = [];
+  for (const c of connections) {
+    try {
+      if (connectorRequiresSecret(c.connectorType as never, c.distributorId)) requiringSecret.add(c.distributorId);
+    } catch {
+      requiringSecret.add(c.distributorId);
+    }
+    if (c.secretRef) secretRefs.push(c.secretRef);
+  }
+  const storedKeys = loadV2ApiKeyPresence([...new Set(secretRefs)]);
+  const withSecret = new Set<string>();
+  for (const c of connections) {
+    if (!c.secretRef) continue;
+    const envVal = process.env[c.secretRef];
+    if (typeof envVal === 'string' && envVal.length > 0 && !envVal.startsWith('•')) {
+      withSecret.add(c.distributorId);
+    } else if (storedKeys.has(c.secretRef)) {
+      withSecret.add(c.distributorId);
+    }
+  }
+  // Candidate official domains across the chunk (approved pins + live approvals).
+  const candidateDomains = new Set<string>();
+  const parsedSourcesByBrand = new Map<string, Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>>();
+  const parseSources = (raw: string): Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }> => {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (s): s is { kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string } =>
+          typeof s === 'object' && s !== null && (s as { kind: unknown }).kind === 'official_page' ||
+          typeof s === 'object' && s !== null && (s as { kind: unknown }).kind === 'distributor_record',
+      );
+    } catch {
+      return [];
+    }
+  };
+  for (const item of routeItems) {
+    const brand = item.brandHint?.trim() ? normalizeBrandKey(item.brandHint) : null;
+    if (!brand) continue;
+    const approval = approvals.get(brand);
+    if (!approval || !approval.approved) continue;
+    const sources = parseSources(approval.sourcesJson);
+    parsedSourcesByBrand.set(item.id, sources);
+    for (const s of sources) {
+      if (s.kind === 'official_page' && s.domain) candidateDomains.add(s.domain.toLowerCase());
+    }
+  }
+  // Pinned boundaries may reference domains beyond the live approval.
+  for (const item of routeItems) {
+    const gen = generations.get(item.id);
+    if (!gen?.binding || gen.binding.mode !== 'approved') continue;
+    try {
+      const parsed = JSON.parse(gen.binding.sourcesJson) as unknown;
+      if (!Array.isArray(parsed)) continue;
+      for (const s of parsed) {
+        if (typeof s === 'object' && s !== null && (s as { kind: unknown }).kind === 'official_page') {
+          const d = (s as { domain?: unknown }).domain;
+          if (typeof d === 'string' && d.trim()) candidateDomains.add(d.toLowerCase());
+        }
+      }
+    } catch {
+      // Corrupt sources surface as bindingInvalid below.
+    }
+  }
+  const healthyOfficialDomains = loadV2OfficialProfilePresence([...candidateDomains]);
+  const entries: CollectionItemFacts[] = [];
+  for (const item of routeItems) {
+    const projected = projectedById.get(item.id);
+    if (!projected) continue;
+    const brand = item.brandHint?.trim() ? normalizeBrandKey(item.brandHint) : null;
+    const approvalRow = brand ? approvals.get(brand) ?? null : null;
+    const gen = generations.get(item.id) ?? null;
+    // Candidate sources: the pinned approved boundary wins; else the live
+    // approval boundary. Never a reconstructed boundary (B1.1).
+    let candidateSources: CollectionItemFacts['sources'] = [];
+    let bindingInvalid = false;
+    let bindingRetired = false;
+    let bindingMode: 'approved' | 'query_all' | 'legacy_advisory' | null = null;
+    let bindingRevision: number | null = null;
+    let bindingBrandMatches = true;
+    let hasBinding = false;
+    if (gen?.binding) {
+      const b = gen.binding;
+      if (
+        (b.bindingVersion !== 'strategy-binding-v2' && b.bindingVersion !== 'strategy-binding-v1') ||
+        (b.mode !== 'approved' && b.mode !== 'query_all' && b.mode !== 'legacy_advisory')
+      ) {
+        bindingInvalid = true;
+      } else if (b.mode === 'legacy_advisory') {
+        bindingRetired = true;
+        hasBinding = true;
+        bindingMode = 'legacy_advisory';
+      } else if (b.mode === 'query_all') {
+        hasBinding = true;
+        bindingMode = 'query_all';
+      } else {
+        hasBinding = true;
+        bindingMode = 'approved';
+        if (!Number.isInteger(b.strategyRevision) || (b.strategyRevision as number) < 1 || !b.normalizedBrand) {
+          bindingInvalid = true;
+        } else {
+          bindingRevision = b.strategyRevision;
+          bindingBrandMatches = brand !== null && b.normalizedBrand === brand;
+          const parsed = parseSources(b.sourcesJson);
+          if (parsed.length === 0) {
+            // Empty/corrupt pinned sources fail closed (never fall through).
+            try {
+              const raw = JSON.parse(b.sourcesJson) as unknown;
+              if (!Array.isArray(raw)) bindingInvalid = true;
+              else if (raw.length > 0) bindingInvalid = true;
+            } catch {
+              bindingInvalid = true;
+            }
+          }
+          candidateSources = parsed;
+        }
+      }
+    }
+    if (!hasBinding || bindingMode !== 'approved' || bindingInvalid) {
+      if (!bindingInvalid && (!hasBinding || bindingMode !== 'approved')) {
+        candidateSources = brand ? (parsedSourcesByBrand.get(item.id) ?? []) : [];
+      }
+      if (bindingInvalid) candidateSources = [];
+    }
+    const approval =
+      approvalRow && approvalRow.approved
+        ? { present: true, revision: approvalRow.revision, normalizedBrand: brand as string, brandMatches: true }
+        : null;
+    const usability = deriveSourceUsability({
+      sources: candidateSources,
+      enabledDistributorIds,
+      supportedDistributorIds,
+      distributorsRequiringSecret: requiringSecret,
+      distributorsWithSecret: withSecret,
+      healthyOfficialDomains,
+    });
+    const hasTerminalOutcome = gen !== null && (gen.status === 'completed' || gen.status === 'failed');
+    entries.push({
+      itemId: item.id,
+      normalizedBrand: brand,
+      entryPolicyCurrent: isCurrentSourcingEntryPolicy(item.sourcingEntryPolicyVersion),
+      hasUsableIdentifier: normalizeGtin(item.upc) !== null,
+      scheduling: {
+        eligible: true,
+        claimedElsewhere: item.stageStatus === 'in_progress',
+        batchReleased: !(item.isHeld === true),
+      },
+      generation: gen
+        ? {
+            isFresh: false,
+            hasTerminalOutcome,
+            hasEvidenceWithoutBinding: gen.attemptCount > 0 && !hasBinding,
+            hasBinding,
+            bindingInvalid,
+            bindingRetired,
+            bindingMode,
+            bindingBrandMatches,
+            bindingRevision,
+          }
+        : null,
+      approval,
+      sources: candidateSources,
+      usability,
+      collectionUnderway: gen !== null && !hasTerminalOutcome && gen.attemptCount > 0,
+    });
+  }
+  const views = deriveCollectionForItems(entries, { flags });
+  const out: Record<string, CollectionReadiness> = {};
+  for (const [itemId, view] of views) {
+    out[itemId] = {
+      itemId: view.itemId,
+      path: view.decision.path,
+      readiness: view.decision.readiness,
+      canCollect: view.decision.canCollect,
+      canExecuteNow: view.decision.canExecuteNow,
+      effectiveRevision: view.decision.effectiveRevision,
+      reasons: view.decision.reasons,
+      requires: view.decision.requires,
+      effectiveSources: view.decision.effectiveSources,
+      sourceAvailability: view.decision.sourceAvailability.map((s) => ({
+        kind: s.kind,
+        ref: s.ref,
+        domain: s.domain,
+        distributorId: s.distributorId,
+        usable: s.usable,
+        reason: s.reason,
+      })),
+      label: view.label,
+      explanation: view.explanation,
+      strategyLabel: view.strategyLabel,
+    };
+  }
+  return out;
+}
+
+/** Shared post-projection predicate: v1 facet semantics + canonical stage/status.
+ *
+ * Ticket #125: the optional collection filter reads the server-derived
+ * collection decision for the row (built from the same bulk-loaded chunk
+ * facts as the response sidecar). A present filter never matches rows
+ * without a decision — fail closed, never an invented state. */
 function matchesStageReadFilters(
   projected: V2ChunkProjected,
   filters: Omit<StageReadFilters, 'cursor' | 'limit'>,
+  collection?: Pick<CollectionReadiness, 'path' | 'readiness'> | undefined,
 ): boolean {
   if (filters.stage && projected.canonicalStage !== filters.stage) return false;
   if (filters.stageStatus && projected.state.stageStatus !== filters.stageStatus) return false;
+  if (filters.collectionReadiness !== undefined || filters.collectionPath !== undefined) {
+    if (!collection) return false;
+    if (filters.collectionReadiness !== undefined && collection.readiness !== filters.collectionReadiness) return false;
+    if (filters.collectionPath !== undefined && collection.path !== filters.collectionPath) return false;
+  }
   return matchesFilters(projected.state, {
     category: filters.category,
     reviewState: filters.reviewState ?? undefined,
@@ -541,8 +810,21 @@ export function getStageReadCounts(
       trackExternalStatements(chunk.statementsExecuted, 'SELECT onboarding_items stage/status chunk (item-repo)');
       const { projected, issues } = projectChunk(batchId, scope.workspaceId, chunk.items);
       allIssues.push(...issues);
+      // Ticket #125: collection filters read the same server-derived
+      // decisions as the items sidecar. Built once per chunk and only when
+      // a collection filter is present, so the default path keeps its exact
+      // statement budget (bulk loads, bounded per chunk).
+      let collectionForChunk: Record<string, CollectionReadiness> | null = null;
+      if (filters.collectionReadiness !== undefined || filters.collectionPath !== undefined) {
+        try {
+          const projectedById = new Map(projected.map(p => [p.state.itemId, p]));
+          collectionForChunk = buildCollectionByItem(chunk.items, projectedById, scope.workspaceId);
+        } catch {
+          collectionForChunk = null;
+        }
+      }
       for (const p of projected) {
-        if (!matchesStageReadFilters(p, filters)) continue;
+        if (!matchesStageReadFilters(p, filters, collectionForChunk?.[p.state.itemId])) continue;
         matchingTotal += 1;
         counts[p.state.category] += 1;
         (matrix[p.canonicalStage] as Record<string, number>)[p.state.stageStatus] += 1;
@@ -588,7 +870,19 @@ export function getStageReadItems(
     const chunk = listItemsByBatchStageChunked(batchId, { stages, stageStatuses, limit, cursor });
     trackExternalStatements(chunk.statementsExecuted, 'SELECT onboarding_items stage/status chunk (item-repo)');
     const { projected, issues, ctx } = projectChunk(batchId, scope.workspaceId, chunk.items);
-    const matched = projected.filter(p => matchesStageReadFilters(p, filterOnly));
+    const projectedById = new Map(projected.map(p => [p.state.itemId, p]));
+    // Ticket #125: server-owned collection decisions built once for the
+    // chunk (same bulk loads as before — only the input widens from
+    // matched-only to all chunk items, so the statement budget is
+    // unchanged). The matcher below reads the same map the response
+    // sidecar serves: table, filters, and counts share one fact source.
+    let collectionByItemAll: Record<string, CollectionReadiness> = {};
+    try {
+      collectionByItemAll = buildCollectionByItem(chunk.items, projectedById, scope.workspaceId);
+    } catch {
+      collectionByItemAll = {};
+    }
+    const matched = projected.filter(p => matchesStageReadFilters(p, filterOnly, collectionByItemAll[p.state.itemId]));
     // Slice 4-SERVER: preparation sections derived PURELY from the loaded
     // chunk context — zero new statements (budget asserted in tests).
     const nextCursor =
@@ -606,7 +900,7 @@ export function getStageReadItems(
         : null;
     // Preparation covers exactly the matched items (same predicates as items[]).
     const matchedIds = new Set(matched.map(p => p.state.itemId));
-    const projectedById = new Map(projected.map(p => [p.state.itemId, p]));
+    // (projectedById is built above, before matching.)
     // Ticket #124: one bulk gap load for the preparation sidecar (single
     // statement for the chunk; absent map = unknown sidecar, never clear).
     let gapsByItem: Parameters<typeof buildPreparationByItem>[3] = null;
@@ -631,6 +925,17 @@ export function getStageReadItems(
       ctx,
       gapsByItem,
     );
+    // Ticket #125: the sidecar serves the same chunk map the matcher
+    // read, sliced to exactly the matched items (failure reads as
+    // absent — the client keeps its brand-strategy facts, never an
+    // invented state).
+    let collectionByItem: Record<string, CollectionReadiness> | undefined;
+    const sliced: Record<string, CollectionReadiness> = {};
+    for (const id of matchedIds) {
+      const view = collectionByItemAll[id];
+      if (view) sliced[id] = view;
+    }
+    if (Object.keys(sliced).length > 0) collectionByItem = sliced;
     return {
       schemaVersion: STAGE_READ_SCHEMA_VERSION,
       stageVocabularyVersion: STAGE_READ_VOCABULARY_VERSION,
@@ -638,6 +943,7 @@ export function getStageReadItems(
       filterFingerprint: fingerprint,
       items: matched.map(p => p.state),
       preparationByItem,
+      ...(collectionByItem !== undefined ? { collectionByItem } : {}),
       nextCursor,
       scannedRows: chunk.items.length,
       queryCount: currentQueryCount(),

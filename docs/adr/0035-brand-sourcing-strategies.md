@@ -102,9 +102,26 @@ previous revision returns 409. There is no auto-save or
 read/proposal/assignment-induced approval.
 
 An approved generation executes only its frozen Included source boundary,
-independent of proposals and any historical advisory settings. Approved
-official-page sources remain explicitly unsupported as stated in B1; this
-amendment does not implement official-page collection or blending.
+independent of proposals and any historical advisory settings.
+
+## Amendment B2 — Official-page collection inside the approved boundary (issues #123/#125)
+
+This amendment narrowly supersedes the B1/B1.1 runtime-support caveat that
+held approved `official_page` sources as explicitly `not_supported`.
+Shipped behavior (issue #123) executes approved official-page legs through
+the strict official collector inside the frozen generation boundary:
+profile-only extraction (no HTTP fallback), frozen single-domain
+constraints, deadline-aware terminal per-domain attempts persisted before
+finalization. An approved official-plus-distributors strategy with an
+unhealthy official profile displays the website setup issue while the
+usable distributors proceed; the official leg keeps its typed terminal
+setup outcome in the mixed envelope and the run continues through the
+collection/preparation contract. Healthy official legs are never disabled,
+profile/authority gates are never weakened, distributor evidence is never
+relabeled official, and official outcomes are never dropped from mixed
+envelopes. All other B1/B1.1 rules stand: explicit approval, optimistic
+concurrency, query-all for fresh unapproved work, frozen pins,
+no backfill/replay/retrospective stamping.
 
 New collection generations with no approved strategy use the versioned
 query-all rule (`strategy-binding-v2`, mode `query_all`): attempt all

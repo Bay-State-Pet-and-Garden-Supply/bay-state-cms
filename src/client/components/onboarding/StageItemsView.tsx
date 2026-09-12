@@ -10,7 +10,7 @@
  * Stage 1 ("Identify & Route Sources", issues #116–#119) is the unified
  * intake surface absorbing Step 0 brand-setup:
  * - Intake KPI & quick-filter strip (All / Missing Brand / Missing Domain /
- *   Distributor Fast-Path / Ready to Route) derived from loaded rows plus
+ *   Distributor record / Ready to Route) derived from loaded rows plus
  *   batch brand-domain blocker reads.
  * - Unmapped brand resolution drawer: inline domain entry per unmapped
  *   brand, saved through `assignBatchBrandDomain` (Brand Hub stays the
@@ -35,6 +35,7 @@ import {
   StageReadApiError,
 } from '../../onboarding-stage-api';
 import { STAGE_READ_LIMIT_DEFAULT } from '../../../shared/schemas/onboarding-stage-read';
+import type { CollectionReadiness } from '../../../shared/schemas/onboarding-stage-read';
 import type { OnboardingWorkState } from '../../../shared/schemas/onboarding-work-state';
 import type { BrandDomainSetupResponse } from '../../../shared/schemas/onboarding-work-state';
 import type { StageReadQuery } from '../../onboarding-stage-api';
@@ -69,10 +70,13 @@ type Facet = { category?: string; reviewState?: ReviewListFacet };
 
 /** Stage 1 quick-filter selected from the Intake KPI strip (#116).
  *
- * Follow-up gap (spec #120): strategy readiness states (awaiting_approval,
- * setup_attention) have no dedicated chip/filter yet — strategy status is
- * visible per row (Strategy column) but not
- * quick-filterable. See the todo test in stage-one-strategy-readiness.test.ts.
+ * Ticket #125 (F1, decided): no dedicated awaiting_approval/setup_attention
+ * chips — the five legacy chips stay, but they read the same per-item
+ * server decisions as the table (collectionFactsFor over
+ * collectionByItem, with the brand-level fallback), and the server
+ * collectionReadiness/collectionPath filters narrow items + counts from
+ * those same facts. Non-approved rows surface under 'all' with their
+ * exact server label instead of a legacy bucket.
  */
 export type IntakeKpiFilter = 'all' | 'missing-brand' | 'missing-domain' | 'distributor' | 'ready';
 
@@ -85,10 +89,12 @@ export const INTAKE_KPI_FILTERS: readonly IntakeKpiFilter[] = [
 ];
 
 export const INTAKE_KPI_LABELS: Record<IntakeKpiFilter, string> = {
+  // Ticket #125: approved distributor strategies are first-class — the
+  // distributor chip names the record path, never a second-class exception.
   all: 'All Products',
   'missing-brand': 'Missing Brand',
   'missing-domain': 'Missing Domain',
-  distributor: 'Distributor Fast-Path',
+  distributor: 'Distributor record',
   ready: 'Ready to Route',
 };
 
@@ -161,6 +167,8 @@ export function deriveIntakeFlags(
 export interface StrategyReadinessView {
   approved: boolean;
   revision: number;
+  /** Collection underway for the bound generation (server fact, when known). */
+  underway?: boolean;
   /** Effective sources: the approved boundary when approved, else the live proposal. */
   sources: Array<{ kind: 'official_page' | 'distributor_record'; distributorId?: string; domain?: string }>;
   /** Live proposal sources (for diffing against the approved boundary). */
@@ -188,6 +196,8 @@ export function strategySourcesEqual(
 export interface RowStrategyReadiness {
   /** Human-readable readiness label (text, never color-only). */
   label: string;
+  /** Persistent Ready explanation (null unless ready/ready_partial). */
+  explanation: string | null;
   /** Short strategy summary, e.g. "Phillips + BCI" or "Suggested sources". */
   strategyLabel: string;
   /** True when an approved distributor-only strategy excuses a missing domain. */
@@ -208,31 +218,82 @@ export function strategySummaryLabel(view: StrategyReadinessView | null): string
 export function deriveStrategyReadiness(
   view: StrategyReadinessView | null,
   loaded: boolean,
+  loadError = false,
 ): RowStrategyReadiness {
+  // Ticket #125 copy ladder (exact): textual, never color-only. A failed
+  // read never renders as loading; unknown data is never readiness success.
+  if (loadError) {
+    return { label: 'Collection readiness unavailable · Retry', explanation: null, strategyLabel: strategySummaryLabel(view), suppressMissingDomain: false, canCollect: false };
+  }
   if (!loaded) {
-    return { label: 'Loading strategy…', strategyLabel: 'Suggested sources', suppressMissingDomain: false, canCollect: false };
+    return { label: 'Loading collection readiness…', explanation: null, strategyLabel: 'Suggested sources', suppressMissingDomain: false, canCollect: false };
   }
   if (!view || !view.approved) {
-    return { label: 'Awaiting strategy approval', strategyLabel: strategySummaryLabel(view), suppressMissingDomain: false, canCollect: false };
+    return { label: 'Awaiting approval', explanation: null, strategyLabel: strategySummaryLabel(view), suppressMissingDomain: false, canCollect: false };
+  }
+  if (view.underway === true) {
+    return {
+      label: `Underway · Collecting approved revision ${view.revision}`,
+      explanation: null,
+      strategyLabel: strategySummaryLabel(view),
+      suppressMissingDomain: true,
+      canCollect: false,
+    };
   }
   const available = view.availability.filter((s) => s.available);
-  const unavailable = view.availability.filter((s) => !s.available);
   const officialPlanned = view.sources.some((s) => s.kind === 'official_page');
-  const suppressMissingDomain = !officialPlanned && available.some((s) => s.kind === 'distributor_record');
+  // Ticket #125 (F3): suppression is about boundary scope, not current
+  // usability. An approved distributor-only boundary plans no official
+  // collection, so its rows never demand domain/profile work — even while
+  // every distributor leg is down (the actionable remediation is the
+  // distributor connection, and the Review strategy dialog names it).
+  // Official-planned boundaries keep the profile/domain surface.
+  const suppressMissingDomain = !officialPlanned;
   const strategyLabel = strategySummaryLabel(view);
   if (view.readiness === 'setup_attention' || available.length === 0) {
-    return { label: 'Setup attention — no usable sources', strategyLabel, suppressMissingDomain, canCollect: false };
+    return { label: 'Setup attention · No usable sources', explanation: null, strategyLabel, suppressMissingDomain, canCollect: false };
   }
-  if (unavailable.length === 0) {
+  // Persistent explanation: Ready never promises a match, evidence, or a listing.
+  const explanation = 'Ready means collection can run. It does not guarantee a match, collected evidence, or sufficient listing information.';
+  if (available.length === view.availability.length) {
     const n = available.length;
-    return { label: `Ready · ${n} source${n === 1 ? '' : 's'} available`, strategyLabel, suppressMissingDomain, canCollect: true };
+    return { label: `Ready · ${n} source${n === 1 ? '' : 's'} available`, explanation, strategyLabel, suppressMissingDomain, canCollect: true };
   }
-  const needsSetup = unavailable.map((s) => s.ref).join(', ');
+  const n = available.length;
   return {
-    label: `Ready · ${available.length} available, ${needsSetup} needs setup`,
+    label: `Ready — partial · ${n} source${n === 1 ? '' : 's'} available; website needs setup`,
+    explanation,
     strategyLabel,
     suppressMissingDomain,
     canCollect: true,
+  };
+}
+
+/**
+ * Ticket #125: map one server-derived per-item collection decision to
+ * the intake facts shape. ALWAYS non-null when a decision is present:
+ * the server verdict is authoritative for the row (a retired/parked/
+ * awaiting row never borrows a brand-level Ready). Approved-path rows
+ * carry collect/suppress facts; any other path returns a non-approved
+ * verdict with canCollect false (the row keeps its exact server label in
+ * the table and contributes to no legacy KPI bucket). Null only when the
+ * row has no decision (brand fallback, then legacy derivation).
+ */
+export function collectionFactsFor(
+  decision: CollectionReadiness | undefined | null,
+): IntakeStrategyFacts | null {
+  if (!decision) return null;
+  if (decision.path !== 'approved_strategy') {
+    return { approved: false, canCollect: false, suppressMissingDomain: false };
+  }
+  const officialPlanned = decision.sourceAvailability.some((s) => s.kind === 'official_page');
+  // Ticket #125 (F3): same boundary-scope rule as the brand-level
+  // derivation — a distributor-only approved boundary never demands
+  // domain/profile work, even with zero usable legs.
+  return {
+    approved: true,
+    canCollect: decision.canCollect,
+    suppressMissingDomain: !officialPlanned,
   };
 }
 
@@ -253,17 +314,47 @@ export interface IntakeKpiCounts {
   ready: number;
 }
 
+/**
+ * Ticket #125: strategy-aware resolver for approved rows. When a row's
+ * brand carries an approved strategy, the server-derived readiness governs
+ * (the stale universal missing-domain/profile gate is retired for those
+ * rows); all other rows keep the legacy intake derivation.
+ */
+export interface IntakeStrategyFacts {
+  approved: boolean;
+  canCollect: boolean;
+  suppressMissingDomain: boolean;
+}
+
 /** Aggregate KPI counts over loaded rows (#116). */
 export function countIntakeKpis(
-  items: ReadonlyArray<Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>>,
+  items: ReadonlyArray<Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'> & { itemId?: string }>,
   domainMap: ReadonlyMap<string, string>,
   profileDomains?: ReadonlySet<string>,
+  strategyFor?: (brand: string | null) => IntakeStrategyFacts | null,
+  // Ticket #125: per-item server collection decisions win over
+  // brand-level facts when present (same facts as the table). Absent
+  // entries fall back to strategyFor, then legacy derivation.
+  collectionForItem?: (itemId: string) => IntakeStrategyFacts | null,
 ): IntakeKpiCounts {
   const counts: IntakeKpiCounts = { all: items.length, missingBrand: 0, missingDomain: 0, distributor: 0, ready: 0 };
   for (const item of items) {
+    const perItem = item.itemId !== undefined ? (collectionForItem?.(item.itemId) ?? null) : null;
+    if (perItem) {
+      // A present server decision is authoritative: the row contributes
+      // only to ready (via its own canCollect), never to legacy buckets
+      // or a borrowed brand-level Ready.
+      if (perItem.approved && perItem.canCollect) counts.ready += 1;
+      continue;
+    }
+    const strategy = strategyFor?.(item.brand ?? null) ?? null;
+    if (strategy?.approved) {
+      if (strategy.canCollect) counts.ready += 1;
+      continue;
+    }
     const flags = deriveIntakeFlags(item, domainMap, profileDomains);
     if (flags.missingBrand) counts.missingBrand += 1;
-    if (flags.missingDomain) counts.missingDomain += 1;
+    if (flags.missingDomain && !strategy?.suppressMissingDomain) counts.missingDomain += 1;
     if (flags.distributorExempt) counts.distributor += 1;
     if (flags.ready) counts.ready += 1;
   }
@@ -272,16 +363,36 @@ export function countIntakeKpis(
 
 /** Client-side quick filter over loaded rows (#116). */
 export function matchesIntakeFilter(
-  item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'>,
+  item: Pick<OnboardingWorkState, 'brand' | 'sourceType' | 'domain'> & { itemId?: string },
   filter: IntakeKpiFilter,
   domainMap: ReadonlyMap<string, string>,
   profileDomains?: ReadonlySet<string>,
+  strategyFor?: (brand: string | null) => IntakeStrategyFacts | null,
+  // Ticket #125: per-item server collection decision (same facts as the
+  // table) wins over brand-level facts when present for the row.
+  collectionForItem?: (itemId: string) => IntakeStrategyFacts | null,
 ): boolean {
   if (filter === 'all') return true;
+  const perItem = item.itemId !== undefined ? (collectionForItem?.(item.itemId) ?? null) : null;
+  if (perItem) {
+    // Authoritative server verdict: non-approved rows surface only under
+    // 'all' (their exact label); approved rows follow the approved branch.
+    if (!perItem.approved) return false;
+    return filter === 'ready' ? perItem.canCollect : false;
+  }
+  const strategy = strategyFor?.(item.brand ?? null) ?? null;
+  if (strategy?.approved) {
+    switch (filter) {
+      case 'missing-brand': return false;
+      case 'missing-domain': return false;
+      case 'distributor': return false;
+      case 'ready': return strategy.canCollect;
+    }
+  }
   const flags = deriveIntakeFlags(item, domainMap, profileDomains);
   switch (filter) {
     case 'missing-brand': return flags.missingBrand;
-    case 'missing-domain': return flags.missingDomain;
+    case 'missing-domain': return flags.missingDomain && !strategy?.suppressMissingDomain;
     case 'distributor': return flags.distributorExempt;
     case 'ready': return flags.ready;
   }
@@ -340,8 +451,17 @@ export function StageItemsView({
   // normalized brand. Same server facts back the table, chips, and details.
   const [strategyViews, setStrategyViews] = useState<ReadonlyMap<string, StrategyReadinessView>>(new Map());
   const [strategiesLoaded, setStrategiesLoaded] = useState(false);
+  // Ticket #125: a failed strategy read never renders as loading — rows
+  // show the exact unavailable copy with a retry affordance (refresh epoch).
+  const [strategiesError, setStrategiesError] = useState(false);
   const [profileDomains, setProfileDomains] = useState<ReadonlySet<string>>(new Set());
   const [kpiFilter, setKpiFilter] = useState<IntakeKpiFilter>('all');
+  // Ticket #125: per-item server collection decisions keyed by item id,
+  // merged across pages in load(). The Strategy column, KPI counts, and
+  // quick filters prefer these over brand-level strategy views; per-item
+  // blockers (corrupt/retired/query_all/zero-id/terminal) are invisible
+  // to brand-level facts alone.
+  const [collectionByItem, setCollectionByItem] = useState<Readonly<Record<string, CollectionReadiness>>>({});
   // Bulk quick-add domain for unmapped brands (#118).
   const [bulkDomain, setBulkDomain] = useState('');
   // Resolution drawer per-brand inputs (#117).
@@ -388,6 +508,7 @@ export function StageItemsView({
     setRowDomainInputs({});
     setRowDomainSaving({});
     setRowDomainErrors({});
+    setCollectionByItem({});
   }, [stage, batchId]);
 
   useEffect(() => {
@@ -416,9 +537,17 @@ export function StageItemsView({
 
           if (isFirst) {
             setItems(res.items);
+            // Ticket #125: per-item server collection decisions ride the
+            // same pages as the rows (same facts as the table). Absent on
+            // older responses or non-route stages — brand-level fallback.
+            setCollectionByItem(res.collectionByItem ?? {});
             isFirst = false;
           } else {
             setItems((prev) => [...prev, ...res.items]);
+            if (res.collectionByItem) {
+              const page = res.collectionByItem;
+              setCollectionByItem((prev) => ({ ...prev, ...page }));
+            }
           }
           setNextCursor(res.nextCursor);
 
@@ -455,6 +584,10 @@ export function StageItemsView({
   facetRef.current = facet;
   const queryRef = useRef(debouncedQ);
   queryRef.current = debouncedQ;
+  // Live mirror of loaded rows so assignment editors bind to the
+  // originating brand even after re-renders (Ticket #125 epoch guard).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   /**
    * Intake reference reads (#116–#119): batch brand-domain blockers (drawer
@@ -552,13 +685,18 @@ export function StageItemsView({
         }
         setStrategyViews(map);
         setStrategiesLoaded(true);
+        setStrategiesError(false);
       } else {
+        // Ticket #125 (F6): a non-OK strategies read is an explicit
+        // failure, never an eternal Loading state.
         setStrategyViews(new Map());
         setStrategiesLoaded(false);
+        setStrategiesError(true);
       }
     } catch {
       setStrategyViews(new Map());
       setStrategiesLoaded(false);
+      setStrategiesError(true);
     }
     try {
       const loader = getExtractorProfiles as unknown as (() => Promise<{ extractorProfiles?: Array<{ domain?: unknown }> }>) | undefined;
@@ -675,9 +813,15 @@ export function StageItemsView({
     async (itemId: string, value: string) => {
       const canonical = resolveCanonicalBrand(value, brandOptionsRef.current);
       if (!canonical || drafts[itemId]?.saving) return;
+      // Ticket #125: request-epoch protection. The originating brand binds
+      // this editor to its immutable context; late responses from another
+      // batch/stage context are discarded, never applied.
+      const gen = generation.current;
+      const originatingBrand = itemsRef.current.find((it) => it.itemId === itemId)?.brand ?? null;
       updateDraft(itemId, { saving: true, error: null });
       try {
-        await assignItemBrand(itemId, canonical);
+        await assignItemBrand(itemId, canonical, originatingBrand ?? undefined);
+        if (generation.current !== gen) return;
         // Seed newly-coined brands into the local pool and in-memory cache:
         // assigning sets the item hint, and registering ensures all
         // comboboxes recognize the brand immediately without a "Create new brand" prompt.
@@ -687,6 +831,8 @@ export function StageItemsView({
         );
         await refreshEpoch();
       } catch (err) {
+        // Late failures from a discarded context never touch the new list.
+        if (generation.current !== gen) return;
         updateDraft(itemId, {
           saving: false,
           error: err instanceof Error ? err.message : String(err),
@@ -696,19 +842,38 @@ export function StageItemsView({
     [drafts, refreshEpoch, updateDraft, setBrandOptions],
   );
 
+  // Ticket #125: approved strategy rows are governed by the server-derived
+  // strategy readiness (same facts as the table); all other rows keep the
+  // legacy Brand Hub map derivation (fail-closed while loading).
+  const strategyFactsFor = useCallback((brand: string | null): IntakeStrategyFacts | null => {
+    if (!brand?.trim()) return null;
+    const view = strategyViews.get(brandKeyOf(brand)) ?? null;
+    if (!view?.approved) return null;
+    const readiness = deriveStrategyReadiness(view, strategiesLoaded, strategiesError);
+    return { approved: true, canCollect: readiness.canCollect, suppressMissingDomain: readiness.suppressMissingDomain };
+  }, [strategyViews, strategiesLoaded, strategiesError]);
+
+  // Ticket #125 (F1): per-item server decisions win over brand-level
+  // facts. A row whose generation is corrupt/retired/query-all/parked
+  // reads its own decision; rows without one keep the brand fallback.
+  const collectionFactsForItem = useCallback((itemId: string): IntakeStrategyFacts | null => {
+    if (stage !== 'route_sources') return null;
+    return collectionFactsFor(collectionByItem[itemId] ?? null);
+  }, [stage, collectionByItem]);
+
   // Brand Hub map is the single authority for KPI/table derivations. While
   // it loads, derivations are fail-closed (branded rows read as
   // missing-domain) and the KPI strip shows a loading notice.
   const kpiCounts = useMemo(
-    () => (stage === 'route_sources' ? countIntakeKpis(items, brandDomainMap, profileDomains) : null),
-    [stage, items, brandDomainMap, profileDomains],
+    () => (stage === 'route_sources' ? countIntakeKpis(items, brandDomainMap, profileDomains, strategyFactsFor, collectionFactsForItem) : null),
+    [stage, items, brandDomainMap, profileDomains, strategyFactsFor, collectionFactsForItem],
   );
 
   const visibleItems = useMemo(
     () => (stage === 'route_sources' && kpiFilter !== 'all'
-      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, brandDomainMap, profileDomains))
+      ? items.filter((item) => matchesIntakeFilter(item, kpiFilter, brandDomainMap, profileDomains, strategyFactsFor, collectionFactsForItem))
       : items),
-    [stage, items, kpiFilter, brandDomainMap, profileDomains],
+    [stage, items, kpiFilter, brandDomainMap, profileDomains, strategyFactsFor, collectionFactsForItem],
   );
 
   const toggleSelect = useCallback((itemId: string) => {
@@ -759,7 +924,10 @@ export function StageItemsView({
     setBulkSaving(true);
     setBulkError(null);
     try {
-      await assignBrandGroup(batchId, ids, canonical);
+      const groupResult = await assignBrandGroup(batchId, ids, canonical);
+      // Ticket #125: worker-held rows keep their pins and are reported —
+      // never silently skipped. They stay selected for an explicit retry.
+      const skipped = groupResult.skippedBrandConflicts ?? [];
       if (domainToAdd) {
         await assignBatchBrandDomain(batchId, canonical, domainToAdd);
       }
@@ -772,6 +940,12 @@ export function StageItemsView({
       setBulkBrand('');
       setBulkDomain('');
       await refreshEpoch();
+      if (skipped.length > 0) {
+        const next: Record<string, true> = {};
+        for (const s of skipped) next[s.itemId] = true;
+        setSelected(next);
+        setBulkError(`${skipped.length} item${skipped.length === 1 ? '' : 's'} collecting — brand unchanged; retry after the run settles.`);
+      }
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -837,6 +1011,17 @@ export function StageItemsView({
     strategyDialogDirty.current = false;
     strategyDialogLastFocus.current?.focus?.();
   }, []);
+
+  // Ticket #125: the strategy Save stays disabled while any brand
+  // assignment on this list is dirty/in-flight (the approval must pin a
+  // settled brand, never a moving one).
+  const strategyAssignmentHold = useMemo(() => {
+    const rowBusy = Object.values(drafts).some((d) => d.saving);
+    if (rowBusy || bulkSaving) {
+      return { reason: 'Brand assignment in progress — Save strategy unlocks when it settles' };
+    }
+    return null;
+  }, [drafts, bulkSaving]);
 
   /** Shell dismiss: refuse to discard dirty builder edits (use Cancel). */
   const requestCloseStrategyDialog = useCallback(() => {
@@ -1383,8 +1568,26 @@ export function StageItemsView({
               const profileReady = flags.profileReady;
               // Spec #120: strategy-driven readiness from the same server
               // facts. A distributor-only approved strategy excuses Missing Domain.
+              // Ticket #125 (F1): the row's own server decision wins when
+              // present (per-item blockers are invisible to brand-level
+              // facts); otherwise the brand-level derivation applies.
               const strategyView = item.brand ? strategyViews.get(brandKeyOf(item.brand)) ?? null : null;
-              const strategy = deriveStrategyReadiness(strategyView, strategiesLoaded);
+              const collectionDecision = stage === 'route_sources' ? (collectionByItem[item.itemId] ?? null) : null;
+              const perItemFacts = collectionFactsFor(collectionDecision);
+              // The row's own decision always wins for display (its label
+              // is exact even on non-approved paths: awaiting/underway/
+              // parked rows never borrow a brand-level Ready). KPI/filter
+              // gating uses perItemFacts (approved-path only) with the
+              // brand fallback below it.
+              const strategy = collectionDecision
+                ? {
+                    label: collectionDecision.label,
+                    explanation: collectionDecision.explanation,
+                    strategyLabel: collectionDecision.strategyLabel,
+                    suppressMissingDomain: perItemFacts?.suppressMissingDomain ?? false,
+                    canCollect: collectionDecision.canCollect,
+                  }
+                : deriveStrategyReadiness(strategyView, strategiesLoaded, strategiesError);
               const showMissingDomain = flags.missingDomain && !strategy.suppressMissingDomain;
               const rowDomainErr = rowDomainErrors[item.itemId] ?? null;
               const savingRowDomain = rowDomainSaving[item.itemId] ?? false;
@@ -1627,6 +1830,31 @@ export function StageItemsView({
                   >
                     {strategy.label}
                   </span>
+                  {strategy.explanation && (
+                    <span className="bws-muted" style={{ display: 'block', fontSize: '0.6875rem', marginBottom: 6 }}>
+                      {strategy.explanation}
+                    </span>
+                  )}
+                  {strategiesError && (
+                    <button
+                      type="button"
+                      data-testid={`intake-readiness-retry-${item.itemId}`}
+                      onClick={() => void refreshEpoch()}
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        backgroundColor: 'transparent',
+                        border: `1px solid ${colors.uniformGreen}`,
+                        borderRadius: rounded.md,
+                        padding: '0.25rem 0.625rem',
+                        cursor: 'pointer',
+                        width: 'fit-content',
+                        minHeight: 28,
+                      }}
+                    >
+                      Retry
+                    </button>
+                  )}
                   {item.brand ? (
                     <button
                       type="button"
@@ -1744,6 +1972,7 @@ export function StageItemsView({
               onSaved={() => { void handleStrategySaved(); }}
               onCancel={closeStrategyDialog}
               onDirtyChange={(dirty) => { strategyDialogDirty.current = dirty; }}
+              assignmentHold={strategyAssignmentHold}
             />
           </div>
         </div>

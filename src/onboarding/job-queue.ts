@@ -1034,13 +1034,34 @@ export class OnboardingWorker {
       // missing-binding/no-current-approval legacy reuse contract.
       // getGenerationStrategyBinding returns null when no row exists
       // (fresh work proceeds) and throws only on a corrupt captured row.
+      // Ticket #125: revalidate generation + brand ownership before worker
+      // routing commits. A pin captured for another brand (reassigned
+      // since) never executes — old pins stay history until an explicit
+      // new-generation retry captures the current approval.
       try {
-        if (isRetiredStrategyBinding(getGenerationStrategyBinding(generation.id))) {
+        const routingBinding = getGenerationStrategyBinding(generation.id);
+        if (isRetiredStrategyBinding(routingBinding)) {
           setupAttentionHold(['This generation used retired brand routing settings. Retry to start a new generation under query-all routing.']);
           return;
         }
+        if (routingBinding?.mode === 'approved') {
+          const currentBrand = (item.brandHint ?? '').trim().toLowerCase();
+          if (routingBinding.strategyBrand !== currentBrand) {
+            setupAttentionHold(['Strategy binding brand does not match the item brand; retry in a new generation']);
+            return;
+          }
+        }
       } catch {
         setupAttentionHold(['Strategy binding is invalid for this generation; retry in a new generation']);
+        return;
+      }
+
+      // Ticket #125 (activation blocker): terminal generations never
+      // re-enter collection. A pending item whose generation already
+      // completed/failed waits for an explicit new-generation retry —
+      // re-dispatch would replay a frozen boundary.
+      if (generation.status === 'completed' || generation.status === 'failed') {
+        console.log(`[OnboardingWorker] Sourcing generation ${generation.id} already terminal for ${item.id} — no replay without explicit retry`);
         return;
       }
 
@@ -1049,6 +1070,27 @@ export class OnboardingWorker {
         if (normalizeGtin(item.upc) === null) {
           // No usable identifier -> audited pass-through (never a brand-only
           // lookup). Checked BEFORE connections so the warning is truthful.
+          // Ticket #125 (activation blocker): zero-identifier items inside
+          // an approved boundary park visibly within it — they never leak
+          // to the unapproved fallback_to_discovery path.
+          let approvedHold = false;
+          try {
+            const noIdBinding = getGenerationStrategyBinding(generation.id);
+            approvedHold = noIdBinding?.mode === 'approved';
+          } catch {
+            approvedHold = false;
+          }
+          if (!approvedHold) {
+            try {
+              approvedHold = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null) !== null;
+            } catch {
+              approvedHold = false;
+            }
+          }
+          if (approvedHold) {
+            setupAttentionHold(['Item has no UPC/GTIN for distributor lookup']);
+            return;
+          }
           if (manual) {
             manualHold(['Item has no UPC/GTIN for distributor lookup']);
           } else {

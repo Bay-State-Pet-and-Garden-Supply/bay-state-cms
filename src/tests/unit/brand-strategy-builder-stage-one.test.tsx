@@ -192,7 +192,7 @@ describe('Stage 1 builder integration', () => {
     expect(container.textContent).not.toMatch(/official collection not yet supported/);
     // Compact status + single trigger per row.
     expect(container.querySelector('[data-testid="intake-readiness-item_gamma"]')?.textContent).toMatch(/Ready.*2 sources available/);
-    expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting strategy approval/);
+    expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting approval/);
     expect(container.querySelector('[data-testid="intake-strategy-review-item_gamma"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="intake-strategy-review-item_beta"]')).not.toBeNull();
   });

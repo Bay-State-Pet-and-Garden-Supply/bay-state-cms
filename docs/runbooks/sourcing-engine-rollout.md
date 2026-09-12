@@ -326,6 +326,29 @@ WHERE i.source_type = 'distributor_record'
   Retrofitting historical items requires a separately reviewed,
   backup-verified operator action.
 
+## Activation and compatibility (issue #125 / ADR 0035 Amendment B2)
+
+- Activation rides the existing explicit batch start/retry actions under the
+  process-level capability flags (`getSourcingFlags`: effectiveEnabled +
+  mode) plus entry-policy v1 and existing scheduling/release holds. There
+  is no per-brand activation state and no env-flip command: saving a
+  strategy or repairing a connection never releases items, resets
+  generations, or kicks collection.
+- The pure gate `evaluateStrategyCollectionActivation` is the single
+  authority: `approved_strategy` (pinned resume or fresh capture) vs
+  `compatibility` (query-all pins, fresh unapproved work, protected
+  marker-v0 rows) vs `blocked` (fail closed with the real cause). The
+  read model (`buildCollectionByItem`), the worker (pre-dispatch +
+  brand-ownership revalidation), and UI affordances all consume it.
+- Approved `official_page` legs execute inside the frozen boundary (#123):
+  an unhealthy official profile parks as a typed terminal setup outcome
+  while usable distributors proceed — never an unapproved fallback.
+- Reassignment never retargets a held generation: worker-held
+  (route_sources/in_progress) items 409 (single) or report
+  `skippedBrandConflicts` (bulk); pin/brand mismatch parks until an
+  explicit new-generation retry. No silent approval or replay of old
+  batches, ever.
+
 ## Boundaries (what the engine never does)
 
 - No direct Sourcing → Curation routing (`bundle_to_curation` is unactionable

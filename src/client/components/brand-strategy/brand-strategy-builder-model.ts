@@ -209,7 +209,9 @@ export function availabilityText(available: boolean, reason: string): string {
     profile_not_healthy: 'Extractor profile needs attention.',
     connection_disabled: 'Connector disabled — enable it in Distributors.',
     connection_not_configured: 'Connector not configured — finish setup in Distributors.',
-    not_supported: 'Official collection is not available for this source.',
+    connector_not_supported: 'Distributor connector not supported — collection cannot run for this source.',
+    credentials_missing: 'Distributor credentials missing — add the secret in Distributors.',
+    not_supported: 'No collection path executes this source yet.',
     unknown: 'Availability unknown — refresh to re-check.',
   };
   return map[reason] ?? `Unavailable (${reason})`;
