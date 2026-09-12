@@ -74,6 +74,32 @@ describe('Local Brand URL Finder (Tiered Retrieval Ladder)', () => {
     expect(matches[0].signals.upcMatched).toBe(true);
   });
 
+  it('Tier 1: should match GTIN zero-padded variations in lookupByUpc', async () => {
+    reconcileSitemapUrls(
+      'acana.com',
+      [{ url: 'https://acana.com/products/dog-food-14digit' }],
+      'https://acana.com/sitemap.xml',
+    );
+
+    enrichUrlMetadata('https://acana.com/products/dog-food-14digit', {
+      title: 'Acana Dog Food',
+      upc: '00035585111116', // 14-digit zero-padded GTIN
+    });
+
+    // Query using 12-digit UPC version
+    const matches = await findLocalBrandCandidates('acana.com', {
+      upc: '035585111116',
+      name: 'Acana Dog Food 12lb',
+      brandHint: 'Acana',
+    });
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].url).toBe('https://acana.com/products/dog-food-14digit');
+    expect(matches[0].sourceMethod).toBe('local_upc');
+    expect(matches[0].matchType).toBe('upc_exact');
+    expect(matches[0].signals.upcMatched).toBe(true);
+  });
+
   it('Tier 2: should find exact SKU match with 0.92 confidence', async () => {
     reconcileSitemapUrls(
       'kongcompany.com',

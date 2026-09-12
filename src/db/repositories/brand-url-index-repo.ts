@@ -1,5 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
+import { normalizeGtinDigits } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -260,23 +261,40 @@ export function findUrlsByDomain(
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
   const db = getDb();
   const normDomain = normalizeDomain(domain);
-  const cleanUpc = upc.replace(/\D/g, '').trim();
+  const cleanUpc = normalizeGtinDigits(upc).trim();
   if (!cleanUpc) return null;
 
-  // 1. Direct indexed match on enriched upc column
+  const unpadded = cleanUpc.replace(/^0+/, '');
+  const candidateUpcsSet = new Set<string>();
+  candidateUpcsSet.add(cleanUpc);
+  if (unpadded) {
+    candidateUpcsSet.add(unpadded);
+    if (unpadded.length <= 8) candidateUpcsSet.add(unpadded.padStart(8, '0'));
+    if (unpadded.length <= 12) candidateUpcsSet.add(unpadded.padStart(12, '0'));
+    if (unpadded.length <= 13) candidateUpcsSet.add(unpadded.padStart(13, '0'));
+    if (unpadded.length <= 14) candidateUpcsSet.add(unpadded.padStart(14, '0'));
+  }
+  const candidateUpcs = Array.from(candidateUpcsSet);
+
+  // 1. Direct indexed match on enriched upc column matching any canonical GTIN/UPC variation
+  const placeholders = candidateUpcs.map(() => '?').join(', ');
   const directRow = db
-    .query('SELECT * FROM brand_url_index WHERE domain = ? AND upc = ? AND active = 1 LIMIT 1')
-    .get(normDomain, cleanUpc) as BrandUrlRecord | undefined;
+    .query(`SELECT * FROM brand_url_index WHERE domain = ? AND upc IN (${placeholders}) AND active = 1 LIMIT 1`)
+    .get(normDomain, ...candidateUpcs) as BrandUrlRecord | undefined;
 
   if (directRow) return directRow;
 
-  // 2. Substring search in path / slug
-  const pattern = `%${cleanUpc}%`;
-  const urlRow = db
-    .query('SELECT * FROM brand_url_index WHERE domain = ? AND (path LIKE ? OR slug LIKE ?) AND active = 1 ORDER BY last_seen_at DESC LIMIT 1')
-    .get(normDomain, pattern, pattern) as BrandUrlRecord | undefined;
+  // 2. Substring search in path / slug for candidate UPC variations
+  for (const candidate of candidateUpcs) {
+    const pattern = `%${candidate}%`;
+    const urlRow = db
+      .query('SELECT * FROM brand_url_index WHERE domain = ? AND (path LIKE ? OR slug LIKE ?) AND active = 1 ORDER BY last_seen_at DESC LIMIT 1')
+      .get(normDomain, pattern, pattern) as BrandUrlRecord | undefined;
 
-  return urlRow ?? null;
+    if (urlRow) return urlRow;
+  }
+
+  return null;
 }
 
 /**
