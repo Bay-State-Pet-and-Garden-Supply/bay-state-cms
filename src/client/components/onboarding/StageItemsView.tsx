@@ -1277,15 +1277,47 @@ export function StageItemsView({
       )}
 
       {isDraftsStage && onOpenReadyToExportWorkspace && (
-        <div className="bws-facet-row" role="group" aria-label="Export workspace" data-testid="drafts-export-row">
+        <div
+          className="bws-stage-flow-note"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: rounded.lg,
+            padding: '12px 16px',
+            marginBottom: 12,
+          }}
+          data-testid="drafts-export-row"
+        >
+          <div>
+            <div style={{ fontWeight: 700, color: colors.uniformGreen, fontSize: '0.9375rem' }}>
+              Create ShopSite Export Drafts
+            </div>
+            <div className="bws-muted" style={{ fontSize: '0.8125rem' }}>
+              Inspect finalized products and generate draft records in a change set for the entire batch.
+            </div>
+          </div>
           <button
             type="button"
             data-testid="open-ready-to-export-workspace"
             className="bws-filter-input"
-            style={{ cursor: 'pointer', fontWeight: 600, color: colors.uniformGreen }}
+            style={{
+              cursor: 'pointer',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: colors.uniformGreen,
+              border: `1px solid ${colors.shadowPine}`,
+              borderRadius: rounded.md,
+              padding: '6px 14px',
+              fontSize: '0.8125rem',
+            }}
             onClick={onOpenReadyToExportWorkspace}
           >
-            Open ready-to-export workspace, entire batch
+            Open ready-to-export workspace, entire batch →
           </button>
         </div>
       )}
@@ -1476,8 +1508,8 @@ export function StageItemsView({
         <table className="bws-results-table">
           <thead>
             <tr>
-              <th>Product</th>
-              <th>Stage status</th>
+              <th>{isDraftsStage ? 'Final product listing' : 'Product'}</th>
+              <th>{isDraftsStage ? 'Draft status' : 'Stage status'}</th>
               {isReviewStage && <th>Review</th>}
               <th>Source</th>
               {isPrepareStage && <th>Listing help</th>}
@@ -1487,15 +1519,80 @@ export function StageItemsView({
             {items.map((item) => (
               <tr key={item.itemId}>
                 <td>
-                  <div style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>{item.name || item.upc}</div>
-                  <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
-                    {item.upc}
-                    {item.brand ? ` · ${item.brand}` : ''}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {isDraftsStage && (
+                      item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.curatedTitle || item.name}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            objectFit: 'contain',
+                            borderRadius: rounded.md,
+                            backgroundColor: colors.feedBagCream,
+                            border: `1px solid ${colors.cardBorder}`,
+                            padding: 2,
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: rounded.md,
+                            backgroundColor: colors.feedBagCream,
+                            border: `1px solid ${colors.cardBorder}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: colors.mulchBrown,
+                            fontSize: '0.625rem',
+                            flexShrink: 0,
+                          }}
+                        >
+                          No img
+                        </div>
+                      )
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>
+                        {isDraftsStage ? (item.curatedTitle || item.name || item.upc) : (item.name || item.upc)}
+                      </div>
+                      {isDraftsStage && Boolean(item.curatedTitle) && item.curatedTitle!.trim().toLowerCase() !== item.name.trim().toLowerCase() && (
+                        <div
+                          style={{
+                            fontSize: '0.6875rem',
+                            color: colors.mulchBrown,
+                            display: 'flex',
+                            gap: 4,
+                            alignItems: 'baseline',
+                            marginTop: 2,
+                          }}
+                          title="Original upload value before curation"
+                        >
+                          <span style={{ fontWeight: 700, color: '#64748b', fontSize: '0.625rem', textTransform: 'uppercase' }}>
+                            Intake:
+                          </span>
+                          <span style={{ fontFamily: fonts.mono, color: '#334155' }}>
+                            {item.name}
+                          </span>
+                        </div>
+                      )}
+                      <div className="bws-muted" style={{ fontSize: '0.75rem', marginTop: 1 }}>
+                        {item.upc}
+                        {item.brand ? ` · ${item.brand}` : ''}
+                        {item.weight ? ` · ${item.weight}` : ''}
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <td>
                   <span className="bws-stage-badge" title={`Recorded pipeline state: ${item.stage} / ${item.stageStatus}`}>
-                    {item.stage} / {item.stageStatus}
+                    {isDraftsStage
+                      ? (item.stageStatus === 'completed' ? 'Draft created' : 'Approved — ready for draft')
+                      : `${item.stage} / ${item.stageStatus}`}
                   </span>
                   <div className="bws-muted" style={{ fontSize: '0.75rem' }}>{item.label}</div>
                 </td>
