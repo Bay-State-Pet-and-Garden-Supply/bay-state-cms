@@ -1211,13 +1211,13 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
         title: 'Acme Purina Pro Plan Dry Dog Food Chicken 5 lb.',
         source: 'cohort_fallback',
         pages: [],
-        keywords: 'Acme Purina Pro Plan Dry Dog Food Chicken 5 lb., dog-food-dry, Original, description',
+        keywords: 'Acme Purina Pro Plan Dry Dog Food Chicken 5 lb., dog-food-dry',
       },
       '100000000002': {
         title: 'Acme Purina Pro Plan Dry Dog Food Beef 10 lb.',
         source: 'cohort_fallback',
         pages: [],
-        keywords: 'Acme Purina Pro Plan Dry Dog Food Beef 10 lb., dog-food-dry, Original, description',
+        keywords: 'Acme Purina Pro Plan Dry Dog Food Beef 10 lb., dog-food-dry',
       },
       // Issue #108: the singleton's brandless spreadsheet title now leaves
       // curation brand-guaranteed (brand evidence is Acme); keywords derive
@@ -1226,7 +1226,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
         title: 'Acme Purina Pro Plan Adult Dog Food Salmon 5 lb',
         source: 'web',
         pages: [],
-        keywords: 'Acme Purina Pro Plan Adult Dog Food Salmon 5 lb, Original, description',
+        keywords: 'Acme Purina Pro Plan Adult Dog Food Salmon 5 lb',
       },
     };
     expect(Object.fromEntries(legacyNormalized)).toEqual(FROZEN_LEGACY_BASELINE);
