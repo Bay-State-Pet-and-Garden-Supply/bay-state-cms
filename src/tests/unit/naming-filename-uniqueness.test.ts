@@ -5,6 +5,8 @@ import {
   findDuplicateFileNames,
   slugifyFileName,
   normalizeFileName,
+  classifyBaseFileNameSource,
+  resolveReimportFilename,
 } from '../../shopsite/file-name';
 import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { buildProductsXml } from '../../shopsite/xml-builder';
@@ -230,5 +232,48 @@ describe('healed FileName round-trip (issue #107)', () => {
     const reimported = parsed.products[0];
     const second = ShopSiteProductCodec.encode(reimported);
     expect(fileNameOf(second.xml)).toBe('same-name-2.html');
+  });
+});
+
+describe('base source classification + re-import disposition (issue #106)', () => {
+  it('classifies explicit/preserved/seo/derived sources in precedence order', () => {
+    expect(classifyBaseFileNameSource(makeProduct({ customFileName: 'a.html' }))).toBe('explicit');
+    expect(classifyBaseFileNameSource(makeProduct({ preservedFileName: 'b.html' }))).toBe('preserved');
+    expect(classifyBaseFileNameSource(makeProduct({ seoFileName: 'c' }))).toBe('seo');
+    expect(classifyBaseFileNameSource(makeProduct({ name: 'Plain Name' }))).toBe('derived');
+  });
+
+  it('re-import preserves unowned and self-owned names, holds foreign claims', () => {
+    const owners = new Map([['live-name.html', 'LIVE-1']]);
+    expect(resolveReimportFilename('fresh-name.html', 'NEW-1', owners)).toEqual({
+      action: 'preserve', name: 'fresh-name.html',
+    });
+    expect(resolveReimportFilename('live-name.html', 'LIVE-1', owners)).toEqual({
+      action: 'preserve', name: 'live-name.html',
+    });
+    expect(resolveReimportFilename('LIVE-NAME.HTML', 'NEW-1', owners)).toEqual({
+      action: 'hold_collision', name: 'LIVE-NAME.HTML',
+      code: 'IMPORT_FILENAME_COLLISION', ownerSku: 'LIVE-1',
+    });
+    // Blank pulled names allocate free (derived at promotion, never invented here).
+    expect(resolveReimportFilename(null, 'NEW-1', owners)).toEqual({ action: 'allocate_free' });
+    expect(resolveReimportFilename('  ', 'NEW-1', owners)).toEqual({ action: 'allocate_free' });
+  });
+
+  it('export repair of a kept name is loud, never silent', () => {
+    const a = makeProduct({ sku: 'A-1', name: 'Same Name', customFileName: 'same-name.html' });
+    const b = makeProduct({ sku: 'B-2', name: 'Same Name', customFileName: 'same-name.html' });
+    const result = ShopSiteProductCodec.encodeMany([a, b]);
+    const names = [...result.xml.matchAll(/<FileName>([^<]*)<\/FileName>/g)].map(m => m[1]);
+    expect(new Set(names).size).toBe(2);
+    expect(result.warnings.some(w => w.includes('uniquified') && w.includes('same-name.html'))).toBe(true);
+  });
+
+  it('export of distinct kept names stays warning-free', () => {
+    const result = ShopSiteProductCodec.encodeMany([
+      makeProduct({ sku: 'A-1', name: 'Alpha', customFileName: 'alpha.html' }),
+      makeProduct({ sku: 'B-2', name: 'Beta', customFileName: 'beta.html' }),
+    ]);
+    expect(result.warnings.filter(w => w.includes('uniquified'))).toEqual([]);
   });
 });

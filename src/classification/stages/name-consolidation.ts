@@ -236,6 +236,10 @@ function collectDistributorSignals(evidence: StageInput['evidence']): {
   // with consolidated semantics: providerId from the per-field provenance
   // map, attemptId '', and authority confidence (outranks raw per-attempt
   // rows, which can only come from legacy third_party_page evidence).
+  // Issue #106 story 23: consolidated rows bypass the per-attempt seen-key
+  // dedup — a same-provider/same-value per-attempt row must never swallow
+  // the projection-authority row (the pre-fix ordering dropped it). The key
+  // is still recorded so duplicate consolidated rows dedup among themselves.
   for (const e of distributorRecordEvidence) {
     const val = typeof e.value === 'string' ? e.value.trim() : null;
     if (!val) continue;
@@ -249,17 +253,13 @@ function collectDistributorSignals(evidence: StageInput['evidence']): {
       'unknown';
     if (e.sourceField === 'name' || e.sourceField === 'title') {
       const key = `${providerId}|${val.toLowerCase()}`;
-      if (!seenTitleKeys.has(key)) {
-        seenTitleKeys.add(key);
-        perAttemptTitles.push({ title: val, providerId, attemptId: '', confidence: 1.0 });
-      }
+      seenTitleKeys.add(key);
+      perAttemptTitles.push({ title: val, providerId, attemptId: '', confidence: 1.0 });
     }
     if (e.sourceField === 'brand') {
       const key = `${providerId}|${val.toLowerCase()}`;
-      if (!seenBrandKeys.has(key)) {
-        seenBrandKeys.add(key);
-        perAttemptBrands.push({ brand: val, providerId, attemptId: '', confidence: 1.0 });
-      }
+      seenBrandKeys.add(key);
+      perAttemptBrands.push({ brand: val, providerId, attemptId: '', confidence: 1.0 });
     }
   }
 

@@ -81,6 +81,23 @@ export interface BradleyPdpData {
   mpn: string | null;
   weight: string | null;
   size: string | null;
+  /**
+   * Issue #106: ordered-candidate capacity (spec `Capacity`, then
+   * list-item `Capacity:`/`Volume:`). Observed-null when absent — the
+   * missing_size hold downstream, never a guess.
+   */
+  capacity: string | null;
+  /**
+   * Issue #106: own/selected color as ONE value (multi-word values like
+   * `Navy Blue` are never split). Observed-null when the page shows no
+   * selection — family candidates surface via `colorOptions` + warnings.
+   */
+  color: string | null;
+  /**
+   * Issue #106: unselected color candidates observed on the page (option
+   * lists). Family context for diagnostics only — never evidence.
+   */
+  colorOptions: string[];
   casePack: string | null;
   unitOfMeasure: string | null;
   description: string | null;
@@ -225,6 +242,38 @@ function bradleyBrand($: CheerioAPI): { brand: string | null; brandSource: Bradl
   return { brand: null, brandSource: null };
 }
 
+/**
+ * Issue #106: ordered color candidates from the already-fetched PDP.
+ * Own/selected first (spec `Color`/`Colour`, `Color:` list item, selected
+ * option of a color-named select), then family candidates (all options of
+ * color-named selects). Pure; never throws.
+ */
+function bradleyColor($: CheerioAPI): { color: string | null; colorOptions: string[] } {
+  const spec = specValue($, 'Color') ?? specValue($, 'Colour') ?? labeledListItem($, 'Color') ?? labeledListItem($, 'Colour');
+  const options: string[] = [];
+  let selected: string | null = null;
+  $('select').each((_i, sel) => {
+    const name = `${$(sel).attr('name') ?? ''} ${$(sel).attr('id') ?? ''} ${$(sel).attr('aria-label') ?? ''}`.toLowerCase();
+    if (!name.includes('color') && !name.includes('colour')) return;
+    $(sel).find('option').each((_j, opt) => {
+      const text = $(opt).text().replace(/\s+/g, ' ').trim();
+      if (!text || /^(select|choose|pick|none|--|please)/i.test(text)) return;
+      if (!options.some((o) => o.toLowerCase() === text.toLowerCase())) options.push(text);
+      if ($(opt).attr('selected') !== undefined && !selected) selected = text;
+    });
+  });
+  if (spec) return { color: spec, colorOptions: options.filter((o) => o.toLowerCase() !== spec.toLowerCase()) };
+  return { color: selected, colorOptions: selected ? options.filter((o) => o.toLowerCase() !== (selected as string).toLowerCase()) : options };
+}
+
+/**
+ * Issue #106: ordered capacity candidates from the already-fetched PDP.
+ * Spec `Capacity` first, then `Capacity:`/`Volume:` list items. Pure.
+ */
+function bradleyCapacity($: CheerioAPI): string | null {
+  return specValue($, 'Capacity') ?? labeledListItem($, 'Capacity') ?? labeledListItem($, 'Volume');
+}
+
 /** Vendor-structured brand from JSON-LD blocks (string or { name }). */
 function jsonLdBrand($: CheerioAPI): string | null {
   let found: string | null = null;
@@ -257,6 +306,7 @@ export function parseBradleyPdp(html: string): BradleyPdpData {
   const h1 = $('h1').first();
   const name = h1.length ? h1.text().replace(/\s+/g, ' ').trim() : '';
   const { brand, brandSource } = bradleyBrand($);
+  const { color, colorOptions } = bradleyColor($);
   const distributorSku = specValue($, 'BCI Item Number');
   const upc = specValue($, 'UPC');
   const casePack = specValue($, 'Case Pack');
@@ -270,6 +320,9 @@ export function parseBradleyPdp(html: string): BradleyPdpData {
     mpn: specValue($, 'Manufacturer #'),
     weight: labeledListItem($, 'Weight'),
     size: specValue($, 'Size'),
+    capacity: bradleyCapacity($),
+    color,
+    colorOptions,
     casePack,
     unitOfMeasure: specValue($, 'Unit of Measure'),
     description: firstProseBlock($, 'Description'),
@@ -288,6 +341,11 @@ function trimToLimit(value: string | null): string | null {
 function buildRecord(identifier: string, p: BradleyPdpData, sourceUrl: string, observedAt: string): DistributorCatalogRecord {
   const attributes: Record<string, string> = {};
   if (p.size) attributes.size = p.size;
+  // Issue #106: capacity + own color ride the durable attributes slot so
+  // the connector-axis declaration path (not a global widening) qualifies
+  // them. Family-only candidates are diagnostics, never attribute values.
+  if (p.capacity) attributes.capacity = p.capacity;
+  if (p.color) attributes.color = p.color;
   if (p.casePack && /^\d+$/.test(p.casePack.trim())) attributes.packCount = p.casePack.trim();
   return {
     matchedIdentifier: identifier,
@@ -297,6 +355,9 @@ function buildRecord(identifier: string, p: BradleyPdpData, sourceUrl: string, o
     name: trimToLimit(p.name),
     description: trimToLimit(p.description),
     brand: trimToLimit(p.brand),
+    // Issue #106: brand-candidate provenance survives the lookup result
+    // (was dropped here). Bounded label; null = observed-null.
+    brandSource: p.brandSource,
     manufacturerPartNumber: p.mpn,
     weight: p.weight,
     features: [],
@@ -383,6 +444,9 @@ export class BradleyConnector implements DistributorConnector {
       if (parsed.upc && sameGtin(parsed.upc, identifier)) {
         const finalUrl = sameOrigin(pdp.finalUrl, BRADLEY_NAVIGATION_ORIGIN) ? pdp.finalUrl : url;
         const record = buildRecord(identifier, parsed, finalUrl, observedAt);
+        // Issue #106: bradley emits size/capacity/color variant axes; the
+        // engine turns these raw fields into durable attempt declarations.
+        const declaredVariantAxes = ['size', 'capacity', 'color'];
         const matchedFields = [
           'matchedIdentifier',
           ...(record.name ? ['name'] : []),
@@ -391,6 +455,8 @@ export class BradleyConnector implements DistributorConnector {
           ...(record.manufacturerPartNumber ? ['manufacturerPartNumber'] : []),
           ...(record.weight ? ['weight'] : []),
           ...(record.attributes.size ? ['size'] : []),
+          ...(record.attributes.capacity ? ['capacity'] : []),
+          ...(record.attributes.color ? ['color'] : []),
           ...(record.attributes.packCount ? ['packCount'] : []),
           ...(record.casePack ? ['casePack'] : []),
           ...(record.unitOfMeasure ? ['unitOfMeasure'] : []),
@@ -401,7 +467,12 @@ export class BradleyConnector implements DistributorConnector {
         ];
         const warnings: string[] = [];
         if (record.imageUrls.length === 0) warnings.push('no display-only image candidates found on the PDP');
-        return { outcome: 'found', record, matchedFields, warnings };
+        if (!parsed.color && parsed.colorOptions.length > 0) {
+          warnings.push(
+            `color options present but no selection (family: ${parsed.colorOptions.slice(0, 8).join(', ')}) — observed-null, not evidence`,
+          );
+        }
+        return { outcome: 'found', record, matchedFields, warnings, declaredVariantAxes };
       }
     }
 

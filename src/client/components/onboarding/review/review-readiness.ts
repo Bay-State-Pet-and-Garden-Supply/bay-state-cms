@@ -24,6 +24,13 @@ import {
 } from '../../../../shared/schemas/onboarding';
 import type { OnboardingApiError } from '../../../onboarding-api';
 import type { ReviewDraft } from './review-types';
+import {
+  assessNamingInvariants,
+  isProductCapacity,
+  classifyTitleEmbeddedToken,
+  type NamingMeasurementToken,
+} from '../../../../onboarding/naming-assessment';
+import { extractProtectedTokens, knownColorsAcross } from '../../../../onboarding/title-prompt-template';
 
 export interface ReviewReadiness {
   ready: boolean;
@@ -161,6 +168,55 @@ export function deriveReadiness(
   if (!trimOrNull(curation?.searchKeywords)) warnings.push('keywords_empty');
   if (!trimOrNull(curation?.curatedWeight)) warnings.push('weight_missing');
 
+  // Issue #106: advisory naming warnings from the shared pure assessment
+  // (server snapshot stays authoritative; this never blocks here).
+  try {
+    const extRec = (extraction ?? {}) as Record<string, unknown>;
+    const attrs = extRec.variantAttributes;
+    const attrRec = attrs && typeof attrs === 'object' ? (attrs as Record<string, unknown>) : null;
+    const tokens: NamingMeasurementToken[] = [];
+    if (attrRec) {
+      for (const [axis, value] of Object.entries(attrRec)) {
+        if (typeof value !== 'string' || !value.trim()) continue;
+        const lowered = axis.trim().toLowerCase();
+        if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula') continue;
+        tokens.push({
+          axis: axis.trim(),
+          value: value.trim(),
+          conflicted: lowered === 'capacity' && !isProductCapacity(value),
+        });
+      }
+    }
+    const advWeight = trimOrNull((curation as Record<string, unknown> | null)?.curatedWeight)
+      ?? (typeof extRec.weight === 'string' ? trimOrNull(extRec.weight) : null);
+    if (advWeight && /[a-z]/i.test(advWeight)) tokens.push({ axis: 'weight', value: advWeight });
+    if (tokens.length === 0 && effectiveName) {
+      for (const embedded of extractProtectedTokens(effectiveName)) {
+        tokens.push({ axis: classifyTitleEmbeddedToken(embedded), value: embedded });
+      }
+    }
+    const structuredColors = [
+      attrRec && typeof attrRec.color === 'string' ? (attrRec.color as string) : null,
+      typeof extRec.color === 'string' ? (extRec.color as string) : null,
+    ].filter((c): c is string => !!c?.trim());
+    const advisory = assessNamingInvariants({
+      title: effectiveName,
+      brand,
+      brandEvidence: brand ? 'present' : 'absent',
+      measurementTokens: tokens,
+      measurementApplicable: true,
+      ownColor: structuredColors[0] ?? null,
+      familyColors: knownColorsAcross(structuredColors),
+      siblingTitles: [],
+    });
+    for (const finding of advisory.findings) {
+      if (finding.code === 'missing_size' && !warnings.includes('missing_size')) warnings.push('missing_size');
+      if (finding.code === 'missing_color' && !warnings.includes('missing_color')) warnings.push('missing_color');
+    }
+  } catch {
+    // Advisory assessment never breaks the readiness view.
+  }
+
   const proposals = curation?.classificationProposals ?? [];
   const decisions = curation?.classificationDecisions ?? [];
   if (proposals.some((p) => p.status === 'pending' && !decisions.some((d) => d.proposalId === p.id))) {
@@ -236,6 +292,7 @@ const BLOCKER_TEXT: Record<ReviewCompletenessBlockerCode, string> = {
   missing_brand: 'Brand is missing',
   missing_primary_image: 'No primary image',
   missing_pages: 'No verified Catalog Page assignment',
+  duplicate_filename: 'File name is owned by another product',
 };
 
 const WARNING_TEXT: Record<ReviewCompletenessWarningCode, string> = {
@@ -247,7 +304,9 @@ const WARNING_TEXT: Record<ReviewCompletenessWarningCode, string> = {
   pending_proposals: 'Classification proposals await decisions',
   unverified_accepted_pages:
     'Accepted page assignments are not verified against the current catalog import',
-};
+  missing_size: 'Size/capacity is missing from the draft name',
+  missing_color: 'Color is missing from the draft name',
+}
 
 /** Human text naming the field for any gate/warning code (SC 3.3.1). */
 export function gateText(code: ReviewCompletenessBlockerCode | ReviewCompletenessWarningCode | string): string {
@@ -274,6 +333,8 @@ const JUMP_TARGET_BY_CODE: Record<string, string> = {
   description_empty: 'rv-edit-desc',
   keywords_empty: 'rv-edit-keywords',
   weight_missing: 'rv-edit-weight',
+  missing_size: 'rv-edit-title',
+  missing_color: 'rv-edit-title',
 };
 
 export function jumpTargetFor(code: string): string | null {

@@ -147,13 +147,13 @@ describe('Draft Promoter Service', () => {
     });
     const [item] = insertItems(batch.id, [{
       upc: sku,
-      name: `Product ${sku}`,
+      name: `Test Brand Product ${sku} 5 LB`,
       price: '$9.99',
       brandHint: 'Test Brand',
       rowNumber: 1,
     }]);
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: `Product ${sku}`,
+      title: `Test Brand Product ${sku} 5 LB`,
       brand: 'Test Brand',
       description: 'Promotion classification test product.',
       bulletPoints: [],
@@ -172,7 +172,7 @@ describe('Draft Promoter Service', () => {
       fieldProvenance: { title: 'fixture' },
     });
     const curationData = {
-      curatedTitle: `Product ${sku}`,
+      curatedTitle: `Test Brand Product ${sku} 5 LB`,
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: null,
@@ -206,7 +206,7 @@ describe('Draft Promoter Service', () => {
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Awesome Running Shoes',
+      title: 'Test Brand Awesome Running Shoes 12 oz',
       brand: 'RunningCo',
       description: 'Extremely lightweight running shoes.',
       bulletPoints: ['Lightweight', 'Breathable'],
@@ -229,6 +229,7 @@ describe('Draft Promoter Service', () => {
       upc: '123456123456',
       name: 'Running Shoes',
       price: '89.99',
+      brandHint: 'Test Brand',
       rowNumber: 2
     }]);
 
@@ -236,7 +237,7 @@ describe('Draft Promoter Service', () => {
     
     // Save extraction data, set curation_data with pages, advance to promotion stage
     const curationData = {
-      curatedTitle: 'Awesome Running Shoes',
+      curatedTitle: 'Test Brand Awesome Running Shoes 12 oz',
       titleSource: 'web',
       suggestedPages: ['Shoes', 'Running Gear'],
       suggestedProductType: 'Footwear',
@@ -258,7 +259,7 @@ describe('Draft Promoter Service', () => {
       id: 'test-id-1',
       sku: '123456123456',
       status: 'draft',
-      core: { name: 'Awesome Running Shoes', price: '89.99', salePrice: null, description: 'Extremely lightweight running shoes.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: '12 oz', taxable: true, media: { primary: 'products/123456123456/images/primary.jpg', additional: [] }, seo: { fileName: 'awesome-running-shoes', searchKeywords: 'running shoes lightweight', googleProductCategory: null } },
+      core: { name: 'Test Brand Awesome Running Shoes 12 oz', price: '89.99', salePrice: null, description: 'Extremely lightweight running shoes.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: '12 oz', taxable: true, media: { primary: 'products/123456123456/images/primary.jpg', additional: [] }, seo: { fileName: 'awesome-running-shoes.html', searchKeywords: 'running shoes lightweight', googleProductCategory: null } },
       customFields: { ProductField16: 'RunningCo' },
       shopsite: { productId: null, productGuid: null, xmlVersion: '15.0', lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null, source: { dbname: 'products', uniqueName: 'SKU' }, preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} } },
       metadata: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), archivedAt: null },
@@ -287,7 +288,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const draftProduct = JSON.parse(csItems[0].draftJson);
     expect(draftProduct.sku).toBe('123456123456');
-    expect(draftProduct.core.name).toBe('Awesome Running Shoes');
+    expect(draftProduct.core.name).toBe('Test Brand Awesome Running Shoes 12 oz');
     expect(draftProduct.core.price).toBe('89.99');
     expect(draftProduct.core.media.primary).toBe('products/123456123456/images/primary.jpg');
   });
@@ -301,14 +302,14 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Premium Dog Food',
+      title: 'DogCo Premium Dog Food 5 LB',
       brand: 'DogCo',
       description: 'Healthy dog food.',
       bulletPoints: [],
       primaryImage: null,
       additionalImages: [],
       price: '19.99', // extracted price
-      weight: null,
+      weight: '5 LB',
       dimensions: null,
       seoFileName: null,
       searchKeywords: null,
@@ -322,8 +323,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const items = insertItems(batch.id, [{
       upc: '987654321098',
-      name: 'Dog Food',
+      name: 'DogCo Dog Food',
       price: '24.99', // spreadsheet price (different from extraction!)
+      brandHint: 'DogCo',
       rowNumber: 2
     }]);
 
@@ -337,7 +339,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     // Add mandatory fields: primary image, brand in customFields, pages
     const curationData = {
-      curatedTitle: 'Premium Dog Food',
+      curatedTitle: 'DogCo Premium Dog Food 5 LB',
       titleSource: 'web',
       suggestedPages: ['Dog Food'],
       suggestedProductType: 'Food',
@@ -359,7 +361,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       id: 'test-id-2',
       sku: '987654321098',
       status: 'draft',
-      core: { name: 'Premium Dog Food', price: '24.99', salePrice: null, description: 'Healthy dog food.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: null, taxable: true, media: { primary: 'products/987654321098/images/primary.jpg', additional: [] }, seo: { fileName: null, searchKeywords: null, googleProductCategory: null } },
+      core: { name: 'DogCo Premium Dog Food 5 LB', price: '24.99', salePrice: null, description: 'Healthy dog food.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: '5 LB', taxable: true, media: { primary: 'products/987654321098/images/primary.jpg', additional: [] }, seo: { fileName: 'dogco-premium-dog-food-5-lb.html', searchKeywords: null, googleProductCategory: null } },
       customFields: { ProductField16: 'DogCo' },
       shopsite: { productId: null, productGuid: null, xmlVersion: '15.0', lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null, source: { dbname: 'products', uniqueName: 'SKU' }, preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} } },
       metadata: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), archivedAt: null },
@@ -389,7 +391,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Premium Cat Food',
+      title: 'CatCo Premium Cat Food 5 LB',
       brand: 'CatCo',
       description: 'Healthy cat food.',
       bulletPoints: [],
@@ -418,7 +420,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'Premium Cat Food',
+      curatedTitle: 'CatCo Premium Cat Food 5 LB',
       titleSource: 'web',
       suggestedPages: ['Cat Food'],
       suggestedProductType: 'Food',
@@ -454,7 +456,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Premium Dog Treat',
+      title: 'DogCo Premium Dog Treat 5 LB',
       brand: 'DogCo',
       description: 'Tasty treat.',
       bulletPoints: [],
@@ -483,7 +485,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'Premium Dog Treat',
+      curatedTitle: 'DogCo Premium Dog Treat 5 LB',
       titleSource: 'web',
       suggestedPages: ['Dog Treats'],
       suggestedProductType: 'Treat',
@@ -519,7 +521,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Missing Details Product',
+      title: 'Test Brand Missing Details Product 5 LB',
       brand: null, // missing brand
       description: null,
       bulletPoints: [],
@@ -540,14 +542,15 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const items = insertItems(batch.id, [{
       upc: '555555555555',
-      name: 'Incomplete Item',
+      name: 'Test Brand Incomplete Item 5 LB',
       price: null, // missing price
+      brandHint: 'Test Brand',
       rowNumber: 2
     }]);
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'Incomplete Item',
+      curatedTitle: 'Test Brand Incomplete Item 5 LB',
       titleSource: 'web',
       suggestedPages: [], // missing pages
       suggestedProductType: null,
@@ -586,7 +589,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'New Animal Toy',
+      title: 'ToyCo New Animal Toy 5 LB',
       brand: 'ToyCo',
       description: 'Brand new toy.',
       bulletPoints: [],
@@ -607,7 +610,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const items = insertItems(batch.id, [{
       upc: '444444444444',
-      name: 'New Animal Toy',
+      name: 'ToyCo New Animal Toy 5 LB',
       price: '$9.99',
       brandHint: 'ToyCo',
       rowNumber: 2
@@ -615,7 +618,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'New Animal Toy',
+      curatedTitle: 'ToyCo New Animal Toy 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: 'Toy',
@@ -660,7 +663,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       totalItems: 1
     });
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Mapped Brand Toy',
+      title: 'SlotCo Mapped Brand Toy 5 LB',
       brand: 'SlotCo',
       description: 'Brand slot routing test.',
       bulletPoints: [],
@@ -680,7 +683,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const items = insertItems(batch.id, [{
       upc: '445544554455',
-      name: 'Mapped Brand Toy',
+      name: 'SlotCo Mapped Brand Toy 5 LB',
       price: '$9.99',
       brandHint: 'SlotCo',
       rowNumber: 1
@@ -689,7 +692,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
       JSON.stringify({
-        curatedTitle: 'Mapped Brand Toy',
+        curatedTitle: 'SlotCo Mapped Brand Toy 5 LB',
         titleSource: 'web',
         suggestedPages: ['Toys'],
         suggestedProductType: 'Toy',
@@ -720,7 +723,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       totalItems: 1
     });
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Mapped Date Toy',
+      title: 'DateCo Mapped Date Toy 5 LB',
       brand: 'DateCo',
       description: 'Date slot routing test.',
       bulletPoints: [],
@@ -740,7 +743,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const items = insertItems(batch.id, [{
       upc: '446644664466',
-      name: 'Mapped Date Toy',
+      name: 'DateCo Mapped Date Toy 5 LB',
       price: '$9.99',
       brandHint: 'DateCo',
       rowNumber: 1
@@ -749,7 +752,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
       JSON.stringify({
-        curatedTitle: 'Mapped Date Toy',
+        curatedTitle: 'DateCo Mapped Date Toy 5 LB',
         titleSource: 'web',
         suggestedPages: ['Toys'],
         suggestedProductType: 'Toy',
@@ -783,7 +786,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       totalItems: 1
     });
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'First Class Pages Toy',
+      title: 'PageCo First Class Pages Toy 5 LB',
       brand: 'PageCo',
       description: 'First-class pages test.',
       bulletPoints: [],
@@ -803,7 +806,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const items = insertItems(batch.id, [{
       upc: '447744774477',
-      name: 'First Class Pages Toy',
+      name: 'PageCo First Class Pages Toy 5 LB',
       price: '$9.99',
       brandHint: 'PageCo',
       rowNumber: 1
@@ -812,7 +815,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
       JSON.stringify({
-        curatedTitle: 'First Class Pages Toy',
+        curatedTitle: 'PageCo First Class Pages Toy 5 LB',
         titleSource: 'web',
         suggestedPages: ['Toys'],
         suggestedProductType: 'Toy',
@@ -842,7 +845,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const sku = '448844884488';
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Multi Pages Toy',
+      title: 'MultiCo Multi Pages Toy 5 LB',
       brand: 'MultiCo',
       description: 'Multi-page promotion test.',
       bulletPoints: [],
@@ -862,7 +865,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const items = insertItems(batch.id, [{
       upc: sku,
-      name: 'Multi Pages Toy',
+      name: 'MultiCo Multi Pages Toy 5 LB',
       price: '$9.99',
       brandHint: 'MultiCo',
       rowNumber: 1
@@ -873,7 +876,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
       JSON.stringify({
-        curatedTitle: 'Multi Pages Toy',
+        curatedTitle: 'MultiCo Multi Pages Toy 5 LB',
         titleSource: 'web',
         suggestedPages: ['Toys'],
         suggestedProductType: 'Toy',
@@ -941,7 +944,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       });
       const sku = '449944994499';
       const extractionData: ExtractionData = ExtractionDataSchema.parse({
-        title: 'Stale Brand Toy',
+        title: 'StaleCo Stale Brand Toy 5 LB',
         brand: 'StaleCo',
         description: 'Stale mapping fallback test.',
         bulletPoints: [],
@@ -961,7 +964,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       });
       const items = insertItems(batch.id, [{
         upc: sku,
-        name: 'Stale Brand Toy',
+        name: 'StaleCo Stale Brand Toy 5 LB',
         price: '$9.99',
         brandHint: 'StaleCo',
         rowNumber: 1
@@ -970,7 +973,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
         JSON.stringify(extractionData),
         JSON.stringify({
-          curatedTitle: 'Stale Brand Toy',
+          curatedTitle: 'StaleCo Stale Brand Toy 5 LB',
           titleSource: 'web',
           suggestedPages: ['Toys'],
           suggestedProductType: 'Toy',
@@ -1005,7 +1008,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       });
       const sku = '450045004500';
       const extractionData: ExtractionData = ExtractionDataSchema.parse({
-        title: 'Empty Date Toy',
+        title: 'DateCo Empty Date Toy 5 LB',
         brand: 'DateCo',
         description: 'Empty mapping fallback test.',
         bulletPoints: [],
@@ -1025,7 +1028,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       });
       const items = insertItems(batch.id, [{
         upc: sku,
-        name: 'Empty Date Toy',
+        name: 'DateCo Empty Date Toy 5 LB',
         price: '$9.99',
         brandHint: 'DateCo',
         rowNumber: 1
@@ -1034,7 +1037,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
         JSON.stringify(extractionData),
         JSON.stringify({
-          curatedTitle: 'Empty Date Toy',
+          curatedTitle: 'DateCo Empty Date Toy 5 LB',
           titleSource: 'web',
           suggestedPages: ['Toys'],
           suggestedProductType: 'Toy',
@@ -1069,7 +1072,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'No Proposals Product',
+      title: 'ToyCo No Proposals Product 5 LB',
       brand: 'ToyCo',
       description: 'Brand new toy.',
       bulletPoints: [],
@@ -1090,7 +1093,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const items = insertItems(batch.id, [{
       upc: '333333333333',
-      name: 'No Proposals Product',
+      name: 'ToyCo No Proposals Product 5 LB',
       price: '$9.99',
       brandHint: 'ToyCo',
       rowNumber: 2
@@ -1098,7 +1101,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'No Proposals Product',
+      curatedTitle: 'ToyCo No Proposals Product 5 LB',
       titleSource: 'web',
       suggestedPages: [],
       suggestedProductType: 'Toy',
@@ -1138,13 +1141,13 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
     const item = insertItems(batch.id, [{
       upc: '222222222222',
-      name: 'Active Run Product',
+      name: 'ToyCo Active Run Product 5 LB',
       price: '$9.99',
       brandHint: 'ToyCo',
       rowNumber: 1,
     }])[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Active Run Product',
+      title: 'ToyCo Active Run Product 5 LB',
       brand: 'ToyCo',
       description: 'A product whose old run must not leak.',
       bulletPoints: [],
@@ -1168,7 +1171,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
        SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready'
        WHERE id = ?`,
       [JSON.stringify(extractionData), JSON.stringify({
-        curatedTitle: 'Active Run Product',
+        curatedTitle: 'ToyCo Active Run Product 5 LB',
         titleSource: 'web',
         suggestedPages: [],
         suggestedProductType: null,
@@ -1220,7 +1223,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     );
 
     const extractionData = {
-      title: 'Manual Page Product',
+      title: 'ToyCo Manual Page Product 5 LB',
       primaryImage: 'products/999999999999/images/primary.jpg',
       additionalImages: [],
       price: '$9.99',
@@ -1238,7 +1241,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
     const items = insertItems(batch.id, [{
       upc: '999999999999',
-      name: 'Manual Page Product',
+      name: 'ToyCo Manual Page Product 5 LB',
       price: '$9.99',
       brandHint: 'ToyCo',
       rowNumber: 3
@@ -1247,7 +1250,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const item = items[0];
 
     const curationData = {
-      curatedTitle: 'Manual Page Product',
+      curatedTitle: 'ToyCo Manual Page Product 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: 'Toy',
@@ -1783,10 +1786,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(verifiedFood).toBeDefined();
 
     const batch = createBatch({ workspaceId: wsId, name: 'Verified Pages', fileName: 'vp.xlsx', totalItems: 1 });
-    const items = insertItems(batch.id, [{ upc: '999000000001', name: 'Verified Product', price: '$5.00', rowNumber: 1, brandHint: 'Test Brand' }]);
+    const items = insertItems(batch.id, [{ upc: '999000000001', name: 'Test Brand Verified Product 5 LB', price: '$5.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Verified Product',
+      title: 'Test Brand Verified Product 5 LB',
       brand: 'Test Brand',
       description: 'Promotion verified-page test.',
       bulletPoints: [],
@@ -1807,7 +1810,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const db = getDb();
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
-      JSON.stringify({ curatedTitle: 'Verified Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
+      JSON.stringify({ curatedTitle: 'Test Brand Verified Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
       item.id,
     );
 
@@ -1823,7 +1826,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     );
     db.run(
       'UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?',
-      [JSON.stringify({ curatedTitle: 'Verified Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
+      [JSON.stringify({ curatedTitle: 'Test Brand Verified Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
     );
     const proposalId = 'prop-verified-page';
     db.run(
@@ -1854,10 +1857,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
   it('BLOCKS promotion when the only accepted page proposal is NOT in the active import (fail-closed page gate)', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'Unverified Pages', fileName: 'up.xlsx', totalItems: 1 });
-    const items = insertItems(batch.id, [{ upc: '999000000002', name: 'Unverified Product', price: '$6.00', rowNumber: 1, brandHint: 'Test Brand' }]);
+    const items = insertItems(batch.id, [{ upc: '999000000002', name: 'Test Brand Unverified Product 5 LB', price: '$6.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Unverified Product',
+      title: 'Test Brand Unverified Product 5 LB',
       brand: 'Test Brand',
       description: 'Promotion unverified-page test.',
       bulletPoints: [],
@@ -1878,7 +1881,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const db = getDb();
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
-      JSON.stringify({ curatedTitle: 'Unverified Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
+      JSON.stringify({ curatedTitle: 'Test Brand Unverified Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
       item.id,
     );
 
@@ -1892,7 +1895,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     );
     db.run(
       'UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?',
-      [JSON.stringify({ curatedTitle: 'Unverified Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
+      [JSON.stringify({ curatedTitle: 'Test Brand Unverified Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
     );
     const proposalId = 'prop-unverified-page';
     db.run(
@@ -1925,10 +1928,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
   it('BLOCKS promotion when the only page input is an unverified/name-only manual DB row (fail-closed page gate)', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'NameOnly Pages', fileName: 'np2.xlsx', totalItems: 1 });
-    const items = insertItems(batch.id, [{ upc: '999000000004', name: 'NameOnly Product', price: '$8.00', rowNumber: 1, brandHint: 'Test Brand' }]);
+    const items = insertItems(batch.id, [{ upc: '999000000004', name: 'Test Brand NameOnly Product 5 LB', price: '$8.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'NameOnly Product',
+      title: 'Test Brand NameOnly Product 5 LB',
       brand: 'Test Brand',
       description: 'Promotion name-only manual row test.',
       bulletPoints: [],
@@ -1949,7 +1952,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const db = getDb();
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
-      JSON.stringify({ curatedTitle: 'NameOnly Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
+      JSON.stringify({ curatedTitle: 'Test Brand NameOnly Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
       item.id,
     );
     // Name-only manual assignment: no pageId (or an unverified one) — it must
@@ -1968,10 +1971,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
   it('REFUSES promotion when a MIXED verified + unverified accepted set exists — P11 fails the item closed before any draft write', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'Mixed Pages', fileName: 'mx.xlsx', totalItems: 1 });
-    const items = insertItems(batch.id, [{ upc: '999000000005', name: 'Mixed Product', price: '$9.00', rowNumber: 1, brandHint: 'Test Brand' }]);
+    const items = insertItems(batch.id, [{ upc: '999000000005', name: 'Test Brand Mixed Product 5 LB', price: '$9.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Mixed Product',
+      title: 'Test Brand Mixed Product 5 LB',
       brand: 'Test Brand',
       description: 'Promotion mixed verified/unverified test.',
       bulletPoints: [],
@@ -1992,7 +1995,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const db = getDb();
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
-      JSON.stringify({ curatedTitle: 'Mixed Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
+      JSON.stringify({ curatedTitle: 'Test Brand Mixed Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
       item.id,
     );
 
@@ -2048,10 +2051,10 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(verifiedNameless).toBeDefined();
 
     const batch = createBatch({ workspaceId: wsId, name: 'Nameless Pages', fileName: 'np.xlsx', totalItems: 1 });
-    const items = insertItems(batch.id, [{ upc: '999000000003', name: 'Nameless Product', price: '$7.00', rowNumber: 1, brandHint: 'Test Brand' }]);
+    const items = insertItems(batch.id, [{ upc: '999000000003', name: 'Test Brand Nameless Product 5 LB', price: '$7.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Nameless Product',
+      title: 'Test Brand Nameless Product 5 LB',
       brand: 'Test Brand',
       description: 'Promotion nameless-page test.',
       bulletPoints: [],
@@ -2072,7 +2075,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     const db = getDb();
     db.query("UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?").run(
       JSON.stringify(extractionData),
-      JSON.stringify({ curatedTitle: 'Nameless Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
+      JSON.stringify({ curatedTitle: 'Test Brand Nameless Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, curatedAt: new Date().toISOString(), curationMethod: 'auto' }),
       item.id,
     );
 
@@ -2086,7 +2089,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     );
     db.run(
       'UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?',
-      [JSON.stringify({ curatedTitle: 'Nameless Product', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
+      [JSON.stringify({ curatedTitle: 'Test Brand Nameless Product 5 LB', titleSource: 'web', suggestedPages: [], suggestedProductType: null, classificationRunId: runId, curatedAt: now, curationMethod: 'auto' }), item.id],
     );
     const proposalId = 'prop-nameless-page';
     db.run(
@@ -2134,7 +2137,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     ]);
     const [healthy, blocked] = items;
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'PR11 Product',
+      title: 'Test Brand PR11 Product 5 LB',
       brand: 'Test Brand',
       description: 'PR11 gate promotion test.',
       bulletPoints: [],
@@ -2153,7 +2156,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       fieldProvenance: { title: 'fixture' },
     });
     const curation = {
-      curatedTitle: 'PR11 Product',
+      curatedTitle: 'Test Brand PR11 Product 5 LB',
       titleSource: 'web',
       suggestedPages: [],
       suggestedProductType: null,
@@ -2297,13 +2300,13 @@ describe('Milestone E — promotion image boundary (BLOCKER #1 closure)', () => 
     });
     const [item] = insertItems(batch.id, [{
       upc: '100000000001',
-      name: 'Boundary Product',
+      name: 'Boundary Brand Boundary Product 5 LB',
       price: '$9.99',
       brandHint: 'Boundary Brand',
       rowNumber: 1,
     }]);
     const extractionData = ExtractionDataSchema.parse({
-      title: 'Boundary Product',
+      title: 'Boundary Brand Boundary Product 5 LB',
       brand: 'Boundary Brand',
       description: 'Boundary description.',
       bulletPoints: [],
@@ -2322,7 +2325,7 @@ describe('Milestone E — promotion image boundary (BLOCKER #1 closure)', () => 
       fieldProvenance: { title: 'fixture' },
     });
     const curationData = {
-      curatedTitle: 'Boundary Product',
+      curatedTitle: 'Boundary Brand Boundary Product 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: null,
@@ -2397,7 +2400,7 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
     const batch = createBatch({ workspaceId: wsId, name: 'ME Distributor Gate', fileName: 'me-dist.xlsx', totalItems: 1 });
     const [item] = insertItems(
       batch.id,
-      [{ upc: sku, name: 'Dist Product', price: '$14.99', rowNumber: 1 }],
+      [{ upc: sku, name: 'Dist Brand Dist Product 5 LB', price: '$14.99', brandHint: 'Dist Brand', rowNumber: 1 }],
       'sourcing',
       SOURCING_ENTRY_POLICY_VERSION,
     );
@@ -2482,7 +2485,7 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
     // deep-compare gate requires the item payload to equal the reconstructed
     // canonical payload, so an overwrite here would count as a tamper.
     const curationData = {
-      curatedTitle: 'Dist Product',
+      curatedTitle: 'Dist Brand Dist Product 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: null,
@@ -2688,14 +2691,14 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.batch_id, [i
     // source. curatedDescription from Review must beat the extraction copy.
     const batch = createBatch({ workspaceId: wsId, name: 'M5b-2 desc pref', fileName: 'desc-pref.xlsx', totalItems: 1 });
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'Pref Product',
+      title: 'Test Brand Pref Product 5 LB',
       brand: 'Pref Brand',
       description: 'Extraction description copy.',
       bulletPoints: [],
       primaryImage: 'products/599999999999/images/primary.jpg',
       additionalImages: [],
       price: '7.99',
-      weight: '2 lb',
+      weight: '5 LB',
       dimensions: null,
       seoFileName: null,
       searchKeywords: null,
@@ -2706,9 +2709,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.batch_id, [i
       packagingOcrData: null,
       customFields: {},
     });
-    const [item] = insertItems(batch.id, [{ upc: '599999999999', name: 'Pref Product', price: '7.99', rowNumber: 1 }]);
+    const [item] = insertItems(batch.id, [{ upc: '599999999999', name: 'Test Brand Pref Product 5 LB', price: '7.99', brandHint: 'Test Brand', rowNumber: 1 }]);
     const curationData = {
-      curatedTitle: 'Pref Product',
+      curatedTitle: 'Test Brand Pref Product 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: null,
@@ -2729,7 +2732,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.batch_id, [i
       id: 'test-id-pref',
       sku: '599999999999',
       status: 'draft',
-      core: { name: 'Pref Product', price: '7.99', salePrice: null, description: 'Extraction description copy.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: '2 lb', taxable: true, media: { primary: 'products/555555555555/images/primary.jpg', additional: [] }, seo: { fileName: null, searchKeywords: null, googleProductCategory: null } },
+      core: { name: 'Test Brand Pref Product 5 LB', price: '7.99', salePrice: null, description: 'Extraction description copy.', inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null }, availability: null, weight: '2 lb', taxable: true, media: { primary: 'products/555555555555/images/primary.jpg', additional: [] }, seo: { fileName: null, searchKeywords: null, googleProductCategory: null } },
       customFields: { ProductField16: 'Pref Brand' },
       shopsite: { productId: null, productGuid: null, xmlVersion: '15.0', lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null, source: { dbname: 'products', uniqueName: 'SKU' }, preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} } },
       metadata: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), archivedAt: null },

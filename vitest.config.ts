@@ -70,6 +70,10 @@ export default defineConfig({
       'src/tests/unit/draft-promoter.test.ts',
       'src/tests/unit/naming-promotion-filenames.test.ts',
       'src/tests/unit/filename-review.test.ts',
+      'src/tests/unit/naming-ownership-snapshot.test.ts',
+      'src/tests/unit/naming-promotion-gate.test.ts',
+      'src/tests/unit/naming-presync-overlay.test.ts',
+      'src/tests/unit/naming-reimport-hold.test.ts',
       // Brand guarantee uses bun:sqlite via llm-client; runs under bun test.
       // NOTE: keep isolated from name-consolidation-stage.test.ts — that file
       // vi.mock()s title-consolidation and bun shares the module registry

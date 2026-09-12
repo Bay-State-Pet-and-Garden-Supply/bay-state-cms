@@ -12,6 +12,8 @@ export interface ReviewWarningsPanelProps {
   detail: ItemDetailResponse | null;
   /** Filename warnings for this draft from the batch preview (issue #109). */
   filenameWarnings?: BatchFilenamePreviewItem['warnings'];
+  /** Issue #106 (additive): allowed resolutions for the filename warnings. */
+  filenameResolutions?: BatchFilenamePreviewItem['allowedResolutions'];
 }
 
 function evidenceSummary(detail: ItemDetailResponse | null): string[] {
@@ -39,7 +41,13 @@ function evidenceSummary(detail: ItemDetailResponse | null): string[] {
   return lines;
 }
 
-export function ReviewWarningsPanel({ detail, filenameWarnings }: ReviewWarningsPanelProps) {
+const RESOLUTION_LABELS: Record<'retitle' | 'accept_suffix' | 'defer', string> = {
+  retitle: 'retitle',
+  accept_suffix: 'accept the suffixed name',
+  defer: 'defer',
+};
+
+export function ReviewWarningsPanel({ detail, filenameWarnings, filenameResolutions }: ReviewWarningsPanelProps) {
   const info = warningInfoFromDetail(detail ?? {});
   const evidence = evidenceSummary(detail);
   const filenameItems = (filenameWarnings ?? []).filter(w => typeof w?.message === 'string' && w.message.length > 0);
@@ -78,6 +86,11 @@ export function ReviewWarningsPanel({ detail, filenameWarnings }: ReviewWarnings
                 </li>
               ))}
             </ul>
+            {(filenameResolutions ?? []).length > 0 && (
+              <div className="rv-field-hint">
+                Allowed resolutions: {filenameResolutions!.map(r => RESOLUTION_LABELS[r]).join(' · ')}
+              </div>
+            )}
           </div>
         )}
 

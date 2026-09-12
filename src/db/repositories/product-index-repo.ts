@@ -217,3 +217,60 @@ function mapRow(row: Record<string, unknown>): ProductIndexRow {
     customFields: customFieldsObj,
   };
 }
+
+/**
+ * Catalog products for the filename-ownership snapshot (issue #106
+ * SEQUENCE 2b). Returns raw custom fields + title per SKU; the snapshot
+ * builder resolves the effective name (custom FileName wins, else the
+ * workspace file derivation when a workspace path is supplied).
+ */
+export function listCatalogProductsForSnapshot(): Array<{
+  sku: string;
+  title: string;
+  customFields: Record<string, unknown> | null;
+}> {
+  const db = getDb();
+  const rows = db.query(
+    `SELECT sku, title, custom_fields FROM product_index`,
+  ).all() as Array<Record<string, unknown>>;
+  const out: Array<{ sku: string; title: string; customFields: Record<string, unknown> | null }> = [];
+  for (const row of rows) {
+    const sku = String(row.sku ?? '');
+    if (!sku) continue;
+    let custom: Record<string, unknown> | null = null;
+    try {
+      custom = row.custom_fields ? JSON.parse(String(row.custom_fields)) as Record<string, unknown> : null;
+    } catch {
+      // custom stays null on unparseable JSON.
+    }
+    out.push({ sku, title: String(row.title ?? ''), customFields: custom });
+  }
+  return out;
+}
+
+/**
+ * Catalog filename ownership for the promotion snapshot (issue #106
+ * SEQUENCE 2b). Approved catalog products reserve their explicit custom
+ * `FileName` (matching resolveBaseFileName precedence for indexed rows).
+ * Rows without an explicit custom FileName reserve nothing here.
+ *
+ * Issue #106 C2 — intentional scope boundary (pinned by test): this
+ * covers the DB-indexed catalog state only. The promotion ownership
+ * snapshot additionally overlays workspace files (effective-product
+ * resolution for healed seo-only names) because promotion runs with
+ * workspace access and is the primary enforcer; pre-sync and drift
+ * enforce on this indexed set. A healed seo-only catalog name is
+ * promotion-owned but pre-sync/drift-invisible by design.
+ */
+export function listCatalogFilenameOwners(): Array<{ sku: string; fileName: string }> {
+  const owners: Array<{ sku: string; fileName: string }> = [];
+  for (const { sku, customFields } of listCatalogProductsForSnapshot()) {
+    const raw = customFields?.['FileName'];
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    const trimmed = raw.trim();
+    const name = /\.html$/i.test(trimmed) ? trimmed : `${trimmed}.html`;
+    if (name.toLowerCase() === '.html') continue;
+    owners.push({ sku, fileName: name });
+  }
+  return owners;
+}

@@ -6,7 +6,21 @@ import { getDb } from '../db/connection';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { findBatchById, isBatchComplete, setBatchArchived } from '../db/repositories/onboarding-batch-repo';
 import { listItemsByBatch, completePromotionStage, findItemById } from '../db/repositories/onboarding-item-repo';
-import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-set-repo';
+import { createChangeSet, upsertChangeSetItem, listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
+import { listCatalogProductsForSnapshot } from '../db/repositories/product-index-repo';
+import { resolveBaseFileName } from '../shopsite/file-name';
+import { computeTakenSnapshotRef, buildAllocationRecords, type AllocationRecord } from './naming-allocation';
+import {
+  assessNamingInvariants,
+  isProductCapacity,
+  classifyTitleEmbeddedToken,
+  type NamingAssessmentInput,
+  type NamingMeasurementToken,
+} from './naming-assessment';
+import { extractProtectedTokens } from './title-prompt-template';
+
+
+import { getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
 import { clearProductPages, assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
@@ -245,10 +259,17 @@ async function downloadAndProcessImages(
  * transaction as the FINAL authority (failure recording). Deterministic and
  * cheap — the DB state is re-read on every invocation.
  * Legacy items (no run pointer) pass with `ok: true` and empty proposals.
+ * Issue #106 C3: for run-pointer (pipeline) items the filename ownership
+ * snapshot is REQUIRED — a null snapshot fails closed with
+ * `naming_snapshot_missing` instead of silently skipping the ownership
+ * check. promoteItems always passes a snapshot in both phases; direct
+ * callers must do the same (there is no preview-only null contract).
  */
-function computePromotionGate(
+// fallow-ignore-next-line unused-export — exported as the phase-c recheck test seam
+export function computePromotionGate(
   item: OnboardingItem,
   workspaceId: string,
+  namingSnapshot: FilenameOwnershipSnapshot | null = null,
 ): {
   ok: boolean;
   reason: string | null;
@@ -362,6 +383,45 @@ function computePromotionGate(
       activeRun,
       activeProposals,
     };
+  }
+
+  // Issue #106 SEQUENCE 2a: naming-invariant gate — the non-bypassable
+  // guarantee point runs in phase (a) (before image side effects) AND in
+  // phase (c) (final authority), because both phases share this function.
+  // Assesses the ACTUAL FINAL draft title (never 'applied' metadata).
+  // Legacy compat (PR11 C4 byte-identical): items with no classification
+  // run pointer promote exactly as before — the naming guarantee applies
+  // only to run-pointer (pipeline) items, mirroring validatePromotionGate's
+  // legacy passthrough.
+  if (runPointer) {
+    const namingInput = buildNamingAssessmentInput(item, workspaceId, activeRun?.cohortRunId ?? null);
+    const naming = assessNamingInvariants(namingInput);
+    if (!naming.ok) {
+      const codes = [...new Set(naming.findings.map((f) => (f.axis ? `${f.code}(${f.axis})` : f.code)))];
+      return {
+        ok: false,
+        reason: `naming_invariant_blocked: ${codes.join(', ')}`,
+        activeRun,
+        activeProposals,
+      };
+    }
+    if (!namingSnapshot) {
+      return {
+        ok: false,
+        reason: 'naming_snapshot_missing: filename ownership snapshot is required for promotion',
+        activeRun,
+        activeProposals,
+      };
+    }
+    const foreign = filenameOwnershipClear(item, namingInput, namingSnapshot);
+    if (foreign) {
+      return {
+        ok: false,
+        reason: `duplicate_filename: "${foreign.name}" is owned by ${foreign.sku} (${foreign.origin})`,
+        activeRun,
+        activeProposals,
+      };
+    }
   }
 
   return {
@@ -613,6 +673,329 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
 };
 
 /**
+ * Complete workspace filename-ownership snapshot (issue #106 SEQUENCE 2b).
+ *
+ * Batch-only + backstop is REJECTED: the taken set covers approved catalog
+ * products (product_index custom FileName) + previously promoted
+ * non-discarded drafts (change-set reservations before Git approval).
+ * Same-SKU ownership is a self-update, never a foreign collision — use
+ * `ownerOf(name, sku)` to distinguish. Built per call (no cross-call
+ * cache, so no invalidation hazard); the snapshot `ref` pins the exact
+ * taken set an allocation was computed against (story 21).
+ */
+export interface FilenameOwnershipOwner {
+  sku: string;
+  origin: 'catalog' | 'pending';
+}
+
+export interface FilenameOwnershipSnapshot {
+  taken: string[];
+  owners: Map<string, FilenameOwnershipOwner>;
+  ref: string;
+  /** Null when unowned; `selfOwned` true only for same-SKU ownership. */
+  ownerOf: (name: string, selfSku?: string) => ({ sku: string; origin: 'catalog' | 'pending'; selfSku?: string; selfOwned: boolean } | null);
+}
+
+export function buildFilenameOwnershipSnapshot(
+  workspaceId: string,
+  workspacePath?: string,
+): FilenameOwnershipSnapshot {
+  const owners = new Map<string, FilenameOwnershipOwner>();
+  const claim = (fileName: string, sku: string, origin: 'catalog' | 'pending') => {
+    const key = fileName.toLowerCase();
+    if (!owners.has(key)) owners.set(key, { sku, origin });
+  };
+  try {
+    for (const { sku, title: _title, customFields } of listCatalogProductsForSnapshot()) {
+      void _title;
+      const raw = customFields?.['FileName'];
+      if (typeof raw === 'string' && raw.trim()) {
+        const trimmed = raw.trim();
+        const name = /\.html$/i.test(trimmed) ? trimmed : `${trimmed}.html`;
+        if (name.toLowerCase() !== '.html') {
+          claim(name, sku, 'catalog');
+          continue;
+        }
+      }
+      // No indexed FileName: fall back to the workspace file derivation
+      // (catalog rows written without custom fields still own their file).
+      if (workspacePath) {
+        try {
+          const existing = readProductFile(workspacePath, sku);
+          if (existing) claim(resolveBaseFileName(existing as Product), sku, 'catalog');
+        } catch {
+          continue;
+        }
+      }
+    }
+  } catch {
+    // Minimal DBs without the catalog index: snapshot covers reservations only.
+  }
+  for (const { sku, draftJson } of listNonDiscardedChangeSetDrafts(workspaceId)) {
+    try {
+      const draft = JSON.parse(draftJson) as Product;
+      const base = resolveBaseFileName(draft);
+      if (base.toLowerCase() !== FILE_NAME_EXTENSION) claim(base, sku, 'pending');
+    } catch {
+      continue;
+    }
+  }
+  const taken = [...owners.keys()];
+  return {
+    taken,
+    owners,
+    ref: computeTakenSnapshotRef(taken),
+    ownerOf: (name: string, selfSku?: string) => {
+      const owner = owners.get(name.toLowerCase());
+      if (!owner) return null;
+      const selfOwned = selfSku != null && owner.sku === selfSku;
+      return { ...owner, selfSku, selfOwned };
+    },
+  };
+}
+
+/**
+ * Build the S1a assessment input for an item (issue #106).
+ *
+ * Assesses the ACTUAL FINAL draft title through the promoter's own title
+ * chain (curatedTitle → extraction title → item name). The brand is the
+ * resolved authoritative brand (brandHint through brand resolution; a
+ * missing hint is evidence_absent, never invented). Measurement tokens come
+ * from structured evidence only (variantAttributes + weight channels); a
+ * malformed capacity value is conflicted evidence (holds, never
+ * fabricates). Own color is structured-only — deriving it from the title
+ * would make the check vacuous. Family colors come from structured colors
+ * plus frozen cohort members when a cohort run is attached. Sibling titles
+ * come from the frozen cohort membership (best-effort: lookup failures
+ * yield an empty set, and the coordinator authorship remains the primary
+ * sibling enforcer at curation time). Never throws.
+ */
+/**
+ * Cohort-independent assessment base (issue #106): title, brand, tokens,
+ * structured colors. Cohort/run overlays (siblings, member family colors)
+ * layer on top via `overlayCohortNamingContext`. Shared by the promotion
+ * gate and the Review preview so both assess the same evidence.
+ */
+export function buildNamingAssessmentBase(
+  item: OnboardingItem,
+  workspaceId: string,
+): Omit<NamingAssessmentInput, 'siblingTitles' | 'familyColors'> & { structuredColors: string[] } {
+  void workspaceId;
+  const extraction = (item.extractionData ?? {}) as Record<string, any>;
+  const curation = (item.curationData ?? {}) as Record<string, any>;
+  const rawTitle =
+    (typeof curation.curatedTitle === 'string' && curation.curatedTitle) ||
+    (typeof extraction.title === 'string' && extraction.title) ||
+    item.name ||
+    '';
+  const title = rawTitle.trim() ? rawTitle : null;
+
+  // Brand chain mirrors the draft path (draft-promoter mandatory block):
+  // hint first, then the final title — a brand resolvable from the title
+  // (e.g. a cached alias) is evidenced, not invented.
+  const hint = typeof item.brandHint === 'string' ? item.brandHint.trim() : '';
+  const brandInput = hint || (title ?? '');
+  let brand: string | null = hint || null;
+  let brandResolved = false;
+  if (brandInput.trim()) {
+    try {
+      const ws = findWorkspace();
+      const resolved = ws ? resolveBrand(brandInput, getCachedBrands(ws.id))?.brandName : undefined;
+      if (resolved) {
+        brand = resolved;
+        brandResolved = true;
+      } else if (hint) {
+        brand = hint;
+      } else {
+        brand = null;
+      }
+    } catch {
+      brand = hint || null;
+    }
+  }
+
+  const runRef =
+    typeof curation.classificationRunId === 'string' ? [`run:${curation.classificationRunId as string}`] : undefined;
+  const tokens: NamingMeasurementToken[] = [];
+  const variantAttrs = extraction.variantAttributes;
+  if (variantAttrs && typeof variantAttrs === 'object') {
+    for (const [axis, value] of Object.entries(variantAttrs)) {
+      if (typeof value !== 'string' || !value.trim()) continue;
+      const cleanAxis = axis.trim();
+      const lowered = cleanAxis.toLowerCase();
+      // Color/flavor/formula are NOT measurement: color is governed by the
+      // multicolor rule below, and taste attributes never hold a listing.
+      // Capacity + size/weight/count/pack + other declared custom axes are
+      // distinguishing measurement tokens.
+      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula') continue;
+      tokens.push({
+        axis: cleanAxis,
+        value: value.trim(),
+        conflicted: lowered === 'capacity' && !isProductCapacity(value),
+        refs: runRef,
+      });
+    }
+  }
+  // Canonical unitless weights (materializer pounds like "5.00") are DATA,
+  // not title evidence — a bare number can never verify in a title (#111
+  // strictness), so they contribute no token. Raw unit-bearing weights do.
+  const weight =
+    (typeof curation.curatedWeight === 'string' && curation.curatedWeight.trim()) ||
+    (typeof extraction.weight === 'string' && extraction.weight.trim()) ||
+    null;
+  if (weight && /[a-z]/i.test(weight)) tokens.push({ axis: 'weight', value: weight, refs: runRef });
+  // Title-embedded fallback: when NO structured measurement exists, tokens
+  // already in the final title satisfy the shopper-visible invariant (the
+  // name carries size). Origin is marked title-embedded for audit. A
+  // structured token anywhere disables the fallback — structured evidence
+  // must then be fully represented (a pack count never excuses a dropped
+  // capacity).
+  if (tokens.length === 0 && title) {
+    for (const embedded of extractProtectedTokens(title)) {
+      tokens.push({
+        axis: classifyTitleEmbeddedToken(embedded),
+        value: embedded,
+        refs: [...(runRef ?? []), 'title-embedded'],
+      });
+    }
+  }
+
+  const ocrColor = (extraction.packagingOcrData as { color?: unknown } | null)?.color;
+  const structuredColors = [
+    typeof variantAttrs?.color === 'string' ? variantAttrs.color : null,
+    typeof extraction.color === 'string' ? extraction.color : null,
+    typeof ocrColor === 'string' ? ocrColor : null,
+  ].filter((c): c is string => !!c?.trim());
+  const ownColor = structuredColors[0] ?? null;
+  return {
+    title,
+    brand,
+    brandEvidence: (hint || brandResolved ? 'present' : 'absent') as 'present' | 'absent',
+    measurementTokens: tokens,
+    measurementApplicable: true,
+    ownColor,
+    structuredColors,
+  };
+}
+
+/**
+ * Layer frozen-cohort context over an assessment base (issue #106):
+ * sibling final titles + member structured colors for the family rule.
+ * Best-effort: lookup failures yield empty sets. Shared by the promotion
+ * gate (via classification run → cohort run) and the Review preview (via
+ * the item's active candidate cohort).
+ */
+export function overlayCohortNamingContext(
+  base: Omit<NamingAssessmentInput, 'siblingTitles' | 'familyColors'> & { structuredColors: string[] },
+  item: OnboardingItem,
+  cohortId: string | null,
+): NamingAssessmentInput {
+  const { structuredColors, ...baseInput } = base;
+  // Issue #106 C1: structured family counts DISTINCT RAW values, not
+  // word-split vocabulary hits — a single multi-word structured color
+  // (e.g. distributor "Navy Blue") is one family member, never two.
+  // Word-splitting (knownColorsAcross) is for free-text title scanning;
+  // structured variant/extraction/OCR colors are already atomic values.
+  const distinctRawColors = (values: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of values) {
+      const trimmed = v?.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(trimmed);
+      }
+    }
+    return out;
+  };
+  let familyColors = distinctRawColors(structuredColors);
+  let siblingTitles: string[] = [];
+  if (cohortId) {
+    try {
+      {
+        const memberColors: string[] = [...structuredColors];
+        for (const member of getCohortMembers(cohortId)) {
+          if (member.onboardingItemId === item.id) continue;
+          const sib = findItemById(member.onboardingItemId);
+          if (!sib) continue;
+          const sibExt = (sib.extractionData ?? {}) as Record<string, any>;
+          const sibCur = (sib.curationData ?? {}) as Record<string, any>;
+          const sibTitle =
+            (typeof sibCur.curatedTitle === 'string' && sibCur.curatedTitle) ||
+            (typeof sibExt.title === 'string' && sibExt.title) ||
+            sib.name ||
+            '';
+          if (sibTitle.trim()) siblingTitles.push(sibTitle);
+          const sibAttrs = sibExt.variantAttributes;
+          if (sibAttrs && typeof sibAttrs === 'object' && typeof sibAttrs.color === 'string' && sibAttrs.color.trim()) {
+            memberColors.push(sibAttrs.color);
+          }
+          if (typeof sibExt.color === 'string' && sibExt.color.trim()) memberColors.push(sibExt.color);
+        }
+        familyColors = distinctRawColors(memberColors);
+      }
+    } catch {
+      siblingTitles = [];
+    }
+  }
+
+  return { ...baseInput, familyColors, siblingTitles };
+}
+
+/**
+ * Full S1a assessment input: base + frozen-cohort overlay resolved through
+ * the item's classification run → cohort run (issue #106). Never throws.
+ */
+export function buildNamingAssessmentInput(
+  item: OnboardingItem,
+  workspaceId: string,
+  cohortRunId: string | null = null,
+): NamingAssessmentInput {
+  const base = buildNamingAssessmentBase(item, workspaceId);
+  let cohortId: string | null = null;
+  if (cohortRunId) {
+    try {
+      cohortId = getCohortRunById(cohortRunId)?.cohortId ?? null;
+    } catch {
+      cohortId = null;
+    }
+  }
+  return overlayCohortNamingContext(base, item, cohortId);
+}
+
+/**
+ * Filename-ownership clearance for one item (issue #106 SEQUENCE 2a).
+ *
+ * Candidate base names resolvable without workspace file reads (persisted
+ * per-source-URL slug, title slug) must not be owned in the snapshot by a
+ * DIFFERENT sku. Same-SKU ownership is a self-update (clear); unowned
+ * names are clear (deterministic assignment uniquifies). Returns the
+ * foreign owner when blocked, null when clear.
+ */
+export function filenameOwnershipClear(
+  item: OnboardingItem,
+  input: NamingAssessmentInput,
+  snapshot: FilenameOwnershipSnapshot,
+): { sku: string; origin: 'catalog' | 'pending'; name: string } | null {
+  const extraction = (item.extractionData ?? {}) as Record<string, any>;
+  const bases: string[] = [];
+  if (typeof extraction.seoFileName === 'string' && extraction.seoFileName.trim()) {
+    const normalized = normalizeFileName(extraction.seoFileName);
+    if (normalized) bases.push(normalized);
+  }
+  bases.push(slugifyFileName(input.title || item.upc));
+  for (const base of bases) {
+    const owner = snapshot.ownerOf(base, item.upc);
+    if (owner && !owner.selfOwned) {
+      return { sku: owner.sku, origin: owner.origin, name: base };
+    }
+  }
+  return null;
+}
+
+/**
  * Assign a distinct more-information FileName per promoted item (issue #107).
  *
  * Items that already resolve to a FileName (explicit custom field,
@@ -626,12 +1009,11 @@ const APPROVAL_REFUSAL_MESSAGES: Record<ApprovalRefusalReason, string> = {
  * Distributor-record items carry no URL
  * slug by design and always take the uniquified name-derived path.
  *
- * Scope note (issue #107): the taken set covers kept names in THIS batch
- * only, not untouched live-catalog products — a new item can still claim a
- * filename owned elsewhere, in which case the DUPLICATE_FILENAME pre-sync
- * backstop fails the change set closed and batch export uniquifies old
- * drafts lacking persisted names. Feeding live-catalog names into `taken`
- * is explicit future work.
+ * Scope note (issue #107, superseded by #106): callers promoting through
+ * `promoteItems` pass a complete workspace ownership snapshot (catalog +
+ * pending reservations) via the `snapshot` parameter, so the taken set is
+ * workspace-complete, not batch-only. Direct callers without a snapshot
+ * keep the legacy batch-only behavior.
  *
  * The optional reader parameter exists for tests; production passes the
  * workspace product-file reader.
@@ -664,17 +1046,95 @@ export function resolvePromotionBaseName(
   return { name: base, kept: false };
 }
 
+/**
+ * Assign promotion file names with reconstructible audit (issue #106
+ * SEQUENCE 1b/1c). `assignPromotionFileNames` delegates; behavior is
+ * identical, and the records pin version + candidates + snapshot (story 21).
+ */
+export function assignPromotionFileNamesWithAudit(
+  items: OnboardingItem[],
+  workspacePath: string,
+  readExisting: typeof readProductFile = readProductFile,
+  snapshot: FilenameOwnershipSnapshot | null = null,
+): { assigned: Map<string, string>; records: AllocationRecord[]; snapshotRef: string | null } {
+  const assigned = assignPromotionFileNames(items, workspacePath, readExisting, snapshot);
+  const snapshotRef = snapshot?.ref ?? null;
+  // Reconstruct candidate/kept rows the same way the assignment did so the
+  // audit reflects the exact inputs (kept rows recorded with ownership).
+  const candidates: Array<{ key: string; itemId: string; base: string }> = [];
+  const keptIds = new Set<string>();
+  const keptNames = new Map<string, string>();
+  for (const item of items) {
+    const name = assigned.get(item.id);
+    if (!name) continue;
+    const existing = readExisting(workspacePath, item.upc);
+    const base = resolvePromotionBaseName(item, existing);
+    const selfOwned = snapshot?.ownerOf(name, item.upc)?.selfOwned ?? false;
+    if (base.kept || selfOwned) {
+      keptIds.add(item.id);
+      keptNames.set(item.id, name);
+    } else {
+      candidates.push({ key: `${item.upc}#${item.id ?? candidates.length}`, itemId: item.id, base: base.name });
+    }
+  }
+  const records = buildAllocationRecords({
+    candidates,
+    taken: snapshot?.taken ?? [],
+    assigned: new Map(candidates.map((c) => [c.key, assigned.get(c.itemId) ?? c.base])),
+    keptIds,
+    keptNames,
+    snapshotRef: snapshotRef ?? computeTakenSnapshotRef([]),
+    scope: 'promotion',
+  });
+  return { assigned, records, snapshotRef };
+}
+
 export function assignPromotionFileNames(
   items: OnboardingItem[],
   workspacePath: string,
   readExisting: typeof readProductFile = readProductFile,
+  snapshot: FilenameOwnershipSnapshot | null = null,
 ): Map<string, string> {
   const candidates: Array<{ key: string; id: string; fileName: string }> = [];
   const taken: string[] = [];
   const kept = new Map<string, string>();
+  // Issue #106: self-owned snapshot names (same-SKU catalog or pending
+  // reservations) are kept ownership for their item — never renumbered,
+  // never treated as foreign collisions. Catalog origin wins over pending.
+  const selfKept = new Map<string, string>();
+  if (snapshot) {
+    for (const item of items) {
+      let pendingName: string | null = null;
+      for (const [lowerName, owner] of snapshot.owners) {
+        if (owner.sku !== item.upc) continue;
+        // Recover the original-case name from the taken list.
+        const original = snapshot.taken.find((t) => t.toLowerCase() === lowerName) ?? lowerName;
+        if (owner.origin === 'catalog') {
+          selfKept.set(item.id, original);
+          pendingName = null;
+          break;
+        }
+        pendingName ??= original;
+      }
+      if (!selfKept.has(item.id) && pendingName) selfKept.set(item.id, pendingName);
+    }
+    // Only names actually kept as self leave the taken set — a current
+    // item's other reservations still block everyone (including itself
+    // from being re-derived onto them).
+    const keptLower = new Set([...selfKept.values()].map((n) => n.toLowerCase()));
+    for (const name of snapshot.taken) {
+      if (!keptLower.has(name.toLowerCase())) taken.push(name);
+    }
+  }
   for (const item of items) {
     const existing = readExisting(workspacePath, item.upc);
     const base = resolvePromotionBaseName(item, existing);
+    const owned = selfKept.get(item.id);
+    if (owned) {
+      kept.set(item.id, owned);
+      taken.push(owned);
+      continue;
+    }
     if (base.kept) {
       kept.set(item.id, base.name);
       taken.push(base.name);
@@ -742,6 +1202,10 @@ export async function promoteItems(
   // Residual single-item race between (b) and (c) is irreducible without
   // holding a lock and is documented: images may be downloaded for an item
   // the final gate then refuses, but that item NEVER drafts.
+  // Issue #106: one workspace filename-ownership snapshot (catalog +
+  // pending reservations) for the phase-(a) gate. Phase (c) rebuilds it
+  // fresh inside the transaction as the final authority.
+  const namingSnapshot = buildFilenameOwnershipSnapshot(workspaceId, workspacePath);
   const passedItems: OnboardingItem[] = [];
   for (const item of itemsToPromote) {
     if (!item.extractionData) {
@@ -751,7 +1215,7 @@ export async function promoteItems(
       failures.push({ itemId: item.id, error: errMsg });
       continue;
     }
-    const gateInfo = computePromotionGate(item, workspaceId);
+    const gateInfo = computePromotionGate(item, workspaceId, namingSnapshot);
     if (!gateInfo.ok) {
       const errMsg = gateInfo.reason!;
       console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
@@ -913,7 +1377,13 @@ export async function promoteItems(
     // get the persisted per-source-URL slug when present, else the slugged
     // title, uniquified in ascending UPC order (deterministic: reruns
     // reproduce the same assignment).
-    const assignedFileNames = assignPromotionFileNames(passedItems, workspacePath);
+    // Issue #106: the assignment runs against a FRESH workspace snapshot
+    // (catalog + pending reservations, same-SKU self-ownership kept) — the
+    // final authority, agreeing with the phase-(a) gate by determinism.
+    const freshSnapshot = buildFilenameOwnershipSnapshot(workspaceId, workspacePath);
+    const { assigned: assignedFileNames, records: allocationRecords } =
+      assignPromotionFileNamesWithAudit(passedItems, workspacePath, readProductFile, freshSnapshot);
+    const allocationByItem = new Map(allocationRecords.map((r) => [r.itemId, r]));
     for (const item of passedItems) {
       // ── Epic #46 review round 2 (HIGH): durable approval re-checked at the
       // FINAL draft-write authority ──────────────────────────────────────
@@ -1018,7 +1488,11 @@ export async function promoteItems(
           additional: additionalImages,
         },
         seo: {
-          fileName: extractionData.seoFileName || null,
+          // Issue #106 SEQUENCE 2d: core.seo.fileName is a compatibility
+          // projection of the FINAL assignment (kept or suffixed), never the
+          // unsuffixed extraction slug. The raw per-URL candidate stays in
+          // Extraction Data; the canonical home remains customFields FileName.
+          fileName: assignedFileNames.get(item.id) ?? extractionData.seoFileName ?? null,
           // Prefer curator-synthesized keywords over raw extraction concatenation
           searchKeywords: item.curationData?.searchKeywords || extractionData.searchKeywords || null,
           googleProductCategory: null,
@@ -1051,7 +1525,9 @@ export async function promoteItems(
       // type never reaches a CMS draft — the item's promotion stage fails
       // with the deterministic reason while siblings promote normally.
       // Legacy items (no run pointer) pass unchanged (byte-identical).
-      const gateInfo = computePromotionGate(item, workspaceId);
+      // Issue #106: re-run against the FRESH snapshot — state may have
+      // moved since phase (a), including new foreign filename owners.
+      const gateInfo = computePromotionGate(item, workspaceId, freshSnapshot);
       if (!gateInfo.ok) {
         const errMsg = gateInfo.reason!;
         console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
@@ -1303,6 +1779,34 @@ export async function promoteItems(
         baseJson: baseJsonStr,
         draftHash,
       });
+
+      // Issue #106 SEQUENCE 1c/2d: persist the naming audit atomically with
+      // the draft (same transaction) — assessment evidence refs + allocation
+      // record + snapshot ref, replayable without provenance objects in
+      // string custom fields. Audit never blocks promotion.
+      try {
+        const auditInput = buildNamingAssessmentInput(
+          freshItem ?? item, workspaceId, gateInfo.activeRun?.cohortRunId ?? null,
+        );
+        const auditAssessment = assessNamingInvariants(auditInput);
+        const namingAudit = {
+          version: 1,
+          evaluatedAt: now,
+          findings: auditAssessment.findings,
+          allocation: allocationByItem.get(item.id) ?? null,
+          snapshotRef: freshSnapshot.ref,
+          finalTitle: auditInput.title,
+        };
+        const mergedCuration = {
+          ...((freshItem?.curationData ?? {}) as Record<string, unknown>),
+          namingAudit,
+        };
+        getDb().query('UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?').run(
+          JSON.stringify(mergedCuration), now, item.id,
+        );
+      } catch {
+        // Audit persistence never blocks promotion.
+      }
 
       // Assign product to verified pages from classification proposals.
       // Every proposal in classificationPageProposals has a verified identity

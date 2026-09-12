@@ -4,7 +4,7 @@ import type {
   SourcingGenerationAttemptSummary,
   SourcingLookupRequest,
 } from './contracts';
-import { normalizeLookupIdentifier, parseSourcingLookupResult, recordSizeViolation } from './contracts';
+import { normalizeLookupIdentifier, parseSourcingLookupResult, recordSizeViolation, declareConnectorVariantAxes } from './contracts';
 import type { ConnectorRegistry } from './connector-registry';
 import { DefaultConnectorRegistry } from './connector-registry';
 import { resolveSecret } from './secret-resolver';
@@ -366,6 +366,9 @@ export class DefaultSourcingEngine implements SourcingEngine {
             manufacturerPartNumber: identity.manufacturerPartNumber ?? undefined,
             name: identity.name ?? undefined,
             brand: identity.brand ?? undefined,
+            // Issue #106: connector-side brand-candidate provenance rides
+            // the identity payload (parsed + typed downstream, never a guess).
+            brandSource: identity.brandSource ?? undefined,
             description: identity.description ?? undefined,
             weight: identity.weight ?? undefined,
             features: identity.features,
@@ -391,6 +394,12 @@ export class DefaultSourcingEngine implements SourcingEngine {
       // (E2E-caught: automatic routing could never reach Extraction).
       catalogVersion: identity?.catalogVersion ?? new Date().toISOString().slice(0, 10),
       sourcingGenerationId: request.generationId,
+      // Issue #106: production declaration writer — connector-declared raw
+      // fields become durable attempt declarations through the existing
+      // registry (no global allowlist widening; no historical reinterpretation).
+      variantAxisDeclarations: validated?.outcome === 'found'
+        ? declareConnectorVariantAxes(validated.declaredVariantAxes ?? [])
+        : undefined,
       observedAt: identity?.observedAt ?? new Date().toISOString(),
       expiresAt: identity?.expiresAt ?? null,
       durationMs: attemptDurationMs,

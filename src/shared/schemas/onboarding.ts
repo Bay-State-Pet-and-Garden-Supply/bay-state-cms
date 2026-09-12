@@ -1143,6 +1143,8 @@ export const REVIEW_COMPLETENESS_BLOCKER_CODES = [
   'missing_brand',
   'missing_primary_image',
   'missing_pages',
+  // Issue #106: a draft claiming a filename owned by another product.
+  'duplicate_filename',
 ] as const;
 export type ReviewCompletenessBlockerCode = (typeof REVIEW_COMPLETENESS_BLOCKER_CODES)[number];
 
@@ -1153,6 +1155,10 @@ export const REVIEW_COMPLETENESS_WARNING_CODES = [
   'weight_missing',
   'pending_proposals',
   'unverified_accepted_pages',
+  // Issue #106: naming-invariant advisories (Promotion enforces; Review
+  // surfaces with explicit decisions, never waives).
+  'missing_size',
+  'missing_color',
 ] as const;
 export type ReviewCompletenessWarningCode = (typeof REVIEW_COMPLETENESS_WARNING_CODES)[number];
 

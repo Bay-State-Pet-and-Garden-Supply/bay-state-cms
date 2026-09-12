@@ -186,12 +186,46 @@ export interface BatchFilenamePreviewItem {
     catalogSku?: string | null;
     catalogTitle?: string | null;
   }>;
+  /** Issue #106 (additive): naming findings, resolutions, allocation identity. */
+  namingFindings?: Array<{ code: string; detail: string; axis?: string }>;
+  evidenceRefs?: string[];
+  allowedResolutions?: Array<'retitle' | 'accept_suffix' | 'defer'>;
+  derivation?: {
+    algorithmVersion: number;
+    snapshotRef: string | null;
+    scopeLabel: string;
+    suffix: number | null;
+    keptOwnership: boolean;
+  } | null;
+}
+
+export interface BatchFilenamePreviewSummary {
+  snapshotRef: string | null;
+  allocationScope: string;
+  complete: boolean;
+  counts: {
+    items: number;
+    unresolvedCollisions: number;
+    missingBrand: number;
+    duplicateBrand: number;
+    missingMeasurement: number;
+    missingColor: number;
+    duplicateSiblings: number;
+    unresolvedDecisions: number;
+    deferredExcluded: number;
+  };
+  resolvedSuffixes: string[];
+  remainingCollisions: string[];
+  readyItemIds: string[];
+  deferredItemIds: string[];
+  workLogReady: boolean;
+  workLogBlockers: string[];
 }
 
 export async function getBatchFilenamePreview(
   batchId: string,
-): Promise<{ batchId: string; items: BatchFilenamePreviewItem[] }> {
-  return request<{ batchId: string; items: BatchFilenamePreviewItem[] }>(`/batches/${batchId}/filename-preview`);
+): Promise<{ batchId: string; items: BatchFilenamePreviewItem[]; summary?: BatchFilenamePreviewSummary }> {
+  return request<{ batchId: string; items: BatchFilenamePreviewItem[]; summary?: BatchFilenamePreviewSummary }>(`/batches/${batchId}/filename-preview`);
 }
 
 export interface CreateExportDraftsResponse {

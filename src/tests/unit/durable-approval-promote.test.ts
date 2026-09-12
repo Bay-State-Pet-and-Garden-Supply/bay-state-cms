@@ -61,13 +61,13 @@ function seedPromotionReadyItem(sku: string): { batch: { id: string }; item: { i
   const batch = createBatch({ workspaceId: wsId, name: `DA ${sku}`, fileName: `${sku}.csv`, totalItems: 1 });
   const [item] = insertItems(batch.id, [{
     upc: sku,
-    name: `Product ${sku}`,
+    name: `Test Brand Product ${sku} 5 LB`,
     price: '$9.99',
     brandHint: 'Test Brand',
     rowNumber: 1,
   }]);
   const extractionData: ExtractionData = ExtractionDataSchema.parse({
-    title: `Product ${sku}`,
+    title: `Test Brand Product ${sku} 5 LB`,
     brand: 'Test Brand',
     description: 'Durable approval regression product.',
     bulletPoints: [],
@@ -86,7 +86,7 @@ function seedPromotionReadyItem(sku: string): { batch: { id: string }; item: { i
     fieldProvenance: { title: 'fixture' },
   });
   const curationData = {
-    curatedTitle: `Product ${sku}`,
+    curatedTitle: `Test Brand Product ${sku} 5 LB`,
     titleSource: 'web',
     suggestedPages: ['Toys'],
     suggestedProductType: null,

@@ -542,3 +542,102 @@ describe('bulk approve filename gate (issue #109)', () => {
     expect(history.map(h => h.event_type)).toContain('filename_warning_deferred');
   });
 });
+
+describe('filename preview summary (issue #106)', () => {
+  it('counts findings, splits suffixes, and reports work-log readiness', async () => {
+    const batch = createBatch({ workspaceId: WS_ID, name: 'sum', fileName: 'sum.csv', totalItems: 4 });
+    // Pair with a batch-internal base collision (accepted below).
+    const a = seedItem(batch.id, `SUM-A-${randomUUID().slice(0, 6)}`, 'Test Brand Summary Widget 5 LB');
+    const b = seedItem(batch.id, `SUM-B-${randomUUID().slice(0, 6)}`, 'Test Brand Summary Widget 5 LB');
+    // Naming-deficient item (no measurement anywhere).
+    const c = seedItem(batch.id, `SUM-C-${randomUUID().slice(0, 6)}`, 'Test Brand Bare Widget');
+    // Clean item, deferred below.
+    const d = seedItem(batch.id, `SUM-D-${randomUUID().slice(0, 6)}`, 'Test Brand Clean Widget 5 LB');
+
+    const { previewBatchFilenamesWithSummary, recordFilenameDecision } =
+      await import('../../onboarding/filename-review');
+    const first = previewBatchFilenamesWithSummary(WS_DIR, batch.id, WS_ID);
+    // Batch collision present and undecided.
+    expect(first.summary.counts.unresolvedCollisions).toBe(2);
+    expect(first.summary.counts.unresolvedDecisions).toBe(2);
+    expect(first.summary.counts.missingMeasurement).toBe(1);
+    expect(first.summary.workLogReady).toBe(false);
+    expect(first.summary.workLogBlockers).toContain('unresolved_collisions');
+
+    // Accept the pair's base; defer the clean item. Recompute.
+    const pairBase = first.items.find(i => i.itemId === a.id)!.baseFileName;
+    recordFilenameDecision(WS_ID, a.upc, batch.id, 'accept', pairBase, 'tester');
+    recordFilenameDecision(WS_ID, b.upc, batch.id, 'accept', pairBase, 'tester');
+    recordFilenameDecision(WS_ID, d.upc, batch.id, 'defer', first.items.find(i => i.itemId === d.id)!.baseFileName, 'tester');
+    const second = previewBatchFilenamesWithSummary(WS_DIR, batch.id, WS_ID);
+    expect(second.summary.counts.unresolvedCollisions).toBe(0);
+    expect(second.summary.counts.deferredExcluded).toBe(1);
+    expect(second.summary.deferredItemIds).toContain(d.id);
+    // Suffixed sibling assignment resolved cleanly (no remaining warning).
+    expect(second.summary.resolvedSuffixes.length).toBeGreaterThan(0);
+    expect(second.summary.remainingCollisions).toEqual([]);
+    // Still not work-log ready: the naming-deficient item holds.
+    expect(second.summary.counts.missingMeasurement).toBe(1);
+    expect(second.summary.workLogReady).toBe(false);
+    // Ready subset explicitly identifies the resolved pair, excluding deferred.
+    expect(new Set(second.summary.readyItemIds)).toEqual(new Set([a.id, b.id]));
+    expect(c.id).not.toBeUndefined();
+  });
+
+  it('stale snapshots are never work-log ready', async () => {
+    const { computeFilenamePreviewSummary } = await import('../../onboarding/filename-review');
+    const summary = computeFilenamePreviewSummary([], {
+      workspaceId: WS_ID, batchId: 'missing', snapshotRef: null, complete: false,
+    });
+    expect(summary.workLogReady).toBe(false);
+    expect(summary.workLogBlockers).toContain('preview_incomplete');
+    expect(summary.readyItemIds).toEqual([]);
+  });
+
+  it('empty/all-deferred batches are not work-log ready with empty_export_subset (T2c)', async () => {
+    const { computeFilenamePreviewSummary } = await import('../../onboarding/filename-review');
+    // Complete snapshot, zero items, zero blockers: the only blocker is the
+    // empty export subset itself.
+    const empty = computeFilenamePreviewSummary([], {
+      workspaceId: WS_ID, batchId: 'empty', snapshotRef: 'deadbeefdeadbeef', complete: true,
+    });
+    expect(empty.workLogReady).toBe(false);
+    expect(empty.workLogBlockers).toEqual(['empty_export_subset']);
+    expect(empty.readyItemIds).toEqual([]);
+  });
+
+  it('preview assignment agrees with promotion assignment (preview==promotion)', async () => {
+    const batch = createBatch({ workspaceId: WS_ID, name: 'agree', fileName: 'agree.csv', totalItems: 2 });
+    seedItem(batch.id, `AGR-A-${randomUUID().slice(0, 6)}`, 'Test Brand Agree Widget 5 LB');
+    seedItem(batch.id, `AGR-B-${randomUUID().slice(0, 6)}`, 'Test Brand Agree Widget 5 LB');
+    const { previewBatchFilenamesWithSummary } = await import('../../onboarding/filename-review');
+    const { assignPromotionFileNamesWithAudit, buildFilenameOwnershipSnapshot } =
+      await import('../../onboarding/draft-promoter');
+    const preview = previewBatchFilenamesWithSummary(WS_DIR, batch.id, WS_ID);
+    const snapshot = buildFilenameOwnershipSnapshot(WS_ID, WS_DIR);
+    const { assigned } = assignPromotionFileNamesWithAudit(
+      listItemsByBatch(batch.id), WS_DIR, undefined, snapshot,
+    );
+    for (const entry of preview.items) {
+      expect(assigned.get(entry.itemId)).toBe(entry.fileName);
+    }
+    expect(preview.summary.snapshotRef).toBe(snapshot.ref);
+  });
+
+  it('endpoint serves the summary alongside items', async () => {
+    const batch = createBatch({ workspaceId: WS_ID, name: 'eps', fileName: 'eps.csv', totalItems: 1 });
+    seedItem(batch.id, `EPS-${randomUUID().slice(0, 6)}`, 'Test Brand Endpoint Widget 5 LB');
+    const res = await makeApi().request(`/api/onboarding/batches/${batch.id}/filename-preview`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      batchId: string;
+      items: Array<{ itemId: string; namingFindings: unknown[]; derivation: { snapshotRef: string } | null }>;
+      summary: { workLogReady: boolean; counts: { items: number }; snapshotRef: string | null };
+    };
+    expect(body.summary.counts.items).toBe(1);
+    expect(body.summary.workLogReady).toBe(true);
+    expect(body.summary.snapshotRef).toBeTruthy();
+    expect(body.items[0].namingFindings).toEqual([]);
+    expect(body.items[0].derivation?.snapshotRef).toBe(body.summary.snapshotRef);
+  });
+});

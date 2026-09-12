@@ -2,7 +2,9 @@ import { deterministicStringify, hashJson } from '../git/deterministic-json';
 import { ShopSiteProductCodec } from './product-codec';
 import { sanitizeXml } from './xml-sanitizer';
 import { createDrift, type DriftRow } from '../db/repositories/drift-repo';
-import { findProductBySku, insertProductIndex, updateProductIndex } from '../db/repositories/product-index-repo';
+import { findProductBySku, insertProductIndex, updateProductIndex, listCatalogFilenameOwners } from '../db/repositories/product-index-repo';
+import { listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
+import { normalizeFileName, resolveBaseFileName, resolveReimportFilename } from './file-name';
 import { readProductFile, writeProductFile } from '../git/workspace-files';
 import { skuToProductFilePath } from '../git/product-file-path';
 import { GitClient } from '../git/git-client';
@@ -127,6 +129,45 @@ export function acceptRemoteForDrift(workspacePath: string, drift: DriftRow): Ac
   const remoteProduct = JSON.parse(drift.remoteJson) as Product;
   if (!remoteProduct.sku) {
     throw new Error('Cannot accept remote product without SKU.');
+  }
+
+  // Issue #106 SEQUENCE 2e: collision-aware re-import. A pulled FileName
+  // owned by ANOTHER sku holds with IMPORT_FILENAME_COLLISION — no write,
+  // no live-page rename. Operator repair goes through the normal reviewed
+  // flow (change set), never a healed-heuristic.
+  const pulledName = normalizeFileName(
+    (remoteProduct.customFields?.['FileName'] as unknown) ??
+      (remoteProduct.core?.seo?.fileName as unknown) ?? null,
+  );
+  if (pulledName) {
+    const owners = new Map<string, string>();
+    try {
+      for (const { sku, fileName } of listCatalogFilenameOwners()) {
+        const key = fileName.toLowerCase();
+        if (!owners.has(key)) owners.set(key, sku);
+      }
+    } catch {
+      // Minimal DBs without the catalog index: fall through to preserve.
+    }
+    try {
+      for (const { sku, draftJson } of listNonDiscardedChangeSetDrafts(drift.workspaceId)) {
+        try {
+          const base = resolveBaseFileName(JSON.parse(draftJson) as Product);
+          const key = base.toLowerCase();
+          if (!owners.has(key)) owners.set(key, sku);
+        } catch {
+          continue;
+        }
+      }
+    } catch {
+      // Change-set reads never block the accept path itself.
+    }
+    const disposition = resolveReimportFilename(pulledName, remoteProduct.sku, owners);
+    if (disposition.action === 'hold_collision') {
+      throw new Error(
+        `IMPORT_FILENAME_COLLISION: pulled FileName "${disposition.name}" for SKU ${remoteProduct.sku} is owned by ${disposition.ownerSku}. Repair through a reviewed change set; live pages are never renamed automatically.`,
+      );
+    }
   }
 
   writeProductFile(workspacePath, remoteProduct);

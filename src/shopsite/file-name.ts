@@ -50,6 +50,48 @@ export function normalizeFileName(value: unknown): string | null {
 }
 
 /**
+ * Where a product's base file name comes from (precedence order).
+ * `explicit`/`preserved` are kept live names — never renamed silently.
+ */
+export type BaseFileNameSource = 'explicit' | 'preserved' | 'seo' | 'derived';
+
+export function classifyBaseFileNameSource(product: Product): BaseFileNameSource {
+  if (normalizeFileName(product.customFields['FileName'])) return 'explicit';
+  if (normalizeFileName(product.shopsite.preserved.unknownElements['FileName'])) return 'preserved';
+  if (normalizeFileName(product.core.seo.fileName)) return 'seo';
+  return 'derived';
+}
+
+export type ReimportFilenameDisposition =
+  | { action: 'preserve'; name: string }
+  | { action: 'allocate_free' }
+  | { action: 'hold_collision'; name: string; code: 'IMPORT_FILENAME_COLLISION'; ownerSku: string };
+
+/**
+ * Collision-aware re-import preservation (issue #106 SEQUENCE 2e).
+ *
+ * - Pulled name unowned, or owned by THIS sku → preserve (live pages are
+ *   never renamed automatically).
+ * - Pulled name owned by ANOTHER sku → hold with IMPORT_FILENAME_COLLISION
+ *   (operator repair goes through the normal reviewed flow).
+ * - Blank pulled name → allocate_free (a new name is derived at promotion).
+ *
+ * Pure: `owners` maps lowercased name → owning sku. No healed-heuristic,
+ * no grandfathering of kept collisions.
+ */
+export function resolveReimportFilename(
+  pulledName: unknown,
+  sku: string,
+  owners: Map<string, string>,
+): ReimportFilenameDisposition {
+  const normalized = normalizeFileName(pulledName);
+  if (!normalized) return { action: 'allocate_free' };
+  const owner = owners.get(normalized.toLowerCase());
+  if (!owner || owner === sku) return { action: 'preserve', name: normalized };
+  return { action: 'hold_collision', name: normalized, code: 'IMPORT_FILENAME_COLLISION', ownerSku: owner };
+}
+
+/**
  * Resolve the effective base file name for one product (no uniqueness).
  */
 export function resolveBaseFileName(product: Product): string {
