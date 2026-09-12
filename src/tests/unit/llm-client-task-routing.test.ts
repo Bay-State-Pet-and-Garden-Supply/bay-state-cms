@@ -734,7 +734,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     );
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const signedUrl = 'https://cdn.example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
+      const signedUrl = 'https://example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
       await extractPackagingOcrFromCloud({ imageUrl: signedUrl, modelPolicy: view });
       const joined = spy.mock.calls.map(c => String(c[0])).join('\n');
       expect(joined).not.toContain('SECRETSIG');
@@ -805,7 +805,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
       const result = await extractPackagingOcrFromCloud({
-        imageUrl: 'https://cdn.example.com/img/1.jpg',
+        imageUrl: 'https://example.com/img/1.jpg',
         modelPolicy: view,
       });
       expect(result).toBeNull();
@@ -847,7 +847,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     }) as unknown as typeof fetch;
     globalThis.fetch = mock;
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: tampered });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: tampered });
     // Fail closed: no OCR result from a tampered policy and ZERO transport —
     // the image is never downloaded once policy resolution is denied.
     expect(result).toBeNull();
@@ -931,7 +931,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-local' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).toBeNull();
     // No image download, no model call — the image never leaves the machine.
     expect(fetchCalls).toBe(0);
@@ -967,7 +967,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-cloud' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).not.toBeNull();
     expect(result?.productName).toBe('Test Product');
     // Image download + model call both happened.
