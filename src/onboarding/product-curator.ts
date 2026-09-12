@@ -1037,7 +1037,9 @@ async function executeCurationPipeline(args: {
       }).distributorRecordProvenance?.merchandisingProvenance
       ?? {};
     const selectedDescription =
-      verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
+      (!distributorSource || verifiedV2Distributor) &&
+      typeof ext.description === 'string' &&
+      ext.description.trim().length > 0
         ? ext.description
         : null;
     const curatedDescription: string | null = selectedDescription;

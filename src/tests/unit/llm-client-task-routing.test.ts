@@ -65,7 +65,7 @@ describe('LLM Client — task-specific routing', () => {
     return { calls };
   }
 
-  beforeAll(() => {
+  function ensureDb() {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
@@ -75,6 +75,10 @@ describe('LLM Client — task-specific routing', () => {
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
     // Clear seeded AI compute routes so legacy task routing is active
     getDb().run('DELETE FROM ai_workload_routes');
+  }
+
+  beforeAll(() => {
+    ensureDb();
   });
 
   afterAll(() => {
@@ -83,6 +87,7 @@ describe('LLM Client — task-specific routing', () => {
   });
 
   beforeEach(() => {
+    ensureDb();
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -393,12 +398,16 @@ describe('Protected classification operations — model-policy gateway (issue #1
 
   let originalFetch: typeof fetch;
 
-  beforeAll(() => {
+  function ensureDb() {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+  }
+
+  beforeAll(() => {
+    ensureDb();
   });
 
   afterAll(() => {
@@ -406,7 +415,10 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
@@ -734,7 +746,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     );
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const signedUrl = 'https://cdn.example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
+      const signedUrl = 'https://93.184.216.34/img/1.jpg?Signature=SECRETSIG&Expires=123';
       await extractPackagingOcrFromCloud({ imageUrl: signedUrl, modelPolicy: view });
       const joined = spy.mock.calls.map(c => String(c[0])).join('\n');
       expect(joined).not.toContain('SECRETSIG');
@@ -967,7 +979,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-cloud' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://93.184.216.34/a.jpg', modelPolicy: view });
     expect(result).not.toBeNull();
     expect(result?.productName).toBe('Test Product');
     // Image download + model call both happened.
@@ -1072,16 +1084,24 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
     };
   }
 
-  beforeAll(() => {
+  function ensureDb() {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+  }
+
+  beforeAll(() => {
+    ensureDb();
   });
 
   afterAll(() => {
     closeDb();
     try { unlinkSync(testDbPath); } catch { /* ok */ }
+  });
+
+  beforeEach(() => {
+    ensureDb();
   });
 
   test('audited success returns the full result and persists a durable success row with tokens and honest local cost', async () => {
@@ -1665,12 +1685,16 @@ describe('AI Compute authority — configured routing never consults the legacy 
     return { calls };
   }
 
-  beforeAll(() => {
+  function ensureDb() {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+  }
+
+  beforeAll(() => {
+    ensureDb();
   });
 
   afterAll(() => {
@@ -1678,7 +1702,10 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
