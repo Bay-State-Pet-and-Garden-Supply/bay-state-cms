@@ -42,6 +42,9 @@ export function isSourcingConnectorType(value: unknown): value is SourcingConnec
 // ─── Identifier normalization ─────────────────────────────────────────────────
 
 import { normalizeGtin } from '../../shared/gtin';
+
+/** Max connector-declared variant axes per lookup result (durable registry bound). */
+export const MAX_CONNECTOR_VARIANT_AXES = 16;
 export { normalizeGtin };
 
 // ─── Lookup request ───────────────────────────────────────────────────────────
@@ -126,6 +129,13 @@ export interface DistributorCatalogRecord {
   name: string | null;
   description: string | null;
   brand: string | null;
+  /**
+   * Issue #106: which connector-side candidate supplied `brand`
+   * (provider-specific label, e.g. bradley `adjacent_link` | `spec` |
+   * `json_ld`). Observed-null flows downstream as unknown — never a guess.
+   * Optional: connectors that do not track provenance omit it.
+   */
+  brandSource?: string | null;
   manufacturerPartNumber: string | null;
   weight: string | null;
   /** Amendment B merchandising fields (bounded, explicit). */
@@ -175,6 +185,14 @@ export type SourcingLookupResult =
       matchedFields: string[];
       /** Bounded warnings; never contain credentials or raw payloads. */
       warnings: string[];
+      /**
+       * Issue #106: raw attribute keys this connector emits as variant
+       * axes (e.g. bradley `['size', 'capacity', 'color']`). The engine
+       * normalizes them through `declareConnectorVariantAxes` into durable
+       * attempt declarations — no global allowlist widening. Optional:
+       * connectors that emit no variant axes omit it.
+       */
+      declaredVariantAxes?: string[];
     }
   | {
       outcome: 'not_stocked';
@@ -223,6 +241,7 @@ export const DistributorCatalogRecordSchema: z.ZodType<DistributorCatalogRecord>
   name: BoundedNullableString,
   description: BoundedNullableString,
   brand: BoundedNullableString,
+  brandSource: z.string().max(64).nullish(),
   manufacturerPartNumber: BoundedNullableString,
   weight: BoundedNullableString,
   features: z.array(z.string().max(SOURCING_RECORD_LIMITS.string)).max(SOURCING_RECORD_LIMITS.list),
@@ -291,6 +310,7 @@ export const SourcingLookupResultSchema: z.ZodType<SourcingLookupResult> = z.dis
       record: DistributorCatalogRecordSchema,
       matchedFields: z.array(z.string().max(64)).max(50),
       warnings: z.array(z.string().max(500)).max(20),
+      declaredVariantAxes: z.array(z.string().max(64)).max(MAX_CONNECTOR_VARIANT_AXES).optional(),
     }),
     z.object({
       outcome: z.literal('not_stocked'),
@@ -404,8 +424,6 @@ import {
 } from '../../shared/schemas/variant-axes';
 
 /** Maximum connector-declared variant axes per evidence observation. */
-export const MAX_CONNECTOR_VARIANT_AXES = 16;
-
 /** Durable raw-field → normalized-axis declaration for one connector. */
 export interface ConnectorVariantAxisDeclaration {
   /** The raw attribute key as emitted by the provider. */

@@ -765,6 +765,36 @@ describe('nameConsolidationStage — distributor_record wiring', () => {
     expect(callArgs.distributorTitles[0].providerId).toBe('unknown');
   });
 
+  it('story-23 dedup edge: same-provider/same-value consolidated row reaches the consolidator', async () => {
+    asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
+
+    const evidence: ClassificationEvidence[] = [
+      // Issue #111: size evidence so the missing_size hold does not fire —
+      // every fixture below carries its own title/brand assertions.
+      makeEvidence({ source: 'visual_product_evidence', sourceField: 'weight', value: '5 lb' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'Widget' }),
+      makeEvidence({ source: 'spreadsheet', sourceField: 'brand', value: 'Acme' }),
+      // Per-attempt row for provider bradley / value 'Acme Widget'.
+      makeEvidence({
+        source: 'third_party_page', sourceField: 'name', value: 'Acme Widget',
+        metadata: { providerId: 'bradley', attemptId: 'att-1', confidence: 0.9 },
+      }),
+      // Consolidated projection pick for the SAME provider/value. Pre-fix
+      // ordering dropped it via the per-attempt seen-key; post-fix it
+      // reaches the consolidator with projection authority.
+      distributorRecordEvidence('name', 'Acme Widget', { providerId: 'bradley' }),
+    ];
+
+    await nameConsolidationStage.execute(makeInput({ evidence }), makeContext());
+
+    const callArgs = asMock(consolidateProductTitle).mock.calls[0][0];
+    const consolidated = callArgs.distributorTitles.filter(
+      (t: { attemptId: string; confidence: number }) => t.attemptId === '' && t.confidence === 1.0,
+    );
+    expect(consolidated).toHaveLength(1);
+    expect(consolidated[0]).toMatchObject({ title: 'Acme Widget', providerId: 'bradley', attemptId: '', confidence: 1.0 });
+  });
+
   it('consolidated distributor_record outranks legacy per-attempt rows', async () => {
     asMock(consolidateProductTitle).mockResolvedValue({ title: 'X', source: 'llm' });
 

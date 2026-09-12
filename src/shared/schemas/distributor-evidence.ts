@@ -13,6 +13,8 @@ export const ProductIdentityEvidenceSchema = z.object({
   manufacturerPartNumber: z.string().optional(),
   name: z.string().optional(),
   brand: z.string().optional(),
+  /** Issue #106: connector-side brand-candidate provenance (observed-null when unknown). */
+  brandSource: z.string().max(64).nullish(),
   description: z.string().optional(),
   weight: z.string().optional(),
   /** Amendment B (M2): explicit bounded merchandising fields. */

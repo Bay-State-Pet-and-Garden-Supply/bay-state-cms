@@ -14,7 +14,7 @@
  */
 import { Hono } from 'hono';
 import { findWorkspace } from '../../db/repositories/workspace-repo';
-import { previewBatchFilenames, recordFilenameDecision, filenameGateReason } from '../../onboarding/filename-review';
+import { previewBatchFilenames, previewBatchFilenamesWithSummary, recordFilenameDecision, filenameGateReason } from '../../onboarding/filename-review';
 import { findBatchById } from '../../db/repositories/onboarding-batch-repo';
 import {
   findItemById,
@@ -296,8 +296,8 @@ route.get('/onboarding/batches/:id/filename-preview', async (c) => {
     return c.json({ error: 'Batch not found' }, 404);
   }
   try {
-    const items = previewBatchFilenames(workspace.workspacePath, batchId, workspace.id);
-    return c.json({ batchId, items });
+    const { items, summary } = previewBatchFilenamesWithSummary(workspace.workspacePath, batchId, workspace.id);
+    return c.json({ batchId, items, summary });
   } catch (err) {
     console.error('[FilenamePreview] Unexpected error:', err);
     return c.json({ error: 'Failed to compute filename preview' }, 500);

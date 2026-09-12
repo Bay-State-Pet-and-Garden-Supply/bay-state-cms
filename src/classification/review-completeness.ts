@@ -38,13 +38,28 @@ import { listVerifiedPageOptions, getProductPageAssignments, getActivePageImport
 import { getProposalsByRun } from '../db/repositories/classification-run-repo';
 import { getCachedBrands, getCachedAttributeMappings } from '../db/repositories/classification-config-repo';
 import { resolveBrand } from './brand-resolution';
-import { resolveBrandCatalogField } from '../onboarding/draft-promoter';
+import {
+  resolveBrandCatalogField,
+  buildFilenameOwnershipSnapshot,
+} from '../onboarding/draft-promoter';
+import { classifyTitleEmbeddedToken } from '../onboarding/naming-assessment';
+import {
+  assessNamingInvariants,
+  isProductCapacity,
+  type NamingMeasurementToken,
+} from '../onboarding/naming-assessment';
+import { knownColorsAcross, extractProtectedTokens } from '../onboarding/title-prompt-template';
+import { normalizeFileName, slugifyFileName } from '../shopsite/file-name';
 import { readProductFile } from '../git/workspace-files';
 import { getPageIdentityId } from '../shared/proposal-display';
 import { CorrectedCategoryPageRecordSchema } from '../shared/schemas/onboarding';
 
 export interface ReviewCompletenessContext {
   sourceType: 'official_page' | 'distributor_record';
+  /** Issue #106: identity for the filename-ownership check (additive). */
+  itemId?: string | null;
+  productSku?: string | null;
+  workspaceId?: string | null;
   itemName: string | null;
   itemPrice: string | null;
   brandHint: string | null;
@@ -63,6 +78,10 @@ export interface ReviewCompletenessContext {
     primaryImage?: string | null;
     additionalImages?: string[] | null;
     distributorImageApprovals?: Array<{ imageUrl?: string | null }> | null;
+    /** Issue #106: structured measurement/color evidence for naming advisories. */
+    variantAttributes?: Record<string, string> | null;
+    color?: string | null;
+    seoFileName?: string | null;
   } | null;
   /** e10s04: reviewer media selection (curation_data.reviewedMedia); absent until first media save. */
   reviewedMedia?: { primaryImage?: string | null; orderedAdditional?: string[]; suppressed?: string[] } | null;
@@ -203,6 +222,90 @@ export function resolveEffectivePrimaryImage(ctx: ReviewCompletenessContext): st
  * - pending_proposals / unverified_accepted_pages: run-state signals that
  *   promotion treats as skips or auto-accepts.
  */
+/**
+ * Naming-invariant advisories for Review (issue #106 SEQUENCE 3a).
+ *
+ * Same pure assessment as Promotion, minus cohort scope (no sibling set
+ * at Review — Promotion enforces duplicates). Size/color surface as
+ * warnings; a filename owned by another product BLOCKS (approval can
+ * never waive ownership). Never throws.
+ */
+function assessReviewNaming(ctx: ReviewCompletenessContext): {
+  warnings: ReviewCompletenessWarningCode[];
+  blockers: ReviewCompletenessBlockerCode[];
+} {
+  const warnings: ReviewCompletenessWarningCode[] = [];
+  const blockers: ReviewCompletenessBlockerCode[] = [];
+  const ext = ctx.extractionData ?? {};
+  const title = resolveEffectivePromotedName(ctx);
+  const hint = trimOrNull(ctx.brandHint);
+  const brand = trimOrNull(ctx.resolvedBrandName) ?? hint;
+
+  const tokens: NamingMeasurementToken[] = [];
+  const attrs = ext.variantAttributes;
+  if (attrs && typeof attrs === 'object') {
+    for (const [axis, value] of Object.entries(attrs)) {
+      if (typeof value !== 'string' || !value.trim()) continue;
+      const cleanAxis = axis.trim();
+      const lowered = cleanAxis.toLowerCase();
+      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula') continue;
+      tokens.push({
+        axis: cleanAxis,
+        value: value.trim(),
+        conflicted: lowered === 'capacity' && !isProductCapacity(value),
+      });
+    }
+  }
+  const weight = trimOrNull(ctx.curatedWeight) ?? trimOrNull(ext.weight);
+  if (weight && /[a-z]/i.test(weight)) tokens.push({ axis: 'weight', value: weight });
+  if (tokens.length === 0 && title) {
+    for (const embedded of extractProtectedTokens(title)) {
+      tokens.push({ axis: classifyTitleEmbeddedToken(embedded), value: embedded });
+    }
+  }
+  const structuredColors = [
+    typeof attrs?.color === 'string' ? attrs.color : null,
+    typeof ext.color === 'string' ? ext.color : null,
+  ].filter((c): c is string => !!c?.trim());
+
+  const assessment = assessNamingInvariants({
+    title,
+    brand,
+    brandEvidence: hint || trimOrNull(ctx.resolvedBrandName) ? 'present' : 'absent',
+    measurementTokens: tokens,
+    measurementApplicable: true,
+    ownColor: structuredColors[0] ?? null,
+    familyColors: knownColorsAcross(structuredColors),
+    siblingTitles: [],
+  });
+  for (const finding of assessment.findings) {
+    if (finding.code === 'missing_size' && !warnings.includes('missing_size')) warnings.push('missing_size');
+    if (finding.code === 'missing_color' && !warnings.includes('missing_color')) warnings.push('missing_color');
+  }
+
+  if (ctx.workspaceId && ctx.productSku) {
+    try {
+      const snapshot = buildFilenameOwnershipSnapshot(ctx.workspaceId);
+      const bases: string[] = [];
+      if (typeof ext.seoFileName === 'string' && ext.seoFileName.trim()) {
+        const normalized = normalizeFileName(ext.seoFileName);
+        if (normalized) bases.push(normalized);
+      }
+      bases.push(slugifyFileName(title || ctx.productSku));
+      for (const base of bases) {
+        const owner = snapshot.ownerOf(base, ctx.productSku);
+        if (owner && !owner.selfOwned) {
+          blockers.push('duplicate_filename');
+          break;
+        }
+      }
+    } catch {
+      // Snapshot reads never block review itself.
+    }
+  }
+  return { warnings, blockers };
+}
+
 export function evaluateReviewCompleteness(ctx: ReviewCompletenessContext): ReviewCompletenessResult {
   const blockers: ReviewCompletenessBlockerCode[] = [];
   const warnings: ReviewCompletenessWarningCode[] = [];
@@ -254,6 +357,24 @@ export function evaluateReviewCompleteness(ctx: ReviewCompletenessContext): Revi
   if (!trimOrNull(ctx.curatedDescription)) warnings.push('description_empty');
   if (!trimOrNull(ctx.searchKeywords)) warnings.push('keywords_empty');
   if (!trimOrNull(ctx.curatedWeight)) warnings.push('weight_missing');
+
+  // Issue #106 SEQUENCE 3a: naming-invariant advisories from the shared
+  // pure assessment over the effective promoted name. Size/color surface
+  // as warnings (Review decides explicitly); duplicate_filename BLOCKS
+  // (approval can never waive the ownership invariant). Brand presence
+  // stays the mandatory missing_brand blocker above; sibling duplicates
+  // are Promotion-enforced (no cohort scope at Review) and stay silent here.
+  try {
+    const naming = assessReviewNaming(ctx);
+    for (const code of naming.warnings) {
+      if (!warnings.includes(code)) warnings.push(code);
+    }
+    for (const code of naming.blockers) {
+      if (!blockers.includes(code)) blockers.push(code);
+    }
+  } catch {
+    // Advisory assessment never blocks review itself.
+  }
 
   if (ctx.hasPendingProposals) warnings.push('pending_proposals');
 
@@ -435,6 +556,9 @@ export function buildReviewCompletenessContext(
     typeof value === 'string' ? value : null;
   const provisionalCtx: ReviewCompletenessContext = {
     sourceType: item.sourceType === 'distributor_record' ? 'distributor_record' : 'official_page',
+    itemId: item.id,
+    productSku: item.upc,
+    workspaceId: options.workspaceId,
     itemName: item.name,
     itemPrice: item.price,
     brandHint: item.brandHint,

@@ -339,3 +339,30 @@ describe('readiness interplay (e10s04): reviewedMedia clears missing_primary_ima
     expect(readiness.blockers).toContain('missing_primary_image');
   });
 });
+
+describe('readiness advisory naming warnings (issue #106)', () => {
+  it('warns missing_size when the effective name carries no measurement', () => {
+    const detail = makeDetail({
+      brandHint: 'Acme',
+      name: 'Acme Collar',
+      curationData: { curatedTitle: 'Acme Collar' },
+      extractionData: null,
+    });
+    detail.extraction = { title: 'Acme Collar' } as ItemDetailResponse['extraction'];
+    const readiness = deriveReadiness(detail);
+    expect(readiness.warnings).toContain('missing_size');
+    expect(readiness.blockers).not.toContain('missing_size');
+  });
+
+  it('clears missing_size when the name carries measurement', () => {
+    const detail = makeDetail({
+      brandHint: 'Acme',
+      name: 'Acme Collar 5 LB',
+      curationData: { curatedTitle: 'Acme Collar 5 LB' },
+      extractionData: null,
+    });
+    detail.extraction = { title: 'Acme Collar 5 LB' } as ItemDetailResponse['extraction'];
+    const readiness = deriveReadiness(detail);
+    expect(readiness.warnings).not.toContain('missing_size');
+  });
+});

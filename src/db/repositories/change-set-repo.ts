@@ -336,3 +336,23 @@ function mapItemRow(row: Record<string, unknown>): ChangeSetItemRow {
     updatedAt: String(row.updated_at),
   };
 }
+
+/**
+ * Non-discarded change-set draft payloads for filename reservation
+ * (issue #106 SEQUENCE 2b). Previously promoted drafts reserve their file
+ * names until Git approval lands them in the catalog — a new promotion
+ * must uniquify against these, not just its own batch. Discarded change
+ * sets never reserve. Workspace-scoped (fail closed, no cross-workspace
+ * ownership disclosure).
+ */
+export function listNonDiscardedChangeSetDrafts(workspaceId: string): Array<{ sku: string; draftJson: string }> {
+  const db = getDb();
+  const rows = db.query(
+    `SELECT csi.sku, csi.draft_json
+     FROM change_set_items csi
+     JOIN change_sets cs ON cs.id = csi.change_set_id
+     WHERE cs.workspace_id = ? AND cs.status != 'discarded'
+     ORDER BY csi.sku ASC`,
+  ).all(...[workspaceId]) as Array<Record<string, unknown>>;
+  return rows.map((row) => ({ sku: String(row.sku ?? ''), draftJson: String(row.draft_json ?? '') }));
+}

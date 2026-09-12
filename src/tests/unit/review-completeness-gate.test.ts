@@ -218,6 +218,35 @@ describe('evaluateReviewCompleteness (pure)', () => {
     expect(result.warnings).toContain('unverified_accepted_pages');
   });
 
+  it('warns missing_size when the effective name carries no measurement (issue #106)', () => {
+    // baseCtx title 'Curated Title' has no size and curatedWeight '1.5' is
+    // unitless canonical data (not title evidence) — advisory, never blocking.
+    const result = evaluateReviewCompleteness(baseCtx());
+    expect(result.ready).toBe(true);
+    expect(result.warnings).toContain('missing_size');
+    const sized = evaluateReviewCompleteness(
+      baseCtx({ curatedTitle: 'Acme Curated Title 2 lb', curatedWeight: '2 lb' }),
+    );
+    expect(sized.warnings).not.toContain('missing_size');
+  });
+
+  it('warns missing_color for a known multicolor family with unknown own color (issue #106)', () => {
+    const result = evaluateReviewCompleteness(
+      baseCtx({
+        curatedTitle: 'Acme Collar 5 LB',
+        curatedWeight: '5 LB',
+        extractionData: {
+          title: 'Acme Collar', description: null, price: null, weight: null,
+          searchKeywords: null, primaryImage: 'http://img.example/primary.jpg',
+          additionalImages: [], distributorImageApprovals: null,
+          variantAttributes: { color: 'Red' }, color: 'Blue', seoFileName: null,
+        },
+      }),
+    );
+    expect(result.ready).toBe(true);
+    expect(result.warnings).toContain('missing_color');
+  });
+
   it('emits curated-field quality warnings without blocking readiness', () => {
     const result = evaluateReviewCompleteness(
       baseCtx({
@@ -634,7 +663,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     assignProductToPageId(passUpc, verifiedPage.id, 'Pets');
     updateCurationData(passId, {
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',
@@ -692,7 +721,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     assignProductToPageId(upc, verifiedPage.id, 'Pets');
     updateCurationData(id, {
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',
@@ -746,7 +775,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     assignProductToPageId(upc, verifiedPage.id, 'Pets');
     updateCurationData(id, {
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',
@@ -775,6 +804,41 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     expect(detail.completeness.warnings).toEqual([]);
   });
 
+  it('blocks review-complete when the draft filename is owned by another catalog product (issue #106)', async () => {
+    const batchId = makeBatch('gate-filename-block');
+    const upc = `FNBLOCK-${randomUUID().slice(0, 6)}`;
+    const id = createItem(batchId, { upc, price: '12.34', brandHint: 'Acme' });
+    const verifiedPage = listVerifiedPageOptions(workspaceId).find((p) => p.name === 'Pets')!;
+    assignProductToPageId(upc, verifiedPage.id, 'Pets');
+    updateCurationData(id, {
+      suggestedPages: ['Pets'],
+      curatedTitle: 'Acme Filename Product 2 lb',
+      curatedDescription: 'Reviewed description',
+      searchKeywords: 'kw',
+      curatedWeight: '2 lb',
+    });
+    updateExtractionData(id, { title: 'Ext', primaryImage: 'http://img.example/p.jpg', seoFileName: 'taken-live-name' });
+    // Untouched catalog owns the seo-derived base under another SKU.
+    getDb().query(`INSERT INTO product_index
+      (id, sku, file_path, title, status, price, inventory_quantity, primary_image, product_hash, created_at, updated_at, custom_fields)
+      VALUES (?, ?, ?, ?, 'active', '1.00', 1, NULL, 'h', '2026-01-01', '2026-01-01', ?)`).run(
+      `pi-fnblock-${upc}`, `FOREIGN-${upc}`, `/p/x.xml`, 'Foreign', JSON.stringify({ FileName: 'taken-live-name.html' }),
+    );
+
+    const res = await makeApp().request('/api/onboarding/items/review-complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds: [id] }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    // Ownership refusal surfaces through the filename gate (and the
+    // completeness duplicate_filename blocker on the detail projection).
+    expect(JSON.stringify(body)).toMatch(/duplicate_filename|filename_collision_catalog/);
+    // Approval cannot waive ownership: the item is not reviewed.
+    expect(getReviewState(id)?.reviewedAt ?? null).toBeNull();
+  });
+
   it('completes review when a persisted reviewedMedia selection is the only primary image (server-side e10s04 parity)', async () => {
     const batchId = makeBatch('gate-media-pass');
     const upc = `MEDIAPASS-${randomUUID().slice(0, 6)}`;
@@ -783,7 +847,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     assignProductToPageId(upc, verifiedPage.id, 'Pets');
     updateCurationData(id, {
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',
@@ -824,7 +888,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
       // the legacy category-page gate (display names), the correction record
       // is what THIS gate can actually verify against the current import.
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',
@@ -853,7 +917,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
 
     updateCurationData(id, {
       suggestedPages: ['Pets'],
-      curatedTitle: 'Reviewed Title',
+      curatedTitle: 'Acme Reviewed Title 2 lb',
       curatedDescription: 'Reviewed description',
       searchKeywords: 'kw',
       curatedWeight: '2 lb',

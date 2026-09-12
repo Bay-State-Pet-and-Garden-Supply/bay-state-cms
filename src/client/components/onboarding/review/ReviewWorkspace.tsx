@@ -965,7 +965,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 onDecision={handleDecision}
                 busyDecisionId={busyDecisionId}
               />
-              <ReviewWarningsPanel detail={currentInspector.detail} filenameWarnings={currentFilenameWarnings} />
+              <ReviewWarningsPanel detail={currentInspector.detail} filenameWarnings={currentFilenameWarnings} filenameResolutions={currentPreview?.allowedResolutions} />
               {v2 && (
                 <ReviewReadinessPanel
                   detail={currentInspector.detail}

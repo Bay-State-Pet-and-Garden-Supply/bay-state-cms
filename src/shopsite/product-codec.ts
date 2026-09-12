@@ -11,6 +11,7 @@ import {
   resolveBaseFileName,
   normalizeFileName,
   uniquifyFileNames,
+  classifyBaseFileNameSource,
 } from './file-name';
 import { getFieldByTag } from './field-catalog';
 
@@ -640,9 +641,26 @@ export class ShopSiteProductCodec {
 
     const uniquify = options?.uniquifyFileNames ?? true;
     const keyed = products.map((p, i) => ({ product: p, key: `${p.sku}#${i}` }));
+    const baseByKey = new Map(keyed.map(k => [k.key, resolveBaseFileName(k.product)]));
+    const sourceByKey = new Map(keyed.map(k => [k.key, classifyBaseFileNameSource(k.product)]));
     const uniqueNames = uniquify
-      ? uniquifyFileNames(keyed.map(k => ({ key: k.key, fileName: resolveBaseFileName(k.product) })))
+      ? uniquifyFileNames(keyed.map(k => ({ key: k.key, fileName: baseByKey.get(k.key)! })))
       : null;
+    // Issue #106 SEQUENCE 2d: the export net never SILENTLY repairs a kept
+    // (explicit/preserved) name — a repair is emitted loudly so the
+    // upstream collision gets resolved instead of masked.
+    if (uniqueNames) {
+      for (const { product, key } of keyed) {
+        const final = uniqueNames.get(key);
+        const base = baseByKey.get(key)!;
+        const source = sourceByKey.get(key)!;
+        if (final && final.toLowerCase() !== base.toLowerCase() && (source === 'explicit' || source === 'preserved')) {
+          allWarnings.push(
+            `Export uniquified FileName "${base}" to "${final}" for SKU ${product.sku} (${source} value preserved in the draft) — resolve the filename collision upstream instead of relying on export repair.`,
+          );
+        }
+      }
+    }
 
     for (const { product, key } of keyed) {
       const fileName = uniqueNames?.get(key);

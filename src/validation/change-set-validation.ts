@@ -1,5 +1,6 @@
 import { clearValidationResults, listValidationResults, addValidationResult } from '../db/repositories/validation-repo';
-import { resolveBaseFileName, findDuplicateFileNames } from '../shopsite/file-name';
+import { resolveBaseFileName, findDuplicateFileNames, normalizeFileName } from '../shopsite/file-name';
+import { listCatalogFilenameOwners } from '../db/repositories/product-index-repo';
 import { findChangeSetById, listChangeSetItems, setItemValidationStatus } from '../db/repositories/change-set-repo';
 import { validateProduct, type ValidationContext, type ValidationOptions } from './product-validation';
 import { readStoreConfig } from '../git/workspace-files';
@@ -182,7 +183,79 @@ export function validateChangeSet(changeSetId: string, options?: ValidationOptio
         setItemValidationStatus(changeSetId, sku, 'blocked');
       }
     }
-  } catch { /* filename validation never blocks validation itself */ }
+  } catch (err) {
+    // Issue #106: filename-check failures are blockers — never swallowed.
+    addValidationResult({
+      scopeType: 'change_set',
+      scopeId: changeSetId,
+      severity: 'blocker',
+      code: 'FILENAME_CHECK_FAILED',
+      message: `Filename validation could not complete: ${err instanceof Error ? err.message : String(err)}. Resolve before approval.`,
+      fieldPath: null,
+    });
+  }
+
+  // Issue #106 SEQUENCE 2c: validate the change-set overlay against
+  // UNTOUCHED catalog ownership (change-set-only is rejected). A draft
+  // claiming a catalog name owned by a different SKU blocks closed;
+  // same-SKU ownership is a self-update and stays clear.
+  try {
+    const catalogOwners = new Map<string, string>();
+    try {
+      for (const { sku, fileName } of listCatalogFilenameOwners()) {
+        const key = fileName.toLowerCase();
+        if (!catalogOwners.has(key)) catalogOwners.set(key, sku);
+      }
+    } catch {
+      // Minimal DBs without the catalog index: overlay covers nothing.
+    }
+    for (const item of items) {
+      let draft: Product;
+      try {
+        draft = JSON.parse(item.draftJson) as Product;
+      } catch {
+        continue; // PARSE_ERROR already recorded per item above.
+      }
+      const draftSku = draft?.sku || item.sku;
+      let effective: string | null = null;
+      try {
+        effective = normalizeFileName(resolveBaseFileName(draft));
+      } catch {
+        continue;
+      }
+      if (!effective) continue;
+      const ownerSku = catalogOwners.get(effective.toLowerCase());
+      if (ownerSku && ownerSku !== draftSku) {
+        const row = addValidationResult({
+          scopeType: 'change_set',
+          scopeId: changeSetId,
+          severity: 'blocker',
+          code: 'CATALOG_FILENAME_COLLISION',
+          message: `More-information page file name "${effective}" is owned by catalog product ${ownerSku}. Give ${draftSku} a distinct file name before approval.`,
+          fieldPath: null,
+        });
+        const member = itemResults.find(i => i.sku === item.sku);
+        if (member) {
+          member.results.push({
+            severity: row.severity,
+            code: row.code,
+            message: row.message,
+            fieldPath: row.fieldPath,
+          });
+          setItemValidationStatus(changeSetId, item.sku, 'blocked');
+        }
+      }
+    }
+  } catch (err) {
+    addValidationResult({
+      scopeType: 'change_set',
+      scopeId: changeSetId,
+      severity: 'blocker',
+      code: 'FILENAME_CHECK_FAILED',
+      message: `Catalog filename overlay could not complete: ${err instanceof Error ? err.message : String(err)}. Resolve before approval.`,
+      fieldPath: null,
+    });
+  }
 
   // Re-fetch results after our additions
   const allResults = listValidationResults('change_set', changeSetId);

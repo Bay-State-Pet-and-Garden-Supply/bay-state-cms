@@ -139,7 +139,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const skus = ['900000000001', '900000000002', '900000000003'];
     const ids: string[] = [];
     for (const sku of skus) {
-      const item = seedItem(batch.id, sku, { title: 'Identical Product Name', seoFileName: null });
+      const item = seedItem(batch.id, sku, { title: 'Test Brand Identical Product 5 LB', seoFileName: null });
       seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
       seedApproved(item.id, batch.id);
       ids.push(item.id);
@@ -152,7 +152,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const persisted = drafts.map(d => d.customFields['FileName']);
     expect(persisted.every(Boolean)).toBe(true);
     expect(new Set(persisted).size).toBe(3);
-    expect(persisted).toContain('identical-product-name.html');
+    expect(persisted).toContain('test-brand-identical-product-5-lb.html');
 
     // Exported XML carries the same distinct names.
     const xml = buildProductsXml(drafts);
@@ -166,8 +166,8 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const page = listVerifiedPageOptions(wsId).find(p => p.name === 'Shoes');
     if (!page) throw new Error('verified page missing');
     const batch = createBatch({ workspaceId: wsId, name: 'Naming Batch B', fileName: 'b.csv', totalItems: 2 });
-    const official = seedItem(batch.id, '900000000011', { title: 'Shared Title', seoFileName: 'shared-title-abc123' });
-    const distributor = seedItem(batch.id, '900000000012', { title: 'Shared Title', seoFileName: null });
+    const official = seedItem(batch.id, '900000000011', { title: 'Test Brand Shared Title 5 LB', seoFileName: 'shared-title-abc123' });
+    const distributor = seedItem(batch.id, '900000000012', { title: 'Test Brand Shared Title 5 LB', seoFileName: null });
     for (const sku of ['900000000011', '900000000012']) seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
     seedApproved(official.id, batch.id);
     seedApproved(distributor.id, batch.id);
@@ -177,7 +177,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const bySku = new Map(listChangeSetItems(res.changeSetId!).map(i => [i.sku, JSON.parse(i.draftJson) as Product]));
     expect(bySku.get('900000000011')!.customFields['FileName']).toBe('shared-title-abc123.html');
     const distName = bySku.get('900000000012')!.customFields['FileName'] as string;
-    expect(distName).toMatch(/^shared-title(-\d+)?\.html$/);
+    expect(distName).toMatch(/^test-brand-shared-title-5-lb(-\d+)?\.html$/);
     expect(distName).not.toBe('shared-title-abc123.html');
   });
 
@@ -263,8 +263,10 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     if (!page) throw new Error('verified page missing');
     const batch = createBatch({ workspaceId: wsId, name: 'Naming Batch C', fileName: 'c.csv', totalItems: 2 });
     // Official item's URL slug collides exactly with the sibling's slugged title.
-    const official = seedItem(batch.id, '900000000021', { title: 'Shared Title', seoFileName: 'shared-title' });
-    const sibling = seedItem(batch.id, '900000000022', { title: 'Shared Title', seoFileName: null });
+    // Slugs are unique to this test: #106 pending reservations from earlier
+    // tests persist in the shared file DB and reserve their names.
+    const official = seedItem(batch.id, '900000000021', { title: 'Test Brand Collision Widget 5 LB', seoFileName: 'test-brand-collision-widget-5-lb' });
+    const sibling = seedItem(batch.id, '900000000022', { title: 'Test Brand Collision Widget 5 LB', seoFileName: null });
     for (const sku of ['900000000021', '900000000022']) seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
     seedApproved(official.id, batch.id);
     seedApproved(sibling.id, batch.id);
@@ -272,8 +274,8 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [official.id, sibling.id]);
     expect(res.failures).toEqual([]);
     const bySku = new Map(listChangeSetItems(res.changeSetId!).map(i => [i.sku, JSON.parse(i.draftJson) as Product]));
-    expect(bySku.get('900000000021')!.customFields['FileName']).toBe('shared-title.html');
-    expect(bySku.get('900000000022')!.customFields['FileName']).toBe('shared-title-2.html');
+    expect(bySku.get('900000000021')!.customFields['FileName']).toBe('test-brand-collision-widget-5-lb.html');
+    expect(bySku.get('900000000022')!.customFields['FileName']).toBe('test-brand-collision-widget-5-lb-2.html');
   });
 
   it('assignPromotionFileNames keeps healed catalog names (incl. seo-only) without renaming', async () => {
