@@ -284,8 +284,9 @@ export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null 
 
   if (directRow) return directRow;
 
-  // 2. Substring search in path / slug for candidate UPC variations
+  // 2. Substring search in path / slug for candidate UPC variations (minimum 8 digits to avoid false positives)
   for (const candidate of candidateUpcs) {
+    if (candidate.length < 8) continue;
     const pattern = `%${candidate}%`;
     const urlRow = db
       .query('SELECT * FROM brand_url_index WHERE domain = ? AND (path LIKE ? OR slug LIKE ?) AND active = 1 ORDER BY last_seen_at DESC LIMIT 1')
