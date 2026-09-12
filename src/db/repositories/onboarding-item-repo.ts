@@ -98,7 +98,11 @@ export interface InsertItemData {
  * (Execution order comes from shared `STAGE_ORDER_V2`; this module owns no
  * order array, per the no-second-array rule.)
  */
-function storedStageIs(rawStage: unknown, canonical: StageV2): boolean {
+/**
+ * Canonical stage comparison over stored (v1 or v2) spellings. Exported
+ * for service-layer guards (ticket #124); comparison only, never a write.
+ */
+export function storedStageIs(rawStage: unknown, canonical: StageV2): boolean {
   return toCanonicalStored(rawStage) === canonical;
 }
 
@@ -1061,6 +1065,20 @@ export function advanceReviewedItemsToPromotion(
         continue;
       }
       const semanticValidation = item.curationData?.semanticValidation;
+      // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
+      // advancement exactly like a blocked semantic validation (defense in
+      // depth alongside the approve-time and draft-time guards).
+      try {
+        const gapRow = db.query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(id) as
+          | { status: string }
+          | undefined;
+        if (gapRow?.status === 'open') {
+          refused.push({ itemId: id, reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap before promotion.' });
+          continue;
+        }
+      } catch {
+        // Minimal DBs without the gaps table: no gap can be open.
+      }
       if (
         semanticValidation &&
         typeof semanticValidation === 'object' &&

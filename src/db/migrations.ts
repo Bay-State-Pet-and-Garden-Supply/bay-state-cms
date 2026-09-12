@@ -5730,6 +5730,51 @@ export function runMigrations(): void {
       db.exec("UPDATE app_meta SET value = '4' WHERE key = 'onboarding_operation_receipt_schema_version';");
       console.log('[Migrations] Operation receipts migrated to v4 (64-hex).');
     }
+    // v4 -> v5 (ticket #124): widen the operation CHECK to gap-correction
+    // commands. SQLite cannot ALTER a CHECK: rebuild preserves every row
+    // and column (status lifecycle included), exactly one version bump.
+    const receiptV4b = db
+      .query('SELECT value FROM app_meta WHERE key = ?')
+      .get('onboarding_operation_receipt_schema_version') as { value: string } | undefined;
+    if (receiptV4b && receiptV4b.value === '4') {
+      console.log('[Migrations] Migrating operation receipts v4 -> v5 (gap_correction operation)...');
+      db.transaction(() => {
+        // Ticket #124 P2-8: a crashed prior run must never leave a stale
+        // _new table behind (old CHECK) nor silently skip rows — drop
+        // first and insert loudly inside the transaction.
+        db.exec('DROP TABLE IF EXISTS onboarding_operation_receipts_new;');
+        db.exec(`
+          CREATE TABLE onboarding_operation_receipts_new (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+            batch_id TEXT NOT NULL REFERENCES onboarding_batches(id) ON DELETE CASCADE,
+            operation TEXT NOT NULL CHECK(operation IN ('approve','export','gap_correction')),
+            principal TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            idempotency_key TEXT,
+            request_hash TEXT NOT NULL CHECK(request_hash GLOB '[0-9a-f]*' AND length(request_hash) = 64),
+            details_json TEXT,
+            status TEXT NOT NULL CHECK(status IN ('started','completed','failed')) DEFAULT 'completed',
+            started_at TEXT,
+            completed_at TEXT,
+            UNIQUE(workspace_id, batch_id, operation, idempotency_key)
+          );
+        `);
+        db.exec(`
+          INSERT INTO onboarding_operation_receipts_new
+            (id, workspace_id, batch_id, operation, principal, role, created_at, idempotency_key, request_hash, details_json, status, started_at, completed_at)
+          SELECT id, workspace_id, batch_id, operation, principal, role, created_at, idempotency_key, request_hash, details_json, status, started_at, completed_at
+          FROM onboarding_operation_receipts;
+        `);
+        db.exec('DROP TABLE onboarding_operation_receipts;');
+        db.exec('ALTER TABLE onboarding_operation_receipts_new RENAME TO onboarding_operation_receipts;');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_operation_receipts_batch ON onboarding_operation_receipts(batch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_operation_receipts_workspace ON onboarding_operation_receipts(workspace_id);');
+      })();
+      db.exec("UPDATE app_meta SET value = '5' WHERE key = 'onboarding_operation_receipt_schema_version';");
+      console.log('[Migrations] Operation receipts migrated to v5.');
+    }
   } catch (e) {
     console.error('[Migrations] Failed to create operation receipts table:', e);
   }

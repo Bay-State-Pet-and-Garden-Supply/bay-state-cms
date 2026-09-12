@@ -34,6 +34,19 @@ export interface PreparationItemFacts {
   imageUrl: string | null;
   /** True when curation data records a blocking semantic validation. */
   semanticBlocked: boolean;
+  /**
+   * Ticket #124: open gap fact for the sidecar (null = confirmed no open
+   * gap; undefined = gap state not loaded — rendered as unknown, never
+   * as clear). Presentation never invents gap state.
+   */
+  gap?: {
+    missingFields: string[];
+    reason: string;
+    evidenceHash: string | null;
+    updatedAt: string;
+    correctionRevision: number;
+    correctionStatus: 'none' | 'recorded' | 'preparing' | 'failed' | 'applied' | 'superseded';
+  } | null;
 }
 
 function reason(value: string): string {
@@ -218,6 +231,20 @@ export function derivePreparationSummary(facts: PreparationItemFacts): Preparati
       deriveProductTypeSection(facts),
       deriveFieldClassificationSection(facts),
     ],
+    // Ticket #124 sidecar: project the persisted open gap (or confirmed
+    // absence) without touching the five display sections.
+    gap: facts.gap === undefined
+      ? undefined
+      : facts.gap === null
+        ? null
+        : {
+          missingFields: facts.gap.missingFields.slice(0, 25),
+          reason: facts.gap.reason.slice(0, 160),
+          evidenceHash: facts.gap.evidenceHash,
+          updatedAt: facts.gap.updatedAt,
+          correctionRevision: facts.gap.correctionRevision,
+          correctionStatus: facts.gap.correctionStatus,
+        },
   };
 }
 

@@ -1526,6 +1526,26 @@ route.post('/onboarding/items/review-complete', async (c) => {
         failures.push({ itemId: id, ...legacyCompletenessFailure });
         continue;
       }
+      // Ticket #124 P1-2: legacy items face the SAME gap refusal as
+      // classified items (mirrors the markReviewed repository guard so a
+      // direct call and the route agree). Without this, a gapped legacy
+      // item reaches markReviewed inside the Phase 3 transaction and 500s.
+      try {
+        const { getDb } = await import('../../db/connection');
+        const legacyGapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(id) as
+          | { status: string }
+          | undefined;
+        if (legacyGapRow?.status === 'open') {
+          failures.push({
+            itemId: id,
+            reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap in Prepare listing before review.',
+          });
+          continue;
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith('preparation_gap_unresolved')) throw err;
+        // Minimal DBs without the gaps table: no gap can be open.
+      }
       legacyIds.push(id);
       continue;
     }
@@ -1554,6 +1574,26 @@ route.post('/onboarding/items/review-complete', async (c) => {
     if (completenessFailure) {
       failures.push({ itemId: id, ...completenessFailure });
       continue;
+    }
+
+    // Ticket #124 — unresolved Listing Evidence Gaps refuse review
+    // readiness per item (mirrors the markReviewed repository guard so a
+    // direct call and the route agree).
+    try {
+      const { getDb } = await import('../../db/connection');
+      const gapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(id) as
+        | { status: string }
+        | undefined;
+      if (gapRow?.status === 'open') {
+        failures.push({
+          itemId: id,
+          reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap in Prepare listing before review.',
+        });
+        continue;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('preparation_gap_unresolved')) throw err;
+      // Minimal DBs without the gaps table: no gap can be open.
     }
 
     classifiedIds.push(id);

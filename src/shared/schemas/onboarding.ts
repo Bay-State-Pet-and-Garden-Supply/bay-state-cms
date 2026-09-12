@@ -1029,6 +1029,17 @@ export const CurationDataSchema = z.object({
   curatedDescription: z.string().nullable().default(null),
   /** The evidence attempt IDs whose copy contributed to curatedDescription. */
   curatedDescriptionSourceAttemptIds: z.array(z.string()).default(() => []),
+  /**
+   * Ticket #124: operator gap-correction provenance. Present only when a
+   * frozen correction overlay supplied still-blank merchandising fields —
+   * absent otherwise (legacy/cohort runs stay byte-identical).
+   */
+  correctionProvenance: z.object({
+    correctionHash: z.string().regex(/^[a-f0-9]{64}$/),
+    revision: z.number().int().min(1),
+    actor: z.string().min(1).max(128),
+    fields: z.array(z.string().min(1).max(64)),
+  }).nullable().optional(),
   suggestedPages: z.array(z.string()).default(() => []),
   /** e09 round-3 FIX 1: reviewer manual-selection correction record (see CorrectedCategoryPageRecordSchema). Additive, absent unless corrected. */
   correctedCategoryPage: CorrectedCategoryPageRecordSchema.nullable().optional(),

@@ -4,13 +4,16 @@ import { createHash } from 'node:crypto';
 
 /**
  * Milestone 4 (P1-D) — Operation receipt store.
- * Idempotent bulk operations: approve / export. Composite UNIQUE(workspace_id, batch_id, operation, idempotency_key) + request_hash for payload mismatch 409.
+ * Idempotent bulk operations: approve / export. Ticket #124 adds gap
+ * correction commands. Composite UNIQUE(workspace_id, batch_id, operation,
+ * idempotency_key) + request_hash for payload mismatch 409.
  */
+export type OperationKind = 'approve' | 'export' | 'gap_correction';
 export interface OperationReceipt {
   id: string;
   workspaceId: string;
   batchId: string;
-  operation: 'approve' | 'export';
+  operation: OperationKind;
   principal: string;
   role: string;
   createdAt: string;
@@ -56,7 +59,7 @@ function mapRow(r: ReceiptRow): OperationReceipt {
     id: r.id,
     workspaceId: r.workspace_id,
     batchId: r.batch_id,
-    operation: r.operation as 'approve' | 'export',
+    operation: r.operation as OperationKind,
     principal: r.principal,
     role: r.role,
     createdAt: r.created_at,
@@ -72,7 +75,7 @@ function mapRow(r: ReceiptRow): OperationReceipt {
 export function createReceipt(input: {
   workspaceId: string;
   batchId: string;
-  operation: 'approve' | 'export';
+  operation: OperationKind;
   principal: string;
   role: string;
   idempotencyKey?: string | null;
@@ -101,7 +104,7 @@ export function createReceipt(input: {
 export function claimReceipt(input: {
   workspaceId: string;
   batchId: string;
-  operation: 'approve' | 'export';
+  operation: OperationKind;
   principal: string;
   role: string;
   idempotencyKey: string;
@@ -150,6 +153,35 @@ export function failReceipt(id: string, detailsJson?: string): void {
   }
 }
 
+/**
+ * Ticket #124: canonical hash over a gap-correction command (scope + item
+ * + expected gap revision/binding + correction values + principal). Same
+ * key + same hash replays; same key + different hash conflicts.
+ */
+export function computeGapCorrectionHash(input: {
+  workspaceId: string;
+  batchId: string;
+  itemId: string;
+  expectedEvidenceHash: string | null;
+  expectedUpdatedAt: string | null;
+  values: Record<string, string>;
+  principal: string;
+}): string {
+  const canonical = JSON.stringify({
+    domain: 'gap-correction-v1',
+    workspaceId: input.workspaceId,
+    batchId: input.batchId,
+    itemId: input.itemId,
+    expectedEvidenceHash: input.expectedEvidenceHash,
+    expectedUpdatedAt: input.expectedUpdatedAt,
+    values: Object.fromEntries(Object.entries(input.values).sort(([a], [b]) => (a < b ? -1 : 1))),
+    principal: input.principal,
+  });
+  const hash = createHash('sha256').update(canonical, 'utf8').digest('hex');
+  if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error('invalid gap correction hash shape');
+  return hash;
+}
+
 export function findByIdempotencyKey(key: string): OperationReceipt | undefined {
   // Legacy global lookup — kept for backward compat, delegates to scoped version with empty scope (will not match composite)
   if (!key) return undefined;
@@ -161,7 +193,7 @@ export function findByIdempotencyKey(key: string): OperationReceipt | undefined 
 export function findByScopedIdempotencyKey(
   workspaceId: string,
   batchId: string,
-  operation: 'approve' | 'export',
+  operation: OperationKind,
   key: string,
 ): OperationReceipt | undefined {
   if (!key) return undefined;

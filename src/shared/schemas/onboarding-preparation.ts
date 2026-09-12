@@ -77,6 +77,21 @@ export const PreparationSummarySchema = z
       PreparationSectionSchema,
       PreparationSectionSchema,
     ]),
+    /**
+     * Ticket #124: durable Listing Evidence Gap sidecar. The five sections
+     * stay exactly as specified (never a sixth section, never a second
+     * gate) — gap facts ride alongside, projected from the same persisted
+     * store the attention surface reads. Null = confirmed no open gap;
+     * absent = gap state not loaded (unknown, never presented as clear).
+     */
+    gap: z.object({
+      missingFields: z.array(z.string().min(1).max(64)).max(25),
+      reason: z.string().min(1).max(160),
+      evidenceHash: z.string().nullable(),
+      updatedAt: z.string().min(1),
+      correctionRevision: z.number().int().min(0),
+      correctionStatus: z.enum(['none', 'recorded', 'preparing', 'failed', 'applied', 'superseded']),
+    }).nullable().optional(),
   })
   .strict()
   .refine(

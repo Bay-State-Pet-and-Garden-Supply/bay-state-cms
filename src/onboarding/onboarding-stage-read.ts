@@ -71,6 +71,7 @@ import {
   bulkGetLatestClassificationRunIdByItemWithHealth,
   bulkGetClassificationStageResultsWithHealth,
 } from '../db/repositories/onboarding-work-state-repo';
+import { listOpenGapsByItemIds } from '../db/repositories/preparation-gap-repo';
 import {
   deriveItemWorkState,
   buildProjectionHealth,
@@ -428,6 +429,14 @@ export function buildPreparationByItem(
   items: OnboardingItemWithEntryPolicy[],
   projectedById: Map<string, V2ChunkProjected>,
   ctx: WorkStateContext,
+  gapsByItem?: Map<string, {
+    missingFields: string[];
+    reason: string;
+    evidenceHash: string | null;
+    updatedAt: string;
+    correctionRevision: number;
+    correctionStatus: 'none' | 'recorded' | 'preparing' | 'failed' | 'applied' | 'superseded';
+  }> | null,
 ): Record<string, PreparationSummary> {
   const entries: Array<{ itemId: string; facts: PreparationFactsInput }> = [];
   for (const item of items) {
@@ -450,6 +459,11 @@ export function buildPreparationByItem(
         curatedTitle: projected.state.curatedTitle,
         imageUrl: projected.state.imageUrl,
         semanticBlocked: semantic?.status === 'blocked',
+        // Ticket #124 sidecar: confirmed clear when the caller loaded gaps
+        // and found no row; unknown (absent) when gaps were not loaded.
+        gap: gapsByItem === undefined || gapsByItem === null
+          ? undefined
+          : (gapsByItem.has(item.id) ? gapsByItem.get(item.id)! : null),
       },
     });
   }
@@ -593,10 +607,29 @@ export function getStageReadItems(
     // Preparation covers exactly the matched items (same predicates as items[]).
     const matchedIds = new Set(matched.map(p => p.state.itemId));
     const projectedById = new Map(projected.map(p => [p.state.itemId, p]));
+    // Ticket #124: one bulk gap load for the preparation sidecar (single
+    // statement for the chunk; absent map = unknown sidecar, never clear).
+    let gapsByItem: Parameters<typeof buildPreparationByItem>[3] = null;
+    try {
+      gapsByItem = new Map();
+      for (const g of listOpenGapsByItemIds(chunk.items.filter(item => matchedIds.has(item.id)).map(item => item.id))) {
+        gapsByItem.set(g.itemId, {
+          missingFields: g.missingFields,
+          reason: g.reason,
+          evidenceHash: g.evidenceHash,
+          updatedAt: g.updatedAt,
+          correctionRevision: g.correctionRevision,
+          correctionStatus: g.correctionEnvelope ? g.correctionEnvelope.status : 'none',
+        });
+      }
+    } catch {
+      gapsByItem = null;
+    }
     const preparationByItem = buildPreparationByItem(
       chunk.items.filter(item => matchedIds.has(item.id)),
       projectedById,
       ctx,
+      gapsByItem,
     );
     return {
       schemaVersion: STAGE_READ_SCHEMA_VERSION,

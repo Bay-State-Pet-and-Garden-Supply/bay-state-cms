@@ -38,7 +38,8 @@ import {
   openPreparationGap,
   getPreparationGap,
   hasUnresolvedPreparationGap,
-  resolvePreparationGap,
+  recordGapCorrection,
+  resolveAfterValidation,
 } from '../../db/repositories/preparation-gap-repo';
 
 class MockConnector implements DistributorConnector {
@@ -479,9 +480,18 @@ describe('listing evidence gaps (ticket #124)', () => {
       reason: 'No description from collected sources.',
     }).id).toBe(gap.id);
     // Incomplete correction keeps the gap open.
-    expect(() => resolvePreparationGap({ itemId: 'item-9', correction: {}, resolvedBy: 'op' })).toThrow(/missing values/);
+    expect(() => recordGapCorrection({ itemId: 'item-9', values: {}, actor: 'op', role: 'catalog_approver' }))
+      .toThrow(/missing values/);
     expect(hasUnresolvedPreparationGap('item-9')).toBe(true);
-    const resolved = resolvePreparationGap({ itemId: 'item-9', correction: { description: 'Operator text' }, resolvedBy: 'op' });
+    // Ticket #124: gaps clear only through the validated record + resolve
+    // flow (the direct-resolve bypass is removed).
+    const { envelope } = recordGapCorrection({
+      itemId: 'item-9', values: { description: 'Operator text' }, actor: 'op', role: 'catalog_approver',
+    });
+    const resolved = resolveAfterValidation({
+      itemId: 'item-9', revision: envelope.revision, correctionHash: envelope.correctionHash,
+      evidenceHash: null, resolvedBy: 'op',
+    });
     expect(resolved.status).toBe('resolved');
     expect(resolved.correction).toEqual({ description: 'Operator text' });
     expect(hasUnresolvedPreparationGap('item-9')).toBe(false);

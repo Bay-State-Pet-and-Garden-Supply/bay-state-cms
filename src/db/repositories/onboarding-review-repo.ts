@@ -91,6 +91,20 @@ export function listReviewStates(batchId: string): Map<string, OnboardingReviewS
 export function markReviewed(input: { itemId: string; batchId: string; reviewedBy: string }): OnboardingReviewState {
   const db = getDb();
   const now = new Date().toISOString();
+  // Ticket #124: review readiness refuses unresolved Listing Evidence
+  // Gaps at the repository boundary (not only at route/UI layers) — a
+  // direct markReviewed call can never make a gapped item review-ready.
+  try {
+    const gapRow = db.query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(input.itemId) as
+      | { status: string }
+      | undefined;
+    if (gapRow?.status === 'open') {
+      throw new Error('preparation_gap_unresolved: resolve the open Listing Evidence Gap before review');
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('preparation_gap_unresolved')) throw err;
+    // Minimal DBs without the gaps table: no gap can be open.
+  }
   const existing = getReviewState(input.itemId);
   const createdAt = existing?.createdAt ?? now;
   db.query(

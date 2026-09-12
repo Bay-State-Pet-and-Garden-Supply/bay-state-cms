@@ -373,6 +373,12 @@ export async function executePreparedMembers(args: {
         : new Map();
       const memberExtractionMethod =
         ((memberProjectionV2 as { extractionMethod?: string | null }).extractionMethod ?? null);
+      // Ticket #124: frozen correction overlay (if the freeze captured one
+      // for this member's open gap). Same cast pattern as extractionMethod:
+      // the overlay rides the persisted projection, never a live gap read.
+      const memberCorrectionOverlay =
+        (memberProjectionV2 as { correctionOverlay?: { correctionHash: string; revision: number; actor: string; values: Record<string, string> } | null })
+          .correctionOverlay ?? null;
 
       // Scoped ownership-guarded lease keeper around the long-awaited member
       // pipeline (PR3 hardening A2): the parent lease is renewed on a TTL/3
@@ -412,6 +418,7 @@ export async function executePreparedMembers(args: {
           }),
           memberProjection: memberProjectionV2,
           memberExtractionMethod,
+          correctionOverlay: memberCorrectionOverlay,
           cohortExecutionType,
           effectiveType: {
             id: resolvedEffectiveType.effectiveTypeId,

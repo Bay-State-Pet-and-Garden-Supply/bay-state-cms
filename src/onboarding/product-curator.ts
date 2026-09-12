@@ -178,6 +178,8 @@ export function composeCurationPipelineStages(): StageDefinition[] {
 export interface CuratePreparedMemberInput {
   workspacePath: string;
   workspaceId: string;
+  /** Ticket #124: operator gap-correction overlay (null = no open corrected gap). */
+  correctionOverlay?: GapCorrectionOverlay | null;
   /** Live pipeline-state identity (id/upc/stage); semantic fields unused. */
   item: OnboardingItem;
   /** Executed member, constructed via `buildFrozenItem` before the seam. */
@@ -206,6 +208,46 @@ export interface CuratePreparedMemberInput {
   assertOwnershipHeld?: () => void;
 }
 
+
+/**
+ * Ticket #124: operator gap-correction overlay consumed by curation.
+ * Values apply ONLY to still-blank merchandising fields (title /
+ * description) with explicit operator attribution — never into source
+ * payloads, never over pipeline-produced values, never identity/variant
+ * fields. Both worker modes thread the same input: legacy loads the open
+ * gap's recorded envelope; cohort freezes it into the member projection.
+ */
+export interface GapCorrectionOverlay {
+  values: Record<string, string>;
+  correctionHash: string;
+  actor: string;
+  revision: number;
+}
+
+/**
+ * Ticket #124: operator gap-correction overlay application (pure).
+ * Exported for focused unit tests; production threads it through
+ * executeCurationPipeline in both worker modes.
+ */
+export function applyGapCorrectionOverlay(
+  overlay: GapCorrectionOverlay | null | undefined,
+  current: { title: string | null; description: string | null },
+): { title: string | null; description: string | null; appliedFields: string[] } {
+  if (!overlay) return { ...current, appliedFields: [] };
+  const appliedFields: string[] = [];
+  const next = { ...current };
+  for (const field of ['title', 'description'] as const) {
+    const value = overlay.values[field];
+    if (
+      (next[field] === null || next[field]?.trim().length === 0) &&
+      typeof value === 'string' && value.trim().length > 0
+    ) {
+      next[field] = value.slice(0, 2000);
+      appliedFields.push(field);
+    }
+  }
+  return { ...next, appliedFields };
+}
 
 /**
  * Resolve distributor-copy inputs for one executed item (moved verbatim out
@@ -268,6 +310,7 @@ function resolveDistributorCopyInputs(
 export async function curatePreparedMember(input: CuratePreparedMemberInput): Promise<CurationData> {
   return executeCurationPipeline({
     item: input.frozenItem,
+    correctionOverlay: input.correctionOverlay ?? null,
     workspacePath: input.workspacePath,
     workspaceId: input.workspaceId,
     run: input.childRun,
@@ -327,6 +370,7 @@ export async function curateItemWithPipeline(
   item: OnboardingItem,
   workspacePath: string,
   workspaceId: string,
+  correctionOverlay?: GapCorrectionOverlay | null,
 ): Promise<CurationData> {
   const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
 
@@ -490,6 +534,7 @@ export async function curateItemWithPipeline(
 
   return executeCurationPipeline({
     item,
+    correctionOverlay: correctionOverlay ?? null,
     workspacePath,
     workspaceId,
     run,
@@ -513,6 +558,8 @@ export async function curateItemWithPipeline(
  */
 async function executeCurationPipeline(args: {
   item: OnboardingItem;
+  /** Ticket #124: frozen operator correction overlay (both worker modes). */
+  correctionOverlay?: GapCorrectionOverlay | null;
   workspacePath: string;
   workspaceId: string;
   run: ClassificationRunRow;
@@ -1005,13 +1052,27 @@ async function executeCurationPipeline(args: {
           ).sort()
         : [];
 
-    const searchKeywords = synthesizeSearchKeywords({
+    // Ticket #124: operator gap-correction overlay fills ONLY still-blank
+    // merchandising fields, attributed as operator input (never source
+    // evidence, never over pipeline values). Applied identically in both
+    // worker modes — the overlay arrived frozen (legacy: recorded envelope;
+    // cohort: member projection).
+    const overlayApplied = applyGapCorrectionOverlay(args.correctionOverlay, {
       title: curatedTitle,
+      description: curatedDescription,
+    });
+    const searchKeywords = synthesizeSearchKeywords({
+      // Ticket #124 P2-7: synthesize from overlay-applied copy (identical
+      // to pre-overlay values unless a correction filled a blank) so a
+      // title/description-fixing correction reaches keywords too.
+      title: overlayApplied.title ?? curatedTitle,
       brand: ext.brand ?? item.brandHint,
       // Amendment B (M5b-2): a verified v2 distributor materialization's
       // materialized description contributes to keyword synthesis; v1 /
-      // unverified / tampered distributor copy never does.
-      description: distributorSource && !verifiedV2Distributor ? null : ext.description,
+      // unverified / tampered distributor copy never does. Operator
+      // correction text on an unverified distributor item stays out as
+      // well (fail closed: keywords never launder unverified copy).
+      description: distributorSource && !verifiedV2Distributor ? null : overlayApplied.description,
       suggestedPages,
       suggestedProductType,
       species: speciesLabels,
@@ -1021,15 +1082,27 @@ async function executeCurationPipeline(args: {
     });
 
     return {
-      curatedTitle,
+      curatedTitle: overlayApplied.title,
       searchKeywords,
       packagingOcrTitle,
       curatedWeight: convertToLbs(
         ext.packagingOcrData?.weight || ext.weight || extractWeightFromName(item.name) || null,
       ),
       titleSource: titleSource as 'web' | 'ocr' | 'llm' | 'manual' | 'llm_cohort' | 'cohort_fallback',
-      curatedDescription,
+      curatedDescription: overlayApplied.description,
       curatedDescriptionSourceAttemptIds,
+      // Ticket #124: operator-correction provenance (absent without an
+      // applied overlay — legacy/cohort runs stay byte-identical).
+      ...(overlayApplied.appliedFields.length > 0 && args.correctionOverlay
+        ? {
+          correctionProvenance: {
+            correctionHash: args.correctionOverlay.correctionHash,
+            revision: args.correctionOverlay.revision,
+            actor: args.correctionOverlay.actor,
+            fields: overlayApplied.appliedFields,
+          },
+        }
+        : {}),
       suggestedPages,
       suggestedProductType,
       curatedAt: new Date().toISOString(),

@@ -81,6 +81,7 @@ import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from 
 import { insertExtraction } from '../db/repositories/onboarding-extraction-repo';
 import { onboardingEvents } from './sse-emitter';
 import { getDb } from '../db/connection';
+import { readStoreConfig } from '../git/workspace-files';
 import type { OnboardingItem, OnboardingSource, PipelineStage } from '../shared/schemas/onboarding';
 import { getSourcingFlags } from './flags';
 import { normalizeGtin } from './sourcing/contracts';
@@ -116,6 +117,11 @@ import {
 import {
   assessListingEvidenceGap,
   openPreparationGap,
+  getPreparationGap,
+  markCorrectionRun,
+  resolveAfterValidation,
+  hasUnresolvedPreparationGap,
+  blockingPreparationFields,
 } from '../db/repositories/preparation-gap-repo';
 import type { StrategyCollectionResult } from './sourcing/strategy-collection-result';
 import { usableContributions } from './sourcing/strategy-collection-result';
@@ -199,6 +205,34 @@ export function passesAuthorityGate(
   if (officialDomains.length === 0) return false;
   if (!candidateDomain) return false;
   return officialDomains.some(d => isOfficialDomainMatch(candidateDomain, d));
+}
+
+/**
+ * Ticket #124 P2-11: store-configured validation severities for gap
+ * derivation. Same seam as change-set validation (health-config.json
+ * rules); unknown codes/severities are ignored, unreadable config yields
+ * undefined (framework defaults apply).
+ */
+function loadPreparationRulesConfig(
+  workspacePath: string,
+): Record<string, 'blocker' | 'warning' | 'info' | 'disabled'> | undefined {
+  try {
+    const config = readStoreConfig<{ rules: Array<{ code: unknown; severity: unknown }> }>(
+      workspacePath,
+      'health-config.json',
+    );
+    if (!config || !Array.isArray(config.rules)) return undefined;
+    const out: Record<string, 'blocker' | 'warning' | 'info' | 'disabled'> = {};
+    for (const rule of config.rules) {
+      if (typeof rule?.code !== 'string' || !rule.code) continue;
+      if (rule.severity === 'blocker' || rule.severity === 'warning' || rule.severity === 'info' || rule.severity === 'disabled') {
+        out[rule.code] = rule.severity;
+      }
+    }
+    return out;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -2307,8 +2341,41 @@ export class OnboardingWorker {
       }
     }
 
+    // Ticket #124: load an open gap's recorded correction overlay (if any)
+    // BEFORE curating. The envelope row is immutable; a concurrent new
+    // correction supersedes this run's overlay (stale → run proceeds
+    // without it, gap stays open — never a mixed-revision blend).
+    let correctionOverlay: import('./product-curator').GapCorrectionOverlay | null = null;
+    let correctionRevision = 0;
+    let correctionHash: string | null = null;
+    let correctionActor: string | null = null;
+    let correctionBaseEvidenceHash: string | null = null;
     try {
-      const curationData = await curateItemWithPipeline(item, this.workspacePath, this.workspaceId);
+      const openGap = getPreparationGap(item.id);
+      const envelope = openGap?.status === 'open' ? openGap.correctionEnvelope : null;
+      if (envelope && (envelope.status === 'recorded' || envelope.status === 'preparing')) {
+        try {
+          markCorrectionRun({ itemId: item.id, revision: envelope.revision, runId: null, status: 'preparing' });
+          correctionOverlay = {
+            values: envelope.values,
+            correctionHash: envelope.correctionHash,
+            actor: envelope.actor,
+            revision: envelope.revision,
+          };
+          correctionRevision = envelope.revision;
+          correctionHash = envelope.correctionHash;
+          correctionActor = envelope.actor;
+          correctionBaseEvidenceHash = envelope.baseEvidenceHash ?? null;
+        } catch {
+          correctionOverlay = null;
+        }
+      }
+    } catch {
+      correctionOverlay = null;
+    }
+
+    try {
+      const curationData = await curateItemWithPipeline(item, this.workspacePath, this.workspaceId, correctionOverlay);
 
       const db = getDb();
       db.query('UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?').run(
@@ -2317,12 +2384,14 @@ export class OnboardingWorker {
         item.id,
       );
 
-      // Ticket #122: post-consolidation sufficiency for strategy items.
-      // Remaining required-information gaps persist as durable Prepare
-      // listing attention bound to the envelope version/hash (the approval
-      // guard refuses review approval while open); optional omissions never
-      // open a gap. Enforced through existing checks, never a display gate.
-      if (strategyEnvelope) {
+      // Tickets #122/#124: post-consolidation sufficiency for strategy
+      // items (and any item carrying a recorded correction). Required
+      // fields come from EXISTING blocking validation requirements —
+      // never a hardcoded checklist. Consolidated output (curated first,
+      // extraction fallback) is assessed; remaining gaps persist durably
+      // (approval/review/promotion refuse while open); a fully sufficient
+      // result resolves the gap only through validation-gated resolve.
+      if (strategyEnvelope || correctionOverlay || correctionRevision > 0 || hasUnresolvedPreparationGap(item.id)) {
         let extractionDescription: string | null = null;
         try {
           const extractionPayload = item.extraction_data_json
@@ -2332,23 +2401,97 @@ export class OnboardingWorker {
             ? extractionPayload.description
             : null;
         } catch { extractionDescription = null; }
+        const curated = curationData as { curatedTitle?: unknown; curatedDescription?: unknown };
+        const consolidatedDescription = typeof curated.curatedDescription === 'string' && curated.curatedDescription.trim()
+          ? curated.curatedDescription
+          : extractionDescription;
+        // Ticket #124 P2-11: store-configured validation severities
+        // (health-config.json rules, same seam as change-set validation)
+        // participate in gap derivation — a store that configures
+        // MISSING_DESCRIPTION:blocker gets description gaps from the
+        // worker. Absent/unreadable config → framework defaults.
         const { missing } = assessListingEvidenceGap({
           consolidatedFields: {
-            title: (curationData as { curatedTitle?: unknown }).curatedTitle as string | null | undefined,
-            description: extractionDescription,
+            title: curated.curatedTitle as string | null | undefined,
+            description: consolidatedDescription,
           },
-          requiredFields: ['title', 'description'],
+          requiredFields: blockingPreparationFields(loadPreparationRulesConfig(this.workspacePath)),
         });
         if (missing.length > 0) {
-          openPreparationGap({
+          // Ticket #124 T-7: the refreshed reason names the still-missing
+          // fields (bounded to 160 chars by safeReason) so a failed
+          // correction stays actionable instead of merely "open".
+          const refreshed = openPreparationGap({
             workspaceId: this.workspaceId,
             itemId: item.id,
             batchId: item.batchId,
             collectionResultVersion: 'strategy-collection-v1',
             missingFields: missing,
-            reason: 'Strategy collection is missing required listing information.',
-            evidenceHash: strategyEnvelope.hash,
+            reason: `Preparation is still missing required listing information: ${missing.join(', ')}.`,
+            evidenceHash: strategyEnvelope?.hash ?? getPreparationGap(item.id)?.evidenceHash ?? null,
           });
+          void refreshed;
+          if (correctionOverlay && correctionHash) {
+            try {
+              markCorrectionRun({ itemId: item.id, revision: correctionRevision, runId: null, status: 'failed' });
+            } catch {
+              // Audit transition is best-effort; the open gap is authoritative.
+            }
+          }
+        } else if (correctionOverlay && correctionHash && correctionActor) {
+          // Ticket #124 P1-1/P1-5: the resolve binds the VALIDATION-time
+          // collection hash (never the just-read gap row, which would be
+          // tautological), and a stale_gap (concurrent newer correction or
+          // re-finalized collection) returns the item to pending for
+          // reclaim instead of stranding it in failed.
+          try {
+            resolveAfterValidation({
+              itemId: item.id,
+              revision: correctionRevision,
+              correctionHash,
+              evidenceHash: strategyEnvelope?.hash ?? correctionBaseEvidenceHash ?? null,
+              resolvedBy: correctionActor,
+            });
+          } catch (err) {
+            if (err instanceof Error && (err as Error & { code?: string }).code === 'stale_gap') {
+              const staleMsg = 'gap correction superseded during preparation; awaiting re-preparation';
+              console.warn(`[OnboardingWorker] Stale gap resolve for ${item.id} (rev ${correctionRevision}); returning to pending.`);
+              updateItemStageStatus(item.id, 'pending', staleMsg);
+              onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
+                stage: 'prepare_listing',
+                error: staleMsg,
+              });
+              return;
+            }
+            throw err;
+          }
+        } else {
+          // Sufficient on retained evidence alone (e.g. explicit
+          // recollection fixed it): clear an open gap without correction.
+          const liveGap = getPreparationGap(item.id);
+          if (liveGap?.status === 'open') {
+            try {
+              resolveAfterValidation({
+                itemId: item.id,
+                revision: 0,
+                correctionHash: '',
+                evidenceHash: strategyEnvelope?.hash ?? liveGap.evidenceHash ?? null,
+                resolvedBy: 'preparation-validation',
+              });
+            } catch (err) {
+              if (err instanceof Error && (err as Error & { code?: string }).code === 'stale_gap') {
+                const staleMsg = 'gap changed during preparation; awaiting re-preparation';
+                console.warn(`[OnboardingWorker] Stale revision-0 gap resolve for ${item.id}; returning to pending.`);
+                updateItemStageStatus(item.id, 'pending', staleMsg);
+                onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
+                  stage: 'prepare_listing',
+                  error: staleMsg,
+                });
+                return;
+              }
+              throw err;
+            }
+          }
         }
       }
 
