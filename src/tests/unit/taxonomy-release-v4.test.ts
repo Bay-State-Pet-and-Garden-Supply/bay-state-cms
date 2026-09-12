@@ -409,4 +409,66 @@ describe('negative cases (temp copies)', () => {
     expectFinding(report, 'profile_missing_provenance');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
   });
+
+  it('rejects a controlled attribute with duplicate allowed values', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
+    foodForm.allowedValues.push(foodForm.allowedValues[0]);
+    writeJson(dir, 'attributes.json', attrs);
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'duplicate_allowed_value');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a controlled attribute with an unresolved value alias', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
+    foodForm.valueAliases.push({ alias: 'bogus', mapsTo: 'UnknownForm' });
+    writeJson(dir, 'attributes.json', attrs);
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'unresolved_value_alias');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a measured attribute missing canonicalUnit', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const weight = attrs.entries.find((a: any) => a.valueMode === 'measured');
+    if (weight) {
+      weight.canonicalUnit = '';
+      writeJson(dir, 'attributes.json', attrs);
+      const report = validateTaxonomyReleaseV4(dir);
+      expectFinding(report, 'measured_attribute_missing_unit');
+      expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+    }
+  });
+
+  it('rejects guidance with an unknown product type ref', () => {
+    const dir = freshCopy();
+    const g = readJson(dir, 'guidance.json');
+    g.entries.push({
+      id: 'bad-guidance-ref',
+      scope: 'productType',
+      scopeId: 'dog-food-dry',
+      structured: { productTypeIds: ['nonexistent-node-id'] },
+      freeForm: null,
+      manualReviewRequirement: false,
+    });
+    writeJson(dir, 'guidance.json', g);
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'guidance_unknown_type_ref');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects inconsistent envelope origins across focused files', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    attrs.bundleOrigin.releaseId = 'other-release-id';
+    writeJson(dir, 'attributes.json', attrs);
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'inconsistent_release_origin');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
 });

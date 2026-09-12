@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createLaunchContext, createPlainPlaywrightLaunchContext } from '../../extraction-worker/browser/camoufox-launch';
+
+vi.mock('camoufox-js', () => ({
+  launchOptions: async (opts: Record<string, unknown>) => ({
+    headless: opts?.headless ?? true,
+    args: ['--camoufox-mock-flag'],
+  }),
+}));
 import type { WorkerBrowserConfig } from '../../extraction-worker/browser/config';
 
 describe('camoufox-launch launch context creation', () => {

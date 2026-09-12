@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -494,6 +494,10 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  if (!isDbInitialized()) {
+    initDb(followupDbPath);
+    runMigrations();
+  }
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +704,10 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  if (!isDbInitialized()) {
+    initDb(followupDbPath);
+    runMigrations();
+  }
   const now = new Date().toISOString();
   try {
     insertWorkspace({

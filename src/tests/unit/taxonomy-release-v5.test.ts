@@ -274,5 +274,77 @@ describe('bay-state-v5 release validation & invariants', () => {
       expect(report.ok).toBe(false);
       expectFinding(report, 'page_projection_needs_review');
     });
+
+    it('fails when a controlled attribute has duplicate allowed values', () => {
+      const dir = copyV5Release('duplicate-allowed-value');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      const species = attrs.entries.find((a: any) => a.id === 'species');
+      species.allowedValues.push(species.allowedValues[0]);
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'duplicate_allowed_value');
+    });
+
+    it('fails when a controlled attribute value alias maps to an unknown value', () => {
+      const dir = copyV5Release('unresolved-value-alias');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      const species = attrs.entries.find((a: any) => a.id === 'species');
+      species.valueAliases.push({ alias: 'dragon', mapsTo: 'MythicalDragon' });
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'unresolved_value_alias');
+    });
+
+    it('fails when a measured attribute is missing canonicalUnit', () => {
+      const dir = copyV5Release('missing-canonical-unit');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      const weight = attrs.entries.find((a: any) => a.valueMode === 'measured');
+      if (weight) {
+        weight.canonicalUnit = '';
+        fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+        const report = validateTaxonomyReleaseV5(dir);
+        expect(report.ok).toBe(false);
+        expectFinding(report, 'measured_attribute_missing_unit');
+      }
+    });
+
+    it('fails when guidance structured references contain an unknown product type', () => {
+      const dir = copyV5Release('unknown-guidance-type');
+      const gPath = path.join(dir, 'guidance.json');
+      const g = JSON.parse(fs.readFileSync(gPath, 'utf8'));
+      g.entries.push({
+        id: 'bad-guidance-ref',
+        scope: 'productType',
+        scopeId: 'dog-food-dry',
+        structured: { productTypeIds: ['non-existent-type'] },
+        freeForm: null,
+        manualReviewRequirement: false,
+      });
+      fs.writeFileSync(gPath, JSON.stringify(g, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'guidance_unknown_type_ref');
+    });
+
+    it('fails when focused file envelope origins are inconsistent', () => {
+      const dir = copyV5Release('inconsistent-origin');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      attrs.bundleOrigin.releaseId = 'other-release-id';
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'inconsistent_release_origin');
+    });
   });
 });
