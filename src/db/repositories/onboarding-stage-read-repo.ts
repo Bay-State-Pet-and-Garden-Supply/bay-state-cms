@@ -248,6 +248,225 @@ export function loadV2ExtractionBindings(itemIds: string[]): Map<string, Extract
   return bindings;
 }
 
+// ─── Ticket #125: collection-read bulk loaders ─────────────────────────────
+//
+// Read-only: raw SELECTs with try/catch (a missing table yields empty maps,
+// never ensureTables() DDL and never throws). Every statement flows through
+// tracked() so the v2 query budget stays complete by construction.
+
+export interface V2CollectionApproval {
+  normalizedBrand: string;
+  approved: boolean;
+  revision: number;
+  sourcesJson: string;
+}
+
+/** All stored strategy rows for a workspace. One statement. */
+export function loadV2StrategyApprovals(workspaceId: string): Map<string, V2CollectionApproval> {
+  const out = new Map<string, V2CollectionApproval>();
+  let rows: Array<{ normalized_brand: string; approved: number; revision: number; sources_json: string }>;
+  try {
+    rows = tracked(
+      'all',
+      'SELECT normalized_brand, approved, revision, sources_json FROM brand_sourcing_strategies WHERE workspace_id = ?',
+      () =>
+        getDb().query(
+          'SELECT normalized_brand, approved, revision, sources_json FROM brand_sourcing_strategies WHERE workspace_id = ?',
+        ).all(workspaceId) as Array<{ normalized_brand: string; approved: number; revision: number; sources_json: string }>,
+    );
+  } catch {
+    return out;
+  }
+  for (const row of rows) {
+    out.set(row.normalized_brand, {
+      normalizedBrand: row.normalized_brand,
+      approved: row.approved === 1,
+      revision: row.revision,
+      sourcesJson: row.sources_json,
+    });
+  }
+  return out;
+}
+
+export interface V2CollectionGeneration {
+  itemId: string;
+  generationId: string;
+  status: string;
+  attemptCount: number;
+  /** Raw binding row (null = no captured binding; corrupt flagged by parse). */
+  binding: {
+    mode: string;
+    strategyRevision: number | null;
+    normalizedBrand: string | null;
+    sourcesJson: string;
+    bindingVersion: string;
+  } | null;
+}
+
+/** Latest generation + attempt counts + bindings per item. Three statements (empty: zero). */
+export function loadV2CollectionGenerations(itemIds: string[]): Map<string, V2CollectionGeneration> {
+  const out = new Map<string, V2CollectionGeneration>();
+  if (itemIds.length === 0) return out;
+  const placeholders = itemIds.map(() => '?').join(', ');
+  let gens: Array<{ id: string; item_id: string; status: string }>;
+  try {
+    gens = tracked(
+      'all',
+      `SELECT latest sourcing_generations per item WHERE item_id IN (<${itemIds.length}>)`,
+      () =>
+        getDb().query(
+          `SELECT * FROM (
+             SELECT g.*, ROW_NUMBER() OVER (
+               PARTITION BY g.item_id
+               ORDER BY g.rowid DESC
+             ) AS rn
+             FROM sourcing_generations g
+             WHERE g.item_id IN (${placeholders})
+           ) WHERE rn = 1`,
+        ).all(...itemIds) as Array<{ id: string; item_id: string; status: string }>,
+    );
+  } catch {
+    return out;
+  }
+  for (const g of gens) {
+    out.set(g.item_id, {
+      itemId: g.item_id,
+      generationId: g.id,
+      status: g.status,
+      attemptCount: 0,
+      binding: null,
+    });
+  }
+  const genIds = [...out.values()].map((g) => g.generationId);
+  if (genIds.length === 0) return out;
+  const genPlaceholders = genIds.map(() => '?').join(', ');
+  try {
+    const counts = tracked(
+      'all',
+      `SELECT sourcing_generation_id, COUNT(*) FROM onboarding_evidence_attempts WHERE sourcing_generation_id IN (<${genIds.length}>) GROUP BY sourcing_generation_id`,
+      () =>
+        getDb().query(
+          `SELECT sourcing_generation_id AS generationId, COUNT(*) AS n
+           FROM onboarding_evidence_attempts WHERE sourcing_generation_id IN (${genPlaceholders})
+           GROUP BY sourcing_generation_id`,
+        ).all(...genIds) as Array<{ generationId: string; n: number }>,
+    );
+    const byGen = new Map(counts.map((c) => [c.generationId, c.n]));
+    for (const entry of out.values()) {
+      entry.attemptCount = byGen.get(entry.generationId) ?? 0;
+    }
+  } catch {
+    // Attempt counts unavailable: keep zeros (fail closed downstream).
+  }
+  try {
+    const bindings = tracked(
+      'all',
+      `SELECT * FROM sourcing_generation_strategy_snapshots WHERE sourcing_generation_id IN (<${genIds.length}>)`,
+      () =>
+        getDb().query(
+          `SELECT sourcing_generation_id AS generationId, mode, strategy_revision AS strategyRevision,
+                  normalized_brand AS normalizedBrand, sources_json AS sourcesJson, binding_version AS bindingVersion
+           FROM sourcing_generation_strategy_snapshots WHERE sourcing_generation_id IN (${genPlaceholders})`,
+        ).all(...genIds) as Array<{
+          generationId: string;
+          mode: string;
+          strategyRevision: number | null;
+          normalizedBrand: string | null;
+          sourcesJson: string;
+          bindingVersion: string;
+        }>,
+    );
+    const byGen = new Map(bindings.map((b) => [b.generationId, b]));
+    for (const entry of out.values()) {
+      const b = byGen.get(entry.generationId);
+      if (b) {
+        entry.binding = {
+          mode: b.mode,
+          strategyRevision: b.strategyRevision,
+          normalizedBrand: b.normalizedBrand,
+          sourcesJson: b.sourcesJson,
+          bindingVersion: b.bindingVersion,
+        };
+      }
+    }
+  } catch {
+    // Binding table absent/unreadable: bindings stay null (fresh-work path).
+  }
+  return out;
+}
+
+export interface V2CollectionConnection {
+  distributorId: string;
+  connectorType: string;
+  secretRef: string | null;
+}
+
+/** Enabled workspace connections (id/type/secret-ref only, never secrets). One statement. */
+export function loadV2EnabledCollectionConnections(workspaceId: string): V2CollectionConnection[] {
+  try {
+    return tracked(
+      'all',
+      'SELECT distributor_id, connector_type, secret_ref FROM distributor_connections WHERE workspace_id = ? AND enabled = 1',
+      () =>
+        getDb().query(
+          'SELECT distributor_id AS distributorId, connector_type AS connectorType, secret_ref AS secretRef FROM distributor_connections WHERE workspace_id = ? AND enabled = 1',
+        ).all(workspaceId) as V2CollectionConnection[],
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Configured extractor-profile presence per domain (scheduling signal
+ * only — authoritative profile health stays in the strategies endpoint
+ * and the worker enforces it at dispatch). One IN statement (empty: zero).
+ */
+export function loadV2OfficialProfilePresence(domains: string[]): Set<string> {
+  const out = new Set<string>();
+  if (domains.length === 0) return out;
+  const placeholders = domains.map(() => '?').join(', ');
+  try {
+    const rows = tracked(
+      'all',
+      `SELECT domain FROM extractor_profiles WHERE domain IN (<${domains.length}>)`,
+      () =>
+        getDb().query(`SELECT domain FROM extractor_profiles WHERE domain IN (${placeholders})`).all(...domains) as Array<{
+          domain: string;
+        }>,
+    );
+    for (const row of rows) out.add(String(row.domain).toLowerCase());
+  } catch {
+    // Unreadable: no domain reads as configured (fail closed downstream).
+  }
+  return out;
+}
+
+/**
+ * Stored API-key presence per service (secret names only, never values).
+ * One IN statement (empty: zero). Lets the collection projection mirror
+ * the engine's secret resolution without resolving any secret.
+ */
+export function loadV2ApiKeyPresence(services: string[]): Set<string> {
+  const out = new Set<string>();
+  if (services.length === 0) return out;
+  const placeholders = services.map(() => '?').join(', ');
+  try {
+    const rows = tracked(
+      'all',
+      `SELECT service FROM api_keys WHERE service IN (<${services.length}>)`,
+      () =>
+        getDb().query(`SELECT service FROM api_keys WHERE service IN (${placeholders})`).all(...services) as Array<{
+          service: string;
+        }>,
+    );
+    for (const row of rows) out.add(String(row.service));
+  } catch {
+    // Unreadable: secrets read as missing (fail closed downstream).
+  }
+  return out;
+}
+
 /** Change-set status by SKU. Zero statements when no promotion SKUs. */
 export function loadV2ChangeSetStatusBySkus(workspaceId: string, skus: string[]): Map<string, string> {
   const result = new Map<string, string>();

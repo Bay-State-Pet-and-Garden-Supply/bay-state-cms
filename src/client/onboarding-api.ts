@@ -187,8 +187,8 @@ export async function assignBrandGroup(
   batchId: string,
   itemIds: string[],
   brand: string,
-): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(
+): Promise<{ success: boolean; skippedBrandConflicts?: Array<{ itemId: string; reason: string }> }> {
+  return request<{ success: boolean; skippedBrandConflicts?: Array<{ itemId: string; reason: string }> }>(
     `/batches/${batchId}/assign-brand-group`,
     {
       method: 'POST',
@@ -620,10 +620,13 @@ export async function setItemUrl(itemId: string, url: string): Promise<{ success
 export async function assignItemBrand(
   itemId: string,
   brand: string,
+  // Ticket #125: epoch protection — the server 409s when the stored hint
+  // no longer matches (another context reassigned first).
+  expectedBrandHint?: string,
 ): Promise<{ success: boolean; item?: OnboardingItem }> {
   return request<{ success: boolean; item?: OnboardingItem }>(`/items/${itemId}/assign-brand`, {
     method: 'POST',
-    body: JSON.stringify({ brand }),
+    body: JSON.stringify(expectedBrandHint === undefined ? { brand } : { brand, expectedBrandHint }),
   });
 }
 

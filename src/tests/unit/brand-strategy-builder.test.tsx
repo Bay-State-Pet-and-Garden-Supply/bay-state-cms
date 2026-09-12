@@ -91,7 +91,9 @@ describe('BrandStrategyBuilder (mounted)', () => {
     const states = boxes.map((b) => b.checked);
     expect(states).toContain(true);
     expect(container.textContent).toMatch(/Live proposal/);
-    expect(container.textContent).toMatch(/Official collection is not available for this source/);
+    // Ticket #125 / ADR 0035 B2: the retained-but-unmapped official ref is
+    // reported with its real cause, never as unavailable-official.
+    expect(container.textContent).toMatch(/No collection path executes this source yet/);
   });
 
   it('Use current proposal changes the edit only; Save emits exactly one combined request', async () => {

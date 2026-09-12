@@ -37,21 +37,30 @@ export interface BrandStrategyBuilderProps {
   onCancel?: () => void;
   /** Shell gating (dialog backdrop/Escape): reports edit dirtiness. */
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Ticket #125: disable Save while the originating item's brand
+   * assignment is dirty/in-flight (the pin must not be approved against a
+   * moving brand). Null when no assignment is outstanding.
+   */
+  assignmentHold?: { reason: string } | null;
 }
 
-function readinessText(strategy: BrandStrategy | null): string {
-  if (!strategy) return 'Strategy unavailable.';
-  if (!strategy.approval?.approved) return 'Awaiting approval — no approved revision yet.';
+/** Ticket #125 copy ladder (exact, shared with Stage 1). Exported so tests
+ * pin the unavailable-only wording without mounting the dialog. */
+export function readinessText(strategy: BrandStrategy | null): string {
+  // Ticket #125 copy ladder (exact, shared with Stage 1).
+  if (!strategy) return 'Collection readiness unavailable · Retry';
+  if (!strategy.approval?.approved) return 'Awaiting approval';
   const readiness = strategy.collectionReadiness ?? 'unknown';
   const availability = strategy.sourceAvailability ?? [];
   const usable = availability.filter((s) => s.available).length;
   const revision = `Approved revision ${strategy.approval.revision}`;
   if (readiness === 'setup_attention' || usable === 0) {
-    return `${revision} · Setup attention — no usable sources. Saving an unavailable-only set stays selectable but never Ready.`;
+    return `${revision} · Setup attention · No usable sources. Saving an unavailable-only set stays selectable but never Ready.`;
   }
-  if (readiness === 'ready_partial') return `${revision} · Partial Source Collection (${usable} usable).`;
-  if (readiness === 'ready') return `${revision} · Ready (${usable} usable).`;
-  return `${revision} · Readiness: ${readiness}.`;
+  if (readiness === 'ready_partial') return `${revision} · Ready — partial · ${usable} source${usable === 1 ? '' : 's'} available; website needs setup`;
+  if (readiness === 'ready') return `${revision} · Ready · ${usable} source${usable === 1 ? '' : 's'} available`;
+  return `${revision} · Collection readiness unavailable · Retry`;
 }
 
 export function BrandStrategyBuilder({
@@ -61,6 +70,7 @@ export function BrandStrategyBuilder({
   onSaved,
   onCancel,
   onDirtyChange,
+  assignmentHold = null,
 }: BrandStrategyBuilderProps) {
   const builder = useBrandStrategyBuilder(brand, api);
   const { strategy, loading, loadError, saving } = builder;
@@ -148,7 +158,7 @@ export function BrandStrategyBuilder({
 
   const tokenMissing = !strategy?.configurationToken && !loadError;
   const saveDisabled =
-    saving || !validation?.ok || tokenMissing || builder.uncertainOutcome || (!!builder.conflict && !rebasedNote);
+    saving || !validation?.ok || tokenMissing || builder.uncertainOutcome || (!!builder.conflict && !rebasedNote) || assignmentHold !== null;
 
   async function handleSave() {
     const payload = buildSavePayload(effectiveEdit);
@@ -407,11 +417,13 @@ export function BrandStrategyBuilder({
           disabled={saveDisabled}
           aria-disabled={saveDisabled}
           title={
-            builder.uncertainOutcome
-              ? 'Refresh first — the previous save outcome is uncertain'
-              : !validation?.ok
-                ? validation?.errors[0] ?? 'Resolve validation errors'
-                : 'Save strategy (approves immediately as a new revision)'
+            assignmentHold !== null
+              ? assignmentHold.reason
+              : builder.uncertainOutcome
+                ? 'Refresh first — the previous save outcome is uncertain'
+                : !validation?.ok
+                  ? validation?.errors[0] ?? 'Resolve validation errors'
+                  : 'Save strategy (approves immediately as a new revision)'
           }
           style={{
             background: '#14532d',

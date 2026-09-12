@@ -95,8 +95,23 @@ export function BrandAssignmentPanel({
       }));
 
       try {
-        await assignBrandGroup(batchId, group.itemIds, brandToAssign);
+        const result = await assignBrandGroup(batchId, group.itemIds, brandToAssign);
         if (!mounted.current) return;
+        // Ticket #125: worker-held rows keep their pins and are reported —
+        // never silently skipped.
+        const skipped = result.skippedBrandConflicts ?? [];
+        if (skipped.length > 0) {
+          setRows((prev) => ({
+            ...prev,
+            [group.key]: {
+              ...prev[group.key],
+              saving: false,
+              error: `${skipped.length} item${skipped.length === 1 ? '' : 's'} collecting — brand unchanged; retry after the run settles.`,
+            },
+          }));
+          await load();
+          return;
+        }
         setRows((prev) => {
           const next = { ...prev };
           delete next[group.key];

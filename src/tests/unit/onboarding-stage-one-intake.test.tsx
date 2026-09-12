@@ -27,6 +27,8 @@ vi.mock('../../client/onboarding-api', () => ({
   assignBrandGroup: vi.fn(),
   getBrandSites: vi.fn(),
   getExtractorProfiles: vi.fn(),
+  getBrandStrategyDetail: vi.fn(),
+  saveBrandStrategy: vi.fn(),
 }));
 
 vi.mock('../../client/onboarding-work-api', () => ({
@@ -40,6 +42,7 @@ import { StageItemsView } from '../../client/components/onboarding/StageItemsVie
 import {
   assignBrandGroup,
   getBrandSites,
+  getBrandStrategyDetail,
   getExtractorProfiles,
 } from '../../client/onboarding-api';
 import {
@@ -177,7 +180,7 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(text).toMatch(/All Products \(4\)/);
     expect(text).toMatch(/Missing Brand \(1\)/);
     expect(text).toMatch(/Missing Domain \(1\)/);
-    expect(text).toMatch(/Distributor Fast-Path \(1\)/);
+    expect(text).toMatch(/Distributor record \(1\)/);
     expect(text).toMatch(/Ready to Route \(2\)/);
   });
 
@@ -423,7 +426,7 @@ describe('Stage 1 intake surface (#116–#119)', () => {
     expect(container.querySelector('[data-testid="intake-domain-item_4"]')?.textContent).toMatch(/Distributor record/);
     // Strategy column: compact readiness status + Review trigger (no route badges).
     expect(container.querySelector('[data-testid="intake-route-item_1"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-readiness-item_2"]')?.textContent).toMatch(/Awaiting strategy approval/);
+    expect(container.querySelector('[data-testid="intake-readiness-item_2"]')?.textContent).toMatch(/Awaiting approval/);
     expect(container.querySelector('[data-testid="intake-strategy-review-item_2"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="intake-strategy-review-item_1"]')).toBeNull();
   });
@@ -575,3 +578,146 @@ describe('Stage 1 intake surface (#116–#119)', () => {
   });
 });
 
+
+describe('Stage 1 ticket #125 follow-ups (mounted intake)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  async function mountStage(extraProps: Record<string, unknown> = {}) {
+    await act(async () => {
+      root.render(<StageItemsView batchId="b1" stage="route_sources" {...(extraProps as object)} />);
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+  }
+
+  function itemsWithCollection(collectionByItem: Record<string, unknown>) {
+    return {
+      schemaVersion: 2,
+      stageVocabularyVersion: 2,
+      batchId: 'b1',
+      filterFingerprint: 'a'.repeat(32),
+      projectionHealth: healthy(),
+      items: [makeRow(9, { brand: 'Solo', domain: null })],
+      collectionByItem,
+      nextCursor: null,
+      scannedRows: 1,
+      queryCount: 1,
+    };
+  }
+
+  const SOLO_SETUP = {
+    normalizedBrand: 'solo',
+    approval: { approved: true, revision: 1, approvedAt: '2026-01-01', approvedBy: 'op' },
+    proposalSources: [],
+    approvedSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
+    sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: false, reason: 'Distributor connection not enabled' }],
+    collectionReadiness: 'setup_attention',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetBrandOptionsCache();
+    vi.mocked(getBrandSites).mockResolvedValue({
+      brandSites: [{ brandName: 'Solo', domain: 'solo.example' }],
+      catalogBrands: ['Solo'],
+    } as never);
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
+    vi.mocked(getBrandDomainBlockers).mockResolvedValue({ blockers: [] } as never);
+    vi.mocked(getBrandStrategyDetail).mockImplementation(async () => ({ strategy: SOLO_SETUP }) as never);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('setup-attention row shows explicit remediation with keyboard operability; distributor reasons never demand domain/profile (F3/F8)', async () => {
+    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
+      if (url.includes('/api/onboarding/brands/strategy')) {
+        return { ok: true, status: 200, json: async () => ({ strategies: [SOLO_SETUP] }) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => itemsWithCollection({
+          item_9: {
+            itemId: 'item_9',
+            path: 'approved_strategy',
+            readiness: 'setup_attention',
+            canCollect: false,
+            canExecuteNow: false,
+            effectiveRevision: 1,
+            reasons: ['Approved strategy revision 1 has no usable sources'],
+            requires: 'explicit_retry',
+            effectiveSources: [],
+            sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', usable: false, reason: 'Distributor connection not enabled' }],
+            label: 'Setup attention · No usable sources',
+            explanation: null,
+            strategyLabel: 'Phillips',
+          },
+        }),
+      } as any;
+    });
+    await mountStage();
+    // The per-item server decision wins: exact setup-attention label.
+    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(/Setup attention · No usable sources/);
+    // Explicit remediation: Review strategy opens the dialog (keyboard
+    // focusable and operable); Retry is a real button.
+    const review = container.querySelector('[data-testid="intake-strategy-review-item_9"]') as HTMLButtonElement;
+    expect(review).not.toBeNull();
+    await act(async () => {
+      review.focus();
+    });
+    expect(document.activeElement).toBe(review);
+    await act(async () => {
+      review.click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    // Distributor-only reasons never demand domain/profile work: no Missing
+    // Domain badge, no Profile Required CTA, no Add Domain control.
+    expect(container.querySelector('[data-testid="intake-missing-domain-item_9"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-profile-required-item_9"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-add-domain-item_9"]')).toBeNull();
+  });
+
+  it('strategy fetch failure renders Retry explicitly, never stuck Loading (F6)', async () => {
+    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
+      if (url.includes('/api/onboarding/brands/strategy')) {
+        return { ok: false, status: 500, json: async () => ({}) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          schemaVersion: 2,
+          stageVocabularyVersion: 2,
+          batchId: 'b1',
+          filterFingerprint: 'a'.repeat(32),
+          projectionHealth: healthy(),
+          items: [makeRow(9, { brand: 'Solo', domain: null })],
+          nextCursor: null,
+          scannedRows: 1,
+          queryCount: 1,
+        }),
+      } as any;
+    });
+    await mountStage();
+    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(
+      /Collection readiness unavailable · Retry/,
+    );
+    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).not.toMatch(/Loading/);
+    expect(container.querySelector('[data-testid="intake-readiness-retry-item_9"]')).not.toBeNull();
+  });
+});

@@ -58,6 +58,9 @@ function toParams(query: StageReadQuery, limit: number): Record<string, string> 
   if (query.domain) params['domain'] = query.domain;
   if (query.cohortId) params['cohortId'] = query.cohortId;
   if (query.q) params['q'] = query.q;
+  // Ticket #125: server-owned collection filters (same facts as the table).
+  if (query.collectionReadiness) params['collectionReadiness'] = query.collectionReadiness;
+  if (query.collectionPath) params['collectionPath'] = query.collectionPath;
   if (query.cursor) params['cursor'] = query.cursor;
   return params;
 }

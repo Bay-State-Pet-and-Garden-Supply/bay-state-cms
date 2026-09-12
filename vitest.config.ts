@@ -32,6 +32,8 @@ export default defineConfig({
       'src/tests/unit/strategy-mixed-official-tracer.test.ts',
       // Gap correction/resume loop (#124) — bun:sqlite, run under bun test (test:db)
       'src/tests/unit/preparation-gap-correction.test.ts',
+      // Strategy-driven Stage 1 collection read (#125) — bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/stage-one-collection-read.test.ts',
       // Brand advisory retirement migration — bun:sqlite, run under bun test (test:db)
       'src/tests/unit/brand-advisory-retirement-migration.test.ts',
       'src/tests/unit/brand-strategy-builder-migration.test.ts',

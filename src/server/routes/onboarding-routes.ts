@@ -852,15 +852,29 @@ route.post('/onboarding/batches/:id/assign-brand-group', async (c) => {
     return c.json({ error: 'itemIds array and brand are required' }, 400);
   }
 
-  bulkAssignBrandToItems(batchId, itemIds, brand.trim());
+  // Ticket #125: generation-aware bulk reassignment. Items the worker
+  // holds (route_sources/in_progress) keep their pins and are reported —
+  // never silently skipped, never retargeted.
+  const skippedBrandConflicts: Array<{ itemId: string; reason: string }> = [];
+  const assignable = (itemIds as unknown[]).filter((id) => {
+    if (typeof id !== 'string') return false;
+    const existing = findItemById(id);
+    if (!existing || existing.batchId !== batchId) return false;
+    if (routeStageIs(existing.stage, 'route_sources') && existing.stageStatus === 'in_progress') {
+      skippedBrandConflicts.push({ itemId: id, reason: 'collection_in_progress' });
+      return false;
+    }
+    return true;
+  }) as string[];
+  bulkAssignBrandToItems(batchId, assignable, brand.trim());
   // When assigned a brand, release the items
-  releaseBatchItems(batchId, itemIds);
+  releaseBatchItems(batchId, assignable);
 
-  for (const itemId of itemIds) {
+  for (const itemId of assignable) {
     onboardingEvents.emitItemStatus(batchId, itemId, 'pending', { brandHint: brand.trim() });
   }
 
-  return c.json({ success: true });
+  return c.json({ success: true, skippedBrandConflicts });
 });
 
 /**
@@ -2682,6 +2696,27 @@ route.post('/onboarding/items/:id/assign-brand', async (c) => {
   }
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
+  // Ticket #125: generation-aware reassignment. Epoch protection: a
+  // caller-supplied expectedBrandHint that no longer matches fails with
+  // 409 instead of retargeting another context's payload.
+  const expectedBrandHint = (body as { expectedBrandHint?: unknown })?.expectedBrandHint;
+  if (typeof expectedBrandHint === 'string' && expectedBrandHint.trim().length > 0) {
+    const current = (item.brandHint ?? '').trim().toLowerCase();
+    if (current !== expectedBrandHint.trim().toLowerCase()) {
+      return c.json(
+        { error: 'Brand assignment changed since read', code: 'brand_assignment_conflict' },
+        409,
+      );
+    }
+  }
+  // A sourcing item the worker holds (in_progress) keeps its generation
+  // pin; reassignment waits for an explicit new-generation retry.
+  if (routeStageIs(item.stage, 'route_sources') && item.stageStatus === 'in_progress') {
+    return c.json(
+      { error: 'Item collection is in progress; retry reassignment after the run settles', code: 'brand_assignment_conflict' },
+      409,
+    );
+  }
   const isDiscovery = routeStageIs(item.stage, 'find_product_page');
   const isSourcing = routeStageIs(item.stage, 'route_sources');
   if (!isDiscovery && !isSourcing) {
