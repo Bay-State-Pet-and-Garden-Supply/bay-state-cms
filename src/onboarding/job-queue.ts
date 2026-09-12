@@ -1380,6 +1380,46 @@ export class OnboardingWorker {
       } catch {
         strategyBoundary = null;
       }
+      // Ticket #149: re-entrant strategy-boundary guard. A generation
+      // whose pin predates (or misses) the live approval must not fall
+      // through to official discovery when the LIVE approved boundary is
+      // distributor-only. Zero accepted evidence under a live
+      // distributor-only approval parks visibly on that boundary — never
+      // the legacy fallback. Scoped to non-approved pins so correctly
+      // pinned approved generations keep their envelope contract below.
+      // Source-error-mixed cases hold here too (no official discovery is
+      // permitted inside the boundary); degraded_fallback_to_discovery
+      // below stays reachable only for unapproved generations.
+      let liveDistributorOnlyRevision: number | null = null;
+      try {
+        const liveApproval = getApprovedBrandStrategy(this.workspaceId, item.brandHint ?? null);
+        const liveSources = liveApproval?.sources ?? [];
+        if (
+          liveApproval &&
+          liveSources.length > 0 &&
+          liveSources.every((s) => s.kind === 'distributor_record') &&
+          attempts.length > 0 &&
+          reconcile.acceptedAttemptIds.length === 0
+        ) {
+          let pinApproved = false;
+          try {
+            pinApproved = getGenerationStrategyBinding(generation.id)?.mode === 'approved';
+          } catch {
+            pinApproved = false;
+          }
+          if (!pinApproved) {
+            liveDistributorOnlyRevision = liveApproval.revision;
+          }
+        }
+      } catch {
+        liveDistributorOnlyRevision = null;
+      }
+      if (liveDistributorOnlyRevision !== null) {
+        setupAttentionHold([
+          `Approved strategy revision ${liveDistributorOnlyRevision} has no stocked distributors; retry in a new generation`,
+        ]);
+        return;
+      }
       if (strategyBoundary) {
         let finalizedEnvelope: { envelope: StrategyCollectionResult; hash: string };
         try {

@@ -17,7 +17,7 @@ import { insertItems, findItemById } from '../../db/repositories/onboarding-item
 import { startSourcingGeneration, insertEvidenceAttempt } from '../../db/repositories/onboarding-evidence-repo';
 import { createDistributor, createConnection, updateConnection } from '../../db/repositories/distributor-repo';
 import { addBrandSiteMapping } from '../../db/repositories/brand-site-repo';
-import { saveBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
+import { saveBrandStrategy, getApprovedBrandStrategy } from '../../db/repositories/brand-strategy-approval-repo';
 import { OnboardingWorker } from '../../onboarding/job-queue';
 import { overrideSourcingFlags, resetSourcingFlagsOverride } from '../../onboarding/flags';
 import { SOURCING_ENTRY_POLICY_VERSION } from '../../onboarding/sourcing/entry-policy';
@@ -270,5 +270,55 @@ describe('Brand strategy setup attention (observable processSourcing parking)', 
     expect(after?.stageStatus).toBe('needs_input');
     expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
     expect(after?.sourcingDecision?.warnings.join(' ')).toContain('binding is invalid');
+  });
+
+  test('re-entrant query_all pin with live distributor-only approval and all-not_stocked parks instead of falling back to discovery', async () => {
+    // Issue #149: the leak needs a non-approved/stale pin (query_all
+    // captured pre-approval) + live distributor-only approval. A correctly
+    // approved distributor-only pin already takes completed_strategy_collection;
+    // this stale-pin shape must park on the LIVE approval boundary, never
+    // reach fallback_to_discovery (official-page discovery).
+    saveBrandStrategy(workspaceId, {
+      brand: 'Acme',
+      sources: [{ kind: 'distributor_record', distributorId: 'dist_phillips' }],
+      expectedRevision: 0,
+    });
+    const live = getApprovedBrandStrategy(workspaceId, 'Acme');
+    expect(live).not.toBeNull();
+    const item = makeSourcingItem('Acme', '012345678905', 'Reentrant Boundary Item');
+    const generation = startSourcingGeneration(item.id, 'automatic');
+    const now = new Date().toISOString();
+    getDb()
+      .query(
+        `INSERT INTO sourcing_generation_strategy_snapshots
+          (sourcing_generation_id, workspace_id, item_id, mode, strategy_revision, normalized_brand,
+           sources_json, preferred_distributor_ids_json, binding_version, captured_at, created_at)
+         VALUES (?, ?, ?, 'query_all', NULL, NULL, '[]', '[]', 'strategy-binding-v2', ?, ?)`,
+      )
+      .run(generation.id, workspaceId, item.id, now, now);
+    const conn = getDb().query('SELECT id FROM distributor_connections WHERE workspace_id = ?').get(workspaceId) as { id: string };
+    insertEvidenceAttempt({
+      itemId: item.id,
+      providerId: 'provider_dist_phillips',
+      distributorConnectionId: conn.id,
+      sourcingGenerationId: generation.id,
+      lookupUpc: '012345678905',
+      outcome: 'not_stocked',
+      confidence: 0,
+      evidenceUrl: null,
+      matchedFields: [],
+      identityJson: null,
+      warningsJson: '[]',
+      errorCode: null,
+      errorMessage: null,
+    });
+
+    await new OnboardingWorker(workspaceId, tempDir).poll();
+
+    const after = findItemById(item.id);
+    expect(after?.stageStatus).toBe('needs_input');
+    expect(after?.sourcingDecision?.route).toBe('needs_input_conflict');
+    expect(after?.sourcingDecision?.route).not.toBe('fallback_to_discovery');
+    expect(after?.sourcingDecision?.warnings.join(' ')).toContain(`revision ${live?.revision}`);
   });
 });
