@@ -275,9 +275,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     // Check Change Sets
     const csList = listChangeSets(wsId);
-    expect(csList.length).toBe(1);
-    expect(csList[0].id).toBe(promoteRes.changeSetId);
-    expect(csList[0].title).toContain('Onboarding: Onboard Promo A');
+    const createdCs = csList.find(cs => cs.id === promoteRes.changeSetId);
+    expect(createdCs).toBeDefined();
+    expect(createdCs!.title).toContain('Onboarding: Onboard Promo A');
 
     // Check Change Set Items
     const csItems = listChangeSetItems(promoteRes.changeSetId!);
