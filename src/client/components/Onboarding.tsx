@@ -183,6 +183,7 @@ export function Onboarding() {
   const [uploadBatchName, setUploadBatchName] = useState('');
   const [uploadStep, setUploadStep] = useState<1 | 2>(1);
   const [detectedBrands, setDetectedBrands] = useState<string[]>([]);
+  const [detectedDuplicateCount, setDetectedDuplicateCount] = useState(0);
   const [brandMappings, setBrandMappings] = useState<Record<string, string>>({});
   const [loadingBrands, setLoadingBrands] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -194,6 +195,7 @@ export function Onboarding() {
         setShowUploadModal(false);
         setUploadFile(null);
         setUploadStep(1);
+        setDetectedDuplicateCount(0);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -319,6 +321,7 @@ export function Onboarding() {
     setError('');
     setUploadStep(1);
     setDetectedBrands([]);
+    setDetectedDuplicateCount(0);
     setBrandMappings({});
     try {
       const res = await uploadSpreadsheet(file);
@@ -351,6 +354,24 @@ export function Onboarding() {
 
     setLoadingBrands(true);
     try {
+      // Check for duplicate UPCs within the uploaded batch
+      const seenUpcs = new Set<string>();
+      let duplicateUpcCount = 0;
+      const upcCol = uploadMapping.upc;
+      if (upcCol) {
+        for (const row of uploadTempRows) {
+          const upcVal = (row[upcCol] || '').trim();
+          if (upcVal) {
+            if (seenUpcs.has(upcVal)) {
+              duplicateUpcCount++;
+            } else {
+              seenUpcs.add(upcVal);
+            }
+          }
+        }
+      }
+      setDetectedDuplicateCount(duplicateUpcCount);
+
       // Fetch existing brands in the system
       const brandSitesRes = await getBrandSites();
       const existingBrands = [
@@ -433,6 +454,7 @@ export function Onboarding() {
       setUploadBatchName('');
       setUploadStep(1);
       setDetectedBrands([]);
+      setDetectedDuplicateCount(0);
       setBrandMappings({});
       
       await fetchBatchesList();
@@ -1123,6 +1145,27 @@ export function Onboarding() {
                         We detected <strong>{detectedBrands.length}</strong> distinct brand(s) in this batch.
                         Brands without configured official domains will be handled during Discovery.
                       </p>
+
+                      {detectedDuplicateCount > 0 && (
+                        <div style={{
+                          padding: '10px 14px',
+                          backgroundColor: '#fef3c7',
+                          border: '1px solid #f59e0b',
+                          borderRadius: rounded.md,
+                          marginBottom: 16,
+                          fontSize: 13,
+                          color: '#92400e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}>
+                          <span style={{ fontSize: 16 }}>⚠️</span>
+                          <span>
+                            <strong>{detectedDuplicateCount} duplicate line item{detectedDuplicateCount > 1 ? 's' : ''} detected.</strong>{' '}
+                            Duplicate lines will have their quantities merged into the first occurrence and will be marked as skipped.
+                          </span>
+                        </div>
+                      )}
 
                       {detectedBrands.length === 0 ? (
                         <p style={{ fontSize: 13, color: colors.mulchBrown, fontStyle: 'italic', padding: '12px 0' }}>

@@ -30,6 +30,7 @@ import {
 } from '../../db/repositories/onboarding-batch-repo';
 import {
   insertItems,
+  type InsertItemData,
   listItemsByBatch,
   findItemById,
   setDiscoverySourceUrl,
@@ -511,11 +512,36 @@ route.post('/onboarding/batches', async (c) => {
     // Fetch all existing brand names to match against register names
     const existingBrands = listAllBrandSites().map(b => b.brandName);
 
-    // Check duplicate UPCs against existing catalog and skip already existing ones
-    const finalItems = [];
+    // Check duplicate UPCs against existing catalog and intra-batch duplicates
+    const finalItems: InsertItemData[] = [];
+    const seenBatchUpcs = new Map<string, number>();
+
     for (const item of valid) {
       const existingProduct = findProductBySku(item.upc);
       if (existingProduct) {
+        continue;
+      }
+
+      // Check for intra-batch duplicate UPC
+      if (seenBatchUpcs.has(item.upc)) {
+        const firstIdx = seenBatchUpcs.get(item.upc)!;
+        const firstItem = finalItems[firstIdx];
+        if (typeof item.quantity === 'number' && item.quantity > 0) {
+          firstItem.quantity = (firstItem.quantity ?? 0) + item.quantity;
+        }
+        finalItems.push({
+          ...item,
+          brandHint: firstItem.brandHint,
+          isDuplicate: true,
+          existingSku: item.upc,
+          stageStatus: 'skipped' as const,
+          isHeld: true,
+          heldReason: 'duplicate_line_item',
+        });
+        errors.push({
+          row: item.rowNumber,
+          message: `Duplicate UPC ${item.upc} (matches row ${firstItem.rowNumber}). Merged quantity and marked as skipped duplicate.`,
+        });
         continue;
       }
 
@@ -527,6 +553,7 @@ route.post('/onboarding/batches', async (c) => {
         }
       }
 
+      seenBatchUpcs.set(item.upc, finalItems.length);
       finalItems.push({
         ...item,
         brandHint: assignedBrandHint,

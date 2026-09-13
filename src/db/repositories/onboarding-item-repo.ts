@@ -574,6 +574,8 @@ export interface StageChunkOptions {
   /** Chunk-scoped bulk hydration (marker read once per chunk, not per row).
    * Pass null/undefined for the exact legacy per-row behavior. */
   hydration?: ChunkAcceptanceHydration | null;
+  /** If true, includes rows marked as duplicates (is_duplicate = 1). Defaults to false. */
+  includeDuplicates?: boolean;
 }
 
 /**
@@ -637,6 +639,9 @@ export function listItemsByBatchStageChunked(
   const safeLimit = Math.max(1, Math.min(500, Math.floor(opts.limit)));
   const clauses: string[] = ['batch_id = ?'];
   const params: Array<string | number> = [batchId];
+  if (!opts.includeDuplicates) {
+    clauses.push('(is_duplicate = 0 OR is_duplicate IS NULL)');
+  }
   if (opts.stages && opts.stages.length > 0) {
     clauses.push(`stage IN (${opts.stages.map(() => '?').join(', ')})`);
     params.push(...opts.stages);
@@ -813,6 +818,7 @@ export function claimItemsForProcessing(
        WHERE b.workspace_id = ? AND b.status = 'active' AND (b.execution_state = 'running' OR b.execution_state IS NULL)
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'pending'
        AND (i.is_held = 0 OR i.is_held IS NULL)
+       AND (i.is_duplicate = 0 OR i.is_duplicate IS NULL)
        ${versionClause}
        ORDER BY i.row_number
        LIMIT ?
@@ -1196,7 +1202,7 @@ export function setDiscoverySourceUrl(id: string, url: string): void {
 export function getStageCounts(batchId: string): Record<PipelineStage, number> {
   const db = getDb();
   const rows = db.query(
-    'SELECT stage, COUNT(*) as count FROM onboarding_items WHERE batch_id = ? GROUP BY stage',
+    'SELECT stage, COUNT(*) as count FROM onboarding_items WHERE batch_id = ? AND (is_duplicate = 0 OR is_duplicate IS NULL) GROUP BY stage',
   ).all(batchId) as Array<{ stage: string; count: number }>;
 
   const counts: Record<PipelineStage, number> = {

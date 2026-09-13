@@ -92,6 +92,36 @@ route.get('/export/change-set/:id/images-zip', (c) => {
     headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="shopsite-images-${dateStr}.zip"`,
+      'Content-Length': String(fileBuffer.length),
+      'Cache-Control': 'no-store',
+    },
+  });
+});
+
+/**
+ * GET /api/export/change-set/:id/xml - Download the ShopSite product XML file.
+ */
+route.get('/export/change-set/:id/xml', (c) => {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No workspace loaded.' }, 400);
+  }
+
+  const changeSetId = c.req.param('id');
+  const xmlPath = path.join(workspace.workspacePath, 'exports', changeSetId, 'shopsite-products.xml');
+
+  if (!fs.existsSync(xmlPath)) {
+    return c.json({ error: 'Products XML not found. Generate an export package first.' }, 404);
+  }
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileBuffer = fs.readFileSync(xmlPath);
+
+  return new Response(fileBuffer, {
+    headers: {
+      'Content-Type': 'application/xml',
+      'Content-Disposition': `attachment; filename="shopsite-products-${dateStr}.xml"`,
+      'Content-Length': String(fileBuffer.length),
       'Cache-Control': 'no-store',
     },
   });

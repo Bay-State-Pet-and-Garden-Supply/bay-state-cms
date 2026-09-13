@@ -131,6 +131,12 @@ interface ProcessedImageResult {
   additionalImages: string[];
 }
 
+/**
+ * Hard cap on additional images per product draft.
+ * ShopSite store conventions allow 1 primary image + up to 6 additional images (MoreInfoImage1..6).
+ */
+export const MAX_ADDITIONAL_IMAGES_PER_DRAFT = 6;
+
 async function downloadAndProcessImages(
   workspacePath: string,
   sku: string,
@@ -153,7 +159,7 @@ async function downloadAndProcessImages(
   if (primaryUrl) {
     allUrls.push(primaryUrl);
   }
-  for (const url of additionalUrls) {
+  for (const url of additionalUrls.slice(0, MAX_ADDITIONAL_IMAGES_PER_DRAFT)) {
     if (url && url !== primaryUrl) {
       allUrls.push(url);
     }
@@ -1468,7 +1474,7 @@ export async function promoteItems(
 
       const processed = processedImagesMap.get(item.id);
       const primaryImage = processed?.primaryImage || null;
-      const additionalImages = processed?.additionalImages || [];
+      const additionalImages = (processed?.additionalImages || []).slice(0, MAX_ADDITIONAL_IMAGES_PER_DRAFT);
 
       const coreProduct = {
         name: finalTitle,

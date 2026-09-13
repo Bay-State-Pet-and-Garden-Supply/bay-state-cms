@@ -65,69 +65,90 @@ export async function createImagesZip(
   const archive = new ZipArchive({ zlib: { level: 5 } });
 
   return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      try {
+        if (fs.existsSync(zipPath)) {
+          fs.unlinkSync(zipPath);
+        }
+      } catch {
+        // ignore cleanup failure
+      }
+    };
+
     output.on('close', () => {
       resolve();
     });
 
     archive.on('error', (err: Error) => {
+      cleanup();
+      reject(err);
+    });
+
+    output.on('error', (err: Error) => {
+      cleanup();
       reject(err);
     });
 
     archive.pipe(output);
 
-    const addedPaths = new Set<string>();
-    const missingImages: string[] = [];
-    let totalIncluded = 0;
+    try {
+      const addedPaths = new Set<string>();
+      const missingImages: string[] = [];
+      let _totalIncluded = 0;
 
-    for (const product of products) {
-      const brandName = product.customFields['ProductField16'] || 'unbranded';
-      const brandFolder = slugify(brandName) || 'unbranded';
+      for (const product of products) {
+        const brandName = product.customFields?.['ProductField16'] || 'unbranded';
+        const brandFolder = slugify(brandName) || 'unbranded';
 
-      const images: string[] = [];
-      if (product.core.media.primary) {
-        images.push(product.core.media.primary);
-      }
-      for (const img of product.core.media.additional) {
-        if (img) images.push(img);
-      }
-
-      for (const imgPath of images) {
-        if (!imgPath) continue;
-
-        // Normalize image paths (strip leading slashes or prefix differences)
-        let cleanPath = imgPath;
-        if (cleanPath.startsWith('/')) {
-          cleanPath = cleanPath.slice(1);
+        const images: string[] = [];
+        if (product.core?.media?.primary) {
+          images.push(product.core.media.primary);
         }
-        if (cleanPath.startsWith('products/images/')) {
-          cleanPath = cleanPath.slice('products/images/'.length);
+        for (const img of product.core?.media?.additional ?? []) {
+          if (img) images.push(img);
         }
 
-        if (addedPaths.has(cleanPath)) continue;
-        addedPaths.add(cleanPath);
+        for (const imgPath of images) {
+          if (!imgPath) continue;
 
-        // Organize under brand folder in the archive
-        const fileName = path.basename(cleanPath);
-        const archiveName = `${brandFolder}/${fileName}`;
+          // Normalize image paths (strip leading slashes or prefix differences)
+          let cleanPath = imgPath;
+          if (cleanPath.startsWith('/')) {
+            cleanPath = cleanPath.slice(1);
+          }
+          if (cleanPath.startsWith('products/images/')) {
+            cleanPath = cleanPath.slice('products/images/'.length);
+          }
 
-        const resolved = resolveImagePath(workspacePath, cleanPath);
-        if (resolved) {
-          archive.file(resolved, { name: archiveName });
-          totalIncluded++;
-        } else {
-          missingImages.push(`${brandFolder}/${fileName} (from product ${product.sku}, ref: ${imgPath})`);
+          if (addedPaths.has(cleanPath)) continue;
+          addedPaths.add(cleanPath);
+
+          // Organize under brand folder in the archive
+          const fileName = path.basename(cleanPath);
+          const archiveName = `${brandFolder}/${fileName}`;
+
+          const resolved = resolveImagePath(workspacePath, cleanPath);
+          if (resolved) {
+            archive.file(resolved, { name: archiveName });
+            _totalIncluded++;
+          } else {
+            missingImages.push(`${brandFolder}/${fileName} (from product ${product.sku}, ref: ${imgPath})`);
+          }
         }
       }
+
+      if (missingImages.length > 0) {
+        // Warn and finalize with whatever we have, but let the caller know
+        console.warn(
+          `[ZipGenerator] ${missingImages.length} image(s) not found for export:\n  ${missingImages.join('\n  ')}`,
+        );
+      }
+
+      archive.finalize();
+    } catch (err) {
+      cleanup();
+      reject(err);
     }
-
-    if (missingImages.length > 0) {
-      // Warn and finalize with whatever we have, but let the caller know
-      console.warn(
-        `[ZipGenerator] ${missingImages.length} image(s) not found for export:\n  ${missingImages.join('\n  ')}`,
-      );
-    }
-
-    archive.finalize();
   });
 }
 
@@ -143,8 +164,8 @@ export function assertZipHasImages(
   products: Product[],
 ): void {
   const totalRefs = products.reduce((count, p) => {
-    let n = p.core.media.primary ? 1 : 0;
-    n += (p.core.media.additional || []).filter(Boolean).length;
+    let n = p.core?.media?.primary ? 1 : 0;
+    n += (p.core?.media?.additional || []).filter(Boolean).length;
     return count + n;
   }, 0);
 

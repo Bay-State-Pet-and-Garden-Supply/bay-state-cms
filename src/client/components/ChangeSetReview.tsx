@@ -13,8 +13,7 @@ import {
   type ChangeSetItem, 
   type ValidationResult 
 } from '../api';
-import { ViewHeader } from './common/ViewHeader';
-import { colors, fonts, rounded, themeStyles } from '../theme';
+import { colors, fonts, rounded } from '../theme';
 
 const STYLE_RULES = `
   /* Custom styled styles for the Change Sets workspace */
@@ -706,7 +705,7 @@ export function ChangeSetReview() {
   const selectedItem = items.find(i => i.sku === selectedItemSku);
 
   const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
-    let res: Record<string, any> = {};
+    const res: Record<string, any> = {};
     for (const key in obj) {
       const propName = prefix ? `${prefix}.${key}` : key;
       if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
@@ -733,7 +732,7 @@ export function ChangeSetReview() {
         if (JSON.stringify(bv) !== JSON.stringify(dv)) return { key, status: 'changed' as const, baseVal: bv, draftVal: dv };
         return null;
       }).filter(Boolean) as Array<{ key: string; status: 'added' | 'removed' | 'changed'; baseVal: any; draftVal: any }>;
-    } catch (e) {
+    } catch {
       return [];
     }
   };
@@ -890,7 +889,7 @@ export function ChangeSetReview() {
     try {
       const d = new Date(dateStr);
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
+    } catch {
       return dateStr.slice(0, 10);
     }
   };
@@ -920,7 +919,7 @@ export function ChangeSetReview() {
         }
       }
       return { name, sku, price, salePrice, description, primaryImage, status, raw: data };
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -1055,6 +1054,22 @@ export function ChangeSetReview() {
                       disabled={loading}
                     >
                       {activeAction === 'export' ? <span className="spinner-sm" /> : '📤 Export Package'}
+                    </button>
+                    <button 
+                      className="cs-button cs-btn-secondary" 
+                      onClick={() => window.open(`/api/export/change-set/${selected}/xml`, '_blank')} 
+                      disabled={loading}
+                      title="Download ShopSite products XML file"
+                    >
+                      📄 Download XML
+                    </button>
+                    <button 
+                      className="cs-button cs-btn-secondary" 
+                      onClick={() => window.open(`/api/export/change-set/${selected}/images-zip`, '_blank')} 
+                      disabled={loading}
+                      title="Download brand-organized images ZIP"
+                    >
+                      📦 Download Images ZIP
                     </button>
                     <button 
                       className="cs-button cs-btn-warning" 
