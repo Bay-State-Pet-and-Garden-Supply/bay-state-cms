@@ -83,6 +83,7 @@ describe('LLM Client — task-specific routing', () => {
   });
 
   beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -110,16 +111,18 @@ describe('LLM Client — task-specific routing', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Clean up task configs between tests
-    for (const task of [
-      'product_name_consolidation',
-      'profile_generation',
-      'profile_revision',
-      'product_curation',
-      'category_classification',
-      'classification_evidence_extraction',
-    ] as const) {
-      try { deleteLlmTaskConfig(task); } catch { /* ignore */ }
-    }
+    try {
+      for (const task of [
+        'product_name_consolidation',
+        'profile_generation',
+        'profile_revision',
+        'product_curation',
+        'category_classification',
+        'classification_evidence_extraction',
+      ] as const) {
+        deleteLlmTaskConfig(task);
+      }
+    } catch { /* ignore */ }
   });
 
   // ── Profile task requires explicit config (fail closed) ────────────────
@@ -406,7 +409,10 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
@@ -734,7 +740,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     );
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const signedUrl = 'https://cdn.example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
+      const signedUrl = 'https://example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
       await extractPackagingOcrFromCloud({ imageUrl: signedUrl, modelPolicy: view });
       const joined = spy.mock.calls.map(c => String(c[0])).join('\n');
       expect(joined).not.toContain('SECRETSIG');
@@ -805,7 +811,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
       const result = await extractPackagingOcrFromCloud({
-        imageUrl: 'https://cdn.example.com/img/1.jpg',
+        imageUrl: 'https://example.com/img.jpg',
         modelPolicy: view,
       });
       expect(result).toBeNull();
@@ -847,7 +853,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     }) as unknown as typeof fetch;
     globalThis.fetch = mock;
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: tampered });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: tampered });
     // Fail closed: no OCR result from a tampered policy and ZERO transport —
     // the image is never downloaded once policy resolution is denied.
     expect(result).toBeNull();
@@ -931,7 +937,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-local' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).toBeNull();
     // No image download, no model call — the image never leaves the machine.
     expect(fetchCalls).toBe(0);
@@ -967,7 +973,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-cloud' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).not.toBeNull();
     expect(result?.productName).toBe('Test Product');
     // Image download + model call both happened.
@@ -1678,13 +1684,18 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
-    getDb().run('DELETE FROM ai_workload_routes');
-    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    try {
+      getDb().run('DELETE FROM ai_workload_routes');
+      getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    } catch { /* ok */ }
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {
