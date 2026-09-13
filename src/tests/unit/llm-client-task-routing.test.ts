@@ -10,7 +10,7 @@
  * the test database via the `api_keys` table.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn } from 'bun:test';
+import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn, mock } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,6 +36,28 @@ import {
 } from '../../onboarding/llm-client';
 import { ModelPolicyDeniedError, buildModelPolicyView } from '../../classification/model-policy-gateway';
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
+
+// Offline-safe DNS for the DeterministicNetworkGate. The cloud-VLM tests below
+// stub globalThis.fetch, but image fetching goes through
+// DeterministicNetworkGate, which resolves hostnames via node:dns/promises.
+// In sandboxes without DNS (CI), example.com fixtures fail closed with
+// dns_failed before the stubbed fetch is ever reached. Resolve example.com
+// fixtures to its public documentation IP (93.184.216.34 — non-private, so
+// the gate's SSRF floor is still exercised) and delegate every other hostname
+// to the real resolver (Bun.dns bypasses this mock) to preserve fail-closed
+// behavior elsewhere. Scoped to this file: bun isolates module registries
+// per test file, so later suites are unaffected.
+mock.module('node:dns/promises', () => ({
+  lookup: (async (hostname: string, options?: { all?: boolean }) => {
+    if (hostname === 'example.com' || hostname.endsWith('.example.com')) {
+      const recs = [{ address: '93.184.216.34', family: 4 }];
+      return options?.all ? recs : recs[0];
+    }
+    const recs = await Bun.dns.lookup(hostname);
+    const mapped = recs.map((r) => ({ address: r.address, family: r.family }));
+    return options?.all ? mapped : mapped[0];
+  }) as typeof import('node:dns/promises').lookup,
+}));
 
 // Captured at MODULE LOAD — never a stale cross-file mock. A beforeEach-time
 // capture can race with another test file's pending afterEach restore when bun
