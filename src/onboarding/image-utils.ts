@@ -44,6 +44,7 @@ export function isUsableImageSource(
   const lower = trimmed.toLowerCase();
   if (lower.startsWith('data:')) return false;
   if (lower.split(/[?#]/)[0].endsWith('.svg')) return false;
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) return false;
   return true;
 }
 
@@ -147,6 +148,21 @@ export function canonicalizeUrl(
       : new URL(canonical);
     parsedUrl.search = '';
     let pathname = parsedUrl.pathname;
+
+    // BigCommerce CDN: /products/{productId}/{imageId}/ or UUID
+    if (parsedUrl.host.includes('bigcommerce.com') || pathname.includes('/images/stencil/')) {
+      const bcMatch = pathname.match(/\/products\/(\d+)\/(\d+)/i);
+      if (bcMatch) {
+        return `${parsedUrl.host}/products/${bcMatch[1]}/${bcMatch[2]}`;
+      }
+      const uuidMatch = pathname.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      if (uuidMatch) {
+        return `${parsedUrl.host}/${uuidMatch[1]}`;
+      }
+    }
+
+    // BigCommerce stencil dimensions: /images/stencil/{dimensions}/ -> /images/stencil/
+    pathname = pathname.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/');
     pathname = pathname.replace(
       /_(?:[0-9]+x[0-9]*|[0-9]*x[0-9]+|small|thumb|medium|large|icon|grande|compact)(?:_crop_[a-z_]+)?(?=\.[a-z0-9]+$)/i,
       '',
@@ -161,10 +177,11 @@ export function canonicalizeUrl(
 
 /**
  * Deduplicate a set of image URLs by canonical host + pathname (size
- * suffixes stripped).  For Shopify CDN URLs the output is normalized
+ * suffixes stripped). For Shopify CDN URLs the output is normalized
  * to `width=1200` while preserving the `v` cache-busting parameter.
+ * For BigCommerce stencil URLs the output is normalized to `1280x1280`.
  *
- * The first-accepted URL per canonical group wins.  Callers that need
+ * The first-accepted URL per canonical group wins. Callers that need
  * a "highest resolution wins" policy should pre-sort `urls` before
  * calling this function.
  */
@@ -179,23 +196,14 @@ export function cleanAndDeduplicateImages(
     if (!urlStr || typeof urlStr !== 'string') continue;
     let canonical = urlStr.trim();
     if (!canonical || canonical.toLowerCase().startsWith('data:')) continue;
+    if (!isUsableImageSource(canonical)) continue;
 
     if (canonical.startsWith('//')) {
       canonical = 'https:' + canonical;
     }
 
     try {
-      const parsedUrl = baseUrl
-        ? new URL(canonical, baseUrl)
-        : new URL(canonical);
-      parsedUrl.search = '';
-      let pathname = parsedUrl.pathname;
-      pathname = pathname.replace(
-        /_(?:[0-9]+x[0-9]*|[0-9]*x[0-9]+|small|thumb|medium|large|icon|grande|compact)(?:_crop_[a-z_]+)?(?=\.[a-z0-9]+$)/i,
-        '',
-      );
-
-      const canonicalKey = parsedUrl.host + pathname;
+      const canonicalKey = canonicalizeUrl(canonical, baseUrl);
       if (!seenCanonical.has(canonicalKey)) {
         seenCanonical.add(canonicalKey);
 
@@ -219,6 +227,11 @@ export function cleanAndDeduplicateImages(
           }
           originalUrlObj.searchParams.set('width', '1200');
           targetUrl = originalUrlObj.href;
+        }
+
+        const isBigCommerce = originalUrlObj.pathname.includes('/images/stencil/');
+        if (isBigCommerce) {
+          targetUrl = targetUrl.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/1280x1280/');
         }
 
         bestUrls.push(targetUrl);

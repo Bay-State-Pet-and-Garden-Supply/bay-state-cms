@@ -482,4 +482,27 @@ describe('cleanAndDeduplicateImages', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toContain('width=1200');
   });
+
+  it('dedupes BigCommerce stencil URLs across dimensions and upgrades to 1280x1280', () => {
+    const urls = [
+      'https://cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/120x120/products/1980/15076/abc.jpg?c=1',
+      'https://cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/240x240/products/1980/15076/abc.jpg?c=1',
+      'https://cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/120x120/products/1980/15082/def.jpg?c=1',
+      'https://cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/240x240/products/1980/15082/def.jpg?c=1',
+    ];
+    const result = cleanAndDeduplicateImages(urls);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toContain('/images/stencil/1280x1280/products/1980/15076/abc.jpg');
+    expect(result[1]).toContain('/images/stencil/1280x1280/products/1980/15082/def.jpg');
+  });
+
+  it('filters youtube video thumbnails from usable image sources', () => {
+    const urls = [
+      'https://img.youtube.com/vi/RNmHK9Cswzc/0.jpg',
+      'https://example.com/real-photo.jpg',
+    ];
+    const result = cleanAndDeduplicateImages(urls);
+    expect(result).toEqual(['https://example.com/real-photo.jpg']);
+  });
 });
+

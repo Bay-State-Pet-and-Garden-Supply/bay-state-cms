@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -58,6 +58,7 @@ import {
 } from './sourcing/distributor-record-materializer';
 import { verifyDistributorImageryForItem } from './distributor-imagery';
 import { DeterministicNetworkGate } from './image-verification/network-gate';
+import { canonicalizeUrl, isUsableImageSource } from './image-utils';
 
 const imageGate = new DeterministicNetworkGate();
 import { SourcingDecisionV2Schema } from '../shared/schemas/onboarding';
@@ -155,13 +156,41 @@ async function downloadAndProcessImages(
     additionalImages: [],
   };
 
-  const allUrls = [];
+  // Build deduplicated candidate list across primary and additionals
+  const seenCanonical = new Set<string>();
+  const seenContentHashes = new Set<string>();
+  const allUrls: string[] = [];
+
+  const candidatePool: string[] = [];
   if (primaryUrl) {
-    allUrls.push(primaryUrl);
+    candidatePool.push(primaryUrl);
   }
-  for (const url of additionalUrls.slice(0, MAX_ADDITIONAL_IMAGES_PER_DRAFT)) {
-    if (url && url !== primaryUrl) {
-      allUrls.push(url);
+  if (Array.isArray(additionalUrls)) {
+    candidatePool.push(...additionalUrls);
+  }
+
+  for (const rawCandidate of candidatePool) {
+    if (!rawCandidate || typeof rawCandidate !== 'string') continue;
+    const trimmed = rawCandidate.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      if (!isUsableImageSource(trimmed)) continue;
+      const canonKey = canonicalizeUrl(trimmed);
+      if (seenCanonical.has(canonKey)) continue;
+      seenCanonical.add(canonKey);
+
+      // Upgrade BigCommerce stencil URLs to high-res 1280x1280
+      let targetUrl = trimmed;
+      if (targetUrl.includes('/images/stencil/')) {
+        targetUrl = targetUrl.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/1280x1280/');
+      }
+      allUrls.push(targetUrl);
+    } else {
+      const canonKey = canonicalizeUrl(trimmed);
+      if (seenCanonical.has(canonKey)) continue;
+      seenCanonical.add(canonKey);
+      allUrls.push(trimmed);
     }
   }
 
@@ -173,6 +202,11 @@ async function downloadAndProcessImages(
   }
 
   for (let index = 0; index < allUrls.length; index++) {
+    // If we have primary + max additionals, we are done
+    if (result.primaryImage && result.additionalImages.length >= MAX_ADDITIONAL_IMAGES_PER_DRAFT) {
+      break;
+    }
+
     const url = allUrls[index];
     if (!url) continue;
 
@@ -187,7 +221,7 @@ async function downloadAndProcessImages(
       continue;
     }
 
-    const imageSuffix = index === 0 ? '' : `-${index + 1}`;
+    const imageSuffix = !result.primaryImage ? '' : `-${result.additionalImages.length + 2}`;
     const filename = `${finalImageStem}${imageSuffix}.jpg`;
     const destPath = path.join(imagesDir, filename);
 
@@ -226,6 +260,14 @@ async function downloadAndProcessImages(
 
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+
+      // Content-hash deduplication: skip duplicate images with different URLs
+      const contentHash = createHash('sha256').update(buffer).digest('hex');
+      if (seenContentHashes.has(contentHash)) {
+        console.log(`[DraftPromoter] Skipping duplicate image content for ${url} (hash ${contentHash.slice(0, 8)})`);
+        continue;
+      }
+      seenContentHashes.add(contentHash);
 
       // Resize/flatten image using sharp to 1000x1000 JPG fit contain white background
       const resizedBuffer = await sharp(buffer)
