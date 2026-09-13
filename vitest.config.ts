@@ -84,6 +84,7 @@ export default defineConfig({
       // Color guarantee uses bun:sqlite via llm-client; same isolation rule.
       'src/tests/unit/color-consolidation.test.ts',
       'src/tests/unit/onboarding-duplicate-skip.test.ts',
+      'src/tests/unit/onboarding-intra-batch-dedup.test.ts',
       'src/tests/unit/extractor-profiles.test.ts',
       'src/tests/unit/extraction-remedies.test.ts',
       'src/tests/unit/classification-pipeline.test.ts',
