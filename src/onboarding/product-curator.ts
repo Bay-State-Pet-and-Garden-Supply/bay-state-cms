@@ -1037,9 +1037,13 @@ async function executeCurationPipeline(args: {
       }).distributorRecordProvenance?.merchandisingProvenance
       ?? {};
     const selectedDescription =
-      verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
-        ? ext.description
-        : null;
+      distributorSource
+        ? verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
+          ? ext.description
+          : null
+        : typeof ext.description === 'string' && ext.description.trim().length > 0
+          ? ext.description
+          : null;
     const curatedDescription: string | null = selectedDescription;
     const curatedDescriptionSourceAttemptIds: string[] =
       selectedDescription !== null
