@@ -171,8 +171,12 @@ async function downloadAndProcessImages(
 
   for (const rawCandidate of candidatePool) {
     if (!rawCandidate || typeof rawCandidate !== 'string') continue;
-    const trimmed = rawCandidate.trim();
+    let trimmed = rawCandidate.trim();
     if (!trimmed) continue;
+
+    if (trimmed.startsWith('//')) {
+      trimmed = 'https:' + trimmed;
+    }
 
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       if (!isUsableImageSource(trimmed)) continue;
