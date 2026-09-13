@@ -74,6 +74,30 @@ describe('Local Brand URL Finder (Tiered Retrieval Ladder)', () => {
     expect(matches[0].signals.upcMatched).toBe(true);
   });
 
+  it('Tier 1: should evaluate canonical GTIN equivalence for 0.98 confidence', async () => {
+    reconcileSitemapUrls(
+      'purina.com',
+      [{ url: 'https://purina.com/pro-plan/puppy-chicken-rice-padded' }],
+      'https://purina.com/sitemap.xml',
+    );
+
+    enrichUrlMetadata('https://purina.com/pro-plan/puppy-chicken-rice-padded', {
+      upc: '0038100130839',
+      title: 'Purina Pro Plan Puppy Chicken & Rice',
+    });
+
+    const matches = await findLocalBrandCandidates('purina.com', {
+      upc: '038100130839',
+      name: 'Purina Pro Plan Puppy Chicken & Rice',
+      brandHint: 'Purina',
+    });
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].url).toBe('https://purina.com/pro-plan/puppy-chicken-rice-padded');
+    expect(matches[0].confidence).toBe(0.98);
+    expect(matches[0].matchType).toBe('upc_exact');
+  });
+
   it('Tier 2: should find exact SKU match with 0.92 confidence', async () => {
     reconcileSitemapUrls(
       'kongcompany.com',

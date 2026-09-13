@@ -244,12 +244,32 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   if (!needle) return null;
   const stripped = needle.replace(/\D+/g, '');
 
+  const candidateGtins = new Set<string>();
+  if (needle) candidateGtins.add(needle);
+  if (stripped) {
+    candidateGtins.add(stripped);
+    if (stripped.length === 12) {
+      candidateGtins.add(`0${stripped}`);
+      candidateGtins.add(`00${stripped}`);
+    } else if (stripped.length === 13) {
+      candidateGtins.add(`0${stripped}`);
+      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+    } else if (stripped.length === 14) {
+      if (stripped.startsWith('00')) candidateGtins.add(stripped.slice(2));
+      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+    }
+  }
+
   for (const url of sitemapUrls) {
     if (!url) continue;
-    if (url.includes(needle)) return url;
-    if (stripped && url.includes(stripped)) return url;
-    if (stripped && url.replace(/\D+/g, '').includes(stripped)) {
-      return url;
+    for (const cand of candidateGtins) {
+      if (url.includes(cand)) return url;
+    }
+    const urlDigits = url.replace(/\D+/g, '');
+    if (urlDigits) {
+      for (const cand of candidateGtins) {
+        if (urlDigits.includes(cand)) return url;
+      }
     }
   }
   return null;

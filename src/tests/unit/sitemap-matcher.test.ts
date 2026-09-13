@@ -146,6 +146,17 @@ describe('Sitemap Matcher', () => {
     expect(result[0].matchType).toBe('upc_exact');
   });
 
+    test('findUpcExactHit matches canonical GTIN zero-padding variations in sitemap URLs', async () => {
+      const sitemaps = [
+        'https://example.com/products/850067859598-dog-chew',
+      ];
+      // Search with 13-digit EAN zero-padded version
+      const res = await matchSitemapUrls(sitemaps, 'Foo', null, '0850067859598', 'example.com');
+      expect(res).toHaveLength(1);
+      expect(res[0].matchType).toBe('upc_exact');
+      expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
+    });
+
   // ── Pass 2: product URL filter ────────────────────────────────────────
 
   test('generic filter keeps /products/, /p/, /shop/, /item/, /dp/ paths only', async () => {
