@@ -1681,6 +1681,34 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
     }
   }
 
+  // ── Rule A3: controlled allowedValues unique; valueAliases resolve ────────
+  {
+    for (const attr of attributes) {
+      if (attr.valueMode !== 'controlled') continue;
+      const seen = new Set<string>();
+      for (const value of attr.allowedValues) {
+        if (seen.has(value)) {
+          fail('duplicate_allowed_value', `Attribute "${attr.id}" has duplicate allowed value "${value}".`);
+        }
+        seen.add(value);
+      }
+      for (const alias of attr.valueAliases) {
+        if (!seen.has(alias.mapsTo)) {
+          fail('unresolved_value_alias', `Attribute "${attr.id}" alias "${alias.alias}" maps to unknown value "${alias.mapsTo}".`);
+        }
+      }
+    }
+  }
+
+  // ── Rule A4: measured attributes have canonicalUnit ───────────────────────
+  {
+    for (const attr of attributes) {
+      if (attr.valueMode === 'measured' && (!attr.canonicalUnit || attr.canonicalUnit.trim().length === 0)) {
+        fail('measured_attribute_missing_unit', `Measured attribute "${attr.id}" has no canonicalUnit.`);
+      }
+    }
+  }
+
   // ── Rule 10b: scope inheritance safety (ChatGPT fix-phase review #4) ────
   {
     const nodeByIdMap = new Map(hierarchy.map(n => [n.id, n]));
@@ -1724,11 +1752,35 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
   // ── Rule B: guidance ids unique; page-assignment-policy validity ─────────
   {
     const seenGuidanceIds = new Set<string>();
+    const knownClassifiableTypeIds = new Set(hierarchy.filter(n => n.classifiable).map(n => n.id));
+    const knownNodeIds = new Set(hierarchy.map(n => n.id));
+    const knownDeptIds = new Set(hierarchy.filter(n => n.parentId === null).map(n => n.id));
+
     for (const g of guidance) {
       if (seenGuidanceIds.has(g.id)) {
         fail('duplicate_guidance_id', `Duplicate guidance id "${g.id}".`);
       }
       seenGuidanceIds.add(g.id);
+
+      const structured = (g.structured ?? {}) as Record<string, unknown>;
+      if (typeof structured.productTypeIds === 'string') {
+        fail('guidance_invalid_type_ref', `Guidance "${g.id}" productTypeIds must be an array.`);
+      } else if (Array.isArray(structured.productTypeIds)) {
+        for (const ref of structured.productTypeIds) {
+          if (typeof ref === 'string' && !knownClassifiableTypeIds.has(ref) && !knownNodeIds.has(ref)) {
+            fail('guidance_unknown_type_ref', `Guidance "${g.id}" references unknown product type "${ref}".`);
+          }
+        }
+      }
+      if (typeof structured.departmentIds === 'string') {
+        fail('guidance_invalid_department_ref', `Guidance "${g.id}" departmentIds must be an array.`);
+      } else if (Array.isArray(structured.departmentIds)) {
+        for (const ref of structured.departmentIds) {
+          if (typeof ref === 'string' && !knownDeptIds.has(ref)) {
+            fail('guidance_unknown_department_ref', `Guidance "${g.id}" references unknown department "${ref}".`);
+          }
+        }
+      }
     }
     if (pagePolicy) {
       if (!Number.isInteger(pagePolicy.maxPagesPerProduct) || pagePolicy.maxPagesPerProduct <= 0) {

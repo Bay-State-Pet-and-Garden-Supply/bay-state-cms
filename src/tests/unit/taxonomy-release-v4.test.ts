@@ -8,6 +8,7 @@
  * canonical pages, manifest count/hash mismatches, and release-id binding.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -407,6 +408,73 @@ describe('negative cases (temp copies)', () => {
     writeJson(dir, 'facet-profiles.json', profiles);
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'profile_missing_provenance');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a controlled attribute with a duplicate allowed value in v4', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const controlled = attrs.entries.find((a: any) => a.valueMode === 'controlled');
+    controlled.allowedValues.push(controlled.allowedValues[0]);
+    writeJson(dir, 'attributes.json', attrs);
+    const manifest = readJson(dir, 'manifest.json');
+    manifest.fileVersions['attributes.json'] = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, 'attributes.json'))).digest('hex');
+    writeJson(dir, 'manifest.json', manifest);
+
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'duplicate_allowed_value');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a controlled attribute with an unresolved value alias target in v4', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const controlled = attrs.entries.find((a: any) => a.valueMode === 'controlled');
+    controlled.valueAliases.push({ alias: 'test-alias', mapsTo: 'nonexistent-value' });
+    writeJson(dir, 'attributes.json', attrs);
+    const manifest = readJson(dir, 'manifest.json');
+    manifest.fileVersions['attributes.json'] = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, 'attributes.json'))).digest('hex');
+    writeJson(dir, 'manifest.json', manifest);
+
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'unresolved_value_alias');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a measured attribute with a missing or blank canonical unit in v4', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    attrs.entries[0].valueMode = 'measured';
+    attrs.entries[0].canonicalUnit = ' ';
+    writeJson(dir, 'attributes.json', attrs);
+    const manifest = readJson(dir, 'manifest.json');
+    manifest.fileVersions['attributes.json'] = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, 'attributes.json'))).digest('hex');
+    writeJson(dir, 'manifest.json', manifest);
+
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'measured_attribute_missing_unit');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects guidance referencing an unknown product type in v4', () => {
+    const dir = freshCopy();
+    const guidance = readJson(dir, 'guidance.json');
+    guidance.entries.push({
+      id: 'bad-guidance-ref',
+      scope: 'workspace',
+      scopeId: null,
+      manualReviewRequirement: false,
+      structured: { productTypeIds: ['nonexistent-product-type-id'] },
+      freeForm: 'test',
+    });
+    writeJson(dir, 'guidance.json', guidance);
+    const manifest = readJson(dir, 'manifest.json');
+    manifest.counts.guidance = guidance.entries.length;
+    manifest.fileVersions['guidance.json'] = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, 'guidance.json'))).digest('hex');
+    writeJson(dir, 'manifest.json', manifest);
+
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'guidance_unknown_type_ref');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
   });
 });
