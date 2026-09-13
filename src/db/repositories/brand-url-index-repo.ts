@@ -1,5 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
+import { canonicalGtinMatch, normalizeGtinDigits } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -260,23 +261,45 @@ export function findUrlsByDomain(
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
   const db = getDb();
   const normDomain = normalizeDomain(domain);
-  const cleanUpc = upc.replace(/\D/g, '').trim();
+  const cleanUpc = normalizeGtinDigits(upc);
   if (!cleanUpc) return null;
 
-  // 1. Direct indexed match on enriched upc column
-  const directRow = db
-    .query('SELECT * FROM brand_url_index WHERE domain = ? AND upc = ? AND active = 1 LIMIT 1')
-    .get(normDomain, cleanUpc) as BrandUrlRecord | undefined;
+  const candidateGtins = new Set<string>();
+  candidateGtins.add(cleanUpc);
+  if (cleanUpc.length === 12) {
+    candidateGtins.add(`0${cleanUpc}`);
+    candidateGtins.add(`00${cleanUpc}`);
+  } else if (cleanUpc.length === 13) {
+    candidateGtins.add(`0${cleanUpc}`);
+    if (cleanUpc.startsWith('0')) candidateGtins.add(cleanUpc.slice(1));
+  } else if (cleanUpc.length === 14) {
+    if (cleanUpc.startsWith('00')) candidateGtins.add(cleanUpc.slice(2));
+    if (cleanUpc.startsWith('0')) candidateGtins.add(cleanUpc.slice(1));
+  }
 
-  if (directRow) return directRow;
+  // 1. Direct indexed match on enriched upc column
+  const placeholders = Array.from(candidateGtins).map(() => '?').join(',');
+  const directRows = db
+    .query(`SELECT * FROM brand_url_index WHERE domain = ? AND upc IN (${placeholders}) AND active = 1`)
+    .all(normDomain, ...Array.from(candidateGtins)) as BrandUrlRecord[];
+
+  for (const row of directRows) {
+    if (row.upc && canonicalGtinMatch(row.upc, upc)) {
+      return row;
+    }
+  }
 
   // 2. Substring search in path / slug
-  const pattern = `%${cleanUpc}%`;
-  const urlRow = db
-    .query('SELECT * FROM brand_url_index WHERE domain = ? AND (path LIKE ? OR slug LIKE ?) AND active = 1 ORDER BY last_seen_at DESC LIMIT 1')
-    .get(normDomain, pattern, pattern) as BrandUrlRecord | undefined;
+  for (const gtinCandidate of candidateGtins) {
+    const pattern = `%${gtinCandidate}%`;
+    const urlRow = db
+      .query('SELECT * FROM brand_url_index WHERE domain = ? AND (path LIKE ? OR slug LIKE ?) AND active = 1 ORDER BY last_seen_at DESC LIMIT 1')
+      .get(normDomain, pattern, pattern) as BrandUrlRecord | undefined;
 
-  return urlRow ?? null;
+    if (urlRow) return urlRow;
+  }
+
+  return null;
 }
 
 /**
