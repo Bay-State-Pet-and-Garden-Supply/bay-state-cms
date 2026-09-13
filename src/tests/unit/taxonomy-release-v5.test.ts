@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   assertReleaseValidV5,
   loadTaxonomyReleaseV5,
@@ -46,6 +47,15 @@ function copyV5Release(scenarioName: string): string {
     fs.copyFileSync(path.join(RELEASE_DIR, file), path.join(dir, file));
   }
   return dir;
+}
+
+function syncManifestHashV5(dir: string, fileName: string): void {
+  const filePath = path.join(dir, fileName);
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  const manifestPath = path.join(dir, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.fileVersions[fileName] = hash;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 describe('bay-state-v5 release validation & invariants', () => {
@@ -282,6 +292,7 @@ describe('bay-state-v5 release validation & invariants', () => {
       const species = attrs.entries.find((a: any) => a.id === 'species');
       species.allowedValues.push(species.allowedValues[0]);
       fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+      syncManifestHashV5(dir, 'attributes.json');
 
       const report = validateTaxonomyReleaseV5(dir);
       expect(report.ok).toBe(false);
@@ -295,6 +306,7 @@ describe('bay-state-v5 release validation & invariants', () => {
       const species = attrs.entries.find((a: any) => a.id === 'species');
       species.valueAliases.push({ alias: 'dragon', mapsTo: 'MythicalDragon' });
       fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+      syncManifestHashV5(dir, 'attributes.json');
 
       const report = validateTaxonomyReleaseV5(dir);
       expect(report.ok).toBe(false);
@@ -305,15 +317,15 @@ describe('bay-state-v5 release validation & invariants', () => {
       const dir = copyV5Release('missing-canonical-unit');
       const attrPath = path.join(dir, 'attributes.json');
       const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
-      const weight = attrs.entries.find((a: any) => a.valueMode === 'measured');
-      if (weight) {
-        weight.canonicalUnit = '';
-        fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+      const attr = attrs.entries.find((a: any) => a.valueMode === 'measured') ?? attrs.entries[0];
+      attr.valueMode = 'measured';
+      attr.canonicalUnit = '';
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+      syncManifestHashV5(dir, 'attributes.json');
 
-        const report = validateTaxonomyReleaseV5(dir);
-        expect(report.ok).toBe(false);
-        expectFinding(report, 'measured_attribute_missing_unit');
-      }
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'measured_attribute_missing_unit');
     });
 
     it('fails when guidance structured references contain an unknown product type', () => {
@@ -329,6 +341,7 @@ describe('bay-state-v5 release validation & invariants', () => {
         manualReviewRequirement: false,
       });
       fs.writeFileSync(gPath, JSON.stringify(g, null, 2));
+      syncManifestHashV5(dir, 'guidance.json');
 
       const report = validateTaxonomyReleaseV5(dir);
       expect(report.ok).toBe(false);
@@ -341,6 +354,7 @@ describe('bay-state-v5 release validation & invariants', () => {
       const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
       attrs.bundleOrigin.releaseId = 'other-release-id';
       fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+      syncManifestHashV5(dir, 'attributes.json');
 
       const report = validateTaxonomyReleaseV5(dir);
       expect(report.ok).toBe(false);

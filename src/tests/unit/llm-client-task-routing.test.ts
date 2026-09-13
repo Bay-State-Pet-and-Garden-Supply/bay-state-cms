@@ -36,7 +36,6 @@ import {
 } from '../../onboarding/llm-client';
 import { ModelPolicyDeniedError, buildModelPolicyView } from '../../classification/model-policy-gateway';
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
-import { DeterministicNetworkGate } from '../../onboarding/image-verification/network-gate';
 
 // Captured at MODULE LOAD — never a stale cross-file mock. A beforeEach-time
 // capture can race with another test file's pending afterEach restore when bun
@@ -716,9 +715,6 @@ describe('Protected classification operations — model-policy gateway (issue #1
     }) as unknown as typeof fetch;
     globalThis.fetch = mock;
     const spy = spyOn(console, 'warn').mockImplementation(() => {});
-    const gateSpy = spyOn(DeterministicNetworkGate.prototype, 'fetch').mockImplementation(
-      async (url: string, init?: RequestInit) => globalThis.fetch(url, init),
-    );
     const view = buildModelPolicyView(
       {
         defaultProvider: 'deepseek',
@@ -748,7 +744,6 @@ describe('Protected classification operations — model-policy gateway (issue #1
       // Both the image download and the model transport were reached.
       expect(calls).toBe(2);
     } finally {
-      gateSpy.mockRestore();
       spy.mockRestore();
     }
   });
@@ -954,9 +949,6 @@ describe('Protected classification operations — model-policy gateway (issue #1
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
     }) as unknown as typeof fetch;
-    const gateSpy = spyOn(DeterministicNetworkGate.prototype, 'fetch').mockImplementation(
-      async (url: string, init?: RequestInit) => globalThis.fetch(url, init),
-    );
     const view = buildModelPolicyView(
       {
         defaultProvider: 'deepseek',
@@ -974,16 +966,12 @@ describe('Protected classification operations — model-policy gateway (issue #1
       } as any,
       { snapshotHash: 'snap-cv-img-cloud' },
     );
-    try {
-      const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
-      expect(result).not.toBeNull();
-      expect(result?.productName).toBe('Test Product');
-      // Image download + model call both happened.
-      expect(calls).toBe(2);
-    } finally {
-      gateSpy.mockRestore();
-    }
+    const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    expect(result).not.toBeNull();
+    expect(result?.productName).toBe('Test Product');
+    // Image download + model call both happened.
+    expect(calls).toBe(2);
   });
 
   // ── Pass 1c: redaction of quoted/Basic credentials ─────────────────────

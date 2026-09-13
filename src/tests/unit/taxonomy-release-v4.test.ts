@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   ReleaseValidationError,
   assertReleaseValidV4,
@@ -73,6 +74,14 @@ function readJson(dir: string, fileName: string): any {
 
 function writeJson(dir: string, fileName: string, data: unknown): void {
   fs.writeFileSync(path.join(dir, fileName), JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
+function syncManifestHash(dir: string, fileName: string): void {
+  const filePath = path.join(dir, fileName);
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  const manifest = readJson(dir, 'manifest.json');
+  manifest.fileVersions[fileName] = hash;
+  writeJson(dir, 'manifest.json', manifest);
 }
 
 // ─── Positive: the committed release ───────────────────────────────────────────
@@ -416,6 +425,7 @@ describe('negative cases (temp copies)', () => {
     const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
     foodForm.allowedValues.push(foodForm.allowedValues[0]);
     writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'duplicate_allowed_value');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
@@ -427,6 +437,7 @@ describe('negative cases (temp copies)', () => {
     const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
     foodForm.valueAliases.push({ alias: 'bogus', mapsTo: 'UnknownForm' });
     writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'unresolved_value_alias');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
@@ -435,14 +446,14 @@ describe('negative cases (temp copies)', () => {
   it('rejects a measured attribute missing canonicalUnit', () => {
     const dir = freshCopy();
     const attrs = readJson(dir, 'attributes.json');
-    const weight = attrs.entries.find((a: any) => a.valueMode === 'measured');
-    if (weight) {
-      weight.canonicalUnit = '';
-      writeJson(dir, 'attributes.json', attrs);
-      const report = validateTaxonomyReleaseV4(dir);
-      expectFinding(report, 'measured_attribute_missing_unit');
-      expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
-    }
+    const attr = attrs.entries.find((a: any) => a.valueMode === 'measured') ?? attrs.entries[0];
+    attr.valueMode = 'measured';
+    attr.canonicalUnit = '';
+    writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'measured_attribute_missing_unit');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
   });
 
   it('rejects guidance with an unknown product type ref', () => {
@@ -457,6 +468,7 @@ describe('negative cases (temp copies)', () => {
       manualReviewRequirement: false,
     });
     writeJson(dir, 'guidance.json', g);
+    syncManifestHash(dir, 'guidance.json');
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'guidance_unknown_type_ref');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
@@ -467,6 +479,7 @@ describe('negative cases (temp copies)', () => {
     const attrs = readJson(dir, 'attributes.json');
     attrs.bundleOrigin.releaseId = 'other-release-id';
     writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'inconsistent_release_origin');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);

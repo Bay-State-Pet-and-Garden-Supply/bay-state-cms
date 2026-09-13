@@ -893,19 +893,20 @@ export function validateTaxonomyRelease(releaseDir: string): ReleaseValidationRe
       originOf('guidance.json'),
     ].filter((o): o is ClassificationBundleOriginV2 => o !== null);
     if (envelopeOrigins.length > 0) {
-      const firstOriginJson = JSON.stringify(envelopeOrigins[0]);
+      const firstOrigin = envelopeOrigins[0];
+      const firstReleaseId = firstOrigin.kind === 'release' ? firstOrigin.releaseId : null;
       for (const origin of envelopeOrigins) {
-        if (JSON.stringify(origin) !== firstOriginJson) {
-          fail('inconsistent_release_origin', 'Focused release files declare inconsistent bundle origins.');
-          break;
-        }
         if (origin.kind !== 'release') {
           fail('non_release_origin', `Focused file declares bundleOrigin.kind "${origin.kind}"; a taxonomy release must use kind "release".`);
           break;
         }
+        if (origin.releaseId !== firstReleaseId) {
+          fail('inconsistent_release_origin', 'Focused release files declare inconsistent bundle origins.');
+          break;
+        }
       }
-      if (manifest && envelopeOrigins[0].kind === 'release' && envelopeOrigins[0].releaseId !== manifest.releaseId) {
-        fail('release_origin_mismatch', `Focused files declare releaseId "${envelopeOrigins[0].releaseId}" but manifest declares "${manifest.releaseId}".`);
+      if (manifest && firstReleaseId && firstReleaseId !== manifest.releaseId) {
+        fail('release_origin_mismatch', `Focused files declare releaseId "${firstReleaseId}" but manifest declares "${manifest.releaseId}".`);
       }
     }
   }
@@ -1801,19 +1802,20 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
       originOf('guidance.json'),
     ].filter((o): o is ClassificationBundleOriginV2 => o !== null);
     if (envelopeOrigins.length > 0) {
-      const firstOriginJson = JSON.stringify(envelopeOrigins[0]);
+      const firstOrigin = envelopeOrigins[0];
+      const firstReleaseId = firstOrigin.kind === 'release' ? firstOrigin.releaseId : null;
       for (const origin of envelopeOrigins) {
-        if (JSON.stringify(origin) !== firstOriginJson) {
-          fail('inconsistent_release_origin', 'Focused release files declare inconsistent bundle origins.');
-          break;
-        }
         if (origin.kind !== 'release') {
           fail('non_release_origin', `Focused file declares bundleOrigin.kind "${origin.kind}"; a taxonomy release must use kind "release".`);
           break;
         }
+        if (origin.releaseId !== firstReleaseId) {
+          fail('inconsistent_release_origin', 'Focused release files declare inconsistent bundle origins.');
+          break;
+        }
       }
-      if (manifest && envelopeOrigins[0].kind === 'release' && envelopeOrigins[0].releaseId !== manifest.releaseId) {
-        fail('release_origin_mismatch', `Focused files declare releaseId "${envelopeOrigins[0].releaseId}" but manifest declares "${manifest.releaseId}".`);
+      if (manifest && firstReleaseId && firstReleaseId !== manifest.releaseId) {
+        fail('release_origin_mismatch', `Focused files declare releaseId "${firstReleaseId}" but manifest declares "${manifest.releaseId}".`);
       }
     }
   }
