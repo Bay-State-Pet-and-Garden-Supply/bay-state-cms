@@ -399,6 +399,17 @@ function sanitizeUrlSegment(url: string): string {
     .substring(0, 120);
 }
 
+function sanitizeUrlForError(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    return rawUrl.replace(/\/\/[^@]+@/, '//[REDACTED]@');
+  }
+}
+
 // ─── Static sample fetch ───────────────────────────────────────────────────────
 
 async function validateSampleStatic(
@@ -429,7 +440,7 @@ async function validateSampleStatic(
       try {
         parsedUrl = new URL(currentFetchUrl);
       } catch {
-        throw new Error(`Invalid URL: ${currentFetchUrl}`);
+        throw new Error(`Invalid URL: ${sanitizeUrlForError(currentFetchUrl)}`);
       }
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
         throw new Error(`Unsupported protocol ${parsedUrl.protocol}`);
@@ -450,7 +461,7 @@ async function validateSampleStatic(
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
-        if (!location) throw new Error(`Redirect missing location header on ${currentFetchUrl}`);
+        if (!location) throw new Error(`Redirect missing location header on ${sanitizeUrlForError(currentFetchUrl)}`);
         try {
           currentFetchUrl = new URL(location, currentFetchUrl).toString();
           continue;
@@ -461,12 +472,16 @@ async function validateSampleStatic(
       break;
     }
 
+    if (response && response.status >= 300 && response.status < 400) {
+      throw new Error('Too many redirects (max 5)');
+    }
+
     if (!response || !response.ok) {
       process.stderr.write(
         `[validate] HTTP ${response?.status ?? 'error'} for ${sample.url}\n`,
       );
     }
-    if (response) {
+    if (response && response.ok) {
       html = await response.text();
     }
   } catch (err) {
@@ -602,11 +617,32 @@ async function validateSampleRendered(
 
     const page = await context.newPage();
 
-    // Block resource types (same pattern as snapshot.ts)
+    // Block resource types and enforce SSRF check on every request (including redirects)
     await page.route('**/*', async (route) => {
       const req = route.request();
-      const type = req.resourceType();
       const reqUrl = req.url();
+
+      try {
+        const parsedReqUrl = new URL(reqUrl);
+        if (parsedReqUrl.protocol !== 'http:' && parsedReqUrl.protocol !== 'https:') {
+          await route.abort();
+          return;
+        }
+        if (parsedReqUrl.username || parsedReqUrl.password) {
+          await route.abort();
+          return;
+        }
+        const reqHost = parsedReqUrl.hostname.replace(/^\[|\]$/g, '').trim();
+        if (await isPrivateOrLinkLocalHost(reqHost)) {
+          await route.abort();
+          return;
+        }
+      } catch {
+        await route.abort();
+        return;
+      }
+
+      const type = req.resourceType();
       const isTracker =
         /analytics|google-analytics|doubleclick|facebook|hotjar|klaviyo|pixel/i.test(reqUrl);
 

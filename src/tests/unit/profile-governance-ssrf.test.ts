@@ -146,4 +146,62 @@ describe('Profile Governance & Worker SSRF Protection Adversarial Tests', () => 
       expect(parsed.results[0].imageResults.warnings.some((w: string) => w.toLowerCase().includes('ssrf') || w.toLowerCase().includes('private') || w.toLowerCase().includes('unsupported protocol'))).toBe(true);
     }
   });
+
+  it('extraction-worker handleValidate validateSampleRendered blocks private/loopback/cloud-metadata URLs', async () => {
+    const privateUrls = [
+      'http://127.0.0.1/rendered.html',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://user:secretpass@127.0.0.1/test',
+    ];
+
+    for (const url of privateUrls) {
+      const reqPayload = {
+        profileDraft: {
+          domain: 'example-test.com',
+          runtime: 'rendered',
+          selectors: { titleSelector: 'h1' },
+          imageRules: {},
+          variantSelectionStrategy: null,
+        },
+        samples: [
+          {
+            url,
+            confirmed: true,
+            spreadsheetHints: {},
+          },
+        ],
+      };
+
+      const req = new EventEmitter() as any;
+      req.method = 'POST';
+      req.headers = { 'content-type': 'application/json' };
+
+      let responseBody = '';
+      let statusCode = 0;
+      const res = {
+        writeHead: (status: number) => {
+          statusCode = status;
+        },
+        end: (body: string) => {
+          responseBody = body;
+        },
+      } as any;
+
+      handleValidate(req, res);
+      req.emit('data', Buffer.from(JSON.stringify(reqPayload)));
+      req.emit('end');
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(statusCode).toBe(200);
+      const parsed = JSON.parse(responseBody);
+      expect(parsed.results[0].imageResults.warnings.some((w: string) =>
+        w.toLowerCase().includes('ssrf') ||
+        w.toLowerCase().includes('private') ||
+        w.toLowerCase().includes('credentials')
+      )).toBe(true);
+      // Ensure credentials are redacted from warning messages
+      expect(parsed.results[0].imageResults.warnings.join(' ')).not.toContain('secretpass');
+    }
+  });
 });
