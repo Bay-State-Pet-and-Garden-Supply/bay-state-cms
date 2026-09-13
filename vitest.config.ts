@@ -325,6 +325,10 @@ export default defineConfig({
       'src/tests/unit/page-extractor-ladder-wiring.test.ts',
       'src/tests/unit/page-extractor-profile-generation.test.ts',
       'src/tests/unit/page-extractor-variant-inference.test.ts',
+      // Profile audit gate pilot (Issue #174) — transitive bun:sqlite via page-extractor
+      'src/tests/unit/profile-audit-manifest.test.ts',
+      'src/tests/unit/profile-audit-replay-runner.test.ts',
+      'src/tests/unit/profile-audit-pilot.test.ts',
       'src/tests/unit/brand-hub-routes.test.ts',
       // Variant resolution migration — bun:sqlite, run under bun test via test:db (not vitest)
       'src/tests/unit/onboarding-variant-resolution-migration.test.ts',

@@ -5,7 +5,10 @@
     "src/tests/unit/image-downloader-ssrf.test.ts": "imports bun:test; DeterministicNetworkGate adversarial suite, runs under bun test (test:db)",
     "src/tests/unit/cohort-context-query-plan.test.ts": "imports bun:test + db/connection (bun:sqlite); N+1 query-plan benchmark, runs under bun test (test:db)",
     "src/tests/unit/cohort-page-coordinator.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection",
-    "src/tests/unit/manual-evidence-foundation.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection"
+    "src/tests/unit/manual-evidence-foundation.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection",
+    "src/tests/unit/profile-audit-manifest.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
+    "src/tests/unit/profile-audit-replay-runner.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
+    "src/tests/unit/profile-audit-pilot.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)"
   },
   "version": 1,
   "vitestSafe": {
