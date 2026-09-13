@@ -67,6 +67,7 @@ import {
   type ProfileGenerationFieldDecision as RepoProfileGenerationFieldDecision,
 } from '../db/repositories/profile-generation-field-decision-repo';
 import { listValidationSamplesByDomain } from '../db/repositories/onboarding-source-repo';
+import { isPrivateOrLinkLocalHost } from '../shared/ssrf';
 import {
   promoteGeneratedProfile,
   rollbackProfileField,
@@ -278,21 +279,54 @@ export function createInitialRevisionForGeneration(
  */
 async function fetchSampleHtml(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-      // Bound each fetch. The page-extractor's `HTTP_FETCH_TIMEOUT_MS`
-      // is 15s; we use a slightly tighter cap here so a slow sample
-      // does not stall the whole batch.
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!response.ok) return null;
+    let currentUrl = url;
+    let response: Response | null = null;
+
+    for (let hop = 0; hop < 5; hop++) {
+      let parsed: URL;
+      try {
+        parsed = new URL(currentUrl);
+      } catch {
+        return null;
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return null;
+      }
+      if (parsed.username || parsed.password) {
+        return null;
+      }
+      const host = parsed.hostname.replace(/^\[|\]$/g, '').trim();
+      if (await isPrivateOrLinkLocalHost(host)) {
+        return null;
+      }
+
+      response = await fetch(currentUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
+        signal: AbortSignal.timeout(12_000),
+        redirect: 'manual',
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return null;
+        try {
+          currentUrl = new URL(location, currentUrl).toString();
+          continue;
+        } catch {
+          return null;
+        }
+      }
+      break;
+    }
+
+    if (!response || !response.ok) return null;
     return await response.text();
   } catch {
     return null;
