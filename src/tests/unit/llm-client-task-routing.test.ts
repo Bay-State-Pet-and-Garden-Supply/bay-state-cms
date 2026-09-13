@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -110,15 +110,21 @@ describe('LLM Client — task-specific routing', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Clean up task configs between tests
-    for (const task of [
-      'product_name_consolidation',
-      'profile_generation',
-      'profile_revision',
-      'product_curation',
-      'category_classification',
-      'classification_evidence_extraction',
-    ] as const) {
-      try { deleteLlmTaskConfig(task); } catch { /* ignore */ }
+    if (isDbInitialized()) {
+      try {
+        for (const task of [
+          'product_name_consolidation',
+          'profile_generation',
+          'profile_revision',
+          'product_curation',
+          'category_classification',
+          'classification_evidence_extraction',
+        ] as const) {
+          deleteLlmTaskConfig(task);
+        }
+      } catch {
+        /* ignore */
+      }
     }
   });
 
@@ -734,7 +740,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     );
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const signedUrl = 'https://cdn.example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
+      const signedUrl = 'https://example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
       await extractPackagingOcrFromCloud({ imageUrl: signedUrl, modelPolicy: view });
       const joined = spy.mock.calls.map(c => String(c[0])).join('\n');
       expect(joined).not.toContain('SECRETSIG');
@@ -967,7 +973,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-cloud' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://cdn.example.com/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).not.toBeNull();
     expect(result?.productName).toBe('Test Product');
     // Image download + model call both happened.
@@ -1683,8 +1689,14 @@ describe('AI Compute authority — configured routing never consults the legacy 
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
-    getDb().run('DELETE FROM ai_workload_routes');
-    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    if (isDbInitialized()) {
+      try {
+        getDb().run('DELETE FROM ai_workload_routes');
+        getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+      } catch {
+        /* ignore */
+      }
+    }
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {
