@@ -29,6 +29,7 @@ import {
   type VariantSelectionStrategy,
 } from '../../shared/schemas/extraction-worker';
 import { resolveArtifactDir, writeArtifact, generateJobId, extractDomainFromUrl } from '../artifacts';
+import { isPrivateOrLinkLocalHost } from '../../shared/ssrf';
 import {
   cleanAndDeduplicateImages,
   collectImageSourcesFromElement,
@@ -398,6 +399,17 @@ function sanitizeUrlSegment(url: string): string {
     .substring(0, 120);
 }
 
+function sanitizeUrlForError(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    return rawUrl.replace(/\/\/[^@]+@/, '//[REDACTED]@');
+  }
+}
+
 // ─── Static sample fetch ───────────────────────────────────────────────────────
 
 async function validateSampleStatic(
@@ -418,21 +430,60 @@ async function validateSampleStatic(
 
   process.stderr.write(`[validate] static fetch: ${sample.url}\n`);
 
-  let html: string;
+  let html = '';
   try {
-    const response = await fetch(sample.url, {
-      headers: HTTP_EXTRACTION_HEADERS,
-      signal: AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS),
-      redirect: 'follow',
-    });
+    let currentFetchUrl = sample.url;
+    let response: Response | null = null;
 
-    if (!response.ok) {
-      process.stderr.write(
-        `[validate] HTTP ${response.status} for ${sample.url}\n`,
-      );
+    for (let hop = 0; hop < 5; hop++) {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(currentFetchUrl);
+      } catch {
+        throw new Error(`Invalid URL: ${sanitizeUrlForError(currentFetchUrl)}`);
+      }
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error(`Unsupported protocol ${parsedUrl.protocol}`);
+      }
+      if (parsedUrl.username || parsedUrl.password) {
+        throw new Error('URL contains credentials');
+      }
+      const host = parsedUrl.hostname.replace(/^\[|\]$/g, '').trim();
+      if (await isPrivateOrLinkLocalHost(host)) {
+        throw new Error(`SSRF blocked: URL points to a private or link-local address ${host}`);
+      }
+
+      response = await fetch(currentFetchUrl, {
+        headers: HTTP_EXTRACTION_HEADERS,
+        signal: AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS),
+        redirect: 'manual',
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) throw new Error(`Redirect missing location header on ${sanitizeUrlForError(currentFetchUrl)}`);
+        try {
+          currentFetchUrl = new URL(location, currentFetchUrl).toString();
+          continue;
+        } catch {
+          throw new Error(`Invalid redirect target URL ${location}`);
+        }
+      }
+      break;
     }
 
-    html = await response.text();
+    if (response && response.status >= 300 && response.status < 400) {
+      throw new Error('Too many redirects (max 5)');
+    }
+
+    if (!response || !response.ok) {
+      process.stderr.write(
+        `[validate] HTTP ${response?.status ?? 'error'} for ${sample.url}\n`,
+      );
+    }
+    if (response && response.ok) {
+      html = await response.text();
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[validate] static fetch failed for ${sample.url}: ${msg}\n`);
@@ -495,6 +546,40 @@ async function validateSampleRendered(
 
   process.stderr.write(`[validate] rendered fetch: ${sample.url}\n`);
 
+  try {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(sample.url);
+    } catch {
+      throw new Error(`Invalid URL: ${sample.url}`);
+    }
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      throw new Error(`Unsupported protocol ${parsedUrl.protocol}`);
+    }
+    if (parsedUrl.username || parsedUrl.password) {
+      throw new Error('URL contains credentials');
+    }
+    const host = parsedUrl.hostname.replace(/^\[|\]$/g, '').trim();
+    if (await isPrivateOrLinkLocalHost(host)) {
+      throw new Error(`SSRF blocked: URL points to a private or link-local address ${host}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[validate] rendered fetch blocked for ${sample.url}: ${msg}\n`);
+
+    return {
+      sampleUrl: sample.url,
+      confirmed: sample.confirmed,
+      fieldResults: {},
+      imageResults: {
+        primaryImageMatch: false,
+        candidateCount: 0,
+        warnings: [`Rendered fetch error: ${msg}`],
+      },
+      variantResult: null,
+    };
+  }
+
   let browser;
   try {
     browser = await chromium.launch({
@@ -532,11 +617,32 @@ async function validateSampleRendered(
 
     const page = await context.newPage();
 
-    // Block resource types (same pattern as snapshot.ts)
+    // Block resource types and enforce SSRF check on every request (including redirects)
     await page.route('**/*', async (route) => {
       const req = route.request();
-      const type = req.resourceType();
       const reqUrl = req.url();
+
+      try {
+        const parsedReqUrl = new URL(reqUrl);
+        if (parsedReqUrl.protocol !== 'http:' && parsedReqUrl.protocol !== 'https:') {
+          await route.abort();
+          return;
+        }
+        if (parsedReqUrl.username || parsedReqUrl.password) {
+          await route.abort();
+          return;
+        }
+        const reqHost = parsedReqUrl.hostname.replace(/^\[|\]$/g, '').trim();
+        if (await isPrivateOrLinkLocalHost(reqHost)) {
+          await route.abort();
+          return;
+        }
+      } catch {
+        await route.abort();
+        return;
+      }
+
+      const type = req.resourceType();
       const isTracker =
         /analytics|google-analytics|doubleclick|facebook|hotjar|klaviyo|pixel/i.test(reqUrl);
 

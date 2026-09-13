@@ -4618,12 +4618,48 @@ route.post('/onboarding/settings/profile-generations/:id/revisions', async (c) =
     const promptFeedback = parsed.data.feedback;
     const currentSelectors = revision.selectors;
 
-    // Fetch the source page HTML.
-    const response = await fetch(pageUrl, {
-      headers: HTTP_EXTRACTION_HEADERS,
-      signal: AbortSignal.timeout(15000),
-    });
-    if (response.ok) {
+    // Fetch the source page HTML (guarded against SSRF and private destinations).
+    let currentFetchUrl = pageUrl;
+    let response: Response | null = null;
+
+    for (let hop = 0; hop < 5; hop++) {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(currentFetchUrl);
+      } catch {
+        break;
+      }
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        break;
+      }
+      if (parsedUrl.username || parsedUrl.password) {
+        break;
+      }
+      const host = parsedUrl.hostname.replace(/^\[|\]$/g, '').trim();
+      if (await isPrivateOrLinkLocalHost(host)) {
+        break;
+      }
+
+      response = await fetch(currentFetchUrl, {
+        headers: HTTP_EXTRACTION_HEADERS,
+        signal: AbortSignal.timeout(15000),
+        redirect: 'manual',
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) break;
+        try {
+          currentFetchUrl = new URL(location, currentFetchUrl).toString();
+          continue;
+        } catch {
+          break;
+        }
+      }
+      break;
+    }
+
+    if (response && response.ok) {
       const html = await response.text();
       const minimized = getMinimizedDom(html);
 
