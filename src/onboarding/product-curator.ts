@@ -1036,8 +1036,17 @@ async function executeCurationPipeline(args: {
         } | null;
       }).distributorRecordProvenance?.merchandisingProvenance
       ?? {};
+    // Scope note: the verifiedV2Distributor gate below implements Amendment B
+    // (M5b-2) for DISTRIBUTOR copy only. Non-distributor (official-page /
+    // manual) items always pass (!distributorSource) so their extraction
+    // description keeps flowing into curatedDescription and keyword
+    // synthesis — mirroring draft-promoter.ts (`isDistributorSource &&
+    // !verifiedV2 ? null : description`) and the frozen PR8 legacy baseline.
+    // Gating official items here silently dropped description-derived
+    // keywords (PR8 test 4 byte-identical failure).
     const selectedDescription =
-      verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
+      (!distributorSource || verifiedV2Distributor) &&
+      typeof ext.description === 'string' && ext.description.trim().length > 0
         ? ext.description
         : null;
     const curatedDescription: string | null = selectedDescription;
