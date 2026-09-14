@@ -192,7 +192,9 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
   afterEach(() => {
     try {
       rmSync(tempDir, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // ignore
+    }
   });
 
   it('acceptance criterion 1: replays all four configurations with zero network refetch', async () => {

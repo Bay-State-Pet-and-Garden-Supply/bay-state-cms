@@ -36,7 +36,9 @@ describe('profile audit manifest builder', () => {
   afterEach(() => {
     try {
       rmSync(tempDir, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // ignore
+    }
   });
 
   it('builds manifest with artifact resolution and supplemental tracking', async () => {

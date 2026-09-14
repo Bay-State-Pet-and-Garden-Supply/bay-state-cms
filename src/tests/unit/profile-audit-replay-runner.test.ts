@@ -96,7 +96,9 @@ describe('profile audit replay runner', () => {
   afterEach(() => {
     try {
       rmSync(tempDir, { recursive: true, force: true });
-    } catch {}
+    } catch {
+      // ignore
+    }
   });
 
   it('replays all four configurations with no network calls', async () => {
