@@ -140,3 +140,78 @@ export function formatReviewableTable(rows: AuditScoredRow[]): string {
 
   return lines.join('\n');
 }
+
+export function formatReviewableManifest(manifest: import('../../shared/schemas/profile-audit').AuditManifest): string {
+  const meta = (manifest.metadata ?? {}) as Record<string, any>;
+  const claimedStrata = (meta.claimedStrata as string[]) || [];
+  const strataSummary = (meta.strataSummary as Record<string, any>) || {};
+  const holdoutFamilies = (meta.holdoutFamilies as string[]) || [];
+  const tuningFamilies = (meta.tuningFamilies as string[]) || [];
+
+  const lines: string[] = [];
+  lines.push('# Profile Extraction Audit Gate: Stratified Sampling Manifest');
+  lines.push('');
+  lines.push('## Manifest Overview');
+  lines.push(`- **Domain:** \`${manifest.domain}\``);
+  lines.push(`- **Generated At:** ${manifest.generatedAt}`);
+  lines.push(`- **Total Samples:** ${manifest.samples.length}`);
+  lines.push(`- **Total Claimed Strata:** ${claimedStrata.length}`);
+  lines.push(`- **Confirmed Profile Samples:** ${meta.totalConfirmed ?? manifest.samples.filter(s => s.inventoryStatus === 'confirmed').length}`);
+  lines.push(`- **Unreviewed Candidates:** ${meta.totalCandidates ?? manifest.samples.filter(s => s.inventoryStatus === 'candidate' && !s.isProfileBlocked).length}`);
+  lines.push(`- **Profile-Blocked Items:** ${meta.totalBlocked ?? manifest.samples.filter(s => s.isProfileBlocked).length}`);
+  lines.push(`- **Excluded Distributor Records:** ${meta.totalExcludedDistributorRecords ?? 0}`);
+  lines.push(`- **Holdout Families Count:** ${holdoutFamilies.length}`);
+  lines.push(`- **Holdout Families Untouched by Tuning:** ${meta.holdoutUntouched ? '✓ Yes' : '✗ No'}`);
+  lines.push('');
+
+  lines.push('## Claimed Strata');
+  lines.push('');
+  lines.push('| Stratum | Platform | Page Structure Scope | Variant Shape | Samples | Freshness Range |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :--- |');
+
+  for (const stratum of claimedStrata) {
+    const s = strataSummary[stratum] || {};
+    const count = s.sampleCount ?? manifest.samples.filter(x => x.stratum === stratum).length;
+    const minFresh = s.freshnessRange?.min || 'N/A';
+    const maxFresh = s.freshnessRange?.max || 'N/A';
+    const freshRange = minFresh === maxFresh ? minFresh : `${minFresh} .. ${maxFresh}`;
+
+    lines.push(
+      `| \`${stratum}\` | ${s.platform ?? 'generic'} | ${s.pageStructureScope ?? 'standard_pdp'} | ${s.variantShape ?? 'single_variant'} | ${count} | ${freshRange} |`,
+    );
+  }
+
+  lines.push('');
+  lines.push('## Product Family Partition');
+  lines.push('');
+  lines.push('> **Audit Holdout Guarantee:** Holdout product families are held out as entire families and remain completely untouched by profile tuning.');
+  lines.push('');
+  lines.push(`- **Holdout Families (${holdoutFamilies.length}):** ${holdoutFamilies.length > 0 ? holdoutFamilies.map(f => `\`${f}\``).join(', ') : 'None'}`);
+  lines.push(`- **Tuning Families (${tuningFamilies.length}):** ${tuningFamilies.length > 0 ? tuningFamilies.map(f => `\`${f}\``).join(', ') : 'None'}`);
+  lines.push('');
+
+  lines.push('## Stratified Samples Inventory');
+  lines.push('');
+  lines.push('| Sample ID | Stratum | Type | Product Family | Holdout? | Platform | Freshness | Artifact |');
+  lines.push('| :--- | :--- | :---: | :--- | :---: | :---: | :--- | :---: |');
+
+  for (const sample of manifest.samples) {
+    const sampleTypeLabel = sample.sampleType === 'confirmed_profile_sample' || sample.inventoryStatus === 'confirmed'
+      ? '★ Confirmed'
+      : sample.isProfileBlocked
+        ? '⛔ Blocked'
+        : 'Candidate';
+
+    const holdoutBadge = sample.isHoldout ? '🔒 Holdout' : 'Tuning';
+    const artifactBadge = sample.artifactRef ? '✓ Available' : '⚠ Missing (Gap)';
+    const family = sample.productFamily || 'N/A';
+    const freshness = sample.captureFreshness || 'missing';
+
+    lines.push(
+      `| ${sample.sampleId} | \`${sample.stratum}\` | ${sampleTypeLabel} | ${family} | ${holdoutBadge} | ${sample.platform ?? 'generic'} | ${freshness} | ${artifactBadge} |`,
+    );
+  }
+
+  return lines.join('\n');
+}
+

@@ -210,7 +210,7 @@ export function scoreExtraction(
         };
         failureCodesSet.add('MISSING_AVAILABLE_FIELD');
       } else if (expectedVal !== null) {
-        let isMatch = false;
+        let isMatch: boolean;
         if (field === 'price') {
           isMatch = normalizePrice(extractedStr) === normalizePrice(expectedVal);
         } else {

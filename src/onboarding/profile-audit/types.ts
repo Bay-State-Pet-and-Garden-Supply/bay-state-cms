@@ -1,8 +1,7 @@
 export * from '../../shared/schemas/profile-audit';
 import type {
-  ReplayConfiguration,
-  AuditManifestSample,
   AuditGroundTruth,
+  ReplayConfiguration,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 import type { ExtractionData } from '../../shared/schemas/onboarding';
@@ -46,3 +45,30 @@ export interface PilotAuditOptions {
   profile?: ExtractorProfile | null;
   sampleLimit?: number;
 }
+
+export interface BuildStratifiedManifestOptions {
+  domain?: string;
+  domains?: string[];
+  artifactRoot?: string;
+  suiteUrls?: string[];
+  candidateUrls?: string[];
+  candidateLimit?: number;
+  samplesPerStratum?: number;
+  splitSeed?: number;
+  holdoutPercent?: number;
+  holdoutFamilies?: string[];
+  onboardingItems?: Array<{
+    id: string;
+    sourceUrl?: string | null;
+    name?: string;
+    brandHint?: string | null;
+    sourceType?: 'official_page' | 'distributor_record';
+    stage?: string;
+    stageStatus?: string;
+    errorMessage?: string | null;
+    updatedAt?: string;
+    createdAt?: string;
+  }>;
+  groundTruthOverrides?: Record<string, Partial<AuditGroundTruth>>;
+}
+

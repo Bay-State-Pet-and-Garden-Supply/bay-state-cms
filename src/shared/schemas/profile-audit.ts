@@ -66,8 +66,46 @@ export const AuditManifestSampleSchema = z.object({
   hasSupplementalArtifact: z.boolean().default(false),
   captureFreshness: z.string().nullable(),
   groundTruth: AuditGroundTruthSchema,
+  // Additive stratification fields (Issue #175)
+  pageStructureScope: z.string().optional(),
+  platform: z.string().optional(),
+  productFamily: z.string().optional(),
+  variantShape: z.string().optional(),
+  isHoldout: z.boolean().optional(),
+  holdoutFamilyName: z.string().nullable().optional(),
+  isProfileBlocked: z.boolean().optional(),
+  isFailureSample: z.boolean().optional(),
+  sampleType: z.enum(['confirmed_profile_sample', 'unreviewed_candidate', 'profile_blocked', 'failure_sample']).optional(),
 });
 export type AuditManifestSample = z.infer<typeof AuditManifestSampleSchema>;
+
+export const StratumSummarySchema = z.object({
+  stratum: z.string(),
+  domain: z.string(),
+  platform: z.string(),
+  pageStructureScope: z.string(),
+  variantShape: z.string(),
+  sampleCount: z.number(),
+  freshnessRange: z.object({
+    min: z.string(),
+    max: z.string(),
+  }),
+});
+export type StratumSummary = z.infer<typeof StratumSummarySchema>;
+
+export const StratifiedManifestMetadataSchema = z.object({
+  claimedStrata: z.array(z.string()).default([]),
+  strataSummary: z.record(z.string(), StratumSummarySchema).default({}),
+  holdoutFamilies: z.array(z.string()).default([]),
+  tuningFamilies: z.array(z.string()).default([]),
+  holdoutUntouched: z.boolean().default(true),
+  totalConfirmed: z.number().default(0),
+  totalCandidates: z.number().default(0),
+  totalBlocked: z.number().default(0),
+  totalExcludedDistributorRecords: z.number().default(0),
+  totalSnapshotsDiscovered: z.number().default(0),
+});
+export type StratifiedManifestMetadata = z.infer<typeof StratifiedManifestMetadataSchema>;
 
 export const AuditManifestSchema = z.object({
   domain: z.string(),

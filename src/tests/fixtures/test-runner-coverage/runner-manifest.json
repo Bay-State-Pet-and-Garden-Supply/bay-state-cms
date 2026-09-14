@@ -8,7 +8,8 @@
     "src/tests/unit/manual-evidence-foundation.test.ts": "comment-only bun mention but fails Vitest collection in current worktree; stays Bun-side (needs exclude + test-db) until owning team proves collection",
     "src/tests/unit/profile-audit-manifest.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
     "src/tests/unit/profile-audit-replay-runner.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
-    "src/tests/unit/profile-audit-pilot.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)"
+    "src/tests/unit/profile-audit-pilot.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
+    "src/tests/unit/profile-audit-stratified-manifest.test.ts": "transitive bun:sqlite via page-extractor (Issue #175); runs under bun test (test:db)"
   },
   "version": 1,
   "vitestSafe": {
