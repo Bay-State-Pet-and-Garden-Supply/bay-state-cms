@@ -13,11 +13,12 @@
  * - getFamilyBucket / getFreshnessBucket sampled-dimension helpers (fix #4)
  * - getDeterministicScoredRowIdentity wall-clock exclusion (fix #8)
  *
- * NOTE (fix #13 — single source of truth): computeScopeSummaries
- * (operator-review.ts) and evaluateScopeGate (gate-arithmetic.ts) MUST both
- * derive served/identity accuracy through isSampleServed() and confidence
- * intervals through resolveZForConfidence()/computeWilsonScoreInterval() here.
- * Do not re-implement served logic or the z-value ladder in either consumer.
+ * NOTE (fix #13 — unified): computeScopeSummaries (operator-review.ts) now
+ * delegates to evaluateScopeGate (gate-arithmetic.ts), which is the single
+ * per-scope aggregation path. All identity-error/regression counting,
+ * Wilson-based identity accuracy, served-rate computation, threshold checks,
+ * and reason-string construction run once through evaluateScopeGate.
+ * computeScopeSummaries projects ScopePromotionVerdict → ScopeServedRateSummary.
  */
 
 import type {

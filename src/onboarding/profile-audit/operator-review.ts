@@ -26,26 +26,18 @@ import type {
   ReplayConfiguration,
   SampleFieldEvidence,
   ScopeServedRateSummary,
-  ContractPromotionVerdict,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractionOutcome } from './types';
 import {
-  computeScopeCostMetrics,
   type ComputeCostOptions,
-  deriveBaselineThresholds,
-  detectAbstentionGaming,
-  buildPromotionUncertainty,
-  computeContinuousMetricInterval,
+  evaluateScopeGate,
 } from './gate-arithmetic';
 import {
   REPLAY_CONFIGURATIONS,
   CONFIG_DISPLAY_NAMES as SHARED_CONFIG_DISPLAY_NAMES,
   CRITICAL_FIELDS as SHARED_CRITICAL_FIELDS,
   computeWilsonScoreInterval as sharedWilsonScoreInterval,
-  resolveZForConfidence,
-  isSampleServed,
   sanitizeCell as sharedSanitizeCell,
-  MIN_SAMPLES_FOR_PROMOTE_DEFAULT,
 } from './shared-metrics';
 
 const CONFIGURATIONS: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
@@ -385,11 +377,6 @@ export function computeScopeSummaries(
   rows: AuditScoredRow[],
   options: ComputeScopeSummariesOptions = {},
 ): Record<string, ScopeServedRateSummary> {
-  const minSamples = options.minSamplesForPromote ?? MIN_SAMPLES_FOR_PROMOTE_DEFAULT;
-  // z-value ladder + served predicate: single source of truth in
-  // shared-metrics.ts, shared with evaluateScopeGate (fix #13).
-  const z = resolveZForConfidence(options.targetConfidence);
-
   // Group samples by scope: pageStructureScope (e.g. standard_pdp, tabbed_pdp)
   const samplesByScope = new Map<string, AuditManifestSample[]>();
   for (const s of samples) {
@@ -403,223 +390,56 @@ export function computeScopeSummaries(
   const summaries: Record<string, ScopeServedRateSummary> = {};
 
   for (const [scopeKey, scopeSamples] of samplesByScope.entries()) {
-    const sampleCount = scopeSamples.length;
-    const sampleIdSet = new Set(scopeSamples.map(s => s.sampleId));
+    // Single aggregation path: delegate to evaluateScopeGate (fix #13).
+    // All identity-error/regression counting, served-rate computation,
+    // Wilson-based identity accuracy, threshold checks, abstention-gaming
+    // detection, and reason-string construction happen once in the gate.
+    const gateOptions = {
+      minSamplesForPromote: options.minSamplesForPromote,
+      targetConfidence: options.targetConfidence,
+      ...options.costOptions,
+    };
+    const verdict = evaluateScopeGate(scopeKey, scopeSamples, rows, gateOptions);
 
-    const baselineRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'current_extraction');
-    const hybridRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first');
-
-    // Served predicate: single source of truth in shared-metrics.ts (fix #13).
-
-    let baselineServedCount = 0;
-    for (const r of baselineRows) {
-      const sample = scopeSamples.find(s => s.sampleId === r.sampleId);
-      if (sample && isSampleServed(r, sample)) baselineServedCount++;
-    }
-
-    let hybridServedCount = 0;
-    let acceptedIdentityErrors = 0;
-    let criticalFieldRegressions = 0;
-    let sumHybridFieldCorrectness = 0;
-    let sumBaselineFieldCorrectness = 0;
-    let sumHybridImagePrecision = 0;
-    let sumBaselineImagePrecision = 0;
-    let sumHybridImageRecall = 0;
-    let sumHybridPrimaryAcc = 0;
-    let hybridEvidenceGaps = 0;
-
-    for (const r of hybridRows) {
-      const sample = scopeSamples.find(s => s.sampleId === r.sampleId);
-      if (sample && isSampleServed(r, sample)) hybridServedCount++;
-
-      if (r.isEvidenceGap) {
-        hybridEvidenceGaps++;
-      } else {
-        if (r.identityVerdict !== 'correct_match' || r.identityResolution?.confusionDetected) {
-          acceptedIdentityErrors++;
-        }
-      }
-
-      sumHybridFieldCorrectness += r.fieldCorrectnessScore;
-      sumHybridImagePrecision += r.imageScores.precision;
-      sumHybridImageRecall += r.imageScores.recall;
-      sumHybridPrimaryAcc += r.imageScores.primaryAccuracy;
-
-      // Check critical field regression against baseline
-      const bRow = baselineRows.find(b => b.sampleId === r.sampleId);
-      if (bRow) {
-        for (const cf of CRITICAL_FIELDS) {
-          const bScore = bRow.fieldScores[cf];
-          const hScore = r.fieldScores[cf];
-          if (bScore?.correct === true && hScore?.correct !== true) {
-            criticalFieldRegressions++;
-          }
-        }
-      }
-    }
-
-    let sumBaselineImageRecall = 0;
-    let sumBaselinePrimaryAcc = 0;
-    for (const b of baselineRows) {
-      sumBaselineFieldCorrectness += b.fieldCorrectnessScore;
-      sumBaselineImagePrecision += b.imageScores.precision;
-      sumBaselineImageRecall += b.imageScores.recall;
-      sumBaselinePrimaryAcc += b.imageScores.primaryAccuracy;
-    }
-
-    const baselineServedRate = sampleCount > 0 ? baselineServedCount / sampleCount : 0;
-    const hybridServedStats = computeWilsonScoreInterval(hybridServedCount, sampleCount, z);
-    const hybridServedRate = hybridServedStats.rate;
-    const servedRateDelta = hybridServedRate - baselineServedRate;
-
-    const meanFieldCorrectness = hybridRows.length > 0 ? sumHybridFieldCorrectness / hybridRows.length : 0;
-    const baselineMeanFieldCorrectness = baselineRows.length > 0 ? sumBaselineFieldCorrectness / baselineRows.length : 0;
-    const meanImagePrecision = hybridRows.length > 0 ? sumHybridImagePrecision / hybridRows.length : 0;
-    const baselineMeanImagePrecision = baselineRows.length > 0 ? sumBaselineImagePrecision / baselineRows.length : 0;
-    const meanImageRecall = hybridRows.length > 0 ? sumHybridImageRecall / hybridRows.length : 0;
-    const baselineMeanImageRecall = baselineRows.length > 0 ? sumBaselineImageRecall / baselineRows.length : 0;
-    const primaryImageAccuracy = hybridRows.length > 0 ? sumHybridPrimaryAcc / hybridRows.length : 0;
-    const baselinePrimaryAccuracy = baselineRows.length > 0 ? sumBaselinePrimaryAcc / baselineRows.length : 0;
-
-    const nonGapCount = hybridRows.filter(r => !r.isEvidenceGap).length;
-    const identityAccuracy = nonGapCount > 0
-      ? (nonGapCount - acceptedIdentityErrors) / nonGapCount
-      : (hybridRows.length > 0 ? 0 : 1);
-
-    // Promotability Verdict Evaluation
-    const hasZeroIdentityErrors = acceptedIdentityErrors === 0;
-    const hasNoCriticalRegressions = criticalFieldRegressions === 0;
-    const hasImageQualityWin = meanImagePrecision >= baselineMeanImagePrecision;
-    const hasFieldQualityWin = meanFieldCorrectness >= baselineMeanFieldCorrectness;
-    const baselineEvidenceGaps = baselineRows.filter(b => b.isEvidenceGap).length;
-    const hasNoAbstentionGaming = hybridEvidenceGaps <= baselineEvidenceGaps;
-    const hasServedRateWin = hybridServedRate >= baselineServedRate;
-    const isSufficientSample = sampleCount >= minSamples;
-
-    let isPromotable = false;
-    let promotabilityVerdict: 'PROMOTABLE' | 'BLOCKED' | 'NEEDS_REVIEW';
-    const promotabilityReasons: string[] = [];
-
-    if (!hasZeroIdentityErrors) {
-      promotabilityReasons.push(`Blocked: ${acceptedIdentityErrors} identity errors (wrong product or variant confusion) detected`);
-    }
-    if (!hasNoCriticalRegressions) {
-      promotabilityReasons.push(`Blocked: ${criticalFieldRegressions} critical field regressions versus baseline on title/brand/price`);
-    }
-    if (!hasImageQualityWin) {
-      promotabilityReasons.push('Blocked: Mean image precision regressed below baseline');
-    }
-    if (!hasFieldQualityWin) {
-      promotabilityReasons.push('Blocked: Mean field correctness regressed below baseline');
-    }
-    if (!hasNoAbstentionGaming) {
-      promotabilityReasons.push('Blocked: Evidence gaps exceeded baseline (abstention gaming detected)');
-    }
-    if (!hasServedRateWin) {
-      promotabilityReasons.push('Blocked: Hybrid served rate regressed below baseline');
-    }
-
-    if (promotabilityReasons.length > 0) {
-      promotabilityVerdict = 'BLOCKED';
-    } else if (!isSufficientSample) {
-      promotabilityVerdict = 'NEEDS_REVIEW';
-      promotabilityReasons.push(`Needs review: Sample count (${sampleCount}) is below standard gate threshold (minimum ${minSamples} required)`);
-    } else {
-      isPromotable = true;
-      promotabilityVerdict = 'PROMOTABLE';
-      promotabilityReasons.push('✓ Zero observed identity errors (100% correct identity match)');
-      promotabilityReasons.push('✓ Zero critical-field regressions on title, brand, or price');
-      promotabilityReasons.push(`✓ Improved image precision (${(meanImagePrecision * 100).toFixed(1)}% vs ${(baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`);
-      promotabilityReasons.push(`✓ Maintained or improved field completeness (${(meanFieldCorrectness * 100).toFixed(1)}%)`);
-      promotabilityReasons.push('✓ Zero evidence-gap inflation / no abstention gaming');
-    }
-
-    const domain = scopeSamples[0]?.domain;
-    const platform = scopeSamples[0]?.platform;
-
-    const costMetrics = computeScopeCostMetrics(scopeKey, domain, scopeSamples, rows, options.costOptions);
-    const abstentionGaming = detectAbstentionGaming({
-      baselineRows,
-      hybridRows,
-      baselineServedRate,
-      hybridServedRate,
-      baselineMeanFieldCorrectness,
-      hybridMeanFieldCorrectness: meanFieldCorrectness,
-      baselineMeanImagePrecision,
-      hybridMeanImagePrecision: meanImagePrecision,
-    });
-
-    const baselineIdentityErrors = baselineRows.filter(
-      b => !b.isEvidenceGap && (b.identityVerdict !== 'correct_match' || b.identityResolution?.confusionDetected),
-    ).length;
-
-    const hybridFieldStats = computeContinuousMetricInterval(hybridRows.map(r => r.fieldCorrectnessScore), z);
-    const hybridPrecisionStats = computeContinuousMetricInterval(hybridRows.map(r => r.imageScores.precision), z);
-    const hybridRecallStats = computeContinuousMetricInterval(hybridRows.map(r => r.imageScores.recall), z);
-
-    const thresholds = deriveBaselineThresholds({
-      baselineIdentityErrors,
-      hybridIdentityErrors: acceptedIdentityErrors,
-      criticalFieldRegressions,
-      baselineMeanFieldCorrectness,
-      hybridMeanFieldCorrectness: meanFieldCorrectness,
-      hybridFieldCorrectnessUncertainty: hybridFieldStats.marginOfError,
-      baselineMeanImagePrecision,
-      hybridMeanImagePrecision: meanImagePrecision,
-      hybridImagePrecisionUncertainty: hybridPrecisionStats.marginOfError,
-      baselineMeanImageRecall,
-      hybridMeanImageRecall: meanImageRecall,
-      hybridImageRecallUncertainty: hybridRecallStats.marginOfError,
-      baselinePrimaryAccuracy,
-      hybridPrimaryAccuracy: primaryImageAccuracy,
-      baselineServedRate,
-      hybridServedRate,
-      hybridServedRateUncertainty: hybridServedStats.marginOfError,
-      baselineEvidenceGaps,
-      hybridEvidenceGaps,
-      baselineOperatorMinutes: costMetrics.baselineOperatorMinutes,
-      hybridOperatorMinutes: costMetrics.hybridOperatorMinutes,
-    });
-
-    const contractVerdict: ContractPromotionVerdict = promotabilityVerdict === 'PROMOTABLE'
-      ? 'GO'
-      : (promotabilityVerdict === 'BLOCKED' ? 'NO_GO' : 'NEEDS_REVIEW');
-
+    // Project ScopePromotionVerdict → ScopeServedRateSummary.
+    // No second loop, no copied reason strings — the verdict is authoritative.
     summaries[scopeKey] = {
-      scope: scopeKey,
-      domain,
-      platform,
-      sampleCount,
-      servedRate: hybridServedRate,
-      baselineServedRate,
-      servedRateDelta,
-      uncertainty: hybridServedStats.marginOfError,
+      scope: verdict.scope,
+      domain: verdict.domain,
+      platform: verdict.platform,
+      sampleCount: verdict.sampleCount,
+      servedRate: verdict.servedRate.value,
+      baselineServedRate: verdict.baselineServedRate,
+      servedRateDelta: verdict.servedRateDelta,
+      uncertainty: verdict.servedRate.uncertainty,
       confidenceInterval: {
-        lower: hybridServedStats.lower,
-        upper: hybridServedStats.upper,
+        lower: verdict.servedRate.confidenceInterval.lower,
+        upper: verdict.servedRate.confidenceInterval.upper,
       },
-      identityAccuracy,
-      acceptedIdentityErrors,
-      meanFieldCorrectness,
-      baselineMeanFieldCorrectness,
-      criticalFieldRegressionCount: criticalFieldRegressions,
-      meanImagePrecision,
-      baselineMeanImagePrecision,
-      meanImageRecall,
-      primaryImageAccuracy,
-      evidenceGapCount: hybridEvidenceGaps,
-      isPromotable,
-      promotabilityVerdict,
-      promotabilityReasons,
-      contractVerdict,
-      thresholds,
-      abstentionGaming,
-      costMetrics,
+      // Identity accuracy: Wilson-based (from evaluateScopeGate), not the
+      // previous plain-ratio fallback. Both surfaces now use one formula.
+      identityAccuracy: verdict.identityAccuracy.value,
+      acceptedIdentityErrors: verdict.acceptedIdentityErrors,
+      meanFieldCorrectness: verdict.fieldCorrectness.value,
+      baselineMeanFieldCorrectness: verdict.baselineFieldCorrectness,
+      criticalFieldRegressionCount: verdict.criticalFieldRegressions,
+      meanImagePrecision: verdict.imagePrecision.value,
+      baselineMeanImagePrecision: verdict.baselineImagePrecision,
+      meanImageRecall: verdict.imageRecall.value,
+      primaryImageAccuracy: verdict.primaryImageAccuracy.value,
+      evidenceGapCount: verdict.abstentionGaming.hybridEvidenceGaps,
+      isPromotable: verdict.isPromotable,
+      promotabilityVerdict: verdict.promotabilityVerdict,
+      promotabilityReasons: verdict.promotabilityReasons,
+      contractVerdict: verdict.verdict,
+      thresholds: verdict.thresholds,
+      abstentionGaming: verdict.abstentionGaming,
+      costMetrics: verdict.costMetrics,
       uncertainties: {
-        servedRate: buildPromotionUncertainty('servedRate', hybridServedStats, 'wilson_score'),
-        fieldCorrectness: buildPromotionUncertainty('fieldCorrectness', hybridFieldStats, 'standard_error'),
-        imagePrecision: buildPromotionUncertainty('imagePrecision', hybridPrecisionStats, 'standard_error'),
-        imageRecall: buildPromotionUncertainty('imageRecall', hybridRecallStats, 'standard_error'),
+        servedRate: verdict.servedRate,
+        fieldCorrectness: verdict.fieldCorrectness,
+        imagePrecision: verdict.imagePrecision,
+        imageRecall: verdict.imageRecall,
       },
     };
   }
