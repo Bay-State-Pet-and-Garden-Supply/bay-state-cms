@@ -45,6 +45,13 @@ export interface ReplayRunnerOptions {
     gtin?: string;
   };
   recordLatency?: boolean;
+  /**
+   * Deterministic clock injection (fix #8): defaults to performance.now().
+   * Tests or offline replays may supply a fixed clock; wall-clock latency is
+   * transport timing and is ALWAYS excluded from scored-row identity via
+   * getDeterministicScoredRowIdentity().
+   */
+  clock?: () => number;
 }
 
 export interface PilotAuditOptions {
@@ -53,6 +60,18 @@ export interface PilotAuditOptions {
   manifest?: import('../../shared/schemas/profile-audit').AuditManifest;
   profile?: ExtractorProfile | null;
   sampleLimit?: number;
+  /**
+   * Wall-clock latency recording (fix #5). Default false: replay stays fully
+   * deterministic (same-artifact-in → same-scored-row-out) for unit tests.
+   * Production pilot runs (scripts/run-pilot-audit.ts) enable this so cost
+   * columns are measured; when false, cost columns are marked unmeasured
+   * instead of backfilled with fiat estimates.
+   */
+  recordLatency?: boolean;
+  /** Measured operator-minutes override, threaded to the gate arithmetic. */
+  operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
+  /** Base upkeep override for the modeled operator-minutes formula. */
+  baseOperatorMinutes?: number;
 }
 
 export interface BuildStratifiedManifestOptions {

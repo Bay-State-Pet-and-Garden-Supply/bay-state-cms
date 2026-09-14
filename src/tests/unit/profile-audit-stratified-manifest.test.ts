@@ -691,5 +691,44 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
       expect(normalizeFreshness(null)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(normalizeFreshness('invalid-date')).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
+
+    it('maps JSON-LD-only pages to the generic platform (no phantom jsonld stratum)', () => {
+      const jsonLdOnly = '<html><head><script type="application/ld+json">{"@context":"https://schema.org/","@type":"Product","name":"Widget"}</script></head><body><h1>Widget</h1></body></html>';
+      expect(detectPlatformFromHtmlOrUrl(jsonLdOnly, 'https://auditbrand.com/products/widget')).toBe('generic');
+    });
+
+    it('maps missing freshness to freshness-unknown with date-independent strata (round-2 P1)', async () => {
+      const opts = {
+        domain,
+        artifactRoot: tempDir,
+        candidateUrls: ['https://auditbrand.com/products/ghost-no-snapshot'],
+      };
+      const first = await buildFullStratifiedManifest(opts);
+      const second = await buildFullStratifiedManifest(opts);
+      const ghost1 = first.samples.find(s => s.url === 'https://auditbrand.com/products/ghost-no-snapshot');
+      const ghost2 = second.samples.find(s => s.url === 'https://auditbrand.com/products/ghost-no-snapshot');
+      expect(ghost1).toBeDefined();
+      expect(ghost2).toBeDefined();
+      expect(ghost1?.freshnessBucket).toBe('freshness-unknown');
+      expect(ghost2?.stratum).toBe(ghost1?.stratum);
+    });
+
+    it('labels override samples independent and page-derived samples auto-derived', async () => {
+      const manifest = await buildFullStratifiedManifest({
+        domain,
+        artifactRoot: tempDir,
+        suiteUrls: ['https://auditbrand.com/products/classic-collar'],
+        candidateUrls: ['https://auditbrand.com/products/chew-toy'],
+        groundTruthOverrides: {
+          'https://auditbrand.com/products/classic-collar': {
+            identity: { brand: 'AuditBrand', productName: 'Classic Dog Collar Red SM' },
+          },
+        },
+      });
+      const overridden = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/classic-collar');
+      const derived = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/chew-toy');
+      expect(overridden?.groundTruthSource).toBe('independent');
+      expect(derived?.groundTruthSource).toBe('auto-derived');
+    });
   });
 });

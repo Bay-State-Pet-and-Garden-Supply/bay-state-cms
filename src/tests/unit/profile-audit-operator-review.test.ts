@@ -901,5 +901,29 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       expect(brandField.winnerConfiguration).toBeUndefined();
     });
   });
+
+  describe('Round-2 fix-pass: missing configuration yields an empty gap sheet, never a mislabeled row', () => {
+    it('emits an empty hybrid sheet when the hybrid row is absent (no baseline leak)', () => {
+      const sample = createSample();
+      const baselineOnly = createRowsForSample(sample).filter(
+        r => r.configuration === 'current_extraction',
+      );
+      expect(baselineOnly).toHaveLength(1);
+      expect(baselineOnly[0].imageScores.admittedImages.length).toBeGreaterThan(0);
+
+      const manifest: AuditManifest = {
+        domain: 'example.com',
+        generatedAt: '2026-09-13T20:00:00Z',
+        samples: [sample],
+      };
+      const report = generateOperatorReviewReport({ manifest, rows: baselineOnly });
+      const hybridSheets = report.contactSheetsByConfiguration!.hybrid_identity_first;
+      expect(hybridSheets).toHaveLength(1);
+      // Explicit gap: no images carried over from the baseline row.
+      expect(hybridSheets[0].configuration).toBe('hybrid_identity_first');
+      expect(hybridSheets[0].totalDiscovered).toBe(0);
+      expect(hybridSheets[0].admittedCount).toBe(0);
+    });
+  });
 });
 

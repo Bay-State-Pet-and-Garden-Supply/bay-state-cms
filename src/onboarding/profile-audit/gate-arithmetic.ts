@@ -24,46 +24,29 @@ import type {
   ScopeCostMetrics,
   ScopePromotionVerdict,
   ConfigurationCostMetrics,
+  CostMeasurementProvenance,
+  OperatorMinutesProvenance,
 } from '../../shared/schemas/profile-audit';
 import type { GateArithmeticOptions } from './types';
+import {
+  REPLAY_CONFIGURATIONS,
+  CRITICAL_FIELDS as SHARED_CRITICAL_FIELDS,
+  computeWilsonScoreInterval as sharedWilsonScoreInterval,
+  resolveZForConfidence,
+  isSampleServed,
+  OPERATOR_MINUTE_COEFFICIENTS,
+  MIN_SAMPLES_FOR_PROMOTE_DEFAULT,
+  IMAGE_RECALL_FLOOR_FACTOR,
+} from './shared-metrics';
 
-export const CRITICAL_FIELDS = ['title', 'brand', 'price'];
+/** Critical fields (re-exported single source of truth from shared-metrics). */
+export const CRITICAL_FIELDS: string[] = SHARED_CRITICAL_FIELDS;
+/** Wilson interval (re-exported single source of truth from shared-metrics). */
+export const computeWilsonScoreInterval = sharedWilsonScoreInterval;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Uncertainty Calculations
+// 1. Uncertainty Calculations (Wilson interval lives in shared-metrics.ts)
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Computes Wilson Score interval for binomial proportions (e.g. served rate,
- * identity accuracy, primary image accuracy).
- */
-export function computeWilsonScoreInterval(
-  successes: number,
-  total: number,
-  z: number = 1.96,
-): { rate: number; lower: number; upper: number; marginOfError: number } {
-  if (total <= 0) {
-    return { rate: 0, lower: 0, upper: 0, marginOfError: 0 };
-  }
-  const clampedSuccesses = Math.max(0, Math.min(total, successes));
-  const p = clampedSuccesses / total;
-  const z2 = z * z;
-  const n = total;
-  const denom = 1 + z2 / n;
-  const center = (p + z2 / (2 * n)) / denom;
-  const spread = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-
-  const lower = Math.max(0, center - spread);
-  const upper = Math.min(1, center + spread);
-  const marginOfError = spread;
-
-  return {
-    rate: p,
-    lower,
-    upper,
-    marginOfError,
-  };
-}
 
 /**
  * Computes mean and standard error confidence interval for continuous metrics
@@ -249,82 +232,93 @@ export function computeScopeCostMetrics(
   const sampleIdSet = new Set(samples.map(s => s.sampleId));
   const scopeRows = rows.filter(r => sampleIdSet.has(r.sampleId));
 
-  const configs: ReplayConfiguration[] = [
-    'current_extraction',
-    'current_strict_images',
-    'structured_only',
-    'hybrid_identity_first',
-  ];
+  const configs: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
   const byConfiguration: Record<ReplayConfiguration, ConfigurationCostMetrics> = {} as any;
 
-  // Base overhead for domain profile maintenance (default 15 mins for CSS selector drift)
-  const baseMins = options.baseOperatorMinutes ?? 15.0;
+  // Base upkeep for domain profile maintenance (selector-drift upkeep for
+  // selector-led configs; see OPERATOR_MINUTE_COEFFICIENTS).
+  const baseMins = options.baseOperatorMinutes ?? OPERATOR_MINUTE_COEFFICIENTS.BASE_MAINTENANCE_MINUTES;
+  const C = OPERATOR_MINUTE_COEFFICIENTS;
 
   for (const cfg of configs) {
     const cfgRows = scopeRows.filter(r => r.configuration === cfg);
-    const n = cfgRows.length || 1;
 
-    // Latency: read recorded latencyMs or supply deterministic benchmark default
-    const latencies = cfgRows.map(r => {
-      if (typeof r.latencyMs === 'number' && !isNaN(r.latencyMs)) return r.latencyMs;
-      // Default deterministic estimates per configuration
-      switch (cfg) {
-        case 'current_extraction': return 120.0;
-        case 'current_strict_images': return 135.0;
-        case 'structured_only': return 95.0;
-        case 'hybrid_identity_first': return 150.0;
-      }
-    });
+    // Latency (fix #5): measured values ONLY. Evidence-gap rows record
+    // absence, not timing, and rows replayed with recordLatency:false carry
+    // no wall-clock data — both are excluded. When nothing was measured the
+    // columns are marked unmeasured (numeric 0 placeholder) instead of
+    // backfilling fiat estimates; renderers must print "unmeasured".
+    const measuredLatencies = cfgRows
+      .filter(r => !r.isEvidenceGap && typeof r.latencyMs === 'number' && !isNaN(r.latencyMs))
+      .map(r => r.latencyMs as number);
+    const latencyProvenance: CostMeasurementProvenance =
+      measuredLatencies.length > 0 ? 'measured' : 'unmeasured';
 
-    const totalLatency = latencies.reduce((a, b) => a + b, 0);
-    const meanLatency = Math.round((totalLatency / n) * 10) / 10;
-    const sortedLatencies = [...latencies].sort((a, b) => a - b);
-    const p95Idx = Math.min(sortedLatencies.length - 1, Math.floor(sortedLatencies.length * 0.95));
-    const p95Latency = Math.round(sortedLatencies[p95Idx] * 10) / 10;
+    const totalLatency = measuredLatencies.reduce((a, b) => a + b, 0);
+    const meanLatency = measuredLatencies.length > 0
+      ? Math.round((totalLatency / measuredLatencies.length) * 10) / 10
+      : 0;
+    const sortedLatencies = [...measuredLatencies].sort((a, b) => a - b);
+    const p95Latency = sortedLatencies.length > 0
+      ? Math.round(sortedLatencies[Math.min(sortedLatencies.length - 1, Math.floor(sortedLatencies.length * 0.95))] * 10) / 10
+      : 0;
 
-    // Requests: read recorded requestCount or 1.0 per sample
-    const reqCounts = cfgRows.map(r => (typeof r.requestCount === 'number' ? r.requestCount : 1));
-    const totalRequests = reqCounts.reduce((a, b) => a + b, 0) ?? sampleCount;
-    const requestsPerSample = Math.round((totalRequests / Math.max(1, sampleCount)) * 10) / 10;
+    // Requests: recorded requestCount values only (evidence-gap 0s are
+    // factual — no fetch happened). Rows with no recorded count leave the
+    // column unmeasured instead of assuming 1.0/sample.
+    const measuredReqCounts = cfgRows
+      .filter(r => typeof r.requestCount === 'number' && !isNaN(r.requestCount))
+      .map(r => r.requestCount as number);
+    const requestsProvenance: CostMeasurementProvenance =
+      measuredReqCounts.length > 0 ? 'measured' : 'unmeasured';
+    const totalRequests = measuredReqCounts.reduce((a, b) => a + b, 0);
+    const requestsPerSample = sampleCount > 0 && measuredReqCounts.length > 0
+      ? Math.round((totalRequests / sampleCount) * 10) / 10
+      : 0;
 
-    // Operator Maintenance Minutes:
-    // Modeled from maintenance overhead, selector repair time, defect rate, and conflict triage
+    // Operator Maintenance Minutes (fix #6): the formula below is a MODEL
+    // (coefficients in OPERATOR_MINUTE_COEFFICIENTS). Provenance is
+    // 'measured' only when a measured override was supplied for this
+    // domain+configuration via options.operatorMinutesOverride.
     let operatorMins: number;
+    let operatorMinutesProvenance: OperatorMinutesProvenance = 'modeled';
     if (domain && options.operatorMinutesOverride?.[domain]?.[cfg] !== undefined) {
       operatorMins = options.operatorMinutesOverride[domain][cfg];
+      operatorMinutesProvenance = 'measured';
     } else {
       switch (cfg) {
         case 'current_extraction': {
-          // Selector-led: high base maintenance for selector drift + repair time for defects
+          // Selector-led: base upkeep for selector drift + repair per defect.
           const defects = cfgRows.filter(
             r => r.identityVerdict !== 'correct_match' || r.failureCodes.some(c => c === 'MISSING_AVAILABLE_FIELD'),
           ).length;
-          operatorMins = Math.round((baseMins + defects * 3.0) * 10) / 10;
+          operatorMins = Math.round((baseMins + defects * C.DEFECT_REPAIR_MINUTES) * 10) / 10;
           break;
         }
         case 'current_strict_images': {
           const defects = cfgRows.filter(
             r => r.identityVerdict !== 'correct_match' || r.failureCodes.some(c => c === 'MISSING_AVAILABLE_FIELD'),
           ).length;
-          operatorMins = Math.round((baseMins * 0.8 + defects * 2.5) * 10) / 10;
+          operatorMins = Math.round((baseMins * C.STRICT_BASE_FACTOR + defects * C.DEFECT_REPAIR_MINUTES_STRICT) * 10) / 10;
           break;
         }
         case 'structured_only': {
-          // Zero selector maintenance, but high missing-field review
+          // Zero selector upkeep, but missing-field review per gap.
           const missingCount = cfgRows.filter(r => r.failureCodes.some(c => c === 'MISSING_AVAILABLE_FIELD')).length;
-          operatorMins = Math.round((3.0 + missingCount * 1.0) * 10) / 10;
+          operatorMins = Math.round((C.STRUCTURED_BASE_MINUTES + missingCount * C.STRUCTURED_MISSING_FIELD_MINUTES) * 10) / 10;
           break;
         }
         case 'hybrid_identity_first': {
-          // Bounded maintenance: structured data first, conflict triage only
+          // Bounded maintenance: structured data first, conflict triage only.
+          // Modeled as base triage + per-conflict + per-unresolved-variant
+          // + per-identity-error triage (coefficients in shared-metrics).
           const conflictsCount = cfgRows.reduce((acc, r) => acc + (r.conflicts?.length || 0), 0);
           const identityErrors = cfgRows.filter(r => r.identityVerdict !== 'correct_match').length;
           const unresolved = cfgRows.filter(
             r => r.identityResolution?.status === 'no_variant_match' || r.identityResolution?.status === 'ambiguous_variant',
           ).length;
-          // Base triage (2 mins) + 2 mins per conflict + 3 mins per unresolved variant + 5 mins per identity error
-          operatorMins = Math.round((2.0 + conflictsCount * 2.0 + unresolved * 3.0 + identityErrors * 5.0) * 10) / 10;
+          operatorMins = Math.round((C.HYBRID_BASE_TRIAGE_MINUTES + conflictsCount * C.HYBRID_CONFLICT_MINUTES + unresolved * C.HYBRID_UNRESOLVED_VARIANT_MINUTES + identityErrors * C.HYBRID_IDENTITY_ERROR_MINUTES) * 10) / 10;
           break;
         }
       }
@@ -334,10 +328,13 @@ export function computeScopeCostMetrics(
       configuration: cfg,
       meanLatencyMs: meanLatency,
       p95LatencyMs: p95Latency,
-      totalLatencyMs: totalLatency,
+      totalLatencyMs: Math.round(totalLatency * 10) / 10,
       totalRequests,
       requestsPerSample,
-      operatorMinutes: operatorMins,
+      operatorMinutes: operatorMins!,
+      latencyProvenance,
+      requestsProvenance,
+      operatorMinutesProvenance,
     };
   }
 
@@ -357,8 +354,28 @@ export function computeScopeCostMetrics(
   const hybridOperatorMinutes = hybridCfg.operatorMinutes;
   const operatorMinutesSaved = Math.round((baselineOperatorMinutes - hybridOperatorMinutes) * 10) / 10;
 
-  // Bounded maintenance requirement: hybrid maintenance cost must be <= baseline
+  // Bounded maintenance requirement (fix #6): hybrid maintenance cost must be
+  // <= baseline, compared LIKE-FOR-LIKE. The comparison basis is recorded so
+  // reviewers can tell modeled-vs-modeled (formula both sides) apart from
+  // measured-vs-measured (override both sides) or mixed comparisons.
   const isMaintenanceBounded = hybridOperatorMinutes <= baselineOperatorMinutes;
+  const baselineOpProv = baselineCfg.operatorMinutesProvenance ?? 'modeled';
+  const hybridOpProv = hybridCfg.operatorMinutesProvenance ?? 'modeled';
+  const operatorMinutesProvenance: 'measured' | 'modeled' | 'mixed' =
+    baselineOpProv === hybridOpProv ? baselineOpProv : 'mixed';
+  const maintenanceComparisonNote =
+    `like-for-like ${baselineOpProv}-vs-${hybridOpProv} operator-minutes comparison`;
+
+  // Scope roll-up provenance: latency/requests are 'measured' only when at
+  // least one side measured; operator minutes roll up per above.
+  const latencyProvenance: CostMeasurementProvenance =
+    baselineCfg.latencyProvenance === 'measured' || hybridCfg.latencyProvenance === 'measured'
+      ? 'measured'
+      : 'unmeasured';
+  const requestsProvenance: CostMeasurementProvenance =
+    baselineCfg.requestsProvenance === 'measured' || hybridCfg.requestsProvenance === 'measured'
+      ? 'measured'
+      : 'unmeasured';
 
   return {
     scope,
@@ -376,6 +393,10 @@ export function computeScopeCostMetrics(
     operatorMinutesSaved,
     isMaintenanceBounded,
     byConfiguration,
+    latencyProvenance,
+    requestsProvenance,
+    operatorMinutesProvenance,
+    maintenanceComparisonNote,
   };
 }
 
@@ -416,6 +437,12 @@ export function computeDomainCostMetrics(
   const operatorMinutesSaved = Math.round((baselineOperatorMinutes - hybridOperatorMinutes) * 10) / 10;
   const isMaintenanceBounded = hybridOperatorMinutes <= baselineOperatorMinutes;
 
+  // Domain roll-up basis (fix #6): like-for-like across scopes.
+  const scopeProvenances = Object.values(byScope).map(s => s.operatorMinutesProvenance ?? 'modeled');
+  const domainBasis = scopeProvenances.length === 0
+    ? 'modeled'
+    : (scopeProvenances.every(p => p === scopeProvenances[0]) ? scopeProvenances[0] : 'mixed');
+
   return {
     domain,
     totalSamples,
@@ -428,6 +455,7 @@ export function computeDomainCostMetrics(
     operatorMinutesSaved,
     isMaintenanceBounded,
     byScope,
+    maintenanceComparisonNote: `like-for-like domain roll-up (${domainBasis} basis across scopes)`,
   };
 }
 
@@ -532,8 +560,10 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`,
   });
 
-  // 5. Image Recall: Bounded drop allowed (e.g. dedupe of thumbnails/icons), minimum 90% of baseline
-  const recallThreshold = Math.max(0, input.baselineMeanImageRecall * 0.9);
+  // 5. Image Recall: Bounded drop allowed (e.g. dedupe of thumbnails/icons).
+  // The floor is DERIVED from the measured baseline recall
+  // (IMAGE_RECALL_FLOOR_FACTOR of baseline) — never a fiat absolute.
+  const recallThreshold = Math.max(0, input.baselineMeanImageRecall * IMAGE_RECALL_FLOOR_FACTOR);
   const irPassed = input.hybridMeanImageRecall >= recallThreshold - 1e-9;
   checks.push({
     name: 'Image Recall',
@@ -628,21 +658,8 @@ export function evaluateScopeGate(
   rows: AuditScoredRow[],
   options: GateArithmeticOptions = {},
 ): ScopePromotionVerdict {
-  const minSamples = options.minSamplesForPromote ?? 3;
-  let z = 1.96;
-  if (options.targetConfidence !== undefined) {
-    if (options.targetConfidence > 1) {
-      z = options.targetConfidence;
-    } else if (options.targetConfidence >= 0.99) {
-      z = 2.576;
-    } else if (options.targetConfidence >= 0.95) {
-      z = 1.96;
-    } else if (options.targetConfidence >= 0.90) {
-      z = 1.645;
-    } else if (options.targetConfidence >= 0.80) {
-      z = 1.282;
-    }
-  }
+  const minSamples = options.minSamplesForPromote ?? MIN_SAMPLES_FOR_PROMOTE_DEFAULT;
+  const z = resolveZForConfidence(options.targetConfidence);
 
   const sampleCount = samples.length;
   const sampleIdSet = new Set(samples.map(s => s.sampleId));
@@ -650,18 +667,8 @@ export function evaluateScopeGate(
   const baselineRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'current_extraction');
   const hybridRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first');
 
-  // Helper: check if a sample is served (correct identity, not an evidence gap, all critical fields correct)
-  const isSampleServed = (r: AuditScoredRow, sample: AuditManifestSample): boolean => {
-    if (r.identityVerdict !== 'correct_match' || r.isEvidenceGap) return false;
-    for (const field of CRITICAL_FIELDS) {
-      const spec = sample.groundTruth.fields[field];
-      if (spec?.available && !spec.inapplicable) {
-        const fScore = r.fieldScores[field];
-        if (!fScore || !fScore.correct) return false;
-      }
-    }
-    return true;
-  };
+  // Served predicate: single source of truth in shared-metrics.ts (fix #13).
+  // (Local isSampleServed removed — use the shared isSampleServed.)
 
   let baselineServedCount = 0;
   for (const b of baselineRows) {

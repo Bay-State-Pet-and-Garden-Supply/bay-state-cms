@@ -14,8 +14,14 @@ import { resolve, join } from 'node:path';
 import { initDb, isDbInitialized } from '../src/db/connection';
 import { runPilotAudit } from '../src/onboarding/profile-audit';
 
+/**
+ * Local-dev fallback domain for ad-hoc pilot runs (NOT a production
+ * default — pass the domain explicitly in CI/contract runs).
+ */
+const DEFAULT_AUDIT_DOMAIN = 'earthbath.com';
+
 async function main() {
-  const domain = process.argv[2] || 'earthbath.com';
+  const domain = process.argv[2] || DEFAULT_AUDIT_DOMAIN;
   const dbPath = resolve(process.cwd(), 'storage', 'catalog', '.shopsite-cms', 'app.db');
 
   if (existsSync(dbPath) && !isDbInitialized()) {
@@ -31,6 +37,9 @@ async function main() {
   const result = await runPilotAudit({
     domain,
     sampleLimit: 5,
+    // Production pilot runs measure wall-clock cost columns (fix #5).
+    // Unit tests keep the default (false) so replay stays deterministic.
+    recordLatency: true,
   });
 
   const reportsDir = resolve(process.cwd(), '.baystate-cms', 'audit-reports');

@@ -21,6 +21,7 @@ import { replaySample } from './replay-runner';
 import { scoreExtraction } from './scorer';
 import { computeConfigurationSummaries, formatReviewableTable } from './reviewable-table';
 import { normalizeDomain } from '../../db/repositories/brand-url-index-repo';
+import { REPLAY_CONFIGURATIONS } from './shared-metrics';
 
 export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAuditResult> {
   const normDomain = normalizeDomain(options.domain);
@@ -45,18 +46,18 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
 
   // 3. Replay and Score all samples
   const rows: AuditScoredRow[] = [];
-  const configs: ReplayConfiguration[] = [
-    'current_extraction',
-    'current_strict_images',
-    'structured_only',
-    'hybrid_identity_first',
-  ];
+  const configs: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
   const outcomesBySample: Record<string, Record<ReplayConfiguration, import('./types').ExtractionOutcome>> = {};
 
   for (const sample of manifest.samples) {
+    // Fix #5: thread recordLatency from the pilot options into replay so
+    // cost columns are measured when requested. Default false preserves
+    // replay determinism (same-artifact-in → same-scored-row-out); the
+    // production pilot script enables measurement explicitly.
     const outcomes = await replaySample(sample, profile, {
       artifactRoot: options.artifactRoot,
+      recordLatency: options.recordLatency ?? false,
     });
     outcomesBySample[sample.sampleId] = outcomes;
 
@@ -77,6 +78,10 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     manifest,
     rows,
     outcomesBySample,
+    costOptions: {
+      operatorMinutesOverride: options.operatorMinutesOverride,
+      baseOperatorMinutes: options.baseOperatorMinutes,
+    },
   });
 
   // 6. Gate Arithmetic & Per-Scope Promotion Report (Issue #178 / Gate T5)
@@ -84,6 +89,10 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
   const promotionReport = generatePromotionReport({
     manifest,
     rows,
+    gateOptions: {
+      operatorMinutesOverride: options.operatorMinutesOverride,
+      baseOperatorMinutes: options.baseOperatorMinutes,
+    },
   });
 
   return {

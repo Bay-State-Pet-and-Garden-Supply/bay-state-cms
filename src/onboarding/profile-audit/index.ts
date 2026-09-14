@@ -1,4 +1,21 @@
 export * from './types';
+export {
+  REPLAY_CONFIGURATIONS,
+  CONFIG_DISPLAY_NAMES,
+  CRITICAL_FIELDS,
+  // NOTE: computeWilsonScoreInterval + sanitizeCell also live in
+  // shared-metrics.ts but are re-exported through operator-review.ts below
+  // (same references) to avoid ambiguous barrel exports.
+  resolveZForConfidence,
+  isSampleServed,
+  OPERATOR_MINUTE_COEFFICIENTS,
+  MIN_SAMPLES_FOR_PROMOTE_DEFAULT,
+  IMAGE_RECALL_FLOOR_FACTOR,
+  FAMILY_BUCKET_COUNT,
+  getFamilyBucket,
+  getFreshnessBucket,
+  getDeterministicScoredRowIdentity,
+} from './shared-metrics';
 export { applyStrictImageFilter, isRoleRejectedImage } from './strict-image-filter';
 export { selectHybridFields } from './hybrid-field-selector';
 export {

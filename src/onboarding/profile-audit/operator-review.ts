@@ -31,59 +31,39 @@ import type {
 import type { ExtractionOutcome } from './types';
 import {
   computeScopeCostMetrics,
+  type ComputeCostOptions,
   deriveBaselineThresholds,
   detectAbstentionGaming,
   buildPromotionUncertainty,
   computeContinuousMetricInterval,
 } from './gate-arithmetic';
+import {
+  REPLAY_CONFIGURATIONS,
+  CONFIG_DISPLAY_NAMES as SHARED_CONFIG_DISPLAY_NAMES,
+  CRITICAL_FIELDS as SHARED_CRITICAL_FIELDS,
+  computeWilsonScoreInterval as sharedWilsonScoreInterval,
+  resolveZForConfidence,
+  isSampleServed,
+  sanitizeCell as sharedSanitizeCell,
+  MIN_SAMPLES_FOR_PROMOTE_DEFAULT,
+} from './shared-metrics';
 
-const CONFIGURATIONS: ReplayConfiguration[] = [
-  'current_extraction',
-  'current_strict_images',
-  'structured_only',
-  'hybrid_identity_first',
-];
+const CONFIGURATIONS: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
-export const CONFIG_DISPLAY_NAMES: Record<ReplayConfiguration, string> = {
-  current_extraction: '1. Baseline',
-  current_strict_images: '2. Strict Images',
-  structured_only: '3. Structured Only',
-  hybrid_identity_first: '4. Hybrid (Identity-First)',
-};
+/**
+ * Canonical configuration display names (single source of truth in
+ * shared-metrics.ts; fix #10). Re-exported here for back-compat.
+ */
+export const CONFIG_DISPLAY_NAMES: Record<ReplayConfiguration, string> = SHARED_CONFIG_DISPLAY_NAMES;
 
-const CRITICAL_FIELDS = ['title', 'brand', 'price'];
+/**
+ * Wilson score interval (single source of truth in shared-metrics.ts;
+ * fix #9). Re-exported here for back-compat.
+ */
+export const computeWilsonScoreInterval = sharedWilsonScoreInterval;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Wilson Score Confidence Interval (Uncertainty Reporting)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function computeWilsonScoreInterval(
-  successes: number,
-  total: number,
-  z: number = 1.96,
-): { rate: number; lower: number; upper: number; marginOfError: number } {
-  if (total <= 0) {
-    return { rate: 0, lower: 0, upper: 0, marginOfError: 0 };
-  }
-  const clampedSuccesses = Math.max(0, Math.min(total, successes));
-  const p = clampedSuccesses / total;
-  const z2 = z * z;
-  const n = total;
-  const denom = 1 + z2 / n;
-  const center = (p + z2 / (2 * n)) / denom;
-  const spread = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
-
-  const lower = Math.max(0, center - spread);
-  const upper = Math.min(1, center + spread);
-  const marginOfError = spread;
-
-  return {
-    rate: p,
-    lower,
-    upper,
-    marginOfError,
-  };
-}
+const CRITICAL_FIELDS: string[] = SHARED_CRITICAL_FIELDS;
+const sanitizeCell = sharedSanitizeCell;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Missing-Field Explanation
@@ -396,6 +376,8 @@ export function buildImageContactSheet(
 export interface ComputeScopeSummariesOptions {
   minSamplesForPromote?: number;
   targetConfidence?: number;
+  /** Cost-model inputs forwarded to computeScopeCostMetrics. */
+  costOptions?: ComputeCostOptions;
 }
 
 export function computeScopeSummaries(
@@ -403,21 +385,10 @@ export function computeScopeSummaries(
   rows: AuditScoredRow[],
   options: ComputeScopeSummariesOptions = {},
 ): Record<string, ScopeServedRateSummary> {
-  const minSamples = options.minSamplesForPromote ?? 3;
-  let z = 1.96;
-  if (options.targetConfidence !== undefined) {
-    if (options.targetConfidence > 1) {
-      z = options.targetConfidence;
-    } else if (options.targetConfidence >= 0.99) {
-      z = 2.576;
-    } else if (options.targetConfidence >= 0.95) {
-      z = 1.96;
-    } else if (options.targetConfidence >= 0.90) {
-      z = 1.645;
-    } else if (options.targetConfidence >= 0.80) {
-      z = 1.282;
-    }
-  }
+  const minSamples = options.minSamplesForPromote ?? MIN_SAMPLES_FOR_PROMOTE_DEFAULT;
+  // z-value ladder + served predicate: single source of truth in
+  // shared-metrics.ts, shared with evaluateScopeGate (fix #13).
+  const z = resolveZForConfidence(options.targetConfidence);
 
   // Group samples by scope: pageStructureScope (e.g. standard_pdp, tabbed_pdp)
   const samplesByScope = new Map<string, AuditManifestSample[]>();
@@ -438,19 +409,7 @@ export function computeScopeSummaries(
     const baselineRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'current_extraction');
     const hybridRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first');
 
-    // Helper: is a sample considered served?
-    const isSampleServed = (r: AuditScoredRow, sample: AuditManifestSample): boolean => {
-      if (r.identityVerdict !== 'correct_match' || r.isEvidenceGap) return false;
-      // All available critical fields must be correct
-      for (const field of CRITICAL_FIELDS) {
-        const spec = sample.groundTruth.fields[field];
-        if (spec?.available && !spec.inapplicable) {
-          const fScore = r.fieldScores[field];
-          if (!fScore || !fScore.correct) return false;
-        }
-      }
-      return true;
-    };
+    // Served predicate: single source of truth in shared-metrics.ts (fix #13).
 
     let baselineServedCount = 0;
     for (const r of baselineRows) {
@@ -578,7 +537,7 @@ export function computeScopeSummaries(
     const domain = scopeSamples[0]?.domain;
     const platform = scopeSamples[0]?.platform;
 
-    const costMetrics = computeScopeCostMetrics(scopeKey, domain, scopeSamples, rows);
+    const costMetrics = computeScopeCostMetrics(scopeKey, domain, scopeSamples, rows, options.costOptions);
     const abstentionGaming = detectAbstentionGaming({
       baselineRows,
       hybridRows,
@@ -669,18 +628,8 @@ export function computeScopeSummaries(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Markdown Formatters
+// 6. Markdown Formatters (sanitizeCell: single source of truth in shared-metrics.ts)
 // ─────────────────────────────────────────────────────────────────────────────
-
-function sanitizeCell(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/\|/g, '\\|')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\r?\n/g, ' ')
-    .trim();
-}
 
 function safeResolveUrl(url: string, baseUrl?: string): string {
   try {
@@ -949,15 +898,24 @@ export function generateOperatorReviewReport(options: {
   manifest: AuditManifest;
   rows: AuditScoredRow[];
   outcomesBySample?: Record<string, Record<ReplayConfiguration, ExtractionOutcome>>;
+  /** Optional cost-model inputs (measured operator-minutes overrides, base
+   * upkeep) forwarded to computeScopeCostMetrics. */
+  costOptions?: ComputeCostOptions;
 }): OperatorReviewSurfaceReport {
-  const { manifest, rows, outcomesBySample } = options;
+  const { manifest, rows, outcomesBySample, costOptions } = options;
 
   // 1. Compute Scope Summaries
-  const scopeSummaries = computeScopeSummaries(manifest.samples, rows);
+  const scopeSummaries = computeScopeSummaries(manifest.samples, rows, { costOptions });
 
-  // 2. Build Side-by-Side Field Evidences
+  // 2. Build Side-by-Side Field Evidences + per-configuration contact sheets
   const fieldEvidences: SampleFieldEvidence[] = [];
   const contactSheets: ImageContactSheet[] = [];
+  const contactSheetsByConfiguration: Record<ReplayConfiguration, ImageContactSheet[]> = {
+    current_extraction: [],
+    current_strict_images: [],
+    structured_only: [],
+    hybrid_identity_first: [],
+  };
 
   for (const sample of manifest.samples) {
     const sampleRows = rows.filter(r => r.sampleId === sample.sampleId);
@@ -965,11 +923,23 @@ export function generateOperatorReviewReport(options: {
     const evidence = buildSideBySideFieldEvidence(sample, sampleRows, sampleConflicts);
     fieldEvidences.push(evidence);
 
-    // Build contact sheet from hybrid configuration
-    const hybridRow = sampleRows.find(r => r.configuration === 'hybrid_identity_first') || sampleRows[0];
-    const outcome = outcomesBySample?.[sample.sampleId]?.hybrid_identity_first;
-    const contactSheet = buildImageContactSheet(sample, outcome || hybridRow);
-    contactSheets.push(contactSheet);
+    // Fix #3: contact sheets for ALL four configurations (reusing
+    // buildImageContactSheet). `contactSheets` stays hybrid-only for
+    // back-compat; the per-config map is the complete view.
+    // NOTE (round-2 P2): never substitute another configuration's row when the
+    // requested config is absent — buildImageContactSheet(null) yields an
+    // explicit empty gap sheet instead of a mislabeled row.
+    for (const cfg of CONFIGURATIONS) {
+      const cfgRow = sampleRows.find(r => r.configuration === cfg);
+      const cfgOutcome = outcomesBySample?.[sample.sampleId]?.[cfg];
+      const sheet = buildImageContactSheet(
+        sample,
+        cfgOutcome ?? cfgRow ?? null,
+      );
+      sheet.configuration = cfg;
+      contactSheetsByConfiguration[cfg].push(sheet);
+      if (cfg === 'hybrid_identity_first') contactSheets.push(sheet);
+    }
   }
 
   // 3. Assemble Markdown Report
@@ -991,12 +961,27 @@ export function generateOperatorReviewReport(options: {
     mdParts.push(formatSideBySideFieldEvidenceTable(ev));
   }
 
-  // Pillar 3: Image Contact Sheets
+  // Pillar 3: Image Contact Sheets (hybrid view; per-config map below)
   mdParts.push('## Image Contact Sheets');
   mdParts.push('');
   for (const cs of contactSheets) {
     mdParts.push(formatImageContactSheetMarkdown(cs));
   }
+
+  // Per-configuration image evidence (fix #3): admitted/rejected counts for
+  // every sample under every configuration, built with buildImageContactSheet.
+  mdParts.push('## Per-Configuration Image Evidence');
+  mdParts.push('');
+  mdParts.push('> Contact sheets are built per configuration; the hybrid sheets above are the detailed view.');
+  mdParts.push('');
+  mdParts.push('| Sample | Configuration | Admitted | Rejected | Primary Acc |');
+  mdParts.push('| :--- | :--- | :---: | :---: | :---: |');
+  for (const cfg of CONFIGURATIONS) {
+    for (const cs of contactSheetsByConfiguration[cfg]) {
+      mdParts.push(`| ${cs.sampleId} | ${CONFIG_DISPLAY_NAMES[cfg]} | ${cs.admittedCount} | ${cs.rejectedCount} | ${(cs.primaryAccuracy * 100).toFixed(0)}% |`);
+    }
+  }
+  mdParts.push('');
 
   const markdown = mdParts.join('\n');
 
@@ -1018,6 +1003,7 @@ export function generateOperatorReviewReport(options: {
     scopeSummaries,
     fieldEvidences,
     contactSheets,
+    contactSheetsByConfiguration,
     markdown,
     html,
   };

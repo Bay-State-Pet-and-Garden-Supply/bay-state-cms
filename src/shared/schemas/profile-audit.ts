@@ -98,6 +98,22 @@ export const AuditGroundTruthSchema = z.object({
 });
 export type AuditGroundTruth = z.infer<typeof AuditGroundTruthSchema>;
 
+export const GroundTruthSourceSchema = z.enum([
+  'independent',
+  'auto-derived',
+]);
+/**
+ * Provenance of a sample's ground-truth labels (profile-audit one-pass fix #2).
+ * - 'independent': labels were supplied via groundTruthOverrides (operator-curated,
+ *   independent of the page bytes under test) — safe to score against.
+ * - 'auto-derived': labels were derived from the same page bytes under test
+ *   (JSON-LD / h1 / sitemap metadata). Scoring an extractor against labels
+ *   lifted from its own input page is CIRCULAR: it measures self-consistency,
+ *   not extraction quality. Auto-derived rows must never be reported as
+ *   independently labeled wins.
+ */
+export type GroundTruthSource = z.infer<typeof GroundTruthSourceSchema>;
+
 export const AuditManifestSampleSchema = z.object({
   sampleId: z.string(),
   url: z.string(),
@@ -109,6 +125,7 @@ export const AuditManifestSampleSchema = z.object({
   hasSupplementalArtifact: z.boolean().default(false),
   captureFreshness: z.string().nullable(),
   groundTruth: AuditGroundTruthSchema,
+  groundTruthSource: GroundTruthSourceSchema.optional(),
   // Additive stratification fields (Issue #175)
   pageStructureScope: z.string().optional(),
   platform: z.string().optional(),
@@ -119,6 +136,11 @@ export const AuditManifestSampleSchema = z.object({
   isProfileBlocked: z.boolean().optional(),
   isFailureSample: z.boolean().optional(),
   sampleType: z.enum(['confirmed_profile_sample', 'unreviewed_candidate', 'profile_blocked', 'failure_sample']).optional(),
+  // Sampled stratum dimensions (profile-audit one-pass fix #4): the family
+  // bucket and freshness bucket are part of the stratum key, not just
+  // recorded fields, so family/freshness coverage is a sampling guarantee.
+  familyBucket: z.string().optional(),
+  freshnessBucket: z.string().optional(),
 });
 export type AuditManifestSample = z.infer<typeof AuditManifestSampleSchema>;
 
@@ -128,6 +150,10 @@ export const StratumSummarySchema = z.object({
   platform: z.string(),
   pageStructureScope: z.string(),
   variantShape: z.string(),
+  // Sampled dimensions carried on the stratum key (fix #4); optional so
+  // previously persisted manifests still validate.
+  familyBucket: z.string().optional(),
+  freshnessBucket: z.string().optional(),
   sampleCount: z.number(),
   freshnessRange: z.object({
     min: z.string(),
@@ -297,6 +323,9 @@ export const ImageContactSheetSchema = z.object({
   sampleId: z.string(),
   url: z.string(),
   domain: z.string(),
+  // Which replay configuration produced this sheet (fix #3: sheets are now
+  // built per configuration, not hybrid-only). Optional for back-compat.
+  configuration: ReplayConfigurationSchema.optional(),
   totalDiscovered: z.number(),
   admittedCount: z.number(),
   rejectedCount: z.number(),
@@ -354,6 +383,10 @@ export const OperatorReviewSurfaceReportSchema = z.object({
   scopeSummaries: z.record(z.string(), ScopeServedRateSummarySchema),
   fieldEvidences: z.array(SampleFieldEvidenceSchema),
   contactSheets: z.array(ImageContactSheetSchema),
+  // Per-configuration contact sheets (fix #3): one sheet per sample per
+  // replay configuration. `contactSheets` is retained as the hybrid-only
+  // convenience view for back-compat. Optional for back-compat.
+  contactSheetsByConfiguration: z.record(ReplayConfigurationSchema, z.array(ImageContactSheetSchema)).optional(),
   markdown: z.string(),
   html: z.string().optional(),
 });
@@ -378,6 +411,29 @@ export type PilotAuditResult = z.infer<typeof PilotAuditResultSchema>;
 // ─────────────────────────────────────────────────────────────────────────────
 // Gate Arithmetic & Promotion Report Schemas (Issue #178 / Gate T5)
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Provenance for a numeric cost column (profile-audit one-pass fixes #5/#6).
+ * - 'measured': read from recorded row data (latencyMs/requestCount) or a
+ *   supplied measured operator-minutes override.
+ * - 'modeled': computed from the documented maintenance/latency formula
+ *   (operator minutes are ALWAYS modeled unless an override is supplied).
+ * - 'unmeasured': no recorded data exists (recordLatency:false, or only
+ *   evidence-gap rows). The numeric column is then a 0 placeholder and MUST
+ *   be rendered as "unmeasured"/evidence-gap, never as a real measurement.
+ */
+export const CostMeasurementProvenanceSchema = z.enum([
+  'measured',
+  'modeled',
+  'unmeasured',
+]);
+export type CostMeasurementProvenance = z.infer<typeof CostMeasurementProvenanceSchema>;
+
+export const OperatorMinutesProvenanceSchema = z.enum([
+  'measured',
+  'modeled',
+]);
+export type OperatorMinutesProvenance = z.infer<typeof OperatorMinutesProvenanceSchema>;
 
 export const ContractPromotionVerdictSchema = z.enum([
   'GO',
@@ -423,6 +479,12 @@ export const ConfigurationCostMetricsSchema = z.object({
   totalRequests: z.number(),
   requestsPerSample: z.number(),
   operatorMinutes: z.number(),
+  // Measurement provenance (fixes #5/#6): numeric cost columns are MEANINGLESS
+  // without knowing whether they were measured, modeled from a formula, or
+  // unmeasured (evidence gap / recordLatency:false). Optional for back-compat.
+  latencyProvenance: CostMeasurementProvenanceSchema.optional(),
+  requestsProvenance: CostMeasurementProvenanceSchema.optional(),
+  operatorMinutesProvenance: OperatorMinutesProvenanceSchema.optional(),
 });
 export type ConfigurationCostMetrics = z.infer<typeof ConfigurationCostMetricsSchema>;
 
@@ -442,6 +504,15 @@ export const ScopeCostMetricsSchema = z.object({
   operatorMinutesSaved: z.number(),
   isMaintenanceBounded: z.boolean(),
   byConfiguration: z.record(ReplayConfigurationSchema, ConfigurationCostMetricsSchema).optional(),
+  // Provenance for the scope-level roll-up (fixes #5/#6). operatorMinutes
+  // is 'measured' only when every configuration used a measured override,
+  // 'modeled' when every configuration used the formula, else 'mixed'.
+  // maintenanceComparisonNote records the like-for-like basis, e.g.
+  // "modeled-vs-modeled". Optional for back-compat.
+  latencyProvenance: CostMeasurementProvenanceSchema.optional(),
+  requestsProvenance: CostMeasurementProvenanceSchema.optional(),
+  operatorMinutesProvenance: z.enum(['measured', 'modeled', 'mixed']).optional(),
+  maintenanceComparisonNote: z.string().optional(),
 });
 export type ScopeCostMetrics = z.infer<typeof ScopeCostMetricsSchema>;
 
@@ -457,6 +528,8 @@ export const DomainCostMetricsSchema = z.object({
   operatorMinutesSaved: z.number(),
   isMaintenanceBounded: z.boolean(),
   byScope: z.record(z.string(), ScopeCostMetricsSchema).optional(),
+  // Like-for-like basis for the domain roll-up (fix #6). Optional for back-compat.
+  maintenanceComparisonNote: z.string().optional(),
 });
 export type DomainCostMetrics = z.infer<typeof DomainCostMetricsSchema>;
 

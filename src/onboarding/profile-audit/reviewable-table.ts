@@ -10,16 +10,17 @@ import type {
   ConfigurationSummary,
   ReplayConfiguration,
 } from '../../shared/schemas/profile-audit';
+import {
+  REPLAY_CONFIGURATIONS,
+  // Canonical display names (shared-metrics.ts, fix #10). Values match the
+  // previously local table headers, so reviewable output is unchanged.
+  CONFIG_DISPLAY_NAMES as configDisplayNames,
+} from './shared-metrics';
 
 export function computeConfigurationSummaries(
   rows: AuditScoredRow[],
 ): Record<ReplayConfiguration, ConfigurationSummary> {
-  const configs: ReplayConfiguration[] = [
-    'current_extraction',
-    'current_strict_images',
-    'structured_only',
-    'hybrid_identity_first',
-  ];
+  const configs: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
   const summaries: Partial<Record<ReplayConfiguration, ConfigurationSummary>> = {};
 
@@ -93,13 +94,6 @@ export function formatReviewableTable(rows: AuditScoredRow[]): string {
     '| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |',
   );
 
-  const configDisplayNames: Record<ReplayConfiguration, string> = {
-    current_extraction: '1. Baseline (Current)',
-    current_strict_images: '2. Current + Strict Images',
-    structured_only: '3. Structured Signals Only',
-    hybrid_identity_first: '4. Hybrid (Identity-First + Strict)',
-  };
-
   for (const [cfg, s] of Object.entries(summaries) as Array<[ReplayConfiguration, ConfigurationSummary]>) {
     const topFailures = Object.entries(s.failureCodeCounts)
       .filter(([code]) => code !== 'NONE')
@@ -164,12 +158,18 @@ export function formatReviewableManifest(manifest: import('../../shared/schemas/
   lines.push(`- **Excluded Distributor Records:** ${meta.totalExcludedDistributorRecords ?? 0}`);
   lines.push(`- **Holdout Families Count:** ${holdoutFamilies.length}`);
   lines.push(`- **Holdout Families Untouched by Tuning:** ${meta.holdoutUntouched ? '✓ Yes' : '✗ No'}`);
+  const independentCount = manifest.samples.filter(s => s.groundTruthSource === 'independent').length;
+  const autoDerivedCount = manifest.samples.length - independentCount;
+  lines.push(`- **Independently Labeled Samples:** ${independentCount} (groundTruthSource='independent'; safe for scoring)`);
+  lines.push(`- **Auto-Derived Samples:** ${autoDerivedCount} (groundTruthSource='auto-derived'; CIRCULAR for scoring — labels lifted from the page bytes under test)`);
+  lines.push('');
+  lines.push("> **Labeling Provenance:** Samples WITHOUT a groundTruthOverrides entry derive labels from the same page bytes under test (JSON-LD/h1/sitemap metadata). Do not report auto-derived wins as independent-label quality — only 'independent' rows carry operator-curated labels.");
   lines.push('');
 
   lines.push('## Claimed Strata');
   lines.push('');
-  lines.push('| Stratum | Platform | Page Structure Scope | Variant Shape | Samples | Freshness Range |');
-  lines.push('| :--- | :---: | :---: | :---: | :---: | :--- |');
+  lines.push('| Stratum | Platform | Page Structure Scope | Variant Shape | Family Bucket | Freshness Bucket | Samples | Freshness Range |');
+  lines.push('| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |');
 
   for (const stratum of claimedStrata) {
     const s = strataSummary[stratum] || {};
@@ -179,7 +179,7 @@ export function formatReviewableManifest(manifest: import('../../shared/schemas/
     const freshRange = minFresh === maxFresh ? minFresh : `${minFresh} .. ${maxFresh}`;
 
     lines.push(
-      `| \`${stratum}\` | ${s.platform ?? 'generic'} | ${s.pageStructureScope ?? 'standard_pdp'} | ${s.variantShape ?? 'single_variant'} | ${count} | ${freshRange} |`,
+      `| \`${stratum}\` | ${s.platform ?? 'generic'} | ${s.pageStructureScope ?? 'standard_pdp'} | ${s.variantShape ?? 'single_variant'} | ${s.familyBucket ?? '—'} | ${s.freshnessBucket ?? '—'} | ${count} | ${freshRange} |`,
     );
   }
 
@@ -194,8 +194,8 @@ export function formatReviewableManifest(manifest: import('../../shared/schemas/
 
   lines.push('## Stratified Samples Inventory');
   lines.push('');
-  lines.push('| Sample ID | Stratum | Type | Product Family | Holdout? | Platform | Freshness | Artifact |');
-  lines.push('| :--- | :--- | :---: | :--- | :---: | :---: | :--- | :---: |');
+  lines.push('| Sample ID | Stratum | Type | Product Family | Holdout? | Platform | Freshness | Ground Truth | Artifact |');
+  lines.push('| :--- | :--- | :---: | :--- | :---: | :--- | :---: | :---: | :---: |');
 
   for (const sample of manifest.samples) {
     const sampleTypeLabel = sample.sampleType === 'confirmed_profile_sample' || sample.inventoryStatus === 'confirmed'
@@ -210,9 +210,10 @@ export function formatReviewableManifest(manifest: import('../../shared/schemas/
     const artifactBadge = sample.artifactRef ? '✓ Available' : '⚠ Missing (Gap)';
     const family = sample.productFamily || 'N/A';
     const freshness = sample.captureFreshness || 'missing';
+    const gtBadge = sample.groundTruthSource === 'independent' ? '✓ independent' : '○ auto-derived (circular)';
 
     lines.push(
-      `| ${sample.sampleId} | \`${sample.stratum}\` | ${sampleTypeLabel} | ${family} | ${holdoutBadge} | ${sample.platform ?? 'generic'} | ${freshness} | ${artifactBadge} |`,
+      `| ${sample.sampleId} | \`${sample.stratum}\` | ${sampleTypeLabel} | ${family} | ${holdoutBadge} | ${sample.platform ?? 'generic'} | ${freshness} | ${gtBadge} | ${artifactBadge} |`,
     );
   }
 

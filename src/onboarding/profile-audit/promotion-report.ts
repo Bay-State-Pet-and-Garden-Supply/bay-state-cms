@@ -20,16 +20,8 @@ import type {
 } from '../../shared/schemas/profile-audit';
 import type { GateArithmeticOptions } from './types';
 import { evaluateGateArithmetic } from './gate-arithmetic';
-
-function sanitizeCell(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/\|/g, '\\|')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\r?\n/g, ' ')
-    .trim();
-}
+// sanitizeCell: single source of truth in shared-metrics.ts (fix #9).
+import { sanitizeCell } from './shared-metrics';
 
 export function formatPromotionVerdictBadge(verdict: ContractPromotionVerdict): string {
   switch (verdict) {
@@ -64,8 +56,13 @@ export function formatScopePromotionTable(verdicts: Record<string, ScopePromotio
       : `▼ ${(v.servedRateDelta * 100).toFixed(1)}%`;
 
     const ciStr = `±${(v.servedRate.uncertainty * 100).toFixed(1)}%`;
-    const latencyStr = `${v.costMetrics.baselineLatencyMs.toFixed(0)}ms → ${v.costMetrics.hybridLatencyMs.toFixed(0)}ms`;
-    const reqStr = `${v.costMetrics.hybridRequestsPerSample.toFixed(1)}/sample`;
+    // Unmeasured cost columns (fix #5) render as "unmeasured" — never fiat.
+    const latencyStr = v.costMetrics.latencyProvenance === 'unmeasured'
+      ? 'unmeasured'
+      : `${v.costMetrics.baselineLatencyMs.toFixed(0)}ms → ${v.costMetrics.hybridLatencyMs.toFixed(0)}ms`;
+    const reqStr = v.costMetrics.requestsProvenance === 'unmeasured'
+      ? 'unmeasured'
+      : `${v.costMetrics.hybridRequestsPerSample.toFixed(1)}/sample`;
     const opMinsStr = `${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m → ${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m`;
     const verdictBadge = formatPromotionVerdictBadge(v.verdict);
 
@@ -180,11 +177,23 @@ export function formatCostAnalysisTable(
   // Per-Scope Rows
   for (const [scopeKey, v] of Object.entries(verdicts)) {
     const c = v.costMetrics;
-    const deltaMsStr = c.latencyDeltaMs >= 0 ? `+${c.latencyDeltaMs.toFixed(0)}ms` : `${c.latencyDeltaMs.toFixed(0)}ms`;
+    // Unmeasured columns (fix #5) render as "unmeasured", never fiat numbers.
+    const scopeUnmeasured = c.latencyProvenance === 'unmeasured';
+    const baseLatStr = scopeUnmeasured ? 'unmeasured' : `${c.baselineLatencyMs.toFixed(0)}ms`;
+    const hybLatStr = scopeUnmeasured ? 'unmeasured' : `${c.hybridLatencyMs.toFixed(0)}ms`;
+    const deltaMsStr = scopeUnmeasured
+      ? 'unmeasured'
+      : (c.latencyDeltaMs >= 0 ? `+${c.latencyDeltaMs.toFixed(0)}ms` : `${c.latencyDeltaMs.toFixed(0)}ms`);
     const boundedBadge = c.isMaintenanceBounded ? '✅ Bounded' : '⛔ Unbounded';
+    const baseReqStr = c.requestsProvenance === 'unmeasured'
+      ? 'unmeasured'
+      : `${c.baselineTotalRequests} (${c.baselineRequestsPerSample.toFixed(1)}/s)`;
+    const hybReqStr = c.requestsProvenance === 'unmeasured'
+      ? 'unmeasured'
+      : `${c.hybridTotalRequests} (${c.hybridRequestsPerSample.toFixed(1)}/s)`;
 
     lines.push(
-      `| \`${scopeKey}\` | ${c.baselineLatencyMs.toFixed(0)}ms | ${c.hybridLatencyMs.toFixed(0)}ms | ${deltaMsStr} | ${c.baselineTotalRequests} (${c.baselineRequestsPerSample.toFixed(1)}/s) | ${c.hybridTotalRequests} (${c.hybridRequestsPerSample.toFixed(1)}/s) | ${c.baselineOperatorMinutes.toFixed(1)}m | ${c.hybridOperatorMinutes.toFixed(1)}m | **${c.operatorMinutesSaved.toFixed(1)}m** | ${boundedBadge} |`,
+      `| \`${scopeKey}\` | ${baseLatStr} | ${hybLatStr} | ${deltaMsStr} | ${baseReqStr} | ${hybReqStr} | ${c.baselineOperatorMinutes.toFixed(1)}m | ${c.hybridOperatorMinutes.toFixed(1)}m | **${c.operatorMinutesSaved.toFixed(1)}m** | ${boundedBadge} |`,
     );
   }
 
@@ -198,6 +207,29 @@ export function formatCostAnalysisTable(
     `| **DOMAIN TOTAL: \`${d.domain}\`** | **${d.baselineLatencyMs.toFixed(0)}ms** | **${d.hybridLatencyMs.toFixed(0)}ms** | **${dDeltaStr}** | **${d.baselineTotalRequests}** | **${d.hybridTotalRequests}** | **${d.baselineOperatorMinutes.toFixed(1)}m** | **${d.hybridOperatorMinutes.toFixed(1)}m** | **${d.operatorMinutesSaved.toFixed(1)}m** | **${dBoundedBadge}** |`,
   );
 
+  // Provenance footnotes (fixes #5/#6): like-for-like maintenance basis plus
+  // unmeasured-column notes. Additive lines only — table headers above are
+  // unchanged.
+  const provenanceNotes = new Set<string>();
+  for (const v of Object.values(verdicts)) {
+    if (v.costMetrics.maintenanceComparisonNote) {
+      provenanceNotes.add(`${v.scope}: ${v.costMetrics.maintenanceComparisonNote}`);
+    }
+    if (v.costMetrics.latencyProvenance === 'unmeasured') {
+      provenanceNotes.add(`${v.scope}: latency unmeasured (no recorded timing; replay with recordLatency:true to measure)`);
+    }
+    if (v.costMetrics.requestsProvenance === 'unmeasured') {
+      provenanceNotes.add(`${v.scope}: requests unmeasured (no recorded counts)`);
+    }
+  }
+  if (domainMetrics.maintenanceComparisonNote) {
+    provenanceNotes.add(`domain: ${domainMetrics.maintenanceComparisonNote}`);
+  }
+  if (provenanceNotes.size > 0) {
+    lines.push('> **Measurement Provenance:** ' + Array.from(provenanceNotes).join('; '));
+    lines.push('');
+  }
+
   lines.push('');
   return lines.join('\n');
 }
@@ -206,13 +238,20 @@ export function formatCostAnalysisTable(
 // Full Promotion Report Generator
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function generatePromotionReport(options: {
+export function generatePromotionReport(args: {
   manifest: AuditManifest;
   rows: AuditScoredRow[];
+  /** Flat gate options (preferred; fix #12 — replaces the confusing `{ options: { options } }` nesting). */
+  gateOptions?: GateArithmeticOptions;
+  /**
+   * @deprecated Alias for gateOptions, kept for back-compat with existing
+   * `{ manifest, rows, options }` callers.
+   */
   options?: GateArithmeticOptions;
 }): PerScopePromotionReport {
-  const { manifest, rows } = options;
-  const gateResult = evaluateGateArithmetic(manifest.samples, rows, options.options);
+  const { manifest, rows } = args;
+  const gateOpts = args.gateOptions ?? args.options;
+  const gateResult = evaluateGateArithmetic(manifest.samples, rows, gateOpts);
 
   const mdParts: string[] = [];
   mdParts.push(`# Profile Extraction Audit Gate: Per-Scope Promotion Report`);

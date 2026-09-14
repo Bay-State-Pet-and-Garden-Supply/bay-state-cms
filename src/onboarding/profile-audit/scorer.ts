@@ -9,7 +9,10 @@
  * 4. Machine-readable failure codes.
  * 5. Evidence gaps tracked explicitly, never as parser failures.
  *
- * Deterministic: same inputs in, same scored row out.
+ * Deterministic: same inputs in, same scored row out — EXCLUDING wall-clock
+ * latencyMs (fix #8). latencyMs is transport timing passthrough from the
+ * replay runner; determinism comparisons MUST use
+ * getDeterministicScoredRowIdentity() (shared-metrics.ts), which strips it.
  */
 
 import type {

@@ -717,4 +717,72 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       expect(abstTable).toContain('| Scope | Evidence Gaps (Base → Hyb) | Attempted (Base → Hyb) | Served Rate (Base → Hyb) | Gaming Detected? | Audit Details |');
     });
   });
+
+  describe('Round-2 fix-pass seams: determinism identity, unmeasured costs, buckets, overrides', () => {
+    it('excludes wall-clock latencyMs from deterministic scored-row identity (fix #8)', async () => {
+      const { getDeterministicScoredRowIdentity } = await import('../../onboarding/profile-audit/shared-metrics');
+      const sample = createSample('s-idem', 'standard_pdp');
+      const [baseline] = createRowsForSample(sample);
+      const withLatency: AuditScoredRow = { ...baseline, latencyMs: 123.4 };
+      const withoutLatency: AuditScoredRow = { ...baseline, latencyMs: undefined };
+      const otherLatency: AuditScoredRow = { ...baseline, latencyMs: 987.1 };
+      expect(getDeterministicScoredRowIdentity(withLatency)).toBe(
+        getDeterministicScoredRowIdentity(withoutLatency),
+      );
+      expect(getDeterministicScoredRowIdentity(withLatency)).toBe(
+        getDeterministicScoredRowIdentity(otherLatency),
+      );
+    });
+
+    it("marks latency unmeasured and renders 'unmeasured' when rows carry no timing (fix #5)", () => {
+      const sample = createSample('s-unmeas', 'standard_pdp');
+      const rows: AuditScoredRow[] = createRowsForSample(sample).map(r => ({
+        ...r,
+        latencyMs: undefined,
+        requestCount: undefined,
+      }));
+      const cost = computeScopeCostMetrics('standard_pdp', 'example.com', [sample], rows);
+      expect(cost.latencyProvenance).toBe('unmeasured');
+      expect(cost.byConfiguration?.current_extraction.meanLatencyMs).toBe(0);
+      const gateResult = evaluateGateArithmetic([sample], rows, { minSamplesForPromote: 1 });
+      expect(formatScopePromotionTable(gateResult.verdictsByScope)).toContain('unmeasured');
+    });
+
+    it("maps missing/unparseable freshness to the freshness-unknown bucket (fix #4)", async () => {
+      const { getFreshnessBucket, getFamilyBucket } = await import('../../onboarding/profile-audit/shared-metrics');
+      expect(getFreshnessBucket(null)).toBe('freshness-unknown');
+      expect(getFreshnessBucket(undefined)).toBe('freshness-unknown');
+      expect(getFreshnessBucket('not-a-date')).toBe('freshness-unknown');
+      expect(getFreshnessBucket('2026-08-20T12:00:00.000Z')).toBe('freshness-2026-q3');
+      expect(getFamilyBucket('dog-shampoo')).toBe(getFamilyBucket('dog-shampoo'));
+    });
+
+    it("reports measured operator-minutes provenance only with an explicit override (fix #6)", () => {
+      const sample = createSample('s-opmins', 'standard_pdp');
+      const rows = createRowsForSample(sample);
+      const modeled = computeScopeCostMetrics('standard_pdp', 'example.com', [sample], rows);
+      expect(modeled.operatorMinutesProvenance).toBe('modeled');
+      const measured = computeScopeCostMetrics('standard_pdp', 'example.com', [sample], rows, {
+        operatorMinutesOverride: {
+          'example.com': {
+            current_extraction: 4.5,
+            current_strict_images: 4.0,
+            structured_only: 2.0,
+            hybrid_identity_first: 3.0,
+          },
+        },
+      });
+      expect(measured.operatorMinutesProvenance).toBe('measured');
+      expect(measured.byConfiguration?.current_extraction.operatorMinutes).toBe(4.5);
+    });
+
+    it('accepts gateOptions and the deprecated options alias identically (fix #12)', () => {
+      const sample = createSample('s-alias', 'standard_pdp');
+      const rows = createRowsForSample(sample);
+      const manifest = { domain: 'example.com', generatedAt: '2026-09-01T00:00:00Z', samples: [sample] };
+      const viaGateOptions = generatePromotionReport({ manifest, rows, gateOptions: { minSamplesForPromote: 1 } });
+      const viaAlias = generatePromotionReport({ manifest, rows, options: { minSamplesForPromote: 1 } });
+      expect(viaAlias.overallContractVerdict).toBe(viaGateOptions.overallContractVerdict);
+    });
+  });
 });

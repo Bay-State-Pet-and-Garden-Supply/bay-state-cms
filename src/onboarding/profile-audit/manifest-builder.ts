@@ -6,9 +6,13 @@
  * - Domain
  * - Page-structure scope (standard_pdp, variant_matrix_pdp, long_tail_pdp, profile_blocked_pdp, failure_pdp)
  * - Platform (shopify, woocommerce, bigcommerce, magento, nextjs, nuxt, generic)
- * - Product family (via name stem + brand normalization)
+ * - Product family bucket (sampled dimension; holdout partition still hashes
+ *   the full family id via splitForFamily)
  * - Variant shape (single_variant, multi_variant, multi_axis_variant)
- * - Capture freshness (guaranteed per sample)
+ * - Capture freshness bucket (sampled dimension; per-sample ISO freshness
+ *   is still recorded on every sample)
+ *
+ * Stratum key: domain:platform:scope:variantShape:familyBucket:freshnessBucket.
  *
  * Core Guarantees:
  * - Every claimed stratum present with freshness recorded per sample.
@@ -29,6 +33,7 @@ import type {
 } from '../../shared/schemas/profile-audit';
 import type { BuildStratifiedManifestOptions } from './types';
 import { normalizeDomain } from '../../db/repositories/brand-url-index-repo';
+import { getFamilyBucket, getFreshnessBucket } from './shared-metrics';
 import { detectPlatform } from '../extraction-ladder/platforms';
 import { parseVariantMatrix } from '../variant-resolver';
 import { normalizeBrand, extractNameStem } from '../product-line-grouper';
@@ -120,7 +125,10 @@ export function detectPlatformFromHtmlOrUrl(html: string | null, url: string): s
     if (ladderPlatform !== 'generic') return ladderPlatform;
     if (/window\.bcvariants\b|window\.BCData\b/i.test(html)) return 'bigcommerce';
     if (/["']jsonConfig["']|jsonConfig\s*=/i.test(html)) return 'magento';
-    if (/"@type"\s*:\s*"Product"/i.test(html)) return 'jsonld';
+    // JSON-LD-only pages carry no ladder platform signal: report 'generic' so
+    // no phantom 'jsonld' stratum is created (spec T2 platform list has no
+    // 'jsonld' entry). Structured signals are still consumed by scoring.
+    if (/"@type"\s*:\s*"Product"/i.test(html)) return 'generic';
     return 'generic';
   }
   const lower = url.toLowerCase();
@@ -252,6 +260,10 @@ export function splitForFamily(
 }
 
 export function normalizeFreshness(rawDate: string | null | undefined): string {
+  // NOTE (round-2 P1): the wall-clock fallback below is DISPLAY-ONLY for the
+  // per-sample recorded freshness. It MUST NOT feed sampling: the stratum
+  // freshness bucket derives from the raw value via getFreshnessBucket()
+  // (missing → 'freshness-unknown'), keeping strata date-independent.
   if (!rawDate) return new Date().toISOString();
   try {
     const d = new Date(rawDate);
@@ -269,6 +281,11 @@ export function deriveDefaultGroundTruth(
   domainHint?: string,
   urlMetadata?: { title?: string | null; brand?: string | null; upc?: string | null; sku?: string | null },
 ): AuditGroundTruth {
+  // NOTE (labeling provenance, fix #2): everything derived here comes from the
+  // SAME page bytes under test (JSON-LD/h1/sitemap metadata). Callers MUST set
+  // groundTruthSource='auto-derived' for these rows unless an independent
+  // groundTruthOverrides entry was supplied — scoring against auto-derived
+  // labels is circular (self-consistency, not extraction quality).
   let title = urlMetadata?.title?.trim() || '';
   let brand = urlMetadata?.brand?.trim() || '';
   let sku: string | null = urlMetadata?.sku?.trim() || null;
@@ -377,6 +394,9 @@ interface PreparedCandidate extends RawCandidateRecord {
   freshness: string;
   stratum: string;
   groundTruth: AuditGroundTruth;
+  groundTruthSource: 'independent' | 'auto-derived';
+  familyBucket: string;
+  freshnessBucket: string;
   isHoldout?: boolean;
 }
 
@@ -538,24 +558,32 @@ export async function buildFullStratifiedManifest(
         }
       }
     } else {
+      // Repository pattern (AGENTS.md): brand URL inventory is read through
+      // brand-url-index-repo (URL enumeration via getActiveUrlsForDomain plus
+      // metadata via findUrlsByDomain) — never raw getDb().query() here.
+      // A missing/uninitialized DB degrades to an empty candidate list;
+      // snapshots and explicit candidateUrls still apply below.
       try {
-        const { getDb } = await import('../../db/connection');
-        const db = getDb();
-        const rows = db.query(
-          `SELECT url, lastmod, title, brand, upc, sku
-           FROM brand_url_index
-           WHERE domain = ? AND page_type = 'product' AND active = 1`,
-        ).all(normDomain) as any[];
-        for (const row of rows) {
-          if (!row.url || isNonProductPath(row.url)) continue;
-          candidateList.push(row.url);
-          candidateMetaMap.set(row.url.toLowerCase(), {
-            url: row.url,
-            lastmod: row.lastmod,
-            title: row.title,
-            brand: row.brand,
-            upc: row.upc,
-            sku: row.sku,
+        const brandUrlRepo = await import('../../db/repositories/brand-url-index-repo');
+        const activeUrls = brandUrlRepo.getActiveUrlsForDomain(normDomain, 'product');
+        const { urls: records } = brandUrlRepo.findUrlsByDomain(normDomain, {
+          pageType: 'product',
+          activeOnly: true,
+          limit: 50000,
+          offset: 0,
+        });
+        const metaByUrl = new Map(records.map(r => [r.url.toLowerCase(), r]));
+        for (const url of activeUrls) {
+          if (!url || isNonProductPath(url)) continue;
+          const rec = metaByUrl.get(url.toLowerCase());
+          candidateList.push(url);
+          candidateMetaMap.set(url.toLowerCase(), {
+            url,
+            lastmod: rec?.lastmod ?? null,
+            title: rec?.title ?? null,
+            brand: rec?.brand ?? null,
+            upc: rec?.upc ?? null,
+            sku: rec?.sku ?? null,
           });
         }
       } catch {
@@ -577,16 +605,18 @@ export async function buildFullStratifiedManifest(
     }
 
     // Also enrich with brand_url_index if available and not yet fetched
+    // (repository pattern: findUrlsByDomain covers all page types here,
+    // matching the previous unfiltered enrichment query).
     if (options.candidateUrls) {
       try {
-        const { getDb } = await import('../../db/connection');
-        const db = getDb();
-        const rows = db.query(
-          `SELECT url, lastmod, title, brand, upc, sku
-           FROM brand_url_index
-           WHERE domain = ?`,
-        ).all(normDomain) as any[];
-        for (const r of rows) {
+        const { findUrlsByDomain } = await import('../../db/repositories/brand-url-index-repo');
+        const { urls: records } = findUrlsByDomain(normDomain, {
+          pageType: 'all',
+          activeOnly: false,
+          limit: 50000,
+          offset: 0,
+        });
+        for (const r of records) {
           const lower = r.url.toLowerCase();
           const existing = candidateMetaMap.get(lower);
           if (existing) {
@@ -656,28 +686,38 @@ export async function buildFullStratifiedManifest(
       });
     }
 
-    // Add Onboarding Items (filtering distributor records, capturing blocked items)
+    // Add Onboarding Items (filtering distributor records, capturing blocked items).
+    // Repository pattern (AGENTS.md): items are read through the onboarding
+    // repositories (singleton workspace -> listBatches -> listItemsByBatch) —
+    // never raw getDb().query() here. A missing/uninitialized DB degrades to
+    // an empty item list; suite/candidate/snapshot sources still apply.
     let onboardingItems = options.onboardingItems;
     if (!onboardingItems) {
       try {
-        const { getDb } = await import('../../db/connection');
-        const db = getDb();
-        const rows = db.query(
-          `SELECT id, source_url, name, brand_hint, source_type, stage, stage_status, error_message, updated_at, created_at
-           FROM onboarding_items`,
-        ).all() as any[];
-        onboardingItems = rows.map(r => ({
-          id: r.id,
-          sourceUrl: r.source_url,
-          name: r.name,
-          brandHint: r.brand_hint,
-          sourceType: r.source_type,
-          stage: r.stage,
-          stageStatus: r.stage_status,
-          errorMessage: r.error_message,
-          updatedAt: r.updated_at,
-          createdAt: r.created_at,
-        }));
+        const { getServerSingletonWorkspace } = await import('../../db/repositories/workspace-singleton');
+        const { listBatches } = await import('../../db/repositories/onboarding-batch-repo');
+        const { listItemsByBatch } = await import('../../db/repositories/onboarding-item-repo');
+        const collected: NonNullable<typeof options.onboardingItems> = [];
+        const ws = getServerSingletonWorkspace();
+        if (ws) {
+          for (const batch of listBatches(ws.id)) {
+            for (const it of listItemsByBatch(batch.id)) {
+              collected.push({
+                id: it.id,
+                sourceUrl: it.sourceUrl ?? null,
+                name: it.name,
+                brandHint: it.brandHint ?? null,
+                sourceType: it.sourceType,
+                stage: it.stage,
+                stageStatus: it.stageStatus,
+                errorMessage: it.errorMessage ?? null,
+                updatedAt: it.updatedAt,
+                createdAt: it.createdAt,
+              });
+            }
+          }
+        }
+        onboardingItems = collected;
       } catch {
         onboardingItems = [];
       }
@@ -853,7 +893,23 @@ export async function buildFullStratifiedManifest(
       item.domain,
     );
 
-    const stratum = `${item.domain}:${platform}:${pageStructureScope}:${variantShape}`;
+    // Labeling provenance (fix #2): only samples with an explicit operator
+    // override carry independent labels; everything else is auto-derived from
+    // the page bytes under test and therefore circular for scoring.
+    const groundTruthSource = options.groundTruthOverrides?.[item.url] !== undefined
+      ? 'independent' as const
+      : 'auto-derived' as const;
+
+    // Sampled stratum dimensions (fix #4): family + freshness buckets join the
+    // stratum key so they are sampling guarantees, not just recorded fields.
+    // NOTE (round-2 P1): the bucket MUST derive from the RAW recorded freshness
+    // (item.rawFreshness), never from normalizeFreshness()'s wall-clock fallback
+    // for missing dates — otherwise the same inventory built on different days
+    // lands in different freshness-YYYY-qN buckets (non-deterministic strata).
+    // getFreshnessBucket maps missing/unparseable input to 'freshness-unknown'.
+    const familyBucket = getFamilyBucket(productFamily);
+    const freshnessBucket = getFreshnessBucket(item.rawFreshness);
+    const stratum = `${item.domain}:${platform}:${pageStructureScope}:${variantShape}:${familyBucket}:${freshnessBucket}`;
 
     preparedCandidates.push({
       ...item,
@@ -864,6 +920,9 @@ export async function buildFullStratifiedManifest(
       freshness,
       stratum,
       groundTruth,
+      groundTruthSource,
+      familyBucket,
+      freshnessBucket,
     });
   }
 
@@ -973,10 +1032,13 @@ export async function buildFullStratifiedManifest(
         hasSupplementalArtifact: c.snapshot ? c.snapshot.hasSupplemental : false,
         captureFreshness: c.freshness,
         groundTruth: c.groundTruth,
+        groundTruthSource: c.groundTruthSource,
         pageStructureScope: c.pageStructureScope,
         platform: c.platform,
         productFamily: c.productFamily,
         variantShape: c.variantShape,
+        familyBucket: c.familyBucket,
+        freshnessBucket: c.freshnessBucket,
         isHoldout,
         holdoutFamilyName,
         isProfileBlocked: c.isProfileBlocked,
@@ -991,6 +1053,8 @@ export async function buildFullStratifiedManifest(
       platform: chosen[0].platform,
       pageStructureScope: chosen[0].pageStructureScope,
       variantShape: chosen[0].variantShape,
+      familyBucket: chosen[0].familyBucket,
+      freshnessBucket: chosen[0].freshnessBucket,
       sampleCount: chosen.length,
       freshnessRange: {
         min: minDate.toISOString(),
