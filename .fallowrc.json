@@ -11,7 +11,8 @@
     "scratch/**",
     ".pi-subagents/**",
     ".agents/**",
-    ".fallow/**"
+    ".fallow/**",
+    ".github/skills/**"
   ],
   "dynamicallyLoaded": [
     "src/client/components/GeneratedProfilesPanel.tsx",
