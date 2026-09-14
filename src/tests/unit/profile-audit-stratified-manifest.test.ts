@@ -14,6 +14,7 @@ import {
   isNonProductPath,
 } from '../../onboarding/profile-audit';
 import { replaySample } from '../../onboarding/profile-audit/replay-runner';
+import { closeDb, isDbInitialized } from '../../db/connection';
 
 describe('profile audit gate T2: full stratified sampling manifest', () => {
   let tempDir: string;
@@ -729,6 +730,99 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
       const derived = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/chew-toy');
       expect(overridden?.groundTruthSource).toBe('independent');
       expect(derived?.groundTruthSource).toBe('auto-derived');
+    });
+
+    it('pins DB-missing degradation contract: resolves without throwing and yields zero DB candidates with exclusions/blocks accounting intact (Issue #181)', async () => {
+      // Ensure the database is unavailable/closed
+      closeDb();
+      expect(isDbInitialized()).toBe(false);
+
+      const emptyArtifactDir = join(tempDir, 'empty-db-fallback-artifacts');
+      mkdirSync(emptyArtifactDir, { recursive: true });
+
+      // 1. Pure DB-backed sources: suiteUrls, candidateUrls, and onboardingItems omitted.
+      // The representative-suite read, brand-url-index reads, and onboarding-items read
+      // each encounter an uninitialized DB, catch the error, and degrade to empty lists.
+      const manifest = await buildFullStratifiedManifest({
+        domain: 'db-missing-fallback.com',
+        artifactRoot: emptyArtifactDir,
+      });
+
+      expect(manifest).toBeDefined();
+      expect(manifest.samples).toHaveLength(0);
+      const meta = manifest.metadata as Record<string, any>;
+      expect(meta).toBeDefined();
+      expect(meta.totalConfirmed).toBe(0);
+      expect(meta.totalCandidates).toBe(0);
+      expect(meta.totalBlocked).toBe(0);
+      expect(meta.totalExcludedDistributorRecords).toBe(0);
+      expect(meta.totalSnapshotsDiscovered).toBe(0);
+      expect(meta.claimedStrata).toEqual([]);
+      expect(meta.holdoutUntouched).toBe(true);
+
+      // 2. DB unavailable, but non-DB candidateUrls and onboardingItems supplied.
+      // brand-url-index enrichment try/catch degrades gracefully, while distributor-record
+      // exclusions and profile-blocked accounting remain completely intact.
+      // Uses a fixed freshness timestamp so test does not depend on wall-clock dates.
+      const fixedDate = '2026-08-20T12:00:00.000Z';
+      const manifestWithExplicit = await buildFullStratifiedManifest({
+        domain: 'db-missing-fallback.com',
+        artifactRoot: emptyArtifactDir,
+        candidateUrls: ['https://db-missing-fallback.com/products/candidate-item'],
+        sitemapLastmods: {
+          'https://db-missing-fallback.com/products/candidate-item': fixedDate,
+        },
+        onboardingItems: [
+          {
+            id: 'item-dist',
+            sourceUrl: 'https://db-missing-fallback.com/products/distributor-item',
+            name: 'Distributor Item',
+            sourceType: 'distributor_record',
+            stage: 'sourcing',
+            stageStatus: 'ready',
+            createdAt: fixedDate,
+            updatedAt: fixedDate,
+          },
+          {
+            id: 'item-blocked',
+            sourceUrl: 'https://db-missing-fallback.com/products/blocked-item',
+            name: 'Blocked Item',
+            sourceType: 'official_page',
+            stage: 'extraction',
+            stageStatus: 'failed',
+            errorMessage: 'profile_blocked: no selector matched',
+            createdAt: fixedDate,
+            updatedAt: fixedDate,
+          },
+        ],
+      });
+
+      expect(manifestWithExplicit).toBeDefined();
+      const explicitMeta = manifestWithExplicit.metadata as Record<string, any>;
+      expect(explicitMeta).toBeDefined();
+      // Candidate + blocked item are included; distributor item is excluded
+      expect(manifestWithExplicit.samples.length).toBe(2);
+      expect(explicitMeta.totalExcludedDistributorRecords).toBe(1);
+      expect(explicitMeta.totalBlocked).toBe(1);
+      expect(explicitMeta.totalCandidates).toBe(1);
+      expect(explicitMeta.totalConfirmed).toBe(0);
+
+      // Deterministic freshness bucket pinned without wall-clock dependency
+      const candidateSample = manifestWithExplicit.samples.find(
+        s => s.url === 'https://db-missing-fallback.com/products/candidate-item',
+      );
+      expect(candidateSample).toBeDefined();
+      expect(candidateSample?.captureFreshness).toBe(fixedDate);
+      expect(candidateSample?.freshnessBucket).toBe('freshness-2026-q3');
+
+      const blockedSample = manifestWithExplicit.samples.find(
+        s => s.url === 'https://db-missing-fallback.com/products/blocked-item',
+      );
+      expect(blockedSample).toBeDefined();
+      expect(blockedSample?.isProfileBlocked).toBe(true);
+      expect(blockedSample?.pageStructureScope).toBe('profile_blocked_pdp');
+      expect(blockedSample?.captureFreshness).toBe(fixedDate);
+      expect(blockedSample?.freshnessBucket).toBe('freshness-2026-q3');
     });
   });
 });
