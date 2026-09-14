@@ -17,12 +17,21 @@ import {
   cleanAndDeduplicateImages,
 } from '../image-utils';
 
+export type StrictImageCandidate =
+  | string
+  | {
+      url: string;
+      source?: string;
+      role?: 'primary' | 'gallery';
+    };
+
 export interface StrictImageFilterInput {
-  images: string[];
+  images: StrictImageCandidate[];
   baseUrl: string;
   variantMatrix?: VariantMatrix | null;
   selectedVariantKey?: string | null;
   maxImages?: number;
+  customPrimaryImage?: string | null;
 }
 
 export interface StrictImageFilterResult {
@@ -37,10 +46,10 @@ const DEFAULT_MAX_IMAGES = 12;
 // Patterns indicating non-product role/decorative graphics
 const REJECT_ROLE_PATTERNS = [
   /[-_/]icon[-_.]/i,
-  /\/icons\//i,
+  /\/icons?\//i,
   /favicon/i,
   /[-_/]badge[-_.]/i,
-  /\/badges\//i,
+  /\/badges?\//i,
   /[-_/]seal[-_.]/i,
   /[-_/]logo[-_.]/i,
   /\/logos?\//i,
@@ -60,6 +69,10 @@ const REJECT_ROLE_PATTERNS = [
   /star[-_]rating/i,
   /promobar/i,
   /free[-_]shipping/i,
+  /banner[-_.]/i,
+  /[-_/]swatch[-_.]/i,
+  /\/swatches?\//i,
+  /color[-_]swatch/i,
 ];
 
 export function isRoleRejectedImage(urlStr: string): boolean {
@@ -78,42 +91,94 @@ export function isRoleRejectedImage(urlStr: string): boolean {
 }
 
 export function applyStrictImageFilter(input: StrictImageFilterInput): StrictImageFilterResult {
-  const { images, baseUrl, variantMatrix, selectedVariantKey, maxImages = DEFAULT_MAX_IMAGES } = input;
+  const {
+    images,
+    baseUrl,
+    variantMatrix,
+    selectedVariantKey,
+    maxImages = DEFAULT_MAX_IMAGES,
+    customPrimaryImage,
+  } = input;
 
   const rejectedImages: string[] = [];
   const rejectionReasons: Record<string, string> = {};
 
-  // Build variant image lookup if matrix is present
+  // Normalize inputs to candidate objects
+  let preferredPrimaryCanon: string | null = null;
+  if (customPrimaryImage) {
+    preferredPrimaryCanon = canonicalizeUrl(customPrimaryImage, baseUrl);
+  }
+
+  const normalizedCandidates: Array<{ url: string; role?: 'primary' | 'gallery' }> = [];
+  for (const item of images) {
+    if (!item) continue;
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed) normalizedCandidates.push({ url: trimmed });
+    } else if (typeof item === 'object' && item.url) {
+      const trimmed = item.url.trim();
+      if (trimmed) {
+        normalizedCandidates.push({ url: trimmed, role: item.role });
+        if (item.role === 'primary' && !preferredPrimaryCanon) {
+          preferredPrimaryCanon = canonicalizeUrl(trimmed, baseUrl);
+        }
+      }
+    }
+  }
+
+  // Build variant image lookup and detect proven shared-product images across all variants
   const selectedVariantCanonicals = new Set<string>();
   const otherVariantCanonicals = new Set<string>();
+  const candidateImageSets: Array<Set<string>> = [];
 
   if (variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 0) {
     for (const candidate of variantMatrix.candidates) {
       const isSelected = selectedVariantKey ? candidate.variantKey === selectedVariantKey : false;
-      const candidateImages = (candidate.images || []).map(img => typeof img === 'string' ? img : img.url);
+      const candidateImages = (candidate.images || []).map(img =>
+        typeof img === 'string' ? img : img.url,
+      );
+      const thisCandidateSet = new Set<string>();
 
       for (const imgUrl of candidateImages) {
         if (!imgUrl) continue;
         const canon = canonicalizeUrl(imgUrl, baseUrl);
+        thisCandidateSet.add(canon);
         if (isSelected) {
           selectedVariantCanonicals.add(canon);
         } else {
           otherVariantCanonicals.add(canon);
         }
       }
+      if (thisCandidateSet.size > 0) {
+        candidateImageSets.push(thisCandidateSet);
+      }
     }
-    // Remove canonicals from otherVariants if they are shared with selected variant
+
+    // Proven shared-product images: present in all candidates with images
+    const provenSharedCanonicals = new Set<string>();
+    if (candidateImageSets.length > 1) {
+      for (const canon of candidateImageSets[0]) {
+        if (candidateImageSets.every(s => s.has(canon))) {
+          provenSharedCanonicals.add(canon);
+        }
+      }
+    }
+
+    // Remove from otherVariantCanonicals if they are shared with selected variant or proven shared
     for (const canon of selectedVariantCanonicals) {
+      otherVariantCanonicals.delete(canon);
+    }
+    for (const canon of provenSharedCanonicals) {
       otherVariantCanonicals.delete(canon);
     }
   }
 
-  // Step 1: Pre-filter usable and role
-  const candidateUrls: string[] = [];
+  // Step 1: Filter usability, role, and variant qualification
+  const passedCandidateUrls: string[] = [];
+  const seenPassedCanonicals = new Set<string>();
 
-  for (const img of images) {
-    if (!img || typeof img !== 'string') continue;
-    const trimmed = img.trim();
+  for (const candidate of normalizedCandidates) {
+    const trimmed = candidate.url;
     if (!isUsableImageSource(trimmed)) {
       rejectedImages.push(trimmed);
       rejectionReasons[trimmed] = 'not_usable';
@@ -134,13 +199,38 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
       continue;
     }
 
-    candidateUrls.push(trimmed);
+    passedCandidateUrls.push(trimmed);
+    seenPassedCanonicals.add(canon);
   }
 
-  // Step 3 & 4: Safe deduplication across resolution variations
-  const deduped = cleanAndDeduplicateImages(candidateUrls, baseUrl);
+  // Step 3: Safe deduplication across resolution variations
+  const deduped = cleanAndDeduplicateImages(passedCandidateUrls, baseUrl);
+  const admittedCanonicals = new Set(deduped.map(u => canonicalizeUrl(u, baseUrl)));
 
-  // Step 5: Caps
+  // Record resolution duplicates that were dropped by deduping
+  const chosenExactUrls = new Set(deduped);
+  for (const url of passedCandidateUrls) {
+    if (!chosenExactUrls.has(url)) {
+      const canon = canonicalizeUrl(url, baseUrl);
+      if (admittedCanonicals.has(canon)) {
+        rejectedImages.push(url);
+        rejectionReasons[url] = 'resolution_duplicate';
+      }
+    }
+  }
+
+  // Step 4: Role and ordering signals (preserve/flag primary image at index 0)
+  if (preferredPrimaryCanon) {
+    const primIdx = deduped.findIndex(
+      u => canonicalizeUrl(u, baseUrl) === preferredPrimaryCanon,
+    );
+    if (primIdx > 0) {
+      const [favored] = deduped.splice(primIdx, 1);
+      deduped.unshift(favored);
+    }
+  }
+
+  // Step 5: Safety Caps
   const admittedImages: string[] = [];
   for (let i = 0; i < deduped.length; i++) {
     const url = deduped[i];

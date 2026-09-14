@@ -2,6 +2,8 @@ export * from '../../shared/schemas/profile-audit';
 import type {
   AuditGroundTruth,
   ReplayConfiguration,
+  HybridConflict,
+  HybridIdentityResolution,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 import type { ExtractionData } from '../../shared/schemas/onboarding';
@@ -10,20 +12,17 @@ export interface ExtractionOutcome {
   configuration: ReplayConfiguration;
   data: ExtractionData;
   raw?: any;
-  conflicts?: Array<{
-    field: string;
-    selectorValue: string | null;
-    structuredValue: string | null;
-    resolution: string;
-  }>;
+  conflicts?: HybridConflict[];
   variantDecision?: {
     status: string;
     selectedVariantKey: string | null;
     reasonCodes: string[];
   } | null;
+  identityResolution?: HybridIdentityResolution;
   admittedImages: string[];
   rejectedImages: string[];
   primaryImage: string | null;
+  imageRejectionReasons?: Record<string, string>;
   isEvidenceGap: boolean;
   evidenceGapReason?: string | null;
 }

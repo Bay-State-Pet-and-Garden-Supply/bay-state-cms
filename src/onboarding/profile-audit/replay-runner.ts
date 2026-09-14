@@ -154,6 +154,7 @@ export async function replaySample(
     admittedImages: strictFilterResult.admittedImages,
     rejectedImages: strictFilterResult.rejectedImages,
     primaryImage: strictFilterResult.primaryImage,
+    imageRejectionReasons: strictFilterResult.rejectionReasons,
     isEvidenceGap: false,
   };
 
@@ -189,9 +190,11 @@ export async function replaySample(
     raw: baselineResult.raw,
     conflicts: hybridResult.conflicts,
     variantDecision: hybridResult.variantDecision,
+    identityResolution: hybridResult.identityResolution,
     admittedImages: hybridResult.admittedImages,
     rejectedImages: hybridResult.rejectedImages,
     primaryImage: hybridResult.primaryImage,
+    imageRejectionReasons: hybridResult.imageRejectionReasons,
     isEvidenceGap: false,
   };
 

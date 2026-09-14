@@ -143,6 +143,22 @@ export function scoreExtraction(
     }
   }
 
+  if (outcome.identityResolution?.confusionDetected) {
+    failureCodesSet.add('PARENT_PAGE_VARIANT_CONFUSION');
+    if (outcome.identityResolution.confusionType === 'ambiguous_variant') {
+      identityVerdict = 'ambiguous';
+    } else if (
+      outcome.identityResolution.confusionType === 'parent_vs_variant' &&
+      (expectedIdentity.variantName || identityVerdict === 'correct_match')
+    ) {
+      identityVerdict = 'wrong_variant';
+    }
+  }
+
+  if (outcome.variantDecision?.status === 'ambiguous') {
+    identityVerdict = 'ambiguous';
+  }
+
   if (identityVerdict === 'wrong_product') failureCodesSet.add('WRONG_PRODUCT');
   if (identityVerdict === 'wrong_variant') failureCodesSet.add('WRONG_VARIANT');
   if (identityVerdict === 'unidentified') failureCodesSet.add('IDENTITY_MISMATCH');
@@ -174,7 +190,7 @@ export function scoreExtraction(
 
     const conflict = outcome.conflicts?.find(c => c.field === field);
     const conflictDetails = conflict
-      ? `Selector: "${conflict.selectorValue}" vs Structured: "${conflict.structuredValue}"`
+      ? `Selector (${conflict.selectorSource || 'custom-selector'}): "${conflict.selectorValue}" vs Structured (${conflict.structuredSource || 'structured'}): "${conflict.structuredValue}"`
       : null;
 
     if (conflict) {
@@ -345,6 +361,8 @@ export function scoreExtraction(
     imageScores,
     failureCodes: Array.from(failureCodesSet),
     isEvidenceGap: false,
+    identityResolution: outcome.identityResolution,
+    conflicts: outcome.conflicts,
     extractedProductPreview: {
       title: outcome.data.title,
       brand: outcome.data.brand,

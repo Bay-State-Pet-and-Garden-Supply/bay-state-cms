@@ -22,6 +22,7 @@ export const AuditFailureCodeSchema = z.enum([
   'IDENTITY_MISMATCH',
   'WRONG_PRODUCT',
   'WRONG_VARIANT',
+  'PARENT_PAGE_VARIANT_CONFUSION',
   'MISSING_AVAILABLE_FIELD',
   'FIELD_CONFLICT',
   'LOW_IMAGE_PRECISION',
@@ -30,6 +31,44 @@ export const AuditFailureCodeSchema = z.enum([
   'EVIDENCE_GAP_MISSING_SUPPLEMENTAL',
 ]);
 export type AuditFailureCode = z.infer<typeof AuditFailureCodeSchema>;
+
+export const HybridConflictSchema = z.object({
+  field: z.string(),
+  selectorValue: z.string().nullable(),
+  structuredValue: z.string().nullable(),
+  structuredSource: z.string().default('structured'),
+  selectorSource: z.string().default('custom-selector'),
+  resolution: z.string(),
+  severity: z.enum(['critical', 'warning']).optional(),
+  disagreementReason: z.string().optional(),
+});
+export type HybridConflict = z.infer<typeof HybridConflictSchema>;
+
+export const HybridIdentityResolutionSchema = z.object({
+  status: z.enum([
+    'resolved_variant',
+    'single_variant',
+    'parent_page',
+    'ambiguous_variant',
+    'no_variant_match',
+    'no_matrix',
+  ]),
+  parentPageUrl: z.string(),
+  totalCandidates: z.number(),
+  selectedVariantKey: z.string().nullable(),
+  selectedCandidateTitle: z.string().nullable().optional(),
+  parentTitle: z.string().nullable().optional(),
+  matchedBy: z.string().nullable().optional(),
+  confusionDetected: z.boolean(),
+  confusionType: z.enum([
+    'parent_vs_variant',
+    'ambiguous_variant',
+    'wrong_variant_selected',
+    'unresolved_parent',
+  ]).nullable().optional(),
+  confusionDetails: z.string().nullable().optional(),
+});
+export type HybridIdentityResolution = z.infer<typeof HybridIdentityResolutionSchema>;
 
 export const AuditGroundTruthSchema = z.object({
   identity: z.object({
@@ -150,6 +189,8 @@ export const AuditScoredRowSchema = z.object({
   failureCodes: z.array(AuditFailureCodeSchema),
   isEvidenceGap: z.boolean(),
   evidenceGapReason: z.string().nullable().optional(),
+  identityResolution: HybridIdentityResolutionSchema.optional(),
+  conflicts: z.array(HybridConflictSchema).optional(),
   extractedProductPreview: z.object({
     title: z.string().nullable().optional(),
     brand: z.string().nullable().optional(),

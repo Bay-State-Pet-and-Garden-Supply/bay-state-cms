@@ -126,7 +126,9 @@ export function formatReviewableTable(rows: AuditScoredRow[]): string {
   for (const r of rows) {
     const slug = r.url.split('/').filter(Boolean).pop() || r.sampleId;
     const cfgName = r.configuration.replace('_extraction', '').replace('_', ' ');
-    const identBadge = r.identityVerdict === 'correct_match' ? '✓ correct' : `⚠ ${r.identityVerdict}`;
+    const identBadge = r.identityResolution?.confusionDetected
+      ? `⚠ confusion (${r.identityResolution.confusionType || r.identityVerdict})`
+      : (r.identityVerdict === 'correct_match' ? '✓ correct' : `⚠ ${r.identityVerdict}`);
     const fieldScoreStr = `${(r.fieldCorrectnessScore * 100).toFixed(0)}%`;
     const imgPR = `${(r.imageScores.precision * 100).toFixed(0)}% / ${(r.imageScores.recall * 100).toFixed(0)}%`;
     const primaryImgBadge = r.imageScores.primaryAccuracy === 1 ? '✓' : '✗';

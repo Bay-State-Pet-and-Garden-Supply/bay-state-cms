@@ -140,4 +140,80 @@ describe('profile audit scoring', () => {
 
     expect(row1).toEqual(row2);
   });
+
+  it('scores PARENT_PAGE_VARIANT_CONFUSION and surfaces identityResolution', () => {
+    const outcome: ExtractionOutcome = {
+      configuration: 'hybrid_identity_first',
+      data: ExtractionDataSchema.parse({
+        title: 'Hot Spot Relief Spray', // Generic parent title, missing expected variant details
+        brand: 'earthbath',
+        description: 'Soothing spray',
+        price: null,
+        primaryImage: null,
+        additionalImages: [],
+        bulletPoints: [],
+        confidence: 1,
+      }),
+      identityResolution: {
+        status: 'resolved_variant',
+        parentPageUrl: sample.url,
+        totalCandidates: 2,
+        selectedVariantKey: 'var-1',
+        selectedCandidateTitle: 'Hot Spot Relief Spray 8oz',
+        parentTitle: 'Hot Spot Relief Spray',
+        matchedBy: 'gtin',
+        confusionDetected: true,
+        confusionType: 'parent_vs_variant',
+        confusionDetails: 'Parent title lacks variant distinguishing details',
+      },
+      admittedImages: [],
+      rejectedImages: [],
+      primaryImage: null,
+      isEvidenceGap: false,
+    };
+
+    const scored = scoreExtraction(outcome, sample);
+
+    expect(scored.failureCodes).toContain('PARENT_PAGE_VARIANT_CONFUSION');
+    expect(scored.identityResolution?.confusionDetected).toBe(true);
+    expect(scored.identityResolution?.confusionType).toBe('parent_vs_variant');
+  });
+
+  it('scores FIELD_CONFLICT and attaches detailed conflict provenance to fieldScores', () => {
+    const outcome: ExtractionOutcome = {
+      configuration: 'hybrid_identity_first',
+      data: ExtractionDataSchema.parse({
+        title: 'Hot Spot Relief Spray',
+        brand: 'earthbath',
+        description: 'Soothing spray',
+        price: null,
+        primaryImage: null,
+        additionalImages: [],
+        bulletPoints: [],
+        confidence: 1,
+      }),
+      conflicts: [
+        {
+          field: 'title',
+          selectorValue: 'Hot Spot Relief Spray',
+          structuredValue: 'Hot Spot Soothing Spray Organic',
+          selectorSource: 'custom-selector',
+          structuredSource: 'json-ld',
+          resolution: 'selector_preferred_with_conflict',
+        },
+      ],
+      admittedImages: [],
+      rejectedImages: [],
+      primaryImage: null,
+      isEvidenceGap: false,
+    };
+
+    const scored = scoreExtraction(outcome, sample);
+
+    expect(scored.failureCodes).toContain('FIELD_CONFLICT');
+    expect(scored.fieldScores.title.status).toBe('conflict');
+    expect(scored.fieldScores.title.conflictDetails).toContain('Selector (custom-selector): "Hot Spot Relief Spray"');
+    expect(scored.fieldScores.title.conflictDetails).toContain('Structured (json-ld): "Hot Spot Soothing Spray Organic"');
+    expect(scored.conflicts).toHaveLength(1);
+  });
 });
