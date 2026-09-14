@@ -29,6 +29,9 @@ export const AuditFailureCodeSchema = z.enum([
   'PRIMARY_IMAGE_MISMATCH',
   'EVIDENCE_GAP_MISSING_ARTIFACT',
   'EVIDENCE_GAP_MISSING_SUPPLEMENTAL',
+  'ABSTENTION_GAMING_DETECTED',
+  'CRITICAL_FIELD_REGRESSION',
+  'UNBOUNDED_MAINTENANCE',
 ]);
 export type AuditFailureCode = z.infer<typeof AuditFailureCodeSchema>;
 
@@ -226,6 +229,8 @@ export const AuditScoredRowSchema = z.object({
     sku: z.string().nullable().optional(),
     gtin: z.string().nullable().optional(),
   }),
+  latencyMs: z.number().optional(),
+  requestCount: z.number().optional(),
 });
 export type AuditScoredRow = z.infer<typeof AuditScoredRowSchema>;
 
@@ -268,6 +273,12 @@ export const ScopeServedRateSummarySchema = z.object({
   isPromotable: z.boolean(),
   promotabilityVerdict: z.enum(['PROMOTABLE', 'BLOCKED', 'NEEDS_REVIEW']),
   promotabilityReasons: z.array(z.string()),
+  // Enriched fields for Gate Arithmetic (Issue #178 / Gate T5)
+  contractVerdict: z.enum(['GO', 'NO_GO', 'NEEDS_REVIEW']).optional(),
+  thresholds: z.array(z.lazy(() => GateThresholdCheckSchema)).optional(),
+  abstentionGaming: z.lazy(() => AbstentionGamingCheckSchema).optional(),
+  costMetrics: z.lazy(() => ScopeCostMetricsSchema).optional(),
+  uncertainties: z.record(z.string(), z.lazy(() => PromotionMetricUncertaintySchema)).optional(),
 });
 export type ScopeServedRateSummary = z.infer<typeof ScopeServedRateSummarySchema>;
 
@@ -359,5 +370,147 @@ export const PilotAuditResultSchema = z.object({
   operatorReviewReport: z.string().optional(),
   fieldEvidences: z.array(SampleFieldEvidenceSchema).optional(),
   contactSheets: z.array(ImageContactSheetSchema).optional(),
+  promotionReport: z.string().optional(),
+  perScopePromotionReport: z.lazy(() => PerScopePromotionReportSchema).optional(),
 });
 export type PilotAuditResult = z.infer<typeof PilotAuditResultSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gate Arithmetic & Promotion Report Schemas (Issue #178 / Gate T5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ContractPromotionVerdictSchema = z.enum([
+  'GO',
+  'NO_GO',
+  'NEEDS_REVIEW',
+]);
+export type ContractPromotionVerdict = z.infer<typeof ContractPromotionVerdictSchema>;
+
+export const GateThresholdCheckSchema = z.object({
+  name: z.string(),
+  dimension: z.string(),
+  baselineValue: z.number(),
+  thresholdValue: z.number(),
+  actualValue: z.number(),
+  actualUncertainty: z.number().optional(),
+  unit: z.string().default(''),
+  rule: z.string(),
+  passed: z.boolean(),
+  reason: z.string(),
+});
+export type GateThresholdCheck = z.infer<typeof GateThresholdCheckSchema>;
+
+export const AbstentionGamingCheckSchema = z.object({
+  gamingDetected: z.boolean(),
+  evidenceGapInflated: z.boolean(),
+  baselineEvidenceGaps: z.number(),
+  hybridEvidenceGaps: z.number(),
+  servedRateDropDetected: z.boolean(),
+  baselineServedRate: z.number(),
+  hybridServedRate: z.number(),
+  sampleRefusalDetected: z.boolean(),
+  baselineAttemptedCount: z.number(),
+  hybridAttemptedCount: z.number(),
+  reasons: z.array(z.string()),
+});
+export type AbstentionGamingCheck = z.infer<typeof AbstentionGamingCheckSchema>;
+
+export const ConfigurationCostMetricsSchema = z.object({
+  configuration: ReplayConfigurationSchema,
+  meanLatencyMs: z.number(),
+  p95LatencyMs: z.number().optional(),
+  totalLatencyMs: z.number(),
+  totalRequests: z.number(),
+  requestsPerSample: z.number(),
+  operatorMinutes: z.number(),
+});
+export type ConfigurationCostMetrics = z.infer<typeof ConfigurationCostMetricsSchema>;
+
+export const ScopeCostMetricsSchema = z.object({
+  scope: z.string(),
+  domain: z.string().optional(),
+  sampleCount: z.number(),
+  baselineLatencyMs: z.number(),
+  hybridLatencyMs: z.number(),
+  latencyDeltaMs: z.number(),
+  baselineRequestsPerSample: z.number(),
+  hybridRequestsPerSample: z.number(),
+  baselineTotalRequests: z.number(),
+  hybridTotalRequests: z.number(),
+  baselineOperatorMinutes: z.number(),
+  hybridOperatorMinutes: z.number(),
+  operatorMinutesSaved: z.number(),
+  isMaintenanceBounded: z.boolean(),
+  byConfiguration: z.record(ReplayConfigurationSchema, ConfigurationCostMetricsSchema).optional(),
+});
+export type ScopeCostMetrics = z.infer<typeof ScopeCostMetricsSchema>;
+
+export const DomainCostMetricsSchema = z.object({
+  domain: z.string(),
+  totalSamples: z.number(),
+  baselineLatencyMs: z.number(),
+  hybridLatencyMs: z.number(),
+  baselineTotalRequests: z.number(),
+  hybridTotalRequests: z.number(),
+  baselineOperatorMinutes: z.number(),
+  hybridOperatorMinutes: z.number(),
+  operatorMinutesSaved: z.number(),
+  isMaintenanceBounded: z.boolean(),
+  byScope: z.record(z.string(), ScopeCostMetricsSchema).optional(),
+});
+export type DomainCostMetrics = z.infer<typeof DomainCostMetricsSchema>;
+
+export const PromotionMetricUncertaintySchema = z.object({
+  metric: z.string(),
+  value: z.number(),
+  uncertainty: z.number(),
+  confidenceInterval: z.object({
+    lower: z.number(),
+    upper: z.number(),
+  }),
+  confidenceLevel: z.number().default(0.95),
+  method: z.enum(['wilson_score', 'normal_approximation', 'standard_error']),
+});
+export type PromotionMetricUncertainty = z.infer<typeof PromotionMetricUncertaintySchema>;
+
+export const ScopePromotionVerdictSchema = z.object({
+  scope: z.string(),
+  domain: z.string().optional(),
+  platform: z.string().optional(),
+  sampleCount: z.number(),
+  verdict: ContractPromotionVerdictSchema,
+  isPromotable: z.boolean(),
+  promotabilityVerdict: z.enum(['PROMOTABLE', 'BLOCKED', 'NEEDS_REVIEW']),
+  promotabilityReasons: z.array(z.string()),
+  thresholds: z.array(GateThresholdCheckSchema),
+  allThresholdsPassed: z.boolean(),
+  abstentionGaming: AbstentionGamingCheckSchema,
+  servedRate: PromotionMetricUncertaintySchema,
+  baselineServedRate: z.number(),
+  servedRateDelta: z.number(),
+  identityAccuracy: PromotionMetricUncertaintySchema,
+  acceptedIdentityErrors: z.number(),
+  criticalFieldRegressions: z.number(),
+  fieldCorrectness: PromotionMetricUncertaintySchema,
+  baselineFieldCorrectness: z.number(),
+  imagePrecision: PromotionMetricUncertaintySchema,
+  baselineImagePrecision: z.number(),
+  imageRecall: PromotionMetricUncertaintySchema,
+  baselineImageRecall: z.number(),
+  primaryImageAccuracy: PromotionMetricUncertaintySchema,
+  baselinePrimaryImageAccuracy: z.number(),
+  costMetrics: ScopeCostMetricsSchema,
+});
+export type ScopePromotionVerdict = z.infer<typeof ScopePromotionVerdictSchema>;
+
+export const PerScopePromotionReportSchema = z.object({
+  domain: z.string(),
+  generatedAt: z.string(),
+  totalSamples: z.number(),
+  totalScopes: z.number(),
+  overallContractVerdict: ContractPromotionVerdictSchema,
+  verdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema),
+  domainCostMetrics: DomainCostMetricsSchema,
+  markdown: z.string(),
+});
+export type PerScopePromotionReport = z.infer<typeof PerScopePromotionReportSchema>;

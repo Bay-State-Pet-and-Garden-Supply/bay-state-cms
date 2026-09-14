@@ -26,8 +26,16 @@ import type {
   ReplayConfiguration,
   SampleFieldEvidence,
   ScopeServedRateSummary,
+  ContractPromotionVerdict,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractionOutcome } from './types';
+import {
+  computeScopeCostMetrics,
+  deriveBaselineThresholds,
+  detectAbstentionGaming,
+  buildPromotionUncertainty,
+  computeContinuousMetricInterval,
+} from './gate-arithmetic';
 
 const CONFIGURATIONS: ReplayConfiguration[] = [
   'current_extraction',
@@ -491,9 +499,13 @@ export function computeScopeSummaries(
       }
     }
 
+    let sumBaselineImageRecall = 0;
+    let sumBaselinePrimaryAcc = 0;
     for (const b of baselineRows) {
       sumBaselineFieldCorrectness += b.fieldCorrectnessScore;
       sumBaselineImagePrecision += b.imageScores.precision;
+      sumBaselineImageRecall += b.imageScores.recall;
+      sumBaselinePrimaryAcc += b.imageScores.primaryAccuracy;
     }
 
     const baselineServedRate = sampleCount > 0 ? baselineServedCount / sampleCount : 0;
@@ -506,7 +518,9 @@ export function computeScopeSummaries(
     const meanImagePrecision = hybridRows.length > 0 ? sumHybridImagePrecision / hybridRows.length : 0;
     const baselineMeanImagePrecision = baselineRows.length > 0 ? sumBaselineImagePrecision / baselineRows.length : 0;
     const meanImageRecall = hybridRows.length > 0 ? sumHybridImageRecall / hybridRows.length : 0;
+    const baselineMeanImageRecall = baselineRows.length > 0 ? sumBaselineImageRecall / baselineRows.length : 0;
     const primaryImageAccuracy = hybridRows.length > 0 ? sumHybridPrimaryAcc / hybridRows.length : 0;
+    const baselinePrimaryAccuracy = baselineRows.length > 0 ? sumBaselinePrimaryAcc / baselineRows.length : 0;
 
     const nonGapCount = hybridRows.filter(r => !r.isEvidenceGap).length;
     const identityAccuracy = nonGapCount > 0
@@ -564,6 +578,54 @@ export function computeScopeSummaries(
     const domain = scopeSamples[0]?.domain;
     const platform = scopeSamples[0]?.platform;
 
+    const costMetrics = computeScopeCostMetrics(scopeKey, domain, scopeSamples, rows);
+    const abstentionGaming = detectAbstentionGaming({
+      baselineRows,
+      hybridRows,
+      baselineServedRate,
+      hybridServedRate,
+      baselineMeanFieldCorrectness,
+      hybridMeanFieldCorrectness: meanFieldCorrectness,
+      baselineMeanImagePrecision,
+      hybridMeanImagePrecision: meanImagePrecision,
+    });
+
+    const baselineIdentityErrors = baselineRows.filter(
+      b => !b.isEvidenceGap && (b.identityVerdict !== 'correct_match' || b.identityResolution?.confusionDetected),
+    ).length;
+
+    const hybridFieldStats = computeContinuousMetricInterval(hybridRows.map(r => r.fieldCorrectnessScore), z);
+    const hybridPrecisionStats = computeContinuousMetricInterval(hybridRows.map(r => r.imageScores.precision), z);
+    const hybridRecallStats = computeContinuousMetricInterval(hybridRows.map(r => r.imageScores.recall), z);
+
+    const thresholds = deriveBaselineThresholds({
+      baselineIdentityErrors,
+      hybridIdentityErrors: acceptedIdentityErrors,
+      criticalFieldRegressions,
+      baselineMeanFieldCorrectness,
+      hybridMeanFieldCorrectness: meanFieldCorrectness,
+      hybridFieldCorrectnessUncertainty: hybridFieldStats.marginOfError,
+      baselineMeanImagePrecision,
+      hybridMeanImagePrecision: meanImagePrecision,
+      hybridImagePrecisionUncertainty: hybridPrecisionStats.marginOfError,
+      baselineMeanImageRecall,
+      hybridMeanImageRecall: meanImageRecall,
+      hybridImageRecallUncertainty: hybridRecallStats.marginOfError,
+      baselinePrimaryAccuracy,
+      hybridPrimaryAccuracy: primaryImageAccuracy,
+      baselineServedRate,
+      hybridServedRate,
+      hybridServedRateUncertainty: hybridServedStats.marginOfError,
+      baselineEvidenceGaps,
+      hybridEvidenceGaps,
+      baselineOperatorMinutes: costMetrics.baselineOperatorMinutes,
+      hybridOperatorMinutes: costMetrics.hybridOperatorMinutes,
+    });
+
+    const contractVerdict: ContractPromotionVerdict = promotabilityVerdict === 'PROMOTABLE'
+      ? 'GO'
+      : (promotabilityVerdict === 'BLOCKED' ? 'NO_GO' : 'NEEDS_REVIEW');
+
     summaries[scopeKey] = {
       scope: scopeKey,
       domain,
@@ -590,6 +652,16 @@ export function computeScopeSummaries(
       isPromotable,
       promotabilityVerdict,
       promotabilityReasons,
+      contractVerdict,
+      thresholds,
+      abstentionGaming,
+      costMetrics,
+      uncertainties: {
+        servedRate: buildPromotionUncertainty('servedRate', hybridServedStats, 'wilson_score'),
+        fieldCorrectness: buildPromotionUncertainty('fieldCorrectness', hybridFieldStats, 'standard_error'),
+        imagePrecision: buildPromotionUncertainty('imagePrecision', hybridPrecisionStats, 'standard_error'),
+        imageRecall: buildPromotionUncertainty('imageRecall', hybridRecallStats, 'standard_error'),
+      },
     };
   }
 

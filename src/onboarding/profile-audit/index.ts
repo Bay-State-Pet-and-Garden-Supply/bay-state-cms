@@ -34,5 +34,23 @@ export {
   generateOperatorReviewReport,
 } from './operator-review';
 export { runPilotAudit } from './pilot-auditor';
+export {
+  computeContinuousMetricInterval,
+  buildPromotionUncertainty,
+  detectAbstentionGaming,
+  computeScopeCostMetrics,
+  computeDomainCostMetrics,
+  deriveBaselineThresholds,
+  evaluateScopeGate,
+  evaluateGateArithmetic,
+} from './gate-arithmetic';
+export {
+  formatPromotionVerdictBadge,
+  formatScopePromotionTable,
+  formatGateArithmeticThresholdsTable,
+  formatAbstentionGamingAuditTable,
+  formatCostAnalysisTable,
+  generatePromotionReport,
+} from './promotion-report';
 
 

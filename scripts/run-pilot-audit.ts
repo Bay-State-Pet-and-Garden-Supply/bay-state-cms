@@ -44,6 +44,12 @@ async function main() {
     console.log(`[Audit Pilot] Operator review report written to: ${operatorReportPath}`);
   }
 
+  if (result.promotionReport) {
+    const promotionReportPath = join(reportsDir, `${result.domain}-promotion-report.md`);
+    writeFileSync(promotionReportPath, result.promotionReport, 'utf8');
+    console.log(`[Audit Pilot] Per-scope promotion report written to: ${promotionReportPath}`);
+  }
+
   console.log(`\n[Audit Pilot] Successfully audited ${result.manifest.samples.length} samples across 4 configurations (${result.rows.length} scored rows).`);
   console.log(`[Audit Pilot] Reviewable audit report written to: ${reportPath}`);
 }

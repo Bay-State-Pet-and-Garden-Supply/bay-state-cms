@@ -109,6 +109,8 @@ export function scoreExtraction(
         sku: null,
         gtin: null,
       },
+      latencyMs: outcome.latencyMs,
+      requestCount: outcome.requestCount,
     };
   }
 
@@ -435,5 +437,7 @@ export function scoreExtraction(
           ? (outcome.raw.jsonLd as Record<string, unknown>).gtin13 as string
           : null,
     },
+    latencyMs: outcome.latencyMs,
+    requestCount: outcome.requestCount,
   };
 }

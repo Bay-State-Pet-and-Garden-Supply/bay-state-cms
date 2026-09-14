@@ -79,6 +79,13 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     outcomesBySample,
   });
 
+  // 6. Gate Arithmetic & Per-Scope Promotion Report (Issue #178 / Gate T5)
+  const { generatePromotionReport } = await import('./promotion-report');
+  const promotionReport = generatePromotionReport({
+    manifest,
+    rows,
+  });
+
   return {
     domain: normDomain,
     executedAt: new Date().toISOString(),
@@ -90,5 +97,7 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     operatorReviewReport: reviewReport.markdown,
     fieldEvidences: reviewReport.fieldEvidences,
     contactSheets: reviewReport.contactSheets,
+    promotionReport: promotionReport.markdown,
+    perScopePromotionReport: promotionReport,
   };
 }

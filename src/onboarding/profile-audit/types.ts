@@ -25,6 +25,15 @@ export interface ExtractionOutcome {
   imageRejectionReasons?: Record<string, string>;
   isEvidenceGap: boolean;
   evidenceGapReason?: string | null;
+  latencyMs?: number;
+  requestCount?: number;
+}
+
+export interface GateArithmeticOptions {
+  minSamplesForPromote?: number;
+  targetConfidence?: number;
+  operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
+  baseOperatorMinutes?: number;
 }
 
 export interface ReplayRunnerOptions {
@@ -35,6 +44,7 @@ export interface ReplayRunnerOptions {
     price?: string | null;
     gtin?: string;
   };
+  recordLatency?: boolean;
 }
 
 export interface PilotAuditOptions {

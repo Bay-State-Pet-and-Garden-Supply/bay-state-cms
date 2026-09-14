@@ -58,6 +58,8 @@ function buildEmptyOutcome(
     primaryImage: null,
     isEvidenceGap,
     evidenceGapReason: reason,
+    latencyMs: 0,
+    requestCount: 0,
   };
 }
 
@@ -114,8 +116,12 @@ export async function replaySample(
     gtin: sample.groundTruth.identity.gtin ?? undefined,
   };
 
+  const recordLatency = Boolean(options.recordLatency);
+
   // ── Configuration 1: Current Extraction (Baseline) ──────────────────────────
+  const t0Baseline = performance.now();
   const baselineResult = await extractViaHttpDetailed(sample.url, profile, expected, mockFetch);
+  const baselineLatency = recordLatency ? Math.round((performance.now() - t0Baseline) * 10) / 10 : undefined;
   const baselineRawImages = [
     ...(baselineResult.raw.custom?.images as string[] || []),
     ...(baselineResult.raw.images || []),
@@ -133,9 +139,12 @@ export async function replaySample(
     rejectedImages: [],
     primaryImage: baselineResult.data.primaryImage,
     isEvidenceGap: false,
+    latencyMs: baselineLatency,
+    requestCount: 1,
   };
 
   // ── Configuration 2: Current + Strict Image Filtering ─────────────────────
+  const t0Strict = performance.now();
   let cfg2Matrix: VariantMatrix | null = null;
   try {
     cfg2Matrix = parseVariantMatrix(html, sample.url);
@@ -167,6 +176,7 @@ export async function replaySample(
   const strictAdditionalImages = strictFilterResult.admittedImages.filter(
     u => u !== strictFilterResult.primaryImage,
   );
+  const strictLatency = recordLatency ? Math.round((performance.now() - t0Strict) * 10) / 10 : undefined;
 
   const currentStrictOutcome: ExtractionOutcome = {
     configuration: 'current_strict_images',
@@ -181,11 +191,15 @@ export async function replaySample(
     primaryImage: strictFilterResult.primaryImage,
     imageRejectionReasons: strictFilterResult.rejectionReasons,
     isEvidenceGap: false,
+    latencyMs: recordLatency && baselineLatency !== undefined && strictLatency !== undefined ? baselineLatency + strictLatency : undefined,
+    requestCount: 1,
   };
 
   // ── Configuration 3: Structured Signals Only (Measurement Arm) ────────────
   // Re-run with profile = null to disable custom CSS selectors
+  const t0Structured = performance.now();
   const structuredResult = await extractViaHttpDetailed(sample.url, null, expected, mockFetch);
+  const structuredLatency = recordLatency ? Math.round((performance.now() - t0Structured) * 10) / 10 : undefined;
   const structuredAdmittedImages = [
     structuredResult.data.primaryImage,
     ...(structuredResult.data.additionalImages || []),
@@ -199,15 +213,19 @@ export async function replaySample(
     rejectedImages: [],
     primaryImage: structuredResult.data.primaryImage,
     isEvidenceGap: false,
+    latencyMs: structuredLatency,
+    requestCount: 1,
   };
 
   // ── Configuration 4: Proposed Hybrid (Identity-First + Strict) ─────────────
+  const t0Hybrid = performance.now();
   const hybridResult = selectHybridFields({
     raw: baselineResult.raw,
     url: sample.url,
     html,
     expected,
   });
+  const hybridLatency = recordLatency ? Math.round((performance.now() - t0Hybrid) * 10) / 10 : undefined;
 
   const hybridOutcome: ExtractionOutcome = {
     configuration: 'hybrid_identity_first',
@@ -221,6 +239,8 @@ export async function replaySample(
     primaryImage: hybridResult.primaryImage,
     imageRejectionReasons: hybridResult.imageRejectionReasons,
     isEvidenceGap: false,
+    latencyMs: recordLatency && baselineLatency !== undefined && hybridLatency !== undefined ? baselineLatency + hybridLatency : undefined,
+    requestCount: 1,
   };
 
   return {
