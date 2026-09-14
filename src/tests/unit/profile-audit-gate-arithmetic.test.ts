@@ -780,9 +780,34 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       const sample = createSample('s-alias', 'standard_pdp');
       const rows = createRowsForSample(sample);
       const manifest = { domain: 'example.com', generatedAt: '2026-09-01T00:00:00Z', samples: [sample] };
+
+      // ── No-options baseline: default minSamplesForPromote=3, only 1 sample → NEEDS_REVIEW ──
+      const viaDefaults = generatePromotionReport({ manifest, rows });
+      const defaultScopeVerdict = viaDefaults.verdictsByScope['standard_pdp'];
+      expect(defaultScopeVerdict.verdict).toBe('NEEDS_REVIEW');
+      expect(defaultScopeVerdict.promotabilityVerdict).toBe('NEEDS_REVIEW');
+      expect(defaultScopeVerdict.isPromotable).toBe(false);
+
+      // ── gateOptions path: minSamplesForPromote=1 unlocks promotion for 1 sample → GO ──
       const viaGateOptions = generatePromotionReport({ manifest, rows, gateOptions: { minSamplesForPromote: 1 } });
+      const gateOptsScopeVerdict = viaGateOptions.verdictsByScope['standard_pdp'];
+      expect(gateOptsScopeVerdict.verdict).toBe('GO');
+      expect(gateOptsScopeVerdict.promotabilityVerdict).toBe('PROMOTABLE');
+      expect(gateOptsScopeVerdict.isPromotable).toBe(true);
+
+      // ── deprecated options alias: must produce identical per-scope results ──
       const viaAlias = generatePromotionReport({ manifest, rows, options: { minSamplesForPromote: 1 } });
+      const aliasScopeVerdict = viaAlias.verdictsByScope['standard_pdp'];
+      expect(aliasScopeVerdict.verdict).toBe(gateOptsScopeVerdict.verdict);
+      expect(aliasScopeVerdict.promotabilityVerdict).toBe(gateOptsScopeVerdict.promotabilityVerdict);
+      expect(aliasScopeVerdict.isPromotable).toBe(gateOptsScopeVerdict.isPromotable);
+      expect(aliasScopeVerdict).toEqual(gateOptsScopeVerdict);
       expect(viaAlias.overallContractVerdict).toBe(viaGateOptions.overallContractVerdict);
+
+      // ── Guard: the option actually changed the outcome vs defaults ──
+      expect(gateOptsScopeVerdict.verdict).not.toBe(defaultScopeVerdict.verdict);
+      expect(gateOptsScopeVerdict.promotabilityReasons).not.toEqual(defaultScopeVerdict.promotabilityReasons);
+      expect(aliasScopeVerdict.verdict).not.toBe(defaultScopeVerdict.verdict);
     });
   });
 });
