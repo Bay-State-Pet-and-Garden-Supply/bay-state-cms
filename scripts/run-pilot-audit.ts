@@ -38,6 +38,12 @@ async function main() {
   const reportPath = join(reportsDir, `${result.domain}-pilot-audit.md`);
   writeFileSync(reportPath, result.reviewableTable, 'utf8');
 
+  if (result.operatorReviewReport) {
+    const operatorReportPath = join(reportsDir, `${result.domain}-operator-review.md`);
+    writeFileSync(operatorReportPath, result.operatorReviewReport, 'utf8');
+    console.log(`[Audit Pilot] Operator review report written to: ${operatorReportPath}`);
+  }
+
   console.log(`\n[Audit Pilot] Successfully audited ${result.manifest.samples.length} samples across 4 configurations (${result.rows.length} scored rows).`);
   console.log(`[Audit Pilot] Reviewable audit report written to: ${reportPath}`);
 }

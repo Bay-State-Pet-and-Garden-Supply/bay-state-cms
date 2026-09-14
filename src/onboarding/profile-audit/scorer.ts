@@ -19,6 +19,7 @@ import type {
   AuditFailureCode,
   FieldScoreDetail,
   ImageScoreDetail,
+  MissingFieldReason,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractionOutcome } from './types';
 import { canonicalizeUrl } from '../image-utils';
@@ -52,14 +53,27 @@ export function scoreExtraction(
 
     const fieldScores: Record<string, FieldScoreDetail> = {};
     for (const [field, spec] of Object.entries(groundTruth.fields)) {
+      const isInapplicable = Boolean((spec as any).inapplicable || spec.notes?.toLowerCase().includes('inapplicable'));
+      const missingReason: MissingFieldReason = isInapplicable
+        ? 'inapplicable'
+        : (spec.available ? 'failed' : 'absent');
+      const missingExplanation = isInapplicable
+        ? (spec.notes ? `Inapplicable: ${spec.notes}` : 'Field is inapplicable to this product scope')
+        : (spec.available
+            ? (outcome.evidenceGapReason || 'Missing primary artifact')
+            : (spec.notes ? `Absent from page: ${spec.notes}` : 'Field is absent from source page (unavailable)'));
+
       fieldScores[field] = {
         field,
         available: spec.available,
+        inapplicable: isInapplicable || undefined,
         extractedValue: null,
         expectedValue: spec.expectedValue ?? null,
         provenance: 'none',
-        status: spec.available ? 'missing' : 'unavailable',
+        status: isInapplicable ? 'inapplicable' : (spec.available ? 'missing' : 'unavailable'),
         correct: !spec.available,
+        missingReason,
+        missingExplanation,
       };
     }
 
@@ -202,32 +216,56 @@ export function scoreExtraction(
       failureCodesSet.add('FIELD_CONFLICT');
     }
 
+    const isInapplicable = Boolean((spec as any).inapplicable || spec.notes?.toLowerCase().includes('inapplicable'));
+
     if (!spec.available) {
       // Unavailable on the page: should be empty/null
       const isUnavailableSuccess = !extractedStr;
+      const missingReason: MissingFieldReason = isInapplicable ? 'inapplicable' : 'absent';
+      const missingExplanation = isInapplicable
+        ? (spec.notes ? `Inapplicable: ${spec.notes}` : 'Field is inapplicable to this product scope')
+        : (spec.notes ? `Absent from page: ${spec.notes}` : 'Field is absent from source page (unavailable)');
+
       fieldScores[field] = {
         field,
         available: false,
+        inapplicable: isInapplicable || undefined,
         extractedValue: extractedStr,
         expectedValue: expectedVal,
         provenance,
-        status: isUnavailableSuccess ? 'unavailable' : 'incorrect',
+        status: isUnavailableSuccess ? (isInapplicable ? 'inapplicable' : 'unavailable') : 'incorrect',
         correct: isUnavailableSuccess,
         conflictDetails,
+        missingReason: isUnavailableSuccess ? missingReason : (conflict ? 'conflicted' : null),
+        missingExplanation: isUnavailableSuccess
+          ? missingExplanation
+          : (conflict ? `Conflicted: ${conflictDetails}` : null),
       };
     } else {
       // Available on the page: must be extracted and match
       totalAvailable++;
       if (!extractedStr) {
+        const missingReason: MissingFieldReason = conflict
+          ? 'conflicted'
+          : (isInapplicable ? 'inapplicable' : 'failed');
+        const missingExplanation = conflict
+          ? `Conflicted: ${conflictDetails}`
+          : (isInapplicable
+              ? (spec.notes || 'Field is inapplicable to this product scope')
+              : 'Field is present on page but extraction failed');
+
         fieldScores[field] = {
           field,
           available: true,
+          inapplicable: isInapplicable || undefined,
           extractedValue: null,
           expectedValue: expectedVal,
           provenance,
-          status: 'missing',
+          status: conflict ? 'conflict' : (isInapplicable ? 'inapplicable' : 'missing'),
           correct: false,
           conflictDetails,
+          missingReason,
+          missingExplanation,
         };
         failureCodesSet.add('MISSING_AVAILABLE_FIELD');
       } else if (expectedVal !== null) {
@@ -245,23 +283,29 @@ export function scoreExtraction(
           fieldScores[field] = {
             field,
             available: true,
+            inapplicable: isInapplicable || undefined,
             extractedValue: extractedStr,
             expectedValue: expectedVal,
             provenance,
             status: conflict ? 'conflict' : 'correct',
             correct: true,
             conflictDetails,
+            missingReason: conflict ? 'conflicted' : null,
+            missingExplanation: conflict ? `Conflicted: ${conflictDetails}` : null,
           };
         } else {
           fieldScores[field] = {
             field,
             available: true,
+            inapplicable: isInapplicable || undefined,
             extractedValue: extractedStr,
             expectedValue: expectedVal,
             provenance,
-            status: 'incorrect',
+            status: conflict ? 'conflict' : 'incorrect',
             correct: false,
             conflictDetails,
+            missingReason: conflict ? 'conflicted' : null,
+            missingExplanation: conflict ? `Conflicted: ${conflictDetails}` : null,
           };
           failureCodesSet.add('MISSING_AVAILABLE_FIELD');
         }
@@ -271,12 +315,15 @@ export function scoreExtraction(
         fieldScores[field] = {
           field,
           available: true,
+          inapplicable: isInapplicable || undefined,
           extractedValue: extractedStr,
           expectedValue: null,
           provenance,
           status: conflict ? 'conflict' : 'correct',
           correct: true,
           conflictDetails,
+          missingReason: conflict ? 'conflicted' : null,
+          missingExplanation: conflict ? `Conflicted: ${conflictDetails}` : null,
         };
       }
     }
@@ -353,6 +400,7 @@ export function scoreExtraction(
     primaryAccuracy,
     precision,
     recall,
+    rejectionReasons: outcome.imageRejectionReasons,
   };
 
   return {
@@ -368,6 +416,7 @@ export function scoreExtraction(
     isEvidenceGap: false,
     identityResolution: outcome.identityResolution,
     conflicts: outcome.conflicts,
+    imageRejectionReasons: outcome.imageRejectionReasons,
     extractedProductPreview: {
       title: outcome.data.title,
       brand: outcome.data.brand,

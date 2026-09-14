@@ -82,6 +82,7 @@ export const AuditGroundTruthSchema = z.object({
     z.string(),
     z.object({
       available: z.boolean(),
+      inapplicable: z.boolean().optional(),
       expectedValue: z.string().nullable().optional(),
       notes: z.string().optional(),
     }),
@@ -154,15 +155,37 @@ export const AuditManifestSchema = z.object({
 });
 export type AuditManifest = z.infer<typeof AuditManifestSchema>;
 
+export const MissingFieldReasonSchema = z.enum([
+  'absent',
+  'inapplicable',
+  'conflicted',
+  'failed',
+]);
+export type MissingFieldReason = z.infer<typeof MissingFieldReasonSchema>;
+
+export const MissingFieldExplanationSchema = z.object({
+  field: z.string(),
+  reason: MissingFieldReasonSchema,
+  explanation: z.string(),
+  available: z.boolean(),
+  inapplicable: z.boolean().optional(),
+  notes: z.string().optional(),
+  conflictDetails: z.string().nullable().optional(),
+});
+export type MissingFieldExplanation = z.infer<typeof MissingFieldExplanationSchema>;
+
 export const FieldScoreDetailSchema = z.object({
   field: z.string(),
   available: z.boolean(),
+  inapplicable: z.boolean().optional(),
   extractedValue: z.string().nullable(),
   expectedValue: z.string().nullable().optional(),
   provenance: z.string(),
-  status: z.enum(['correct', 'incorrect', 'missing', 'unavailable', 'conflict']),
+  status: z.enum(['correct', 'incorrect', 'missing', 'unavailable', 'conflict', 'inapplicable']),
   correct: z.boolean(),
   conflictDetails: z.string().nullable().optional(),
+  missingReason: MissingFieldReasonSchema.nullable().optional(),
+  missingExplanation: z.string().nullable().optional(),
 });
 export type FieldScoreDetail = z.infer<typeof FieldScoreDetailSchema>;
 
@@ -174,6 +197,7 @@ export const ImageScoreDetailSchema = z.object({
   primaryAccuracy: z.number(), // 1, 0
   precision: z.number(), // 0.0 - 1.0
   recall: z.number(), // 0.0 - 1.0
+  rejectionReasons: z.record(z.string(), z.string()).optional(),
 });
 export type ImageScoreDetail = z.infer<typeof ImageScoreDetailSchema>;
 
@@ -191,6 +215,7 @@ export const AuditScoredRowSchema = z.object({
   evidenceGapReason: z.string().nullable().optional(),
   identityResolution: HybridIdentityResolutionSchema.optional(),
   conflicts: z.array(HybridConflictSchema).optional(),
+  imageRejectionReasons: z.record(z.string(), z.string()).optional(),
   extractedProductPreview: z.object({
     title: z.string().nullable().optional(),
     brand: z.string().nullable().optional(),
@@ -217,6 +242,112 @@ export const ConfigurationSummarySchema = z.object({
 });
 export type ConfigurationSummary = z.infer<typeof ConfigurationSummarySchema>;
 
+export const ScopeServedRateSummarySchema = z.object({
+  scope: z.string(),
+  domain: z.string().optional(),
+  platform: z.string().optional(),
+  sampleCount: z.number(),
+  servedRate: z.number(),
+  baselineServedRate: z.number(),
+  servedRateDelta: z.number(),
+  uncertainty: z.number(),
+  confidenceInterval: z.object({
+    lower: z.number(),
+    upper: z.number(),
+  }),
+  identityAccuracy: z.number(),
+  acceptedIdentityErrors: z.number(),
+  meanFieldCorrectness: z.number(),
+  baselineMeanFieldCorrectness: z.number(),
+  criticalFieldRegressionCount: z.number(),
+  meanImagePrecision: z.number(),
+  baselineMeanImagePrecision: z.number(),
+  meanImageRecall: z.number(),
+  primaryImageAccuracy: z.number(),
+  evidenceGapCount: z.number(),
+  isPromotable: z.boolean(),
+  promotabilityVerdict: z.enum(['PROMOTABLE', 'BLOCKED', 'NEEDS_REVIEW']),
+  promotabilityReasons: z.array(z.string()),
+});
+export type ScopeServedRateSummary = z.infer<typeof ScopeServedRateSummarySchema>;
+
+export const ImageContactSheetItemSchema = z.object({
+  url: z.string(),
+  isPrimary: z.boolean(),
+  status: z.enum(['accepted', 'rejected']),
+  rejectionReason: z.string().nullable().optional(),
+  role: z.string().optional(),
+  isExpectedAdmissible: z.boolean().optional(),
+  isExpectedPrimary: z.boolean().optional(),
+});
+export type ImageContactSheetItem = z.infer<typeof ImageContactSheetItemSchema>;
+
+export const ImageContactSheetSchema = z.object({
+  sampleId: z.string(),
+  url: z.string(),
+  domain: z.string(),
+  totalDiscovered: z.number(),
+  admittedCount: z.number(),
+  rejectedCount: z.number(),
+  primaryImage: z.string().nullable(),
+  primaryAccuracy: z.number(),
+  acceptedImages: z.array(ImageContactSheetItemSchema),
+  rejectedImages: z.array(ImageContactSheetItemSchema),
+});
+export type ImageContactSheet = z.infer<typeof ImageContactSheetSchema>;
+
+export const FieldEvidenceCellSchema = z.object({
+  configuration: ReplayConfigurationSchema,
+  value: z.string().nullable(),
+  provenance: z.string(),
+  status: z.enum(['correct', 'incorrect', 'missing', 'unavailable', 'conflict', 'inapplicable']),
+  isCorrect: z.boolean(),
+  missingReason: MissingFieldReasonSchema.nullable().optional(),
+  missingExplanation: z.string().nullable().optional(),
+  conflictDetails: z.string().nullable().optional(),
+});
+export type FieldEvidenceCell = z.infer<typeof FieldEvidenceCellSchema>;
+
+export const FieldEvidenceRowSchema = z.object({
+  field: z.string(),
+  expectedValue: z.string().nullable().optional(),
+  available: z.boolean(),
+  inapplicable: z.boolean().optional(),
+  cells: z.record(ReplayConfigurationSchema, FieldEvidenceCellSchema),
+  disagreementDetected: z.boolean(),
+  winnerConfiguration: ReplayConfigurationSchema.optional(),
+});
+export type FieldEvidenceRow = z.infer<typeof FieldEvidenceRowSchema>;
+
+export const SampleFieldEvidenceSchema = z.object({
+  sampleId: z.string(),
+  url: z.string(),
+  domain: z.string(),
+  scope: z.string(),
+  identityVerdicts: z.record(ReplayConfigurationSchema, IdentityVerdictSchema),
+  fields: z.array(FieldEvidenceRowSchema),
+  missingFieldExplanations: z.array(z.object({
+    configuration: ReplayConfigurationSchema,
+    field: z.string(),
+    reason: MissingFieldReasonSchema,
+    explanation: z.string(),
+  })),
+});
+export type SampleFieldEvidence = z.infer<typeof SampleFieldEvidenceSchema>;
+
+export const OperatorReviewSurfaceReportSchema = z.object({
+  domain: z.string(),
+  generatedAt: z.string(),
+  totalSamples: z.number(),
+  totalScopes: z.number(),
+  scopeSummaries: z.record(z.string(), ScopeServedRateSummarySchema),
+  fieldEvidences: z.array(SampleFieldEvidenceSchema),
+  contactSheets: z.array(ImageContactSheetSchema),
+  markdown: z.string(),
+  html: z.string().optional(),
+});
+export type OperatorReviewSurfaceReport = z.infer<typeof OperatorReviewSurfaceReportSchema>;
+
 export const PilotAuditResultSchema = z.object({
   domain: z.string(),
   executedAt: z.string(),
@@ -224,5 +355,9 @@ export const PilotAuditResultSchema = z.object({
   rows: z.array(AuditScoredRowSchema),
   summaryByConfiguration: z.record(ReplayConfigurationSchema, ConfigurationSummarySchema),
   reviewableTable: z.string(),
+  scopeSummaries: z.record(z.string(), ScopeServedRateSummarySchema).optional(),
+  operatorReviewReport: z.string().optional(),
+  fieldEvidences: z.array(SampleFieldEvidenceSchema).optional(),
+  contactSheets: z.array(ImageContactSheetSchema).optional(),
 });
 export type PilotAuditResult = z.infer<typeof PilotAuditResultSchema>;

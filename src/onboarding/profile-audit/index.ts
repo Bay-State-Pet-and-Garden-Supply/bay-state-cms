@@ -20,5 +20,19 @@ export {
   formatReviewableTable,
   formatReviewableManifest,
 } from './reviewable-table';
+export {
+  computeWilsonScoreInterval,
+  explainMissingField,
+  buildSideBySideFieldEvidence,
+  buildImageContactSheet,
+  computeScopeSummaries,
+  formatPerScopeSummaryTable,
+  formatSideBySideFieldEvidenceTable,
+  formatMissingFieldsSummary,
+  formatImageContactSheetMarkdown,
+  formatHtmlContactSheet,
+  generateOperatorReviewReport,
+} from './operator-review';
 export { runPilotAudit } from './pilot-auditor';
+
 

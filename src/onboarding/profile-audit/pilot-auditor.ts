@@ -52,10 +52,13 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     'hybrid_identity_first',
   ];
 
+  const outcomesBySample: Record<string, Record<ReplayConfiguration, import('./types').ExtractionOutcome>> = {};
+
   for (const sample of manifest.samples) {
     const outcomes = await replaySample(sample, profile, {
       artifactRoot: options.artifactRoot,
     });
+    outcomesBySample[sample.sampleId] = outcomes;
 
     for (const config of configs) {
       const outcome = outcomes[config];
@@ -68,6 +71,14 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
   const summaryByConfiguration = computeConfigurationSummaries(rows);
   const reviewableTable = formatReviewableTable(rows);
 
+  // 5. Operator Review Surface (Issue #177 / Gate T4)
+  const { generateOperatorReviewReport } = await import('./operator-review');
+  const reviewReport = generateOperatorReviewReport({
+    manifest,
+    rows,
+    outcomesBySample,
+  });
+
   return {
     domain: normDomain,
     executedAt: new Date().toISOString(),
@@ -75,5 +86,9 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     rows,
     summaryByConfiguration,
     reviewableTable,
+    scopeSummaries: reviewReport.scopeSummaries,
+    operatorReviewReport: reviewReport.markdown,
+    fieldEvidences: reviewReport.fieldEvidences,
+    contactSheets: reviewReport.contactSheets,
   };
 }
