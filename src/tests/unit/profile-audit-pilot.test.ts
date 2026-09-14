@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { runPilotAudit } from '../../onboarding/profile-audit/pilot-auditor';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
-import type { AuditManifest } from '../../onboarding/profile-audit/types';
+import type { AuditManifest, AuditManifestSample } from '../../onboarding/profile-audit/types';
 
 describe('profile extraction audit gate T1: pilot replay and scoring', () => {
   let tempDir: string;
@@ -334,5 +334,57 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
     expect(result.domain).toBe('earthbath.com');
     expect(result.rows.length).toBeGreaterThanOrEqual(4);
     expect(result.reviewableTable).toBeTruthy();
+  });
+
+  it('generates promotion report integrated into runPilotAudit (T5 gate)', async () => {
+    function createSample(id: string, scope: string = 'standard_pdp'): AuditManifestSample {
+      return {
+        sampleId: id,
+        url: `https://pilot.example.com/products/${id}`,
+        domain: 'pilot.example.com',
+        stratum: `pilot.example.com:shopify:${scope}:single_variant`,
+        inventoryStatus: 'confirmed',
+        artifactRef: `snapshots/${id}.html`,
+        supplementalArtifactRefs: [],
+        hasSupplementalArtifact: false,
+        captureFreshness: '2026-09-01T12:00:00Z',
+        pageStructureScope: scope,
+        groundTruth: {
+          identity: {
+            brand: 'TestBrand',
+            productName: `Product ${id}`,
+          },
+          fields: {
+            title: { available: true, expectedValue: `Product ${id}` },
+            brand: { available: true, expectedValue: 'TestBrand' },
+            price: { available: true, expectedValue: '9.99' },
+          },
+          images: {
+            primaryImage: `https://pilot.example.com/images/${id}.jpg`,
+            admissibleImages: [`https://pilot.example.com/images/${id}.jpg`],
+          },
+        },
+      };
+    }
+
+    const sample1 = createSample('s1', 'standard_pdp');
+    const sample2 = createSample('s2', 'standard_pdp');
+    const sample3 = createSample('s3', 'standard_pdp');
+
+    const manifest: AuditManifest = {
+      domain: 'pilot.example.com',
+      generatedAt: '2026-09-13T21:00:00Z',
+      samples: [sample1, sample2, sample3],
+    };
+
+    const result = await runPilotAudit({
+      domain: 'pilot.example.com',
+      manifest,
+    });
+
+    expect(result.promotionReport).toBeDefined();
+    expect(result.promotionReport).toContain('# Profile Extraction Audit Gate: Per-Scope Promotion Report');
+    expect(result.perScopePromotionReport).toBeDefined();
+    expect(result.perScopePromotionReport!.domain).toBe('pilot.example.com');
   });
 });

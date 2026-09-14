@@ -23,7 +23,7 @@ import {
   formatCostAnalysisTable,
   formatPromotionVerdictBadge,
 } from '../../onboarding/profile-audit/promotion-report';
-import { runPilotAudit } from '../../onboarding/profile-audit/pilot-auditor';
+
 
 describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (Issue #178)', () => {
   // ── Test Fixture Helpers ──────────────────────────────────────────────────
@@ -621,30 +621,7 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       expect(md).toContain('## Actionable Scope Verdicts & Next Steps');
       expect(md).toContain('PROCEED TO CONTRACT WORK');
     });
-
-    it('generates promotion report integrated into runPilotAudit', async () => {
-      const sample1 = createSample('s1', 'standard_pdp');
-      const sample2 = createSample('s2', 'standard_pdp');
-      const sample3 = createSample('s3', 'standard_pdp');
-
-      const manifest: AuditManifest = {
-        domain: 'pilot.example.com',
-        generatedAt: '2026-09-13T21:00:00Z',
-        samples: [sample1, sample2, sample3],
-      };
-
-      const result = await runPilotAudit({
-        domain: 'pilot.example.com',
-        manifest,
-      });
-
-      expect(result.promotionReport).toBeDefined();
-      expect(result.promotionReport).toContain('# Profile Extraction Audit Gate: Per-Scope Promotion Report');
-      expect(result.perScopePromotionReport).toBeDefined();
-      expect(result.perScopePromotionReport!.domain).toBe('pilot.example.com');
-    });
   });
-
   // ───────────────────────────────────────────────────────────────────────────
   // Robustness & Edge Cases
   // ───────────────────────────────────────────────────────────────────────────

@@ -285,7 +285,7 @@ export function computeScopeCostMetrics(
 
     // Requests: read recorded requestCount or 1.0 per sample
     const reqCounts = cfgRows.map(r => (typeof r.requestCount === 'number' ? r.requestCount : 1));
-    const totalRequests = reqCounts.reduce((a, b) => a + b, 0) || sampleCount;
+    const totalRequests = reqCounts.reduce((a, b) => a + b, 0) ?? sampleCount;
     const requestsPerSample = Math.round((totalRequests / Math.max(1, sampleCount)) * 10) / 10;
 
     // Operator Maintenance Minutes:
