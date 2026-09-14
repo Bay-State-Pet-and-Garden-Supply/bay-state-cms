@@ -216,4 +216,78 @@ describe('profile audit scoring', () => {
     expect(scored.fieldScores.title.conflictDetails).toContain('Structured (json-ld): "Hot Spot Soothing Spray Organic"');
     expect(scored.conflicts).toHaveLength(1);
   });
+
+  it('maps unresolved_parent and wrong_variant_selected to ambiguous and wrong_variant respectively', () => {
+    const unresolvedOutcome: ExtractionOutcome = {
+      configuration: 'hybrid_identity_first',
+      data: ExtractionDataSchema.parse({
+        title: 'Hot Spot Relief Spray',
+        brand: 'earthbath',
+        confidence: 1,
+      }),
+      identityResolution: {
+        status: 'parent_page',
+        parentPageUrl: sample.url,
+        totalCandidates: 3,
+        selectedVariantKey: null,
+        confusionDetected: true,
+        confusionType: 'unresolved_parent',
+        confusionDetails: 'Multi-variant parent page has 3 variant candidates, but no variant could be resolved.',
+      },
+      admittedImages: [],
+      rejectedImages: [],
+      primaryImage: null,
+      isEvidenceGap: false,
+    };
+
+    const scoredUnresolved = scoreExtraction(unresolvedOutcome, sample);
+    expect(scoredUnresolved.identityVerdict).toBe('ambiguous');
+    expect(scoredUnresolved.failureCodes).toContain('PARENT_PAGE_VARIANT_CONFUSION');
+
+    const wrongVariantOutcome: ExtractionOutcome = {
+      ...unresolvedOutcome,
+      identityResolution: {
+        ...unresolvedOutcome.identityResolution!,
+        status: 'resolved_variant',
+        confusionType: 'wrong_variant_selected',
+      },
+    };
+
+    const scoredWrong = scoreExtraction(wrongVariantOutcome, sample);
+    expect(scoredWrong.identityVerdict).toBe('wrong_variant');
+    expect(scoredWrong.failureCodes).toContain('WRONG_VARIANT');
+    expect(scoredWrong.failureCodes).toContain('PARENT_PAGE_VARIANT_CONFUSION');
+  });
+
+  it('evaluates GTIN equivalence with 12 vs 13 digit padding without false wrong_product', () => {
+    const gtinSample: AuditManifestSample = {
+      ...sample,
+      groundTruth: {
+        ...sample.groundTruth,
+        identity: {
+          brand: 'earthbath',
+          productName: 'Hot Spot Relief Spray',
+          gtin: '0012345678901', // 13-digit EAN
+        },
+      },
+    };
+
+    const outcome: ExtractionOutcome = {
+      configuration: 'hybrid_identity_first',
+      data: ExtractionDataSchema.parse({
+        title: 'Hot Spot Relief Spray',
+        brand: 'earthbath',
+        confidence: 1,
+      }),
+      admittedImages: [],
+      rejectedImages: [],
+      primaryImage: null,
+      isEvidenceGap: false,
+    };
+    (outcome.data as Record<string, unknown>).gtin = '012345678901'; // 12-digit UPC (canonical match)
+
+    const scored = scoreExtraction(outcome, gtinSample);
+    expect(scored.identityVerdict).toBe('correct_match');
+    expect(scored.failureCodes).not.toContain('WRONG_PRODUCT');
+  });
 });

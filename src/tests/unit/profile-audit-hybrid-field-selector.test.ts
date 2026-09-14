@@ -166,6 +166,55 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.identityResolution.confusionDetails).toContain('SKU-COLLAR-SM');
     });
 
+    it('surfaces parent-page versus variant confusion when selector extracts container/parent GTIN', () => {
+      const fakeMatrix: any = {
+        platform: 'shopify',
+        canonicalParentUrl: url,
+        warnings: [],
+        candidates: [
+          {
+            variantKey: 'var-1',
+            title: 'Shampoo 16oz',
+            identifiers: [{ kind: 'gtin', value: '012345678901', normalizedValue: '012345678901' }],
+            options: [],
+            images: [],
+          },
+          {
+            variantKey: 'var-2',
+            title: 'Shampoo 32oz',
+            identifiers: [{ kind: 'gtin', value: '098765432109', normalizedValue: '098765432109' }],
+            options: [],
+            images: [],
+          },
+        ],
+      };
+
+      const raw: any = {
+        custom: {
+          title: 'Shampoo 16oz',
+          gtin: '999999999999', // Contradicts resolved variant's GTIN
+        },
+        jsonLd: {},
+        metaTags: {},
+        microdata: {},
+        htmlHeuristics: {},
+        images: [],
+      };
+
+      const result = selectHybridFields({
+        raw,
+        url,
+        html,
+        variantMatrix: fakeMatrix,
+        expected: { name: 'Shampoo 16oz', gtin: '012345678901' },
+      });
+
+      expect(result.identityResolution.confusionDetected).toBe(true);
+      expect(result.identityResolution.confusionType).toBe('parent_vs_variant');
+      expect(result.identityResolution.confusionDetails).toContain('999999999999');
+      expect(result.identityResolution.confusionDetails).toContain('012345678901');
+    });
+
     it('surfaces parent-page versus variant confusion when multi-variant matching is ambiguous', () => {
       const fakeMatrix: any = {
         platform: 'shopify',
@@ -681,6 +730,79 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.admittedImages).toHaveLength(12);
       expect(result.rejectedImages).toHaveLength(8);
       expect(result.imageRejectionReasons['https://example.com/cdn/products/photo-12.jpg']).toBe('cap_exceeded');
+    });
+
+    it('prioritizes variant candidate primary image over custom primaryImage selector', () => {
+      const fakeMatrix: any = {
+        platform: 'shopify',
+        canonicalParentUrl: url,
+        warnings: [],
+        candidates: [
+          {
+            variantKey: 'var-blue',
+            title: 'Blue Collar',
+            images: [
+              { url: 'https://example.com/cdn/products/blue-collar-variant-primary.jpg', role: 'primary' },
+              { url: 'https://example.com/cdn/products/blue-collar-side.jpg', role: 'gallery' },
+            ],
+          },
+        ],
+      };
+
+      const raw: any = {
+        custom: {
+          primaryImage: 'https://example.com/cdn/products/parent-page-hero.jpg', // Page hero selector
+          images: ['https://example.com/cdn/products/parent-page-hero.jpg'],
+        },
+        jsonLd: {},
+        metaTags: {},
+        microdata: {},
+        images: [],
+      };
+
+      const result = selectHybridFields({
+        raw,
+        url,
+        html,
+        variantMatrix: fakeMatrix,
+        expected: { name: 'Blue Collar' },
+      });
+
+      // Variant candidate primary MUST beat custom hero primary
+      expect(result.primaryImage).toBe('https://example.com/cdn/products/blue-collar-variant-primary.jpg');
+      expect(result.admittedImages[0]).toBe('https://example.com/cdn/products/blue-collar-variant-primary.jpg');
+    });
+
+    it('does not trigger conflict when GTINs are equivalent under GS1 0-padding (12 vs 13 digits)', () => {
+      const raw: any = {
+        custom: { gtin: '012345678901' }, // 12-digit UPC
+        jsonLd: { gtin13: '0012345678901' }, // 13-digit EAN
+        metaTags: {},
+        microdata: {},
+        htmlHeuristics: {},
+        images: [],
+      };
+
+      const result = selectHybridFields({ raw, url, html });
+      expect(result.conflicts).toHaveLength(0);
+    });
+
+    it('does not trigger description conflict when differences are only HTML entity encoding', () => {
+      const raw: any = {
+        custom: {
+          description: '<p>Earthbath&#39;s &amp; puppies &quot;gentle&quot; wash formula</p>',
+        },
+        jsonLd: {
+          description: "Earthbath's & puppies \"gentle\" wash formula",
+        },
+        metaTags: {},
+        microdata: {},
+        htmlHeuristics: {},
+        images: [],
+      };
+
+      const result = selectHybridFields({ raw, url, html });
+      expect(result.conflicts).toHaveLength(0);
     });
   });
 

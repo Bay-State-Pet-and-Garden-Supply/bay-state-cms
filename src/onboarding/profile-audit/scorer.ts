@@ -22,6 +22,7 @@ import type {
 } from '../../shared/schemas/profile-audit';
 import type { ExtractionOutcome } from './types';
 import { canonicalizeUrl } from '../image-utils';
+import { canonicalGtinMatch } from '../../shared/gtin';
 
 function normalizeText(s: unknown): string {
   if (s === null || s === undefined) return '';
@@ -115,9 +116,7 @@ export function scoreExtraction(
   const normExpBrand = normalizeText(expectedIdentity.brand);
 
   if (expectedIdentity.gtin && extractedGtin) {
-    const extGtinClean = String(extractedGtin).replace(/\D/g, '');
-    const expGtinClean = String(expectedIdentity.gtin).replace(/\D/g, '');
-    if (extGtinClean === expGtinClean) {
+    if (canonicalGtinMatch(extractedGtin, expectedIdentity.gtin)) {
       if (expectedIdentity.variantName && !normExtTitle.includes(normalizeText(expectedIdentity.variantName))) {
         identityVerdict = 'wrong_variant';
       } else {
@@ -147,10 +146,16 @@ export function scoreExtraction(
     failureCodesSet.add('PARENT_PAGE_VARIANT_CONFUSION');
     if (outcome.identityResolution.confusionType === 'ambiguous_variant') {
       identityVerdict = 'ambiguous';
+    } else if (outcome.identityResolution.confusionType === 'unresolved_parent') {
+      identityVerdict = 'ambiguous';
+    } else if (outcome.identityResolution.confusionType === 'wrong_variant_selected') {
+      identityVerdict = 'wrong_variant';
     } else if (
       outcome.identityResolution.confusionType === 'parent_vs_variant' &&
       (expectedIdentity.variantName || identityVerdict === 'correct_match')
     ) {
+      identityVerdict = 'wrong_variant';
+    } else if (identityVerdict === 'correct_match') {
       identityVerdict = 'wrong_variant';
     }
   }

@@ -205,19 +205,6 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
 
   // Step 3: Safe deduplication across resolution variations
   const deduped = cleanAndDeduplicateImages(passedCandidateUrls, baseUrl);
-  const admittedCanonicals = new Set(deduped.map(u => canonicalizeUrl(u, baseUrl)));
-
-  // Record resolution duplicates that were dropped by deduping
-  const chosenExactUrls = new Set(deduped);
-  for (const url of passedCandidateUrls) {
-    if (!chosenExactUrls.has(url)) {
-      const canon = canonicalizeUrl(url, baseUrl);
-      if (admittedCanonicals.has(canon)) {
-        rejectedImages.push(url);
-        rejectionReasons[url] = 'resolution_duplicate';
-      }
-    }
-  }
 
   // Step 4: Role and ordering signals (preserve/flag primary image at index 0)
   if (preferredPrimaryCanon) {
@@ -239,6 +226,23 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
     } else {
       rejectedImages.push(url);
       rejectionReasons[url] = 'cap_exceeded';
+    }
+  }
+
+  // Record resolution duplicates that were dropped by deduping:
+  // For each canonical image group, the first passed candidate is accepted,
+  // while subsequent resolution/size variations are recorded as resolution_duplicate.
+  const allDedupedCanonicals = new Set(deduped.map(u => canonicalizeUrl(u, baseUrl)));
+  const seenPassedCanonicalsForDedup = new Set<string>();
+  for (const url of passedCandidateUrls) {
+    const canon = canonicalizeUrl(url, baseUrl);
+    if (allDedupedCanonicals.has(canon)) {
+      if (!seenPassedCanonicalsForDedup.has(canon)) {
+        seenPassedCanonicalsForDedup.add(canon);
+      } else {
+        rejectedImages.push(url);
+        rejectionReasons[url] = 'resolution_duplicate';
+      }
     }
   }
 

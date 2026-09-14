@@ -70,11 +70,19 @@ describe('profile audit strict image filter', () => {
     expect(result.admittedImages).toHaveLength(1);
     expect(result.primaryImage).toBe(result.admittedImages[0]);
 
-    // Dropped duplicates recorded with resolution_duplicate
-    expect(result.rejectedImages.length).toBeGreaterThanOrEqual(2);
+    // Dropped duplicates recorded with resolution_duplicate (exactly 2 dropped out of 3)
+    expect(result.rejectedImages).toHaveLength(2);
     for (const rej of result.rejectedImages) {
       expect(result.rejectionReasons[rej]).toBe('resolution_duplicate');
     }
+
+    // A single image with no duplicate variations must NOT produce any resolution_duplicate rejection
+    const singleResult = applyStrictImageFilter({
+      images: [rawImages[0]],
+      baseUrl,
+    });
+    expect(singleResult.admittedImages).toHaveLength(1);
+    expect(singleResult.rejectedImages).toHaveLength(0);
   });
 
   it('admits selected-variant images and excludes other-variant images when matrix is present', () => {

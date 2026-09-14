@@ -24,6 +24,7 @@ import type {
   HybridIdentityResolution,
 } from '../../shared/schemas/profile-audit';
 import { parseVariantMatrix, matchVariantMatrix } from '../variant-resolver';
+import { canonicalGtinMatch } from '../../shared/gtin';
 import { applyStrictImageFilter, type StrictImageCandidate } from './strict-image-filter';
 
 export interface RawExtractionLayers {
@@ -88,6 +89,14 @@ function stripHtml(s: unknown): string {
   if (s === null || s === undefined) return '';
   return String(s)
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -167,7 +176,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
         confusionDetected = true;
         confusionType = 'parent_vs_variant';
         confusionDetails = `Selector extracted parent-page title "${selCustomTitle}", but resolved variant has specific identity "${candidateTitle}".`;
-      } else if (rawParentTitle && candidateTitle && normParent !== normCand && !normParent.includes(normCand)) {
+      } else if (rawParentTitle && candidateTitle && normParent !== normCand && !normParent.includes(normCand) && !normCand.includes(normParent)) {
         confusionDetected = true;
         confusionType = 'parent_vs_variant';
         confusionDetails = `Page parent title "${rawParentTitle}" diverges from selected variant title "${candidateTitle}".`;
@@ -182,6 +191,17 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
         confusionDetected = true;
         confusionType = 'parent_vs_variant';
         confusionDetails = `Selector extracted parent SKU "${selCustomSku}", which contradicts resolved variant SKU "${candidateSku}".`;
+      }
+
+      // Check if selector extracted a container/parent GTIN different from variant GTIN
+      const candidateGtin =
+        selectedCandidate.identifiers?.find(i => i.kind === 'gtin')?.value ??
+        (selectedCandidate as unknown as Record<string, unknown>).barcode;
+      const selCustomGtin = typeof raw.custom?.gtin === 'string' ? raw.custom.gtin.trim() : null;
+      if (selCustomGtin && candidateGtin && !canonicalGtinMatch(selCustomGtin, candidateGtin)) {
+        confusionDetected = true;
+        confusionType = 'parent_vs_variant';
+        confusionDetails = `Selector extracted parent GTIN "${selCustomGtin}", which contradicts resolved variant GTIN "${candidateGtin}".`;
       }
     }
   } else if (expected?.name && matrix && totalCandidates > 0 && !selectedCandidate) {
@@ -214,7 +234,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
   } {
     // If selected variant has specific SKU / price / GTIN / title, that is top priority structured signal
     if (selectedCandidate) {
-      if (field === 'title' && selectedCandidate.title?.trim() && selectedCandidate.title.trim() !== rawParentTitle) {
+      if (field === 'title' && selectedCandidate.title?.trim()) {
         return { value: selectedCandidate.title.trim(), source: 'variant-candidate' };
       }
       const skuId =
@@ -321,7 +341,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
       } else if (field === 'gtin') {
         const selG = cleanGtin(selectorVal);
         const strG = cleanGtin(structuredVal);
-        isDisagreement = Boolean(selG && strG && selG !== strG);
+        isDisagreement = Boolean(selG && strG && !canonicalGtinMatch(selG, strG));
       } else if (field === 'description') {
         const selD = normalizeCompare(stripHtml(selectorVal));
         const strD = normalizeCompare(stripHtml(structuredVal));
@@ -374,7 +394,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
   // ── Step 4: Strict image filtering after EVERY source contributes ──────────
   const rawContributedImages: StrictImageCandidate[] = [];
 
-  // 1. Variant candidate images
+  // 1. Variant candidate images (priority 1 for primary image if variant candidate exists)
   if (selectedCandidate?.images) {
     for (let i = 0; i < selectedCandidate.images.length; i++) {
       const img = selectedCandidate.images[i];
@@ -384,20 +404,20 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
     }
   }
 
-  // 2. Custom selector images
-  const rawCustomImages = (raw.custom?.images as string[]) || [];
-  for (let i = 0; i < rawCustomImages.length; i++) {
-    const u = rawCustomImages[i];
-    if (u) rawContributedImages.push({ url: u, source: 'custom-selector', role: i === 0 ? 'primary' : 'gallery' });
-  }
-
-  // 3. Custom primaryImage selector if present
+  // 2. Custom primaryImage selector if present (priority 2 if variant candidate has no images)
   if (typeof raw.custom?.primaryImage === 'string' && raw.custom.primaryImage.trim()) {
-    rawContributedImages.unshift({
+    rawContributedImages.push({
       url: raw.custom.primaryImage.trim(),
       source: 'custom-selector',
       role: 'primary',
     });
+  }
+
+  // 3. Custom selector images
+  const rawCustomImages = (raw.custom?.images as string[]) || [];
+  for (let i = 0; i < rawCustomImages.length; i++) {
+    const u = rawCustomImages[i];
+    if (u) rawContributedImages.push({ url: u, source: 'custom-selector', role: i === 0 ? 'primary' : 'gallery' });
   }
 
   // 4. JSON-LD images

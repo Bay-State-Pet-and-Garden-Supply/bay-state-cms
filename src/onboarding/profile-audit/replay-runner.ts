@@ -25,6 +25,8 @@ import { extractViaHttpDetailed } from '../page-extractor';
 import { ExtractionDataSchema } from '../../shared/schemas/onboarding';
 import { applyStrictImageFilter } from './strict-image-filter';
 import { selectHybridFields } from './hybrid-field-selector';
+import { parseVariantMatrix, matchVariantMatrix } from '../variant-resolver';
+import type { VariantMatrix, VariantMatchDecision } from '../../shared/schemas/variant-resolution';
 import { createResolver } from '../../server/services/profile-builder/snapshotArtifactResolver';
 
 const DEFAULT_ARTIFACT_ROOT = resolve(
@@ -134,9 +136,32 @@ export async function replaySample(
   };
 
   // ── Configuration 2: Current + Strict Image Filtering ─────────────────────
+  let cfg2Matrix: VariantMatrix | null = null;
+  try {
+    cfg2Matrix = parseVariantMatrix(html, sample.url);
+  } catch {
+    // Graceful degradation
+  }
+  let cfg2Decision: VariantMatchDecision | null = null;
+  if (cfg2Matrix && cfg2Matrix.candidates.length > 0 && expected) {
+    try {
+      cfg2Decision = matchVariantMatrix(cfg2Matrix, {
+        name: expected.name ?? '',
+        brandHint: expected.brandHint ?? null,
+        gtin: expected.gtin ?? null,
+        sku: null,
+        mpn: null,
+      });
+    } catch {
+      // Graceful degradation
+    }
+  }
+
   const strictFilterResult = applyStrictImageFilter({
     images: baselineRawImages.length > 0 ? baselineRawImages : baselineAdmittedImages,
     baseUrl: sample.url,
+    variantMatrix: cfg2Matrix,
+    selectedVariantKey: cfg2Decision?.selectedVariantKey ?? (cfg2Matrix?.candidates.length === 1 ? cfg2Matrix.candidates[0].variantKey : null),
   });
 
   const strictAdditionalImages = strictFilterResult.admittedImages.filter(
