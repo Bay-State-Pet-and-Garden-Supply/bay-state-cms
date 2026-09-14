@@ -11,6 +11,7 @@ export {
   splitForFamily,
   normalizeFreshness,
   scanDomainSnapshots,
+  isNonProductPath,
 } from './manifest-builder';
 export { replaySample } from './replay-runner';
 export { scoreExtraction } from './scorer';

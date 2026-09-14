@@ -200,7 +200,9 @@ export function formatReviewableManifest(manifest: import('../../shared/schemas/
       ? '★ Confirmed'
       : sample.isProfileBlocked
         ? '⛔ Blocked'
-        : 'Candidate';
+        : sample.sampleType === 'failure_sample' || sample.isFailureSample
+          ? '⚠️ Failure'
+          : 'Candidate';
 
     const holdoutBadge = sample.isHoldout ? '🔒 Holdout' : 'Tuning';
     const artifactBadge = sample.artifactRef ? '✓ Available' : '⚠ Missing (Gap)';

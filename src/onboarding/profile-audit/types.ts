@@ -51,12 +51,20 @@ export interface BuildStratifiedManifestOptions {
   domains?: string[];
   artifactRoot?: string;
   suiteUrls?: string[];
-  candidateUrls?: string[];
+  candidateUrls?: Array<string | {
+    url: string;
+    lastmod?: string | null;
+    title?: string | null;
+    brand?: string | null;
+    sku?: string | null;
+    upc?: string | null;
+  }>;
   candidateLimit?: number;
   samplesPerStratum?: number;
   splitSeed?: number;
   holdoutPercent?: number;
   holdoutFamilies?: string[];
+  sitemapLastmods?: Record<string, string | null>;
   onboardingItems?: Array<{
     id: string;
     sourceUrl?: string | null;

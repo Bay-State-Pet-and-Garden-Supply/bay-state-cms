@@ -11,6 +11,7 @@ import {
   detectVariantShape,
   deriveProductFamily,
   normalizeFreshness,
+  isNonProductPath,
 } from '../../onboarding/profile-audit';
 import { replaySample } from '../../onboarding/profile-audit/replay-runner';
 
@@ -162,11 +163,24 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
     });
 
     it('records freshness accurately from snapshot file modification time and sitemap lastmod', async () => {
+      const sitemapTimestamp = '2026-07-15T14:30:00.000Z';
       const manifest = await buildFullStratifiedManifest({
         domain,
         artifactRoot: tempDir,
         suiteUrls: ['https://auditbrand.com/products/classic-collar'],
-        candidateUrls: ['https://auditbrand.com/products/unfetched-candidate'],
+        candidateUrls: [
+          'https://auditbrand.com/products/unfetched-candidate',
+          {
+            url: 'https://auditbrand.com/products/candidate-with-meta',
+            lastmod: '2026-06-10T12:00:00.000Z',
+            title: 'Candidate With Rich Metadata',
+            brand: 'AuditBrand',
+          },
+        ],
+        sitemapLastmods: {
+          'https://auditbrand.com/products/unfetched-candidate': sitemapTimestamp,
+        },
+        samplesPerStratum: 3,
       });
 
       const snapSample = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/classic-collar');
@@ -177,7 +191,48 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
       const unfetchedSample = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/unfetched-candidate');
       expect(unfetchedSample).toBeDefined();
       expect(unfetchedSample?.artifactRef).toBeNull();
-      expect(unfetchedSample?.captureFreshness).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(unfetchedSample?.captureFreshness).toBe(sitemapTimestamp);
+
+      const metaSample = manifest.samples.find(s => s.url === 'https://auditbrand.com/products/candidate-with-meta');
+      expect(metaSample).toBeDefined();
+      expect(metaSample?.captureFreshness).toBe('2026-06-10T12:00:00.000Z');
+      expect(metaSample?.groundTruth.identity.productName).toBe('Candidate With Rich Metadata');
+    });
+
+    it('filters out non-product paths like root, markdown files, and cart URLs', async () => {
+      const manifest = await buildFullStratifiedManifest({
+        domain,
+        artifactRoot: tempDir,
+        candidateUrls: [
+          'https://auditbrand.com/',
+          'https://auditbrand.com/agents.md',
+          'https://auditbrand.com/cart',
+          'https://auditbrand.com/robots.txt',
+          'https://auditbrand.com/products/real-pdp',
+        ],
+      });
+
+      expect(manifest.samples.length).toBe(1);
+      expect(manifest.samples[0].url).toBe('https://auditbrand.com/products/real-pdp');
+      expect(manifest.samples.some(s => s.url.includes('agents.md'))).toBe(false);
+      expect(manifest.samples.some(s => s.url === 'https://auditbrand.com/')).toBe(false);
+    });
+
+    it('respects candidateLimit option to cap candidate pool size', async () => {
+      const manifest = await buildFullStratifiedManifest({
+        domain,
+        artifactRoot: tempDir,
+        candidateUrls: [
+          'https://auditbrand.com/products/item-1',
+          'https://auditbrand.com/products/item-2',
+          'https://auditbrand.com/products/item-3',
+          'https://auditbrand.com/products/item-4',
+        ],
+        candidateLimit: 2,
+        samplesPerStratum: 10,
+      });
+
+      expect(manifest.samples.length).toBeLessThanOrEqual(2);
     });
   });
 
@@ -286,6 +341,73 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
       const shampooSample = manifest.samples.find(s => s.url.includes('shampoo'));
       expect(shampooSample?.isHoldout).toBe(true);
       expect(shampooSample?.holdoutFamilyName).toBe(explicitHoldout);
+    });
+
+    it('handles a domain with a single product family cleanly without crash or overlap', async () => {
+      const manifest = await buildFullStratifiedManifest({
+        domain,
+        artifactRoot: tempDir,
+        candidateUrls: [
+          'https://auditbrand.com/products/single-fam-1',
+          'https://auditbrand.com/products/single-fam-2',
+        ],
+        groundTruthOverrides: {
+          'https://auditbrand.com/products/single-fam-1': {
+            identity: { brand: 'AuditBrand', productName: 'Solo Dog Shampoo 8oz' },
+          },
+          'https://auditbrand.com/products/single-fam-2': {
+            identity: { brand: 'AuditBrand', productName: 'Solo Dog Shampoo 16oz' },
+          },
+        },
+      });
+
+      const meta = manifest.metadata as Record<string, any>;
+      expect(meta.holdoutUntouched).toBe(true);
+      expect(manifest.samples.length).toBe(2);
+      // Both samples belong to the exact same holdout decision
+      const firstHoldout = manifest.samples[0].isHoldout;
+      expect(manifest.samples.every(s => s.isHoldout === firstHoldout)).toBe(true);
+    });
+
+    it('ensures holdout families are represented in stratum samples and not crowded out by tuning', async () => {
+      // Stratum with 2 confirmed tuning samples + 2 unreviewed holdout samples
+      const explicitHoldout = 'auditbrand - holdout chew bone';
+      const manifest = await buildFullStratifiedManifest({
+        domain,
+        artifactRoot: tempDir,
+        suiteUrls: [
+          'https://auditbrand.com/products/collar-a',
+          'https://auditbrand.com/products/collar-b',
+        ],
+        candidateUrls: [
+          'https://auditbrand.com/products/chew-x',
+          'https://auditbrand.com/products/chew-y',
+        ],
+        holdoutFamilies: [explicitHoldout],
+        groundTruthOverrides: {
+          'https://auditbrand.com/products/collar-a': {
+            identity: { brand: 'AuditBrand', productName: 'Tuning Dog Collar 8oz' },
+          },
+          'https://auditbrand.com/products/collar-b': {
+            identity: { brand: 'AuditBrand', productName: 'Tuning Dog Collar 16oz' },
+          },
+          'https://auditbrand.com/products/chew-x': {
+            identity: { brand: 'AuditBrand', productName: 'Holdout Chew Bone 8oz' },
+          },
+          'https://auditbrand.com/products/chew-y': {
+            identity: { brand: 'AuditBrand', productName: 'Holdout Chew Bone 16oz' },
+          },
+        },
+        samplesPerStratum: 2,
+      });
+
+      // Stratum should have 1 tuning and 1 holdout sample
+      const holdoutSample = manifest.samples.find(s => s.isHoldout);
+      const tuningSample = manifest.samples.find(s => !s.isHoldout);
+
+      expect(holdoutSample).toBeDefined();
+      expect(tuningSample).toBeDefined();
+      expect(holdoutSample?.productFamily).toBe(explicitHoldout);
     });
   });
 
@@ -529,8 +651,25 @@ describe('profile audit gate T2: full stratified sampling manifest', () => {
       expect(detectPageStructureScope('https://x.com/p', null, false, true)).toBe('failure_pdp');
       expect(detectPageStructureScope('https://x.com/bundles/holiday-pack', '<html></html>', false, false)).toBe('long_tail_pdp');
       expect(detectPageStructureScope('https://x.com/products/item?variant=123', '<html></html>', false, false)).toBe('long_tail_pdp');
+      expect(detectPageStructureScope('https://x.com/products/gift-set', '<div class="gift-set-wrapper">Pack</div>', false, false)).toBe('long_tail_pdp');
       expect(detectPageStructureScope('https://x.com/p', '<form class="variations_form"></form>', false, false)).toBe('variant_matrix_pdp');
       expect(detectPageStructureScope('https://x.com/p', '<h1>Title</h1>', false, false)).toBe('standard_pdp');
+    });
+
+    it('identifies non-product paths correctly', () => {
+      expect(isNonProductPath('https://brand.com/')).toBe(true);
+      expect(isNonProductPath('https://brand.com/agents.md')).toBe(true);
+      expect(isNonProductPath('https://brand.com/robots.txt')).toBe(true);
+      expect(isNonProductPath('https://brand.com/cart')).toBe(true);
+      expect(isNonProductPath('https://brand.com/sitemap.xml')).toBe(true);
+      expect(isNonProductPath('https://brand.com/image.png')).toBe(true);
+      expect(isNonProductPath('https://brand.com/products/dog-shampoo')).toBe(false);
+      expect(isNonProductPath('https://brand.com/bundles/holiday-pack')).toBe(false);
+    });
+
+    it('derives product family using domain fallback when brand is omitted', () => {
+      const fam = deriveProductFamily('Soothing Lavender Shampoo 16oz', null, 'https://earthbath.com/p', 'earthbath.com');
+      expect(fam).toBe('earthbath - soothing shampoo');
     });
 
     it('detects variant shapes accurately', () => {

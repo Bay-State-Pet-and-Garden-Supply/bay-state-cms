@@ -129,6 +129,19 @@ export function detectPlatformFromHtmlOrUrl(html: string | null, url: string): s
   return 'generic';
 }
 
+export function isNonProductPath(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const p = parsed.pathname.toLowerCase();
+    if (p === '/' || p === '') return true;
+    if (/\.(md|txt|xml|json|pdf|png|jpg|jpeg|webp|svg|ico|css|js|map|woff2?|ttf|eot)$/i.test(p)) return true;
+    if (/^\/(agents\.md|robots\.txt|sitemap.*|cart|checkout|account|login|register|privacy|terms|contact|about)(\/|$)/i.test(p)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export function detectPageStructureScope(
   url: string,
   html: string | null,
@@ -140,6 +153,13 @@ export function detectPageStructureScope(
   if (html) {
     // Check for non-standard / long-tail URL patterns
     if (/\/(collections|bundles|items|category)\//i.test(url) || /\?[a-z0-9_-]+=/i.test(url)) {
+      return 'long_tail_pdp';
+    }
+    // Check for long-tail template markers in HTML
+    if (
+      /class=["'][^"']*\b(bundle|custom-template|landing-page|gift-set|set-product|pack-product)\b/i.test(html) ||
+      /<meta\s+name=["']template["']\s+content=["'][^"']*\b(bundle|custom|set)\b/i.test(html)
+    ) {
       return 'long_tail_pdp';
     }
     // Check for variant matrix markup / indicators
@@ -182,7 +202,10 @@ export function detectVariantShape(html: string | null, url: string): string {
       // ignore
     }
 
-    if (/<select\b[^>]*>[\s\S]*?<option\b/i.test(html) || /class=["'][^"']*swatch/i.test(html)) {
+    if (
+      /<select\b[^>]*>[\s\S]*?<option\b/i.test(html) ||
+      /class=["'][^"']*(swatch|variant-input|product-form__input)/i.test(html)
+    ) {
       return 'multi_variant';
     }
     return 'single_variant';
@@ -197,15 +220,16 @@ export function deriveProductFamily(
   name: string | null | undefined,
   brand: string | null | undefined,
   url: string,
+  domainHint?: string,
 ): string {
+  const fallbackBrand = domainHint ? normalizeBrand(domainHint.split('.')[0]) : 'DefaultBrand';
+  const normBrand = normalizeBrand(brand || '') || fallbackBrand;
   if (name && name.trim()) {
-    const normBrand = normalizeBrand(brand || '') || 'DefaultBrand';
     const stem = extractNameStem(name);
     return stem ? `${normBrand} - ${stem}` : `${normBrand} - ${name.trim()}`;
   }
   const slug = url.split('/').filter(Boolean).pop() || 'Product';
   const cleanSlug = slug.replace(/[-_]/g, ' ').replace(/\.(html?|php)$/i, '');
-  const normBrand = normalizeBrand(brand || '') || 'DefaultBrand';
   const stem = extractNameStem(cleanSlug);
   return stem ? `${normBrand} - ${stem}` : `${normBrand} - ${cleanSlug}`;
 }
@@ -242,11 +266,13 @@ export function deriveDefaultGroundTruth(
   url: string,
   snapshotInfo?: ResolvedSnapshotInfo,
   artifactRoot?: string,
+  domainHint?: string,
+  urlMetadata?: { title?: string | null; brand?: string | null; upc?: string | null; sku?: string | null },
 ): AuditGroundTruth {
-  let title = '';
-  let brand = '';
-  let sku: string | null = null;
-  let gtin: string | null = null;
+  let title = urlMetadata?.title?.trim() || '';
+  let brand = urlMetadata?.brand?.trim() || '';
+  let sku: string | null = urlMetadata?.sku?.trim() || null;
+  let gtin: string | null = urlMetadata?.upc?.trim() || null;
   let price: string | null = null;
   let primaryImage: string | null = null;
   const admissibleImages: string[] = [];
@@ -303,7 +329,7 @@ export function deriveDefaultGroundTruth(
 
   return {
     identity: {
-      brand: brand || 'DefaultBrand',
+      brand: brand || (domainHint ? normalizeBrand(domainHint.split('.')[0]) : 'DefaultBrand'),
       productName: title,
       gtin,
       sku,
@@ -334,6 +360,100 @@ interface RawCandidateRecord {
   isFailureSample: boolean;
   rawFreshness?: string | null;
   snapshot?: ResolvedSnapshotInfo;
+  candidateMetadata?: {
+    title?: string | null;
+    brand?: string | null;
+    upc?: string | null;
+    sku?: string | null;
+    lastmod?: string | null;
+  };
+}
+
+interface PreparedCandidate extends RawCandidateRecord {
+  platform: string;
+  pageStructureScope: string;
+  variantShape: string;
+  productFamily: string;
+  freshness: string;
+  stratum: string;
+  groundTruth: AuditGroundTruth;
+  isHoldout?: boolean;
+}
+
+/**
+ * Helper to select up to `samplesPerStratum` samples per stratum ensuring:
+ * 1. Confirmed profile samples, profile-blocked, and failure items prioritized.
+ * 2. Both holdout and tuning partitions represented if candidates exist from both.
+ * 3. Product family diversity maximized (avoid picking duplicate families if alternative families exist).
+ */
+function selectStratumSamples(
+  candidates: PreparedCandidate[],
+  samplesPerStratum: number,
+  holdoutFamilySet: Set<string>,
+): PreparedCandidate[] {
+  if (candidates.length <= samplesPerStratum) {
+    return [...candidates];
+  }
+  if (samplesPerStratum <= 0) {
+    return [];
+  }
+
+  const rank = (c: PreparedCandidate) => {
+    if (c.sampleType === 'confirmed_profile_sample') return 1;
+    if (c.sampleType === 'profile_blocked') return 2;
+    if (c.sampleType === 'failure_sample') return 3;
+    if (c.snapshot) return 4;
+    return 5;
+  };
+
+  const holdoutCandidates = candidates
+    .filter(c => holdoutFamilySet.has(c.productFamily))
+    .sort((a, b) => rank(a) - rank(b));
+  const tuningCandidates = candidates
+    .filter(c => !holdoutFamilySet.has(c.productFamily))
+    .sort((a, b) => rank(a) - rank(b));
+
+  const selected: PreparedCandidate[] = [];
+  const usedFamilies = new Set<string>();
+
+  const pickBest = (pool: PreparedCandidate[]): PreparedCandidate | null => {
+    for (const c of pool) {
+      if (!selected.includes(c) && !usedFamilies.has(c.productFamily)) {
+        return c;
+      }
+    }
+    for (const c of pool) {
+      if (!selected.includes(c)) {
+        return c;
+      }
+    }
+    return null;
+  };
+
+  // If both holdout and tuning candidates exist in this stratum and we need >= 2 samples:
+  if (samplesPerStratum >= 2 && holdoutCandidates.length > 0 && tuningCandidates.length > 0) {
+    const firstTuning = pickBest(tuningCandidates);
+    if (firstTuning) {
+      selected.push(firstTuning);
+      usedFamilies.add(firstTuning.productFamily);
+    }
+    const firstHoldout = pickBest(holdoutCandidates);
+    if (firstHoldout) {
+      selected.push(firstHoldout);
+      usedFamilies.add(firstHoldout.productFamily);
+    }
+  }
+
+  // Fill remaining slots
+  const overallSorted = [...candidates].sort((a, b) => rank(a) - rank(b));
+  while (selected.length < samplesPerStratum) {
+    const next = pickBest(overallSorted);
+    if (!next) break;
+    selected.push(next);
+    usedFamilies.add(next.productFamily);
+  }
+
+  return selected;
 }
 
 /**
@@ -347,6 +467,7 @@ export async function buildFullStratifiedManifest(
   const splitSeed = options.splitSeed ?? 42;
   const holdoutPercent = options.holdoutPercent ?? 20;
   const samplesPerStratum = options.samplesPerStratum ?? 2;
+  const candidateLimit = options.candidateLimit;
 
   // Determine target domains
   let targetDomains: string[] = [];
@@ -391,22 +512,105 @@ export async function buildFullStratifiedManifest(
       }
     }
 
-    // 2. Candidate sitemap URLs
-    let candidateUrls = options.candidateUrls;
-    if (!candidateUrls) {
-      try {
-        const { getActiveUrlsForDomain } = await import('../../db/repositories/brand-url-index-repo');
-        candidateUrls = getActiveUrlsForDomain(normDomain, 'product');
-      } catch {
-        candidateUrls = [];
+    // 2. Candidate sitemap URLs and metadata
+    interface DiscoveredCandidateMetadata {
+      url: string;
+      lastmod?: string | null;
+      title?: string | null;
+      brand?: string | null;
+      upc?: string | null;
+      sku?: string | null;
+    }
+
+    const candidateMetaMap = new Map<string, DiscoveredCandidateMetadata>();
+    let candidateList: string[] = [];
+
+    if (options.candidateUrls) {
+      for (const item of options.candidateUrls) {
+        if (typeof item === 'string') {
+          if (isNonProductPath(item)) continue;
+          candidateList.push(item);
+          candidateMetaMap.set(item.toLowerCase(), { url: item });
+        } else if (item && item.url) {
+          if (isNonProductPath(item.url)) continue;
+          candidateList.push(item.url);
+          candidateMetaMap.set(item.url.toLowerCase(), item);
+        }
       }
+    } else {
+      try {
+        const { getDb } = await import('../../db/connection');
+        const db = getDb();
+        const rows = db.query(
+          `SELECT url, lastmod, title, brand, upc, sku
+           FROM brand_url_index
+           WHERE domain = ? AND page_type = 'product' AND active = 1`,
+        ).all(normDomain) as any[];
+        for (const row of rows) {
+          if (!row.url || isNonProductPath(row.url)) continue;
+          candidateList.push(row.url);
+          candidateMetaMap.set(row.url.toLowerCase(), {
+            url: row.url,
+            lastmod: row.lastmod,
+            title: row.title,
+            brand: row.brand,
+            upc: row.upc,
+            sku: row.sku,
+          });
+        }
+      } catch {
+        candidateList = [];
+      }
+    }
+
+    // Apply sitemapLastmods from options if provided
+    if (options.sitemapLastmods) {
+      for (const [u, lmod] of Object.entries(options.sitemapLastmods)) {
+        const lower = u.toLowerCase();
+        const existing = candidateMetaMap.get(lower);
+        if (existing) {
+          existing.lastmod = lmod;
+        } else {
+          candidateMetaMap.set(lower, { url: u, lastmod: lmod });
+        }
+      }
+    }
+
+    // Also enrich with brand_url_index if available and not yet fetched
+    if (options.candidateUrls) {
+      try {
+        const { getDb } = await import('../../db/connection');
+        const db = getDb();
+        const rows = db.query(
+          `SELECT url, lastmod, title, brand, upc, sku
+           FROM brand_url_index
+           WHERE domain = ?`,
+        ).all(normDomain) as any[];
+        for (const r of rows) {
+          const lower = r.url.toLowerCase();
+          const existing = candidateMetaMap.get(lower);
+          if (existing) {
+            existing.lastmod = existing.lastmod ?? r.lastmod;
+            existing.title = existing.title ?? r.title;
+            existing.brand = existing.brand ?? r.brand;
+            existing.upc = existing.upc ?? r.upc;
+            existing.sku = existing.sku ?? r.sku;
+          }
+        }
+      } catch {
+        // DB not available or table absent
+      }
+    }
+
+    if (candidateLimit && candidateLimit > 0) {
+      candidateList = candidateList.slice(0, candidateLimit);
     }
 
     // 3. Scan Retained Snapshots
     const snapshots = scanDomainSnapshots(normDomain, artifactRoot);
 
     // Fallback: If DB suite is empty and candidateUrls empty, use snapshots
-    if (suiteUrls.length === 0 && candidateUrls.length === 0 && snapshots.length > 0) {
+    if (suiteUrls.length === 0 && candidateList.length === 0 && snapshots.length > 0) {
       suiteUrls = snapshots.map(s => s.canonicalUrl).filter((u): u is string => !!u);
     }
 
@@ -424,7 +628,10 @@ export async function buildFullStratifiedManifest(
       const direct = urlToSnapshot.get(targetUrl.toLowerCase());
       if (direct) return direct;
       const cleaned = targetUrl.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').toLowerCase();
-      return urlToSnapshot.get(cleaned);
+      const matchCleaned = urlToSnapshot.get(cleaned);
+      if (matchCleaned) return matchCleaned;
+      const noQuery = cleaned.split('?')[0].split('#')[0];
+      return urlToSnapshot.get(noQuery);
     };
 
     // Add Confirmed Suite URLs
@@ -434,6 +641,8 @@ export async function buildFullStratifiedManifest(
       seenUrls.add(lower);
 
       const snap = findSnapshot(url);
+      const meta = candidateMetaMap.get(lower);
+      const freshness = snap?.freshness ?? meta?.lastmod ?? (options.sitemapLastmods?.[url] ?? null);
       candidatePool.push({
         url,
         domain: normDomain,
@@ -441,8 +650,9 @@ export async function buildFullStratifiedManifest(
         sampleType: 'confirmed_profile_sample',
         isProfileBlocked: false,
         isFailureSample: false,
-        rawFreshness: snap?.freshness,
+        rawFreshness: freshness,
         snapshot: snap,
+        candidateMetadata: meta,
       });
     }
 
@@ -454,8 +664,7 @@ export async function buildFullStratifiedManifest(
         const db = getDb();
         const rows = db.query(
           `SELECT id, source_url, name, brand_hint, source_type, stage, stage_status, error_message, updated_at, created_at
-           FROM onboarding_items
-           WHERE source_url IS NOT NULL`,
+           FROM onboarding_items`,
         ).all() as any[];
         onboardingItems = rows.map(r => ({
           id: r.id,
@@ -481,7 +690,7 @@ export async function buildFullStratifiedManifest(
         continue;
       }
 
-      if (!item.sourceUrl) continue;
+      if (!item.sourceUrl || isNonProductPath(item.sourceUrl)) continue;
 
       let itemHost: string;
       try {
@@ -502,6 +711,7 @@ export async function buildFullStratifiedManifest(
       if (isBlocked) {
         // PROFILE-BLOCKED MANDATE: Must be included to measure fail-closed behavior
         const snap = findSnapshot(item.sourceUrl);
+        const meta = candidateMetaMap.get(lower);
         candidatePool.push({
           url: item.sourceUrl,
           domain: normDomain,
@@ -511,12 +721,14 @@ export async function buildFullStratifiedManifest(
           sampleType: 'profile_blocked',
           isProfileBlocked: true,
           isFailureSample: true,
-          rawFreshness: snap?.freshness ?? item.updatedAt ?? item.createdAt,
+          rawFreshness: snap?.freshness ?? meta?.lastmod ?? item.updatedAt ?? item.createdAt,
           snapshot: snap,
+          candidateMetadata: meta,
         });
         seenUrls.add(lower);
       } else if (isFailure && !seenUrls.has(lower)) {
         const snap = findSnapshot(item.sourceUrl);
+        const meta = candidateMetaMap.get(lower);
         candidatePool.push({
           url: item.sourceUrl,
           domain: normDomain,
@@ -526,36 +738,42 @@ export async function buildFullStratifiedManifest(
           sampleType: 'failure_sample',
           isProfileBlocked: false,
           isFailureSample: true,
-          rawFreshness: snap?.freshness ?? item.updatedAt ?? item.createdAt,
+          rawFreshness: snap?.freshness ?? meta?.lastmod ?? item.updatedAt ?? item.createdAt,
           snapshot: snap,
+          candidateMetadata: meta,
         });
         seenUrls.add(lower);
       }
     }
 
     // Add Candidate URLs
-    for (const url of candidateUrls) {
+    for (const url of candidateList) {
       const lower = url.toLowerCase();
       if (seenUrls.has(lower)) continue;
       seenUrls.add(lower);
 
       const snap = findSnapshot(url);
+      const meta = candidateMetaMap.get(lower);
+      const freshness = snap?.freshness ?? meta?.lastmod ?? (options.sitemapLastmods?.[url] ?? null);
       candidatePool.push({
         url,
         domain: normDomain,
+        name: meta?.title ?? undefined,
+        brandHint: meta?.brand ?? undefined,
         inventoryStatus: 'candidate',
         sampleType: 'unreviewed_candidate',
         isProfileBlocked: false,
         isFailureSample: false,
-        rawFreshness: snap?.freshness,
+        rawFreshness: freshness,
         snapshot: snap,
+        candidateMetadata: meta,
       });
     }
 
     // Add Remaining Snapshots only if neither suiteUrls nor candidateUrls were explicitly provided
     if (!options.suiteUrls && !options.candidateUrls) {
       for (const snap of snapshots) {
-        if (!snap.canonicalUrl) continue;
+        if (!snap.canonicalUrl || isNonProductPath(snap.canonicalUrl)) continue;
         const lower = snap.canonicalUrl.toLowerCase();
         if (seenUrls.has(lower)) continue;
         seenUrls.add(lower);
@@ -575,16 +793,6 @@ export async function buildFullStratifiedManifest(
   }
 
   // Derive Product Family, Platform, Scope, Variant Shape, and Ground Truth for each candidate
-  interface PreparedCandidate extends RawCandidateRecord {
-    platform: string;
-    pageStructureScope: string;
-    variantShape: string;
-    productFamily: string;
-    freshness: string;
-    stratum: string;
-    groundTruth: AuditGroundTruth;
-  }
-
   const preparedCandidates: PreparedCandidate[] = [];
 
   for (const item of candidatePool) {
@@ -611,7 +819,13 @@ export async function buildFullStratifiedManifest(
     const variantShape = detectVariantShape(html, item.url);
     const freshness = normalizeFreshness(item.rawFreshness);
 
-    const defaultGT = deriveDefaultGroundTruth(item.url, snap, artifactRoot);
+    const defaultGT = deriveDefaultGroundTruth(
+      item.url,
+      snap,
+      artifactRoot,
+      item.domain,
+      item.candidateMetadata,
+    );
     const overrides = options.groundTruthOverrides?.[item.url];
 
     const groundTruth: AuditGroundTruth = {
@@ -636,6 +850,7 @@ export async function buildFullStratifiedManifest(
       groundTruth.identity.productName,
       groundTruth.identity.brand,
       item.url,
+      item.domain,
     );
 
     const stratum = `${item.domain}:${platform}:${pageStructureScope}:${variantShape}`;
@@ -657,14 +872,19 @@ export async function buildFullStratifiedManifest(
   const holdoutFamilySet = new Set<string>();
   const tuningFamilySet = new Set<string>();
 
+  const primaryDomain = targetDomains.length === 1 ? targetDomains[0] : targetDomains.join(',');
+
   const requestedHoldoutNorm = new Set<string>();
   for (const raw of options.holdoutFamilies || []) {
     const rawTrim = raw.trim().toLowerCase();
+    if (!rawTrim) continue;
     requestedHoldoutNorm.add(rawTrim);
-    requestedHoldoutNorm.add(deriveProductFamily(raw, null, '').toLowerCase());
+    const derived = deriveProductFamily(raw, null, '', primaryDomain).toLowerCase();
+    if (derived) requestedHoldoutNorm.add(derived);
     const parts = raw.split('-');
     if (parts.length > 1) {
-      requestedHoldoutNorm.add(deriveProductFamily(parts.slice(1).join('-'), parts[0], '').toLowerCase());
+      const derivedParts = deriveProductFamily(parts.slice(1).join('-'), parts[0], '', primaryDomain).toLowerCase();
+      if (derivedParts) requestedHoldoutNorm.add(derivedParts);
     }
   }
 
@@ -672,7 +892,8 @@ export async function buildFullStratifiedManifest(
     const famLower = fam.toLowerCase();
     const isExplicit =
       requestedHoldoutNorm.has(famLower) ||
-      Array.from(requestedHoldoutNorm).some(req => famLower.includes(req) || req.includes(famLower));
+      Array.from(requestedHoldoutNorm).some(req => req.length >= 3 && famLower.includes(req));
+
     if (isExplicit) {
       holdoutFamilySet.add(fam);
     } else {
@@ -685,15 +906,16 @@ export async function buildFullStratifiedManifest(
     }
   }
 
-  // Guarantee: When multiple families exist and none hashed to holdout, reserve the first family
+  // Guarantee: When multiple families exist and none hashed to holdout, reserve one
   if (allFamilies.length >= 2 && holdoutFamilySet.size === 0) {
     const first = allFamilies[0];
     holdoutFamilySet.add(first);
     tuningFamilySet.delete(first);
   } else if (allFamilies.length >= 2 && tuningFamilySet.size === 0) {
-    const last = allFamilies[allFamilies.length - 1];
-    tuningFamilySet.add(last);
-    holdoutFamilySet.delete(last);
+    const candidateToMove = allFamilies.slice().reverse().find(f => !requestedHoldoutNorm.has(f.toLowerCase()))
+      || allFamilies[allFamilies.length - 1];
+    tuningFamilySet.add(candidateToMove);
+    holdoutFamilySet.delete(candidateToMove);
   }
 
   // Holdout partition sanity: holdout and tuning MUST be strictly disjoint
@@ -702,6 +924,7 @@ export async function buildFullStratifiedManifest(
   // Stratify by stratum: group candidate items
   const strataMap = new Map<string, PreparedCandidate[]>();
   for (const c of preparedCandidates) {
+    c.isHoldout = holdoutFamilySet.has(c.productFamily);
     const list = strataMap.get(c.stratum) ?? [];
     list.push(c);
     strataMap.set(c.stratum, list);
@@ -717,27 +940,20 @@ export async function buildFullStratifiedManifest(
 
   for (const stratum of claimedStrata) {
     const candidates = strataMap.get(stratum) || [];
+    if (candidates.length === 0) continue;
 
-    // Sort to prioritize confirmed profile samples, then profile blocked, then unreviewed candidates
-    candidates.sort((a, b) => {
-      const rank = (c: PreparedCandidate) => {
-        if (c.sampleType === 'confirmed_profile_sample') return 1;
-        if (c.sampleType === 'profile_blocked') return 2;
-        if (c.snapshot) return 3;
-        return 4;
-      };
-      return rank(a) - rank(b);
-    });
-
-    const chosen = candidates.slice(0, samplesPerStratum);
+    const chosen = selectStratumSamples(candidates, samplesPerStratum, holdoutFamilySet);
+    if (chosen.length === 0) continue;
 
     let minDate = new Date(chosen[0].freshness);
     let maxDate = new Date(chosen[0].freshness);
 
     for (const c of chosen) {
       const d = new Date(c.freshness);
-      if (d < minDate) minDate = d;
-      if (d > maxDate) maxDate = d;
+      if (!isNaN(d.getTime())) {
+        if (d < minDate) minDate = d;
+        if (d > maxDate) maxDate = d;
+      }
 
       const isHoldout = holdoutFamilySet.has(c.productFamily);
       const holdoutFamilyName = isHoldout ? c.productFamily : null;
@@ -783,7 +999,10 @@ export async function buildFullStratifiedManifest(
     };
   }
 
-  const primaryDomain = targetDomains.length === 1 ? targetDomains[0] : targetDomains.join(',');
+  const explicitHoldoutsNotInTuning = (options.holdoutFamilies || [])
+    .map(f => f.trim())
+    .filter(f => f && !tuningFamilySet.has(f));
+  const finalHoldoutFamilies = Array.from(new Set([...explicitHoldoutsNotInTuning, ...holdoutFamilySet])).sort();
 
   return {
     domain: primaryDomain,
@@ -792,7 +1011,7 @@ export async function buildFullStratifiedManifest(
     metadata: {
       claimedStrata,
       strataSummary,
-      holdoutFamilies: Array.from(new Set([...(options.holdoutFamilies || []), ...holdoutFamilySet])).sort(),
+      holdoutFamilies: finalHoldoutFamilies,
       tuningFamilies: Array.from(tuningFamilySet).sort(),
       holdoutUntouched,
       totalConfirmed: confirmedCount,
