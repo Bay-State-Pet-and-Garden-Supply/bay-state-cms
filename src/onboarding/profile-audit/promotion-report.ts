@@ -20,6 +20,7 @@ import type {
 } from '../../shared/schemas/profile-audit';
 import type { GateArithmeticOptions } from './types';
 import { evaluateGateArithmetic } from './gate-arithmetic';
+import { formatPromotionRecommendation } from './promotion-eligibility';
 // sanitizeCell: single source of truth in shared-metrics.ts (fix #9).
 import { sanitizeCell } from './shared-metrics';
 
@@ -287,13 +288,7 @@ export function generatePromotionReport(args: {
     for (const r of v.promotabilityReasons) {
       mdParts.push(`  - ${r}`);
     }
-    if (v.verdict === 'GO') {
-      mdParts.push('- **Recommendation:** **PROCEED TO CONTRACT WORK.** This scope has proven superior quality, zero identity errors, improved image filtering, and bounded maintenance. Ready for ladder-wiring ADR revision.');
-    } else if (v.verdict === 'NO_GO') {
-      mdParts.push('- **Recommendation:** **REMAIN SELECTOR-LED WITH SCOPED EXCEPTIONS.** Do not force into hybrid arm until blocking regressions and errors are resolved.');
-    } else {
-      mdParts.push('- **Recommendation:** **EXPAND STRATIFIED SAMPLE.** Increase sample size to achieve sufficient statistical confidence before triggering contract work.');
-    }
+    mdParts.push(`- **Recommendation:** ${formatPromotionRecommendation(v.verdict)}`);
     mdParts.push('');
   }
 

@@ -69,5 +69,21 @@ export {
   formatCostAnalysisTable,
   generatePromotionReport,
 } from './promotion-report';
+export {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+  buildPromotabilityReasons,
+  evaluatePromotionEligibility,
+} from './promotion-eligibility';
+export type {
+  UsableObservationCounts,
+  LabelProvenanceInspection,
+  BlockedReasonOptions,
+  PromotionEligibilityInput,
+  PromotionEligibilityResult,
+} from './promotion-eligibility';
+
 
 

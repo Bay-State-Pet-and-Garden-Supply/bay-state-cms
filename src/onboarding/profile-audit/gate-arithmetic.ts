@@ -39,6 +39,23 @@ import {
   IMAGE_RECALL_FLOOR_FACTOR,
 } from './shared-metrics';
 
+import {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  evaluatePromotionEligibility,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+} from './promotion-eligibility';
+
+/** Re-exported promotion eligibility helpers (Issue #185 / T1 Prefactor). */
+export {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  evaluatePromotionEligibility,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+};
+
 /** Critical fields (re-exported single source of truth from shared-metrics). */
 export const CRITICAL_FIELDS: string[] = SHARED_CRITICAL_FIELDS;
 /** Wilson interval (re-exported single source of truth from shared-metrics). */
@@ -661,11 +678,9 @@ export function evaluateScopeGate(
   const minSamples = options.minSamplesForPromote ?? MIN_SAMPLES_FOR_PROMOTE_DEFAULT;
   const z = resolveZForConfidence(options.targetConfidence);
 
-  const sampleCount = samples.length;
-  const sampleIdSet = new Set(samples.map(s => s.sampleId));
-
-  const baselineRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'current_extraction');
-  const hybridRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first');
+  const usableObs = resolveUsableObservations(samples, rows, minSamples);
+  const { sampleCount, baselineRows, hybridRows } = usableObs;
+  const labelProvenance = inspectLabelProvenance(samples);
 
   // Served predicate: single source of truth in shared-metrics.ts (fix #13).
   // (Local isSampleServed removed — use the shared isSampleServed.)
@@ -804,44 +819,23 @@ export function evaluateScopeGate(
 
   const allThresholdsPassed = thresholds.every(t => t.passed);
 
-  // Verdict Determination
-  let verdict: ContractPromotionVerdict;
-  let isPromotable: boolean;
-  let promotabilityVerdict: 'PROMOTABLE' | 'BLOCKED' | 'NEEDS_REVIEW';
-  const promotabilityReasons: string[] = [];
+  // Unified Promotion Eligibility Determination (Issue #185 / T1 Prefactor)
+  const eligibility = evaluatePromotionEligibility({
+    scope,
+    sampleCount,
+    minSamples,
+    allThresholdsPassed,
+    thresholds,
+    abstentionGaming,
+    costMetrics,
+    hybridPrecisionMean: hybridPrecisionStats.mean,
+    baselineMeanImagePrecision,
+    hybridFieldStatsMean: hybridFieldStats.mean,
+    usableObservations: usableObs,
+    labelProvenance,
+  });
 
-  const isSufficientSample = sampleCount >= minSamples;
-
-  if (!allThresholdsPassed || abstentionGaming.gamingDetected) {
-    verdict = 'NO_GO';
-    promotabilityVerdict = 'BLOCKED';
-    isPromotable = false;
-
-    // Collate blocking reasons
-    for (const t of thresholds) {
-      if (!t.passed) promotabilityReasons.push(t.reason);
-    }
-    for (const r of abstentionGaming.reasons) {
-      if (!promotabilityReasons.includes(r)) promotabilityReasons.push(`Blocked: ${r}`);
-    }
-  } else if (!isSufficientSample) {
-    verdict = 'NEEDS_REVIEW';
-    promotabilityVerdict = 'NEEDS_REVIEW';
-    isPromotable = false;
-    promotabilityReasons.push(
-      `Needs Review: Sample count (${sampleCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
-    );
-  } else {
-    verdict = 'GO';
-    promotabilityVerdict = 'PROMOTABLE';
-    isPromotable = true;
-    promotabilityReasons.push('✓ Zero observed identity errors (100% correct identity match)');
-    promotabilityReasons.push('✓ Zero critical-field regressions on title, brand, or price');
-    promotabilityReasons.push(`✓ Improved image precision (${(hybridPrecisionStats.mean * 100).toFixed(1)}% vs ${(baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`);
-    promotabilityReasons.push(`✓ Maintained or improved field completeness (${(hybridFieldStats.mean * 100).toFixed(1)}%)`);
-    promotabilityReasons.push('✓ Zero evidence-gap inflation / no abstention gaming');
-    promotabilityReasons.push(`✓ Bounded maintenance: ${costMetrics.hybridOperatorMinutes.toFixed(1)} mins vs ${costMetrics.baselineOperatorMinutes.toFixed(1)} mins baseline`);
-  }
+  const { verdict, isPromotable, promotabilityVerdict, promotabilityReasons } = eligibility;
 
   // Metric Uncertainties
   const servedRate = buildPromotionUncertainty('servedRate', hybridServedStats, 'wilson_score');
