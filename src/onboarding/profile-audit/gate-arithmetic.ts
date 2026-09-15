@@ -495,6 +495,8 @@ export interface BaselineThresholdInput {
   hybridImageRecallUncertainty?: number;
   baselinePrimaryAccuracy: number;
   hybridPrimaryAccuracy: number;
+  hybridPrimaryAccuracyUncertainty?: number;
+  hybridIdentityAccuracyUncertainty?: number;
   baselineServedRate: number;
   hybridServedRate: number;
   hybridServedRateUncertainty?: number;
@@ -519,6 +521,7 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     baselineValue: input.baselineIdentityErrors,
     thresholdValue: 0,
     actualValue: input.hybridIdentityErrors,
+    actualUncertainty: input.hybridIdentityAccuracyUncertainty,
     unit: 'errors',
     rule: 'actual <= 0',
     passed: idPassed,
@@ -544,7 +547,8 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
   });
 
   // 3. Field Completeness & Correctness: Match or exceed baseline coverage
-  const fcPassed = input.hybridMeanFieldCorrectness >= input.baselineMeanFieldCorrectness - 1e-9;
+  const fcZeroEquality = input.baselineMeanFieldCorrectness === 0 && input.hybridMeanFieldCorrectness === 0;
+  const fcPassed = !fcZeroEquality && input.hybridMeanFieldCorrectness >= input.baselineMeanFieldCorrectness - 1e-9;
   checks.push({
     name: 'Field Completeness & Correctness',
     dimension: 'field_completeness',
@@ -555,13 +559,16 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     unit: 'rate',
     rule: 'actual >= threshold',
     passed: fcPassed,
-    reason: fcPassed
-      ? `✓ Maintained or improved field completeness (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}%)`
-      : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`,
+    reason: fcZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on field correctness (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (fcPassed
+          ? `✓ Maintained or improved field completeness (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}%)`
+          : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`),
   });
 
   // 4. Image Precision: Match or exceed baseline precision
-  const ipPassed = input.hybridMeanImagePrecision >= input.baselineMeanImagePrecision - 1e-9;
+  const ipZeroEquality = input.baselineMeanImagePrecision === 0 && input.hybridMeanImagePrecision === 0;
+  const ipPassed = !ipZeroEquality && input.hybridMeanImagePrecision >= input.baselineMeanImagePrecision - 1e-9;
   checks.push({
     name: 'Image Precision',
     dimension: 'image_precision',
@@ -572,9 +579,11 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     unit: 'rate',
     rule: 'actual >= threshold',
     passed: ipPassed,
-    reason: ipPassed
-      ? `✓ Improved image precision (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
-      : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`,
+    reason: ipZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on image precision (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (ipPassed
+          ? `✓ Improved image precision (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
+          : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`),
   });
 
   // 5. Image Recall: Bounded drop allowed (e.g. dedupe of thumbnails/icons).
@@ -598,23 +607,28 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
   });
 
   // 6. Primary Image Accuracy: Match or exceed baseline primary accuracy
-  const paPassed = input.hybridPrimaryAccuracy >= input.baselinePrimaryAccuracy - 1e-9;
+  const paZeroEquality = input.baselinePrimaryAccuracy === 0 && input.hybridPrimaryAccuracy === 0;
+  const paPassed = !paZeroEquality && input.hybridPrimaryAccuracy >= input.baselinePrimaryAccuracy - 1e-9;
   checks.push({
     name: 'Primary Image Accuracy',
     dimension: 'primary_image_accuracy',
     baselineValue: input.baselinePrimaryAccuracy,
     thresholdValue: input.baselinePrimaryAccuracy,
     actualValue: input.hybridPrimaryAccuracy,
+    actualUncertainty: input.hybridPrimaryAccuracyUncertainty,
     unit: 'rate',
     rule: 'actual >= threshold',
     passed: paPassed,
-    reason: paPassed
-      ? `✓ Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`
-      : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`,
+    reason: paZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on primary image accuracy (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (paPassed
+          ? `✓ Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`
+          : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`),
   });
 
   // 7. Served Rate: Match or exceed baseline served rate
-  const srPassed = input.hybridServedRate >= input.baselineServedRate - 1e-9;
+  const srZeroEquality = input.baselineServedRate === 0 && input.hybridServedRate === 0;
+  const srPassed = !srZeroEquality && input.hybridServedRate >= input.baselineServedRate - 1e-9;
   checks.push({
     name: 'Served Rate',
     dimension: 'served_rate',
@@ -625,9 +639,11 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     unit: 'rate',
     rule: 'actual >= threshold',
     passed: srPassed,
-    reason: srPassed
-      ? `✓ Served rate (${(input.hybridServedRate * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselineServedRate * 100).toFixed(1)}%)`
-      : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`,
+    reason: srZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on served rate (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (srPassed
+          ? `✓ Served rate (${(input.hybridServedRate * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselineServedRate * 100).toFixed(1)}%)`
+          : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`),
   });
 
   // 8. Abstention Bound (Evidence Gaps): Cannot exceed baseline evidence gaps
@@ -808,6 +824,8 @@ export function evaluateScopeGate(
     hybridImageRecallUncertainty: hybridRecallStats.marginOfError,
     baselinePrimaryAccuracy,
     hybridPrimaryAccuracy: hybridPrimaryStats.rate,
+    hybridPrimaryAccuracyUncertainty: hybridPrimaryStats.marginOfError,
+    hybridIdentityAccuracyUncertainty: identityStats.marginOfError,
     baselineServedRate,
     hybridServedRate: hybridServedStats.rate,
     hybridServedRateUncertainty: hybridServedStats.marginOfError,
@@ -833,6 +851,8 @@ export function evaluateScopeGate(
     hybridFieldStatsMean: hybridFieldStats.mean,
     usableObservations: usableObs,
     labelProvenance,
+    baselineServedRate,
+    hybridServedRate: hybridServedStats.rate,
   });
 
   const { verdict, isPromotable, promotabilityVerdict, promotabilityReasons } = eligibility;
@@ -850,6 +870,9 @@ export function evaluateScopeGate(
     domain,
     platform,
     sampleCount,
+    usableObservationCount: usableObs.usableObservationCount,
+    evidenceGapCount: usableObs.evidenceGapCount,
+    samples,
     verdict,
     isPromotable,
     promotabilityVerdict,

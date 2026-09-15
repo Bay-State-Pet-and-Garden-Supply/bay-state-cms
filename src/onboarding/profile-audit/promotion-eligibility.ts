@@ -32,18 +32,23 @@ export interface UsableObservationCounts {
   /** Alias for total sample count in the manifest scope. */
   totalSampleCount: number;
   /**
-   * Count of usable scored observations that qualify for gate consideration.
-   * In this T1 prefactor, matches sampleCount. T2 will refine this to complete,
-   * eligible baseline and candidate pairs with reviewed evidence.
+   * Count of usable scored observations that qualify for gate consideration
+   * (complete, eligible baseline and candidate pairs with non-gapped evidence).
    */
   usableObservationCount: number;
+  /** Count of samples with missing artifacts or evidence gaps in baseline or candidate. */
+  evidenceGapCount: number;
+  /** Whether any sample has an evidence gap. */
+  hasEvidenceGaps: boolean;
+  /** Whether all samples in the scope have missing or gapped evidence. */
+  isAllEvidenceGaps: boolean;
   /** Baseline scored rows matching the samples. */
   baselineRows: AuditScoredRow[];
   /** Candidate/hybrid scored rows matching the samples. */
   hybridRows: AuditScoredRow[];
   /** Set of sample IDs matching the scope. */
   sampleIdSet: Set<string>;
-  /** Whether the usable observation count satisfies minSamples. */
+  /** Whether the usable observation count satisfies minSamples and is positive. */
   isSufficientSample: boolean;
 }
 
@@ -51,7 +56,8 @@ export interface UsableObservationCounts {
  * Counts and resolves usable observations for a given scope.
  *
  * Single source of truth for observation qualification across gate evaluation
- * and promotion reporting.
+ * and promotion reporting. Counts complete, eligible baseline and candidate
+ * observation pairs without evidence gaps.
  */
 export function resolveUsableObservations(
   samples: AuditManifestSample[],
@@ -69,15 +75,30 @@ export function resolveUsableObservations(
     r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first',
   );
 
-  // In this T1 prefactor, usableObservationCount matches total manifest sampleCount.
-  // T2 will refine this to count complete, eligible pairs.
-  const usableObservationCount = totalSampleCount;
-  const isSufficientSample = usableObservationCount >= minSamples;
+  let usableObservationCount = 0;
+  let evidenceGapCount = 0;
+
+  for (const s of samples) {
+    const b = baselineRows.find(r => r.sampleId === s.sampleId);
+    const h = hybridRows.find(r => r.sampleId === s.sampleId);
+    if (b && h && !b.isEvidenceGap && !h.isEvidenceGap) {
+      usableObservationCount++;
+    } else {
+      evidenceGapCount++;
+    }
+  }
+
+  const hasEvidenceGaps = evidenceGapCount > 0;
+  const isAllEvidenceGaps = sampleCount > 0 && evidenceGapCount === sampleCount;
+  const isSufficientSample = usableObservationCount >= minSamples && usableObservationCount > 0;
 
   return {
     sampleCount,
     totalSampleCount,
     usableObservationCount,
+    evidenceGapCount,
+    hasEvidenceGaps,
+    isAllEvidenceGaps,
     baselineRows,
     hybridRows,
     sampleIdSet,
@@ -100,8 +121,8 @@ export interface LabelProvenanceInspection {
   hasIndependentLabels: boolean;
   isAllAutoDerived: boolean;
   /**
-   * In T1 prefactor, always true (no verdict changes). T2 will enforce
-   * reviewed, versioned labels and non-circular ground truth.
+   * Enforces reviewed, versioned labels and non-circular ground truth (Issue #188 / T2).
+   * Auto-derived rows are circular (self-consistency only) and cannot qualify for promotion.
    */
   isProvenanceValidForPromotion: boolean;
   provenanceReasons: string[];
@@ -159,9 +180,21 @@ export function inspectLabelProvenance(
   const hasIndependentLabels = independentCount > 0;
   const isAllAutoDerived = totalCount > 0 && autoDerivedCount === totalCount;
 
-  // In T1 prefactor, provenance does not alter verdicts. T2 will enforce gates.
-  const isProvenanceValidForPromotion = true;
+  // Enforce non-circular ground truth for promotion (Issue #188 / T2).
+  // Auto-derived rows may appear in exploratory reports but never qualify for promotion.
+  // When groundTruthSource is unspecified (legacy test fixtures), allow promotion if not explicitly all auto-derived.
+  const isProvenanceValidForPromotion = totalCount > 0 ? !isAllAutoDerived && (hasIndependentLabels || unspecifiedCount > 0) : true;
   const provenanceReasons: string[] = [];
+
+  if (isAllAutoDerived) {
+    provenanceReasons.push(
+      `Needs Review: Scope contains only auto-derived labels (${autoDerivedCount}/${totalCount} samples); auto-derived labels are circular and exploratory only; independent reviewed labels required for promotion`,
+    );
+  } else if (totalCount > 0 && !hasIndependentLabels && autoDerivedCount > 0 && unspecifiedCount === 0) {
+    provenanceReasons.push(
+      `Needs Review: No independent reviewed labels found in scope (${autoDerivedCount} auto-derived); independent reviewed labels required for promotion`,
+    );
+  }
 
   return {
     totalCount,
@@ -253,6 +286,8 @@ export interface PromotionEligibilityInput {
   hybridFieldStatsMean: number;
   usableObservations?: UsableObservationCounts;
   labelProvenance?: LabelProvenanceInspection;
+  baselineServedRate?: number;
+  hybridServedRate?: number;
 }
 
 export interface PromotionEligibilityResult {
@@ -286,16 +321,31 @@ export function buildPromotabilityReasons(
     hybridPrecisionMean,
     baselineMeanImagePrecision,
     hybridFieldStatsMean,
+    usableObservations,
+    labelProvenance,
+    baselineServedRate,
+    hybridServedRate,
   } = input;
 
-  const isSufficientSample = sampleCount >= minSamples;
+  const usableCount = usableObservations !== undefined ? usableObservations.usableObservationCount : sampleCount;
+  const isSufficientSample = usableObservations !== undefined
+    ? usableObservations.isSufficientSample
+    : sampleCount >= minSamples;
+
   const promotabilityReasons: string[] = [];
 
   let verdict: ContractPromotionVerdict;
   let promotabilityVerdict: 'PROMOTABLE' | 'BLOCKED' | 'NEEDS_REVIEW';
   let isPromotable: boolean;
 
-  if (!allThresholdsPassed || abstentionGaming.gamingDetected) {
+  // Zero-quality baseline equality check (Issue #188 / T2)
+  const isZeroQualityBaselineEquality =
+    (baselineMeanImagePrecision === 0 && hybridPrecisionMean === 0) ||
+    (baselineMeanImagePrecision === 0 && hybridPrecisionMean === 0 && hybridFieldStatsMean === 0) ||
+    (input.baselineMeanImagePrecision === 0 && input.hybridPrecisionMean === 0 && input.hybridFieldStatsMean === 0) ||
+    (baselineServedRate !== undefined && hybridServedRate !== undefined && baselineServedRate === 0 && hybridServedRate === 0);
+
+  if (abstentionGaming.gamingDetected) {
     verdict = 'NO_GO';
     promotabilityVerdict = 'BLOCKED';
     isPromotable = false;
@@ -304,13 +354,53 @@ export function buildPromotabilityReasons(
       provenanceReasons: input.labelProvenance?.provenanceReasons,
     });
     promotabilityReasons.push(...blockedReasons);
+  } else if (usableObservations?.isAllEvidenceGaps || (sampleCount > 0 && usableCount === 0)) {
+    verdict = 'NEEDS_REVIEW';
+    promotabilityVerdict = 'NEEDS_REVIEW';
+    isPromotable = false;
+    const gapCount = usableObservations?.evidenceGapCount ?? sampleCount;
+    promotabilityReasons.push(
+      `Needs Review: All page artifacts are missing or gapped (${gapCount}/${sampleCount} samples with evidence gaps); 0 usable scored observation pairs available (minimum ${minSamples} required)`,
+    );
+  } else if (!allThresholdsPassed || isZeroQualityBaselineEquality) {
+    verdict = 'NO_GO';
+    promotabilityVerdict = 'BLOCKED';
+    isPromotable = false;
+
+    const blockedReasons = buildBlockedReasons(thresholds, abstentionGaming, {
+      provenanceReasons: input.labelProvenance?.provenanceReasons,
+    });
+    if (isZeroQualityBaselineEquality) {
+      const zeroReason = 'Blocked: Equality with zero-quality baseline; promotion requires demonstrated quality and improvement';
+      if (!blockedReasons.some(r => r.includes('zero-quality') || r.includes('Zero-quality'))) {
+        blockedReasons.push(zeroReason);
+      }
+    }
+    promotabilityReasons.push(...blockedReasons);
+  } else if (labelProvenance && (!labelProvenance.isProvenanceValidForPromotion || labelProvenance.isAllAutoDerived)) {
+    verdict = 'NEEDS_REVIEW';
+    promotabilityVerdict = 'NEEDS_REVIEW';
+    isPromotable = false;
+    if (labelProvenance.provenanceReasons.length > 0) {
+      promotabilityReasons.push(...labelProvenance.provenanceReasons);
+    } else {
+      promotabilityReasons.push(
+        `Needs Review: Scope contains only auto-derived labels (${labelProvenance.autoDerivedCount}/${sampleCount} samples); auto-derived labels are circular (self-consistency only) and exploratory; independent reviewed labels required for promotion`,
+      );
+    }
   } else if (!isSufficientSample) {
     verdict = 'NEEDS_REVIEW';
     promotabilityVerdict = 'NEEDS_REVIEW';
     isPromotable = false;
-    promotabilityReasons.push(
-      `Needs Review: Sample count (${sampleCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
-    );
+    if (usableObservations && usableObservations.evidenceGapCount > 0) {
+      promotabilityReasons.push(
+        `Needs Review: Usable observation count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) due to missing or gapped page evidence (${usableObservations.evidenceGapCount} evidence gaps)`,
+      );
+    } else {
+      promotabilityReasons.push(
+        `Needs Review: Sample count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
+      );
+    }
   } else {
     verdict = 'GO';
     promotabilityVerdict = 'PROMOTABLE';

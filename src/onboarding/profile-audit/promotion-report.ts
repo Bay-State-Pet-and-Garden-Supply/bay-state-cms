@@ -290,6 +290,43 @@ export function generatePromotionReport(args: {
     }
     mdParts.push(`- **Recommendation:** ${formatPromotionRecommendation(v.verdict)}`);
     mdParts.push('');
+
+    // Per-Sample Evidence, Label Provenance & Holdout Partition (Issue #188 / T2)
+    const scopeSamples = v.samples ?? manifest.samples.filter(s => (s.pageStructureScope || 'standard_pdp') === scopeKey);
+    if (scopeSamples.length > 0) {
+      mdParts.push('#### Per-Sample Evidence, Label Provenance & Holdout Partition');
+      mdParts.push('');
+      mdParts.push('| Sample ID | Inventory Status | Label Provenance | Holdout Partition | Evidence Status |');
+      mdParts.push('| :--- | :---: | :---: | :---: | :--- |');
+
+      for (const s of scopeSamples) {
+        const sId = `\`${s.sampleId}\``;
+        const invStatus = s.inventoryStatus ?? 'confirmed';
+        const isAutoDerived = s.groundTruthSource === 'auto-derived';
+        const provBadge = s.groundTruthSource === 'independent'
+          ? '`independent`'
+          : (isAutoDerived ? '`auto-derived` (exploratory)' : 'unspecified');
+        const holdoutBadge = s.isHoldout
+          ? `Holdout (\`${s.holdoutFamilyName ?? 'unnamed'}\`)`
+          : 'Tuning';
+
+        const sRows = rows.filter(r => r.sampleId === s.sampleId);
+        const hasGap = sRows.some(r => r.isEvidenceGap) || !s.artifactRef;
+        let evidenceStatus: string;
+        if (hasGap) {
+          evidenceStatus = isAutoDerived
+            ? 'Missing artifact (evidence gap) [EXPLORATORY]'
+            : 'Missing artifact (evidence gap)';
+        } else {
+          evidenceStatus = isAutoDerived
+            ? 'Complete observation pair [EXPLORATORY]'
+            : 'Complete observation pair';
+        }
+
+        mdParts.push(`| ${sId} | ${invStatus} | ${provBadge} | ${holdoutBadge} | ${evidenceStatus} |`);
+      }
+      mdParts.push('');
+    }
   }
 
   const markdown = mdParts.join('\n');

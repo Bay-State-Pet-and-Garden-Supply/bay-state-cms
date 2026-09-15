@@ -742,11 +742,12 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       const summaries = computeScopeSummaries([sample1, sample2, sample3], allRows);
       const s = summaries['standard_pdp'];
 
-      // Crucial: evidence gap must NOT increment acceptedIdentityErrors!
+      // Crucial: evidence gap must NOT increment acceptedIdentityErrors (not BLOCKED),
+      // but gapped evidence receives NEEDS_REVIEW (Issue #188 / T2).
       expect(s.acceptedIdentityErrors).toBe(0);
       expect(s.evidenceGapCount).toBe(1);
-      expect(s.isPromotable).toBe(true);
-      expect(s.promotabilityVerdict).toBe('PROMOTABLE');
+      expect(s.isPromotable).toBe(false);
+      expect(s.promotabilityVerdict).toBe('NEEDS_REVIEW');
     });
 
     it('preserves machine-readable rejection reasons when contact sheet is built from an AuditScoredRow', () => {
