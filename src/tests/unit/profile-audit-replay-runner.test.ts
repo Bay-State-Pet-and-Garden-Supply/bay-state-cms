@@ -146,4 +146,17 @@ describe('profile audit replay runner', () => {
     expect(outcomes.structured_only.isEvidenceGap).toBe(true);
     expect(outcomes.hybrid_identity_first.isEvidenceGap).toBe(true);
   });
+
+  it('parses retained artifacts through a pure seam with zero writes and zero network refetch', async () => {
+    // Calling replaySample on valid artifact succeeds purely in-memory
+    const outcomes = await replaySample(sample, profile, {
+      artifactRoot: tempDir,
+    });
+
+    expect(outcomes.current_extraction.isEvidenceGap).toBe(false);
+    expect(outcomes.current_extraction.data.title).toBe('Acme All-Natural Dog Chew Toy');
+    expect(outcomes.structured_only.data.title).toBe('Acme Dog Chew Toy');
+    expect(outcomes.current_strict_images.admittedImages.length).toBeGreaterThan(0);
+    expect(outcomes.hybrid_identity_first.data.title).toBeDefined();
+  });
 });

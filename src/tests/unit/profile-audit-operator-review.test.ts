@@ -31,6 +31,12 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       domain: 'example.com',
       stratum: 'example.com:shopify:standard_pdp:single_variant',
       inventoryStatus: 'confirmed',
+      // Independent, reviewed, versioned provenance satisfies the
+      // per-observation label contract; gap/provenance behavior is covered
+      // by dedicated tests that override these flags.
+      groundTruthSource: 'independent',
+      isReviewed: true,
+      labelVersion: '1.0.0',
       artifactRef: 'snapshots/sample-1.html',
       supplementalArtifactRefs: [],
       hasSupplementalArtifact: true,
@@ -548,15 +554,23 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
   // ── Acceptance Criterion 4: Per-Scope Served-Rate Summary ─────────────────
   describe('Acceptance Criterion 4: Per-scope summary a store owner can read without opening every cell', () => {
     it('computes per-scope served-rate summary with baseline comparison, uncertainty, and promotability verdict', () => {
-      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp' });
-      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'standard_pdp' });
-      const sample3 = createSample({ sampleId: 's3', pageStructureScope: 'standard_pdp' });
+      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample3 = createSample({ sampleId: 's3', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
 
       const allRows: AuditScoredRow[] = [
         ...createRowsForSample(sample1),
         ...createRowsForSample(sample2),
         ...createRowsForSample(sample3),
       ];
+
+      // Strict-improvement shaping (finding 1): baseline trails hybrid on
+      // primary accuracy and served rate so the summary can reach PROMOTABLE.
+      const baselineRows = allRows.filter(r => r.configuration === 'current_extraction');
+      baselineRows[0].imageScores.primaryAccuracy = 0;
+      baselineRows[1].imageScores.primaryAccuracy = 0;
+      baselineRows[1].identityVerdict = 'wrong_variant';
+      baselineRows[2].identityVerdict = 'wrong_variant';
 
       const summaries = computeScopeSummaries([sample1, sample2, sample3], allRows);
 
@@ -625,7 +639,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
     });
 
     it('marks scope as NEEDS_REVIEW when sample size is below standard gate threshold (<3)', () => {
-      const sample = createSample({ sampleId: 's1', pageStructureScope: 'sparse_pdp' });
+      const sample = createSample({ sampleId: 's1', pageStructureScope: 'sparse_pdp', groundTruthSource: 'independent' });
       const rows = createRowsForSample(sample);
 
       // Only 1 sample, minSamples defaults to 3
@@ -638,9 +652,15 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
     });
 
     it('formats a single executive table that a store owner can read without opening individual cells', () => {
-      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp' });
-      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'tabbed_pdp' });
+      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'tabbed_pdp', groundTruthSource: 'independent' });
       const allRows = [...createRowsForSample(sample1), ...createRowsForSample(sample2)];
+
+      // Strict-improvement shaping (finding 1) per scope.
+      for (const r of allRows.filter(r => r.configuration === 'current_extraction')) {
+        r.imageScores.primaryAccuracy = 0;
+        r.identityVerdict = 'wrong_variant';
+      }
 
       const summaries = computeScopeSummaries([sample1, sample2], allRows, { minSamplesForPromote: 1 });
       const tableMd = formatPerScopeSummaryTable(summaries);
@@ -742,11 +762,12 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       const summaries = computeScopeSummaries([sample1, sample2, sample3], allRows);
       const s = summaries['standard_pdp'];
 
-      // Crucial: evidence gap must NOT increment acceptedIdentityErrors!
+      // Crucial: evidence gap must NOT increment acceptedIdentityErrors (not BLOCKED),
+      // but gapped evidence receives NEEDS_REVIEW (Issue #188 / T2).
       expect(s.acceptedIdentityErrors).toBe(0);
       expect(s.evidenceGapCount).toBe(1);
-      expect(s.isPromotable).toBe(true);
-      expect(s.promotabilityVerdict).toBe('PROMOTABLE');
+      expect(s.isPromotable).toBe(false);
+      expect(s.promotabilityVerdict).toBe('NEEDS_REVIEW');
     });
 
     it('preserves machine-readable rejection reasons when contact sheet is built from an AuditScoredRow', () => {
@@ -923,6 +944,129 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       expect(hybridSheets[0].configuration).toBe('hybrid_identity_first');
       expect(hybridSheets[0].totalDiscovered).toBe(0);
       expect(hybridSheets[0].admittedCount).toBe(0);
+    });
+  });
+
+  describe('Audit follow-through T3 (#186): positive-membership contact sheets and no cross-configuration mislabeling', () => {
+    it('builds contact sheet showing accepted and rejected sets with machine-readable reasons and primary flagged', () => {
+      const sample = createSample({
+        groundTruth: {
+          ...createSample().groundTruth,
+          images: {
+            primaryImage: 'https://example.com/images/primary-hero.jpg',
+            admissibleImages: [
+              'https://example.com/images/primary-hero.jpg',
+              'https://example.com/images/shared-gallery.jpg',
+            ],
+            inadmissibleImages: [
+              'https://example.com/images/other-variant.jpg',
+              'https://example.com/images/unrelated-probe.jpg',
+            ],
+          },
+        },
+      });
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_strict_images',
+        data: ExtractionDataSchema.parse({
+          title: 'Sample Product',
+          brand: 'Brand',
+          description: 'Description',
+          price: '19.99',
+          primaryImage: 'https://example.com/images/primary-hero.jpg',
+          additionalImages: ['https://example.com/images/shared-gallery.jpg'],
+          bulletPoints: [],
+          confidence: 0.95,
+        }),
+        admittedImages: [
+          'https://example.com/images/primary-hero.jpg',
+          'https://example.com/images/shared-gallery.jpg',
+        ],
+        rejectedImages: [
+          'https://example.com/images/other-variant.jpg',
+          'https://example.com/images/unrelated-probe.jpg',
+          'https://example.com/icons/social.svg',
+          'https://example.com/images/thumb-dup.jpg',
+          'https://example.com/images/overflow-cap.jpg',
+        ],
+        primaryImage: 'https://example.com/images/primary-hero.jpg',
+        imageRejectionReasons: {
+          'https://example.com/images/other-variant.jpg': 'other_variant',
+          'https://example.com/images/unrelated-probe.jpg': 'unknown_membership',
+          'https://example.com/icons/social.svg': 'role_rejected',
+          'https://example.com/images/thumb-dup.jpg': 'resolution_duplicate',
+          'https://example.com/images/overflow-cap.jpg': 'cap_exceeded',
+        },
+        isEvidenceGap: false,
+      };
+
+      const sheet = buildImageContactSheet(sample, outcome);
+
+      expect(sheet.sampleId).toBe(sample.sampleId);
+      expect(sheet.configuration).toBe('current_strict_images');
+      expect(sheet.admittedCount).toBe(2);
+      expect(sheet.rejectedCount).toBe(5);
+
+      // Primary flagged on accepted list
+      expect(sheet.acceptedImages[0].isPrimary).toBe(true);
+      expect(sheet.acceptedImages[0].url).toBe('https://example.com/images/primary-hero.jpg');
+      expect(sheet.acceptedImages[0].role).toBe('primary hero');
+
+      // Gallery accepted
+      expect(sheet.acceptedImages[1].isPrimary).toBe(false);
+      expect(sheet.acceptedImages[1].url).toBe('https://example.com/images/shared-gallery.jpg');
+      expect(sheet.acceptedImages[1].role).toBe('gallery');
+
+      // Rejected list item roles and machine-readable reasons
+      const rejOther = sheet.rejectedImages.find(img => img.url.includes('other-variant'))!;
+      expect(rejOther.rejectionReason).toBe('other_variant');
+      expect(rejOther.role).toBe('other_variant');
+
+      const rejUnknown = sheet.rejectedImages.find(img => img.url.includes('unrelated-probe'))!;
+      expect(rejUnknown.rejectionReason).toBe('unknown_membership');
+      expect(rejUnknown.role).toBe('unknown_membership');
+
+      const rejRole = sheet.rejectedImages.find(img => img.url.includes('social.svg'))!;
+      expect(rejRole.rejectionReason).toBe('role_rejected');
+      expect(rejRole.role).toBe('icon');
+
+      const rejDup = sheet.rejectedImages.find(img => img.url.includes('thumb-dup'))!;
+      expect(rejDup.rejectionReason).toBe('resolution_duplicate');
+      expect(rejDup.role).toBe('duplicate');
+
+      const rejCap = sheet.rejectedImages.find(img => img.url.includes('overflow-cap'))!;
+      expect(rejCap.rejectionReason).toBe('cap_exceeded');
+      expect(rejCap.role).toBe('cap_exceeded');
+    });
+
+    it('preserves configuration identity and eliminates cross-configuration mislabeling across all 4 configurations', () => {
+      const sample = createSample({ sampleId: 'sample-x' });
+      const rows = createRowsForSample(sample);
+
+      const manifest: AuditManifest = {
+        domain: 'example.com',
+        generatedAt: '2026-09-14T00:00:00Z',
+        samples: [sample],
+      };
+
+      const report = generateOperatorReviewReport({ manifest, rows });
+
+      // All 4 configurations must have contact sheets with exact matching configuration
+      for (const cfg of ['current_extraction', 'current_strict_images', 'structured_only', 'hybrid_identity_first'] as const) {
+        const sheets = report.contactSheetsByConfiguration![cfg];
+        expect(sheets).toHaveLength(1);
+        expect(sheets[0].configuration).toBe(cfg);
+        expect(sheets[0].sampleId).toBe('sample-x');
+      }
+
+      // Markdown report includes configuration labels
+      const md = report.markdown;
+      expect(md).toContain('Image Contact Sheet: `sample-x`');
+      expect(md).toContain('Per-Configuration Image Evidence');
+
+      // HTML report includes configuration attributes
+      const html = report.html;
+      expect(html).toContain('Contact Sheet: sample-x');
     });
   });
 });

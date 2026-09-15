@@ -39,6 +39,7 @@ import {
   computeWilsonScoreInterval as sharedWilsonScoreInterval,
   sanitizeCell as sharedSanitizeCell,
 } from './shared-metrics';
+import { canonicalizeUrl } from '../image-utils';
 
 const CONFIGURATIONS: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
@@ -242,6 +243,10 @@ export function buildSideBySideFieldEvidence(
     url: sample.url,
     domain: sample.domain,
     scope: sample.pageStructureScope || 'standard_pdp',
+    sampleType: sample.sampleType,
+    inventoryStatus: sample.inventoryStatus,
+    captureFreshness: sample.captureFreshness ?? undefined,
+    labelVersion: sample.labelVersion,
     identityVerdicts,
     fields,
     missingFieldExplanations,
@@ -255,12 +260,18 @@ export function buildSideBySideFieldEvidence(
 export function buildImageContactSheet(
   sample: AuditManifestSample,
   rowOrOutcome?: AuditScoredRow | ExtractionOutcome | null,
+  fallbackConfiguration?: ReplayConfiguration,
 ): ImageContactSheet {
+  const configuration = (rowOrOutcome && 'configuration' in rowOrOutcome)
+    ? rowOrOutcome.configuration
+    : fallbackConfiguration;
+
   if (!rowOrOutcome) {
     return {
       sampleId: sample.sampleId,
       url: sample.url,
       domain: sample.domain,
+      configuration,
       totalDiscovered: 0,
       admittedCount: 0,
       rejectedCount: 0,
@@ -332,9 +343,20 @@ export function buildImageContactSheet(
   const rejectedList: ImageContactSheetItem[] = rejectedImages.map(url => {
     const reason = rejectionReasons[url] || 'Filtered by strict image role/variant/dedupe rule';
     const lower = reason.toLowerCase();
-    const role = lower.includes('icon') || lower.includes('social') || lower.includes('payment') || lower.includes('badge')
-      ? 'icon'
-      : (lower.includes('duplicate') ? 'duplicate' : 'other_variant');
+    let role: string;
+    if (lower.includes('icon') || lower.includes('social') || lower.includes('payment') || lower.includes('badge') || lower.includes('role_rejected')) {
+      role = 'icon';
+    } else if (lower.includes('duplicate')) {
+      role = 'duplicate';
+    } else if (lower.includes('unknown') || lower.includes('membership') || lower.includes('unrelated')) {
+      role = 'unknown_membership';
+    } else if (lower.includes('cap')) {
+      role = 'cap_exceeded';
+    } else if (lower.includes('not_usable')) {
+      role = 'not_usable';
+    } else {
+      role = 'other_variant';
+    }
 
     return {
       url,
@@ -347,10 +369,20 @@ export function buildImageContactSheet(
     };
   });
 
+  const duplicateCount = (rowOrOutcome && 'imageScores' in rowOrOutcome && rowOrOutcome.imageScores?.duplicateContaminationCount !== undefined)
+    ? (rowOrOutcome.imageScores.duplicateContaminationCount ?? 0)
+    : (admittedImages.length - new Set(admittedImages.map(u => canonicalizeUrl(u, sample.url))).size);
+  const duplicateContamination = duplicateCount > 0;
+
   return {
     sampleId: sample.sampleId,
     url: sample.url,
     domain: sample.domain,
+    configuration,
+    sampleType: sample.sampleType,
+    inventoryStatus: sample.inventoryStatus,
+    captureFreshness: sample.captureFreshness ?? undefined,
+    labelVersion: sample.labelVersion,
     totalDiscovered: acceptedList.length + rejectedList.length,
     admittedCount: acceptedList.length,
     rejectedCount: rejectedList.length,
@@ -358,6 +390,8 @@ export function buildImageContactSheet(
     primaryAccuracy,
     acceptedImages: acceptedList,
     rejectedImages: rejectedList,
+    duplicateContaminationCount: duplicateCount,
+    duplicateContamination,
   };
 }
 
@@ -511,6 +545,12 @@ export function formatSideBySideFieldEvidenceTable(evidence: SampleFieldEvidence
   const lines: string[] = [];
   lines.push(`### Sample: \`${evidence.sampleId}\` — Side-by-Side Field Evidence`);
   lines.push(`- **URL:** \`${evidence.url}\` | **Scope:** \`${evidence.scope}\` | **Domain:** \`${evidence.domain}\``);
+  const typeBadge = evidence.sampleType === 'confirmed_profile_sample' || evidence.inventoryStatus === 'confirmed'
+    ? '★ Confirmed Profile Sample'
+    : (evidence.sampleType === 'profile_blocked' ? '⛔ Profile Blocked' : 'Unreviewed Candidate');
+  const freshBadge = evidence.captureFreshness ?? 'unknown';
+  const lVerBadge = evidence.labelVersion ?? '1.0.0';
+  lines.push(`- **Sample Type:** ${typeBadge} | **Capture Freshness:** \`${freshBadge}\` | **Label Version:** \`${lVerBadge}\``);
   lines.push(`- **Identity Verdicts:** Baseline: \`${evidence.identityVerdicts.current_extraction}\` | Strict Img: \`${evidence.identityVerdicts.current_strict_images}\` | Structured Only: \`${evidence.identityVerdicts.structured_only}\` | Hybrid: \`${evidence.identityVerdicts.hybrid_identity_first}\``);
   lines.push('');
   lines.push(
@@ -612,9 +652,17 @@ export function formatMissingFieldsSummary(evidences: SampleFieldEvidence[]): st
 
 export function formatImageContactSheetMarkdown(sheet: ImageContactSheet): string {
   const lines: string[] = [];
-  lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\``);
-  lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\``);
-  lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%`);
+  const configLabel = sheet.configuration ? ` (${CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration})` : '';
+  const dupInfo = sheet.duplicateContamination ? ` | **Duplicate Contamination:** ${sheet.duplicateContaminationCount ?? 0} duplicate(s) reported` : '';
+  lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\`${configLabel}`);
+  lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\`${sheet.configuration ? ` | **Configuration:** \`${sheet.configuration}\`` : ''}`);
+  if (sheet.sampleType || sheet.captureFreshness) {
+    const typeBadge = sheet.sampleType === 'confirmed_profile_sample' || sheet.inventoryStatus === 'confirmed'
+      ? '★ Confirmed Profile Sample'
+      : (sheet.sampleType === 'profile_blocked' ? '⛔ Profile Blocked' : 'Unreviewed Candidate');
+    lines.push(`- **Sample Type:** ${typeBadge} | **Capture Freshness:** \`${sheet.captureFreshness ?? 'unknown'}\`${sheet.labelVersion ? ` | **Label Version:** \`${sheet.labelVersion}\`` : ''}`);
+  }
+  lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%${dupInfo}`);
   lines.push('');
 
   lines.push('#### Accepted Images');
@@ -694,8 +742,8 @@ export function formatHtmlContactSheet(sheet: ImageContactSheet): string {
 
   return `
     <div style="font-family:system-ui,sans-serif;margin-bottom:32px;padding:16px;background:#0f172a;border-radius:12px;color:#f8fafc;">
-      <h3 style="margin-top:0;">Contact Sheet: ${escapeHtml(sheet.sampleId)}</h3>
-      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}</p>
+      <h3 style="margin-top:0;">Contact Sheet: ${escapeHtml(sheet.sampleId)}${sheet.configuration ? ` <span style="font-size:14px;color:#94a3b8;">(${escapeHtml(CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration)})</span>` : ''}</h3>
+      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Domain: <code>${escapeHtml(sheet.domain)}</code>${sheet.configuration ? ` | Configuration: <code>${escapeHtml(sheet.configuration)}</code>` : ''} | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}${sheet.duplicateContamination ? ` | <span style="color:#f59e0b;font-weight:600;">Duplicates: ${sheet.duplicateContaminationCount ?? 0} contaminated</span>` : ''}</p>
       
       <h4 style="color:#34d399;margin-bottom:12px;">Accepted Images (${sheet.admittedCount})</h4>
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
@@ -755,8 +803,8 @@ export function generateOperatorReviewReport(options: {
       const sheet = buildImageContactSheet(
         sample,
         cfgOutcome ?? cfgRow ?? null,
+        cfg,
       );
-      sheet.configuration = cfg;
       contactSheetsByConfiguration[cfg].push(sheet);
       if (cfg === 'hybrid_identity_first') contactSheets.push(sheet);
     }

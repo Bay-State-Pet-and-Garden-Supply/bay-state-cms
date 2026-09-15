@@ -128,30 +128,34 @@ function customSelectorsHadAnyValue(
 }
 
 /**
- * Fast-path HTTP extraction using Cheerio. Fetches the page markup and
- * extracts structured data without launching a browser. Returns the
- * detailed diagnostics needed by the profile-generation trigger.
+ * Options for HTTP fast-path extraction.
+ */
+export interface ExtractHttpDetailedOptions {
+  /**
+   * When true, skips writing extracted metadata (title, identifiers, status,
+   * timestamp) to brand_url_index and brand_url_fts. Required by audit replay
+   * to guarantee pure zero-catalog-write execution (Spec #183, Issue #187).
+   */
+  skipCatalogWrites?: boolean;
+}
+
+/**
+ * Pure parsing seam: extracts product data directly from page HTML string
+ * without network I/O or catalog database writes (Spec #183, Issue #187).
+ *
+ * Guarantees:
+ * 1. Zero catalog writes: no updates to brand_url_index, brand_url_fts, or any SQLite table.
+ * 2. Deterministic ladder enrichment: additive-only structured signal extraction.
+ * 3. Never throws: degrades gracefully on parsing errors.
  */
 // fallow-ignore-next-line unused-export
-export async function extractViaHttpDetailed(
+export async function extractProductFromHtml(
+  html: string,
   url: string,
   profile?: ExtractorProfile | null,
   expected?: { name?: string; brandHint?: string | null; price?: string | null; gtin?: string },
-  fetchFn: NetworkFetch = fetch,
+  fetchFn?: NetworkFetch,
 ): Promise<HttpExtractionDetailed> {
-  // P0-1 (round 2): the transport accepts an injected fetch so the Product
-  // Intelligence layer can bind this function to the policy gateway's
-  // gatewayFetch (SSRF floor, redirect re-validation, size/type limits,
-  // audit). Non-PI callers keep the default global fetch.
-  const response = await fetchFn(url, {
-    headers: HTTP_EXTRACTION_HEADERS,
-    signal: AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP fetch failed: ${response.status} ${response.statusText}`);
-  }
-
-  const html = await response.text();
   const $ = cheerio.load(html);
 
   // Layer 0: Custom CSS Selectors
@@ -205,14 +209,47 @@ export async function extractViaHttpDetailed(
     console.warn('[PageExtractor] Ladder enrichment failed (non-blocking):', enrichErr instanceof Error ? enrichErr.message : enrichErr);
   }
 
-  enrichBrandUrlFromRaw(url, raw, merged.title, merged.brand);
-
   return {
     data: merged,
     html,
     raw,
     customHadAnyValue: customSelectorsHadAnyValue(custom),
   };
+}
+
+/**
+ * Fast-path HTTP extraction using Cheerio. Fetches the page markup and
+ * extracts structured data without launching a browser. Returns the
+ * detailed diagnostics needed by the profile-generation trigger.
+ */
+// fallow-ignore-next-line unused-export
+export async function extractViaHttpDetailed(
+  url: string,
+  profile?: ExtractorProfile | null,
+  expected?: { name?: string; brandHint?: string | null; price?: string | null; gtin?: string },
+  fetchFn: NetworkFetch = fetch,
+  options?: ExtractHttpDetailedOptions,
+): Promise<HttpExtractionDetailed> {
+  // P0-1 (round 2): the transport accepts an injected fetch so the Product
+  // Intelligence layer can bind this function to the policy gateway's
+  // gatewayFetch (SSRF floor, redirect re-validation, size/type limits,
+  // audit). Non-PI callers keep the default global fetch.
+  const response = await fetchFn(url, {
+    headers: HTTP_EXTRACTION_HEADERS,
+    signal: AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP fetch failed: ${response.status} ${response.statusText}`);
+  }
+
+  const html = await response.text();
+  const detailed = await extractProductFromHtml(html, url, profile, expected, fetchFn);
+
+  if (!options?.skipCatalogWrites) {
+    enrichBrandUrlFromRaw(url, detailed.raw, detailed.data.title, detailed.data.brand);
+  }
+
+  return detailed;
 }
 
 /**

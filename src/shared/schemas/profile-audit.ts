@@ -136,6 +136,8 @@ export const AuditManifestSampleSchema = z.object({
   isProfileBlocked: z.boolean().optional(),
   isFailureSample: z.boolean().optional(),
   sampleType: z.enum(['confirmed_profile_sample', 'unreviewed_candidate', 'profile_blocked', 'failure_sample']).optional(),
+  labelVersion: z.string().optional(),
+  isReviewed: z.boolean().optional(),
   // Sampled stratum dimensions (profile-audit one-pass fix #4): the family
   // bucket and freshness bucket are part of the stratum key, not just
   // recorded fields, so family/freshness coverage is a sampling guarantee.
@@ -179,10 +181,22 @@ export type StratifiedManifestMetadata = z.infer<typeof StratifiedManifestMetada
 export const AuditManifestSchema = z.object({
   domain: z.string(),
   generatedAt: z.string(),
+  labelVersion: z.string().optional(),
+  isReviewed: z.boolean().optional(),
   samples: z.array(AuditManifestSampleSchema),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type AuditManifest = z.infer<typeof AuditManifestSchema>;
+
+export const VersionedAuditCorpusSchema = AuditManifestSchema.extend({
+  corpusId: z.string(),
+  labelVersion: z.string(),
+  // A corpus that does not say reviewed must not claim it (Issue #190 / T6).
+  isReviewed: z.boolean().default(false),
+  holdoutFamilies: z.array(z.string()).default([]),
+  tuningFamilies: z.array(z.string()).default([]),
+});
+export type VersionedAuditCorpus = z.infer<typeof VersionedAuditCorpusSchema>;
 
 export const MissingFieldReasonSchema = z.enum([
   'absent',
@@ -226,6 +240,9 @@ export const ImageScoreDetailSchema = z.object({
   primaryAccuracy: z.number(), // 1, 0
   precision: z.number(), // 0.0 - 1.0
   recall: z.number(), // 0.0 - 1.0
+  duplicateCount: z.number().optional(),
+  duplicateContaminationCount: z.number().optional(),
+  duplicateContamination: z.boolean().optional(),
   rejectionReasons: z.record(z.string(), z.string()).optional(),
 });
 export type ImageScoreDetail = z.infer<typeof ImageScoreDetailSchema>;
@@ -245,6 +262,8 @@ export const AuditScoredRowSchema = z.object({
   identityResolution: HybridIdentityResolutionSchema.optional(),
   conflicts: z.array(HybridConflictSchema).optional(),
   imageRejectionReasons: z.record(z.string(), z.string()).optional(),
+  duplicateContamination: z.boolean().optional(),
+  duplicateContaminationCount: z.number().optional(),
   extractedProductPreview: z.object({
     title: z.string().nullable().optional(),
     brand: z.string().nullable().optional(),
@@ -326,6 +345,10 @@ export const ImageContactSheetSchema = z.object({
   // Which replay configuration produced this sheet (fix #3: sheets are now
   // built per configuration, not hybrid-only). Optional for back-compat.
   configuration: ReplayConfigurationSchema.optional(),
+  sampleType: z.string().optional(),
+  inventoryStatus: z.string().optional(),
+  captureFreshness: z.string().optional(),
+  labelVersion: z.string().optional(),
   totalDiscovered: z.number(),
   admittedCount: z.number(),
   rejectedCount: z.number(),
@@ -333,6 +356,8 @@ export const ImageContactSheetSchema = z.object({
   primaryAccuracy: z.number(),
   acceptedImages: z.array(ImageContactSheetItemSchema),
   rejectedImages: z.array(ImageContactSheetItemSchema),
+  duplicateContaminationCount: z.number().optional(),
+  duplicateContamination: z.boolean().optional(),
 });
 export type ImageContactSheet = z.infer<typeof ImageContactSheetSchema>;
 
@@ -364,6 +389,10 @@ export const SampleFieldEvidenceSchema = z.object({
   url: z.string(),
   domain: z.string(),
   scope: z.string(),
+  sampleType: z.string().optional(),
+  inventoryStatus: z.string().optional(),
+  captureFreshness: z.string().optional(),
+  labelVersion: z.string().optional(),
   identityVerdicts: z.record(ReplayConfigurationSchema, IdentityVerdictSchema),
   fields: z.array(FieldEvidenceRowSchema),
   missingFieldExplanations: z.array(z.object({
@@ -405,6 +434,8 @@ export const PilotAuditResultSchema = z.object({
   contactSheets: z.array(ImageContactSheetSchema).optional(),
   promotionReport: z.string().optional(),
   perScopePromotionReport: z.lazy(() => PerScopePromotionReportSchema).optional(),
+  adapterStrategyReport: z.string().optional(),
+  perScopeStrategyReport: z.lazy(() => PerScopeAdapterStrategyReportSchema).optional(),
 });
 export type PilotAuditResult = z.infer<typeof PilotAuditResultSchema>;
 
@@ -550,7 +581,12 @@ export const ScopePromotionVerdictSchema = z.object({
   scope: z.string(),
   domain: z.string().optional(),
   platform: z.string().optional(),
+  labelVersion: z.string().optional(),
+  partition: z.enum(['all', 'tuning', 'holdout']).optional(),
   sampleCount: z.number(),
+  usableObservationCount: z.number().optional(),
+  evidenceGapCount: z.number().optional(),
+  samples: z.array(z.lazy(() => AuditManifestSampleSchema)).optional(),
   verdict: ContractPromotionVerdictSchema,
   isPromotable: z.boolean(),
   promotabilityVerdict: z.enum(['PROMOTABLE', 'BLOCKED', 'NEEDS_REVIEW']),
@@ -579,11 +615,94 @@ export type ScopePromotionVerdict = z.infer<typeof ScopePromotionVerdictSchema>;
 export const PerScopePromotionReportSchema = z.object({
   domain: z.string(),
   generatedAt: z.string(),
+  labelVersion: z.string().optional(),
   totalSamples: z.number(),
   totalScopes: z.number(),
   overallContractVerdict: ContractPromotionVerdictSchema,
   verdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema),
+  tuningVerdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema).optional(),
+  holdoutVerdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema).optional(),
   domainCostMetrics: DomainCostMetricsSchema,
   markdown: z.string(),
 });
 export type PerScopePromotionReport = z.infer<typeof PerScopePromotionReportSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evidence-Chosen Adapter Strategy Schemas (Issue #192 / Audit Follow-Through T8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const StrategyRecommendationSchema = z.enum([
+  'adapter_with_css_exceptions',
+  'custom_selectors',
+  'needs_review',
+]);
+export type StrategyRecommendation = z.infer<typeof StrategyRecommendationSchema>;
+
+export const StrategyMetricsComparisonSchema = z.object({
+  timeToFirstWorkingProfileMs: z.number(),
+  timeToFirstWorkingProfileProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  manualCorrectionsPerProfile: z.number(),
+  manualCorrectionsProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  siblingPassRate: z.number(),
+  siblingPassRateUncertainty: z.number().default(0),
+  siblingPassRateConfidenceInterval: z
+    .object({
+      lower: z.number(),
+      upper: z.number(),
+    })
+    .optional(),
+  siblingPassRateProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  wrongProductCount: z.number(),
+  wrongImageCount: z.number(),
+  operatorMinutes: z.number(),
+  operatorMinutesProvenance: z.enum(['measured', 'modeled', 'mixed']).default('modeled'),
+});
+export type StrategyMetricsComparison = z.infer<typeof StrategyMetricsComparisonSchema>;
+
+export const ScopeStrategyComparisonSchema = z.object({
+  scope: z.string(),
+  domain: z.string().optional(),
+  platform: z.string().optional(),
+  labelVersion: z.string(),
+  sampleCount: z.number(),
+  usableObservationCount: z.number().optional(),
+  recommendation: StrategyRecommendationSchema,
+  recommendationBadge: z.string(),
+  recommendationRationale: z.array(z.string()),
+  adapterMetrics: StrategyMetricsComparisonSchema,
+  selectorMetrics: StrategyMetricsComparisonSchema,
+  thresholds: z.array(GateThresholdCheckSchema),
+  allThresholdsPassed: z.boolean(),
+  gateVerdict: ContractPromotionVerdictSchema.optional(),
+  workspaceFlowSummary: z
+    .object({
+      timeToFirstWorkingProfileMs: z.number(),
+      manualCorrectionsCount: z.number(),
+      siblingPassRate: z.number(),
+      siblingPassRateConfidenceInterval: z
+        .object({
+          lower: z.number(),
+          upper: z.number(),
+        })
+        .optional(),
+      wrongProductCount: z.number(),
+      wrongImageCount: z.number(),
+      exceptionsCount: z.number(),
+    })
+    .optional(),
+});
+export type ScopeStrategyComparison = z.infer<typeof ScopeStrategyComparisonSchema>;
+
+export const PerScopeAdapterStrategyReportSchema = z.object({
+  domain: z.string(),
+  generatedAt: z.string(),
+  labelVersion: z.string(),
+  totalSamples: z.number(),
+  totalScopes: z.number(),
+  overallRecommendation: StrategyRecommendationSchema,
+  recommendationsByScope: z.record(z.string(), ScopeStrategyComparisonSchema),
+  markdown: z.string(),
+  html: z.string().optional(),
+});
+export type PerScopeAdapterStrategyReport = z.infer<typeof PerScopeAdapterStrategyReportSchema>;
+

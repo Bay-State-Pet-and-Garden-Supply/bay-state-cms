@@ -34,6 +34,12 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       domain: 'example.com',
       stratum: `example.com:shopify:${scope}:single_variant`,
       inventoryStatus: 'confirmed',
+      // Independent provenance isolates gate-threshold behavior in these tests;
+      // provenance-gap behavior is covered by dedicated provenance tests.
+      // Reviewed + versioned flags satisfy the per-observation label contract.
+      groundTruthSource: 'independent',
+      isReviewed: true,
+      labelVersion: '1.0.0',
       artifactRef: `snapshots/${id}.html`,
       supplementalArtifactRefs: [],
       hasSupplementalArtifact: true,
@@ -81,6 +87,8 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       baselineCriticalCorrect?: boolean;
       hybridCriticalCorrect?: boolean;
       hybridConflictsCount?: number;
+      baselinePrimaryAccuracy?: number;
+      hybridPrimaryAccuracy?: number;
     } = {},
   ): AuditScoredRow[] {
     const isBaselineGap = Boolean(overrides.baselineEvidenceGap);
@@ -139,7 +147,7 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         admittedImages: [`https://example.com/images/${sample.sampleId}-primary.jpg`],
         rejectedImages: [],
         primaryImage: `https://example.com/images/${sample.sampleId}-primary.jpg`,
-        primaryAccuracy: 1,
+        primaryAccuracy: overrides.baselinePrimaryAccuracy ?? 1,
         precision: overrides.baselinePrecision ?? 0.6,
         recall: 0.8,
       },
@@ -214,7 +222,7 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         admittedImages: [`https://example.com/images/${sample.sampleId}-primary.jpg`],
         rejectedImages: [],
         primaryImage: `https://example.com/images/${sample.sampleId}-primary.jpg`,
-        primaryAccuracy: 1,
+        primaryAccuracy: overrides.hybridPrimaryAccuracy ?? 1,
         precision: overrides.hybridPrecision ?? 0.95,
         recall: 0.8,
       },
@@ -243,7 +251,16 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         createSample('s3', 'standard_pdp'),
         createSample('s4', 'standard_pdp'),
       ];
-      const rows = samples.flatMap(s => createRowsForSample(s));
+      // Strict-improvement recipe: hybrid beats baseline on every improved
+      // dimension (field, precision, primary, served) with independent labels.
+      // Stark-gap shaping for the delta rule: baseline trails hybrid on
+      // primary accuracy (1/4) and served rate (1/4) beyond Wilson margins.
+      const rows = [
+        ...createRowsForSample(samples[0]),
+        ...createRowsForSample(samples[1], { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(samples[2], { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(samples[3], { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+      ];
 
       const verdict = evaluateScopeGate('standard_pdp', samples, rows, { minSamplesForPromote: 3 });
 
@@ -474,12 +491,30 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         createSample('s2', 'standard_pdp'),
         createSample('s3', 'standard_pdp'),
       ];
-      const rows = samples.flatMap(s => createRowsForSample(s, {
-        baselineEvidenceGap: false,
-        hybridEvidenceGap: false,
-        baselinePrecision: 0.65,
-        hybridPrecision: 0.95,
-      }));
+      const rows = [
+        ...createRowsForSample(samples[0], {
+          baselineEvidenceGap: false,
+          hybridEvidenceGap: false,
+          baselinePrecision: 0.65,
+          hybridPrecision: 0.95,
+        }),
+        ...createRowsForSample(samples[1], {
+          baselineEvidenceGap: false,
+          hybridEvidenceGap: false,
+          baselinePrecision: 0.65,
+          hybridPrecision: 0.95,
+          baselinePrimaryAccuracy: 0,
+          baselineIdentityVerdict: 'wrong_variant',
+        }),
+        ...createRowsForSample(samples[2], {
+          baselineEvidenceGap: false,
+          hybridEvidenceGap: false,
+          baselinePrecision: 0.65,
+          hybridPrecision: 0.95,
+          baselinePrimaryAccuracy: 0,
+          baselineIdentityVerdict: 'wrong_variant',
+        }),
+      ];
 
       const verdict = evaluateScopeGate('standard_pdp', samples, rows, { minSamplesForPromote: 3 });
 
@@ -558,7 +593,13 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         createSample('s2', 'standard_pdp'),
         createSample('s3', 'standard_pdp'),
       ];
-      const rows = samples.flatMap(s => createRowsForSample(s));
+      // Strict-improvement shaping (finding 1): baseline trails hybrid on
+      // primary accuracy and served rate so the verdict can reach GO.
+      const rows = [
+        ...createRowsForSample(samples[0]),
+        ...createRowsForSample(samples[1], { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(samples[2], { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+      ];
       const gateResult = evaluateGateArithmetic(samples, rows, { minSamplesForPromote: 3 });
 
       const tableMd = formatScopePromotionTable(gateResult.verdictsByScope);
@@ -594,13 +635,15 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         samples: [sample1, sample2, sample3, sample4, sample5, sample6],
       };
 
+      // Strict-improvement shaping per scope (finding 1): each scope's
+      // baseline trails hybrid on primary accuracy and served rate.
       const rows = [
         ...createRowsForSample(sample1),
-        ...createRowsForSample(sample2),
-        ...createRowsForSample(sample3),
+        ...createRowsForSample(sample2, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample3, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
         ...createRowsForSample(sample4),
-        ...createRowsForSample(sample5),
-        ...createRowsForSample(sample6),
+        ...createRowsForSample(sample5, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample6, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
       ];
 
       const report = generatePromotionReport({ manifest, rows });
@@ -635,7 +678,12 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
 
     it('handles single-sample scopes without crashing on variance calculation', () => {
       const sample = createSample('s1', 'rare_pdp');
-      const rows = createRowsForSample(sample);
+      // Strict-improvement shaping (finding 1): single baseline trails on
+      // primary accuracy and served rate.
+      const rows = createRowsForSample(sample, {
+        baselinePrimaryAccuracy: 0,
+        baselineIdentityVerdict: 'wrong_variant',
+      });
 
       const verdict = evaluateScopeGate('rare_pdp', [sample], rows, { minSamplesForPromote: 1 });
       expect(verdict.fieldCorrectness.uncertainty).toBe(0);
@@ -689,7 +737,7 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         hybridMeanImagePrecision: 0.93,
         baselineMeanImageRecall: 0.80,
         hybridMeanImageRecall: 0.78,
-        baselinePrimaryAccuracy: 1.0,
+        baselinePrimaryAccuracy: 0.5,
         hybridPrimaryAccuracy: 1.0,
         baselineServedRate: 0.75,
         hybridServedRate: 0.80,
@@ -778,7 +826,11 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
 
     it('accepts gateOptions and the deprecated options alias identically (fix #12)', () => {
       const sample = createSample('s-alias', 'standard_pdp');
-      const rows = createRowsForSample(sample);
+      // Strict-improvement shaping (finding 1) so the unlocked verdict is GO.
+      const rows = createRowsForSample(sample, {
+        baselinePrimaryAccuracy: 0,
+        baselineIdentityVerdict: 'wrong_variant',
+      });
       const manifest = { domain: 'example.com', generatedAt: '2026-09-01T00:00:00Z', samples: [sample] };
 
       // ── No-options baseline: default minSamplesForPromote=3, only 1 sample → NEEDS_REVIEW ──
@@ -808,6 +860,89 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       expect(gateOptsScopeVerdict.verdict).not.toBe(defaultScopeVerdict.verdict);
       expect(gateOptsScopeVerdict.promotabilityReasons).not.toEqual(defaultScopeVerdict.promotabilityReasons);
       expect(aliasScopeVerdict.verdict).not.toBe(defaultScopeVerdict.verdict);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Review findings: equality never promotes (finding 1)
+  // ───────────────────────────────────────────────────────────────────────────
+  describe('Review findings: equality never promotes (finding 1)', () => {
+    it('blocks identical non-zero quality on every improved dimension', () => {
+      const thresholds = deriveBaselineThresholds({
+        baselineIdentityErrors: 0,
+        hybridIdentityErrors: 0,
+        criticalFieldRegressions: 0,
+        baselineMeanFieldCorrectness: 0.8,
+        hybridMeanFieldCorrectness: 0.8,
+        baselineMeanImagePrecision: 0.7,
+        hybridMeanImagePrecision: 0.7,
+        baselineMeanImageRecall: 0.8,
+        hybridMeanImageRecall: 0.78,
+        baselinePrimaryAccuracy: 1.0,
+        hybridPrimaryAccuracy: 1.0,
+        baselineServedRate: 0.75,
+        hybridServedRate: 0.75,
+        baselineEvidenceGaps: 0,
+        hybridEvidenceGaps: 0,
+        baselineOperatorMinutes: 20.0,
+        hybridOperatorMinutes: 10.0,
+      });
+
+      const byDimension = Object.fromEntries(thresholds.map(t => [t.dimension, t]));
+      expect(byDimension['field_completeness'].passed).toBe(false);
+      expect(byDimension['image_precision'].passed).toBe(false);
+      expect(byDimension['primary_image_accuracy'].passed).toBe(false);
+      expect(byDimension['served_rate'].passed).toBe(false);
+      // Bounded recall drop is explicitly allowed, not an improvement gate
+      expect(byDimension['image_recall'].passed).toBe(true);
+      expect(thresholds.some(t => !t.passed && t.reason.includes('equality never promotes'))).toBe(true);
+    });
+
+    it('blocks a small gain with heavily overlapping uncertainty (finding 2)', () => {
+      const thresholds = deriveBaselineThresholds({
+        baselineIdentityErrors: 0,
+        hybridIdentityErrors: 0,
+        criticalFieldRegressions: 0,
+        baselineMeanFieldCorrectness: 0.8,
+        hybridMeanFieldCorrectness: 0.82,
+        hybridFieldCorrectnessUncertainty: 0.1,
+        baselineFieldCorrectnessUncertainty: 0.1,
+        baselineMeanImagePrecision: 0.6,
+        hybridMeanImagePrecision: 0.95,
+        baselineMeanImageRecall: 0.8,
+        hybridMeanImageRecall: 0.78,
+        baselinePrimaryAccuracy: 0.5,
+        hybridPrimaryAccuracy: 1.0,
+        baselineServedRate: 0.5,
+        hybridServedRate: 1.0,
+        baselineEvidenceGaps: 0,
+        hybridEvidenceGaps: 0,
+        baselineOperatorMinutes: 20.0,
+        hybridOperatorMinutes: 10.0,
+      });
+
+      const byDimension = Object.fromEntries(thresholds.map(t => [t.dimension, t]));
+      expect(byDimension['field_completeness'].passed).toBe(false);
+      expect(byDimension['field_completeness'].reason).toContain('overlapping uncertainty');
+    });
+
+    it('blocks doing-nothing end to end: identical baseline and candidate rows yield NO_GO, never GO', () => {
+      const samples = [
+        createSample('s1', 'standard_pdp'),
+        createSample('s2', 'standard_pdp'),
+        createSample('s3', 'standard_pdp'),
+      ];
+      const rows = samples.flatMap(s => {
+        const [baseline] = createRowsForSample(s);
+        const hybrid: AuditScoredRow = { ...baseline, configuration: 'hybrid_identity_first' };
+        return [baseline, hybrid];
+      });
+
+      const verdict = evaluateScopeGate('standard_pdp', samples, rows, { minSamplesForPromote: 3 });
+
+      expect(verdict.verdict).toBe('NO_GO');
+      expect(verdict.isPromotable).toBe(false);
+      expect(verdict.promotabilityReasons.some(r => r.includes('equality never promotes'))).toBe(true);
     });
   });
 });

@@ -1065,6 +1065,11 @@ async function executeCurationPipeline(args: {
       // Ticket #124 P2-7: synthesize from overlay-applied copy (identical
       // to pre-overlay values unless a correction filled a blank) so a
       // title/description-fixing correction reaches keywords too.
+      // The overlay input description is the curated (distributor-authority)
+      // description, which is null for official-page items — so fall back to
+      // the extraction description to preserve the pre-#124 contract that
+      // official-page copy feeds keyword synthesis. Unverified distributor
+      // copy stays excluded by the outer ternary either way.
       title: overlayApplied.title ?? curatedTitle,
       brand: ext.brand ?? item.brandHint,
       // Amendment B (M5b-2): a verified v2 distributor materialization's
@@ -1072,7 +1077,9 @@ async function executeCurationPipeline(args: {
       // unverified / tampered distributor copy never does. Operator
       // correction text on an unverified distributor item stays out as
       // well (fail closed: keywords never launder unverified copy).
-      description: distributorSource && !verifiedV2Distributor ? null : overlayApplied.description,
+      description: distributorSource && !verifiedV2Distributor
+        ? null
+        : (overlayApplied.description ?? ext.description ?? null),
       suggestedPages,
       suggestedProductType,
       species: speciesLabels,

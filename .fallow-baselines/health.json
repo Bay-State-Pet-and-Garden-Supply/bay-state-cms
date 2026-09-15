@@ -1,0 +1,4781 @@
+{
+  "finding_counts": {
+    "scripts/audit-cohort-curation-seam.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "scripts/audit-onboarding-shell-imports.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/audit-onboarding-stage-vocabulary.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/benchmark-official-page-identity.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/benchmark-onboarding-work-state.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/build-audit-manifest.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/build-bay-state-v3-release.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/build-bay-state-v4-release.ts": {
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/build-onboarding-stage-bridge.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/build-page-role-proposals.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/check-test-runner-coverage.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/classification-author-release.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/classification-integrity.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "scripts/classification-mapping-audit.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "scripts/curation-goldset-eval.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/generate-gold-benchmark.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/ocr-eval.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/onboarding-stage-compat-smoke.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/realign-classification-mappings.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "scripts/repair-system-auto-accept.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/run-pilot-audit.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "scripts/unblock-sourcing-conflicts.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/ai/connection-health-monitor.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/ai/evals/vlm-scorer.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/ai/inference-dispatcher.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/ai/network-transport.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/ai/provider-connections.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/benchmarks/model-comparison.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/applicability-evaluator.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/assignment-projection.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/attribute-editor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/attribute-profile-editor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/benchmark-evaluator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/classification/benchmark-exporter.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/benchmark-prediction.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/classification/benchmark-qualification.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/brand-resolution.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/catalog-evidence.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/catalog-product-application.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/category-page-correctness.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/classification-currentness.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/cohort-page-proposal-engine.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/cohort-product-type-resolver.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/cohort-semantic-validator.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/classification/confidence-calibrator.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/config-loader.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/classification/config-migrate-v1.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/config-store.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/config-validation.ts": {
+      "complexity_critical": {
+        "count": 4
+      },
+      "complexity_high": {
+        "count": 4
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 5
+      }
+    },
+    "src/classification/consistency-validator.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-applicability.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-target-editor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-target-matcher.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-target-processor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-target-ranker.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-target-resolver.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/curation-targets.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/datasets/silver-builder.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/detail-enrichment.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/classification/embedding-maintenance.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/evidence-targeting.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/family-title-consistency.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/field-mapping-editor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/integrity-audit.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/legacy-migration.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/classification/merchandising-field-spec-projections.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/merchandising-field-spec.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/model-operation-registry.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/model-policy-gateway.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/ocr-evidence.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/page-assignment-llm.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "src/classification/page-reranker.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/classification/page-snapshot.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/pipeline-runner.ts": {
+      "complexity_high": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/classification/product-evidence-extractor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/product-retrieval.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/product-type-verifier.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/production-metrics.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/promotion-gate.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/proposal-review-service.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/proposal-safety.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/refresh-queue-processor.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/classification/release-authoring.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/release-validation.ts": {
+      "complexity_critical": {
+        "count": 4
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/retrieval-index.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/review-completeness.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/review-completion-gate.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/classification/reviewed-facts.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/runtime-snapshot.ts": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "src/classification/stages/attribute-applicability.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/attribute-proposals.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/category-page-proposals.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/draft-projection.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/evidence-extraction.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/classification/stages/name-consolidation.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/packaging-ocr-stage.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/stages/value-gap-abstain.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/title-lint.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/classification/type-change-impact.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/classification/type-dependent-refresh.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/classification/type-review-detail.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/App.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/api.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/AiComputePanel.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/client/components/Catalog.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/CatalogClassificationPanel.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/CatalogHealth.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "src/client/components/ChangeSetReview.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 8
+      }
+    },
+    "src/client/components/Dashboard.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/client/components/DriftView.tsx": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/client/components/GeneratedProfilesPanel.tsx": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/ImagePreviewGrid.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/LlmTaskConfigPanel.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/Onboarding.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/OnboardingSettings.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/client/components/ProductDetail.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileConfigReviewCard.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileExtractionPreview.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileFieldValidationTable.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileGenerationReview.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "src/client/components/ProfileRetryPreview.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileReviewFieldCard.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileReviewFieldGroup.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileRevisionDiff.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/ProfileRevisionFeedbackForm.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "src/client/components/SearchableBrandSelector.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/SetupWizard.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/StoreManagerAssistant.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 7
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 11
+      }
+    },
+    "src/client/components/SyncJobsView.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/client/components/WeeklyReportPanel.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/brand-strategy/BrandStrategyBuilder.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/brand-strategy/BrandStrategyView.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/brand-strategy/use-brand-strategy-builder.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/CatalogFieldsView.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/CategoryPagesView.tsx": {
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/MappingsView.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/OverviewView.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/ProductsView.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 3
+      }
+    },
+    "src/client/components/catalog-workbench/TypesAttributesView.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/catalog-workbench/WorkbenchTabs.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding-settings/DistributorConnectionsPanel.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/BatchExecutionControls.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/BatchWorkspace.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/onboarding/BrandCombobox.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/ExecutionStrip.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/GapCorrectionPanel.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/OutcomeItemsView.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/PrepareListingView.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/StageItemsView.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_high": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "src/client/components/onboarding/approved/ApprovedView.tsx": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/client/components/onboarding/approved/PackagingInspectorModal.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/approved/ReadyToExportView.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/onboarding/attention/AttentionRow.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/attention/BrandAssignmentPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/attention/BrandDomainSetupPanel.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/attention/ExtractorStatusPanel.tsx": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/attention/ManualEvidencePanel.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/attention/OfficialSiteResolutionWorkspace.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/client/components/onboarding/families/FamilyInspectorDrawer.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/onboarding/families/family-logic.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/linear-workspace-logic.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/processing/ProcessingStatus.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/ReviewActions.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/ReviewClassificationPanel.tsx": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "src/client/components/onboarding/review/ReviewListingPanel.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/ReviewQueue.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/ReviewWarningsPanel.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/ReviewWorkspace.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/review-logic.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/review/review-readiness.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/onboarding/use-execution-strip.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/pipeline-drawer/EvidenceCitationList.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/ProfileBuilder.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/client/components/profile-builder/artifactUrls.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/ArtifactBrowser.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/BuildCanvas.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/DomainBar.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/ExtractionPreview.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/FieldCard.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/profile-builder/components/FieldGroup.tsx": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/GeneratedCustomFieldsPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/SaveBar.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/SnapshotPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/ValidationMatrix.tsx": {
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/ValidationSamplesPanel.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/components/ValuePreviewGrid.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-builder/hooks/useProfileBuilderController.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 5
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/client/components/profile-builder/profileBuilderReducer.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/client/components/profile-builder/selectorEvaluation.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/EvidenceRail.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/HistoryShell.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/InventoryPicker.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/OutputFirstWorkspace.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/profile-workspace/ProfileWorkspaceHeader.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/ProfileWorkspacePage.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/components/profile-workspace/ReadinessRail.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/client/components/profile-workspace/SuitePanel.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/profile-workspace/TestMatrix.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/client/components/settings/SettingsTabShell.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/settings/TaxonomyReleaseCard.tsx": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/sitemap-health/SitemapDomainDrawer.tsx": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/client/components/sitemap-health/SitemapHealthView.tsx": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/BulkReviewPanel.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/ManagerInbox.tsx": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/NotificationCenter.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/OperationsConsole.tsx": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/OperationsNav.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/PlaybookEditor.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/PlaybooksPanel.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/PreferencesPanel.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/RunHistory.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/RunInspector.tsx": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/SchedulesPanel.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/components/store-manager/TriggersPanel.tsx": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/client/onboarding-api.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/onboarding-stage-api.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/onboarding-work-api.ts": {
+      "complexity_moderate": {
+        "count": 3
+      }
+    },
+    "src/client/pipeline-decision-state.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/profile-review-utils.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/store-manager-command-logic.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/client/store-manager-playbook-logic.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/crawler/corpus-validator.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/crawler/importers/brightdata-scraper.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/crawler/importers/icecat.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/crawler/importers/open-pet-food-facts.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/crawler/sites/ace-hardware.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/crawler/sites/burpee.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/crawler/sites/chewy.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/crawler/sites/tractor-supply.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/crawler/url-policy.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/db/migrations.ts": {
+      "complexity_critical": {
+        "count": 5
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_moderate": {
+        "count": 5
+      }
+    },
+    "src/db/repositories/benchmark-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/brand-strategy-approval-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/brand-strategy-generation-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/brand-url-index-repo.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/catalog-health-proposal-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/classification-cohort-run-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/classification-config-repo.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/classification-metrics-repo.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/classification-refresh-repo.ts": {
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/classification-run-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/curation-cohort-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/domain-profile-state-repo.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/extractor-profile-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-conflict-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-evidence-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-extraction-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-item-repo.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/onboarding-manual-evidence-repo.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-pi-asset-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/onboarding-review-repo.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/onboarding-source-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/page-repo.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/preparation-gap-repo.ts": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/product-index-repo.ts": {
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/profile-engineer-workflow-repo.ts": {
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/db/repositories/profile-generation-field-decision-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/profile-generation-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/profile-generation-revision-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/profile-version-repo.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/provider-connection-repo.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/store-manager-schedule-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/store-manager-source-observer-repo.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/repositories/strategy-collection-result-repo.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/db/sqlite-backup-verifier.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/db/store-manager-operations-migration.ts": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "src/extraction-worker/auth.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/extraction-worker/routes/extract.ts": {
+      "complexity_critical": {
+        "count": 7
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 7
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/extraction-worker/routes/generate-selector.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/extraction-worker/routes/snapshot-subrequest.test.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/extraction-worker/routes/snapshot.ts": {
+      "complexity_critical": {
+        "count": 8
+      },
+      "crap_critical": {
+        "count": 11
+      },
+      "crap_high": {
+        "count": 4
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "src/extraction-worker/routes/validate.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/extraction-worker/server.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/batch-release.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/brand-domain-blockers.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/brand-hub/brand-strategy-derive.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/brand-hub/brand-strategy-service.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/brand-hub/normalizeDomain.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cloud-vlm-client.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cohort-curation/freeze.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "src/onboarding/cohort-curation/frozen-evidence.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cohort-curation/index.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/cohort-curation/members.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cohort-curation/pages.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cohort-curation/titles.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/cohort-name-coordinator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/curation-cohort-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/distributor-copy-consolidator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/distributor-imagery.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/onboarding/domain-config-service.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/domain-diagnostics-service.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/domain-release.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/draft-promoter.ts": {
+      "complexity_critical": {
+        "count": 5
+      },
+      "complexity_high": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/extraction-ladder/enrich.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/extraction-ladder/ladder.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/extraction-ladder/platforms.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/extraction-ladder/result-shape.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/extraction-validator.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/filename-review.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/gap-correction-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/image-utils.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/image-verification/discovery.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/image-verification/image-hash.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/image-verification/network-gate.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/image-verification/rights.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/image-verification/verification.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/imported-identity.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/job-queue.ts": {
+      "complexity_critical": {
+        "count": 5
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/onboarding/lcs-extractor.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/llm-client.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/local-brand-url-finder.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/manual-evidence-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/naming-assessment.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/ocr-eval/metrics.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/ocr-eval/runner.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/onboarding-preparation-read.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/onboarding-review-queue.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/onboarding-stage-read.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/onboarding/onboarding-telemetry.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/onboarding-work-state.ts": {
+      "complexity_critical": {
+        "count": 4
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/packaging-ocr.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/page-extractor.ts": {
+      "complexity_critical": {
+        "count": 5
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 5
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 4
+      }
+    },
+    "src/onboarding/page-verifier.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/onboarding/product-curator.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/product-line-token-normalizer.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/product-url-identity.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-activation-gate.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/adapter-strategy-report.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/profile-audit/gate-arithmetic.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/hybrid-field-selector.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      }
+    },
+    "src/onboarding/profile-audit/manifest-builder.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/profile-audit/operator-review.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 3
+      }
+    },
+    "src/onboarding/profile-audit/promotion-eligibility.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/promotion-report.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/replay-runner.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/reviewable-table.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/scorer.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/strict-image-filter.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-audit/versioned-corpus.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-capture.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/profile-generator.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/profile-governance-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-promoter.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-readiness.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-runner-client.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/profile-workspace/output-first-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/selected-variant-materializer.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/shopify-json.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sitemap-fetcher.ts": {
+      "complexity_critical": {
+        "count": 3
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 3
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sitemap-health-evaluator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sitemap-matcher.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sitemap-sync-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/source-discovery.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing-reconciler.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/bounded-fetch.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connector-registry.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/bci.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/bradley.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/central-pet.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/orgill.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/pet-food-experts.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/phillips-storefront.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/connectors/phillips.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/contracts.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/distributor-record-materializer.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/distributor-record-projection.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/onboarding/sourcing/engine.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/onboarding/sourcing/html-scraper/live-smoke.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/html-scraper/session-runner.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/onboarding/sourcing/oauth-client.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/official-collector.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/sourcing/strategy-collection-result.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/spreadsheet-parser.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/strategy-collection-activation.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/suite-suggestion-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      }
+    },
+    "src/onboarding/title-consolidation.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/title-prompt-template.ts": {
+      "complexity_moderate": {
+        "count": 3
+      }
+    },
+    "src/onboarding/variant-resolver.ts": {
+      "complexity_critical": {
+        "count": 6
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 5
+      },
+      "crap_critical": {
+        "count": 4
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 6
+      }
+    },
+    "src/onboarding/variant-selection-service.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/onboarding/variant-url-resolver.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/onboarding/vlm-client.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/onboarding-event-presentation.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/server/routes/benchmark-routes.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/server/routes/brand-strategy-routes.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/routes/catalog-classification-routes.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/catalog-routes.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/classification-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/connection-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/server/routes/drift-routes.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/server/routes/embedding-routes.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/routes/field-registry-routes.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/routes/inventory-picker-routes.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/onboarding-routes.ts": {
+      "complexity_critical": {
+        "count": 13
+      },
+      "complexity_high": {
+        "count": 6
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 13
+      },
+      "crap_high": {
+        "count": 8
+      },
+      "crap_moderate": {
+        "count": 18
+      }
+    },
+    "src/server/routes/onboarding-work-routes.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/server/routes/preparation-gap-routes.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/product-routes.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/profile-activation-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/routes/profile-inspect-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 3
+      }
+    },
+    "src/server/routes/profile-matrix-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/routes/release-routes.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/server/routes/sitemap-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/routes/store-manager-routes.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      },
+      "crap_moderate": {
+        "count": 7
+      }
+    },
+    "src/server/routes/sync-routes.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/ai-proposal-validator.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/ai-sdk-model-resolver.ts": {
+      "complexity_high": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/server/services/catalog-insight-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/change-set-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/field-metadata-service.ts": {
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/product-field-audit-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/product-field-refactor-service.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/product-service.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/buildSelectorGenerationPrompt.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/customFieldNormalizer.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/generateSelectorsService.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/sanitizeSnapshotHtml.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/selectorValidator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/snapshotArtifactResolver.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/profile-builder/snapshotPreflight.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-bulk-review-service.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      }
+    },
+    "src/server/services/store-manager-comparison-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-context.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-event-worker.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-image-repair.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 2
+      }
+    },
+    "src/server/services/store-manager-inbox-collectors.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-inbox-service.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-notification-service.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-report.ts": {
+      "complexity_moderate": {
+        "count": 2
+      }
+    },
+    "src/server/services/store-manager-schedule-service.ts": {
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-telemetry.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-tools.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/server/services/store-manager-trigger-service.ts": {
+      "complexity_moderate": {
+        "count": 4
+      }
+    },
+    "src/server/services/sync-service.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/shared/schemas/brand-strategy-domain.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/shared/schemas/cohorts.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/shared/schemas/onboarding-review-queue.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/shared/schemas/store-manager.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/shared/selector-utils.ts": {
+      "complexity_high": {
+        "count": 1
+      }
+    },
+    "src/shared/ssrf.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 2
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/shared/stable-id.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/shopsite/drift.ts": {
+      "complexity_high": {
+        "count": 2
+      }
+    },
+    "src/shopsite/page-parser.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/shopsite/page-sync-preflight.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/shopsite/product-codec.ts": {
+      "complexity_critical": {
+        "count": 2
+      },
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/shopsite/publish.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/shopsite/zip-generator.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/store-manager/commands/compiler.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/store-manager/playbooks/runner.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "complexity_moderate": {
+        "count": 3
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/store-manager/playbooks/validator.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/store-manager/runtime/executor.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 2
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/store-manager/runtime/policy.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/store-manager/runtime/tool-registry.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/store-manager/tools/bulk-review-tools.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/store-manager/tools/catalog-tools.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/store-manager/tools/image-repair-tool.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/store-manager/tools/proposal-tools.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/store-manager/tools/report-tools.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/fixtures/store-manager-agent-cases.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/integration/onboarding-betterbone-variant-flow.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/choose-variant-panel.test.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/classification-production-metrics.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/cohort-curation-titles.test.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/cohort-freeze.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/cohort-worker.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/conflict-resolution.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/curation-applicability.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/distributor-record-materializer.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/distributor-scrapers-acceptance.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/domain-diagnostics-service.test.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/draft-promoter.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/extraction-remedies.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/family-title-page-goldset.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/helpers/transitional-prepared-member.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/onboarding-repos.test.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/onboarding-stage-read-routes.test.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/onboarding-stage-rollback-bridge.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/onboarding-variant-resolution-migration.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/pr7-acceptance.test.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/tests/unit/pr8-acceptance.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/pr9-acceptance.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/product-type-invariants.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/profile-audit-gate-arithmetic.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/profile-audit-promotion-eligibility.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/profile-audit-strategy-report.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/profile-audit-trustworthy-promotion.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/profile-audit-versioned-corpus.test.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/ready-to-export-view.test.tsx": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/review-queue-adversarial.test.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/shopsite-field-catalog.test.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/shopsite-xml-roundtrip.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/sourcing-default-on-e2e.test.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/sourcing-observe-mode.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/sourcing-pass-through.test.ts": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/tests/unit/sourcing-recovery-acceptance.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/stage-one-collection-read.test.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "src/tests/unit/store-manager-chat-runtime.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/store-manager-playbook-runner.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/store-manager-tool-registry.test.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/store-manager.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/test-runner-coverage.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/variant-resolver.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/tests/unit/variant-url-resolver.test.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/validation/change-set-validation.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "src/validation/product-validation.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "src/store-manager/tools/history-tools.ts:dead code",
+    "scripts/realign-classification-mappings.ts:complexity",
+    "src/classification/curation-target-ranker.ts:dead code",
+    "src/client/components/profile-builder/components/ValidationMatrix.tsx:untested risk",
+    "src/onboarding/onboarding-review-queue.ts:dead code",
+    "src/onboarding/draft-promoter.ts:complexity",
+    "src/db/repositories/profile-engineer-workflow-repo.ts:dead code",
+    "src/onboarding/distributor-imagery.ts:dead code",
+    "src/store-manager/tools/catalog-tools.ts:dead code",
+    "scripts/onboarding-stage-compat-smoke.ts:complexity",
+    "src/store-manager/tools/proposal-tools.ts:dead code",
+    "scripts/curation-goldset-eval.ts:complexity",
+    "src/onboarding/imported-identity.ts:circular dependency",
+    "src/onboarding/distributor-copy-consolidator.ts:complexity",
+    "src/store-manager/runtime/execution-request.ts:dead code",
+    "src/client/components/onboarding/linear-workspace-logic.ts:dead code",
+    "src/onboarding/sourcing/engine.ts:complexity",
+    "src/classification/assignment-projection.ts:complexity",
+    "src/client/components/onboarding/review/review-readiness.ts:high impact",
+    "src/shared/schemas/store-manager-playbook.ts:dead code",
+    "src/server/routes/onboarding-routes.ts:complexity",
+    "src/onboarding/job-queue.ts:complexity",
+    "src/onboarding/packaging-ocr.ts:complexity",
+    "src/onboarding/profile-audit/scorer.ts:high impact",
+    "src/classification/cohort-page-proposal-engine.ts:complexity",
+    "src/store-manager/runtime/tool-registry.ts:circular dependency",
+    "src/onboarding/vlm-client.ts:complexity",
+    "src/server/services/store-manager-tools.ts:circular dependency",
+    "src/onboarding/product-curator.ts:complexity",
+    "src/shared/schemas/profile-audit.ts:dead code",
+    "src/classification/curation-target-processor.ts:complexity",
+    "src/onboarding/cohort-curation/freeze.ts:complexity",
+    "src/onboarding/extraction-ladder/result-shape.ts:dead code",
+    "src/shared/gtin.ts:high impact",
+    "src/onboarding/onboarding-work-state.ts:high impact",
+    "src/tests/helpers/onboarding-event-source-harness.ts:dead code",
+    "src/onboarding/llm-client.ts:complexity",
+    "src/server/routes/profile-activation-routes.ts:untested risk",
+    "src/shared/ssrf.ts:high impact",
+    "src/onboarding/sourcing/connectors/bradley.ts:complexity",
+    "src/classification/release-validation.ts:dead code",
+    "src/classification/evidence-targeting.ts:complexity",
+    "src/classification/attribute-profile-editor.ts:dead code",
+    "src/onboarding/sourcing/official-collector.ts:complexity",
+    "src/db/repositories/onboarding-stage-vocabulary-repo.ts:dead code",
+    "src/classification/benchmark-exporter.ts:complexity",
+    "src/onboarding/cohort-name-coordinator.ts:complexity",
+    "src/onboarding/sourcing/distributor-record-materializer.ts:complexity",
+    "src/shared/schemas/variant-resolution.ts:dead code",
+    "src/classification/product-evidence-extractor.ts:complexity",
+    "src/client/components/onboarding/StageItemsView.tsx:complexity",
+    "src/tests/helpers/onboarding-stage-read-fixtures.ts:dead code",
+    "src/shared/schemas/brand-strategy.ts:dead code",
+    "src/classification/pipeline-runner.ts:complexity",
+    "src/onboarding/template-clustering.ts:circular dependency",
+    "src/shared/schemas/brand-strategy-domain.ts:complexity",
+    "src/onboarding/manual-evidence-service.ts:dead code",
+    "src/onboarding/extraction-ladder/platforms.ts:high impact",
+    "src/server/services/store-manager-telemetry.ts:complexity",
+    "src/client/components/profile-workspace/ProfileWorkspacePage.tsx:complexity",
+    "src/onboarding/cohort-curation/frozen-evidence.ts:complexity",
+    "src/onboarding/profile-activation-gate.ts:complexity",
+    "src/onboarding/curation-cohort-service.ts:complexity",
+    "src/onboarding/profile-audit/adapter-strategy-report.ts:dead code",
+    "src/classification/config-loader.ts:complexity",
+    "src/server/onboarding-stage-api.ts:dead code",
+    "src/classification/merchandising-field-spec-projections.ts:high impact",
+    "src/db/repositories/onboarding-item-repo.ts:complexity",
+    "scripts/benchmark-onboarding-work-state.ts:dead code",
+    "src/shopsite/product-codec.ts:complexity",
+    "src/db/repositories/brand-strategy-approval-repo.ts:complexity",
+    "src/shared/schemas/store-manager-operations.ts:dead code",
+    "src/onboarding/cloud-vlm-client.ts:complexity",
+    "src/onboarding/profile-runner-client.ts:complexity",
+    "src/onboarding/filename-review.ts:dead code",
+    "src/server/routes/onboarding-work-routes.ts:complexity",
+    "src/client/components/onboarding/review/review-logic.ts:high impact",
+    "src/client/components/profile-builder/hooks/useProfileBuilderController.ts:high impact",
+    "src/onboarding/profile-audit/manifest-builder.ts:complexity",
+    "src/onboarding/variant-resolver.ts:high impact",
+    "src/classification/stages/packaging-ocr-stage.ts:complexity",
+    "src/db/repositories/strategy-collection-result-repo.ts:complexity",
+    "src/shared/schemas/store-manager-diff.ts:dead code",
+    "src/classification/applicability-evaluator.ts:complexity",
+    "src/crawler/url-policy.ts:high impact",
+    "src/onboarding/ocr-eval/metrics.ts:complexity",
+    "src/server/routes/connection-routes.ts:untested risk",
+    "src/classification/review-completeness.ts:complexity",
+    "src/onboarding/page-extractor.ts:complexity",
+    "src/shared/stable-id.ts:high impact",
+    "src/db/migrations.ts:complexity",
+    "src/db/repositories/classification-run-repo.ts:complexity",
+    "src/store-manager/runtime/executor.ts:complexity",
+    "src/onboarding/profile-audit/replay-runner.ts:complexity",
+    "src/server/onboarding-event-presentation.ts:untested risk",
+    "src/shared/schemas/store-manager-preferences.ts:dead code",
+    "src/classification/category-page-correctness.ts:high impact",
+    "src/onboarding/brand-hub/brand-strategy-derive.ts:high impact",
+    "src/onboarding/sourcing/connectors/pet-food-experts.ts:dead code",
+    "src/extraction-worker/routes/extract.ts:high impact",
+    "src/onboarding/cohort-curation/titles.ts:complexity",
+    "src/onboarding/sourcing/distributor-record-projection.ts:complexity",
+    "src/classification/product-retrieval.ts:complexity",
+    "src/onboarding/sourcing/contracts.ts:complexity",
+    "src/classification/page-assignment-llm.ts:high impact",
+    "src/client/components/onboarding/review/ReviewClassificationPanel.tsx:complexity",
+    "src/classification/catalog-product-application.ts:complexity",
+    "src/classification/family-title-consistency.ts:high impact",
+    "src/onboarding/profile-audit/promotion-report.ts:complexity",
+    "src/onboarding/suite-suggestion-service.ts:high impact",
+    "src/classification/catalog-evidence.ts:complexity",
+    "src/onboarding/image-utils.ts:complexity",
+    "src/onboarding/sitemap-health-evaluator.ts:complexity",
+    "src/shopsite/zip-generator.ts:complexity",
+    "src/onboarding/product-url-identity.ts:high impact",
+    "src/classification/config-validation.ts:complexity",
+    "src/onboarding/onboarding-stage-read.ts:complexity",
+    "src/client/components/onboarding/review/ReviewWorkspace.tsx:complexity",
+    "src/shared/schemas/onboarding-review-queue.ts:complexity",
+    "src/validation/change-set-validation.ts:complexity",
+    "src/classification/curation-target-editor.ts:complexity",
+    "src/client/components/profile-builder/components/FieldCard.tsx:dead code",
+    "src/classification/stages/evidence-extraction.ts:complexity",
+    "src/db/repositories/extractor-profile-repo.ts:complexity",
+    "src/classification/proposal-review-service.ts:complexity",
+    "src/onboarding/sourcing/strategy-collection-result.ts:complexity",
+    "src/onboarding/profile-audit/gate-arithmetic.ts:complexity",
+    "src/classification/model-policy-gateway.ts:complexity",
+    "src/db/repositories/brand-url-index-repo.ts:complexity",
+    "src/onboarding/profile-audit/hybrid-field-selector.ts:high impact",
+    "src/client/components/brand-strategy/BrandStrategyBuilder.tsx:complexity",
+    "scripts/generate-gold-benchmark.ts:dead code",
+    "src/classification/config-store.ts:complexity",
+    "src/onboarding/sourcing/html-scraper/live-smoke.ts:complexity",
+    "src/onboarding/extraction-ladder/enrich.ts:complexity",
+    "src/onboarding/sourcing/connectors/bci.ts:complexity",
+    "src/shopsite/drift.ts:complexity",
+    "src/db/repositories/onboarding-review-repo.ts:complexity",
+    "src/client/components/CatalogClassificationPanel.tsx:complexity",
+    "src/client/components/brand-strategy/brand-strategy-builder-model.ts:high impact",
+    "src/server/services/profile-builder/generateSelectorsService.ts:complexity",
+    "src/onboarding/cohort-curation/members.ts:complexity",
+    "src/onboarding/profile-audit/reviewable-table.ts:complexity",
+    "src/onboarding/spreadsheet-parser.ts:circular dependency",
+    "src/onboarding/cohort-curation/pages.ts:complexity",
+    "src/onboarding/variant-url-resolver.ts:high impact",
+    "src/classification/curation-applicability.ts:complexity",
+    "src/onboarding/title-consolidation.ts:complexity",
+    "src/onboarding/profile-capture.ts:untested risk",
+    "src/server/services/product-field-audit-service.ts:complexity",
+    "src/db/repositories/onboarding-manual-evidence-repo.ts:complexity",
+    "src/onboarding/naming-assessment.ts:complexity",
+    "src/server/services/change-set-service.ts:complexity",
+    "src/client/components/onboarding/attention/OfficialSiteResolutionWorkspace.tsx:complexity",
+    "src/db/repositories/onboarding-extraction-repo.ts:complexity",
+    "src/server/services/profile-builder/selectorValidator.ts:dead code",
+    "src/server/services/store-manager-notification-service.ts:complexity",
+    "scripts/classification-mapping-audit.ts:complexity",
+    "src/classification/type-dependent-refresh.ts:complexity",
+    "src/onboarding/sourcing/connectors/phillips.ts:complexity",
+    "src/extraction-worker/routes/snapshot.ts:dead code",
+    "src/classification/field-mapping-editor.ts:complexity",
+    "src/ai/inference-dispatcher.ts:complexity",
+    "src/classification/promotion-gate.ts:complexity",
+    "src/server/services/store-manager-comparison-service.ts:complexity",
+    "src/tests/helpers/onboarding-stage-bridge-harness.ts:dead code",
+    "src/validation/product-validation.ts:complexity",
+    "src/onboarding/sourcing/connectors/orgill.ts:complexity",
+    "src/onboarding/sourcing/connectors/phillips-storefront.ts:complexity",
+    "src/classification/stages/draft-projection.ts:complexity",
+    "src/classification/stages/value-gap-abstain.ts:complexity",
+    "src/client/components/catalog-workbench/OverviewView.tsx:untested risk",
+    "src/client/components/OnboardingSettings.tsx:complexity",
+    "src/classification/review-completion-gate.ts:complexity",
+    "src/onboarding/page-verifier.ts:complexity",
+    "src/classification/proposal-safety.ts:complexity",
+    "src/server/services/store-manager-inbox-service.ts:complexity",
+    "src/client/components/onboarding/families/FamilyInspectorDrawer.tsx:complexity",
+    "src/onboarding/source-discovery.ts:complexity",
+    "src/client/components/onboarding/review/ReviewListingPanel.tsx:complexity",
+    "src/client/components/profile-builder/components/ValuePreviewGrid.tsx:dead code",
+    "src/server/services/store-manager-bulk-review-service.ts:complexity",
+    "src/onboarding/gap-correction-service.ts:complexity",
+    "src/store-manager/playbooks/validator.ts:complexity",
+    "src/server/services/catalog-insight-service.ts:complexity",
+    "src/onboarding/image-verification/verification.ts:complexity",
+    "src/onboarding/profile-audit/operator-review.ts:complexity",
+    "src/client/profile-review-utils.ts:complexity",
+    "src/store-manager/commands/compiler.ts:complexity",
+    "src/client/components/onboarding/BatchWorkspace.tsx:complexity",
+    "src/client/components/StoreManagerAssistant.tsx:complexity",
+    "src/classification/curation-target-matcher.ts:complexity",
+    "src/client/App.tsx:complexity",
+    "src/client/components/Onboarding.tsx:complexity",
+    "src/onboarding/local-brand-url-finder.ts:complexity",
+    "src/classification/type-change-impact.ts:complexity",
+    "src/shared/selector-utils.ts:complexity",
+    "src/client/components/onboarding/attention/ExtractorStatusPanel.tsx:complexity",
+    "src/onboarding/sourcing-reconciler.ts:complexity",
+    "src/onboarding/profile-governance-service.ts:complexity",
+    "src/store-manager/playbooks/runner.ts:complexity",
+    "scripts/audit-onboarding-shell-imports.ts:complexity",
+    "src/onboarding/sitemap-sync-service.ts:complexity",
+    "src/classification/cohort-product-type-resolver.ts:complexity",
+    "src/server/routes/sync-routes.ts:complexity",
+    "src/classification/stages/name-consolidation.ts:complexity",
+    "src/onboarding/profile-audit/strict-image-filter.ts:complexity",
+    "src/crawler/importers/brightdata-scraper.ts:complexity",
+    "src/classification/classification-currentness.ts:complexity",
+    "src/onboarding/onboarding-telemetry.ts:complexity",
+    "src/classification/confidence-calibrator.ts:complexity",
+    "src/classification/page-snapshot.ts:complexity",
+    "src/classification/ocr-evidence.ts:complexity",
+    "src/client/components/CatalogHealth.tsx:complexity",
+    "src/classification/type-review-detail.ts:complexity",
+    "src/classification/attribute-editor.ts:complexity",
+    "src/classification/datasets/silver-builder.ts:complexity",
+    "src/onboarding/profile-audit/promotion-eligibility.ts:complexity",
+    "src/onboarding/sitemap-fetcher.ts:complexity",
+    "src/classification/merchandising-field-spec.ts:complexity",
+    "src/onboarding/profile-generator.ts:complexity",
+    "src/onboarding/shopify-json.ts:complexity",
+    "src/shared/schemas/store-manager.ts:complexity",
+    "src/classification/release-authoring.ts:complexity",
+    "src/onboarding/ocr-eval/runner.ts:complexity",
+    "src/onboarding/extraction-ladder/ladder.ts:complexity",
+    "src/client/components/ProfileRevisionFeedbackForm.tsx:complexity",
+    "src/client/components/store-manager/BulkReviewPanel.tsx:complexity",
+    "src/client/components/store-manager/OperationsConsole.tsx:complexity",
+    "src/classification/benchmark-evaluator.ts:complexity",
+    "src/client/components/profile-builder/selectorEvaluation.ts:complexity",
+    "src/tests/unit/store-manager-playbook-runner.test.ts:complexity",
+    "src/crawler/importers/open-pet-food-facts.ts:complexity",
+    "src/classification/legacy-migration.ts:complexity",
+    "src/crawler/importers/icecat.ts:complexity",
+    "src/store-manager/commands/registry.ts:circular dependency",
+    "scripts/audit-cohort-curation-seam.ts:complexity",
+    "scripts/audit-onboarding-stage-vocabulary.ts:complexity",
+    "src/client/components/ProfileGenerationReview.tsx:complexity",
+    "scripts/repair-system-auto-accept.ts:complexity",
+    "src/onboarding/strategy-collection-activation.ts:complexity",
+    "src/onboarding/image-verification/discovery.ts:complexity",
+    "src/client/components/onboarding/approved/ReadyToExportView.tsx:complexity",
+    "src/onboarding/profile-workspace/output-first-service.ts:complexity",
+    "src/tests/unit/profile-audit-trustworthy-promotion.test.ts:complexity",
+    "src/classification/cohort-semantic-validator.ts:complexity",
+    "src/client/components/ProductDetail.tsx:complexity",
+    "src/classification/refresh-queue-processor.ts:complexity",
+    "src/extraction-worker/routes/generate-selector.ts:complexity",
+    "scripts/check-test-runner-coverage.ts:complexity",
+    "src/classification/product-type-verifier.ts:complexity",
+    "src/server/services/store-manager-image-repair.ts:complexity",
+    "src/classification/title-lint.ts:complexity",
+    "src/classification/production-metrics.ts:complexity",
+    "src/server/services/profile-builder/customFieldNormalizer.ts:complexity",
+    "src/onboarding/profile-promoter.ts:complexity",
+    "src/onboarding/sitemap-matcher.ts:complexity",
+    "src/client/components/ProfileExtractionPreview.tsx:complexity",
+    "src/classification/integrity-audit.ts:complexity",
+    "src/db/sqlite-backup-verifier.ts:complexity",
+    "src/extraction-worker/routes/validate.ts:complexity",
+    "src/client/components/profile-workspace/EvidenceRail.tsx:complexity",
+    "src/client/components/profile-builder/profileBuilderReducer.ts:complexity",
+    "src/client/components/sitemap-health/SitemapDomainDrawer.tsx:complexity",
+    "src/client/components/sitemap-health/SitemapHealthView.tsx:complexity",
+    "src/client/components/onboarding/approved/PackagingInspectorModal.tsx:complexity",
+    "src/classification/detail-enrichment.ts:complexity",
+    "src/client/components/profile-workspace/SuitePanel.tsx:complexity",
+    "src/client/components/ChangeSetReview.tsx:complexity",
+    "src/client/components/profile-workspace/OutputFirstWorkspace.tsx:complexity",
+    "src/client/components/ProfileReviewFieldCard.tsx:complexity",
+    "src/client/components/profile-workspace/TestMatrix.tsx:complexity",
+    "src/server/services/profile-builder/buildSelectorGenerationPrompt.ts:complexity"
+  ]
+}
