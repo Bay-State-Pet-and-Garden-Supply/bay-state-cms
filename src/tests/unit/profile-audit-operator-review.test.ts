@@ -548,15 +548,22 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
   // ── Acceptance Criterion 4: Per-Scope Served-Rate Summary ─────────────────
   describe('Acceptance Criterion 4: Per-scope summary a store owner can read without opening every cell', () => {
     it('computes per-scope served-rate summary with baseline comparison, uncertainty, and promotability verdict', () => {
-      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp' });
-      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'standard_pdp' });
-      const sample3 = createSample({ sampleId: 's3', pageStructureScope: 'standard_pdp' });
+      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample3 = createSample({ sampleId: 's3', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
 
       const allRows: AuditScoredRow[] = [
         ...createRowsForSample(sample1),
         ...createRowsForSample(sample2),
         ...createRowsForSample(sample3),
       ];
+
+      // Strict-improvement shaping (finding 1): baseline trails hybrid on
+      // primary accuracy and served rate so the summary can reach PROMOTABLE.
+      const baselineRows = allRows.filter(r => r.configuration === 'current_extraction');
+      baselineRows[0].imageScores.primaryAccuracy = 0;
+      baselineRows[1].imageScores.primaryAccuracy = 0;
+      baselineRows[2].identityVerdict = 'wrong_variant';
 
       const summaries = computeScopeSummaries([sample1, sample2, sample3], allRows);
 
@@ -625,7 +632,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
     });
 
     it('marks scope as NEEDS_REVIEW when sample size is below standard gate threshold (<3)', () => {
-      const sample = createSample({ sampleId: 's1', pageStructureScope: 'sparse_pdp' });
+      const sample = createSample({ sampleId: 's1', pageStructureScope: 'sparse_pdp', groundTruthSource: 'independent' });
       const rows = createRowsForSample(sample);
 
       // Only 1 sample, minSamples defaults to 3
@@ -638,9 +645,15 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
     });
 
     it('formats a single executive table that a store owner can read without opening individual cells', () => {
-      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp' });
-      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'tabbed_pdp' });
+      const sample1 = createSample({ sampleId: 's1', pageStructureScope: 'standard_pdp', groundTruthSource: 'independent' });
+      const sample2 = createSample({ sampleId: 's2', pageStructureScope: 'tabbed_pdp', groundTruthSource: 'independent' });
       const allRows = [...createRowsForSample(sample1), ...createRowsForSample(sample2)];
+
+      // Strict-improvement shaping (finding 1) per scope.
+      for (const r of allRows.filter(r => r.configuration === 'current_extraction')) {
+        r.imageScores.primaryAccuracy = 0;
+        r.identityVerdict = 'wrong_variant';
+      }
 
       const summaries = computeScopeSummaries([sample1, sample2], allRows, { minSamplesForPromote: 1 });
       const tableMd = formatPerScopeSummaryTable(summaries);

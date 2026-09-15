@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import {
   buildVersionedCorpus,
   getRepresentativeCorpusFixtures,
@@ -153,6 +157,42 @@ describe('Profile Audit Versioned Labeled Corpus with Holdouts (Issue #190 / Aud
         if (expectedHoldout) {
           expect(sample.holdoutFamilyName).toBe(sample.productFamily);
         }
+      }
+    });
+
+    it('never marks auto-derived rows reviewed, even under an explicit reviewed assertion (finding 3)', async () => {
+      const tempDir = join(tmpdir(), `corpus-finding3-${randomUUID()}`);
+      const domainDir = join(tempDir, domain);
+      mkdirSync(domainDir, { recursive: true });
+      const snap = join(domainDir, 'snap-probe');
+      mkdirSync(snap);
+      const probeUrl = `https://${domain}/products/finding3-probe`;
+      writeFileSync(
+        join(snap, 'page.html'),
+        `<!DOCTYPE html><html><head><link rel="canonical" href="${probeUrl}">` +
+          `<script type="application/ld+json">{"@context":"https://schema.org/","@type":"Product",` +
+          `"name":"Finding3 Probe Collar","brand":{"@type":"Brand","name":"Earthbath"},` +
+          `"image":"https://${domain}/images/probe.jpg"}</script></head>` +
+          `<body><h1>Finding3 Probe Collar</h1></body></html>`,
+      );
+      try {
+        const corpus = await buildVersionedCorpus({
+          domain,
+          labelVersion,
+          artifactRoot: tempDir,
+          suiteUrls: [probeUrl],
+          includeRepresentativeFixtures: false,
+          holdoutFamilies: [],
+          // Explicit reviewed assertion must NOT elevate auto-derived rows.
+          isReviewed: true,
+        });
+        const probe = corpus.samples.find(s => s.url === probeUrl);
+        expect(probe).toBeDefined();
+        expect(probe!.groundTruthSource).toBe('auto-derived');
+        expect(probe!.isReviewed).toBe(false);
+        expect(corpus.isReviewed).toBe(false);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
       }
     });
 

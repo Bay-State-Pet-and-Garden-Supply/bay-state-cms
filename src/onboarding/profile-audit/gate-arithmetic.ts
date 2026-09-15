@@ -546,9 +546,13 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: ${input.criticalFieldRegressions} critical field regressions versus baseline on title/brand/price`,
   });
 
-  // 3. Field Completeness & Correctness: Match or exceed baseline coverage
+  // 3. Field Completeness & Correctness: Demonstrated improvement within the
+  // reported confidence margin (Issue #188 / T2). Equality — including
+  // equality with a zero-quality baseline — never promotes.
   const fcZeroEquality = input.baselineMeanFieldCorrectness === 0 && input.hybridMeanFieldCorrectness === 0;
-  const fcPassed = !fcZeroEquality && input.hybridMeanFieldCorrectness >= input.baselineMeanFieldCorrectness - 1e-9;
+  const fcUncertainty = input.hybridFieldCorrectnessUncertainty ?? 0;
+  const fcImproved = input.hybridMeanFieldCorrectness > input.baselineMeanFieldCorrectness;
+  const fcPassed = !fcZeroEquality && fcImproved;
   checks.push({
     name: 'Field Completeness & Correctness',
     dimension: 'field_completeness',
@@ -557,18 +561,23 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridMeanFieldCorrectness,
     actualUncertainty: input.hybridFieldCorrectnessUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'actual > baseline (strict: equality never promotes)',
     passed: fcPassed,
     reason: fcZeroEquality
       ? `Blocked: Equality with zero-quality baseline on field correctness (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
       : (fcPassed
-          ? `✓ Maintained or improved field completeness (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}%)`
-          : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`),
+          ? `✓ Demonstrated field improvement (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% ±${(fcUncertainty * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}% baseline)`
+          : (input.hybridMeanFieldCorrectness >= input.baselineMeanFieldCorrectness - 1e-9
+              ? `Blocked: No field improvement over baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}% — equality never promotes)`
+              : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`)),
   });
 
-  // 4. Image Precision: Match or exceed baseline precision
+  // 4. Image Precision: Demonstrated improvement within the reported
+  // confidence margin (Issue #188 / T2). Equality never promotes.
   const ipZeroEquality = input.baselineMeanImagePrecision === 0 && input.hybridMeanImagePrecision === 0;
-  const ipPassed = !ipZeroEquality && input.hybridMeanImagePrecision >= input.baselineMeanImagePrecision - 1e-9;
+  const ipUncertainty = input.hybridImagePrecisionUncertainty ?? 0;
+  const ipImproved = input.hybridMeanImagePrecision > input.baselineMeanImagePrecision;
+  const ipPassed = !ipZeroEquality && ipImproved;
   checks.push({
     name: 'Image Precision',
     dimension: 'image_precision',
@@ -577,13 +586,15 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridMeanImagePrecision,
     actualUncertainty: input.hybridImagePrecisionUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'actual > baseline (strict: equality never promotes)',
     passed: ipPassed,
     reason: ipZeroEquality
       ? `Blocked: Equality with zero-quality baseline on image precision (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
       : (ipPassed
-          ? `✓ Improved image precision (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
-          : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`),
+          ? `✓ Demonstrated image precision improvement (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% ±${(ipUncertainty * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
+          : (input.hybridMeanImagePrecision >= input.baselineMeanImagePrecision - 1e-9
+              ? `Blocked: No image precision improvement over baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% — equality never promotes)`
+              : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`)),
   });
 
   // 5. Image Recall: Bounded drop allowed (e.g. dedupe of thumbnails/icons).
@@ -606,9 +617,12 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: Image recall (${(input.hybridMeanImageRecall * 100).toFixed(1)}%) dropped excessively below baseline bound (${(recallThreshold * 100).toFixed(1)}%)`,
   });
 
-  // 6. Primary Image Accuracy: Match or exceed baseline primary accuracy
+  // 6. Primary Image Accuracy: Demonstrated improvement within the reported
+  // confidence margin (Issue #188 / T2). Equality never promotes.
   const paZeroEquality = input.baselinePrimaryAccuracy === 0 && input.hybridPrimaryAccuracy === 0;
-  const paPassed = !paZeroEquality && input.hybridPrimaryAccuracy >= input.baselinePrimaryAccuracy - 1e-9;
+  const paUncertainty = input.hybridPrimaryAccuracyUncertainty ?? 0;
+  const paImproved = input.hybridPrimaryAccuracy > input.baselinePrimaryAccuracy;
+  const paPassed = !paZeroEquality && paImproved;
   checks.push({
     name: 'Primary Image Accuracy',
     dimension: 'primary_image_accuracy',
@@ -617,18 +631,23 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridPrimaryAccuracy,
     actualUncertainty: input.hybridPrimaryAccuracyUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'actual > baseline (strict: equality never promotes)',
     passed: paPassed,
     reason: paZeroEquality
       ? `Blocked: Equality with zero-quality baseline on primary image accuracy (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
       : (paPassed
-          ? `✓ Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`
-          : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`),
+          ? `✓ Demonstrated primary image accuracy improvement (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}% ±${(paUncertainty * 100).toFixed(1)}% vs ${(input.baselinePrimaryAccuracy * 100).toFixed(1)}% baseline)`
+          : (input.hybridPrimaryAccuracy >= input.baselinePrimaryAccuracy - 1e-9
+              ? `Blocked: No primary image accuracy improvement over baseline (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}% vs ${(input.baselinePrimaryAccuracy * 100).toFixed(1)}% — equality never promotes)`
+              : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`)),
   });
 
-  // 7. Served Rate: Match or exceed baseline served rate
+  // 7. Served Rate: Demonstrated improvement within the reported confidence
+  // margin (Issue #188 / T2). Equality never promotes.
   const srZeroEquality = input.baselineServedRate === 0 && input.hybridServedRate === 0;
-  const srPassed = !srZeroEquality && input.hybridServedRate >= input.baselineServedRate - 1e-9;
+  const srUncertainty = input.hybridServedRateUncertainty ?? 0;
+  const srImproved = input.hybridServedRate > input.baselineServedRate;
+  const srPassed = !srZeroEquality && srImproved;
   checks.push({
     name: 'Served Rate',
     dimension: 'served_rate',
@@ -637,13 +656,15 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridServedRate,
     actualUncertainty: input.hybridServedRateUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'actual > baseline (strict: equality never promotes)',
     passed: srPassed,
     reason: srZeroEquality
       ? `Blocked: Equality with zero-quality baseline on served rate (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
       : (srPassed
-          ? `✓ Served rate (${(input.hybridServedRate * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselineServedRate * 100).toFixed(1)}%)`
-          : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`),
+          ? `✓ Demonstrated served rate improvement (${(input.hybridServedRate * 100).toFixed(1)}% ±${(srUncertainty * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}% baseline)`
+          : (input.hybridServedRate >= input.baselineServedRate - 1e-9
+              ? `Blocked: No served rate improvement over baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}% — equality never promotes)`
+              : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`)),
   });
 
   // 8. Abstention Bound (Evidence Gaps): Cannot exceed baseline evidence gaps

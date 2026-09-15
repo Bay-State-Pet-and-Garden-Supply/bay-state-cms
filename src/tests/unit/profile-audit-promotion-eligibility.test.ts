@@ -251,7 +251,8 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       expect(inspection.unspecifiedCount).toBe(1);
       expect(inspection.hasIndependentLabels).toBe(true);
       expect(inspection.isAllAutoDerived).toBe(false);
-      // In T1 prefactor, provenance does not block promotion yet
+      // Independent presence keeps the scope promotable; unspecified-only and
+      // auto-derived-only sets are pinned invalid below (finding 2).
       expect(inspection.isProvenanceValidForPromotion).toBe(true);
     });
 
@@ -263,6 +264,17 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       expect(inspection.isAllAutoDerived).toBe(true);
       expect(inspection.hasIndependentLabels).toBe(false);
       expect(inspection.autoDerivedCount).toBe(2);
+    });
+
+    it('treats unspecified-only provenance as invalid for promotion (finding 2)', () => {
+      const s1 = createSample('s1');
+      const s2 = createSample('s2');
+
+      const inspection = inspectLabelProvenance([s1, s2]);
+      expect(inspection.unspecifiedCount).toBe(2);
+      expect(inspection.hasIndependentLabels).toBe(false);
+      expect(inspection.isProvenanceValidForPromotion).toBe(false);
+      expect(inspection.provenanceReasons.some(r => r.includes('unspecified'))).toBe(true);
     });
   });
 
@@ -423,16 +435,22 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
   // ───────────────────────────────────────────────────────────────────────────
   // Byte-identical contract pinning
   // ───────────────────────────────────────────────────────────────────────────
-  describe('Byte-identical contract pinning', () => {
-    it('produces identical gate verdicts and promotion report before and after extraction', () => {
+  describe('Unified eligibility contract', () => {
+    it('gate, arithmetic, and promotion report agree on the trustworthy verdict', () => {
       const samples = [
-        createSample('s1'),
-        createSample('s2'),
-        createSample('s3'),
-        createSample('s4'),
-        createSample('s5'),
+        createSample('s1', 'standard_pdp', 'independent'),
+        createSample('s2', 'standard_pdp', 'independent'),
+        createSample('s3', 'standard_pdp', 'independent'),
+        createSample('s4', 'standard_pdp', 'independent'),
+        createSample('s5', 'standard_pdp', 'independent'),
       ];
       const rows = samples.flatMap(s => createRowsForSample(s));
+      // Strict-improvement shaping (finding 1): baseline trails hybrid on
+      // primary accuracy and served rate.
+      const baseRows = rows.filter(r => r.configuration === 'current_extraction');
+      baseRows[0].imageScores.primaryAccuracy = 0;
+      baseRows[1].imageScores.primaryAccuracy = 0;
+      baseRows[2].identityVerdict = 'wrong_variant';
       const manifest: AuditManifest = {
         domain: 'example.com',
         generatedAt: '2026-09-01T12:00:00Z',

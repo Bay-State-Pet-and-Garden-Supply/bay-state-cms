@@ -1,6 +1,7 @@
 // story: #191 — Output-first inspection and sibling-URL validation routes
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { AuditManifestSchema, AuditScoredRowSchema } from '../../shared/schemas/profile-audit';
 import { inspectProfileUrl, validateSiblingUrls } from '../../onboarding/profile-workspace/output-first-service';
 import { captureProfilePage } from '../../onboarding/profile-capture';
 import { getVersionById, type ProfileVersion } from '../../db/repositories/profile-version-repo';
@@ -150,8 +151,8 @@ profileInspectRoutes.post('/domains/:domain/profile/validate-siblings', async (c
 });
 
 const StrategyReportBodySchema = z.object({
-  manifest: z.any().optional(),
-  rows: z.array(z.any()).optional(),
+  manifest: AuditManifestSchema.optional(),
+  rows: z.array(AuditScoredRowSchema).optional(),
   workspaceFlows: z.record(z.string(), z.any()).optional(),
   versionId: z.string().optional(),
 });

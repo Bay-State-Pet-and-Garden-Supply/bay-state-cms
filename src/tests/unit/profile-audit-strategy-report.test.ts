@@ -175,8 +175,35 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       }
     }
 
-    const report1 = generateAdapterStrategyReport({ manifest: corpus, rows });
-    const report2 = generateAdapterStrategyReport({ manifest: corpus, rows });
+    // Strict-improvement shaping (finding 1): the internal gate needs baseline
+    // trailing hybrid on primary accuracy and served rate to reach GO.
+    {
+      const stdIds = new Set(
+        corpus.samples
+          .filter(s => (s.pageStructureScope || 'standard_pdp') === 'standard_pdp')
+          .map(s => s.sampleId),
+      );
+      const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
+      stdBaseRows[0].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[2].identityVerdict = 'wrong_variant';
+    }
+
+    // Measured effort dimensions (finding 5b): sibling rate is gate-derived,
+    // time and corrections are workspace-measured — no fiat-only comparison.
+    const measuredOptions = {
+      workspaceFlows: {
+        standard_pdp: {
+          timeToFirstWorkingProfileMs: 45000,
+          timeToFirstWorkingProfileProvenance: 'measured' as const,
+          manualCorrectionsPerProfile: 1,
+          manualCorrectionsProvenance: 'measured' as const,
+        },
+      },
+    };
+
+    const report1 = generateAdapterStrategyReport({ manifest: corpus, rows, options: measuredOptions });
+    const report2 = generateAdapterStrategyReport({ manifest: corpus, rows, options: measuredOptions });
 
     // Exact reproduction check
     expect(report1.labelVersion).toBe(report2.labelVersion);
@@ -291,6 +318,11 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
           standard_pdp: {
             siblingPassRate: 0.2, // Adapter sibling validation failed
             wrongProductCount: 2, // Adapter has wrong products
+            // Measured effort dimensions so the verdict rests on evidence (finding 5b)
+            timeToFirstWorkingProfileMs: 120000,
+            timeToFirstWorkingProfileProvenance: 'measured',
+            manualCorrectionsPerProfile: 4,
+            manualCorrectionsProvenance: 'measured',
           },
         },
       },
@@ -321,6 +353,19 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       for (const cfg of configs) {
         rows.push(createScoredRow(s, cfg));
       }
+    }
+
+    // Strict-improvement shaping (finding 1) for the internal gate verdict.
+    {
+      const stdIds = new Set(
+        corpus.samples
+          .filter(s => (s.pageStructureScope || 'standard_pdp') === 'standard_pdp')
+          .map(s => s.sampleId),
+      );
+      const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
+      stdBaseRows[0].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[2].identityVerdict = 'wrong_variant';
     }
 
     const report = generateAdapterStrategyReport({
@@ -424,6 +469,19 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       }
     }
 
+    // Strict-improvement shaping (finding 1) for the internal gate verdict.
+    {
+      const stdIds = new Set(
+        corpus.samples
+          .filter(s => (s.pageStructureScope || 'standard_pdp') === 'standard_pdp')
+          .map(s => s.sampleId),
+      );
+      const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
+      stdBaseRows[0].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[2].identityVerdict = 'wrong_variant';
+    }
+
     const res = await profileInspectRoutes.request(
       `/domains/${domain}/profile/strategy-report`,
       {
@@ -432,6 +490,16 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
         body: JSON.stringify({
           manifest: corpus,
           rows,
+          // Measured effort dimensions for the target scope (finding 5b);
+          // every other scope stays unmeasured and needs review.
+          workspaceFlows: {
+            standard_pdp: {
+              timeToFirstWorkingProfileMs: 45000,
+              timeToFirstWorkingProfileProvenance: 'measured',
+              manualCorrectionsPerProfile: 1,
+              manualCorrectionsProvenance: 'measured',
+            },
+          },
         }),
       },
     );
@@ -443,5 +511,64 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
     expect(json.recommendationsByScope.standard_pdp.recommendation).toBe('adapter_with_css_exceptions');
     expect(json.overallRecommendation).toBe('needs_review');
     expect(json.markdown).toContain('Evidence-Chosen Adapter Strategy Report');
+  });
+
+  it('withholds the recommendation as needs_review when strategy dimensions are unmeasured (finding 5b)', async () => {
+    const corpus = await buildVersionedCorpus({
+      domain,
+      labelVersion,
+      isReviewed: true,
+    });
+
+    const rows: AuditScoredRow[] = [];
+    const configs: ReplayConfiguration[] = [
+      'current_extraction',
+      'current_strict_images',
+      'structured_only',
+      'hybrid_identity_first',
+    ];
+
+    for (const s of corpus.samples) {
+      for (const cfg of configs) {
+        rows.push(createScoredRow(s, cfg));
+      }
+    }
+
+    // No workspaceFlows and therefore no measured time or corrections:
+    // modeled fallbacks are display-only and cannot decide.
+    const report = generateAdapterStrategyReport({ manifest: corpus, rows });
+    const s = report.recommendationsByScope.standard_pdp;
+
+    expect(s.recommendation).toBe('needs_review');
+    expect(
+      s.recommendationRationale.some(
+        r => r.includes('time to first working profile') && r.includes('manual corrections per profile'),
+      ),
+    ).toBe(true);
+    const evidenceCheck = s.thresholds.find(t => t.dimension === 'strategy_evidence');
+    expect(evidenceCheck).toBeDefined();
+    expect(evidenceCheck?.passed).toBe(false);
+  });
+
+  it('rejects unvalidated strategy-report payloads at the route boundary (standards)', async () => {
+    const badManifest = await profileInspectRoutes.request(
+      `/domains/${domain}/profile/strategy-report`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifest: { bogus: true } }),
+      },
+    );
+    expect(badManifest.status).toBe(400);
+
+    const badRows = await profileInspectRoutes.request(
+      `/domains/${domain}/profile/strategy-report`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: [{ bogus: 1 }] }),
+      },
+    );
+    expect(badRows.status).toBe(400);
   });
 });

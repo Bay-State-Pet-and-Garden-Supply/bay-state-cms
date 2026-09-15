@@ -182,18 +182,25 @@ export function inspectLabelProvenance(
 
   // Enforce non-circular ground truth for promotion (Issue #188 / T2).
   // Auto-derived rows may appear in exploratory reports but never qualify for promotion.
-  // When groundTruthSource is unspecified (legacy test fixtures), allow promotion if not explicitly all auto-derived.
-  const isProvenanceValidForPromotion = totalCount > 0 ? !isAllAutoDerived && (hasIndependentLabels || unspecifiedCount > 0) : true;
+  // Unspecified provenance (legacy rows with no groundTruthSource) also cannot
+  // qualify: only explicitly independent, reviewed labels promote.
+  const isProvenanceValidForPromotion = totalCount > 0 ? hasIndependentLabels : true;
   const provenanceReasons: string[] = [];
 
-  if (isAllAutoDerived) {
-    provenanceReasons.push(
-      `Needs Review: Scope contains only auto-derived labels (${autoDerivedCount}/${totalCount} samples); auto-derived labels are circular and exploratory only; independent reviewed labels required for promotion`,
-    );
-  } else if (totalCount > 0 && !hasIndependentLabels && autoDerivedCount > 0 && unspecifiedCount === 0) {
-    provenanceReasons.push(
-      `Needs Review: No independent reviewed labels found in scope (${autoDerivedCount} auto-derived); independent reviewed labels required for promotion`,
-    );
+  if (totalCount > 0 && !hasIndependentLabels) {
+    if (isAllAutoDerived) {
+      provenanceReasons.push(
+        `Needs Review: Scope contains only auto-derived labels (${autoDerivedCount}/${totalCount} samples); auto-derived labels are circular and exploratory only; independent reviewed labels required for promotion`,
+      );
+    } else if (unspecifiedCount === totalCount) {
+      provenanceReasons.push(
+        `Needs Review: Scope contains only unspecified label provenance (${unspecifiedCount}/${totalCount} samples); legacy rows without groundTruthSource cannot qualify; independent reviewed labels required for promotion`,
+      );
+    } else {
+      provenanceReasons.push(
+        `Needs Review: No independent reviewed labels found in scope (${independentCount} independent of ${totalCount} samples); independent reviewed labels required for promotion`,
+      );
+    }
   }
 
   return {
@@ -362,6 +369,34 @@ export function buildPromotabilityReasons(
     promotabilityReasons.push(
       `Needs Review: All page artifacts are missing or gapped (${gapCount}/${sampleCount} samples with evidence gaps); 0 usable scored observation pairs available (minimum ${minSamples} required)`,
     );
+  } else if (labelProvenance && !labelProvenance.isProvenanceValidForPromotion) {
+    // Evidence before measurement: without valid provenance the scope cannot be
+    // judged, so it needs review even when thresholds also fail (Issue #188 / T2).
+    verdict = 'NEEDS_REVIEW';
+    promotabilityVerdict = 'NEEDS_REVIEW';
+    isPromotable = false;
+    if (labelProvenance.provenanceReasons.length > 0) {
+      promotabilityReasons.push(...labelProvenance.provenanceReasons);
+    } else {
+      promotabilityReasons.push(
+        'Needs Review: Label provenance is not valid for promotion; independent reviewed labels required for promotion',
+      );
+    }
+  } else if (!isSufficientSample) {
+    // Evidence before measurement: too few usable observation pairs to judge,
+    // regardless of threshold outcomes.
+    verdict = 'NEEDS_REVIEW';
+    promotabilityVerdict = 'NEEDS_REVIEW';
+    isPromotable = false;
+    if (usableObservations && usableObservations.evidenceGapCount > 0) {
+      promotabilityReasons.push(
+        `Needs Review: Usable observation count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) due to missing or gapped page evidence (${usableObservations.evidenceGapCount} evidence gaps)`,
+      );
+    } else {
+      promotabilityReasons.push(
+        `Needs Review: Sample count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
+      );
+    }
   } else if (!allThresholdsPassed || isZeroQualityBaselineEquality) {
     verdict = 'NO_GO';
     promotabilityVerdict = 'BLOCKED';
@@ -377,30 +412,6 @@ export function buildPromotabilityReasons(
       }
     }
     promotabilityReasons.push(...blockedReasons);
-  } else if (labelProvenance && (!labelProvenance.isProvenanceValidForPromotion || labelProvenance.isAllAutoDerived)) {
-    verdict = 'NEEDS_REVIEW';
-    promotabilityVerdict = 'NEEDS_REVIEW';
-    isPromotable = false;
-    if (labelProvenance.provenanceReasons.length > 0) {
-      promotabilityReasons.push(...labelProvenance.provenanceReasons);
-    } else {
-      promotabilityReasons.push(
-        `Needs Review: Scope contains only auto-derived labels (${labelProvenance.autoDerivedCount}/${sampleCount} samples); auto-derived labels are circular (self-consistency only) and exploratory; independent reviewed labels required for promotion`,
-      );
-    }
-  } else if (!isSufficientSample) {
-    verdict = 'NEEDS_REVIEW';
-    promotabilityVerdict = 'NEEDS_REVIEW';
-    isPromotable = false;
-    if (usableObservations && usableObservations.evidenceGapCount > 0) {
-      promotabilityReasons.push(
-        `Needs Review: Usable observation count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) due to missing or gapped page evidence (${usableObservations.evidenceGapCount} evidence gaps)`,
-      );
-    } else {
-      promotabilityReasons.push(
-        `Needs Review: Sample count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
-      );
-    }
   } else {
     verdict = 'GO';
     promotabilityVerdict = 'PROMOTABLE';

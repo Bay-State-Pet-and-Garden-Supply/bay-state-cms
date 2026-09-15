@@ -80,6 +80,8 @@ export function deriveStrategyThresholds(input: {
   groundTruthSource: string;
   usableObservations: number;
   minSamples: number;
+  hasSufficientEvidence: boolean;
+  missingEvidenceDimensions: string[];
 }): {
   thresholds: GateThresholdCheck[];
   allPassed: boolean;
@@ -98,6 +100,8 @@ export function deriveStrategyThresholds(input: {
     groundTruthSource,
     usableObservations,
     minSamples,
+    hasSufficientEvidence,
+    missingEvidenceDimensions,
   } = input;
 
   // 1. Reviewed Label Provenance (Gate Hard Invariant)
@@ -132,6 +136,24 @@ export function deriveStrategyThresholds(input: {
       : `Blocked: Only ${usableObservations} usable observations (minimum ${minSamples} required)`,
   });
 
+  // 2b. Strategy Evidence Sufficiency (Issue #192 / T8). Modeled fallbacks
+  // are displayed with 'modeled' provenance but cannot decide: without
+  // measured or gate-derived evidence the comparison would reproduce fiat.
+  const evidencePassed = hasSufficientEvidence;
+  checks.push({
+    name: 'Sufficient Strategy Evidence',
+    dimension: 'strategy_evidence',
+    baselineValue: 0,
+    thresholdValue: 0,
+    actualValue: evidencePassed ? 0 : missingEvidenceDimensions.length,
+    unit: 'missing dimensions',
+    rule: 'actual == 0',
+    passed: evidencePassed,
+    reason: evidencePassed
+      ? '✓ Strategy dimensions grounded in measured or gate-derived evidence'
+      : `Blocked: Strategy evidence incomplete (${missingEvidenceDimensions.join(', ')} unmeasured and underived); modeled fallbacks cannot decide — record workspace measurements or attach a gate verdict`,
+  });
+
   // 3. Identity Integrity / Wrong Product Count
   const wrongProductPassed = adapterMetrics.wrongProductCount === 0;
   checks.push({
@@ -164,9 +186,10 @@ export function deriveStrategyThresholds(input: {
       : `Blocked: Wrong-image defects (${adapterMetrics.wrongImageCount}) exceeded baseline (${selectorMetrics.wrongImageCount})`,
   });
 
-  // 5. Sibling-Page Pass Rate (Match or exceed baseline / 0.80 floor with uncertainty)
+  // 5. Sibling-Page Pass Rate (Match or exceed the measured baseline with
+  // uncertainty — derived from baseline numbers only, never a fiat floor.)
   const baselineSiblingPass = selectorMetrics.siblingPassRate;
-  const derivedSiblingThreshold = Math.max(0.70, baselineSiblingPass);
+  const derivedSiblingThreshold = baselineSiblingPass;
   const siblingPassed = adapterMetrics.siblingPassRate >= derivedSiblingThreshold - 1e-9;
   checks.push({
     name: 'Sibling-Page Pass Rate',
@@ -257,6 +280,9 @@ export function deriveStrategyThresholds(input: {
   } else if (!samplePassed) {
     recommendation = 'needs_review';
     rationale.push(`Sample size (${usableObservations}) is below the required minimum (${minSamples}) for statistical confidence.`);
+  } else if (!hasSufficientEvidence) {
+    recommendation = 'needs_review';
+    rationale.push(`Strategy evidence incomplete (${missingEvidenceDimensions.join(', ')} unmeasured and underived); modeled fallbacks are display-only — record workspace measurements or attach a gate verdict before a strategy can be recommended.`);
   } else if (allPassed) {
     recommendation = 'adapter_with_css_exceptions';
     rationale.push('Proven platform and structure handling with small CSS exceptions outperforms custom selectors across all metrics.');
@@ -329,6 +355,24 @@ export function evaluateScopeStrategyComparison(args: {
   // Usable observation count
   const usableObservationCount = gateVerdict?.usableObservationCount ??
     scopeSamples.filter(s => !scopeRows.filter(r => r.sampleId === s.sampleId).some(r => r.isEvidenceGap)).length;
+
+  // Evidence sufficiency (Issue #192 / T8): each strategy dimension needs a
+  // measured or gate-derived value; otherwise the modeled fallbacks below are
+  // display-only and the recommendation stays needs_review.
+  const missingEvidenceDimensions: string[] = [];
+  if (!workspaceFlow?.siblingValidation && workspaceFlow?.siblingPassRate === undefined && !gateVerdict) {
+    missingEvidenceDimensions.push('sibling-page pass rate');
+  }
+  if (workspaceFlow?.timeToFirstWorkingProfileMs === undefined && !(workspaceFlow?.inspections && workspaceFlow.inspections.length > 0)) {
+    missingEvidenceDimensions.push('time to first working profile');
+  }
+  if (workspaceFlow?.manualCorrectionsPerProfile === undefined && !(workspaceFlow?.inspections && workspaceFlow.inspections.length > 0)) {
+    missingEvidenceDimensions.push('manual corrections per profile');
+  }
+  if (!gateVerdict) {
+    missingEvidenceDimensions.push('gate-derived operator maintenance');
+  }
+  const hasSufficientEvidence = missingEvidenceDimensions.length === 0;
 
   // 1. Wrong product and wrong image counts from rows
   const baselineWrongProduct = baselineRows.filter(r => r.identityVerdict !== 'correct_match').length;
@@ -484,6 +528,8 @@ export function evaluateScopeStrategyComparison(args: {
     groundTruthSource,
     usableObservations: usableObservationCount,
     minSamples,
+    hasSufficientEvidence,
+    missingEvidenceDimensions,
   });
 
   const recommendationBadge = formatStrategyRecommendationBadge(recommendation);

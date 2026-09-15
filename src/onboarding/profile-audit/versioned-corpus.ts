@@ -310,7 +310,10 @@ export async function buildVersionedCorpus(
 ): Promise<VersionedAuditCorpus> {
   const domain = normalizeDomain(options.domain || 'earthbath.com');
   const labelVersion = options.labelVersion || '1.0.0';
-  const isReviewed = options.isReviewed ?? true;
+  // No default reviewed assertion: the manifest builder's per-sample provenance
+  // logic stays authoritative unless the caller explicitly asserts review
+  // (Issue #190 / T6).
+  const assertedReviewed = options.isReviewed;
   const corpusId = options.corpusId || `${domain}:corpus:${labelVersion}`;
 
   const shouldIncludeFixtures = options.includeRepresentativeFixtures ?? (
@@ -396,25 +399,34 @@ export async function buildVersionedCorpus(
     groundTruthOverrides,
     holdoutFamilies,
     labelVersion,
-    isReviewed,
+    // Forward an explicit reviewed assertion only — never a default — so an
+    // unreviewed corpus cannot claim reviewed status by omission.
+    ...(assertedReviewed !== undefined ? { isReviewed: assertedReviewed } : {}),
   });
 
   const metadata = manifest.metadata as Record<string, any>;
   const manifestHoldouts = (metadata.holdoutFamilies as string[]) || [];
   const manifestTuning = (metadata.tuningFamilies as string[]) || [];
 
-  // Guarantee every sample carries the labelVersion and isReviewed tag
+  // Guarantee every sample carries the labelVersion and isReviewed tag.
+  // Reviewed status requires an independent label source: auto-derived rows
+  // stay unreviewed, so circular labels can never be counted as reviewed.
   const taggedSamples: AuditManifestSample[] = manifest.samples.map(s => ({
     ...s,
     labelVersion: s.labelVersion || labelVersion,
-    isReviewed: s.isReviewed ?? (s.groundTruthSource === 'independent' || isReviewed),
+    isReviewed: s.isReviewed ?? (s.groundTruthSource === 'independent'),
   }));
+
+  // Corpus-level reviewed flag: an explicit assertion is necessary but not
+  // sufficient — the samples must agree, so a corpus with unreviewed rows
+  // cannot claim reviewed status.
+  const aggregateReviewed = (assertedReviewed ?? true) && taggedSamples.every(s => s.isReviewed ?? false);
 
   return {
     corpusId,
     domain,
     labelVersion,
-    isReviewed,
+    isReviewed: aggregateReviewed,
     generatedAt: manifest.generatedAt,
     samples: taggedSamples,
     holdoutFamilies: manifestHoldouts,
@@ -423,7 +435,7 @@ export async function buildVersionedCorpus(
       ...metadata,
       corpusId,
       labelVersion,
-      isReviewed,
+      isReviewed: aggregateReviewed,
     },
   };
 }

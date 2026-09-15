@@ -191,7 +191,8 @@ export type AuditManifest = z.infer<typeof AuditManifestSchema>;
 export const VersionedAuditCorpusSchema = AuditManifestSchema.extend({
   corpusId: z.string(),
   labelVersion: z.string(),
-  isReviewed: z.boolean().default(true),
+  // A corpus that does not say reviewed must not claim it (Issue #190 / T6).
+  isReviewed: z.boolean().default(false),
   holdoutFamilies: z.array(z.string()).default([]),
   tuningFamilies: z.array(z.string()).default([]),
 });

@@ -250,6 +250,66 @@ describe('profile audit strict image filter', () => {
     expect(result.rejectionReasons['https://example.com/cdn/p/unrelated.jpg']).toBe('unknown_membership');
   });
 
+  it('enforces membership on single-candidate matrices: the lone candidate counts as selected (finding 4)', () => {
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'only',
+          images: [{ url: 'https://example.com/cdn/products/solo-hero.jpg' }],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: [
+        'https://example.com/cdn/products/solo-hero.jpg',
+        'https://example.com/cdn/products/stowaway.jpg',
+      ],
+      baseUrl: 'https://example.com/products/solo',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: null,
+    });
+
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/products/solo-hero.jpg']);
+    expect(result.primaryImage).toBe('https://example.com/cdn/products/solo-hero.jpg');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/stowaway.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/stowaway.jpg']).toBe('unknown_membership');
+  });
+
+  it('rejects a custom-flagged primary without membership evidence instead of bypassing the check (finding 5a)', () => {
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'blue',
+          images: [{ url: 'https://example.com/cdn/products/widget-blue-front.jpg' }],
+        },
+        {
+          variantKey: 'red',
+          images: [{ url: 'https://example.com/cdn/products/widget-red-front.jpg' }],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: [
+        'https://example.com/cdn/products/widget-blue-front.jpg',
+        {
+          url: 'https://example.com/cdn/products/unrelated-pick.jpg',
+          role: 'primary' as const,
+        },
+      ],
+      baseUrl: 'https://example.com/products/widget',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: 'blue',
+      customPrimaryImage: 'https://example.com/cdn/products/unrelated-pick.jpg',
+    });
+
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/products/widget-blue-front.jpg']);
+    expect(result.primaryImage).toBe('https://example.com/cdn/products/widget-blue-front.jpg');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/unrelated-pick.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/unrelated-pick.jpg']).toBe('unknown_membership');
+  });
+
   it('respects role: primary and customPrimaryImage priority for primary flagging', () => {
     const rawImages = [
       { url: 'https://example.com/cdn/products/gallery-1.jpg', role: 'gallery' as const },

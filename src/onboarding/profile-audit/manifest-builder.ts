@@ -1045,7 +1045,9 @@ export async function buildFullStratifiedManifest(
         isFailureSample: c.isFailureSample,
         sampleType: c.sampleType,
         labelVersion: options.labelVersion || '1.0.0',
-        isReviewed: options.isReviewed ?? (c.groundTruthSource === 'independent'),
+        // Reviewed status requires an independent label source: an explicit
+        // reviewed assertion never elevates auto-derived rows (Issue #190 / T6).
+        isReviewed: (options.isReviewed ?? true) && c.groundTruthSource === 'independent',
       });
     }
 

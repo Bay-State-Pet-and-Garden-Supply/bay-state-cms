@@ -131,13 +131,22 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
   const otherVariantCanonicals = new Set<string>();
   const provenSharedCanonicals = new Set<string>();
   const candidateImageSets: Array<Set<string>> = [];
-  const hasMultipleVariants = Boolean(
-    variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 1,
+  // Membership evidence exists whenever the matrix yields candidates. A lone
+  // candidate is the page's only variant, so its images are selected-variant
+  // evidence (mirrors the replay runner, which forwards the single
+  // candidate's key). Without any matrix there is no variant-membership
+  // question to adjudicate: role, usability, dedupe, and caps still apply.
+  const hasVariantEvidence = Boolean(
+    variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 0,
   );
+  const effectiveSelectedKey = selectedVariantKey
+    ?? (variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length === 1
+      ? variantMatrix.candidates[0].variantKey
+      : null);
 
   if (variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 0) {
     for (const candidate of variantMatrix.candidates) {
-      const isSelected = selectedVariantKey ? candidate.variantKey === selectedVariantKey : false;
+      const isSelected = effectiveSelectedKey ? candidate.variantKey === effectiveSelectedKey : false;
       const candidateImages = (candidate.images || []).map(img =>
         typeof img === 'string' ? img : img.url,
       );
@@ -194,14 +203,16 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
       continue;
     }
 
-    // Step 2: Variant membership
+    // Step 2: Variant membership — enforced whenever variant evidence exists.
+    // Admission requires positive selected-variant or proven shared-product
+    // evidence (Issue #186 / T3). An operator- or role-flagged primary keeps
+    // ordering priority in Step 4, but earns no membership exemption.
     const canon = canonicalizeUrl(trimmed, baseUrl);
-    if (hasMultipleVariants) {
+    if (hasVariantEvidence) {
       const isSelectedVariant = selectedVariantCanonicals.has(canon);
       const isProvenShared = provenSharedCanonicals.has(canon);
-      const isCustomPrimary = Boolean(preferredPrimaryCanon && preferredPrimaryCanon === canon);
 
-      if (isSelectedVariant || isProvenShared || isCustomPrimary) {
+      if (isSelectedVariant || isProvenShared) {
         // Positive membership evidence: admitted
       } else if (otherVariantCanonicals.has(canon)) {
         rejectedImages.push(trimmed);
