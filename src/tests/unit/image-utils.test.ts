@@ -496,6 +496,16 @@ describe('cleanAndDeduplicateImages', () => {
     expect(result[1]).toContain('/images/stencil/1280x1280/products/1980/15082/def.jpg');
   });
 
+  it('normalizes protocol-relative BigCommerce stencil URLs to https and upgrades to 1280x1280', () => {
+    const urls = [
+      '//cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/120x120/products/1980/15076/abc.jpg?c=1',
+      '//cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/500x500/products/1980/15076/abc.jpg?c=1638210391',
+    ];
+    const result = cleanAndDeduplicateImages(urls);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('https://cdn11.bigcommerce.com/s-k3kxaf4rop/images/stencil/1280x1280/products/1980/15076/abc.jpg?c=1');
+  });
+
   it('filters youtube video thumbnails from usable image sources', () => {
     const urls = [
       'https://img.youtube.com/vi/RNmHK9Cswzc/0.jpg',
