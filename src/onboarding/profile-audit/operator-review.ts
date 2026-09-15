@@ -255,12 +255,18 @@ export function buildSideBySideFieldEvidence(
 export function buildImageContactSheet(
   sample: AuditManifestSample,
   rowOrOutcome?: AuditScoredRow | ExtractionOutcome | null,
+  fallbackConfiguration?: ReplayConfiguration,
 ): ImageContactSheet {
+  const configuration = (rowOrOutcome && 'configuration' in rowOrOutcome)
+    ? rowOrOutcome.configuration
+    : fallbackConfiguration;
+
   if (!rowOrOutcome) {
     return {
       sampleId: sample.sampleId,
       url: sample.url,
       domain: sample.domain,
+      configuration,
       totalDiscovered: 0,
       admittedCount: 0,
       rejectedCount: 0,
@@ -332,9 +338,20 @@ export function buildImageContactSheet(
   const rejectedList: ImageContactSheetItem[] = rejectedImages.map(url => {
     const reason = rejectionReasons[url] || 'Filtered by strict image role/variant/dedupe rule';
     const lower = reason.toLowerCase();
-    const role = lower.includes('icon') || lower.includes('social') || lower.includes('payment') || lower.includes('badge')
-      ? 'icon'
-      : (lower.includes('duplicate') ? 'duplicate' : 'other_variant');
+    let role: string;
+    if (lower.includes('icon') || lower.includes('social') || lower.includes('payment') || lower.includes('badge') || lower.includes('role_rejected')) {
+      role = 'icon';
+    } else if (lower.includes('duplicate')) {
+      role = 'duplicate';
+    } else if (lower.includes('unknown') || lower.includes('membership') || lower.includes('unrelated')) {
+      role = 'unknown_membership';
+    } else if (lower.includes('cap')) {
+      role = 'cap_exceeded';
+    } else if (lower.includes('not_usable')) {
+      role = 'not_usable';
+    } else {
+      role = 'other_variant';
+    }
 
     return {
       url,
@@ -351,6 +368,7 @@ export function buildImageContactSheet(
     sampleId: sample.sampleId,
     url: sample.url,
     domain: sample.domain,
+    configuration,
     totalDiscovered: acceptedList.length + rejectedList.length,
     admittedCount: acceptedList.length,
     rejectedCount: rejectedList.length,
@@ -612,8 +630,9 @@ export function formatMissingFieldsSummary(evidences: SampleFieldEvidence[]): st
 
 export function formatImageContactSheetMarkdown(sheet: ImageContactSheet): string {
   const lines: string[] = [];
-  lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\``);
-  lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\``);
+  const configLabel = sheet.configuration ? ` (${CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration})` : '';
+  lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\`${configLabel}`);
+  lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\`${sheet.configuration ? ` | **Configuration:** \`${sheet.configuration}\`` : ''}`);
   lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%`);
   lines.push('');
 
@@ -694,8 +713,8 @@ export function formatHtmlContactSheet(sheet: ImageContactSheet): string {
 
   return `
     <div style="font-family:system-ui,sans-serif;margin-bottom:32px;padding:16px;background:#0f172a;border-radius:12px;color:#f8fafc;">
-      <h3 style="margin-top:0;">Contact Sheet: ${escapeHtml(sheet.sampleId)}</h3>
-      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}</p>
+      <h3 style="margin-top:0;">Contact Sheet: ${escapeHtml(sheet.sampleId)}${sheet.configuration ? ` <span style="font-size:14px;color:#94a3b8;">(${escapeHtml(CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration)})</span>` : ''}</h3>
+      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Domain: <code>${escapeHtml(sheet.domain)}</code>${sheet.configuration ? ` | Configuration: <code>${escapeHtml(sheet.configuration)}</code>` : ''} | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}</p>
       
       <h4 style="color:#34d399;margin-bottom:12px;">Accepted Images (${sheet.admittedCount})</h4>
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
@@ -755,8 +774,8 @@ export function generateOperatorReviewReport(options: {
       const sheet = buildImageContactSheet(
         sample,
         cfgOutcome ?? cfgRow ?? null,
+        cfg,
       );
-      sheet.configuration = cfg;
       contactSheetsByConfiguration[cfg].push(sheet);
       if (cfg === 'hybrid_identity_first') contactSheets.push(sheet);
     }

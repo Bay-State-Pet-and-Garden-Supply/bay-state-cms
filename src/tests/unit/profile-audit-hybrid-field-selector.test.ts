@@ -661,6 +661,64 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.imageRejectionReasons['https://example.com/cdn/products/toy-red.jpg']).toBe('other_variant');
     });
 
+    it('rejects unrelated-product images with no membership evidence as unknown_membership in hybrid selection', () => {
+      const fakeMatrix: any = {
+        platform: 'shopify',
+        canonicalParentUrl: url,
+        warnings: [],
+        candidates: [
+          {
+            variantKey: 'blue',
+            title: 'Blue Toy',
+            available: true,
+            identifiers: [{ kind: 'sku', value: 'TOY-BLUE', normalizedValue: 'toy-blue' }],
+            images: [
+              { url: 'https://example.com/cdn/products/toy-blue.jpg', role: 'primary' },
+            ],
+          },
+          {
+            variantKey: 'red',
+            title: 'Red Toy',
+            available: true,
+            identifiers: [{ kind: 'sku', value: 'TOY-RED', normalizedValue: 'toy-red' }],
+            images: [
+              { url: 'https://example.com/cdn/products/toy-red.jpg', role: 'primary' },
+            ],
+          },
+        ],
+      };
+
+      const raw: any = {
+        custom: {
+          images: [
+            'https://example.com/cdn/products/toy-blue.jpg',
+            'https://example.com/cdn/products/toy-red.jpg',
+          ],
+        },
+        jsonLd: {},
+        metaTags: {},
+        microdata: {},
+        images: [
+          'https://example.com/cdn/products/cross-sell-cat-litter.jpg', // Unrelated probe from page heuristics
+        ],
+      };
+
+      const result = selectHybridFields({
+        raw,
+        url,
+        html,
+        variantMatrix: fakeMatrix,
+        expected: { name: 'Blue Toy' },
+      });
+
+      expect(result.admittedImages).toEqual(['https://example.com/cdn/products/toy-blue.jpg']);
+      expect(result.rejectedImages).toContain('https://example.com/cdn/products/toy-red.jpg');
+      expect(result.imageRejectionReasons['https://example.com/cdn/products/toy-red.jpg']).toBe('other_variant');
+
+      expect(result.rejectedImages).toContain('https://example.com/cdn/products/cross-sell-cat-litter.jpg');
+      expect(result.imageRejectionReasons['https://example.com/cdn/products/cross-sell-cat-litter.jpg']).toBe('unknown_membership');
+    });
+
     it('rejects swatches, badges, and marketing banners with role_rejected', () => {
       const raw: any = {
         custom: {

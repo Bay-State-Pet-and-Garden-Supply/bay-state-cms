@@ -129,7 +129,11 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
   // Build variant image lookup and detect proven shared-product images across all variants
   const selectedVariantCanonicals = new Set<string>();
   const otherVariantCanonicals = new Set<string>();
+  const provenSharedCanonicals = new Set<string>();
   const candidateImageSets: Array<Set<string>> = [];
+  const hasMultipleVariants = Boolean(
+    variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 1,
+  );
 
   if (variantMatrix && variantMatrix.candidates && variantMatrix.candidates.length > 0) {
     for (const candidate of variantMatrix.candidates) {
@@ -155,7 +159,6 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
     }
 
     // Proven shared-product images: present in all candidates with images
-    const provenSharedCanonicals = new Set<string>();
     if (candidateImageSets.length > 1) {
       for (const canon of candidateImageSets[0]) {
         if (candidateImageSets.every(s => s.has(canon))) {
@@ -193,10 +196,22 @@ export function applyStrictImageFilter(input: StrictImageFilterInput): StrictIma
 
     // Step 2: Variant membership
     const canon = canonicalizeUrl(trimmed, baseUrl);
-    if (otherVariantCanonicals.has(canon) && !selectedVariantCanonicals.has(canon)) {
-      rejectedImages.push(trimmed);
-      rejectionReasons[trimmed] = 'other_variant';
-      continue;
+    if (hasMultipleVariants) {
+      const isSelectedVariant = selectedVariantCanonicals.has(canon);
+      const isProvenShared = provenSharedCanonicals.has(canon);
+      const isCustomPrimary = Boolean(preferredPrimaryCanon && preferredPrimaryCanon === canon);
+
+      if (isSelectedVariant || isProvenShared || isCustomPrimary) {
+        // Positive membership evidence: admitted
+      } else if (otherVariantCanonicals.has(canon)) {
+        rejectedImages.push(trimmed);
+        rejectionReasons[trimmed] = 'other_variant';
+        continue;
+      } else {
+        rejectedImages.push(trimmed);
+        rejectionReasons[trimmed] = 'unknown_membership';
+        continue;
+      }
     }
 
     passedCandidateUrls.push(trimmed);

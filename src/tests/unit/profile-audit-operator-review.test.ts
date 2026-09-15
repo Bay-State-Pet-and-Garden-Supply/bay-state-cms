@@ -925,5 +925,128 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       expect(hybridSheets[0].admittedCount).toBe(0);
     });
   });
+
+  describe('Audit follow-through T3 (#186): positive-membership contact sheets and no cross-configuration mislabeling', () => {
+    it('builds contact sheet showing accepted and rejected sets with machine-readable reasons and primary flagged', () => {
+      const sample = createSample({
+        groundTruth: {
+          ...createSample().groundTruth,
+          images: {
+            primaryImage: 'https://example.com/images/primary-hero.jpg',
+            admissibleImages: [
+              'https://example.com/images/primary-hero.jpg',
+              'https://example.com/images/shared-gallery.jpg',
+            ],
+            inadmissibleImages: [
+              'https://example.com/images/other-variant.jpg',
+              'https://example.com/images/unrelated-probe.jpg',
+            ],
+          },
+        },
+      });
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_strict_images',
+        data: ExtractionDataSchema.parse({
+          title: 'Sample Product',
+          brand: 'Brand',
+          description: 'Description',
+          price: '19.99',
+          primaryImage: 'https://example.com/images/primary-hero.jpg',
+          additionalImages: ['https://example.com/images/shared-gallery.jpg'],
+          bulletPoints: [],
+          confidence: 0.95,
+        }),
+        admittedImages: [
+          'https://example.com/images/primary-hero.jpg',
+          'https://example.com/images/shared-gallery.jpg',
+        ],
+        rejectedImages: [
+          'https://example.com/images/other-variant.jpg',
+          'https://example.com/images/unrelated-probe.jpg',
+          'https://example.com/icons/social.svg',
+          'https://example.com/images/thumb-dup.jpg',
+          'https://example.com/images/overflow-cap.jpg',
+        ],
+        primaryImage: 'https://example.com/images/primary-hero.jpg',
+        imageRejectionReasons: {
+          'https://example.com/images/other-variant.jpg': 'other_variant',
+          'https://example.com/images/unrelated-probe.jpg': 'unknown_membership',
+          'https://example.com/icons/social.svg': 'role_rejected',
+          'https://example.com/images/thumb-dup.jpg': 'resolution_duplicate',
+          'https://example.com/images/overflow-cap.jpg': 'cap_exceeded',
+        },
+        isEvidenceGap: false,
+      };
+
+      const sheet = buildImageContactSheet(sample, outcome);
+
+      expect(sheet.sampleId).toBe(sample.sampleId);
+      expect(sheet.configuration).toBe('current_strict_images');
+      expect(sheet.admittedCount).toBe(2);
+      expect(sheet.rejectedCount).toBe(5);
+
+      // Primary flagged on accepted list
+      expect(sheet.acceptedImages[0].isPrimary).toBe(true);
+      expect(sheet.acceptedImages[0].url).toBe('https://example.com/images/primary-hero.jpg');
+      expect(sheet.acceptedImages[0].role).toBe('primary hero');
+
+      // Gallery accepted
+      expect(sheet.acceptedImages[1].isPrimary).toBe(false);
+      expect(sheet.acceptedImages[1].url).toBe('https://example.com/images/shared-gallery.jpg');
+      expect(sheet.acceptedImages[1].role).toBe('gallery');
+
+      // Rejected list item roles and machine-readable reasons
+      const rejOther = sheet.rejectedImages.find(img => img.url.includes('other-variant'))!;
+      expect(rejOther.rejectionReason).toBe('other_variant');
+      expect(rejOther.role).toBe('other_variant');
+
+      const rejUnknown = sheet.rejectedImages.find(img => img.url.includes('unrelated-probe'))!;
+      expect(rejUnknown.rejectionReason).toBe('unknown_membership');
+      expect(rejUnknown.role).toBe('unknown_membership');
+
+      const rejRole = sheet.rejectedImages.find(img => img.url.includes('social.svg'))!;
+      expect(rejRole.rejectionReason).toBe('role_rejected');
+      expect(rejRole.role).toBe('icon');
+
+      const rejDup = sheet.rejectedImages.find(img => img.url.includes('thumb-dup'))!;
+      expect(rejDup.rejectionReason).toBe('resolution_duplicate');
+      expect(rejDup.role).toBe('duplicate');
+
+      const rejCap = sheet.rejectedImages.find(img => img.url.includes('overflow-cap'))!;
+      expect(rejCap.rejectionReason).toBe('cap_exceeded');
+      expect(rejCap.role).toBe('cap_exceeded');
+    });
+
+    it('preserves configuration identity and eliminates cross-configuration mislabeling across all 4 configurations', () => {
+      const sample = createSample({ sampleId: 'sample-x' });
+      const rows = createRowsForSample(sample);
+
+      const manifest: AuditManifest = {
+        domain: 'example.com',
+        generatedAt: '2026-09-14T00:00:00Z',
+        samples: [sample],
+      };
+
+      const report = generateOperatorReviewReport({ manifest, rows });
+
+      // All 4 configurations must have contact sheets with exact matching configuration
+      for (const cfg of ['current_extraction', 'current_strict_images', 'structured_only', 'hybrid_identity_first'] as const) {
+        const sheets = report.contactSheetsByConfiguration![cfg];
+        expect(sheets).toHaveLength(1);
+        expect(sheets[0].configuration).toBe(cfg);
+        expect(sheets[0].sampleId).toBe('sample-x');
+      }
+
+      // Markdown report includes configuration labels
+      const md = report.markdown;
+      expect(md).toContain('Image Contact Sheet: `sample-x`');
+      expect(md).toContain('Per-Configuration Image Evidence');
+
+      // HTML report includes configuration attributes
+      const html = report.html;
+      expect(html).toContain('Contact Sheet: sample-x');
+    });
+  });
 });
 
