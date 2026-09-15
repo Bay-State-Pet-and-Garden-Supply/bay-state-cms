@@ -657,5 +657,19 @@ describe('Sitemap Matcher', () => {
       const result = await matchSitemapUrls(urls, 'Other Product', null, '850-0678-59598', 'mywoof.com');
       expect(result.some(r => r.url === urls[0])).toBe(true);
     });
+
+    test('benchmark: findUpcExactHit performance on 50,000 sitemap URLs', async () => {
+      const sitemap = Array.from({ length: 50000 }, (_, i) => `https://example.com/products/item-category-slug-name-variant-${i}.html`);
+      sitemap[37500] = 'https://example.com/products/item-special-variant-850067859598.html';
+
+      const start = performance.now();
+      const result = await matchSitemapUrls(sitemap, 'Special Variant Product', null, '850067859598', 'example.com');
+      const duration = performance.now() - start;
+
+      expect(result.length).toBeGreaterThanOrEqual(1);
+      expect(result[0].matchType).toBe('upc_exact');
+      expect(result[0].url).toBe('https://example.com/products/item-special-variant-850067859598.html');
+      console.log(`[findUpcExactHit Baseline] 50,000 sitemap URLs took ${duration.toFixed(2)}ms`);
+    });
   });
 });
