@@ -90,6 +90,16 @@ export type {
   PromotionEligibilityInput,
   PromotionEligibilityResult,
 } from './promotion-eligibility';
+export {
+  formatStrategyRecommendationBadge,
+  deriveStrategyThresholds,
+  evaluateScopeStrategyComparison,
+  formatStrategyComparisonTable,
+  formatStrategyThresholdsTable,
+  generateAdapterStrategyReport,
+  type WorkspaceFlowScopeInput,
+  type StrategyReportOptions,
+} from './adapter-strategy-report';
 
 
 

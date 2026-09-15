@@ -433,6 +433,8 @@ export const PilotAuditResultSchema = z.object({
   contactSheets: z.array(ImageContactSheetSchema).optional(),
   promotionReport: z.string().optional(),
   perScopePromotionReport: z.lazy(() => PerScopePromotionReportSchema).optional(),
+  adapterStrategyReport: z.string().optional(),
+  perScopeStrategyReport: z.lazy(() => PerScopeAdapterStrategyReportSchema).optional(),
 });
 export type PilotAuditResult = z.infer<typeof PilotAuditResultSchema>;
 
@@ -623,3 +625,83 @@ export const PerScopePromotionReportSchema = z.object({
   markdown: z.string(),
 });
 export type PerScopePromotionReport = z.infer<typeof PerScopePromotionReportSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evidence-Chosen Adapter Strategy Schemas (Issue #192 / Audit Follow-Through T8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const StrategyRecommendationSchema = z.enum([
+  'adapter_with_css_exceptions',
+  'custom_selectors',
+  'needs_review',
+]);
+export type StrategyRecommendation = z.infer<typeof StrategyRecommendationSchema>;
+
+export const StrategyMetricsComparisonSchema = z.object({
+  timeToFirstWorkingProfileMs: z.number(),
+  timeToFirstWorkingProfileProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  manualCorrectionsPerProfile: z.number(),
+  manualCorrectionsProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  siblingPassRate: z.number(),
+  siblingPassRateUncertainty: z.number().default(0),
+  siblingPassRateConfidenceInterval: z
+    .object({
+      lower: z.number(),
+      upper: z.number(),
+    })
+    .optional(),
+  siblingPassRateProvenance: CostMeasurementProvenanceSchema.default('modeled'),
+  wrongProductCount: z.number(),
+  wrongImageCount: z.number(),
+  operatorMinutes: z.number(),
+  operatorMinutesProvenance: z.enum(['measured', 'modeled', 'mixed']).default('modeled'),
+});
+export type StrategyMetricsComparison = z.infer<typeof StrategyMetricsComparisonSchema>;
+
+export const ScopeStrategyComparisonSchema = z.object({
+  scope: z.string(),
+  domain: z.string().optional(),
+  platform: z.string().optional(),
+  labelVersion: z.string(),
+  sampleCount: z.number(),
+  usableObservationCount: z.number().optional(),
+  recommendation: StrategyRecommendationSchema,
+  recommendationBadge: z.string(),
+  recommendationRationale: z.array(z.string()),
+  adapterMetrics: StrategyMetricsComparisonSchema,
+  selectorMetrics: StrategyMetricsComparisonSchema,
+  thresholds: z.array(GateThresholdCheckSchema),
+  allThresholdsPassed: z.boolean(),
+  gateVerdict: ContractPromotionVerdictSchema.optional(),
+  workspaceFlowSummary: z
+    .object({
+      timeToFirstWorkingProfileMs: z.number(),
+      manualCorrectionsCount: z.number(),
+      siblingPassRate: z.number(),
+      siblingPassRateConfidenceInterval: z
+        .object({
+          lower: z.number(),
+          upper: z.number(),
+        })
+        .optional(),
+      wrongProductCount: z.number(),
+      wrongImageCount: z.number(),
+      exceptionsCount: z.number(),
+    })
+    .optional(),
+});
+export type ScopeStrategyComparison = z.infer<typeof ScopeStrategyComparisonSchema>;
+
+export const PerScopeAdapterStrategyReportSchema = z.object({
+  domain: z.string(),
+  generatedAt: z.string(),
+  labelVersion: z.string(),
+  totalSamples: z.number(),
+  totalScopes: z.number(),
+  overallRecommendation: StrategyRecommendationSchema,
+  recommendationsByScope: z.record(z.string(), ScopeStrategyComparisonSchema),
+  markdown: z.string(),
+  html: z.string().optional(),
+});
+export type PerScopeAdapterStrategyReport = z.infer<typeof PerScopeAdapterStrategyReportSchema>;
+

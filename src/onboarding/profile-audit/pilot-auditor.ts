@@ -95,6 +95,19 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     },
   });
 
+  // 7. Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Through T8)
+  const { generateAdapterStrategyReport } = await import('./adapter-strategy-report');
+  const strategyReport = generateAdapterStrategyReport({
+    manifest,
+    rows,
+    gateReport: promotionReport,
+    options: {
+      operatorMinutesOverride: options.operatorMinutesOverride,
+      baseOperatorMinutes: options.baseOperatorMinutes,
+      workspaceFlows: options.workspaceFlows,
+    },
+  });
+
   return {
     domain: normDomain,
     executedAt: new Date().toISOString(),
@@ -108,5 +121,7 @@ export async function runPilotAudit(options: PilotAuditOptions): Promise<PilotAu
     contactSheets: reviewReport.contactSheets,
     promotionReport: promotionReport.markdown,
     perScopePromotionReport: promotionReport,
+    adapterStrategyReport: strategyReport.markdown,
+    perScopeStrategyReport: strategyReport,
   };
 }

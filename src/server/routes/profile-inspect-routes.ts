@@ -148,3 +148,69 @@ profileInspectRoutes.post('/domains/:domain/profile/validate-siblings', async (c
     return c.json({ error: `Sibling validation failed: ${msg}` }, 500);
   }
 });
+
+const StrategyReportBodySchema = z.object({
+  manifest: z.any().optional(),
+  rows: z.array(z.any()).optional(),
+  workspaceFlows: z.record(z.string(), z.any()).optional(),
+  versionId: z.string().optional(),
+});
+
+profileInspectRoutes.post('/domains/:domain/profile/strategy-report', async (c) => {
+  const domain = normalizeDomain(c.req.param('domain') ?? '');
+  const rawBody = await c.req.json().catch(() => ({}));
+  const parsed = StrategyReportBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid strategy-report payload', details: parsed.error.format() }, 400);
+  }
+
+  const { versionId, workspaceFlows } = parsed.data;
+  let manifest = parsed.data.manifest;
+  let rows = parsed.data.rows;
+
+  try {
+    const { buildVersionedCorpus } = await import('../../onboarding/profile-audit/versioned-corpus');
+    const { generateAdapterStrategyReport } = await import('../../onboarding/profile-audit/adapter-strategy-report');
+
+    if (!manifest) {
+      manifest = await buildVersionedCorpus({ domain });
+    }
+
+    if (!rows || rows.length === 0) {
+      let profile: ExtractorProfile | null = null;
+      if (versionId) {
+        const v = getVersionById(versionId);
+        if (v) profile = versionToExtractorProfile(v);
+      }
+
+      const { replaySample } = await import('../../onboarding/profile-audit/replay-runner');
+      const { scoreExtraction } = await import('../../onboarding/profile-audit/scorer');
+      const { REPLAY_CONFIGURATIONS } = await import('../../onboarding/profile-audit/shared-metrics');
+
+      const scoredRows: any[] = [];
+      for (const sample of manifest.samples) {
+        const outcomes = await replaySample(sample, profile);
+        for (const cfg of REPLAY_CONFIGURATIONS) {
+          const outcome = outcomes[cfg];
+          const scored = scoreExtraction(outcome, sample);
+          scoredRows.push(scored);
+        }
+      }
+      rows = scoredRows;
+    }
+
+    const report = generateAdapterStrategyReport({
+      manifest,
+      rows,
+      options: {
+        workspaceFlows,
+      },
+    });
+
+    return c.json(report);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `Strategy report generation failed: ${msg}` }, 500);
+  }
+});
+

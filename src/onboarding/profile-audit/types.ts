@@ -77,6 +77,8 @@ export interface PilotAuditOptions {
   operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
   /** Base upkeep override for the modeled operator-minutes formula. */
   baseOperatorMinutes?: number;
+  /** Workspace flow measurements override per scope (#191/#192). */
+  workspaceFlows?: Record<string, import('./adapter-strategy-report').WorkspaceFlowScopeInput>;
 }
 
 export interface BuildStratifiedManifestOptions {
