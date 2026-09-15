@@ -865,10 +865,15 @@ export function evaluateScopeGate(
   const imageRecall = buildPromotionUncertainty('imageRecall', hybridRecallStats, 'standard_error');
   const primaryImageAccuracy = buildPromotionUncertainty('primaryImageAccuracy', hybridPrimaryStats, 'wilson_score');
 
+  const labelVersion = samples.find(s => !!s.labelVersion)?.labelVersion ?? options.labelVersion ?? '1.0.0';
+  const partition = options.partition ?? 'all';
+
   return {
     scope,
     domain,
     platform,
+    labelVersion,
+    partition,
     sampleCount,
     usableObservationCount: usableObs.usableObservationCount,
     evidenceGapCount: usableObs.evidenceGapCount,
@@ -905,8 +910,11 @@ export function evaluateScopeGate(
 export interface FullGateArithmeticResult {
   domain: string;
   verdictsByScope: Record<string, ScopePromotionVerdict>;
+  tuningVerdictsByScope: Record<string, ScopePromotionVerdict>;
+  holdoutVerdictsByScope: Record<string, ScopePromotionVerdict>;
   domainCostMetrics: DomainCostMetrics;
   overallContractVerdict: ContractPromotionVerdict;
+  labelVersion: string;
 }
 
 export function evaluateGateArithmetic(
@@ -915,13 +923,26 @@ export function evaluateGateArithmetic(
   options: GateArithmeticOptions = {},
 ): FullGateArithmeticResult {
   const domain = samples[0]?.domain || 'unknown';
+  const labelVersion = samples.find(s => !!s.labelVersion)?.labelVersion ?? options.labelVersion ?? '1.0.0';
   const scopeKeys = Array.from(new Set(samples.map(s => s.pageStructureScope || 'standard_pdp')));
 
   const verdictsByScope: Record<string, ScopePromotionVerdict> = {};
+  const tuningVerdictsByScope: Record<string, ScopePromotionVerdict> = {};
+  const holdoutVerdictsByScope: Record<string, ScopePromotionVerdict> = {};
 
   for (const sk of scopeKeys) {
     const scopeSamples = samples.filter(s => (s.pageStructureScope || 'standard_pdp') === sk);
-    verdictsByScope[sk] = evaluateScopeGate(sk, scopeSamples, rows, options);
+    verdictsByScope[sk] = evaluateScopeGate(sk, scopeSamples, rows, { ...options, labelVersion, partition: 'all' });
+
+    const tuningSamples = scopeSamples.filter(s => !s.isHoldout);
+    if (tuningSamples.length > 0) {
+      tuningVerdictsByScope[sk] = evaluateScopeGate(sk, tuningSamples, rows, { ...options, labelVersion, partition: 'tuning' });
+    }
+
+    const holdoutSamples = scopeSamples.filter(s => s.isHoldout);
+    if (holdoutSamples.length > 0) {
+      holdoutVerdictsByScope[sk] = evaluateScopeGate(sk, holdoutSamples, rows, { ...options, labelVersion, partition: 'holdout' });
+    }
   }
 
   const domainCostMetrics = computeDomainCostMetrics(domain, samples, rows, options);
@@ -946,7 +967,10 @@ export function evaluateGateArithmetic(
   return {
     domain,
     verdictsByScope,
+    tuningVerdictsByScope,
+    holdoutVerdictsByScope,
     domainCostMetrics,
     overallContractVerdict,
+    labelVersion,
   };
 }

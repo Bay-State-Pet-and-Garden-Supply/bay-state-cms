@@ -1044,6 +1044,8 @@ export async function buildFullStratifiedManifest(
         isProfileBlocked: c.isProfileBlocked,
         isFailureSample: c.isFailureSample,
         sampleType: c.sampleType,
+        labelVersion: options.labelVersion || '1.0.0',
+        isReviewed: options.isReviewed ?? (c.groundTruthSource === 'independent'),
       });
     }
 
@@ -1071,6 +1073,8 @@ export async function buildFullStratifiedManifest(
   return {
     domain: primaryDomain,
     generatedAt: new Date().toISOString(),
+    labelVersion: options.labelVersion || '1.0.0',
+    isReviewed: options.isReviewed ?? selectedSamples.some(s => s.isReviewed),
     samples: selectedSamples,
     metadata: {
       claimedStrata,
@@ -1078,6 +1082,7 @@ export async function buildFullStratifiedManifest(
       holdoutFamilies: finalHoldoutFamilies,
       tuningFamilies: Array.from(tuningFamilySet).sort(),
       holdoutUntouched,
+      labelVersion: options.labelVersion || '1.0.0',
       totalConfirmed: confirmedCount,
       totalCandidates: candidateCount,
       totalBlocked: blockedCount,

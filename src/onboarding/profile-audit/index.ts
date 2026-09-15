@@ -30,6 +30,12 @@ export {
   scanDomainSnapshots,
   isNonProductPath,
 } from './manifest-builder';
+export {
+  buildVersionedCorpus,
+  getRepresentativeCorpusFixtures,
+  type BuildVersionedCorpusOptions,
+  type RepresentativeCorpusFixture,
+} from './versioned-corpus';
 export { replaySample } from './replay-runner';
 export { scoreExtraction } from './scorer';
 export {

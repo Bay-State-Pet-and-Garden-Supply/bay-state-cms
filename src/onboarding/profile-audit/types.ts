@@ -36,6 +36,9 @@ export interface GateArithmeticOptions {
   targetConfidence?: number;
   operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
   baseOperatorMinutes?: number;
+  labelVersion?: string;
+  partition?: 'all' | 'tuning' | 'holdout';
+  reportHoldoutSeparately?: boolean;
 }
 
 export interface ReplayRunnerOptions {
@@ -108,5 +111,8 @@ export interface BuildStratifiedManifestOptions {
     createdAt?: string;
   }>;
   groundTruthOverrides?: Record<string, Partial<AuditGroundTruth>>;
+  labelVersion?: string;
+  isReviewed?: boolean;
+  includeSyntheticFixtures?: boolean;
 }
 

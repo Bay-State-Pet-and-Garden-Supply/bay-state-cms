@@ -136,6 +136,8 @@ export const AuditManifestSampleSchema = z.object({
   isProfileBlocked: z.boolean().optional(),
   isFailureSample: z.boolean().optional(),
   sampleType: z.enum(['confirmed_profile_sample', 'unreviewed_candidate', 'profile_blocked', 'failure_sample']).optional(),
+  labelVersion: z.string().optional(),
+  isReviewed: z.boolean().optional(),
   // Sampled stratum dimensions (profile-audit one-pass fix #4): the family
   // bucket and freshness bucket are part of the stratum key, not just
   // recorded fields, so family/freshness coverage is a sampling guarantee.
@@ -179,10 +181,21 @@ export type StratifiedManifestMetadata = z.infer<typeof StratifiedManifestMetada
 export const AuditManifestSchema = z.object({
   domain: z.string(),
   generatedAt: z.string(),
+  labelVersion: z.string().optional(),
+  isReviewed: z.boolean().optional(),
   samples: z.array(AuditManifestSampleSchema),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type AuditManifest = z.infer<typeof AuditManifestSchema>;
+
+export const VersionedAuditCorpusSchema = AuditManifestSchema.extend({
+  corpusId: z.string(),
+  labelVersion: z.string(),
+  isReviewed: z.boolean().default(true),
+  holdoutFamilies: z.array(z.string()).default([]),
+  tuningFamilies: z.array(z.string()).default([]),
+});
+export type VersionedAuditCorpus = z.infer<typeof VersionedAuditCorpusSchema>;
 
 export const MissingFieldReasonSchema = z.enum([
   'absent',
@@ -331,6 +344,10 @@ export const ImageContactSheetSchema = z.object({
   // Which replay configuration produced this sheet (fix #3: sheets are now
   // built per configuration, not hybrid-only). Optional for back-compat.
   configuration: ReplayConfigurationSchema.optional(),
+  sampleType: z.string().optional(),
+  inventoryStatus: z.string().optional(),
+  captureFreshness: z.string().optional(),
+  labelVersion: z.string().optional(),
   totalDiscovered: z.number(),
   admittedCount: z.number(),
   rejectedCount: z.number(),
@@ -371,6 +388,10 @@ export const SampleFieldEvidenceSchema = z.object({
   url: z.string(),
   domain: z.string(),
   scope: z.string(),
+  sampleType: z.string().optional(),
+  inventoryStatus: z.string().optional(),
+  captureFreshness: z.string().optional(),
+  labelVersion: z.string().optional(),
   identityVerdicts: z.record(ReplayConfigurationSchema, IdentityVerdictSchema),
   fields: z.array(FieldEvidenceRowSchema),
   missingFieldExplanations: z.array(z.object({
@@ -557,6 +578,8 @@ export const ScopePromotionVerdictSchema = z.object({
   scope: z.string(),
   domain: z.string().optional(),
   platform: z.string().optional(),
+  labelVersion: z.string().optional(),
+  partition: z.enum(['all', 'tuning', 'holdout']).optional(),
   sampleCount: z.number(),
   usableObservationCount: z.number().optional(),
   evidenceGapCount: z.number().optional(),
@@ -589,10 +612,13 @@ export type ScopePromotionVerdict = z.infer<typeof ScopePromotionVerdictSchema>;
 export const PerScopePromotionReportSchema = z.object({
   domain: z.string(),
   generatedAt: z.string(),
+  labelVersion: z.string().optional(),
   totalSamples: z.number(),
   totalScopes: z.number(),
   overallContractVerdict: ContractPromotionVerdictSchema,
   verdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema),
+  tuningVerdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema).optional(),
+  holdoutVerdictsByScope: z.record(z.string(), ScopePromotionVerdictSchema).optional(),
   domainCostMetrics: DomainCostMetricsSchema,
   markdown: z.string(),
 });

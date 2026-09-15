@@ -38,9 +38,12 @@ export function formatPromotionVerdictBadge(verdict: ContractPromotionVerdict): 
 /**
  * Formats the Executive Per-Scope Promotion Table including cost columns.
  */
-export function formatScopePromotionTable(verdicts: Record<string, ScopePromotionVerdict>): string {
+export function formatScopePromotionTable(
+  verdicts: Record<string, ScopePromotionVerdict>,
+  title = 'Per-Scope Promotion Verdicts & Contract Recommendation',
+): string {
   const lines: string[] = [];
-  lines.push('## Per-Scope Promotion Verdicts & Contract Recommendation');
+  lines.push(`## ${title}`);
   lines.push('');
   lines.push('> **Contract Recommendation:** Evaluates readiness for contract work per page-structure scope. A scope advances to contract work only with zero accepted identity errors, no critical-field regressions, improved image and completeness quality without abstention gaming, and bounded maintenance.');
   lines.push('');
@@ -64,7 +67,9 @@ export function formatScopePromotionTable(verdicts: Record<string, ScopePromotio
     const reqStr = v.costMetrics.requestsProvenance === 'unmeasured'
       ? 'unmeasured'
       : `${v.costMetrics.hybridRequestsPerSample.toFixed(1)}/sample`;
-    const opMinsStr = `${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m → ${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m`;
+    const baseProv = v.costMetrics.byConfiguration?.current_extraction?.operatorMinutesProvenance ?? v.costMetrics.operatorMinutesProvenance ?? 'modeled';
+    const hybProv = v.costMetrics.byConfiguration?.hybrid_identity_first?.operatorMinutesProvenance ?? v.costMetrics.operatorMinutesProvenance ?? 'modeled';
+    const opMinsStr = `${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m (${baseProv}) → ${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m (${hybProv})`;
     const verdictBadge = formatPromotionVerdictBadge(v.verdict);
 
     lines.push(
@@ -193,8 +198,13 @@ export function formatCostAnalysisTable(
       ? 'unmeasured'
       : `${c.hybridTotalRequests} (${c.hybridRequestsPerSample.toFixed(1)}/s)`;
 
+    const baseProv = c.byConfiguration?.current_extraction?.operatorMinutesProvenance ?? c.operatorMinutesProvenance ?? 'modeled';
+    const hybProv = c.byConfiguration?.hybrid_identity_first?.operatorMinutesProvenance ?? c.operatorMinutesProvenance ?? 'modeled';
+    const baseOpStr = `${c.baselineOperatorMinutes.toFixed(1)}m (${baseProv})`;
+    const hybOpStr = `${c.hybridOperatorMinutes.toFixed(1)}m (${hybProv})`;
+
     lines.push(
-      `| \`${scopeKey}\` | ${baseLatStr} | ${hybLatStr} | ${deltaMsStr} | ${baseReqStr} | ${hybReqStr} | ${c.baselineOperatorMinutes.toFixed(1)}m | ${c.hybridOperatorMinutes.toFixed(1)}m | **${c.operatorMinutesSaved.toFixed(1)}m** | ${boundedBadge} |`,
+      `| \`${scopeKey}\` | ${baseLatStr} | ${hybLatStr} | ${deltaMsStr} | ${baseReqStr} | ${hybReqStr} | ${baseOpStr} | ${hybOpStr} | **${c.operatorMinutesSaved.toFixed(1)}m** | ${boundedBadge} |`,
     );
   }
 
@@ -203,9 +213,14 @@ export function formatCostAnalysisTable(
   const dDeltaMs = Math.round((d.hybridLatencyMs - d.baselineLatencyMs) * 10) / 10;
   const dDeltaStr = dDeltaMs >= 0 ? `+${dDeltaMs.toFixed(0)}ms` : `${dDeltaMs.toFixed(0)}ms`;
   const dBoundedBadge = d.isMaintenanceBounded ? '✅ Bounded' : '⛔ Unbounded';
+  const firstVerdict = Object.values(verdicts)[0];
+  const dBaseProv = firstVerdict?.costMetrics.byConfiguration?.current_extraction?.operatorMinutesProvenance ?? 'modeled';
+  const dHybProv = firstVerdict?.costMetrics.byConfiguration?.hybrid_identity_first?.operatorMinutesProvenance ?? 'modeled';
+  const dBaseOpStr = `${d.baselineOperatorMinutes.toFixed(1)}m (${dBaseProv})`;
+  const dHybOpStr = `${d.hybridOperatorMinutes.toFixed(1)}m (${dHybProv})`;
 
   lines.push(
-    `| **DOMAIN TOTAL: \`${d.domain}\`** | **${d.baselineLatencyMs.toFixed(0)}ms** | **${d.hybridLatencyMs.toFixed(0)}ms** | **${dDeltaStr}** | **${d.baselineTotalRequests}** | **${d.hybridTotalRequests}** | **${d.baselineOperatorMinutes.toFixed(1)}m** | **${d.hybridOperatorMinutes.toFixed(1)}m** | **${d.operatorMinutesSaved.toFixed(1)}m** | **${dBoundedBadge}** |`,
+    `| **DOMAIN TOTAL: \`${d.domain}\`** | **${d.baselineLatencyMs.toFixed(0)}ms** | **${d.hybridLatencyMs.toFixed(0)}ms** | **${dDeltaStr}** | **${d.baselineTotalRequests}** | **${d.hybridTotalRequests}** | **${dBaseOpStr}** | **${dHybOpStr}** | **${d.operatorMinutesSaved.toFixed(1)}m** | **${dBoundedBadge}** |`,
   );
 
   // Provenance footnotes (fixes #5/#6): like-for-like maintenance basis plus
@@ -256,12 +271,22 @@ export function generatePromotionReport(args: {
 
   const mdParts: string[] = [];
   mdParts.push(`# Profile Extraction Audit Gate: Per-Scope Promotion Report`);
-  mdParts.push(`**Domain:** \`${manifest.domain}\` | **Generated At:** ${manifest.generatedAt} | **Samples:** ${manifest.samples.length} | **Scopes:** ${Object.keys(gateResult.verdictsByScope).length}`);
+  mdParts.push(`**Domain:** \`${manifest.domain}\` | **Generated At:** ${manifest.generatedAt} | **Label Version:** \`${gateResult.labelVersion}\` | **Samples:** ${manifest.samples.length} | **Scopes:** ${Object.keys(gateResult.verdictsByScope).length}`);
   mdParts.push(`**Overall Contract Recommendation:** ${formatPromotionVerdictBadge(gateResult.overallContractVerdict)}`);
   mdParts.push('');
 
-  // 1. Executive Summary Table
+  // 1. Executive Summary Table (Tuning / Combined Scopes)
   mdParts.push(formatScopePromotionTable(gateResult.verdictsByScope));
+
+  // 1b. Holdout-Scoped Verdicts Table (Reported Separately per AC 3)
+  const hasHoldouts = gateResult.holdoutVerdictsByScope && Object.keys(gateResult.holdoutVerdictsByScope).length > 0;
+  if (hasHoldouts) {
+    mdParts.push('## Holdout-Scoped Promotion Verdicts (Generalization Check)');
+    mdParts.push('');
+    mdParts.push('> **Holdout Results Reporting:** Entire product families are held out from tuning with holdout results reported separately to ensure verdicts generalize beyond head-domain and tuning-scoped pages.');
+    mdParts.push('');
+    mdParts.push(formatScopePromotionTable(gateResult.holdoutVerdictsByScope, 'Holdout Partition Verdicts'));
+  }
 
   // 2. Derived Thresholds Table
   mdParts.push(formatGateArithmeticThresholdsTable(gateResult.verdictsByScope));
@@ -276,14 +301,17 @@ export function generatePromotionReport(args: {
   mdParts.push('## Actionable Scope Verdicts & Next Steps');
   mdParts.push('');
   for (const [scopeKey, v] of Object.entries(gateResult.verdictsByScope)) {
+    const baseProv = v.costMetrics.byConfiguration?.current_extraction?.operatorMinutesProvenance ?? v.costMetrics.operatorMinutesProvenance ?? 'modeled';
+    const hybProv = v.costMetrics.byConfiguration?.hybrid_identity_first?.operatorMinutesProvenance ?? v.costMetrics.operatorMinutesProvenance ?? 'modeled';
+
     mdParts.push(`### Scope: \`${scopeKey}\` — Verdict: ${formatPromotionVerdictBadge(v.verdict)}`);
-    mdParts.push(`- **Platform:** ${v.platform ?? 'generic'} | **Samples Evaluated:** ${v.sampleCount}`);
+    mdParts.push(`- **Platform:** ${v.platform ?? 'generic'} | **Partition:** ${v.partition ?? 'all'} | **Label Version:** \`${v.labelVersion ?? gateResult.labelVersion}\` | **Samples Evaluated:** ${v.sampleCount}`);
     mdParts.push(`- **Served Rate:** ${(v.servedRate.value * 100).toFixed(1)}% (95% CI: [${(v.servedRate.confidenceInterval.lower * 100).toFixed(1)}%, ${(v.servedRate.confidenceInterval.upper * 100).toFixed(1)}%]) vs ${(v.baselineServedRate * 100).toFixed(1)}% baseline`);
     mdParts.push(`- **Identity Accuracy:** ${(v.identityAccuracy.value * 100).toFixed(1)}% (${v.acceptedIdentityErrors} accepted identity errors)`);
     mdParts.push(`- **Critical Field Regressions:** ${v.criticalFieldRegressions} on title/brand/price`);
     mdParts.push(`- **Image Precision:** ${(v.imagePrecision.value * 100).toFixed(1)}% vs ${(v.baselineImagePrecision * 100).toFixed(1)}% baseline`);
     mdParts.push(`- **Field Correctness:** ${(v.fieldCorrectness.value * 100).toFixed(1)}% vs ${(v.baselineFieldCorrectness * 100).toFixed(1)}% baseline`);
-    mdParts.push(`- **Operator Maintenance Savings:** ${v.costMetrics.operatorMinutesSaved.toFixed(1)} minutes/domain (${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m hybrid vs ${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m baseline)`);
+    mdParts.push(`- **Operator Maintenance Savings:** ${v.costMetrics.operatorMinutesSaved.toFixed(1)} minutes/domain (${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m hybrid (${hybProv}) vs ${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m baseline (${baseProv}))`);
     mdParts.push('- **Verdict Reasons:**');
     for (const r of v.promotabilityReasons) {
       mdParts.push(`  - ${r}`);
@@ -291,17 +319,29 @@ export function generatePromotionReport(args: {
     mdParts.push(`- **Recommendation:** ${formatPromotionRecommendation(v.verdict)}`);
     mdParts.push('');
 
-    // Per-Sample Evidence, Label Provenance & Holdout Partition (Issue #188 / T2)
+    // Per-Sample Evidence, Label Provenance & Holdout Partition (Issue #188 / T2, #190 / T6)
     const scopeSamples = v.samples ?? manifest.samples.filter(s => (s.pageStructureScope || 'standard_pdp') === scopeKey);
     if (scopeSamples.length > 0) {
       mdParts.push('#### Per-Sample Evidence, Label Provenance & Holdout Partition');
       mdParts.push('');
-      mdParts.push('| Sample ID | Inventory Status | Label Provenance | Holdout Partition | Evidence Status |');
-      mdParts.push('| :--- | :---: | :---: | :---: | :--- |');
+      mdParts.push('| Sample ID | Inventory Status | Capture Freshness | Label Version | Label Provenance | Holdout Partition | Evidence Status |');
+      mdParts.push('| :--- | :---: | :---: | :---: | :---: | :---: | :--- |');
 
       for (const s of scopeSamples) {
         const sId = `\`${s.sampleId}\``;
-        const invStatus = s.inventoryStatus ?? 'confirmed';
+        let invStatus: string;
+        if (s.sampleType === 'confirmed_profile_sample' || s.inventoryStatus === 'confirmed') {
+          invStatus = 'Confirmed Profile Sample';
+        } else if (s.isProfileBlocked || s.sampleType === 'profile_blocked') {
+          invStatus = 'Profile Blocked';
+        } else if (s.sampleType === 'failure_sample' || s.isFailureSample) {
+          invStatus = 'Failure Sample';
+        } else {
+          invStatus = 'Unreviewed Candidate';
+        }
+
+        const freshness = s.captureFreshness ? `\`${s.captureFreshness}\`` : '`unknown`';
+        const sampleLVersion = `\`${s.labelVersion ?? gateResult.labelVersion}\``;
         const isAutoDerived = s.groundTruthSource === 'auto-derived';
         const provBadge = s.groundTruthSource === 'independent'
           ? '`independent`'
@@ -323,7 +363,7 @@ export function generatePromotionReport(args: {
             : 'Complete observation pair';
         }
 
-        mdParts.push(`| ${sId} | ${invStatus} | ${provBadge} | ${holdoutBadge} | ${evidenceStatus} |`);
+        mdParts.push(`| ${sId} | ${invStatus} | ${freshness} | ${sampleLVersion} | ${provBadge} | ${holdoutBadge} | ${evidenceStatus} |`);
       }
       mdParts.push('');
     }
@@ -334,10 +374,13 @@ export function generatePromotionReport(args: {
   return {
     domain: manifest.domain,
     generatedAt: manifest.generatedAt,
+    labelVersion: gateResult.labelVersion,
     totalSamples: manifest.samples.length,
     totalScopes: Object.keys(gateResult.verdictsByScope).length,
     overallContractVerdict: gateResult.overallContractVerdict,
     verdictsByScope: gateResult.verdictsByScope,
+    tuningVerdictsByScope: gateResult.tuningVerdictsByScope,
+    holdoutVerdictsByScope: gateResult.holdoutVerdictsByScope,
     domainCostMetrics: gateResult.domainCostMetrics,
     markdown,
   };

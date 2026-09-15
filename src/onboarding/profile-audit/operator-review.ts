@@ -243,6 +243,10 @@ export function buildSideBySideFieldEvidence(
     url: sample.url,
     domain: sample.domain,
     scope: sample.pageStructureScope || 'standard_pdp',
+    sampleType: sample.sampleType,
+    inventoryStatus: sample.inventoryStatus,
+    captureFreshness: sample.captureFreshness ?? undefined,
+    labelVersion: sample.labelVersion,
     identityVerdicts,
     fields,
     missingFieldExplanations,
@@ -375,6 +379,10 @@ export function buildImageContactSheet(
     url: sample.url,
     domain: sample.domain,
     configuration,
+    sampleType: sample.sampleType,
+    inventoryStatus: sample.inventoryStatus,
+    captureFreshness: sample.captureFreshness ?? undefined,
+    labelVersion: sample.labelVersion,
     totalDiscovered: acceptedList.length + rejectedList.length,
     admittedCount: acceptedList.length,
     rejectedCount: rejectedList.length,
@@ -537,6 +545,12 @@ export function formatSideBySideFieldEvidenceTable(evidence: SampleFieldEvidence
   const lines: string[] = [];
   lines.push(`### Sample: \`${evidence.sampleId}\` — Side-by-Side Field Evidence`);
   lines.push(`- **URL:** \`${evidence.url}\` | **Scope:** \`${evidence.scope}\` | **Domain:** \`${evidence.domain}\``);
+  const typeBadge = evidence.sampleType === 'confirmed_profile_sample' || evidence.inventoryStatus === 'confirmed'
+    ? '★ Confirmed Profile Sample'
+    : (evidence.sampleType === 'profile_blocked' ? '⛔ Profile Blocked' : 'Unreviewed Candidate');
+  const freshBadge = evidence.captureFreshness ?? 'unknown';
+  const lVerBadge = evidence.labelVersion ?? '1.0.0';
+  lines.push(`- **Sample Type:** ${typeBadge} | **Capture Freshness:** \`${freshBadge}\` | **Label Version:** \`${lVerBadge}\``);
   lines.push(`- **Identity Verdicts:** Baseline: \`${evidence.identityVerdicts.current_extraction}\` | Strict Img: \`${evidence.identityVerdicts.current_strict_images}\` | Structured Only: \`${evidence.identityVerdicts.structured_only}\` | Hybrid: \`${evidence.identityVerdicts.hybrid_identity_first}\``);
   lines.push('');
   lines.push(
@@ -642,6 +656,12 @@ export function formatImageContactSheetMarkdown(sheet: ImageContactSheet): strin
   const dupInfo = sheet.duplicateContamination ? ` | **Duplicate Contamination:** ${sheet.duplicateContaminationCount ?? 0} duplicate(s) reported` : '';
   lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\`${configLabel}`);
   lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\`${sheet.configuration ? ` | **Configuration:** \`${sheet.configuration}\`` : ''}`);
+  if (sheet.sampleType || sheet.captureFreshness) {
+    const typeBadge = sheet.sampleType === 'confirmed_profile_sample' || sheet.inventoryStatus === 'confirmed'
+      ? '★ Confirmed Profile Sample'
+      : (sheet.sampleType === 'profile_blocked' ? '⛔ Profile Blocked' : 'Unreviewed Candidate');
+    lines.push(`- **Sample Type:** ${typeBadge} | **Capture Freshness:** \`${sheet.captureFreshness ?? 'unknown'}\`${sheet.labelVersion ? ` | **Label Version:** \`${sheet.labelVersion}\`` : ''}`);
+  }
   lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%${dupInfo}`);
   lines.push('');
 
