@@ -23,6 +23,8 @@ export interface ExtractionOutcome {
   rejectedImages: string[];
   primaryImage: string | null;
   imageRejectionReasons?: Record<string, string>;
+  duplicateContaminationCount?: number;
+  duplicateContamination?: boolean;
   isEvidenceGap: boolean;
   evidenceGapReason?: string | null;
   latencyMs?: number;

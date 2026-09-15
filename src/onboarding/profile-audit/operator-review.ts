@@ -39,6 +39,7 @@ import {
   computeWilsonScoreInterval as sharedWilsonScoreInterval,
   sanitizeCell as sharedSanitizeCell,
 } from './shared-metrics';
+import { canonicalizeUrl } from '../image-utils';
 
 const CONFIGURATIONS: ReplayConfiguration[] = [...REPLAY_CONFIGURATIONS];
 
@@ -364,6 +365,11 @@ export function buildImageContactSheet(
     };
   });
 
+  const duplicateCount = (rowOrOutcome && 'imageScores' in rowOrOutcome && rowOrOutcome.imageScores?.duplicateContaminationCount !== undefined)
+    ? (rowOrOutcome.imageScores.duplicateContaminationCount ?? 0)
+    : (admittedImages.length - new Set(admittedImages.map(u => canonicalizeUrl(u, sample.url))).size);
+  const duplicateContamination = duplicateCount > 0;
+
   return {
     sampleId: sample.sampleId,
     url: sample.url,
@@ -376,6 +382,8 @@ export function buildImageContactSheet(
     primaryAccuracy,
     acceptedImages: acceptedList,
     rejectedImages: rejectedList,
+    duplicateContaminationCount: duplicateCount,
+    duplicateContamination,
   };
 }
 
@@ -631,9 +639,10 @@ export function formatMissingFieldsSummary(evidences: SampleFieldEvidence[]): st
 export function formatImageContactSheetMarkdown(sheet: ImageContactSheet): string {
   const lines: string[] = [];
   const configLabel = sheet.configuration ? ` (${CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration})` : '';
+  const dupInfo = sheet.duplicateContamination ? ` | **Duplicate Contamination:** ${sheet.duplicateContaminationCount ?? 0} duplicate(s) reported` : '';
   lines.push(`### Image Contact Sheet: \`${sheet.sampleId}\`${configLabel}`);
   lines.push(`- **URL:** \`${sheet.url}\` | **Domain:** \`${sheet.domain}\`${sheet.configuration ? ` | **Configuration:** \`${sheet.configuration}\`` : ''}`);
-  lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%`);
+  lines.push(`- **Total Discovered:** ${sheet.totalDiscovered} | **Accepted:** ${sheet.admittedCount} | **Rejected:** ${sheet.rejectedCount} | **Primary Image Accuracy:** ${(sheet.primaryAccuracy * 100).toFixed(0)}%${dupInfo}`);
   lines.push('');
 
   lines.push('#### Accepted Images');
@@ -714,7 +723,7 @@ export function formatHtmlContactSheet(sheet: ImageContactSheet): string {
   return `
     <div style="font-family:system-ui,sans-serif;margin-bottom:32px;padding:16px;background:#0f172a;border-radius:12px;color:#f8fafc;">
       <h3 style="margin-top:0;">Contact Sheet: ${escapeHtml(sheet.sampleId)}${sheet.configuration ? ` <span style="font-size:14px;color:#94a3b8;">(${escapeHtml(CONFIG_DISPLAY_NAMES[sheet.configuration] || sheet.configuration)})</span>` : ''}</h3>
-      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Domain: <code>${escapeHtml(sheet.domain)}</code>${sheet.configuration ? ` | Configuration: <code>${escapeHtml(sheet.configuration)}</code>` : ''} | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}</p>
+      <p style="color:#94a3b8;font-size:13px;">URL: <code>${escapeHtml(sheet.url)}</code> | Domain: <code>${escapeHtml(sheet.domain)}</code>${sheet.configuration ? ` | Configuration: <code>${escapeHtml(sheet.configuration)}</code>` : ''} | Discovered: ${sheet.totalDiscovered} | Accepted: ${sheet.admittedCount} | Rejected: ${sheet.rejectedCount}${sheet.duplicateContamination ? ` | <span style="color:#f59e0b;font-weight:600;">Duplicates: ${sheet.duplicateContaminationCount ?? 0} contaminated</span>` : ''}</p>
       
       <h4 style="color:#34d399;margin-bottom:12px;">Accepted Images (${sheet.admittedCount})</h4>
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;">

@@ -226,6 +226,9 @@ export const ImageScoreDetailSchema = z.object({
   primaryAccuracy: z.number(), // 1, 0
   precision: z.number(), // 0.0 - 1.0
   recall: z.number(), // 0.0 - 1.0
+  duplicateCount: z.number().optional(),
+  duplicateContaminationCount: z.number().optional(),
+  duplicateContamination: z.boolean().optional(),
   rejectionReasons: z.record(z.string(), z.string()).optional(),
 });
 export type ImageScoreDetail = z.infer<typeof ImageScoreDetailSchema>;
@@ -245,6 +248,8 @@ export const AuditScoredRowSchema = z.object({
   identityResolution: HybridIdentityResolutionSchema.optional(),
   conflicts: z.array(HybridConflictSchema).optional(),
   imageRejectionReasons: z.record(z.string(), z.string()).optional(),
+  duplicateContamination: z.boolean().optional(),
+  duplicateContaminationCount: z.number().optional(),
   extractedProductPreview: z.object({
     title: z.string().nullable().optional(),
     brand: z.string().nullable().optional(),
@@ -333,6 +338,8 @@ export const ImageContactSheetSchema = z.object({
   primaryAccuracy: z.number(),
   acceptedImages: z.array(ImageContactSheetItemSchema),
   rejectedImages: z.array(ImageContactSheetItemSchema),
+  duplicateContaminationCount: z.number().optional(),
+  duplicateContamination: z.boolean().optional(),
 });
 export type ImageContactSheet = z.infer<typeof ImageContactSheetSchema>;
 
