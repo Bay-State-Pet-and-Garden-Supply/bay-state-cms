@@ -105,6 +105,7 @@ describe('LLM Client — task-specific routing', () => {
   });
 
   beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -132,16 +133,18 @@ describe('LLM Client — task-specific routing', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Clean up task configs between tests
-    for (const task of [
-      'product_name_consolidation',
-      'profile_generation',
-      'profile_revision',
-      'product_curation',
-      'category_classification',
-      'classification_evidence_extraction',
-    ] as const) {
-      try { deleteLlmTaskConfig(task); } catch { /* ignore */ }
-    }
+    try {
+      for (const task of [
+        'product_name_consolidation',
+        'profile_generation',
+        'profile_revision',
+        'product_curation',
+        'category_classification',
+        'classification_evidence_extraction',
+      ] as const) {
+        deleteLlmTaskConfig(task);
+      }
+    } catch { /* ignore */ }
   });
 
   // ── Profile task requires explicit config (fail closed) ────────────────
@@ -428,7 +431,10 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
@@ -1700,13 +1706,18 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    try { initDb(testDbPath); } catch { /* ok */ }
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
-    getDb().run('DELETE FROM ai_workload_routes');
-    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    try {
+      getDb().run('DELETE FROM ai_workload_routes');
+      getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    } catch { /* ok */ }
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {
