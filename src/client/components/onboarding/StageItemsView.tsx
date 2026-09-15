@@ -1053,12 +1053,16 @@ export function StageItemsView({
   }, [strategyDialog, strategyBuilderKey]);
 
   const handleOpenProfileBuilder = useCallback(
-    (domain: string) => {
+    (domain: string, seedUrl?: string, failureReason?: string) => {
       if (onOpenProfileBuilder) {
         onOpenProfileBuilder(domain);
       } else {
         const returnUrl = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '';
-        const path = getProfileWorkspacePath(domain, returnUrl);
+        const path = getProfileWorkspacePath(domain, {
+          returnPath: returnUrl,
+          seedUrl,
+          failureReason,
+        });
         if (typeof window !== 'undefined') {
           window.history.pushState(null, '', path);
           window.dispatchEvent(new PopStateEvent('popstate'));
@@ -1802,7 +1806,13 @@ export function StageItemsView({
                           data-testid={`intake-profile-required-${item.itemId}`}
                           onClick={() => {
                             if (flags.mappedDomain) {
-                              handleOpenProfileBuilder(flags.mappedDomain);
+                              const sourceUrl = (item as Record<string, unknown>).sourceUrl as string | undefined;
+                              const failureReason = item.attentionReason ?? item.detail ?? undefined;
+                              handleOpenProfileBuilder(
+                                flags.mappedDomain,
+                                sourceUrl,
+                                failureReason,
+                              );
                             } else {
                               onOpenSettings?.();
                             }

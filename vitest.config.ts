@@ -332,6 +332,7 @@ export default defineConfig({
       'src/tests/unit/profile-audit-stratified-manifest.test.ts',
       'src/tests/unit/profile-audit-versioned-corpus.test.ts',
       'src/tests/integration/profile-audit-replay-purity.test.ts',
+      'src/tests/unit/profile-workspace-output-first.test.ts',
       'src/tests/unit/brand-hub-routes.test.ts',
       // Variant resolution migration — bun:sqlite, run under bun test via test:db (not vitest)
       'src/tests/unit/onboarding-variant-resolution-migration.test.ts',

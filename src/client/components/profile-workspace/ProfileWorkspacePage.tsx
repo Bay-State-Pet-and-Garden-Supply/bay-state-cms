@@ -2,12 +2,13 @@
 // route pattern: /settings/domains/:domain/profile
 import React, { useEffect, useState, useCallback } from 'react';
 import { normalizeBrandHubDomain } from '../../../onboarding/brand-hub/normalizeDomain';
-import { getProfileWorkspacePath, parseReturnPath } from './route';
+import { getProfileWorkspacePath, parseReturnPath, parseWorkspaceParams } from './route';
 import { ProfileWorkspaceHeader } from './ProfileWorkspaceHeader';
 import { ReadinessRail } from './ReadinessRail';
 import { EvidenceRail } from './EvidenceRail';
 import { HistoryShell } from './HistoryShell';
 import { ProfileBuilder } from '../profile-builder/ProfileBuilder';
+import { OutputFirstWorkspace } from './OutputFirstWorkspace';
 import type { DomainProfileState } from '../../../db/repositories/domain-profile-state-repo';
 import { deriveReadinessState } from '../../../onboarding/profile-readiness';
 import { SuitePanel } from './SuitePanel';
@@ -47,7 +48,10 @@ export function ProfileWorkspacePage({ domain: rawDomain }: { domain: string }):
     setApprovedSamples(new Set(urls));
   }, [matrixResult, suiteResp]);
   const [draftVersionId, setDraftVersionId] = useState<string | null>(null);
-  const returnPath = typeof window !== 'undefined' ? parseReturnPath(window.location.search) : null;
+  const workspaceParams = typeof window !== 'undefined' ? parseWorkspaceParams(window.location.search) : {};
+  const returnPath = workspaceParams.returnPath ?? (typeof window !== 'undefined' ? parseReturnPath(window.location.search) : null);
+  const seedUrl = workspaceParams.seedUrl ?? null;
+  const seedFailureReason = workspaceParams.failureReason ?? null;
 
   const fetchState = async (): Promise<void> => {
     setLoadError(null);
@@ -419,7 +423,26 @@ export function ProfileWorkspacePage({ domain: rawDomain }: { domain: string }):
             onSelectActive={handleCaptureUrl}
           />
 
-          {/* Section 2: Profile Builder & Selectors */}
+          {/* Section 2: Output-First Workspace Flow */}
+          <OutputFirstWorkspace
+            domain={domain}
+            initialUrl={captureArtifact?.url}
+            seedUrl={seedUrl}
+            seedFailureReason={seedFailureReason}
+            suiteUrls={suiteResp?.suite ?? []}
+            draftVersionId={draftVersionId}
+            onSelectOnPage={(field) => {
+              handleRevise(field);
+              setBuilderCollapsed(false);
+            }}
+            onActivateProfile={handleActivate}
+            onProfileUpdated={(versionId) => {
+              setDraftVersionId(versionId);
+              void loadMatrix(versionId);
+            }}
+          />
+
+          {/* Section 3: Selectors & Profile Builder (Repair Controls) */}
           <div
             data-workspace
             style={{
