@@ -38,6 +38,10 @@ describe('Profile Audit Trustworthy Promotion (Issue #188 / T2)', () => {
       productFamily: 'dog-shampoo',
       variantShape: 'single_variant',
       groundTruthSource: provenance,
+      // Reviewed + versioned flags satisfy the per-observation label contract
+      // unless a test overrides them; provenance-gap tests set their own source.
+      isReviewed: true,
+      labelVersion: '1.0.0',
       isHoldout: options.isHoldout ?? false,
       holdoutFamilyName: options.holdoutFamilyName ?? (options.isHoldout ? 'shampoo-family' : null),
       groundTruth: {
@@ -307,6 +311,31 @@ describe('Profile Audit Trustworthy Promotion (Issue #188 / T2)', () => {
       const report = generatePromotionReport({ manifest, rows, gateOptions: { minSamplesForPromote: 2 } });
       expect(report.markdown).toContain('auto-derived');
       expect(report.markdown.toLowerCase()).toContain('exploratory');
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Review finding 1: mixed provenance cannot satisfy the quorum
+  // ───────────────────────────────────────────────────────────────────────────
+  describe('Review finding 1: mixed provenance cannot satisfy the quorum', () => {
+    it('one independent label plus auto-derived/unspecified rows cannot promote', () => {
+      const s1 = createSample('s1', 'standard_pdp', 'independent');
+      const s2 = createSample('s2', 'standard_pdp', 'auto-derived');
+      const s3 = createSample('s3', 'standard_pdp'); // unspecified provenance
+      const s4 = createSample('s4', 'standard_pdp', 'independent');
+      s4.isReviewed = false; // independent but unreviewed
+      const samples = [s1, s2, s3, s4];
+      const rows = samples.flatMap(s => createRowsForSample(s));
+
+      const verdict = evaluateScopeGate('standard_pdp', samples, rows, { minSamplesForPromote: 3 });
+
+      expect(verdict.verdict).toBe('NEEDS_REVIEW');
+      expect(verdict.isPromotable).toBe(false);
+      expect(verdict.promotabilityVerdict).toBe('NEEDS_REVIEW');
+      const reasonText = verdict.promotabilityReasons.join(' ');
+      expect(reasonText).toContain('s2');
+      expect(reasonText).toContain('s3');
+      expect(reasonText).toContain('s4');
     });
   });
 

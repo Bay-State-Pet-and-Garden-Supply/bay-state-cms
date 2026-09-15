@@ -41,6 +41,10 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       productFamily: 'dog-shampoo',
       variantShape: 'single_variant',
       groundTruthSource: provenance,
+      // Reviewed + versioned flags satisfy the per-observation label contract
+      // unless a test overrides them; provenance-gap tests set their own source.
+      isReviewed: true,
+      labelVersion: '1.0.0',
       isHoldout: false,
       groundTruth: {
         identity: {
@@ -450,7 +454,10 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       const baseRows = rows.filter(r => r.configuration === 'current_extraction');
       baseRows[0].imageScores.primaryAccuracy = 0;
       baseRows[1].imageScores.primaryAccuracy = 0;
+      baseRows[2].imageScores.primaryAccuracy = 0;
       baseRows[2].identityVerdict = 'wrong_variant';
+      baseRows[3].identityVerdict = 'wrong_variant';
+      baseRows[4].identityVerdict = 'wrong_variant';
       const manifest: AuditManifest = {
         domain: 'example.com',
         generatedAt: '2026-09-01T12:00:00Z',

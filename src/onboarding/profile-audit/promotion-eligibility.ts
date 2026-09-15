@@ -133,6 +133,8 @@ export interface LabelProvenanceInspection {
       isHoldout?: boolean;
       holdoutFamilyName?: string | null;
       inventoryStatus: 'confirmed' | 'candidate';
+      isReviewed?: boolean;
+      labelVersion?: string | null;
     }
   >;
 }
@@ -173,6 +175,8 @@ export function inspectLabelProvenance(
       isHoldout: s.isHoldout,
       holdoutFamilyName: s.holdoutFamilyName,
       inventoryStatus: s.inventoryStatus,
+      isReviewed: s.isReviewed,
+      labelVersion: s.labelVersion,
     };
   }
 
@@ -293,6 +297,8 @@ export interface PromotionEligibilityInput {
   hybridFieldStatsMean: number;
   usableObservations?: UsableObservationCounts;
   labelProvenance?: LabelProvenanceInspection;
+  /** Sample IDs of usable scored pairs failing the per-observation label contract (review finding 1). */
+  provenanceViolations?: string[];
   baselineServedRate?: number;
   hybridServedRate?: number;
 }
@@ -330,6 +336,7 @@ export function buildPromotabilityReasons(
     hybridFieldStatsMean,
     usableObservations,
     labelProvenance,
+    provenanceViolations,
     baselineServedRate,
     hybridServedRate,
   } = input;
@@ -397,6 +404,17 @@ export function buildPromotabilityReasons(
         `Needs Review: Sample count (${usableCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
       );
     }
+  } else if (provenanceViolations && provenanceViolations.length > 0) {
+    // Per-observation label contract (review finding 1): exploratory rows
+    // must not count toward promotion, even beside independent labels.
+    verdict = 'NEEDS_REVIEW';
+    promotabilityVerdict = 'NEEDS_REVIEW';
+    isPromotable = false;
+    const shown = provenanceViolations.slice(0, 5).join(', ');
+    const more = provenanceViolations.length > 5 ? ', …' : '';
+    promotabilityReasons.push(
+      `Needs Review: ${provenanceViolations.length} participating observation(s) lack independently reviewed, versioned labels (${shown}${more}); auto-derived, unreviewed, or unversioned rows are exploratory only and cannot support promotion`,
+    );
   } else if (!allThresholdsPassed || isZeroQualityBaselineEquality) {
     verdict = 'NO_GO';
     promotabilityVerdict = 'BLOCKED';
@@ -422,7 +440,7 @@ export function buildPromotabilityReasons(
       `✓ Improved image precision (${(hybridPrecisionMean * 100).toFixed(1)}% vs ${(baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`,
     );
     promotabilityReasons.push(
-      `✓ Maintained or improved field completeness (${(hybridFieldStatsMean * 100).toFixed(1)}%)`,
+      `✓ Demonstrated field completeness improvement (${(hybridFieldStatsMean * 100).toFixed(1)}%)`,
     );
     promotabilityReasons.push('✓ Zero evidence-gap inflation / no abstention gaming');
     promotabilityReasons.push(

@@ -38,6 +38,12 @@ export interface WorkspaceFlowScopeInput {
   timeToFirstWorkingProfileProvenance?: 'measured' | 'modeled';
   manualCorrectionsPerProfile?: number;
   manualCorrectionsProvenance?: 'measured' | 'modeled';
+  /** Measured selector-led effort baselines (review finding 4). Without these,
+   * selector-side time/corrections stay modeled estimates and are display-only. */
+  selectorTimeToFirstWorkingProfileMs?: number;
+  selectorTimeToFirstWorkingProfileProvenance?: 'measured' | 'modeled';
+  selectorManualCorrectionsPerProfile?: number;
+  selectorManualCorrectionsProvenance?: 'measured' | 'modeled';
   siblingPassRate?: number;
   siblingPassRateUncertainty?: number;
   siblingPassRateConfidenceInterval?: { lower: number; upper: number };
@@ -206,7 +212,9 @@ export function deriveStrategyThresholds(input: {
       : `Blocked: Sibling-page pass rate (${(adapterMetrics.siblingPassRate * 100).toFixed(1)}%) regressed below derived target (${(derivedSiblingThreshold * 100).toFixed(1)}%)`,
   });
 
-  // 6. Manual Corrections Per Profile (Must be bounded by selector-led baseline)
+  // 6. Manual Corrections Per Profile — decision-driving only with a measured
+  // selector baseline (review finding 4); a modeled baseline is display-only.
+  const correctionsDecisionDriving = selectorMetrics.manualCorrectionsProvenance === 'measured';
   const manualPassed = adapterMetrics.manualCorrectionsPerProfile <= selectorMetrics.manualCorrectionsPerProfile;
   checks.push({
     name: 'Bounded Manual Corrections Per Profile',
@@ -215,14 +223,21 @@ export function deriveStrategyThresholds(input: {
     thresholdValue: selectorMetrics.manualCorrectionsPerProfile,
     actualValue: adapterMetrics.manualCorrectionsPerProfile,
     unit: 'corrections',
-    rule: 'actual <= threshold',
-    passed: manualPassed,
-    reason: manualPassed
-      ? `✓ Manual corrections per profile (${adapterMetrics.manualCorrectionsPerProfile}) bounded by selector baseline (${selectorMetrics.manualCorrectionsPerProfile})`
-      : `Blocked: Manual corrections per profile (${adapterMetrics.manualCorrectionsPerProfile}) exceeded selector baseline (${selectorMetrics.manualCorrectionsPerProfile})`,
+    rule: correctionsDecisionDriving ? 'actual <= threshold' : 'display-only (selector baseline unmeasured)',
+    passed: correctionsDecisionDriving ? manualPassed : true,
+    reason: correctionsDecisionDriving
+      ? (manualPassed
+        ? `✓ Manual corrections per profile (${adapterMetrics.manualCorrectionsPerProfile}) bounded by measured selector baseline (${selectorMetrics.manualCorrectionsPerProfile})`
+        : `Blocked: Manual corrections per profile (${adapterMetrics.manualCorrectionsPerProfile}) exceeded measured selector baseline (${selectorMetrics.manualCorrectionsPerProfile})`)
+      : `ℹ Manual corrections per profile (${adapterMetrics.manualCorrectionsPerProfile} vs ${selectorMetrics.manualCorrectionsPerProfile} modeled selector baseline) shown for context — unmeasured selector baselines are display-only and excluded from the promotion decision`,
   });
+  if (!correctionsDecisionDriving) {
+    rationale.push('Manual-corrections comparison is display-only: record a measured selector baseline to make it decision-driving.');
+  }
 
-  // 7. Time to First Working Profile (Must not exceed baseline setup time)
+  // 7. Time to First Working Profile — decision-driving only with a measured
+  // selector baseline (review finding 4); a modeled baseline is display-only.
+  const timeDecisionDriving = selectorMetrics.timeToFirstWorkingProfileProvenance === 'measured';
   const timePassed = adapterMetrics.timeToFirstWorkingProfileMs <= selectorMetrics.timeToFirstWorkingProfileMs;
   checks.push({
     name: 'Time to First Working Profile',
@@ -231,12 +246,17 @@ export function deriveStrategyThresholds(input: {
     thresholdValue: selectorMetrics.timeToFirstWorkingProfileMs,
     actualValue: adapterMetrics.timeToFirstWorkingProfileMs,
     unit: 'ms',
-    rule: 'actual <= threshold',
-    passed: timePassed,
-    reason: timePassed
-      ? `✓ Time to first working profile (${(adapterMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s) faster than or equal to selector setup (${(selectorMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s)`
-      : `Blocked: Time to first working profile (${(adapterMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s) slower than selector setup (${(selectorMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s)`,
+    rule: timeDecisionDriving ? 'actual <= threshold' : 'display-only (selector baseline unmeasured)',
+    passed: timeDecisionDriving ? timePassed : true,
+    reason: timeDecisionDriving
+      ? (timePassed
+        ? `✓ Time to first working profile (${(adapterMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s) faster than or equal to measured selector setup (${(selectorMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s)`
+        : `Blocked: Time to first working profile (${(adapterMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s) slower than measured selector setup (${(selectorMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s)`)
+      : `ℹ Time to first working profile (${(adapterMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s vs ${(selectorMetrics.timeToFirstWorkingProfileMs / 1000).toFixed(1)}s modeled selector baseline) shown for context — unmeasured selector baselines are display-only and excluded from the promotion decision`,
   });
+  if (!timeDecisionDriving) {
+    rationale.push('Time-to-first-profile comparison is display-only: record a measured selector baseline to make it decision-driving.');
+  }
 
   // 8. Bounded Operator Maintenance Minutes
   const minsPassed = adapterMetrics.operatorMinutes <= selectorMetrics.operatorMinutes;
@@ -488,11 +508,20 @@ export function evaluateScopeStrategyComparison(args: {
   }
 
   // Assemble Strategy Metrics
+  // Measured selector baselines (review finding 4): operator-recorded
+  // selector effort replaces the modeled estimates when present; otherwise
+  // the modeled values stay display-only (see the checks below).
+  const hasMeasuredSelectorTime = workspaceFlow?.selectorTimeToFirstWorkingProfileMs !== undefined;
+  const hasMeasuredSelectorCorrections = workspaceFlow?.selectorManualCorrectionsPerProfile !== undefined;
   const selectorMetrics: StrategyMetricsComparison = {
-    timeToFirstWorkingProfileMs: selectorTimeMs,
-    timeToFirstWorkingProfileProvenance: selectorTimeProv,
-    manualCorrectionsPerProfile: selectorCorrections,
-    manualCorrectionsProvenance: selectorCorrectionsProv,
+    timeToFirstWorkingProfileMs: workspaceFlow?.selectorTimeToFirstWorkingProfileMs ?? selectorTimeMs,
+    timeToFirstWorkingProfileProvenance: hasMeasuredSelectorTime
+      ? (workspaceFlow?.selectorTimeToFirstWorkingProfileProvenance ?? 'measured')
+      : selectorTimeProv,
+    manualCorrectionsPerProfile: workspaceFlow?.selectorManualCorrectionsPerProfile ?? selectorCorrections,
+    manualCorrectionsProvenance: hasMeasuredSelectorCorrections
+      ? (workspaceFlow?.selectorManualCorrectionsProvenance ?? 'measured')
+      : selectorCorrectionsProv,
     siblingPassRate: selectorSiblingPass,
     siblingPassRateUncertainty: selectorSiblingUncertainty,
     siblingPassRateConfidenceInterval: selectorSiblingCI,

@@ -186,7 +186,10 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
       stdBaseRows[0].imageScores.primaryAccuracy = 0;
       stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].identityVerdict = 'wrong_variant';
+      stdBaseRows[2].imageScores.primaryAccuracy = 0;
       stdBaseRows[2].identityVerdict = 'wrong_variant';
+      stdBaseRows[3].identityVerdict = 'wrong_variant';
     }
 
     // Measured effort dimensions (finding 5b): sibling rate is gate-derived,
@@ -365,7 +368,10 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
       stdBaseRows[0].imageScores.primaryAccuracy = 0;
       stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].identityVerdict = 'wrong_variant';
+      stdBaseRows[2].imageScores.primaryAccuracy = 0;
       stdBaseRows[2].identityVerdict = 'wrong_variant';
+      stdBaseRows[3].identityVerdict = 'wrong_variant';
     }
 
     const report = generateAdapterStrategyReport({
@@ -479,7 +485,10 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       const stdBaseRows = rows.filter(r => r.configuration === 'current_extraction' && stdIds.has(r.sampleId));
       stdBaseRows[0].imageScores.primaryAccuracy = 0;
       stdBaseRows[1].imageScores.primaryAccuracy = 0;
+      stdBaseRows[1].identityVerdict = 'wrong_variant';
+      stdBaseRows[2].imageScores.primaryAccuracy = 0;
       stdBaseRows[2].identityVerdict = 'wrong_variant';
+      stdBaseRows[3].identityVerdict = 'wrong_variant';
     }
 
     const res = await profileInspectRoutes.request(
@@ -570,5 +579,54 @@ describe('Evidence-Chosen Adapter Strategy Report (Issue #192 / Audit Follow-Thr
       },
     );
     expect(badRows.status).toBe(400);
+  });
+
+  it('makes time and corrections decision-driving with measured selector baselines (finding 4)', async () => {
+    const corpus = await buildVersionedCorpus({
+      domain,
+      labelVersion,
+      isReviewed: true,
+    });
+
+    const rows: AuditScoredRow[] = [];
+    const configs: ReplayConfiguration[] = [
+      'current_extraction',
+      'current_strict_images',
+      'structured_only',
+      'hybrid_identity_first',
+    ];
+
+    for (const s of corpus.samples) {
+      for (const cfg of configs) {
+        rows.push(createScoredRow(s, cfg));
+      }
+    }
+
+    const report = generateAdapterStrategyReport({
+      manifest: corpus,
+      rows,
+      options: {
+        workspaceFlows: {
+          standard_pdp: {
+            timeToFirstWorkingProfileMs: 45000,
+            timeToFirstWorkingProfileProvenance: 'measured',
+            manualCorrectionsPerProfile: 1,
+            manualCorrectionsProvenance: 'measured',
+            selectorTimeToFirstWorkingProfileMs: 600000,
+            selectorTimeToFirstWorkingProfileProvenance: 'measured',
+            selectorManualCorrectionsPerProfile: 6,
+            selectorManualCorrectionsProvenance: 'measured',
+          },
+        },
+      },
+    });
+    const s = report.recommendationsByScope.standard_pdp;
+
+    const timeCheck = s.thresholds.find(t => t.dimension === 'time_to_first_profile');
+    expect(timeCheck?.rule).toBe('actual <= threshold');
+    expect(timeCheck?.passed).toBe(true);
+    const corrCheck = s.thresholds.find(t => t.dimension === 'manual_corrections');
+    expect(corrCheck?.rule).toBe('actual <= threshold');
+    expect(corrCheck?.passed).toBe(true);
   });
 });

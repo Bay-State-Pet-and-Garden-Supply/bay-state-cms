@@ -31,6 +31,12 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       domain: 'example.com',
       stratum: 'example.com:shopify:standard_pdp:single_variant',
       inventoryStatus: 'confirmed',
+      // Independent, reviewed, versioned provenance satisfies the
+      // per-observation label contract; gap/provenance behavior is covered
+      // by dedicated tests that override these flags.
+      groundTruthSource: 'independent',
+      isReviewed: true,
+      labelVersion: '1.0.0',
       artifactRef: 'snapshots/sample-1.html',
       supplementalArtifactRefs: [],
       hasSupplementalArtifact: true,
@@ -563,6 +569,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       const baselineRows = allRows.filter(r => r.configuration === 'current_extraction');
       baselineRows[0].imageScores.primaryAccuracy = 0;
       baselineRows[1].imageScores.primaryAccuracy = 0;
+      baselineRows[1].identityVerdict = 'wrong_variant';
       baselineRows[2].identityVerdict = 'wrong_variant';
 
       const summaries = computeScopeSummaries([sample1, sample2, sample3], allRows);
