@@ -27,7 +27,7 @@ import {
 
 describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (Issue #178)', () => {
   // ── Test Fixture Helpers ──────────────────────────────────────────────────
-  function createSample(id: string, scope: string = 'standard_pdp'): AuditManifestSample {
+  function createSample(id: string, scope: string = 'standard_pdp', isHoldout: boolean = false): AuditManifestSample {
     return {
       sampleId: id,
       url: `https://example.com/products/${id}`,
@@ -46,8 +46,10 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       captureFreshness: '2026-09-01T12:00:00Z',
       pageStructureScope: scope,
       platform: 'Shopify',
-      productFamily: 'dog-shampoo',
+      productFamily: isHoldout ? 'holdout-family' : 'dog-shampoo',
       variantShape: 'single_variant',
+      isHoldout,
+      holdoutFamilyName: isHoldout ? 'holdout-family' : null,
       groundTruth: {
         identity: {
           brand: 'Earthbath',
@@ -628,11 +630,20 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
       const sample4 = createSample('s4', 'tabbed_pdp');
       const sample5 = createSample('s5', 'tabbed_pdp');
       const sample6 = createSample('s6', 'tabbed_pdp');
+      // Holdout coverage per scope (Issue #196): the overall contract verdict
+      // requires an explicit holdout GO on every scope, so each scope carries
+      // its own held-out family shaped for GO alongside the tuning samples.
+      const sample7 = createSample('s7', 'standard_pdp', true);
+      const sample8 = createSample('s8', 'standard_pdp', true);
+      const sample9 = createSample('s9', 'standard_pdp', true);
+      const sample10 = createSample('s10', 'tabbed_pdp', true);
+      const sample11 = createSample('s11', 'tabbed_pdp', true);
+      const sample12 = createSample('s12', 'tabbed_pdp', true);
 
       const manifest: AuditManifest = {
         domain: 'example.com',
         generatedAt: '2026-09-13T21:00:00Z',
-        samples: [sample1, sample2, sample3, sample4, sample5, sample6],
+        samples: [sample1, sample2, sample3, sample4, sample5, sample6, sample7, sample8, sample9, sample10, sample11, sample12],
       };
 
       // Strict-improvement shaping per scope (finding 1): each scope's
@@ -644,16 +655,24 @@ describe('Profile Audit Gate T5: Gate Arithmetic & Per-Scope Promotion Report (I
         ...createRowsForSample(sample4),
         ...createRowsForSample(sample5, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
         ...createRowsForSample(sample6, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample7),
+        ...createRowsForSample(sample8, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample9, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample10),
+        ...createRowsForSample(sample11, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
+        ...createRowsForSample(sample12, { baselinePrimaryAccuracy: 0, baselineIdentityVerdict: 'wrong_variant' }),
       ];
 
       const report = generatePromotionReport({ manifest, rows });
 
       expect(report.domain).toBe('example.com');
-      expect(report.totalSamples).toBe(6);
+      expect(report.totalSamples).toBe(12);
       expect(report.totalScopes).toBe(2);
       expect(report.overallContractVerdict).toBe('GO');
       expect(report.verdictsByScope['standard_pdp'].verdict).toBe('GO');
       expect(report.verdictsByScope['tabbed_pdp'].verdict).toBe('GO');
+      expect(report.holdoutVerdictsByScope?.['standard_pdp']?.verdict).toBe('GO');
+      expect(report.holdoutVerdictsByScope?.['tabbed_pdp']?.verdict).toBe('GO');
 
       const md = report.markdown;
       expect(md).toContain('# Profile Extraction Audit Gate: Per-Scope Promotion Report');

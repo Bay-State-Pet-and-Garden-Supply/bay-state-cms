@@ -1043,18 +1043,41 @@ export function evaluateGateArithmetic(
 
   const domainCostMetrics = computeDomainCostMetrics(domain, samples, rows, options);
 
-  // Overall Contract Verdict:
-  // GO only if at least 1 scope evaluated and all scopes are GO.
-  // NO_GO if any scope has NO_GO.
-  // Otherwise NEEDS_REVIEW.
+  // Overall Contract Verdict (Issue #196 — explicit holdout GO required):
+  // Tuning and holdout partitions are evaluated separately, but the overall
+  // verdict must never let strong tuning mask weak generalization. GO
+  // requires an explicit holdout GO on every evaluated scope:
+  // - NO_GO if any combined OR any holdout scope verdict is NO_GO. A holdout
+  //   NO_GO is a demonstrated generalization failure and blocks promotion.
+  // - Otherwise NEEDS_REVIEW if any combined OR any holdout verdict needs
+  //   review, or if any scope has no holdout coverage at all. Generalization
+  //   cannot be claimed without sufficient holdout evidence (fail-closed).
+  // - Otherwise GO: at least 1 scope evaluated, every combined verdict GO,
+  //   and every holdout verdict GO.
   const scopeVerdictValues = Object.values(verdictsByScope);
+  const holdoutVerdictValues = Object.values(holdoutVerdictsByScope);
+  const scopesMissingHoldout = Object.keys(verdictsByScope).filter(
+    sk => !(sk in holdoutVerdictsByScope),
+  );
   let overallContractVerdict: ContractPromotionVerdict;
 
   if (scopeVerdictValues.length === 0) {
     overallContractVerdict = 'NEEDS_REVIEW';
-  } else if (scopeVerdictValues.some(v => v.verdict === 'NO_GO')) {
+  } else if (
+    scopeVerdictValues.some(v => v.verdict === 'NO_GO') ||
+    holdoutVerdictValues.some(v => v.verdict === 'NO_GO')
+  ) {
     overallContractVerdict = 'NO_GO';
-  } else if (scopeVerdictValues.every(v => v.verdict === 'GO')) {
+  } else if (
+    scopeVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
+    holdoutVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
+    scopesMissingHoldout.length > 0
+  ) {
+    overallContractVerdict = 'NEEDS_REVIEW';
+  } else if (
+    scopeVerdictValues.every(v => v.verdict === 'GO') &&
+    holdoutVerdictValues.every(v => v.verdict === 'GO')
+  ) {
     overallContractVerdict = 'GO';
   } else {
     overallContractVerdict = 'NEEDS_REVIEW';

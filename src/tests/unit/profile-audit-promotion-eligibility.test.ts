@@ -25,6 +25,7 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
     id: string,
     scope: string = 'standard_pdp',
     provenance?: 'independent' | 'auto-derived',
+    isHoldout: boolean = false,
   ): AuditManifestSample {
     return {
       sampleId: id,
@@ -38,14 +39,15 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       captureFreshness: '2026-09-01T12:00:00Z',
       pageStructureScope: scope,
       platform: 'Shopify',
-      productFamily: 'dog-shampoo',
+      productFamily: isHoldout ? 'holdout-family' : 'dog-shampoo',
       variantShape: 'single_variant',
       groundTruthSource: provenance,
       // Reviewed + versioned flags satisfy the per-observation label contract
       // unless a test overrides them; provenance-gap tests set their own source.
       isReviewed: true,
       labelVersion: '1.0.0',
-      isHoldout: false,
+      isHoldout,
+      holdoutFamilyName: isHoldout ? 'holdout-family' : null,
       groundTruth: {
         identity: {
           brand: 'Earthbath',
@@ -441,12 +443,20 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
   // ───────────────────────────────────────────────────────────────────────────
   describe('Unified eligibility contract', () => {
     it('gate, arithmetic, and promotion report agree on the trustworthy verdict', () => {
+      // Holdout coverage (Issue #196): the overall contract verdict requires
+      // an explicit holdout GO, so the fixture carries a held-out family
+      // alongside the tuning samples — 5 tuning + 5 holdout at quorum 5.
       const samples = [
         createSample('s1', 'standard_pdp', 'independent'),
         createSample('s2', 'standard_pdp', 'independent'),
         createSample('s3', 'standard_pdp', 'independent'),
         createSample('s4', 'standard_pdp', 'independent'),
         createSample('s5', 'standard_pdp', 'independent'),
+        createSample('h1', 'standard_pdp', 'independent', true),
+        createSample('h2', 'standard_pdp', 'independent', true),
+        createSample('h3', 'standard_pdp', 'independent', true),
+        createSample('h4', 'standard_pdp', 'independent', true),
+        createSample('h5', 'standard_pdp', 'independent', true),
       ];
       const rows = samples.flatMap(s => createRowsForSample(s));
       // Strict-improvement shaping (finding 1): baseline trails hybrid on
@@ -458,6 +468,14 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       baseRows[2].identityVerdict = 'wrong_variant';
       baseRows[3].identityVerdict = 'wrong_variant';
       baseRows[4].identityVerdict = 'wrong_variant';
+      // Mirror the shaping onto the held-out family so the holdout partition
+      // independently demonstrates improvement (Issue #196 happy path).
+      baseRows[5].imageScores.primaryAccuracy = 0;
+      baseRows[6].imageScores.primaryAccuracy = 0;
+      baseRows[7].imageScores.primaryAccuracy = 0;
+      baseRows[7].identityVerdict = 'wrong_variant';
+      baseRows[8].identityVerdict = 'wrong_variant';
+      baseRows[9].identityVerdict = 'wrong_variant';
       const manifest: AuditManifest = {
         domain: 'example.com',
         generatedAt: '2026-09-01T12:00:00Z',

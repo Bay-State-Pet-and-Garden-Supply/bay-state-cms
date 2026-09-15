@@ -19,10 +19,33 @@ import type {
   ScopePromotionVerdict,
 } from '../../shared/schemas/profile-audit';
 import type { GateArithmeticOptions } from './types';
-import { evaluateGateArithmetic } from './gate-arithmetic';
+import { evaluateGateArithmetic, type FullGateArithmeticResult } from './gate-arithmetic';
 import { formatPromotionRecommendation } from './promotion-eligibility';
 // sanitizeCell: single source of truth in shared-metrics.ts (fix #9).
 import { sanitizeCell } from './shared-metrics';
+
+/**
+ * Formats the holdout-gating note (Issue #196): contract promotion requires
+ * an explicit holdout GO on every scope. Returns an empty string when the
+ * overall verdict already agrees with the combined scopes (nothing gated).
+ */
+export function formatHoldoutGatingNote(gateResult: FullGateArithmeticResult): string {
+  const combined = Object.values(gateResult.verdictsByScope);
+  const holdouts = gateResult.holdoutVerdictsByScope ?? {};
+  const allCombinedGo = combined.length > 0 && combined.every(v => v.verdict === 'GO');
+  if (!allCombinedGo || gateResult.overallContractVerdict === 'GO') return '';
+
+  const lines: string[] = [];
+  lines.push('> **Holdout Gating (Issue #196):** Contract promotion requires an explicit holdout GO on every scope — strong tuning performance can never mask weak generalization.');
+  const blocking = Object.entries(holdouts)
+    .filter(([, v]) => v.verdict !== 'GO')
+    .map(([scope, v]) => `\`${scope}\` holdout ${v.verdict}`);
+  const missing = Object.keys(gateResult.verdictsByScope).filter(sk => !(sk in holdouts));
+  const details = [...blocking, ...missing.map(sk => `\`${sk}\` has no holdout coverage`)];
+  lines.push(`> Gating evidence: ${details.length > 0 ? details.join('; ') : 'no holdout verdicts recorded'}.`);
+  lines.push('');
+  return lines.join('\n');
+}
 
 export function formatPromotionVerdictBadge(verdict: ContractPromotionVerdict): string {
   switch (verdict) {
@@ -274,6 +297,11 @@ export function generatePromotionReport(args: {
   mdParts.push(`**Domain:** \`${manifest.domain}\` | **Generated At:** ${manifest.generatedAt} | **Label Version:** \`${gateResult.labelVersion}\` | **Samples:** ${manifest.samples.length} | **Scopes:** ${Object.keys(gateResult.verdictsByScope).length}`);
   mdParts.push(`**Overall Contract Recommendation:** ${formatPromotionVerdictBadge(gateResult.overallContractVerdict)}`);
   mdParts.push('');
+
+  // 0. Holdout Gating explainer (Issue #196): when the combined scopes read
+  // GO but holdout evidence withholds or blocks promotion, say so explicitly
+  // so strong tuning can never quietly mask weak generalization.
+  mdParts.push(formatHoldoutGatingNote(gateResult));
 
   // 1. Executive Summary Table (Tuning / Combined Scopes)
   mdParts.push(formatScopePromotionTable(gateResult.verdictsByScope));
