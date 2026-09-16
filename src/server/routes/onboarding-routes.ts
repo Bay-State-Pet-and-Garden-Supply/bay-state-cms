@@ -1,3 +1,10 @@
+// NOTE (#212 audit): this route file keeps per-endpoint handler preambles (workspace/item lookup +
+// ownership guard + body parsing) intentionally uniform yet endpoint-specific: each handler returns its own
+// error messages and status precedence ('Item not found' vs 'Onboarding item not found',
+// body-validation-before-vs-after ownership checks), so unifying them further would change API responses.
+// The one byte-identical preamble (six batch-scope guards) was extracted to requireWorkspaceBatch; the
+// remaining clones are baselined in .fallow-baselines/dupes.json. Revisit only with a response-preserving
+// contract change, never as a drive-by refactor.
 import { Hono, type Context } from 'hono';
 import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
@@ -289,6 +296,28 @@ function itemWorkspaceError(c: Context, item: { batchId: string }): Response | n
     return c.json({ error: 'Onboarding item not found' }, 404);
   }
   return null;
+}
+
+/**
+ * Workspace + batch-scope preamble shared by the batch handlers
+ * (fallow audit #212: dedupes the six guard clones). Returns the scoped
+ * workspace, or the error response the handler must return.
+ */
+function requireWorkspaceBatch(
+  c: Context,
+  batchId: string,
+):
+  | { workspace: NonNullable<ReturnType<typeof findWorkspace>> }
+  | { error: Response } {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return { error: c.json({ error: 'No active workspace loaded' }, 400) };
+  }
+  const batch = findBatchById(batchId);
+  if (!batch || batch.workspaceId !== workspace.id) {
+    return { error: c.json({ error: 'Batch not found' }, 404) };
+  }
+  return { workspace };
 }
 
 const route = new Hono();
@@ -723,15 +752,10 @@ route.delete('/onboarding/batches/:id', async (c) => {
  * Grouped missing-brand clusters for the attention queue (brand assignments only).
  */
 route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   try {
     const groups = buildMissingBrandGroups(batchId);
@@ -748,15 +772,10 @@ route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
  * Body: { mode?: 'ready_only' | 'all' }
  */
 route.post('/onboarding/batches/:id/start', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   let body: { mode?: string } = {};
   try {
@@ -805,15 +824,10 @@ route.post('/onboarding/batches/:id/start', async (c) => {
  * Pauses batch execution.
  */
 route.post('/onboarding/batches/:id/pause', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   updateBatchExecutionState(batchId, 'paused');
 
@@ -831,15 +845,10 @@ route.post('/onboarding/batches/:id/pause', async (c) => {
  * Resumes paused batch execution.
  */
 route.post('/onboarding/batches/:id/resume', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   updateBatchExecutionState(batchId, 'running');
 
@@ -864,15 +873,10 @@ route.post('/onboarding/batches/:id/resume', async (c) => {
  * Bulk assigns a brand to a list of items and releases them if held.
  */
 route.post('/onboarding/batches/:id/assign-brand-group', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   const { itemIds, brand } = await c.req.json();
   if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0 || !brand?.trim()) {
@@ -2877,16 +2881,10 @@ route.get('/onboarding/batches/:id/brand-domain-setup', async (c) => {
  *          | 400 { error } | 404 { error }
  */
 route.post('/onboarding/batches/:id/brand-domain-setup/:brand', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   const brand = c.req.param('brand').trim();
   if (!brand) {

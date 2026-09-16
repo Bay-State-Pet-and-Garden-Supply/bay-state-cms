@@ -120,6 +120,8 @@ export function getDomainReleaseHealth(domain: string): DomainReleaseHealth {
     const clusterIds: string[] = (() => {
       try {
         const confirmedPrefixes = new Set(sampleUrls.map(u => templateAwarePrefix(u)));
+        // NOTE (#212 audit): cluster-assembly mirrors profile-activation-routes until #214 lands the shared
+        // domain/version health evaluator; do not consolidate here. Baselines in .fallow-baselines/dupes.json.
         const suggestion = getSuiteSuggestion(normalized);
         const matched = suggestion.clusters.map(cl => cl.prefix).filter(p => confirmedPrefixes.has(p));
         if (matched.length > 0) return matched;

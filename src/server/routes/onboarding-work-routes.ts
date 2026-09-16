@@ -12,7 +12,7 @@
  *   domain-level release: after an extractor profile becomes usable, blocked
  *   extraction items on that domain are re-queued automatically.
  */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { findWorkspace } from '../../db/repositories/workspace-repo';
 import { previewBatchFilenames, previewBatchFilenamesWithSummary, recordFilenameDecision, filenameGateReason } from '../../onboarding/filename-review';
 import { findBatchById } from '../../db/repositories/onboarding-batch-repo';
@@ -722,6 +722,30 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
 });
 
 /**
+ * Workspace + principal preamble shared by the manual-evidence handlers
+ * (fallow audit #212: dedupes the submit/withdraw/read guards). Returns
+ * the scoped pair, or the error response the handler must return.
+ */
+function requireWorkspacePrincipal(
+  c: Context,
+):
+  | {
+      workspace: NonNullable<ReturnType<typeof findWorkspace>>;
+      principal: NonNullable<ReturnType<typeof derivePrincipal>>;
+    }
+  | { error: Response } {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return { error: c.json({ error: 'No active workspace loaded' }, 400) };
+  }
+  const principal = derivePrincipal(c);
+  if (!principal) {
+    return { error: c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401) };
+  }
+  return { workspace, principal };
+}
+
+/**
  * POST /api/onboarding/items/:id/submit-manual-evidence
  * Parent #101 (manual-evidence route, ticket #103 thin slice): audited
  * operator submission of manual evidence for one profile-blocked item
@@ -730,14 +754,9 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
  * principal actor is recorded as the attesting operator.
  */
 route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   let body: unknown;
   try {
     body = await c.req.json();
@@ -789,14 +808,9 @@ route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
  * Parent #101: operator withdrawal restores the prior blocked state.
  */
 route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   const { withdrawManualEvidence } = await import('../../onboarding/manual-evidence-service');
   const result = withdrawManualEvidence({
     itemId: c.req.param('id'),
@@ -828,14 +842,9 @@ route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
  * it (no generation id, no attempt ids leave this endpoint).
  */
 route.get('/onboarding/items/:id/manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   const itemId = c.req.param('id');
   const item = findItemById(itemId);
   if (!item) {

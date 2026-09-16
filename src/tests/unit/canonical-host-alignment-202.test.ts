@@ -26,6 +26,7 @@ import {
   effectiveAllowlistFor,
   hostOfUrl,
   isLeafPageUrl,
+  isSameOrSubdomainHost,
   normalizeAlignmentHost,
   qualifyCanonicalHost,
 } from '../../onboarding/brand-hub/canonical-host-alignment-202';
@@ -47,6 +48,21 @@ describe('issue #202 host normalization (one key for all five surfaces)', () => 
     expect(isLeafPageUrl('https://nutrisourcepetfoods.com/our-food/x/chicken-rice-recipe/')).toBe(true);
     expect(isLeafPageUrl('https://discovernutrisource.com/products/y')).toBe(true);
     expect(isLeafPageUrl('https://discovernutrisource.com/')).toBe(false);
+  });
+});
+
+describe('issue #202 exact-or-subdomain authority predicate (shared by allowlist and mapping checks)', () => {
+  it('matches exact and subdomain hosts, never bare substrings', () => {
+    expect(isSameOrSubdomainHost('discovernutrisource.com', 'discovernutrisource.com')).toBe(true);
+    expect(isSameOrSubdomainHost('shop.discovernutrisource.com', 'discovernutrisource.com')).toBe(true);
+    expect(isSameOrSubdomainHost('notdiscovernutrisource.com', 'discovernutrisource.com')).toBe(false);
+    expect(isSameOrSubdomainHost('discovernutrisource.com.evil.example', 'discovernutrisource.com')).toBe(false);
+  });
+
+  it('normalizes both sides and fails closed on empty inputs', () => {
+    expect(isSameOrSubdomainHost('  www.discovernutrisource.com  ', 'discovernutrisource.com')).toBe(true);
+    expect(isSameOrSubdomainHost(null, 'discovernutrisource.com')).toBe(false);
+    expect(isSameOrSubdomainHost('discovernutrisource.com', '')).toBe(false);
   });
 });
 

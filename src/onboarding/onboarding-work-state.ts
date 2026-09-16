@@ -898,6 +898,43 @@ export function matchesFilters(state: OnboardingWorkState, filters: WorkStateFil
   return true;
 }
 
+/**
+ * Fail-closed corrupt-projection fallback shared by the work-state
+ * projections (fallow audit #212: dedupes the needs_attention builders).
+ * Still produces a visible row — never silently drops. The summary path
+ * keeps its shorter detail string (exact output preserved per path).
+ */
+function corruptProjectionFallback(item: OnboardingItem, detail = 'Corrupt work-state data — operator attention required'): OnboardingWorkState {
+  return {
+    itemId: item.id,
+    category: 'needs_attention',
+    activity: null,
+    label: 'Projection error',
+    detail,
+    attentionReason: 'processing_failed',
+    attentionAction: 'retry_processing',
+    findingCode: null,
+    findingSummary: null,
+    conflictingValues: null,
+    suggestedAction: null,
+    findingDetails: null,
+    family: null,
+    reviewState: 'not_ready',
+    stage: item.stage as any,
+    stageStatus: item.stageStatus as any,
+    variantResolution: null,
+    upc: item.upc,
+    name: item.name,
+    brand: item.brandHint ?? null,
+    sourceType: item.sourceType as any,
+    domain: normalizeHost(item.sourceUrl),
+    curatedTitle: null,
+    imageUrl: null,
+    description: null,
+    weight: null,
+  };
+}
+
 function deriveAllStatesWithHealth(batchId: string, filters: WorkStateFilters): {
   counts: WorkStateCounts;
   filtered: OnboardingWorkState[];
@@ -930,34 +967,7 @@ function deriveAllStatesWithHealth(batchId: string, filters: WorkStateFilters): 
     } catch {
       corruptCount += 1;
       // Fail-closed: still produce a visible row, never silently drop
-      allStates.push({
-        itemId: item.id,
-        category: 'needs_attention',
-        activity: null,
-        label: 'Projection error',
-        detail: 'Corrupt work-state data — operator attention required',
-        attentionReason: 'processing_failed',
-        attentionAction: 'retry_processing',
-        findingCode: null,
-        findingSummary: null,
-        conflictingValues: null,
-        suggestedAction: null,
-        findingDetails: null,
-        family: null,
-        reviewState: 'not_ready',
-        stage: item.stage as any,
-        stageStatus: item.stageStatus as any,
-        variantResolution: null,
-        upc: item.upc,
-        name: item.name,
-        brand: item.brandHint ?? null,
-        sourceType: item.sourceType as any,
-        domain: normalizeHost(item.sourceUrl),
-        curatedTitle: null,
-        imageUrl: null,
-        description: null,
-        weight: null,
-      });
+      allStates.push(corruptProjectionFallback(item));
     }
   }
   const counts = initCounts();
@@ -1101,34 +1111,7 @@ export function getBatchWorkStateItems(batchId: string, filters: WorkStateFilter
           }
         } catch {
           healthIssues.push({ source: 'onboarding_items', code: 'corrupt_projection', affectedCount: 1 });
-          const fallback: OnboardingWorkState = {
-            itemId: item.id,
-            category: 'needs_attention',
-            activity: null,
-            label: 'Projection error',
-            detail: 'Corrupt work-state data — operator attention required',
-            attentionReason: 'processing_failed',
-            attentionAction: 'retry_processing',
-            findingCode: null,
-            findingSummary: null,
-            conflictingValues: null,
-            suggestedAction: null,
-            findingDetails: null,
-            family: null,
-            reviewState: 'not_ready',
-            stage: item.stage as any,
-            stageStatus: item.stageStatus as any,
-            variantResolution: null,
-            upc: item.upc,
-            name: item.name,
-            brand: item.brandHint ?? null,
-            sourceType: item.sourceType as any,
-            domain: normalizeHost(item.sourceUrl),
-            curatedTitle: null,
-            imageUrl: null,
-            description: null,
-            weight: null,
-          };
+          const fallback: OnboardingWorkState = corruptProjectionFallback(item);
           if (matchesFilters(fallback, filters)) {
             collected.push(fallback);
             lastCollectedCursor = { rowNumber: (item as any).rowNumber ?? 0, id: item.id };
@@ -1182,34 +1165,7 @@ export function getBatchWorkStateForItems(batchId: string, items: OnboardingItem
       byItem.set(item.id, state);
       counts[state.category] += 1;
     } catch {
-      byItem.set(item.id, {
-        itemId: item.id,
-        category: 'needs_attention',
-        activity: null,
-        label: 'Projection error',
-        detail: 'Corrupt work-state data',
-        attentionReason: 'processing_failed',
-        attentionAction: 'retry_processing',
-        findingCode: null,
-        findingSummary: null,
-        conflictingValues: null,
-        suggestedAction: null,
-        findingDetails: null,
-        family: null,
-        reviewState: 'not_ready',
-        stage: item.stage as any,
-        stageStatus: item.stageStatus as any,
-        variantResolution: null,
-        upc: item.upc,
-        name: item.name,
-        brand: item.brandHint ?? null,
-        sourceType: item.sourceType as any,
-        domain: normalizeHost(item.sourceUrl),
-        curatedTitle: null,
-        imageUrl: null,
-        description: null,
-        weight: null,
-      });
+      byItem.set(item.id, corruptProjectionFallback(item, 'Corrupt work-state data'));
       counts.needs_attention += 1;
     }
   }
@@ -1251,33 +1207,6 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   try {
     return deriveItemWorkState(item, ctx);
   } catch {
-    return {
-      itemId: item.id,
-      category: 'needs_attention',
-      activity: null,
-      label: 'Projection error',
-      detail: 'Corrupt work-state data — operator attention required',
-      attentionReason: 'processing_failed',
-      attentionAction: 'retry_processing',
-      findingCode: null,
-      findingSummary: null,
-      conflictingValues: null,
-      suggestedAction: null,
-      findingDetails: null,
-      family: null,
-      reviewState: 'not_ready',
-      stage: item.stage as any,
-      stageStatus: item.stageStatus as any,
-      variantResolution: null,
-      upc: item.upc,
-      name: item.name,
-      brand: item.brandHint ?? null,
-      sourceType: item.sourceType as any,
-      domain: normalizeHost(item.sourceUrl),
-      curatedTitle: null,
-      imageUrl: null,
-      description: null,
-      weight: null,
-    };
+    return corruptProjectionFallback(item);
   }
 }

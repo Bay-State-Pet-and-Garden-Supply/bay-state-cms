@@ -13,11 +13,14 @@ import {
   CLOSEOUT_208_DOMAINS,
   CLOSEOUT_NOTE_208,
   DOMAIN_LEDGER_208,
+  LEDGER_208_TOTAL_ITEMS,
+  LEDGER_208_TOTAL_LLM_TOKENS,
   LIVE_SNAPSHOT_208,
   SCOPE_RECONCILIATION_208,
   ledger208ByDomain,
   sweepEligibility208,
   verifyUntouched208,
+  type IneligibleCohort208,
   type SweepMechanism208,
 } from '../../onboarding/brand-hub/retry-sweep-closeout-208';
 
@@ -72,9 +75,18 @@ describe('issue #208 per-domain ledger (acceptance: mechanism, evidence, activat
   it('ticket-scoped items sum to 70 (5+5+7+53+0) with walled domains at zero', () => {
     const total = DOMAIN_LEDGER_208.reduce((n, r) => n + r.items, 0);
     expect(total).toBe(70);
+    // The ledger totals are consumed here so the closeout record — not a
+    // recomputation — is the single source for the headline counts.
+    expect(LEDGER_208_TOTAL_ITEMS).toBe(total);
     for (const d of ['bil-jac.com', 'northstatesind.com', 'yeowww.com', 'chickensouppets.com', 'multipet.com']) {
       expect(ledger208ByDomain(d)!.items).toBe(0);
     }
+  });
+
+  it('metered LLM spend is zero across the scale-up (every draft hand-authored)', () => {
+    const totalTokens = DOMAIN_LEDGER_208.reduce((n, r) => n + r.llmTokens, 0);
+    expect(totalTokens).toBe(0);
+    expect(LEDGER_208_TOTAL_LLM_TOKENS).toBe(totalTokens);
   });
 
   it('profile mechanisms satisfy the confirmation rule on evidence with no waivers', () => {
@@ -150,7 +162,11 @@ describe('issue #208 selected-retry sweep (acceptance: eligible retried, ineligi
       LIVE_SNAPSHOT_208.draftsCompleted;
     expect(accounted).toBe(LIVE_SNAPSHOT_208.totalItems);
     expect(LIVE_SNAPSHOT_208.totalItems).toBe(130);
-    for (const entry of LIVE_SNAPSHOT_208.ineligibleList) {
+    // Typed through the ineligible-cohort record so every cohort carries
+    // its refusal reason (acceptance: listed, not silently skipped).
+    const ineligible: readonly IneligibleCohort208[] = LIVE_SNAPSHOT_208.ineligibleList;
+    for (const entry of ineligible) {
+      expect(entry.cohort.length).toBeGreaterThan(0);
       expect(entry.reason.length).toBeGreaterThan(10);
       expect(entry.count).toBeGreaterThan(0);
     }

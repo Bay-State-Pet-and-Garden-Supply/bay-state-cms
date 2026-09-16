@@ -1,5 +1,5 @@
 import { getDb } from '../db/connection';
-import { findItemById } from '../db/repositories/onboarding-item-repo';
+import { findItemById, type OnboardingItemWithEntryPolicy } from '../db/repositories/onboarding-item-repo';
 import { encodeForStorage, readStorageVersion, stagePredicateParams } from '../db/repositories/onboarding-stage-vocabulary-repo';
 import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
 import {
@@ -134,6 +134,44 @@ function isHttpUrl(raw: string): boolean {
 }
 
 /**
+ * Item + workspace-ownership preamble shared by the manual-evidence
+ * mutations (fallow audit #212: dedupes the submit/withdraw guards).
+ * Returns the item on success, or the fail-closed rejection to return.
+ */
+function loadOwnedItem(
+  itemId: string,
+  workspaceId: string,
+):
+  | { item: OnboardingItemWithEntryPolicy }
+  | { rejection: { ok: false; code: ManualEvidenceRejectCode; reason: string } } {
+  const item = findItemById(itemId);
+  if (!item) {
+    return { rejection: { ok: false, code: 'item_not_found', reason: `Onboarding item ${itemId} not found.` } };
+  }
+  const db = getDb();
+  const batch = db
+    .query('SELECT workspace_id FROM onboarding_batches WHERE id = ?')
+    .get(item.batchId) as { workspace_id: string } | undefined;
+  if (!batch || batch.workspace_id !== workspaceId) {
+    return { rejection: { ok: false, code: 'workspace_mismatch', reason: 'Item belongs to a different workspace.' } };
+  }
+  return { item };
+}
+
+/**
+ * Trims a raw string list (bullet points, additional images) to its
+ * non-empty entries (fallow audit #212: dedupes the normalization
+ * chains). Array-shape and limit checks stay at the call sites because
+ * their rejection reasons differ per field.
+ */
+function trimNonEmptyStrings(entries: readonly unknown[]): string[] {
+  return entries
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+/**
  * Audited operator submission of manual evidence for one blocked item.
  * Fail-closed: every guard rejects with a stable code; nothing is written
  * until all guards pass, and all writes land in one transaction.
@@ -142,17 +180,10 @@ export function submitManualEvidence(
   input: SubmitManualEvidenceInput,
   deps: ManualEvidenceDeps = defaultDeps,
 ): SubmitManualEvidenceResult {
-  const item = findItemById(input.itemId);
-  if (!item) {
-    return { ok: false, code: 'item_not_found', reason: `Onboarding item ${input.itemId} not found.` };
-  }
+  const loaded = loadOwnedItem(input.itemId, input.workspaceId);
+  if ('rejection' in loaded) return loaded.rejection;
+  const item = loaded.item;
   const db = getDb();
-  const batch = db
-    .query('SELECT workspace_id FROM onboarding_batches WHERE id = ?')
-    .get(item.batchId) as { workspace_id: string } | undefined;
-  if (!batch || batch.workspace_id !== input.workspaceId) {
-    return { ok: false, code: 'workspace_mismatch', reason: 'Item belongs to a different workspace.' };
-  }
   // Slice 5b native: canonical stage guards (dual read — either stored spelling).
   let canonicalStage: string;
   try {
@@ -241,10 +272,7 @@ export function submitManualEvidence(
   if (!Array.isArray(rawBullets)) {
     return { ok: false, code: 'manual_field_invalid', reason: 'Manual bullet points must be an array of strings.' };
   }
-  const bulletPoints = rawBullets
-    .filter((entry): entry is string => typeof entry === 'string')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
+  const bulletPoints = trimNonEmptyStrings(rawBullets);
   if (bulletPoints.length > 10) {
     return { ok: false, code: 'manual_field_invalid', reason: 'Manual evidence allows at most 10 bullet points.' };
   }
@@ -269,10 +297,7 @@ export function submitManualEvidence(
   if (!Array.isArray(rawAdditional)) {
     return { ok: false, code: 'manual_field_invalid', reason: 'Manual additional images must be an array of URLs.' };
   }
-  const additionalImages = rawAdditional
-    .filter((entry): entry is string => typeof entry === 'string')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
+  const additionalImages = trimNonEmptyStrings(rawAdditional);
   if (additionalImages.length > 10) {
     return { ok: false, code: 'manual_field_invalid', reason: 'Manual evidence allows at most 10 additional images.' };
   }
@@ -478,17 +503,10 @@ export function hasActiveManualEvidence(itemId: string): boolean {
 export function withdrawManualEvidence(
   input: WithdrawManualEvidenceInput,
 ): WithdrawManualEvidenceResult {
-  const item = findItemById(input.itemId);
-  if (!item) {
-    return { ok: false, code: 'item_not_found', reason: `Onboarding item ${input.itemId} not found.` };
-  }
+  const loaded = loadOwnedItem(input.itemId, input.workspaceId);
+  if ('rejection' in loaded) return loaded.rejection;
+  const item = loaded.item;
   const db = getDb();
-  const batch = db
-    .query('SELECT workspace_id FROM onboarding_batches WHERE id = ?')
-    .get(item.batchId) as { workspace_id: string } | undefined;
-  if (!batch || batch.workspace_id !== input.workspaceId) {
-    return { ok: false, code: 'workspace_mismatch', reason: 'Item belongs to a different workspace.' };
-  }
   const latest = getLatestExtraction(input.itemId);
   if (!latest || latest.extraction_method !== MANUAL_EVIDENCE_METHOD) {
     return { ok: false, code: 'no_manual_evidence_to_withdraw', reason: 'No manual evidence exists for this item.' };
