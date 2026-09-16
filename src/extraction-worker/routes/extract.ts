@@ -24,7 +24,7 @@ import type { Element, AnyNode } from 'domhandler';
 import { runRenderedPage } from '../browser/rendered-page-runner';
 import { loadWorkerBrowserConfig } from '../browser/config';
 import { applyLadderEnrichment } from '../../onboarding/extraction-ladder/enrich';
-import { parseVariantMatrix, matchVariantMatrix } from '../../onboarding/variant-resolver';
+import { parseVariantMatrix, matchVariantMatrix, normalizeGtin } from '../../onboarding/variant-resolver';
 import { computeIdentityMatrixHash } from '../../shared/schemas/variant-resolution';
 import { getEffectiveVariantResolutionMode, getEffectiveVariantInteractionEnabled } from '../../onboarding/variant-flags';
 import { materializeSelectedVariant } from '../../onboarding/selected-variant-materializer';
@@ -46,6 +46,28 @@ import { extractDomainFromUrl, generateJobId, resolveArtifactDir, writeArtifact 
 
 // ─── Variant resolution gate (Issue #90 M4) ────────────────────────────────
 import type { VariantFailureCode } from '../../shared/schemas/extraction-worker';
+/**
+ * Issue #216: embedded multi-candidate matrices without GTIN identifiers must
+ * not prevent consulting the richer Shopify `.js` endpoint. The embedded
+ * matrix alone cannot support the existing normalized exact-GTIN resolution
+ * (variant-resolver.ts), so the endpoint is consulted as additional evidence
+ * selection — the matcher itself is reused unchanged.
+ */
+function embeddedLacksGtinForExpected(
+  matrix: ReturnType<typeof parseVariantMatrix>,
+  expectedUpc: string | null | undefined,
+): boolean {
+  if (!matrix || matrix.candidates.length <= 1) return false;
+  if (!expectedUpc) return false;
+  const norm = (() => {
+    try { return normalizeGtin(expectedUpc); } catch { return null; }
+  })();
+  if (!norm) return false;
+  for (const c of matrix.candidates) {
+    if (c.identifiers.some((i) => i.kind === 'gtin')) return false;
+  }
+  return true;
+}
 async function resolveVariantGate(
   html: string,
   finalUrl: string,
@@ -59,12 +81,21 @@ async function resolveVariantGate(
   selectedCandidate: import('../../shared/schemas/variant-resolution').NormalizedVariantCandidate | null;
   failureCode: VariantFailureCode | null;
   shopifyJsFetched: boolean;
+  matrixSource: 'embedded' | 'shopify_js' | null;
+  matrixSourceUrl: string | null;
 }> {
   const mode = getEffectiveVariantResolutionMode();
-  if (mode === 'off') return { matrix: null, decision: null, selectedCandidate: null, failureCode: null, shopifyJsFetched: false };
+  if (mode === 'off') return { matrix: null, decision: null, selectedCandidate: null, failureCode: null, shopifyJsFetched: false, matrixSource: null, matrixSourceUrl: null };
   let matrix = parseVariantMatrix(html, finalUrl);
   let shopifyJsFetched = false;
-  if (!matrix || matrix.candidates.length <= 1) {
+  let matrixSource: 'embedded' | 'shopify_js' | null = matrix ? 'embedded' : null;
+  let matrixSourceUrl: string | null = null;
+  // Issue #216: consult the richer `.js` endpoint not only when embedded
+  // candidates are <= 1, but also when a multi-candidate embedded matrix
+  // lacks GTIN identifiers while an expected UPC could resolve via the
+  // existing normalized exact-GTIN matcher. No second matcher.
+  const needsEndpointEvidence = !matrix || matrix.candidates.length <= 1 || embeddedLacksGtinForExpected(matrix, request.expected?.upc);
+  if (needsEndpointEvidence) {
     const isShopify = /\/cdn\/shop\//.test(html) || /Shopify\.theme/.test(html) || /shopify\.com/i.test(html) || /window\.Shopify/i.test(html);
     const isShopifyUrl = isShopify && finalUrl.includes('/products/');
     if (isShopifyUrl) {
@@ -81,6 +112,8 @@ async function resolveVariantGate(
               const jsMatrix = parseVariantMatrix(jsText, finalUrl);
               if (jsMatrix && jsMatrix.candidates.length > 1) {
                 matrix = jsMatrix;
+                matrixSource = 'shopify_js';
+                matrixSourceUrl = jsUrl;
                 warnings.push('Variant matrix from Shopify .js');
               }
             }
@@ -91,7 +124,7 @@ async function resolveVariantGate(
       }
     }
   }
-  if (!matrix || matrix.candidates.length <= 1) return { matrix, decision: null, selectedCandidate: null, failureCode: null, shopifyJsFetched };
+  if (!matrix || matrix.candidates.length <= 1) return { matrix, decision: null, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
   const expected = request.expected;
   const input = {
     gtin: expected?.upc ?? null,
@@ -108,39 +141,39 @@ async function resolveVariantGate(
     try { liveHash = computeIdentityMatrixHash(matrix); } catch { liveHash = null; }
     if (liveHash !== sel.identityMatrixHash) {
       const decision = { status: 'stale_selection' as const, selectedVariantKey: null, reasonCodes: ['stale_selection'], matchedBy: 'none' as const, diagnostics: [`stale hash ${sel.identityMatrixHash} != ${liveHash}`], rankedKeys: [] };
-      return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched };
+      return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
     const cand = matrix.candidates.find(c => c.variantKey === sel.variantKey);
     if (!cand) {
       const decision = { status: 'no_match' as const, selectedVariantKey: null, reasonCodes: ['stale_selection'], matchedBy: 'none' as const, diagnostics: ['variantKey not in current matrix'], rankedKeys: [] };
-      return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched };
+      return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
     const decision = { status: 'resolved' as const, selectedVariantKey: cand.variantKey, reasonCodes: ['operator_selected'], matchedBy: 'sku' as const, diagnostics: ['operator selection verified'], rankedKeys: [cand.variantKey] };
-    return { matrix, decision, selectedCandidate: cand, failureCode: null, shopifyJsFetched };
+    return { matrix, decision, selectedCandidate: cand, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
   }
   const decision = matchVariantMatrix(matrix, input as any);
   if (decision.status === 'resolved' && decision.selectedVariantKey) {
     const cand = matrix.candidates.find(c => c.variantKey === decision.selectedVariantKey) ?? null;
     if (mode === 'observe') {
       warnings.push(`Variant observe: would resolve ${decision.selectedVariantKey} (${decision.matchedBy})`);
-      return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched };
+      return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
-    return { matrix, decision, selectedCandidate: cand, failureCode: null, shopifyJsFetched };
+    return { matrix, decision, selectedCandidate: cand, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
   }
   if (decision.status === 'ambiguous' || decision.status === 'no_match' || decision.status === 'too_many_variants') {
     const code: VariantFailureCode = 'variant_selection_required';
     if (mode === 'observe') {
       warnings.push(`Variant observe: ${decision.status} would require selection`);
-      return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched };
+      return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
-    return { matrix, decision, selectedCandidate: null, failureCode: code, shopifyJsFetched };
+    return { matrix, decision, selectedCandidate: null, failureCode: code, shopifyJsFetched, matrixSource, matrixSourceUrl };
   }
   if (decision.status === 'unsupported' || decision.status === 'stale_selection') {
     const code: VariantFailureCode = decision.status === 'stale_selection' ? 'variant_selection_stale' : 'variant_matrix_invalid';
-    if (mode === 'observe') return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched };
-    return { matrix, decision, selectedCandidate: null, failureCode: code, shopifyJsFetched };
+    if (mode === 'observe') return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
+    return { matrix, decision, selectedCandidate: null, failureCode: code, shopifyJsFetched, matrixSource, matrixSourceUrl };
   }
-  return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched };
+  return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
 }
 
 // ─── HTTP constants (sourced from page-extractor.ts) ──────────────────────────
@@ -1121,6 +1154,17 @@ export async function doStaticExtract(
   }
   const retained = retainProfileSource(finalUrl, html);
   const fieldProvenanceDetails = buildFieldProvenanceDetails(provenance, origins);
+  // Issue #216: record the endpoint source through the EXISTING per-field
+  // carriers only (fieldProvenanceDetails + fieldProvenance/variantProvenance).
+  // No parallel provenance system, no identifier schema change — the matcher
+  // and identifier shapes are reused unchanged.
+  if ((variantGateResult as any)?.matrixSource === 'shopify_js' && (variantGateResult as any)?.matrixSourceUrl) {
+    const jsUrl = (variantGateResult as any).matrixSourceUrl as string;
+    fieldProvenanceDetails['variantMatrix'] = { method: 'shopify_js', sourcePath: jsUrl };
+    (data as any).fieldProvenance = { ...((data as any).fieldProvenance ?? {}), variantMatrix: 'shopify_js' };
+    const existingVp = (((data as any).variantProvenance ?? {}) as Record<string, string>);
+    (data as any).variantProvenance = { ...existingVp, matrixSource: 'shopify_js' };
+  }
   const extAny: any = { data, warnings, sourceContentHash: retained.sourceContentHash, sourceArtifactId: retained.sourceArtifactId, fieldProvenanceDetails };
   if (matrixDecisionForResponse) {
     const gate: any = variantGateResult;
