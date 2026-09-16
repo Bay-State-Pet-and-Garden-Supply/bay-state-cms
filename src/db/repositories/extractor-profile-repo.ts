@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 export interface ExtractorProfile {
   id: string;
+  version?: number;
   domain: string;
   titleSelector: string | null;
   titleOptionalSelectors: string[];

@@ -1293,6 +1293,7 @@ export const ExtractorProfileSchema = z.object({
   variantSelectionStrategy: z.record(z.string(), z.unknown()).nullable().default(null),
   customSelectorMetadata: z.record(z.string(), z.unknown()).default(() => ({})),
   runtime: z.enum(['static', 'rendered']).default('rendered'),
+  version: z.number().int().positive().optional(),
   profileType: z.enum(['brand', 'retailer']).optional().default('brand'),
   createdAt: z.string(),
   updatedAt: z.string(),

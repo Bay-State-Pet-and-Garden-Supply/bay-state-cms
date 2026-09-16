@@ -53,7 +53,7 @@ export function createDiscoveryFetch(officialDomains: string[]): (input: string 
   };
 }
 import { enrichUrlMetadata } from '../db/repositories/brand-url-index-repo';
-import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
+import { resolveExecutableProfile } from './domain-version-health';
 import { curateItemWithPipeline } from './product-curator';
 import { refreshCandidateCohorts } from './curation-cohort-service';
 import {
@@ -2046,9 +2046,10 @@ export class OnboardingWorker {
       } catch {
         // Keep the empty domain so the missing-profile failure below remains explicit.
       }
-      const profile = domain ? findProfileByDomain(domain) : null;
-      if (!profile) {
-        const errorMsg = `No extractor profile for ${domain} — profile required`;
+      try {
+        resolveExecutableProfile(domain);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         updateItemStageStatus(item.id, 'failed', errorMsg);
         onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
           stage: 'collect_details',

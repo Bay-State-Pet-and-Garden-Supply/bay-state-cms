@@ -1,5 +1,7 @@
 // story: e07s01 — transactional immutable versions (SQLite, not Maps)
 import { randomUUID } from 'node:crypto';
+import { ExtractorProfileSchema } from '../../shared/schemas/onboarding';
+import type { ExtractorProfile } from './extractor-profile-repo';
 
 // Lazy connection helpers — avoid top-level bun:sqlite import under vitest node env
 function getConnectionHelpers(): { getDb: () => any; isDbInitialized: () => boolean } | null {
@@ -34,6 +36,29 @@ export interface ProfileVersion {
   approver: string;
   reason: string;
   createdAt: string;
+}
+
+export function profileFromVersion(version: ProfileVersion): ExtractorProfile {
+  const selectors = version.selectors;
+  return {
+    ...ExtractorProfileSchema.parse({
+      ...selectors,
+      titleSelector: selectors.titleSelector ?? selectors.title_selector,
+      priceSelector: selectors.priceSelector ?? selectors.price_selector,
+      descriptionSelector: selectors.descriptionSelector ?? selectors.description_selector,
+      brandSelector: selectors.brandSelector ?? selectors.brand_selector,
+      imagesSelector: selectors.imagesSelector ?? selectors.images_selector ?? selectors.imageSelector ?? selectors.image_selector,
+      titleOptionalSelectors: selectors.titleOptionalSelectors ?? selectors.title_optional_selectors,
+      customSelectors: selectors.customSelectors ?? selectors.custom_selectors,
+      sitemapProductUrlPattern: selectors.sitemapProductUrlPattern ?? selectors.sitemap_product_url_pattern,
+      id: version.id,
+      domain: version.domain,
+      runtime: version.runtime,
+      createdAt: version.createdAt,
+      updatedAt: version.createdAt,
+      version: version.version,
+    }),
+  };
 }
 
 function normalizeDomain(domain: string): string {

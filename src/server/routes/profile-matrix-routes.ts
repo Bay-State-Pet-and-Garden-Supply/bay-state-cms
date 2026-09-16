@@ -1,6 +1,6 @@
 // story: e08 Test slice — durable production matrix routes
 import { Hono } from 'hono';
-import { getVersionById, listVersions, updateVersionEvidence } from '../../db/repositories/profile-version-repo';
+import { getVersionById, listVersions, updateVersionEvidence, profileFromVersion } from '../../db/repositories/profile-version-repo';
 import { getRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
 import { runMatrix, getMatrixResult } from '../../onboarding/profile-test-matrix';
 import { runProfileForUrl } from '../../onboarding/profile-runner-client';
@@ -26,25 +26,7 @@ profileMatrixRoutes.post('/domains/:domain/profile/test-matrix', async (c) => {
   if (samples.length === 0) return c.json({ error: 'no samples' }, 400);
   const runner = async (sample: { id: string; url: string; expectedTitle: string }) => {
     try {
-      const sel = (version.selectors ?? {}) as Record<string, any>;
-      const profile = {
-        id: version.id,
-        domain: version.domain,
-        titleSelector: sel.titleSelector ?? sel.title_selector ?? null,
-        priceSelector: sel.priceSelector ?? sel.price_selector ?? null,
-        descriptionSelector: sel.descriptionSelector ?? sel.description_selector ?? null,
-        brandSelector: sel.brandSelector ?? sel.brand_selector ?? null,
-        imagesSelector: sel.imagesSelector ?? sel.images_selector ?? sel.imageSelector ?? sel.image_selector ?? null,
-        sitemapProductUrlPattern: sel.sitemapProductUrlPattern ?? sel.sitemap_product_url_pattern ?? null,
-        customSelectors: sel.customSelectors ?? sel.custom_selectors ?? {},
-        titleOptionalSelectors: sel.titleOptionalSelectors ?? sel.title_optional_selectors ?? [],
-        variantSelectionStrategy: sel.variantSelectionStrategy ?? null,
-        runtime: (version.runtime as 'static' | 'rendered') ?? 'rendered',
-        shopifyJsonPath: sel.shopifyJsonPath ?? 0,
-        customSelectorMetadata: sel.customSelectorMetadata ?? {},
-        createdAt: version.createdAt,
-        updatedAt: version.createdAt,
-      } as unknown as import('../../db/repositories/extractor-profile-repo').ExtractorProfile;
+      const profile = profileFromVersion(version);
       const res = await runProfileForUrl({ sourceUrl: sample.url, profile, expected: { name: sample.expectedTitle } });
       if (!res.ok) return { extractedTitle: null, provenance: 'profile_runner_failed', artifactHash: 'no-hash', success: false, failureReason: res.error, extractedProduct: null };
       const data = res.data as any;

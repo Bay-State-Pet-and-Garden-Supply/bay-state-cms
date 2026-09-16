@@ -1,6 +1,7 @@
 // story: e07s04 — POST /api/domains/:domain/profile/activate (cluster-aware fail-closed, deterministic release)
 import { Hono } from 'hono';
-import { getVersionById, setActiveVersion, createVersion, listVersions } from '../../db/repositories/profile-version-repo';
+import { getVersionById, setActiveVersion, createVersion, listVersions, profileFromVersion } from '../../db/repositories/profile-version-repo';
+import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
 import { evaluateCandidateVersionHealth } from '../../onboarding/domain-version-health';
 import { getDb } from '../../db/connection';
 import { encodeForStorage, readStorageVersion } from '../../db/repositories/onboarding-stage-vocabulary-repo';
@@ -47,7 +48,11 @@ profileActivationRoutes.post('/domains/:domain/profile/activate', async (c) => {
   if (!verdict.healthy || !gate?.allowed) {
     return c.json({ allowed: false, blockReason: gate?.blockReason ?? verdict.reason, reviseAction: gate?.reviseAction ?? null, reason: gate?.reason ?? verdict.reason }, 409);
   }
-  setActiveVersion(domain, versionId);
+  const profile = profileFromVersion(version);
+  getDb().transaction(() => {
+    upsertProfile(domain, profile);
+    setActiveVersion(domain, versionId);
+  })();
   // deterministic release: parked setup_required_profile + profile-blocked failed items
   let released = 0;
   try {

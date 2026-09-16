@@ -30,7 +30,9 @@
  * Read-only: this module performs zero writes. Fail-closed: any evaluation
  * error yields unhealthy (`health_check_failed`).
  */
-import { getActiveVersion, getVersionById } from '../db/repositories/profile-version-repo';
+import { getActiveVersion, getVersionById, profileFromVersion } from '../db/repositories/profile-version-repo';
+import { findProfileByDomain, type ExtractorProfile } from '../db/repositories/extractor-profile-repo';
+import { isDeepStrictEqual } from 'node:util';
 import { hasValidWaiver } from '../db/repositories/waiver-repo';
 import { getRepresentativeSuite } from '../db/repositories/representative-suite-repo';
 import { getMatrixResult } from './profile-test-matrix';
@@ -134,6 +136,30 @@ export function evaluateCandidateVersionHealth(domain: string, versionId: string
  * one and must resolve to an existing version row. Anything else fails
  * closed — release refuses non-active versions.
  */
+function executableContent(profile: ExtractorProfile) {
+  return {
+    titleSelector: profile.titleSelector,
+    titleOptionalSelectors: profile.titleOptionalSelectors,
+    priceSelector: profile.priceSelector,
+    descriptionSelector: profile.descriptionSelector,
+    brandSelector: profile.brandSelector,
+    imagesSelector: profile.imagesSelector,
+    customSelectors: profile.customSelectors,
+    variantSelectionStrategy: profile.variantSelectionStrategy,
+    runtime: profile.runtime,
+  };
+}
+
+export function resolveExecutableProfile(domain: string): ExtractorProfile {
+  const verdict = evaluateActiveVersionHealth(domain);
+  if (!verdict.healthy || !verdict.versionId) {
+    throw new Error(`No extractor profile for ${domain} — profile required (${verdict.reason})`);
+  }
+  const version = getVersionById(verdict.versionId);
+  if (!version) throw new Error(`No extractor profile for ${domain} — profile required (no_active_version)`);
+  return profileFromVersion(version);
+}
+
 export function evaluateActiveVersionHealth(domain: string): DomainVersionHealth {
   const normalized = normalizeHealthDomain(domain);
   try {
@@ -141,7 +167,14 @@ export function evaluateActiveVersionHealth(domain: string): DomainVersionHealth
     if (!active) {
       return { domain: normalized, versionId: null, healthy: false, reason: 'no_active_version', gate: null };
     }
-    return evaluateDomainVersionHealth(normalized, active.id);
+    const verdict = evaluateDomainVersionHealth(normalized, active.id);
+    if (!verdict.healthy) return verdict;
+    const profile = profileFromVersion(active);
+    const legacy = findProfileByDomain(normalized);
+    if (legacy && !isDeepStrictEqual(executableContent(legacy), executableContent(profile))) {
+      return { domain: normalized, versionId: active.id, healthy: false, reason: 'executable_content_changed', gate: null };
+    }
+    return verdict;
   } catch (_e) {
     return { domain: normalized, versionId: null, healthy: false, reason: 'health_check_failed', gate: null };
   }

@@ -16,6 +16,8 @@ import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import {
   insertItems,
+  findItemById,
+  updateItemExtractionData,
   updateItemStageStatus,
 } from '../../db/repositories/onboarding-item-repo';
 import { createVersion, setActiveVersion, getActiveVersion } from '../../db/repositories/profile-version-repo';
@@ -26,8 +28,10 @@ import {
   evaluateCandidateVersionHealth,
   evaluateActiveVersionHealth,
   evaluateDomainVersionHealth,
+  resolveExecutableProfile,
 } from '../../onboarding/domain-version-health';
-import { getDomainReleaseHealth } from '../../onboarding/domain-release';
+import { getDomainReleaseHealth, releaseDomainExtractionItems } from '../../onboarding/domain-release';
+import { findProfileByDomain, upsertProfile } from '../../db/repositories/extractor-profile-repo';
 import { resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import app from '../../server/app';
 
@@ -109,6 +113,15 @@ describe('shared domain/version health evaluator (#214)', () => {
     expect(release).toEqual({ healthy: true, reason: null });
   });
 
+  it('a selector edit cannot inherit active-version health', async () => {
+    await makeDomainHealthy(DOMAIN);
+    const active = getActiveVersion(DOMAIN)!;
+    upsertProfile(DOMAIN, { titleSelector: '.edited-title' });
+
+    expect(evaluateCandidateVersionHealth(DOMAIN, active.id).healthy).toBe(true);
+    expect(getDomainReleaseHealth(DOMAIN)).toEqual({ healthy: false, reason: 'executable_content_changed' });
+  });
+
   it('activation and release agree on an unhealthy fixture (active version, no evidence)', () => {
     const bare = makeBareVersion(DOMAIN);
     setActiveVersion(DOMAIN, bare.id);
@@ -178,6 +191,7 @@ describe('shared domain/version health evaluator (#214)', () => {
     const healthy = getActiveVersion(DOMAIN)!;
     const bare = makeBareVersion(DOMAIN);
     setActiveVersion(DOMAIN, bare.id);
+    upsertProfile(DOMAIN, { titleSelector: '.unreviewed', customSelectors: { size: '.size' } });
 
     const res = await app.request(`/api/domains/${DOMAIN}/profile/activate`, {
       method: 'POST',
@@ -278,5 +292,103 @@ describe('shared domain/version health evaluator (#214)', () => {
     expect(candidate.healthy).toBe(false);
     expect(candidate.reason).toBe('artifact_mismatch');
     expect(release).toEqual({ healthy: false, reason: 'artifact_mismatch' });
+  });
+
+  it('a healthy active version resolves through the executable-profile resolver', async () => {
+    await makeDomainHealthy(DOMAIN);
+    const active = getActiveVersion(DOMAIN)!;
+    const resolved = resolveExecutableProfile(DOMAIN);
+    expect(resolved.id).toBe(active.id);
+    expect(resolved.domain).toBe(DOMAIN);
+    expect(resolved.titleSelector).toBe('h1');
+    expect(resolved.version).toBe(active.version);
+  });
+
+  it('a missing active version fails closed through the resolver', async () => {
+    expect(() => resolveExecutableProfile(DOMAIN)).toThrow(/no_active_version/);
+    expect(evaluateActiveVersionHealth(DOMAIN)).toMatchObject({ healthy: false, reason: 'no_active_version', versionId: null });
+  });
+
+  it('an edited active version is re-evaluated, then re-activates and resolves the new content', async () => {
+    await makeDomainHealthy(DOMAIN);
+    const v1 = getActiveVersion(DOMAIN)!;
+    upsertProfile(DOMAIN, { titleSelector: '.edited-title' });
+    expect(() => resolveExecutableProfile(DOMAIN)).toThrow(/executable_content_changed/);
+    expect(getDomainReleaseHealth(DOMAIN)).toEqual({ healthy: false, reason: 'executable_content_changed' });
+    expect(evaluateCandidateVersionHealth(DOMAIN, v1.id).healthy).toBe(true);
+
+    const evidenceUrls = Array.from({ length: 3 }, (_, i) => `https://${DOMAIN}/products/v2-${i + 1}`);
+    setRepresentativeSuite(DOMAIN, evidenceUrls, 'tester');
+    const v2 = createVersion({
+      domain: DOMAIN,
+      selectors: { titleSelector: '.edited-title' },
+      runtime: 'rendered',
+      sampleIds: evidenceUrls,
+      artifactHashes: evidenceUrls.map((_, i) => `${DOMAIN}-v2-hash-${i}`).sort(),
+      validationSummary: { imageRuleOk: true },
+      provenance: { provider: 'test', model: 'test', configId: 'test' },
+      approver: 'tester',
+      reason: 'selector edit re-activation',
+    });
+    await runMatrix({
+      domain: DOMAIN,
+      draftVersion: v2.id,
+      samples: evidenceUrls.map((u, i) => ({ id: u, url: u, expectedTitle: `Product ${i + 1}` })),
+      runner: async (sample) => ({
+        extractedTitle: `Product ${evidenceUrls.indexOf(sample.url) + 1}`,
+        provenance: 'css:.edited-title',
+        artifactHash: `${DOMAIN}-v2-hash-${evidenceUrls.indexOf(sample.url)}`,
+        success: true,
+      }),
+    });
+    setActiveVersion(DOMAIN, v2.id);
+
+    expect(getDomainReleaseHealth(DOMAIN)).toEqual({ healthy: true, reason: null });
+    const resolved = resolveExecutableProfile(DOMAIN);
+    expect(resolved.id).toBe(v2.id);
+    expect(resolved.titleSelector).toBe('.edited-title');
+  });
+
+  it('terminal items are untouched by an edit, re-activation, and a domain release sweep', async () => {
+    const batch = createBatch({ workspaceId: WS_MAIN, name: 'Terminal', fileName: 'terminal.csv', totalItems: 3 });
+    const terminalSpecs: Array<{ upc: string; stage: 'curation' | 'review'; status: 'completed' | 'skipped' }> = [
+      { upc: 'VH-TERM-1', stage: 'curation', status: 'completed' },
+      { upc: 'VH-TERM-2', stage: 'review', status: 'completed' },
+      { upc: 'VH-TERM-3', stage: 'review', status: 'skipped' },
+    ];
+    const [curated, reviewed, skipped] = insertItems(
+      batch.id,
+      terminalSpecs.map((s, i) => ({
+        upc: s.upc,
+        name: `Terminal ${i + 1}`,
+        rowNumber: i + 1,
+        stage: s.stage,
+        stageStatus: 'pending',
+        sourceUrl: `https://${DOMAIN}/products/${s.upc.toLowerCase()}`,
+      })),
+    );
+    for (const [item, spec] of [[curated, terminalSpecs[0]], [reviewed, terminalSpecs[1]], [skipped, terminalSpecs[2]]] as const) {
+      updateItemExtractionData(item.id, JSON.stringify({ title: 'T' }));
+      updateItemStageStatus(item.id, spec.status);
+    }
+    const before = new Map(
+      [curated, reviewed, skipped].map((item) => {
+        const row = findItemById(item.id)!;
+        return [item.id, { stage: row.stage, stageStatus: row.stageStatus, errorMessage: row.errorMessage }];
+      }),
+    );
+
+    await makeDomainHealthy(DOMAIN);
+    upsertProfile(DOMAIN, { titleSelector: '.edited-title' });
+    expect(getDomainReleaseHealth(DOMAIN)).toEqual({ healthy: false, reason: 'executable_content_changed' });
+    expect(releaseDomainExtractionItems(WS_MAIN, DOMAIN, { releaseAllBlocked: true }).releasedIds).toEqual([]);
+
+    const after = new Map(
+      [curated, reviewed, skipped].map((item) => {
+        const row = findItemById(item.id)!;
+        return [item.id, { stage: row.stage, stageStatus: row.stageStatus, errorMessage: row.errorMessage }];
+      }),
+    );
+    expect(after).toEqual(before);
   });
 });

@@ -723,7 +723,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100017', 'Blocked Item', 'extraction');
     failAsProfileBlocked(item.id, 'brand.example.com');
-    upsertProfile('brand.example.com', { titleSelector: 'h1.product-title' });
+    upsertProfile('brand.example.com', { titleSelector: 'h1' });
     // Profile row is newer than the failure (upsert ran after).
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
