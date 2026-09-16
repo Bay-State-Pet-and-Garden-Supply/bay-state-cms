@@ -242,6 +242,7 @@ import { fetchAndParseSitemap } from '../../onboarding/sitemap-fetcher';
 import { listAllSitemapCaches, insertSitemapCache } from '../../db/repositories/sitemap-cache-repo';
 import { HTTP_EXTRACTION_HEADERS } from '../../onboarding/page-extractor';
 import { promoteItems } from '../../onboarding/draft-promoter';
+import { getDomainReleaseHealth } from '../../onboarding/domain-release';
 import { listCandidateCohortViews } from '../../onboarding/curation-cohort-service';
 import { CohortListResponseSchema } from '../../shared/schemas/cohorts';
 import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state';
@@ -4871,7 +4872,11 @@ route.get('/onboarding/settings/profile-retry-preview/:domain', (c) => {
     }
   }
 
-  return c.json({ items });
+  // Issue #214: read-only health from the shared domain/version evaluator
+  // (active-version verdict, display only). The deliberate per-item retry
+  // below stays available without reviewed health per #198 — this field
+  // never gates.
+  return c.json({ items, health: getDomainReleaseHealth(normalizedDomain) });
 });
 
 /**

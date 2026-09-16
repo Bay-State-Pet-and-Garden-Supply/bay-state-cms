@@ -382,6 +382,9 @@ export default defineConfig({
       // Release-guard + selected-retry suite (issue #198) — real Hono app
       // + bun:sqlite; run under bun test via test:db.
       'src/tests/unit/domain-release-guard.test.ts',
+      // Shared domain/version health evaluator suite (issue #214) — real
+      // Hono app + bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/domain-version-health-evaluator.test.ts',
       // Slice 1 v2 stage-read suites — bun:test/bun:sqlite (one imports the
       // route layer + real Hono app); run under bun test via test:db.
       // The schema suite is pure (no DB) but its chain (./onboarding →

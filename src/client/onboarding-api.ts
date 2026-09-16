@@ -1317,9 +1317,14 @@ export async function validateProfileDraft(
   });
 }
 
+export interface ProfileRetryPreviewHealth {
+  healthy: boolean;
+  reason: string | null;
+}
+
 export async function getProfileRetryPreview(
   domain: string,
-): Promise<{ items: ProfileBlockedItem[] }> {
+): Promise<{ items: ProfileBlockedItem[]; health: ProfileRetryPreviewHealth | null }> {
   return request(`/settings/profile-retry-preview/${encodeURIComponent(domain)}`);
 }
 

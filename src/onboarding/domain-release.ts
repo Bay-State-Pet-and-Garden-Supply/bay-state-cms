@@ -43,13 +43,7 @@ import {
   requeueBlockedExtractionItem,
 } from '../db/repositories/onboarding-item-repo';
 import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
-import { getActiveVersion } from '../db/repositories/profile-version-repo';
-import { hasValidWaiver } from '../db/repositories/waiver-repo';
-import { getRepresentativeSuite } from '../db/repositories/representative-suite-repo';
-import { getMatrixResult } from './profile-test-matrix';
-import { evaluateGate } from './profile-activation-gate';
-import { templateAwarePrefix } from './template-clustering';
-import { getSuiteSuggestion } from './suite-suggestion-service';
+import { evaluateActiveVersionHealth } from './domain-version-health';
 import { onboardingEvents } from './sse-emitter';
 
 /** Error signature written by `processExtraction` when a profile is missing. */
@@ -85,13 +79,6 @@ export interface DomainReleaseHealth {
   reason: string | null;
 }
 
-/** Confirmed representative sample URLs via the suite repository (fail-closed to empty). */
-function serverSampleIds(domain: string): string[] {
-  try {
-    return getRepresentativeSuite(domain);
-  } catch { return []; }
-}
-
 /**
  * Reviewed-health gate for the release path (issue #198).
  *
@@ -103,54 +90,25 @@ function serverSampleIds(domain: string): string[] {
  * however they were written (builder save, domain-config save, promoter
  * approval, rollback) — never constitute health.
  *
+ * Issue #214: the gate inputs are assembled exactly once, in the shared
+ * `evaluateActiveVersionHealth` evaluator (same definition the activation
+ * route evaluates candidates against). This function keeps only the
+ * release-specific footprint nuance (`no_usable_profile` when the domain
+ * has no profile footprint at all).
+ *
  * Fail-closed: any evaluation error yields unhealthy.
  */
 export function getDomainReleaseHealth(domain: string): DomainReleaseHealth {
   const normalized = normalizeReleaseDomain(domain);
   try {
-    const legacyProfile = findProfileByDomain(normalized);
-    const active = getActiveVersion(normalized);
-    if (!active) {
+    const verdict = evaluateActiveVersionHealth(normalized);
+    if (!verdict.healthy && verdict.reason === 'no_active_version') {
       // Preserve the long-standing reason when the domain has no profile
       // footprint at all; otherwise report the precise health gap.
-      return { healthy: false, reason: legacyProfile ? 'no_active_version' : 'no_usable_profile' };
+      const legacyProfile = findProfileByDomain(normalized);
+      if (!legacyProfile) return { healthy: false, reason: 'no_usable_profile' };
     }
-    const matrix = getMatrixResult(normalized, active.id);
-    const sampleUrls = serverSampleIds(normalized);
-    const clusterIds: string[] = (() => {
-      try {
-        const confirmedPrefixes = new Set(sampleUrls.map(u => templateAwarePrefix(u)));
-        // NOTE (#212 audit): cluster-assembly mirrors profile-activation-routes until #214 lands the shared
-        // domain/version health evaluator; do not consolidate here. Baselines in .fallow-baselines/dupes.json.
-        const suggestion = getSuiteSuggestion(normalized);
-        const matched = suggestion.clusters.map(cl => cl.prefix).filter(p => confirmedPrefixes.has(p));
-        if (matched.length > 0) return matched;
-        return Array.from(confirmedPrefixes);
-      } catch (_e) {
-        return Array.from(new Set(sampleUrls.map(u => templateAwarePrefix(u))));
-      }
-    })();
-    const requiredResults = matrix
-      ? matrix.rows.flatMap(r => r.cells.map(cell => ({ field: cell.field, success: cell.success, provenance: cell.provenance, artifactHash: cell.artifactHash, expected: cell.expected, extracted: cell.extracted })))
-      : [];
-    const wrongProduct = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_product'))) : false;
-    const wrongVariant = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_variant'))) : false;
-    const gate = evaluateGate({
-      requiredResults: requiredResults as any,
-      wrongProduct,
-      wrongVariant,
-      waiver: hasValidWaiver(normalized),
-      confirmedCount: sampleUrls.length,
-      imageRuleOk: (active.validationSummary as any)?.imageRuleOk as boolean | undefined,
-      matrixResult: matrix,
-      expectedArtifactHashes: active.artifactHashes,
-      sampleIds: serverSampleIds(normalized),
-      clusterIds,
-    } as any);
-    if (!gate.allowed) {
-      return { healthy: false, reason: gate.blockReason ?? gate.reason ?? 'activation_gate_failed' };
-    }
-    return { healthy: true, reason: null };
+    return { healthy: verdict.healthy, reason: verdict.reason };
   } catch (_e) {
     return { healthy: false, reason: 'health_check_failed' };
   }
