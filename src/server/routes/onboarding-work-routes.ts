@@ -697,7 +697,8 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
 
   const result = releaseDomainExtractionItems(workspace.id, domain, { releaseAllBlocked: true });
   if (!result.profileAvailable) {
-    return c.json({ error: `No usable extractor profile for "${domain}"` }, 400);
+    const suffix = result.healthReason ? ` (${result.healthReason})` : '';
+    return c.json({ error: `No usable extractor profile for "${domain}"${suffix}`, healthReason: result.healthReason ?? null }, 400);
   }
 
   const releasedIds = result.releasedIds;

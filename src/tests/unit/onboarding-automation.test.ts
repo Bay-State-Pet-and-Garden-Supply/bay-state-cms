@@ -48,6 +48,8 @@ import {
   updateItemCurationData,
 } from '../../db/repositories/onboarding-item-repo';
 import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
+import { resetTestMatrixForTest } from '../../onboarding/profile-test-matrix';
+import { makeDomainHealthy } from './helpers/domain-health-fixture';
 import { overrideCohortCurationFlags, resetCohortCurationFlagsOverride } from '../../classification/flags';
 import { resetSourcingFlagsOverride } from '../../onboarding/flags';
 import { OnboardingWorker } from '../../onboarding/job-queue';
@@ -104,6 +106,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
   afterEach(() => {
     resetSourcingFlagsOverride();
     resetCohortCurationFlagsOverride();
+    try { resetTestMatrixForTest(); } catch { /* best-effort */ }
     closeDb();
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -716,7 +719,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(res.skipped[0]?.reason).toBe('no_usable_profile');
   });
 
-  test('usable profile newer than the failure releases the profile-blocked item', () => {
+  test('usable profile newer than the failure releases the profile-blocked item', async () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100017', 'Blocked Item', 'extraction');
     failAsProfileBlocked(item.id, 'brand.example.com');
@@ -725,6 +728,9 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand.example.com');
+    // Issue #198: the legacy row alone never releases — reviewed health is
+    // what makes the profile usable.
+    await makeDomainHealthy('brand.example.com');
 
     const res = releaseDomainExtractionItems(workspaceId, 'brand.example.com');
 
@@ -737,13 +743,14 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(after.errorMessage).toBeNull();
   });
 
-  test('a usable profile releases a blocked item regardless of profile age (no recency guard)', () => {
+  test('a usable profile releases a blocked item regardless of profile age (no recency guard)', async () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100018', 'Blocked Item', 'extraction');
     // Profile exists BEFORE the failure — under the old recency guard this
     // never released; now a usable profile NOW is the only condition.
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
     failAsProfileBlocked(item.id, 'brand.example.com');
+    await makeDomainHealthy('brand.example.com');
 
     const res = releaseDomainExtractionItems(workspaceId, 'brand.example.com');
 
@@ -754,13 +761,14 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(after.stageStatus).toBe('pending');
   });
 
-  test('retry-exhausted blocked items are never auto-released', () => {
+  test('retry-exhausted blocked items are never auto-released', async () => {
     const batch = makeBatch();
     const exhausted = makeItem(batch.id, '100018b', 'Exhausted Item', 'extraction');
     failAsProfileBlocked(exhausted.id, 'brand.example.com');
     const db = getDb();
     db.query(`UPDATE onboarding_items SET retry_count = 2 WHERE id = ?`).run(exhausted.id);
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
+    await makeDomainHealthy('brand.example.com');
 
     const res = releaseDomainExtractionItems(workspaceId, 'brand.example.com');
 
@@ -774,7 +782,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(res2.releasedIds).toEqual([retryable.id]);
   });
 
-  test('other domains and non-profile failures are untouched by default', () => {
+  test('other domains and non-profile failures are untouched by default', async () => {
     const batch = makeBatch();
     const other = makeItem(batch.id, '100019', 'Other Domain', 'extraction');
     failAsProfileBlocked(other.id, 'other.example.com');
@@ -782,6 +790,8 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     failAsScrapeError(scrape.id, 'brand.example.com');
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
     upsertProfile('other.example.com', { titleSelector: 'h1' });
+    await makeDomainHealthy('brand.example.com');
+    await makeDomainHealthy('other.example.com');
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain IN ('brand.example.com', 'other.example.com')`)
       .run(new Date(Date.now() + 1000).toISOString());
@@ -823,11 +833,12 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(findItemById(item.id)!.stageStatus).toBe('failed');
   });
 
-  test('domain release is idempotent', () => {
+  test('domain release is idempotent', async () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100022', 'Blocked Item', 'extraction');
     failAsProfileBlocked(item.id, 'brand.example.com');
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
+    await makeDomainHealthy('brand.example.com');
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand.example.com');
@@ -839,11 +850,12 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(second.releasedIds).toEqual([]);
   });
 
-  test('domain release emits an SSE item:status event', () => {
+  test('domain release emits an SSE item:status event', async () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100023', 'Blocked Item', 'extraction');
     failAsProfileBlocked(item.id, 'brand.example.com');
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
+    await makeDomainHealthy('brand.example.com');
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand.example.com');
@@ -859,14 +871,17 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(releaseEvent!.data.domain).toBe('brand.example.com');
   });
 
-  test('sweepDomainReleases releases only domains that now have a usable profile', () => {
+  test('sweepDomainReleases releases only domains that now have a usable profile', async () => {
     const batch = makeBatch();
     const a = makeItem(batch.id, '100024', 'Brand A Item', 'extraction');
     failAsProfileBlocked(a.id, 'brand-a.example.com');
     const b = makeItem(batch.id, '100025', 'Brand B Item', 'extraction');
     failAsProfileBlocked(b.id, 'brand-b.example.com');
-    // Only brand-a gets a profile.
+    // Only brand-a becomes reviewed-healthy (brand-b keeps a legacy-only
+    // row, which must not release).
     upsertProfile('brand-a.example.com', { titleSelector: 'h1' });
+    upsertProfile('brand-b.example.com', { titleSelector: 'h1' });
+    await makeDomainHealthy('brand-a.example.com');
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand-a.example.com');
@@ -917,7 +932,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(afterSecond.stageStatus).toBe('pending');
   });
 
-  test('worker poll sweep releases blocked extraction items once a profile exists', async () => {
+  test('worker poll sweep releases blocked extraction items once a profile is healthy', async () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100028', 'Blocked Item', 'extraction');
     failAsProfileBlocked(item.id, 'brand.example.com');
@@ -927,11 +942,16 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     await settle(worker);
     expect(findItemById(item.id)!.stageStatus).toBe('failed');
 
-    // Profile becomes usable AFTER the failure.
+    // A legacy profile save alone still releases nothing (issue #198).
     upsertProfile('brand.example.com', { titleSelector: 'h1' });
     const db = getDb();
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand.example.com');
+    await settle(worker);
+    expect(findItemById(item.id)!.stageStatus).toBe('failed');
+
+    // Reviewed health established AFTER the failure.
+    await makeDomainHealthy('brand.example.com');
 
     // Poll 2: the domain-release sweep re-queues it to extraction/pending.
     await settle(worker);

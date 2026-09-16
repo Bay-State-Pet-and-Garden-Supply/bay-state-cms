@@ -69,7 +69,7 @@ import {
 } from '../onboarding-stage-api';
 import { isStageV1String, parseV2StageInput, V1_TO_V2 } from '../../shared/onboarding-stage-vocabulary';
 import { ResolveSourcingRequestSchema, FallbackSourcingItemsRequestSchema, MediaSelectionRequestSchema } from '../../shared/schemas/onboarding';
-import { readStorageVersion, encodeForStorage } from '../../db/repositories/onboarding-stage-vocabulary-repo';
+import { readStorageVersion, encodeForStorage, toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 
 /**
  * Slice 5b native: canonical equality for hydrated (either-spelling) stages.
@@ -4897,16 +4897,25 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
     return c.json({ error: 'itemIds array is required' }, 400);
   }
 
+  // Issue #198: selected retry is a deliberate per-item operator action, so
+  // it stays available without reviewed health — but ONLY for items in
+  // failed extraction owned by the requesting workspace. Every check runs
+  // BEFORE any write so an ineligible item refuses the whole batch with
+  // zero partial mutation.
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
   for (const itemId of itemIds) {
     const item = findItemById(itemId);
     if (!item) {
       return c.json({ error: `Item ${itemId} not found` }, 404);
     }
-    const itemDomain = item.sourceUrl
-      ? new URL(item.sourceUrl).hostname.replace(/^www\./, '')
-      : item.brandHint || '';
-    if (itemDomain !== normalizedDomain) {
-      return c.json({ error: `Item ${itemId} does not belong to domain ${domain}` }, 400);
+    // Workspace ownership via the owning batch (fail closed: a batch in
+    // another workspace — or a missing batch — reads as not found here).
+    const batch = findBatchById(item.batchId);
+    if (!batch || batch.workspaceId !== workspace.id) {
+      return c.json({ error: `Item ${itemId} not found` }, 404);
     }
   }
 
@@ -4915,7 +4924,9 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
   // strand its extraction row + active attestation and silently clobber
   // operator work, so refuse the whole batch with zero writes and direct
   // the operator to withdraw first; the withdrawn (failed) item is
-  // retryable again per item.
+  // retryable again per item. This prescan keeps precedence over the
+  // eligibility checks below so a manual-completed item still reports the
+  // withdraw-first code (not a generic ineligible-status).
   const activeManualIds = itemIds.filter((itemId) => hasActiveManualEvidence(itemId));
   if (activeManualIds.length > 0) {
     return c.json(
@@ -4928,6 +4939,48 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
       },
       409,
     );
+  }
+
+  for (const itemId of itemIds) {
+    // Existence + workspace already verified above; re-read for the checks.
+    const item = findItemById(itemId)!;
+    // Eligibility: failed extraction only.
+    const canonicalStage: string | null = (() => {
+      try {
+        return toCanonicalStored(item.stage);
+      } catch {
+        return null;
+      }
+    })();
+    if (canonicalStage !== 'collect_details') {
+      return c.json({
+        error: {
+          code: 'retry_ineligible_stage',
+          message: `Item ${itemId} is not in extraction (stage=${item.stage}); only failed extraction items can be retried`,
+          itemId,
+        },
+      }, 400);
+    }
+    if (item.stageStatus !== 'failed') {
+      return c.json({
+        error: {
+          code: 'retry_ineligible_status',
+          message: `Item ${itemId} is not failed (status=${item.stageStatus}); only failed extraction items can be retried`,
+          itemId,
+        },
+      }, 400);
+    }
+    let itemDomain: string;
+    try {
+      itemDomain = item.sourceUrl
+        ? new URL(item.sourceUrl).hostname.replace(/^www\./, '').toLowerCase()
+        : (item.brandHint || '');
+    } catch {
+      itemDomain = item.brandHint || '';
+    }
+    if (itemDomain !== normalizedDomain) {
+      return c.json({ error: `Item ${itemId} does not belong to domain ${domain}` }, 400);
+    }
   }
 
   let accepted = 0;

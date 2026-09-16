@@ -39,6 +39,7 @@ import {
   buildBatchWorkStateContext,
 } from '../../onboarding/onboarding-work-state';
 import { releaseDomainExtractionItems } from '../../onboarding/domain-release';
+import { makeDomainHealthy } from './helpers/domain-health-fixture';
 import onboardingWorkRoutes, { setWorkerPollTriggerForTest } from '../../server/routes/onboarding-work-routes';
 import { getWorker, resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import { onboardingEvents } from '../../onboarding/sse-emitter';
@@ -93,6 +94,7 @@ function makeApp(): Hono {
   app.route('/api', onboardingWorkRoutes);
   return app;
 }
+
 
 function makeBatch(name = 'Approval Batch'): string {
   const batch = createBatch({
@@ -338,12 +340,14 @@ describe('domain-level extraction release (epic #46 Phase 4/8)', () => {
 
     // Seed a usable profile for example.com AFTER the failures (recency is no
     // longer required — availability alone releases; the comment documents the
-    // relaxed semantics).
+    // relaxed semantics). Issue #198: the legacy row alone never releases —
+    // reviewed health is what makes the profile usable.
     const profileUpdatedAt = new Date(Date.now() + 60_000).toISOString();
     getDb().query(
       `INSERT INTO extractor_profiles (id, domain, title_selector, created_at, updated_at)
        VALUES (?, ?, 'h1', ?, ?)`,
     ).run(randomUUID(), 'example.com', profileUpdatedAt, profileUpdatedAt);
+    await makeDomainHealthy('example.com');
 
     const app = makeApp();
     const res = await app.request('/api/onboarding/domains/example.com/release', { method: 'POST' });
@@ -379,7 +383,7 @@ describe('domain-level extraction release (epic #46 Phase 4/8)', () => {
     expect(findItemById(noProfileItem)!.stageStatus).toBe('failed');
   });
 
-  it('canonical release never releases distributor-source items', () => {
+  it('canonical release never releases distributor-source items', async () => {
     const batchId = makeBatch();
     const official = createItem(batchId, {
       upc: 'D6', name: 'X', stage: 'extraction', stageStatus: 'failed',
@@ -391,11 +395,13 @@ describe('domain-level extraction release (epic #46 Phase 4/8)', () => {
       sourceType: 'distributor_record',
     });
     // Profile exists — availability alone releases (no recency guard).
+    // Issue #198: reviewed health is additionally required.
     const profileUpdatedAt = new Date(Date.now() + 60_000).toISOString();
     getDb().query(
       `INSERT INTO extractor_profiles (id, domain, title_selector, created_at, updated_at)
        VALUES (?, ?, 'h1', ?, ?)`,
     ).run(randomUUID(), 'canonical.example.com', profileUpdatedAt, profileUpdatedAt);
+    await makeDomainHealthy('canonical.example.com');
 
     const result = releaseDomainExtractionItems(workspaceId, 'canonical.example.com', { releaseAllBlocked: true });
     expect(result.profileAvailable).toBe(true);
