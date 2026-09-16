@@ -40,6 +40,8 @@ export default defineConfig({
       'src/tests/unit/brand-strategy-select-source-guard.test.ts',
       // Strategy setup-attention worker test — bun:sqlite, run under bun test (test:db)
       'src/tests/unit/brand-strategy-setup-attention.test.ts',
+      // Issue #199 brand resolutions — bun:sqlite via the approval repo; run under bun test (test:db)
+      'src/tests/unit/brand-strategies-199.test.ts',
       // M7 scraper acceptance — bun:sqlite/bun:test, run under bun test (test:db)
       'src/tests/unit/distributor-scrapers-acceptance.test.ts',
       // M6 live-smoke DB suite — uses bun:sqlite, run under bun test instead of vitest
