@@ -745,7 +745,6 @@ export interface DomainConfigPayload {
   }>;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function saveDomainConfig(
   domain: string,
   data: DomainConfigPayload,
@@ -759,7 +758,6 @@ export async function saveDomainConfig(
   ).then((r) => r.domain);
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function getDomainDiagnostics(): Promise<DomainDiagnosticsResponse> {
   return request<DomainDiagnosticsResponse>('/settings/domain-diagnostics');
 }
@@ -896,7 +894,6 @@ export async function getClassificationReadiness(): Promise<{
   }>('/readiness');
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function saveClassificationConfig(config: any): Promise<{ success: boolean; config: any }> {
   return classificationRequest<{ success: boolean; config: any }>('/config', {
     method: 'PUT',
@@ -1081,7 +1078,6 @@ export async function getDomainProfileGovernance(
 }
 
 /** Fetch the latest open (non-rejected, non-failed) proposal for a domain. */
-// fallow-ignore-next-line unused-export — used by tests
 export async function getLatestProposalForDomain(
   domain: string,
 ): Promise<ProfileGenerationGeneration | null> {
@@ -1231,7 +1227,6 @@ export interface RejectRevisionFieldsResponse {
   decisionIds: string[];
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function rejectRevisionFields(
   generationId: string,
   revisionId: string,

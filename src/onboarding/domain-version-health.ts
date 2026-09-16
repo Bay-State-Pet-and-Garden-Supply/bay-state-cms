@@ -39,7 +39,7 @@ import { templateAwarePrefix } from './template-clustering';
 import { getSuiteSuggestion } from './suite-suggestion-service';
 
 /** Normalize a domain for comparison (lowercase, trim, strip leading `www.`). */
-export function normalizeHealthDomain(domain: string): string {
+function normalizeHealthDomain(domain: string): string {
   return domain.toLowerCase().replace(/^www\./, '').trim();
 }
 

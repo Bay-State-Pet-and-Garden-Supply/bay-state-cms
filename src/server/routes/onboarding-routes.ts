@@ -321,6 +321,33 @@ function requireWorkspaceBatch(
   return { workspace };
 }
 
+/**
+ * Shared pause/resume transition for batch execution endpoints: guard +
+ * state update + progress event + envelope. The resume path additionally
+ * retriggers the worker poll loop via `onTransition`.
+ */
+function transitionBatchExecution(
+  c: Context,
+  batchId: string,
+  state: 'paused' | 'running',
+  onTransition?: (workspace: NonNullable<ReturnType<typeof findWorkspace>>) => void,
+) {
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
+
+  updateBatchExecutionState(batchId, state);
+  onTransition?.(workspace);
+
+  onboardingEvents.emit({
+    type: 'batch:progress',
+    batchId,
+    data: { executionState: state },
+  });
+
+  return c.json({ success: true, executionState: state });
+}
+
 const route = new Hono();
 
 /**
@@ -825,20 +852,7 @@ route.post('/onboarding/batches/:id/start', async (c) => {
  * Pauses batch execution.
  */
 route.post('/onboarding/batches/:id/pause', async (c) => {
-  const batchId = c.req.param('id');
-  const scoped = requireWorkspaceBatch(c, batchId);
-  if ('error' in scoped) return scoped.error;
-  const { workspace } = scoped;
-
-  updateBatchExecutionState(batchId, 'paused');
-
-  onboardingEvents.emit({
-    type: 'batch:progress',
-    batchId,
-    data: { executionState: 'paused' },
-  });
-
-  return c.json({ success: true, executionState: 'paused' });
+  return transitionBatchExecution(c, c.req.param('id'), 'paused');
 });
 
 /**
@@ -846,27 +860,14 @@ route.post('/onboarding/batches/:id/pause', async (c) => {
  * Resumes paused batch execution.
  */
 route.post('/onboarding/batches/:id/resume', async (c) => {
-  const batchId = c.req.param('id');
-  const scoped = requireWorkspaceBatch(c, batchId);
-  if ('error' in scoped) return scoped.error;
-  const { workspace } = scoped;
-
-  updateBatchExecutionState(batchId, 'running');
-
-  // Trigger worker poll loop
-  try {
-    getWorker(workspace.id, workspace.workspacePath).poll();
-  } catch (err) {
-    console.error('[OnboardingRoutes] Worker poll trigger failed on batch resume:', err);
-  }
-
-  onboardingEvents.emit({
-    type: 'batch:progress',
-    batchId,
-    data: { executionState: 'running' },
+  return transitionBatchExecution(c, c.req.param('id'), 'running', (workspace) => {
+    // Trigger worker poll loop
+    try {
+      getWorker(workspace.id, workspace.workspacePath).poll();
+    } catch (err) {
+      console.error('[OnboardingRoutes] Worker poll trigger failed on batch resume:', err);
+    }
   });
-
-  return c.json({ success: true, executionState: 'running' });
 });
 
 /**
