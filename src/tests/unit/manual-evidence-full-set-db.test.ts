@@ -13,10 +13,6 @@ import {
   getActiveManualEvidenceAttestationForItem,
 } from '../../db/repositories/onboarding-manual-evidence-repo';
 import {
-  overrideManualEvidenceFlags,
-  resetManualEvidenceFlagsOverride,
-} from '../../onboarding/flags';
-import {
   submitManualEvidence,
 } from '../../onboarding/manual-evidence-service';
 import { buildManualEvidenceEntries } from '../../classification/stages/evidence-extraction';
@@ -95,11 +91,9 @@ beforeAll(() => {
   initDb(TEST_DB);
   runMigrations();
   seedBatch();
-  overrideManualEvidenceFlags({ enabled: true });
 });
 
 afterAll(() => {
-  resetManualEvidenceFlagsOverride();
   closeDb();
   for (const suffix of ['', '-wal', '-shm', '-journal']) {
     try {

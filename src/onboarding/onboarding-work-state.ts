@@ -19,7 +19,6 @@
  * Milestone 3 (P1-E): Bounded read model — all DB access via bulk repositories,
  * cursor pagination, projection health, fail-closed on corrupt data.
  */
-import { getManualEvidenceFlags } from './flags';
 import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { listCohortsByBatch, getCohortMembersForCohorts } from '../db/repositories/curation-cohort-repo';
@@ -610,19 +609,6 @@ function build(
 // ─── The mapping table ─────────────────────────────────────────────────────────
 
 /**
- * Parent #101 (manual-evidence route): flag-gated availability with a
- * fail-closed read — any flag-read failure disables the route so the
- * extractor-profile-required projection stays byte-identical.
- */
-function isManualEvidenceRouteAvailable(): boolean {
-  try {
-    return getManualEvidenceFlags().enabled === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Derive the operator work state for ONE item. Pure given the batch context;
  * the mapping follows the epic #46 test plan.
  */
@@ -798,19 +784,13 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       if (item.stageStatus === 'failed') {
         if (isProfileFailure) {
           // Parent #101 (manual-evidence route): profile-blocked items are
-          // eligible for operator manual evidence while the flag is ON.
-          // The projection helper below reads the flag fail-closed (any
-          // read failure keeps today's extractor-profile-required
-          // projection byte-identical).
-          if (isManualEvidenceRouteAvailable()) {
-            return attention(
-              'manual_evidence_available',
-              'enter_manual_evidence',
-              'Manual evidence available',
-              'No per-product page exists for this brand family — enter product facts manually (per-SKU attestation required). Family page is reference only.',
-            );
-          }
-          return attention('extractor_profile_required', 'setup_extractor_profile', 'Extractor profile required');
+          // always eligible for operator manual evidence (no toggle).
+          return attention(
+            'manual_evidence_available',
+            'enter_manual_evidence',
+            'Manual evidence available',
+            'No per-product page exists for this brand family — enter product facts manually (per-SKU attestation required). Family page is reference only.',
+          );
         }
         if (isNoUrlFailure) {
           return attention('no_official_url', 'choose_official_url', 'Official product page needed');

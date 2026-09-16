@@ -1,5 +1,4 @@
 import { getDb } from '../db/connection';
-import { getManualEvidenceFlags } from './flags';
 import { findItemById } from '../db/repositories/onboarding-item-repo';
 import { encodeForStorage, readStorageVersion, stagePredicateParams } from '../db/repositories/onboarding-stage-vocabulary-repo';
 import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
@@ -34,9 +33,8 @@ import { MANUAL_EVIDENCE_ACTIVE_RETRY_CODE, MANUAL_EVIDENCE_METHOD } from './man
 
 export { MANUAL_EVIDENCE_ACTIVE_RETRY_CODE };
 
-/** Stable fail-closed reject codes for the manual-evidence transition. */
+/** Stable reject codes for the manual-evidence transition. */
 export type ManualEvidenceRejectCode =
-  | 'manual_evidence_disabled'
   | 'item_not_found'
   | 'workspace_mismatch'
   | 'sourcing_curation_bypass_rejected'
@@ -144,9 +142,6 @@ export function submitManualEvidence(
   input: SubmitManualEvidenceInput,
   deps: ManualEvidenceDeps = defaultDeps,
 ): SubmitManualEvidenceResult {
-  if (!getManualEvidenceFlags().enabled) {
-    return { ok: false, code: 'manual_evidence_disabled', reason: 'The manual-evidence route is disabled.' };
-  }
   const item = findItemById(input.itemId);
   if (!item) {
     return { ok: false, code: 'item_not_found', reason: `Onboarding item ${input.itemId} not found.` };

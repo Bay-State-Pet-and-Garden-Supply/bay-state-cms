@@ -679,6 +679,10 @@ _Avoid_: Generic fallback extraction, best-effort scraping
 An Onboarding Item stopped in Extraction because no healthy Domain Extractor Profile produced a Profile Match.
 _Avoid_: Failed product, auto-retry candidate, skipped item
 
+**Manual Evidence**:
+Operator-transcribed product facts for a Profile-Blocked Item, submitted per SKU with an attestation (no family inheritance, per-SKU verification, image rights) and held in Review like any official-page row before promotion. Always available as a fallback for family-page-only brands; building a healthy Domain Extractor Profile remains the happy path.
+_Avoid_: Automated extraction, distributor record, generic fallback scraping
+
 **Profile Retry Preview**:
 A summary of Profile-Blocked Items that could be retried after a relevant Domain Extractor Profile becomes healthy.
 _Avoid_: Automatic rerun, hidden queue, batch advancement
@@ -765,6 +769,8 @@ _Avoid_: Table view, item list, batch detail view
 - **Fail-Closed Extraction** may stop an item in **Extraction** without producing trusted product evidence.
 - **Fail-Closed Extraction** may create a **Profile-Blocked Item**.
 - A **Profile-Blocked Item** remains in **Extraction** until a reviewer chooses to retry it.
+- A **Profile-Blocked Item** may instead advance via **Manual Evidence**; withdrawing the submission returns it to blocked, and retry refuses active-manual items until withdrawn.
+- **Manual Evidence** never converts distributor rows, completed rows, or legacy rows, and never exempts Review, image-rights approval, or family readiness.
 - When a relevant **Domain Extractor Profile** becomes healthy, affected **Profile-Blocked Items** appear in a **Profile Retry Preview** rather than automatically rerunning.
 - A **Profile Retry Preview** supports selected retries; it does not advance a whole **Onboarding Batch**.
 - An **Onboarding Batch** has derived progress (counts per stage) computed from its items, not a controlling status of its own.

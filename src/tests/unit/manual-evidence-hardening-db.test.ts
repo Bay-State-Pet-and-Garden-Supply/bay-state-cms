@@ -7,10 +7,6 @@ import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations, verifyManualEvidenceInvariants } from '../../db/migrations';
 import { insertExtraction } from '../../db/repositories/onboarding-extraction-repo';
 import {
-  overrideManualEvidenceFlags,
-  resetManualEvidenceFlagsOverride,
-} from '../../onboarding/flags';
-import {
   hasActiveManualEvidence,
   submitManualEvidence,
   withdrawManualEvidence,
@@ -75,11 +71,9 @@ beforeAll(() => {
   initDb(TEST_DB);
   runMigrations();
   seedBatch();
-  overrideManualEvidenceFlags({ enabled: true });
 });
 
 afterAll(() => {
-  resetManualEvidenceFlagsOverride();
   closeDb();
   for (const suffix of ['', '-wal', '-shm', '-journal']) {
     try {
@@ -273,27 +267,21 @@ describe('hardening: no backfill — legacy rows are never converted', () => {
   });
 });
 
-describe('hardening: kill-switch never strands active-manual items (P0-1)', () => {
-  test('withdraw succeeds with the flag OFF; submit stays gated', () => {
+describe('hardening: withdraw never strands active-manual items (P0-1)', () => {
+  test('withdraw backs out to the fail-closed blocked state; resubmit works', () => {
     seedItem('item-hard-killswitch');
     const submitted = submitManualEvidence(submitInput('item-hard-killswitch'), noProfile);
     expect(submitted.ok).toBe(true);
     expect(hasActiveManualEvidence('item-hard-killswitch')).toBe(true);
-    // Kill switch: new submissions stop, but the operator can still back
-    // out of the in-flight manual row to the fail-closed blocked state.
-    overrideManualEvidenceFlags({ enabled: false });
-    try {
-      const blocked = submitManualEvidence(submitInput('item-hard-killswitch'), noProfile);
-      expect(blocked.ok).toBe(false);
-      if (!blocked.ok) expect(blocked.code).toBe('manual_evidence_disabled');
-      const withdrawn = withdrawManualEvidence({ itemId: 'item-hard-killswitch', workspaceId: 'ws-1', operatorId: OPERATOR });
-      expect(withdrawn.ok).toBe(true);
-    } finally {
-      overrideManualEvidenceFlags({ enabled: true });
-    }
+    // No toggle: the safety net is per-item withdraw back to blocked, then
+    // the operator may resubmit once the facts are corrected.
+    const withdrawn = withdrawManualEvidence({ itemId: 'item-hard-killswitch', workspaceId: 'ws-1', operatorId: OPERATOR });
+    expect(withdrawn.ok).toBe(true);
     expect(hasActiveManualEvidence('item-hard-killswitch')).toBe(false);
     const restored = getDb().query('SELECT stage_status FROM onboarding_items WHERE id = ?').get('item-hard-killswitch') as { stage_status: string };
     expect(restored.stage_status).toBe('failed');
+    const resubmitted = submitManualEvidence(submitInput('item-hard-killswitch'), noProfile);
+    expect(resubmitted.ok).toBe(true);
   });
 });
 

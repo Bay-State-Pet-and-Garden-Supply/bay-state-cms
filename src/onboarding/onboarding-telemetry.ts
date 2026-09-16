@@ -207,7 +207,7 @@ function aggregateBatch(slices: BatchSlice[], workspaceId: string): Aggregated {
         agg.attentionCount += 1;
         const reason = state.attentionReason ?? 'unspecified';
         agg.attentionByReason.set(reason, (agg.attentionByReason.get(reason) ?? 0) + 1);
-        if (state.attentionReason === 'extractor_profile_required' || state.attentionReason === 'extraction_profile_failed') {
+        if (state.attentionReason === 'extractor_profile_required' || state.attentionReason === 'manual_evidence_available' || state.attentionReason === 'extraction_profile_failed') {
           agg.profileBlockCount += 1;
         }
       }
