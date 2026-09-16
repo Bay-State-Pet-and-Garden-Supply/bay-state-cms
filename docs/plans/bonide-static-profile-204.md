@@ -84,8 +84,11 @@ Activation-evidence evaluation (`evaluateActivation204()`): the count
 basis is satisfied on three confirmations, waiver false. This is
 evidence only — the authoritative gate (active version, matching
 artifact hashes over full 64-hex values, passing title matrix,
-imageRuleOk) runs in the live system at activation time, as does
-`getDomainReleaseHealth`, the final authority at release time.
+imageRuleOk) runs in the live system at activation time. Automatic
+release is health-gated via `getDomainReleaseHealth`, the final authority
+at release time for automatic release only (#198 / #215); selected retry
+below is a separate deliberate workspace-scoped failed-extraction-only
+operator act intentionally available WITHOUT reviewed health.
 Remaining steps are human-only:
 
 1. **Per-field approval** in the Profile Builder (proposal-only
@@ -100,9 +103,10 @@ Remaining steps are human-only:
    yYtA3-widsE/maxresdefault.jpg`).
 3. **Version activation**, then **selected retry**. Eligibility
    (`selectiveReleaseEligibility204`): `failed_extraction` + own
-   workspace + `confirmed_clean` URL only — necessary, not sufficient:
-   `getDomainReleaseHealth` is the final authority at release time
-   (#198).
+   workspace + `confirmed_clean` URL only — that is the full selected-retry
+   gate, available WITHOUT reviewed health (#198 / #215). Automatic release
+   is separately health-gated via `getDomainReleaseHealth` and is never
+   implied by this predicate.
    Variant-blocked items wait for variant resolution; discontinued
    slugs (roach-powder, spider-killer-rtu, captan, mite-x — all serving
    the shared discontinued page hash `24d53f6a…`) never release.

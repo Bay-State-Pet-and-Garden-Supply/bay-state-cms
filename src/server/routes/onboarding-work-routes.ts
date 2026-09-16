@@ -676,13 +676,18 @@ route.post('/onboarding/batches/:id/create-export-drafts', async (c) => {
 
 /**
  * POST /api/onboarding/domains/:domain/release
- * Deterministic domain-level release (epic #46 UX workstream 4 / Phase 8):
+ * Automatic release (epic #46 UX workstream 4 / Phase 8):
  * after an extractor profile becomes usable for a domain, every blocked
  * extraction item on that domain is re-queued automatically. Delegates to
  * the canonical `releaseDomainExtractionItems` primitive (Phase 2) with
  * `releaseAllBlocked` — this is the explicit operator-triggered release (the
  * profile was just set up), so every blocked item on the domain releases.
- * A missing profile fails closed (400).
+ * Gate (issue #198): automatic release is health-gated via
+ * `getDomainReleaseHealth` — a missing or not-yet-healthy profile fails
+ * closed (400). Contrast (issue #215): selected retry
+ * (`POST /api/onboarding/settings/profile-retry-preview/:domain/retry`) is a
+ * separate deliberate workspace-scoped failed-extraction-only operator act
+ * intentionally available WITHOUT reviewed health.
  */
 route.post('/onboarding/domains/:domain/release', async (c) => {
   const workspace = findWorkspace();

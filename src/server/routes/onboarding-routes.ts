@@ -4902,7 +4902,10 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
 
   // Issue #198: selected retry is a deliberate per-item operator action, so
   // it stays available without reviewed health — but ONLY for items in
-  // failed extraction owned by the requesting workspace. Every check runs
+  // failed extraction owned by the requesting workspace (gate: failed
+  // extraction + own workspace). Contrast (issue #215): automatic release
+  // (`releaseDomainExtractionItems` / `sweepDomainReleases`) is health-gated
+  // via `getDomainReleaseHealth`; selected retry here is not. Every check runs
   // BEFORE any write so an ineligible item refuses the whole batch with
   // zero partial mutation.
   const workspace = findWorkspace();

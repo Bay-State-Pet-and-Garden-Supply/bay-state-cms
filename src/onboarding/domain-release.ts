@@ -15,6 +15,11 @@
  *   automatically.
  * - `getDomainReleaseHealth(domain)` — the reviewed-health gate (issue
  *   #198): every automatic release path consults this before moving items.
+ *   Contrast (issue #215): automatic release here is health-gated; selected
+ *   retry (`POST /api/onboarding/settings/profile-retry-preview/:domain/retry`)
+ *   is a separate deliberate workspace-scoped failed-extraction-only operator
+ *   act intentionally available WITHOUT reviewed health (gate: failed
+ *   extraction + own workspace).
  *
  * Safety properties (fail closed):
  * - distributor-record sources are never released (no page; deterministic

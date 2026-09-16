@@ -60,7 +60,7 @@ none silently skipped:
 | create_drafts\|completed | 28 | completed cohort, out of scope — finished work |
 
 Eligibility predicate (`sweepEligibility208`) follows the live
-#198-hardened route (`src/server/routes/onboarding-routes.ts`):
+#198-hardened selected-retry route (`src/server/routes/onboarding-routes.ts`):
 workspace ownership (the route's bare 404, labeled `foreign_workspace`
 at sweep level) → manual-evidence precedence (409, reusing the exact
 route code `manual_evidence_active_retry_rejected`) → stage (400
@@ -69,8 +69,12 @@ URL-verdict holds from the mechanism modules
 (`variant_resolution_required`, `unvalidated_url`, #204's verbatim
 `wrong_product` for discontinued slugs — the route performs no
 URL-verdict check, so those codes have no route counterpart by
-design). An `eligible` result is necessary but NOT sufficient:
-`getDomainReleaseHealth` is the final authority at release time.
+design). An `eligible` result means the item meets the full selected-retry
+gate — a deliberate workspace-scoped failed-extraction-only operator act
+intentionally available WITHOUT reviewed health (#198 / #215). Automatic
+release (`releaseDomainExtractionItems` / `sweepDomainReleases`) is the
+separate health-gated mechanism via `getDomainReleaseHealth` and is never
+implied by this predicate.
 
 Scope reconciliation (`SCOPE_RECONCILIATION_208`): the 89 pending rows
 are the 86 #197-inventory items (34 #199 + 35 #207-as-written + 5 #204
@@ -98,7 +102,11 @@ no item moves anywhere in #198–#207).
    items (Bonide YouTube poster; Open Farm icons/posters/labels;
    Wondercide family rail + poster; Nylabone/Blue Buffalo gallery sets).
 3. **Version activation**, then **selected retry** of failed-extraction
-   items behind `getDomainReleaseHealth` (#198). Variant-blocked sizes
+   items — selected retry is a deliberate workspace-scoped
+   failed-extraction-only operator act intentionally available WITHOUT
+   reviewed health (gate: failed extraction + own workspace; #198 / #215).
+   Automatic release is the separate health-gated mechanism via
+   `getDomainReleaseHealth`. Variant-blocked sizes
    wait for discriminating SKUs or operator selection; Bonide
    discontinued slugs never release.
 4. **File three downstream static-validation tickets** (bil-jac,

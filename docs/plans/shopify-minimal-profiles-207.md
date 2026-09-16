@@ -139,8 +139,11 @@ Activation-evidence evaluation (`evaluateActivation207()`): the count
 basis is satisfied per domain (3 confirmations each, waivers false).
 This is evidence only — the authoritative gate (active version, matching
 artifact hashes over full 64-hex values, passing title matrix,
-imageRuleOk) runs in the live system at activation time, as does
-`getDomainReleaseHealth`, the final authority at release time.
+imageRuleOk) runs in the live system at activation time. Automatic release
+is health-gated via `getDomainReleaseHealth`, the final authority at release
+time for automatic release only (#198 / #215); selected retry below is a
+separate deliberate workspace-scoped failed-extraction-only operator act
+intentionally available WITHOUT reviewed health.
 Remaining steps are human-only, per domain:
 
 1. **Per-field approval** in the Profile Builder (proposal-only
@@ -170,9 +173,10 @@ Remaining steps are human-only, per domain:
 4. **Version activation** (with `shopifyJSONPath` set per the
    thebetterbone precedent), then **selected retry**. Eligibility
    (`selectiveReleaseEligibility207`): `failed_extraction` + own
-   workspace + `confirmed_clean` URL only — necessary, not sufficient:
-   `getDomainReleaseHealth` is the final authority at release time
-   (#198). Variant-blocked items wait for variant resolution;
+   workspace + `confirmed_clean` URL only — that is the full selected-retry
+   gate, available WITHOUT reviewed health (#198 / #215). Automatic release
+   is separately health-gated via `getDomainReleaseHealth` and is never
+   implied by this predicate. Variant-blocked items wait for variant resolution;
    unvalidated URLs never release; nothing auto-runs outside this
    predicate.
 
