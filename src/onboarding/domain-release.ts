@@ -42,6 +42,13 @@
  *   retries are exhausted (`retry_count >= 2`) is never auto-released — the
  *   operator must make a deliberate per-item reset.
  * - releases are idempotent (guarded UPDATE re-asserts blocked status).
+ * - VARIANT-IDENTITY HOLD (issue #218): items whose evidence cannot
+ *   enforce variant identity (variant-gate `variant:…` errors, or a
+ *   non-selected/non-resolved `onboarding_variant_resolutions` row) are
+ *   excluded from BOTH the automatic sweep and bulk (`releaseAllBlocked`)
+ *   activation-triggered release, with a `variant_resolution_required`
+ *   skip reason. They wait for operator variant selection by
+ *   construction — one approval never sweeps them in.
  */
 import {
   listBlockedExtractionItemsByWorkspace,
@@ -49,6 +56,9 @@ import {
 } from '../db/repositories/onboarding-item-repo';
 import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
 import { evaluateActiveVersionHealth } from './domain-version-health';
+import { variantIdentityEligibilityForItem, type VariantIdentityEligibility, type VariantIdentityEligibilityInput, type VariantIdentityResolutionView } from './variant-identity-eligibility';
+import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
+import { getDb } from '../db/connection';
 import { onboardingEvents } from './sse-emitter';
 
 /** Error signature written by `processExtraction` when a profile is missing. */
@@ -156,20 +166,54 @@ export function releaseDomainExtractionItems(
     };
   }
 
-  const eligible = listBlockedExtractionItemsByWorkspace(workspaceId).filter(row => {
+  // Domain-scoped blocked pool. Foreign-host, URL-less, and retry-exhausted
+  // rows drop silently here (pre-existing semantics); everything else flows
+  // through the variant hold below so no path drops variant-bearing rows
+  // without a reason.
+  const candidates = listBlockedExtractionItemsByWorkspace(workspaceId).filter(row => {
     if (!row.source_url) return false;
     if (hostOf(row.source_url) !== normalized) return false;
     // Epic #46 audit fix (fix 4): no recency guard — a usable profile NOW is
     // the only condition. Extraction's own 2-retry cap prevents hot loops.
     if (row.retry_count >= 2) return false;
-    if (!options.releaseAllBlocked && !PROFILE_BLOCKED_ERROR_PATTERN.test(row.error_message ?? '')) {
-      return false;
-    }
     return true;
   });
 
   const releasedIds: string[] = [];
   const skipped: Array<{ itemId: string; reason: string }> = [];
+  // Issue #218 — variant-identity rollout hold (runtime predicate, not a
+  // prose caveat): template pages whose evidence cannot enforce variant
+  // identity never release automatically or via bulk activation. The hold
+  // runs BEFORE the profile-blocked pre-filter so BOTH paths record
+  // variant-unidentifiable rows in `skipped` with a clear reason — one
+  // approval cannot sweep them in, and the sweep never drops them
+  // silently. Variant-unidentifiable items wait for operator variant
+  // selection by construction.
+  const variantRepo = createVariantResolutionRepo(getDb());
+  const holdSurvivors = candidates.filter(row => {
+    try {
+      const current = variantRepo.getCurrentForItem(row.id);
+      const resolutionView: VariantIdentityResolutionView | null = current
+        ? { status: current.status, selected_variant_key: current.selected_variant_key, automatic_variant_key: current.automatic_variant_key }
+        : null;
+      const holdInput: VariantIdentityEligibilityInput = { itemId: row.id, errorMessage: row.error_message, variantResolution: resolutionView };
+      const variantHold: VariantIdentityEligibility = variantIdentityEligibilityForItem(holdInput);
+      if (!variantHold.eligible) {
+        skipped.push({ itemId: row.id, reason: variantHold.reason });
+        return false;
+      }
+      return true;
+    } catch (_e) {
+      skipped.push({ itemId: row.id, reason: 'variant_resolution_required: variant identity check failed — operator variant selection required first' });
+      return false;
+    }
+  });
+  // Default sweep releases only profile-blocked failures so generic scrape
+  // failures never hot-loop; the explicit bulk path releases every hold
+  // survivor on the domain.
+  const eligible = options.releaseAllBlocked
+    ? holdSurvivors
+    : holdSurvivors.filter(row => PROFILE_BLOCKED_ERROR_PATTERN.test(row.error_message ?? ''));
   for (const row of eligible) {
     if (requeueBlockedExtractionItem(row.id)) {
       releasedIds.push(row.id);

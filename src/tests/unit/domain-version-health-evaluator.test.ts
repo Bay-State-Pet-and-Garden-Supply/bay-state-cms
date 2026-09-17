@@ -7,23 +7,22 @@
 // healthy/unhealthy agreement between entry points, candidate-without-active
 // activation, release refusal of non-active versions — never internals.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
-import { runMigrations } from '../../db/migrations';
-import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import { createBatch } from '../../db/repositories/onboarding-batch-repo';
+import { getDb } from '../../db/connection';
 import {
   insertItems,
-  findItemById,
-  updateItemExtractionData,
   updateItemStageStatus,
 } from '../../db/repositories/onboarding-item-repo';
+import {
+  setupReleaseDb,
+  teardownReleaseDb,
+  cleanReleaseDomain,
+  seedTerminalFixture,
+  readTerminalFixtureState,
+} from './helpers/release-db-suite';
 import { createVersion, setActiveVersion, getActiveVersion } from '../../db/repositories/profile-version-repo';
-import { resetTestMatrixForTest, runMatrix } from '../../onboarding/profile-test-matrix';
+
 import { setRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
-import { makeDomainHealthy } from './helpers/domain-health-fixture';
+import { makeDomainHealthy, runTitleMatrix } from './helpers/domain-health-fixture';
 import {
   evaluateCandidateVersionHealth,
   evaluateActiveVersionHealth,
@@ -31,27 +30,12 @@ import {
   resolveExecutableProfile,
 } from '../../onboarding/domain-version-health';
 import { getDomainReleaseHealth, releaseDomainExtractionItems } from '../../onboarding/domain-release';
-import { findProfileByDomain, upsertProfile } from '../../db/repositories/extractor-profile-repo';
+import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
 import { resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import app from '../../server/app';
 
 const WS_MAIN = 'ws-version-health-main';
 const DOMAIN = 'version-health.example.com';
-
-function cleanDomain(domain: string) {
-  const db = getDb();
-  db.query(`DELETE FROM onboarding_items WHERE source_url LIKE ?`).run(`%${domain}%`);
-  db.query(`DELETE FROM extractor_profiles WHERE domain = ?`).run(domain);
-  db.query(`DELETE FROM profile_active WHERE domain = ?`).run(domain);
-  db.query(`DELETE FROM profile_versions WHERE domain = ?`).run(domain);
-  try {
-    db.query(`DELETE FROM domain_representative_suite WHERE domain = ?`).run(domain);
-  } catch (_e) { /* best-effort */ }
-  try {
-    db.query(`DELETE FROM domain_waiver WHERE domain = ?`).run(domain);
-  } catch (_e) { /* best-effort */ }
-  resetTestMatrixForTest();
-}
 
 /** A bare version with no matrix evidence and no confirmed suite. */
 function makeBareVersion(domain: string) {
@@ -73,32 +57,20 @@ describe('shared domain/version health evaluator (#214)', () => {
   let mainBatchId: string;
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'version-health-test-'));
-    initDb(path.join(tempDir, 'test.db'));
-    runMigrations();
-    const now = new Date().toISOString();
-    insertWorkspace({
-      id: WS_MAIN,
-      name: WS_MAIN,
-      workspacePath: `/tmp/${WS_MAIN}`,
-      gitPath: `/tmp/${WS_MAIN}/.git`,
-      createdAt: now,
-      updatedAt: now,
-      bootstrapStatus: 'complete',
-      baselineCommit: 'baseline-sha',
-    });
-    mainBatchId = createBatch({ workspaceId: WS_MAIN, name: 'Health', fileName: 'h.csv', totalItems: 10 }).id;
+    ({ tempDir, batchId: mainBatchId } = setupReleaseDb({
+      tmpPrefix: 'version-health-test-',
+      workspaceIds: [WS_MAIN],
+      batch: { workspaceId: WS_MAIN, name: 'Health', fileName: 'h.csv', totalItems: 10 },
+    }));
   });
 
   afterAll(() => {
-    closeDb();
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+    teardownReleaseDb(tempDir);
   });
 
   beforeEach(() => {
     resetActiveWorkerForTest();
-    cleanDomain(DOMAIN);
+    cleanReleaseDomain(DOMAIN);
   });
 
   it('activation and release agree on a healthy fixture', async () => {
@@ -255,7 +227,7 @@ describe('shared domain/version health evaluator (#214)', () => {
       expect(candidate.healthy).toBe(true);
       expect(getDomainReleaseHealth(singleDomain)).toEqual({ healthy: true, reason: null });
     } finally {
-      cleanDomain(singleDomain);
+      cleanReleaseDomain(singleDomain);
     }
   });
 
@@ -274,16 +246,12 @@ describe('shared domain/version health evaluator (#214)', () => {
       approver: 'tester',
       reason: 'test',
     });
-    await runMatrix({
+    await runTitleMatrix({
       domain: DOMAIN,
-      draftVersion: version.id,
-      samples: urls.map((u, i) => ({ id: u, url: u, expectedTitle: `Product ${i + 1}` })),
-      runner: async (sample) => ({
-        extractedTitle: `Product ${urls.indexOf(sample.url) + 1}`,
-        provenance: 'css:h1',
-        artifactHash: `${DOMAIN}-hash-${urls.indexOf(sample.url)}`,
-        success: true,
-      }),
+      versionId: version.id,
+      urls,
+      provenance: 'css:h1',
+      hashForUrl: (u) => `${DOMAIN}-hash-${urls.indexOf(u)}`,
     });
     setActiveVersion(DOMAIN, version.id);
 
@@ -330,16 +298,12 @@ describe('shared domain/version health evaluator (#214)', () => {
       approver: 'tester',
       reason: 'selector edit re-activation',
     });
-    await runMatrix({
+    await runTitleMatrix({
       domain: DOMAIN,
-      draftVersion: v2.id,
-      samples: evidenceUrls.map((u, i) => ({ id: u, url: u, expectedTitle: `Product ${i + 1}` })),
-      runner: async (sample) => ({
-        extractedTitle: `Product ${evidenceUrls.indexOf(sample.url) + 1}`,
-        provenance: 'css:.edited-title',
-        artifactHash: `${DOMAIN}-v2-hash-${evidenceUrls.indexOf(sample.url)}`,
-        success: true,
-      }),
+      versionId: v2.id,
+      urls: evidenceUrls,
+      provenance: 'css:.edited-title',
+      hashForUrl: (u) => `${DOMAIN}-v2-hash-${evidenceUrls.indexOf(u)}`,
     });
     setActiveVersion(DOMAIN, v2.id);
 
@@ -350,45 +314,13 @@ describe('shared domain/version health evaluator (#214)', () => {
   });
 
   it('terminal items are untouched by an edit, re-activation, and a domain release sweep', async () => {
-    const batch = createBatch({ workspaceId: WS_MAIN, name: 'Terminal', fileName: 'terminal.csv', totalItems: 3 });
-    const terminalSpecs: Array<{ upc: string; stage: 'curation' | 'review'; status: 'completed' | 'skipped' }> = [
-      { upc: 'VH-TERM-1', stage: 'curation', status: 'completed' },
-      { upc: 'VH-TERM-2', stage: 'review', status: 'completed' },
-      { upc: 'VH-TERM-3', stage: 'review', status: 'skipped' },
-    ];
-    const [curated, reviewed, skipped] = insertItems(
-      batch.id,
-      terminalSpecs.map((s, i) => ({
-        upc: s.upc,
-        name: `Terminal ${i + 1}`,
-        rowNumber: i + 1,
-        stage: s.stage,
-        stageStatus: 'pending',
-        sourceUrl: `https://${DOMAIN}/products/${s.upc.toLowerCase()}`,
-      })),
-    );
-    for (const [item, spec] of [[curated, terminalSpecs[0]], [reviewed, terminalSpecs[1]], [skipped, terminalSpecs[2]]] as const) {
-      updateItemExtractionData(item.id, JSON.stringify({ title: 'T' }));
-      updateItemStageStatus(item.id, spec.status);
-    }
-    const before = new Map(
-      [curated, reviewed, skipped].map((item) => {
-        const row = findItemById(item.id)!;
-        return [item.id, { stage: row.stage, stageStatus: row.stageStatus, errorMessage: row.errorMessage }];
-      }),
-    );
+    const terminal = seedTerminalFixture(mainBatchId, DOMAIN, ['VH-TERM-1', 'VH-TERM-2', 'VH-TERM-3']);
 
     await makeDomainHealthy(DOMAIN);
     upsertProfile(DOMAIN, { titleSelector: '.edited-title' });
     expect(getDomainReleaseHealth(DOMAIN)).toEqual({ healthy: false, reason: 'executable_content_changed' });
     expect(releaseDomainExtractionItems(WS_MAIN, DOMAIN, { releaseAllBlocked: true }).releasedIds).toEqual([]);
 
-    const after = new Map(
-      [curated, reviewed, skipped].map((item) => {
-        const row = findItemById(item.id)!;
-        return [item.id, { stage: row.stage, stageStatus: row.stageStatus, errorMessage: row.errorMessage }];
-      }),
-    );
-    expect(after).toEqual(before);
+    expect(readTerminalFixtureState(terminal.ids)).toEqual(terminal.before);
   });
 });

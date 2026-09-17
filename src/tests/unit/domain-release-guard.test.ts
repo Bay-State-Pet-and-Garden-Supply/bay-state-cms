@@ -14,18 +14,17 @@
 // B. Selected-retry hardening — the per-item retry endpoint accepts only
 //    failed-extraction items owned by the requesting workspace.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
-import { runMigrations } from '../../db/migrations';
-import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import {
   insertItems,
   findItemById,
-  updateItemStageStatus,
 } from '../../db/repositories/onboarding-item-repo';
+import {
+  setupReleaseDb,
+  teardownReleaseDb,
+  cleanReleaseDomain,
+  seedProfileBlockedItem,
+} from './helpers/release-db-suite';
 import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
 import { upsertDomainConfig } from '../../onboarding/domain-config-service';
 import { makeDomainHealthy } from './helpers/domain-health-fixture';
@@ -35,7 +34,6 @@ import {
   getDomainReleaseHealth,
 } from '../../onboarding/domain-release';
 import { createVersion, setActiveVersion } from '../../db/repositories/profile-version-repo';
-import { resetTestMatrixForTest } from '../../onboarding/profile-test-matrix';
 import { resetActiveWorkerForTest } from '../../server/routes/onboarding-routes';
 import app from '../../server/app';
 
@@ -44,77 +42,35 @@ const WS_FOREIGN = 'ws-release-guard-foreign';
 const DOMAIN = 'guard.example.com';
 
 function seedFailedItem(batchId: string, upc: string, domain: string = DOMAIN) {
-  const [item] = insertItems(batchId, [
-    {
-      upc,
-      name: `Guard Product ${upc}`,
-      rowNumber: 1,
-      stage: 'extraction',
-      stageStatus: 'failed',
-      sourceUrl: `https://${domain}/products/${upc.toLowerCase()}`,
-    },
-  ]);
-  updateItemStageStatus(item.id, 'failed', `No extractor profile for ${domain} — profile required`);
-  return item;
+  return seedProfileBlockedItem(batchId, upc, domain);
 }
 
 // Reviewed health via the shared fixture (helpers/domain-health-fixture).
 const makeHealthy = makeDomainHealthy;
 
-function cleanDomain(domain: string) {
-  const db = getDb();
-  db.query(`DELETE FROM onboarding_items WHERE source_url LIKE ?`).run(`%${domain}%`);
-  db.query(`DELETE FROM extractor_profiles WHERE domain = ?`).run(domain);
-  db.query(`DELETE FROM profile_active WHERE domain = ?`).run(domain);
-  db.query(`DELETE FROM profile_versions WHERE domain = ?`).run(domain);
-  try {
-    db.query(`DELETE FROM domain_representative_suite WHERE domain = ?`).run(domain);
-  } catch (_e) {
-    /* table may not exist in older migrations — suite cleanup is best-effort */
-  }
-  try {
-    db.query(`DELETE FROM domain_waiver WHERE domain = ?`).run(domain);
-  } catch (_e) {
-    /* table may not exist in older migrations — waiver cleanup is best-effort */
-  }
-  resetTestMatrixForTest();
-}
+
 
 describe('release guard + selected-retry hardening (#198)', () => {
   let tempDir: string;
   let mainBatchId: string;
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-guard-test-'));
-    initDb(path.join(tempDir, 'test.db'));
-    runMigrations();
-    const now = new Date().toISOString();
     // Main workspace first: findWorkspace() (LIMIT 1) resolves to it, so it
     // is the "requesting workspace" for route-level tests.
-    for (const id of [WS_MAIN, WS_FOREIGN]) {
-      insertWorkspace({
-        id,
-        name: id,
-        workspacePath: `/tmp/${id}`,
-        gitPath: `/tmp/${id}/.git`,
-        createdAt: now,
-        updatedAt: now,
-        bootstrapStatus: 'complete',
-        baselineCommit: 'baseline-sha',
-      });
-    }
-    mainBatchId = createBatch({ workspaceId: WS_MAIN, name: 'Guard', fileName: 'g.csv', totalItems: 10 }).id;
+    ({ tempDir, batchId: mainBatchId } = setupReleaseDb({
+      tmpPrefix: 'release-guard-test-',
+      workspaceIds: [WS_MAIN, WS_FOREIGN],
+      batch: { workspaceId: WS_MAIN, name: 'Guard', fileName: 'g.csv', totalItems: 10 },
+    }));
   });
 
   afterAll(() => {
-    closeDb();
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+    teardownReleaseDb(tempDir);
   });
 
   beforeEach(() => {
     resetActiveWorkerForTest();
-    cleanDomain(DOMAIN);
+    cleanReleaseDomain(DOMAIN);
   });
 
   it('legacy profile save leaves failed items untouched (no silent requeue)', () => {
@@ -186,7 +142,7 @@ describe('release guard + selected-retry hardening (#198)', () => {
       const res = releaseDomainExtractionItems(WS_MAIN, singleDomain);
       expect(res.releasedIds).toEqual([item.id]);
     } finally {
-      cleanDomain(singleDomain);
+      cleanReleaseDomain(singleDomain);
     }
   });
 
@@ -209,6 +165,7 @@ describe('release guard + selected-retry hardening (#198)', () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain('No usable extractor profile');
+    expect(body.healthReason).toBeTruthy();
     expect(findItemById(item.id)!.stageStatus).toBe('failed');
   });
 

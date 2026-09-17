@@ -14,6 +14,32 @@ import { runMatrix } from '../../../onboarding/profile-test-matrix';
 import { setRepresentativeSuite } from '../../../db/repositories/representative-suite-repo';
 import { createWaiver } from '../../../db/repositories/waiver-repo';
 
+/**
+ * Fully-passing title matrix over explicit sample URLs: every cell
+ * extracts `Product <n>` via the given provenance with the hash resolved
+ * per URL. One definition shared by the fixture and the evaluator
+ * mismatch/re-activation tests (which vary only provenance + hashes).
+ */
+export async function runTitleMatrix(opts: {
+  domain: string;
+  versionId: string;
+  urls: string[];
+  provenance: string;
+  hashForUrl: (url: string) => string;
+}): Promise<void> {
+  await runMatrix({
+    domain: opts.domain,
+    draftVersion: opts.versionId,
+    samples: opts.urls.map((u, i) => ({ id: u, url: u, expectedTitle: `Product ${i + 1}` })),
+    runner: async (sample) => ({
+      extractedTitle: `Product ${opts.urls.indexOf(sample.url) + 1}`,
+      provenance: opts.provenance,
+      artifactHash: opts.hashForUrl(sample.url),
+      success: true,
+    }),
+  });
+}
+
 export async function makeDomainHealthy(
   domain: string,
   opts?: { confirmed?: number; waiver?: boolean },
@@ -35,16 +61,12 @@ export async function makeDomainHealthy(
     reason: 'test',
   });
   const hashByUrl = new Map(urls.map((u, i) => [u, `${domain}-hash-${i}`]));
-  await runMatrix({
+  await runTitleMatrix({
     domain,
-    draftVersion: version.id,
-    samples: urls.map((u, i) => ({ id: u, url: u, expectedTitle: `Product ${i + 1}` })),
-    runner: async (sample) => ({
-      extractedTitle: `Product ${urls.indexOf(sample.url) + 1}`,
-      provenance: 'css:h1',
-      artifactHash: hashByUrl.get(sample.url) ?? `${domain}-hash-0`,
-      success: true,
-    }),
+    versionId: version.id,
+    urls,
+    provenance: 'css:h1',
+    hashForUrl: (u) => hashByUrl.get(u) ?? `${domain}-hash-0`,
   });
   setActiveVersion(domain, version.id);
 }

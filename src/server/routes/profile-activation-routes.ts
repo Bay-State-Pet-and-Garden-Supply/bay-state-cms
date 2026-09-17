@@ -53,7 +53,11 @@ profileActivationRoutes.post('/domains/:domain/profile/activate', async (c) => {
     upsertProfile(domain, profile);
     setActiveVersion(domain, versionId);
   })();
-  // deterministic release: parked setup_required_profile + profile-blocked failed items
+  // deterministic release: parked setup_required_profile + profile-blocked failed items.
+  // Issue #218 scope note: the parked loop below requeues PRE-extraction
+  // setup rows (no variant matrix exists yet, so the variant-identity hold
+  // cannot apply); the variant hold filters the canonical extraction
+  // release that follows (bulk `releaseAllBlocked` included).
   let released = 0;
   try {
     const db = getDb();

@@ -21,9 +21,13 @@
  * - telemetry records the verdict's `reason` via the release result's
  *   `healthReason` — no independent assembly exists there.
  *
- * The pure gate (`evaluateGate`) is unchanged — only the evidence assembly
- * (the `GateInput` construction previously duplicated in the activation
- * route and `getDomainReleaseHealth`) is consolidated here. Executable-
+ * The pure gate (`evaluateGate`) enforces its documented contract
+ * (issue #218: missing image attestation fails, empty expected-hash sets
+ * fail, title plus non-empty results asserted) — only the evidence
+ * assembly (the `GateInput` construction previously duplicated in the
+ * activation route and `getDomainReleaseHealth`) is consolidated here.
+ * No weaker caller reuses this gate: any entry point needing less must
+ * name and justify its own gate. Executable-
  * content binding (post-activation edits forcing re-evaluation) is issue
  * #217's seam and deliberately NOT added here.
  *
