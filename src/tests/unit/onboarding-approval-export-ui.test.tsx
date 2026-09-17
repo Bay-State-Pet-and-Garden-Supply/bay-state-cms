@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { WORKSPACE_TABS, workspaceTabForCategory, getWorkspaceTab } from '../../client/components/onboarding/batch-workspace-logic';
 
 describe('approval/export UI split (M4 / P1-D)', () => {
@@ -9,18 +9,20 @@ describe('approval/export UI split (M4 / P1-D)', () => {
     expect(ids.length).toBe(6);
   });
 
-  it('approved tab counts only approved, ready_to_export counts ready_to_export+completed', () => {
+  it('approved tab counts only approved, ready_to_export excludes completed (Slice 2 fix)', () => {
     const approved = getWorkspaceTab('approved');
     const ready = getWorkspaceTab('ready_to_export');
     expect(approved.countCategories).toEqual(['approved']);
-    expect(ready.countCategories).toEqual(['ready_to_export', 'completed']);
+    expect(ready.countCategories).toEqual(['ready_to_export']);
+    expect(ready.countCategories).not.toContain('completed');
     expect(approved.countCategories).not.toContain('ready_to_export');
   });
 
   it('workspaceTabForCategory maps ready_to_export to ready_to_export tab, not approved', () => {
     expect(workspaceTabForCategory('approved')).toBe('approved');
     expect(workspaceTabForCategory('ready_to_export')).toBe('ready_to_export');
-    expect(workspaceTabForCategory('completed')).toBe('ready_to_export');
+    // completed/skipped are terminal outcomes served by the outcome selector, not operation tabs
+    expect(workspaceTabForCategory('completed')).toBe(null);
     expect(workspaceTabForCategory('ready_to_export')).not.toBe('approved');
   });
 

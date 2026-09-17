@@ -25,7 +25,7 @@
  * Fail-closed: any disposition read failure is surfaced to the caller so
  * the release path can hold rather than release blind.
  */
-import { getDb } from '../connection';
+import { getDb, queryInChunks } from '../connection';
 import { UNRESOLVED_VARIANT_IDENTITY_DISPOSITION } from '../../onboarding/variant-identity-eligibility';
 
 export interface VariantIdentityDisposition {
@@ -120,16 +120,12 @@ export function listVariantIdentityDispositions(itemIds: string[]): Map<string, 
   ensureTable();
   const map = new Map<string, VariantIdentityDisposition>();
   if (itemIds.length === 0) return map;
-  const db = getDb();
-  const CHUNK = 900;
-  for (let i = 0; i < itemIds.length; i += CHUNK) {
-    const chunk = itemIds.slice(i, i + CHUNK);
-    const placeholders = chunk.map(() => '?').join(',');
-    const rows = db.query(
+  const rows = queryInChunks<VariantIdentityDisposition>(
+    (placeholders) =>
       `SELECT item_id as itemId, disposition, reason, marked_by as markedBy, created_at as createdAt, updated_at as updatedAt
        FROM onboarding_variant_identity_dispositions WHERE item_id IN (${placeholders})`,
-    ).all(...chunk) as VariantIdentityDisposition[];
-    for (const row of rows) map.set(row.itemId, row);
-  }
+    itemIds,
+  );
+  for (const row of rows) map.set(row.itemId, row);
   return map;
 }

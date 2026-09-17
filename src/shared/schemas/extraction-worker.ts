@@ -1,7 +1,7 @@
 // fallow-ignore-file unused-export
 
 import { z } from 'zod';
-import { ExtractionDataSchema } from './onboarding';
+import { ExtractionDataSchema, StrictVariantSelectionStrategySchema } from './onboarding';
 import { VariantSelectionReceiptSchema, VariantMatrixSchema, NormalizedVariantCandidateSchema } from './variant-resolution';
 
 
@@ -144,20 +144,8 @@ export const SpreadsheetHintSchema = z.record(z.string(), z.string());
 
 export type SpreadsheetHint = z.infer<typeof SpreadsheetHintSchema>;
 
-export const StrictVariantSelectionStrategySchema = z.object({
-  axes: z.array(z.object({
-    axis: z.string().min(1).max(64),
-    selector: z.string().min(1).max(500),
-    optionType: z.enum(['dropdown', 'button_group', 'radio']),
-    optionValueSelector: z.string().max(500).optional(),
-    optionTextAttribute: z.string().max(64).optional(),
-    settledSelector: z.string().max(500).optional(),
-    settledAttribute: z.string().max(64).optional(),
-    timeoutMs: z.number().int().min(100).max(10000).optional(),
-  })).max(8),
-  timeoutMs: z.number().int().min(100).max(10000).optional().default(3000),
-});
-export type StrictVariantSelectionStrategy = z.infer<typeof StrictVariantSelectionStrategySchema>;
+export { StrictVariantSelectionStrategySchema };
+export type { StrictVariantSelectionStrategy } from './onboarding';
 export const VariantSelectionStrategySchema = z.object({
   containerSelector: z.string().nullable().default(null),
   optionType: z.enum(['dropdown', 'button_group', 'radio', 'unknown']).default('unknown'),

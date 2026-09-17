@@ -39,6 +39,115 @@ interface VariantDispositionPanelProps {
   onChanged?: () => void;
 }
 
+interface MarkedHoldViewProps {
+  itemId: string;
+  disposition: NonNullable<VariantDispositionPanelProps['workState']['variantDisposition']>;
+  error: string | null;
+  busy: 'mark' | 'clear' | null;
+  onClear: () => void;
+}
+
+/** Active-hold display: reason, who/when, and the clear action. */
+function MarkedHoldView({ itemId, disposition, error, busy, onClear }: MarkedHoldViewProps) {
+  return (
+    <div
+      data-testid={`variant-disposition-${itemId}`}
+      role="status"
+      aria-label="Variant identity hold active"
+      style={{
+        marginTop: 8,
+        border: '1px solid #f59e0b',
+        background: '#fffbeb',
+        borderRadius: 6,
+        padding: '8px 10px',
+        fontSize: '0.75rem',
+        lineHeight: 1.5,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ color: '#92400e' }}>Variant hold: identity unproven</strong>
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ height: '1.75rem', padding: '0 0.625rem', fontSize: '0.75rem', marginLeft: 'auto' }}
+          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          disabled={busy !== null}
+          aria-label="Clear variant hold"
+        >
+          {busy === 'clear' ? 'Clearing…' : 'Clear hold'}
+        </button>
+      </div>
+      <div style={{ color: '#78350f', marginTop: 4 }}>
+        {disposition.reason ?? 'Marked variant-bearing without matrix enforcement.'}
+      </div>
+      <div style={{ color: '#a16207', marginTop: 2 }}>
+        Marked{disposition.markedBy ? ` by ${disposition.markedBy}` : ''} · {disposition.updatedAt}
+        {' '}— release held with <code>variant_resolution_required</code> until variant selection proves identity.
+      </div>
+      {error ? (
+        <div role="alert" style={{ color: '#991b1b', marginTop: 4 }}>{error}</div>
+      ) : null}
+    </div>
+  );
+}
+
+interface MarkFormViewProps {
+  itemId: string;
+  reason: string;
+  error: string | null;
+  busy: 'mark' | 'clear' | null;
+  onReasonChange: (value: string) => void;
+  onMark: () => void;
+}
+
+/** Unmarked display: explainer plus the reason input and mark action. */
+function MarkFormView({ itemId, reason, error, busy, onReasonChange, onMark }: MarkFormViewProps) {
+  return (
+    <div
+      data-testid={`variant-disposition-${itemId}`}
+      style={{
+        marginTop: 8,
+        border: '1px dashed #d1d5db',
+        borderRadius: 6,
+        padding: '8px 10px',
+        fontSize: '0.75rem',
+        lineHeight: 1.5,
+      }}
+    >
+      <div style={{ color: '#4b5563' }}>
+        <strong>Variant identity:</strong> no-matrix variant-bearing rows (e.g. size-specific items on a
+        template family page) release unmarked. Marking holds this item out of automatic and bulk
+        release until variant selection proves identity.
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <input
+          aria-label="Variant-hold reason"
+          className="input"
+          style={{ flex: 1, minWidth: 200, height: '2rem', fontSize: '0.75rem' }}
+          placeholder="e.g. Size-specific row on no-matrix family page"
+          value={reason}
+          onChange={(e) => onReasonChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') onMark(); }}
+          disabled={busy !== null}
+          maxLength={500}
+        />
+        <button
+          type="button"
+          className="btn btn-outline"
+          style={{ height: '2rem', padding: '0 0.75rem', fontSize: '0.75rem' }}
+          onClick={(e) => { e.stopPropagation(); onMark(); }}
+          disabled={busy !== null || reason.trim().length === 0}
+        >
+          {busy === 'mark' ? 'Marking…' : 'Mark variant-bearing'}
+        </button>
+      </div>
+      {error ? (
+        <div role="alert" style={{ color: '#991b1b', marginTop: 4 }}>{error}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export function VariantDispositionPanel({ itemId, workState, onChanged }: VariantDispositionPanelProps): React.ReactElement | null {
   const initial = workState.variantDisposition ?? null;
   const [disposition, setDisposition] = useState(initial);
@@ -92,92 +201,26 @@ export function VariantDispositionPanel({ itemId, workState, onChanged }: Varian
       setBusy(null);
     }
   };
-
   if (disposition) {
     return (
-      <div
-        data-testid={`variant-disposition-${itemId}`}
-        role="status"
-        aria-label="Variant identity hold active"
-        style={{
-          marginTop: 8,
-          border: '1px solid #f59e0b',
-          background: '#fffbeb',
-          borderRadius: 6,
-          padding: '8px 10px',
-          fontSize: '0.75rem',
-          lineHeight: 1.5,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <strong style={{ color: '#92400e' }}>Variant hold: identity unproven</strong>
-          <button
-            type="button"
-            className="btn btn-outline"
-            style={{ height: '1.75rem', padding: '0 0.625rem', fontSize: '0.75rem', marginLeft: 'auto' }}
-            onClick={(e) => { e.stopPropagation(); void handleClear(); }}
-            disabled={busy !== null}
-            aria-label="Clear variant hold"
-          >
-            {busy === 'clear' ? 'Clearing…' : 'Clear hold'}
-          </button>
-        </div>
-        <div style={{ color: '#78350f', marginTop: 4 }}>
-          {disposition.reason ?? 'Marked variant-bearing without matrix enforcement.'}
-        </div>
-        <div style={{ color: '#a16207', marginTop: 2 }}>
-          Marked{disposition.markedBy ? ` by ${disposition.markedBy}` : ''} · {disposition.updatedAt}
-          {' '}— release held with <code>variant_resolution_required</code> until variant selection proves identity.
-        </div>
-        {error ? (
-          <div role="alert" style={{ color: '#991b1b', marginTop: 4 }}>{error}</div>
-        ) : null}
-      </div>
+      <MarkedHoldView
+        itemId={itemId}
+        disposition={disposition}
+        error={error}
+        busy={busy}
+        onClear={() => { void handleClear(); }}
+      />
     );
   }
 
   return (
-    <div
-      data-testid={`variant-disposition-${itemId}`}
-      style={{
-        marginTop: 8,
-        border: '1px dashed #d1d5db',
-        borderRadius: 6,
-        padding: '8px 10px',
-        fontSize: '0.75rem',
-        lineHeight: 1.5,
-      }}
-    >
-      <div style={{ color: '#4b5563' }}>
-        <strong>Variant identity:</strong> no-matrix variant-bearing rows (e.g. size-specific items on a
-        template family page) release unmarked. Marking holds this item out of automatic and bulk
-        release until variant selection proves identity.
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-        <input
-          aria-label="Variant-hold reason"
-          className="input"
-          style={{ flex: 1, minWidth: 200, height: '2rem', fontSize: '0.75rem' }}
-          placeholder="e.g. Size-specific row on no-matrix family page"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void handleMark(); }}
-          disabled={busy !== null}
-          maxLength={500}
-        />
-        <button
-          type="button"
-          className="btn btn-outline"
-          style={{ height: '2rem', padding: '0 0.75rem', fontSize: '0.75rem' }}
-          onClick={(e) => { e.stopPropagation(); void handleMark(); }}
-          disabled={busy !== null || reason.trim().length === 0}
-        >
-          {busy === 'mark' ? 'Marking…' : 'Mark variant-bearing'}
-        </button>
-      </div>
-      {error ? (
-        <div role="alert" style={{ color: '#991b1b', marginTop: 4 }}>{error}</div>
-      ) : null}
-    </div>
+    <MarkFormView
+      itemId={itemId}
+      reason={reason}
+      error={error}
+      busy={busy}
+      onReasonChange={setReason}
+      onMark={() => { void handleMark(); }}
+    />
   );
 }

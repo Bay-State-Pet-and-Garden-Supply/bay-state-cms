@@ -10,8 +10,9 @@
  * tables it owns; `src/onboarding/onboarding-work-state.ts` must not call
  * `getDb()` at all.
  */
-import { getDb } from '../connection';
+import { getDb, queryInChunks } from '../connection';
 import type { WorkStateProjectionHealthIssue } from '../../shared/schemas/onboarding-work-state';
+import { listVariantIdentityDispositions } from './variant-identity-disposition-repo';
 
 export class WorkStateProjectionError extends Error {
   constructor(public source: string, public code: string, message?: string) {
@@ -120,22 +121,13 @@ function bulkLoadVariantDispositions(
 ): Map<string, BulkVariantDisposition> {
   if (itemIds.length === 0) return new Map();
   _incrementQueryCount();
-  const db = getDb();
-  const map = new Map<string, BulkVariantDisposition>();
-  const CHUNK = 900;
   try {
-    for (let i = 0; i < itemIds.length; i += CHUNK) {
-      const chunk = itemIds.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const rows = db
-        .query(
-          `SELECT item_id as itemId, disposition, reason, marked_by as markedBy, updated_at as updatedAt
-           FROM onboarding_variant_identity_dispositions WHERE item_id IN (${placeholders})`,
-        )
-        .all(...chunk) as Array<{ itemId: string; disposition: string; reason: string | null; markedBy: string | null; updatedAt: string }>;
-      for (const r of rows) {
-        map.set(r.itemId, { disposition: r.disposition, reason: r.reason, markedBy: r.markedBy, updatedAt: r.updatedAt });
-      }
+    // Single implementation lives in the disposition repo (table owner);
+    // this projection only narrows rows to the display shape it needs.
+    const rows = listVariantIdentityDispositions(itemIds);
+    const map = new Map<string, BulkVariantDisposition>();
+    for (const [itemId, r] of rows) {
+      map.set(itemId, { disposition: r.disposition, reason: r.reason, markedBy: r.markedBy, updatedAt: r.updatedAt });
     }
     return map;
   } catch (e) {
@@ -295,23 +287,17 @@ export function bulkGetClassificationStageResults(
 ): Map<string, BulkStageRow[]> {
   if (runIds.length === 0) return new Map();
   _incrementQueryCount();
-  const db = getDb();
-  const CHUNK = 900;
   const map = new Map<string, BulkStageRow[]>();
   try {
-    for (let i = 0; i < runIds.length; i += CHUNK) {
-      const chunk = runIds.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const rows = db
-        .query(
-          `SELECT run_id, stage_name, status FROM classification_stage_results WHERE run_id IN (${placeholders}) ORDER BY run_id, started_at ASC`,
-        )
-        .all(...chunk) as Array<{ run_id: string; stage_name: string; status: string }>;
-      for (const r of rows) {
-        const list = map.get(r.run_id) ?? [];
-        list.push({ stage_name: r.stage_name, status: r.status });
-        map.set(r.run_id, list);
-      }
+    const rows = queryInChunks<{ run_id: string; stage_name: string; status: string }>(
+      (placeholders) =>
+        `SELECT run_id, stage_name, status FROM classification_stage_results WHERE run_id IN (${placeholders}) ORDER BY run_id, started_at ASC`,
+      runIds,
+    );
+    for (const r of rows) {
+      const list = map.get(r.run_id) ?? [];
+      list.push({ stage_name: r.stage_name, status: r.status });
+      map.set(r.run_id, list);
     }
     return map;
   } catch (e) {
