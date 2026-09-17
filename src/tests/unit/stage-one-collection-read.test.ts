@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -57,8 +57,10 @@ let followupDbPath = '';
 
 function ensureFollowupDb(): void {
   if (!followupDbPath) throw new Error('collection-read file DB path not set');
-  initDb(followupDbPath);
-  runMigrations();
+  if (!isDbInitialized()) {
+    initDb(followupDbPath);
+    runMigrations();
+  }
 }
 
 function currentRevision(brand: string): number {
@@ -494,6 +496,7 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +703,7 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
