@@ -20,9 +20,9 @@
  * cursor pagination, projection health, fail-closed on corrupt data.
  */
 import { getManualEvidenceFlags } from './flags';
-import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
+import { listItemsByBatch, listItemsByBatchChunked, findItemById, findItemsByIds } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
-import { listCohortsByBatch, getCohortMembersForCohorts } from '../db/repositories/curation-cohort-repo';
+import { listCohortsByBatch, getCohortMembersForCohorts, getActiveCohortForItem, getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getLatestExtractionBindingsByItemIds } from '../db/repositories/onboarding-extraction-repo';
 import { getCurrentCohortRunsForCohorts } from '../db/repositories/classification-cohort-run-repo';
 import { buildCohortView } from './curation-cohort-service';
@@ -141,6 +141,56 @@ function normalizeHost(url: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Build the cohort context map for a single item without scanning all items in the batch.
+ */
+function buildSingleItemCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
+  const activeCohort = getActiveCohortForItem(item.id);
+  if (!activeCohort) return new Map();
+
+  const members = getCohortMembers(activeCohort.id);
+  const memberItemIds = members.map(m => m.onboardingItemId);
+  const loadedItems = findItemsByIds(memberItemIds);
+  const memberItemMap = new Map<string, OnboardingItem>(loadedItems.map(i => [i.id, i]));
+  memberItemMap.set(item.id, item);
+  const memberItems: OnboardingItem[] = [];
+  for (const id of memberItemIds) {
+    const found = memberItemMap.get(id);
+    if (found) memberItems.push(found);
+  }
+
+  const membersByCohortId = new Map([[activeCohort.id, members]]);
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(memberItemIds);
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts([activeCohort.id]);
+
+  const view = buildCohortView(
+    activeCohort,
+    memberItems,
+    membersByCohortId,
+    extractionSourcesByItemId,
+    currentRunsByCohortId,
+  );
+
+  const map = new Map<string, FamilyCohortState>();
+  const blockedCount = Math.max(0, view.memberCount - view.readyCount - view.waitingOn.length);
+  for (const member of view.members) {
+    map.set(member.onboardingItemId, {
+      cohortId: view.cohort.id,
+      label: view.cohort.groupLabel,
+      memberCount: view.memberCount,
+      readyCount: view.readyCount,
+      blockedCount,
+      waitingOnItemIds: view.waitingOn
+        .filter(entry => entry.itemId !== member.onboardingItemId)
+        .map(entry => entry.itemId),
+      cohortStatus: view.cohort.status,
+      cohortState: view.state,
+      blockedReason: view.blockedReason,
+    });
+  }
+  return map;
 }
 
 /**
@@ -1242,8 +1292,8 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   if (!item) return undefined;
   const reviewRow = getReviewState(itemId);
   const workspaceId = findBatchById(item.batchId)?.workspaceId ?? '';
-  // Use bulk helpers even for single item (keeps query plan uniform)
-  const cohortByItem = buildCohortContext(item.batchId, listItemsByBatch(item.batchId));
+  // Single-item cohort context avoids O(N) batch-wide scans
+  const cohortByItem = buildSingleItemCohortContext(item);
   const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);

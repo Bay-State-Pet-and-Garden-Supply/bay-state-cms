@@ -16,7 +16,7 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems, listItemsByBatch } from '../../db/repositories/onboarding-item-repo';
-import { getBatchWorkState, getBatchWorkStateCountsWithHealth, getBatchWorkStateItems, buildBatchWorkStateContext } from '../../onboarding/onboarding-work-state';
+import { getBatchWorkState, getBatchWorkStateCountsWithHealth, getBatchWorkStateItems, getItemWorkState, buildBatchWorkStateContext } from '../../onboarding/onboarding-work-state';
 import { getWorkStateQueryCount, resetWorkStateQueryCount, bulkGetClassificationStageResults } from '../../db/repositories/onboarding-work-state-repo';
 import { computeWorkStateFilterHash, encodeWorkStateCursor, decodeWorkStateCursor } from '../../shared/schemas/onboarding-work-state';
 
@@ -353,5 +353,25 @@ describe('onboarding work-state query plan — bounded bulk reads', () => {
     const page2 = getBatchWorkStateItems(batch, { category: 'needs_attention', limit: 10, cursor: page1.nextCursor! });
     expect(page2.items).toHaveLength(0);
     expect(page2.scannedRows).toBeLessThanOrEqual(50);
+  });
+
+  it('getItemWorkState single-item work-state query plan is bounded and O(1) w.r.t batch size', () => {
+    makeWorkspace();
+    const batch = makeBatchWithItems(500);
+    const items = listItemsByBatch(batch);
+    seedClassificationRunsForItems(items.map(i => i.id), workspaceId);
+    const targetItemId = items[250].id;
+
+    resetWorkStateQueryCount();
+    const start = performance.now();
+    const state = getItemWorkState(targetItemId);
+    const duration = performance.now() - start;
+    const qc = getWorkStateQueryCount();
+
+    expect(state).toBeDefined();
+    expect(state?.itemId).toBe(targetItemId);
+    expect(state?.category).toBe('processing');
+    expect(qc).toBeLessThanOrEqual(6);
+    console.log(`[getItemWorkState Baseline] N=500 batch: ${duration.toFixed(2)}ms, ${qc} queries`);
   });
 });
