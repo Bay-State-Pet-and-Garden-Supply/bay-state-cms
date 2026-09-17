@@ -23,6 +23,8 @@ export interface ExtractionOutcome {
   rejectedImages: string[];
   primaryImage: string | null;
   imageRejectionReasons?: Record<string, string>;
+  duplicateContaminationCount?: number;
+  duplicateContamination?: boolean;
   isEvidenceGap: boolean;
   evidenceGapReason?: string | null;
   latencyMs?: number;
@@ -34,6 +36,9 @@ export interface GateArithmeticOptions {
   targetConfidence?: number;
   operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
   baseOperatorMinutes?: number;
+  labelVersion?: string;
+  partition?: 'all' | 'tuning' | 'holdout';
+  reportHoldoutSeparately?: boolean;
 }
 
 export interface ReplayRunnerOptions {
@@ -72,6 +77,8 @@ export interface PilotAuditOptions {
   operatorMinutesOverride?: Record<string, Record<ReplayConfiguration, number>>;
   /** Base upkeep override for the modeled operator-minutes formula. */
   baseOperatorMinutes?: number;
+  /** Workspace flow measurements override per scope (#191/#192). */
+  workspaceFlows?: Record<string, import('./adapter-strategy-report').WorkspaceFlowScopeInput>;
 }
 
 export interface BuildStratifiedManifestOptions {
@@ -106,5 +113,8 @@ export interface BuildStratifiedManifestOptions {
     createdAt?: string;
   }>;
   groundTruthOverrides?: Record<string, Partial<AuditGroundTruth>>;
+  labelVersion?: string;
+  isReviewed?: boolean;
+  includeSyntheticFixtures?: boolean;
 }
 

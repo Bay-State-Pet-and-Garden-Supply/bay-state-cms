@@ -16,6 +16,10 @@ describe('Catalog Health Check', () => {
 
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
+    try { unlinkSync(testDbPath); } catch { /* ok */ }
+    try { unlinkSync(`${testDbPath}-wal`); } catch { /* ok */ }
+    try { unlinkSync(`${testDbPath}-shm`); } catch { /* ok */ }
+    try { rmSync(testWorkspacePath, { recursive: true, force: true }); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
 

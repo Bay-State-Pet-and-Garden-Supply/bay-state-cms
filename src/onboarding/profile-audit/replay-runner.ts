@@ -25,7 +25,7 @@ import type {
   ReplayConfiguration,
 } from '../../shared/schemas/profile-audit';
 import type { ExtractionOutcome, ReplayRunnerOptions } from './types';
-import { extractViaHttpDetailed } from '../page-extractor';
+import { extractProductFromHtml } from '../page-extractor';
 import { ExtractionDataSchema } from '../../shared/schemas/onboarding';
 import { applyStrictImageFilter } from './strict-image-filter';
 import { selectHybridFields } from './hybrid-field-selector';
@@ -106,12 +106,9 @@ export async function replaySample(
     }
   }
 
-  // Prepare zero-network mock fetch transport
-  const mockFetch = async () => {
-    return new Response(html, {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-    });
+  // Zero-network guard: refetches during audit replay are forbidden
+  const zeroNetworkFetch = async () => {
+    throw new Error('Audit replay contract violation: zero network refetch allowed');
   };
 
   const expected = options.expected ?? {
@@ -128,7 +125,7 @@ export async function replaySample(
 
   // ── Configuration 1: Current Extraction (Baseline) ──────────────────────────
   const t0Baseline = now();
-  const baselineResult = await extractViaHttpDetailed(sample.url, profile, expected, mockFetch);
+  const baselineResult = await extractProductFromHtml(html, sample.url, profile, expected, zeroNetworkFetch);
   const baselineLatency = recordLatency ? Math.round((now() - t0Baseline) * 10) / 10 : undefined;
   const baselineRawImages = [
     ...(baselineResult.raw.custom?.images as string[] || []),
@@ -206,7 +203,7 @@ export async function replaySample(
   // ── Configuration 3: Structured Signals Only (Measurement Arm) ────────────
   // Re-run with profile = null to disable custom CSS selectors
   const t0Structured = now();
-  const structuredResult = await extractViaHttpDetailed(sample.url, null, expected, mockFetch);
+  const structuredResult = await extractProductFromHtml(html, sample.url, null, expected, zeroNetworkFetch);
   const structuredLatency = recordLatency ? Math.round((now() - t0Structured) * 10) / 10 : undefined;
   const structuredAdmittedImages = [
     structuredResult.data.primaryImage,

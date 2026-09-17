@@ -583,17 +583,25 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
         expected: { name: 'Var 1' },
       });
 
-      // All legitimate sources contributed and were admitted
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/variant-primary.jpg');
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/custom-selector.jpg');
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/jsonld-image.jpg');
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/og-image.jpg');
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/microdata-image.jpg');
-      expect(result.admittedImages).toContain('https://example.com/cdn/products/gallery-image.jpg');
+      // Only the matrix-evidenced image is admitted; every other contributed
+      // source is recorded as a reviewable rejection (no blind union).
+      expect(result.admittedImages).toEqual(['https://example.com/cdn/products/variant-primary.jpg']);
 
       // Primary image is correctly flagged from the variant candidate
       expect(result.primaryImage).toBe('https://example.com/cdn/products/variant-primary.jpg');
       expect(result.admittedImages[0]).toBe('https://example.com/cdn/products/variant-primary.jpg');
+
+      // Contributed-but-unevidenced sources are reviewable unknown-membership rejections
+      for (const u of [
+        'https://example.com/cdn/products/custom-selector.jpg',
+        'https://example.com/cdn/products/jsonld-image.jpg',
+        'https://example.com/cdn/products/og-image.jpg',
+        'https://example.com/cdn/products/microdata-image.jpg',
+        'https://example.com/cdn/products/gallery-image.jpg',
+      ]) {
+        expect(result.rejectedImages).toContain(u);
+        expect(result.imageRejectionReasons[u]).toBe('unknown_membership');
+      }
 
       // Non-product role image was rejected with machine-readable reason
       expect(result.rejectedImages).toContain('https://example.com/assets/facebook-icon.png');
@@ -659,6 +667,66 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
 
       expect(result.rejectedImages).toContain('https://example.com/cdn/products/toy-red.jpg');
       expect(result.imageRejectionReasons['https://example.com/cdn/products/toy-red.jpg']).toBe('other_variant');
+    });
+
+    it('rejects unrelated-product images with no membership evidence as unknown_membership in hybrid selection', () => {
+      const fakeMatrix: any = {
+        platform: 'shopify',
+        canonicalParentUrl: url,
+        warnings: [],
+        candidates: [
+          {
+            variantKey: 'blue',
+            title: 'Blue Toy',
+            available: true,
+            identifiers: [{ kind: 'sku', value: 'TOY-BLUE', normalizedValue: 'toy-blue' }],
+            options: [{ axis: 'Color', value: 'Blue', normalizedAxis: 'color', normalizedValue: 'blue' }],
+            images: [
+              { url: 'https://example.com/cdn/products/toy-blue.jpg', role: 'primary' },
+            ],
+          },
+          {
+            variantKey: 'red',
+            title: 'Red Toy',
+            available: true,
+            identifiers: [{ kind: 'sku', value: 'TOY-RED', normalizedValue: 'toy-red' }],
+            options: [{ axis: 'Color', value: 'Red', normalizedAxis: 'color', normalizedValue: 'red' }],
+            images: [
+              { url: 'https://example.com/cdn/products/toy-red.jpg', role: 'primary' },
+            ],
+          },
+        ],
+      };
+
+      const raw: any = {
+        custom: {
+          images: [
+            'https://example.com/cdn/products/toy-blue.jpg',
+            'https://example.com/cdn/products/toy-red.jpg',
+          ],
+        },
+        jsonLd: {},
+        metaTags: {},
+        microdata: {},
+        images: [
+          'https://example.com/cdn/products/cross-sell-cat-litter.jpg', // Unrelated probe from page heuristics
+        ],
+      };
+
+      const result = selectHybridFields({
+        raw,
+        url,
+        html,
+        variantMatrix: fakeMatrix,
+        expected: { name: 'Blue Toy' },
+      });
+
+      expect(result.admittedImages).toEqual(['https://example.com/cdn/products/toy-blue.jpg']);
+      expect(result.rejectedImages).toContain('https://example.com/cdn/products/toy-red.jpg');
+      expect(result.imageRejectionReasons['https://example.com/cdn/products/toy-red.jpg']).toBe('other_variant');
+
+      expect(result.rejectedImages).toContain('https://example.com/cdn/products/cross-sell-cat-litter.jpg');
+      expect(result.imageRejectionReasons['https://example.com/cdn/products/cross-sell-cat-litter.jpg']).toBe('unknown_membership');
     });
 
     it('rejects swatches, badges, and marketing banners with role_rejected', () => {

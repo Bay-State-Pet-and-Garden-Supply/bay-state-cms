@@ -30,6 +30,12 @@ export {
   scanDomainSnapshots,
   isNonProductPath,
 } from './manifest-builder';
+export {
+  buildVersionedCorpus,
+  getRepresentativeCorpusFixtures,
+  type BuildVersionedCorpusOptions,
+  type RepresentativeCorpusFixture,
+} from './versioned-corpus';
 export { replaySample } from './replay-runner';
 export { scoreExtraction } from './scorer';
 export {
@@ -69,5 +75,30 @@ export {
   formatCostAnalysisTable,
   generatePromotionReport,
 } from './promotion-report';
+export {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+  buildPromotabilityReasons,
+  evaluatePromotionEligibility,
+} from './promotion-eligibility';
+export type {
+  UsableObservationCounts,
+  LabelProvenanceInspection,
+  BlockedReasonOptions,
+  PromotionEligibilityInput,
+  PromotionEligibilityResult,
+} from './promotion-eligibility';
+export {
+  formatStrategyRecommendationBadge,
+  deriveStrategyThresholds,
+  evaluateScopeStrategyComparison,
+  formatStrategyComparisonTable,
+  formatStrategyThresholdsTable,
+  generateAdapterStrategyReport,
+  type WorkspaceFlowScopeInput,
+  type StrategyReportOptions,
+} from './adapter-strategy-report';
 
 

@@ -290,4 +290,321 @@ describe('profile audit scoring', () => {
     expect(scored.identityVerdict).toBe('correct_match');
     expect(scored.failureCodes).not.toContain('WRONG_PRODUCT');
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Issue #189: Acceptance Criterion 1 — Discriminating Identity Scoring
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('Acceptance Criterion 1: Generic title fragments never score accepted identity match or correct title', () => {
+    it('stays unidentified and scores title incorrect when extracted title is a generic fragment with no identifying codes', () => {
+      const fragmentSample: AuditManifestSample = {
+        ...sample,
+        groundTruth: {
+          ...sample.groundTruth,
+          identity: {
+            brand: 'earthbath',
+            productName: 'Hot Spot Relief Spray',
+            gtin: null,
+            sku: null,
+          },
+          fields: {
+            ...sample.groundTruth.fields,
+            title: { available: true, expectedValue: 'Hot Spot Relief Spray' },
+          },
+        },
+      };
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Spray', // Bare category word / generic title fragment
+          brand: 'earthbath',
+          confidence: 1,
+        }),
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+
+      const scored = scoreExtraction(outcome, fragmentSample);
+
+      // Identity stays unidentified, never scores correct_match
+      expect(scored.identityVerdict).toBe('unidentified');
+      expect(scored.identityVerdict).not.toBe('correct_match');
+      expect(scored.failureCodes).toContain('IDENTITY_MISMATCH');
+
+      // Title field is judged incorrect, never scores correct
+      expect(scored.fieldScores.title.correct).toBe(false);
+      expect(scored.fieldScores.title.status).toBe('incorrect');
+      expect(scored.failureCodes).toContain('MISSING_AVAILABLE_FIELD');
+      expect(scored.fieldCorrectnessScore).toBeLessThan(1.0);
+    });
+
+    it('stays unidentified when extracted title is bare category word "Dog Food" against full product name', () => {
+      const dogFoodSample: AuditManifestSample = {
+        ...sample,
+        groundTruth: {
+          ...sample.groundTruth,
+          identity: {
+            brand: 'Acme',
+            productName: 'Acme Ultra Dog Food 5lb Bag',
+          },
+          fields: {
+            title: { available: true, expectedValue: 'Acme Ultra Dog Food 5lb Bag' },
+            brand: { available: true, expectedValue: 'Acme' },
+          },
+        },
+      };
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Dog Food',
+          brand: 'Acme',
+          confidence: 1,
+        }),
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+
+      const scored = scoreExtraction(outcome, dogFoodSample);
+      expect(scored.identityVerdict).toBe('unidentified');
+      expect(scored.fieldScores.title.correct).toBe(false);
+    });
+
+    it('resolves identity via deterministic GTIN match but generic title fragment still scores title incorrect', () => {
+      const gtinSample: AuditManifestSample = {
+        ...sample,
+        groundTruth: {
+          ...sample.groundTruth,
+          identity: {
+            brand: 'earthbath',
+            productName: 'Hot Spot Relief Spray',
+            gtin: '0012345678901',
+          },
+          fields: {
+            title: { available: true, expectedValue: 'Hot Spot Relief Spray' },
+            brand: { available: true, expectedValue: 'earthbath' },
+          },
+        },
+      };
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Spray', // Generic fragment
+          brand: 'earthbath',
+          confidence: 1,
+        }),
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+      (outcome.data as Record<string, unknown>).gtin = '012345678901'; // Canonical GTIN match
+
+      const scored = scoreExtraction(outcome, gtinSample);
+
+      // Identity resolved deterministically by GTIN code
+      expect(scored.identityVerdict).toBe('correct_match');
+
+      // But title field itself is STILL evaluated by its own rule and fails
+      expect(scored.fieldScores.title.correct).toBe(false);
+      expect(scored.fieldScores.title.status).toBe('incorrect');
+      expect(scored.failureCodes).toContain('MISSING_AVAILABLE_FIELD');
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Issue #189: Acceptance Criterion 2 — Field Comparison Rules & Conflicts
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('Acceptance Criterion 2: Selector-versus-structured conflicts and individual field rules', () => {
+    it('judges title, price, brand, and identifiers each by their own rule', () => {
+      const rulesSample: AuditManifestSample = {
+        ...sample,
+        groundTruth: {
+          ...sample.groundTruth,
+          identity: {
+            brand: 'Earthbath',
+            productName: 'Hot Spot Relief Spray 8oz',
+            gtin: '0012345678901',
+            sku: 'SKU-SPRAY-8',
+          },
+          fields: {
+            title: { available: true, expectedValue: 'Hot Spot Relief Spray 8oz' },
+            brand: { available: true, expectedValue: 'Earthbath' },
+            price: { available: true, expectedValue: '$14.99' },
+            gtin: { available: true, expectedValue: '0012345678901' },
+            sku: { available: true, expectedValue: 'SKU-SPRAY-8' },
+          },
+        },
+      };
+
+      // 1. Exact / canonical matches for each field
+      const outcomeMatching: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Hot Spot Relief Spray 8oz',
+          brand: 'Earthbath',
+          price: '14.99', // Numeric equality matches $14.99
+          confidence: 1,
+        }),
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+      (outcomeMatching.data as Record<string, unknown>).gtin = '012345678901'; // Canonical 12 vs 13 digits
+      (outcomeMatching.data as Record<string, unknown>).sku = 'sku-spray-8'; // Case-insensitive normalized SKU
+
+      const scoredMatching = scoreExtraction(outcomeMatching, rulesSample);
+      expect(scoredMatching.fieldScores.title.correct).toBe(true);
+      expect(scoredMatching.fieldScores.brand.correct).toBe(true);
+      expect(scoredMatching.fieldScores.price.correct).toBe(true);
+      expect(scoredMatching.fieldScores.gtin.correct).toBe(true);
+      expect(scoredMatching.fieldScores.sku.correct).toBe(true);
+      expect(scoredMatching.fieldCorrectnessScore).toBe(1.0);
+
+      // 2. Substrings and price differences must NOT match
+      const outcomeSubstrings: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Spray', // Fragment
+          brand: 'Earth', // Substring of Earthbath
+          price: '19.99', // Price disagreement
+          confidence: 1,
+        }),
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+      (outcomeSubstrings.data as Record<string, unknown>).gtin = '1234'; // Substring of GTIN
+      (outcomeSubstrings.data as Record<string, unknown>).sku = 'SKU'; // Substring of SKU
+
+      const scoredSubstrings = scoreExtraction(outcomeSubstrings, rulesSample);
+      expect(scoredSubstrings.fieldScores.title.correct).toBe(false);
+      expect(scoredSubstrings.fieldScores.brand.correct).toBe(false);
+      expect(scoredSubstrings.fieldScores.price.correct).toBe(false);
+      expect(scoredSubstrings.fieldScores.gtin.correct).toBe(false);
+      expect(scoredSubstrings.fieldScores.sku.correct).toBe(false);
+      expect(scoredSubstrings.fieldCorrectnessScore).toBe(0.0);
+    });
+
+    it('surfaces selector-versus-structured disagreements as conflicts with provenance', () => {
+      const conflictOutcome: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Selector Title 16oz',
+          brand: 'Selector Brand',
+          price: '$12.99',
+          confidence: 1,
+          fieldProvenance: {
+            title: 'custom-selector',
+            brand: 'custom-selector',
+            price: 'custom-selector',
+          },
+        }),
+        raw: {
+          custom: {
+            title: 'Selector Title 16oz',
+            brand: 'Selector Brand',
+            price: '$12.99',
+            sku: 'SEL-SKU-1',
+          },
+          jsonLd: {
+            name: 'Structured JSON-LD Title 32oz',
+            brand: { name: 'Structured Brand' },
+            offers: { price: '24.99' },
+            sku: 'STR-SKU-2',
+          },
+        },
+        admittedImages: [],
+        rejectedImages: [],
+        primaryImage: null,
+        isEvidenceGap: false,
+      };
+
+      const scored = scoreExtraction(conflictOutcome, sample);
+
+      expect(scored.failureCodes).toContain('FIELD_CONFLICT');
+      expect(scored.conflicts).toBeDefined();
+      expect(scored.conflicts!.length).toBeGreaterThanOrEqual(3);
+
+      const titleConflict = scored.conflicts!.find(c => c.field === 'title');
+      expect(titleConflict).toBeDefined();
+      expect(titleConflict?.selectorSource).toBe('custom-selector');
+      expect(titleConflict?.structuredSource).toBe('json-ld');
+      expect(titleConflict?.selectorValue).toBe('Selector Title 16oz');
+      expect(titleConflict?.structuredValue).toBe('Structured JSON-LD Title 32oz');
+
+      const priceConflict = scored.conflicts!.find(c => c.field === 'price');
+      expect(priceConflict).toBeDefined();
+      expect(priceConflict?.selectorValue).toBe('$12.99');
+      expect(priceConflict?.structuredValue).toBe('24.99');
+
+      expect(scored.fieldScores.title.status).toBe('conflict');
+      expect(scored.fieldScores.title.conflictDetails).toContain('Selector (custom-selector): "Selector Title 16oz"');
+      expect(scored.fieldScores.title.conflictDetails).toContain('Structured (json-ld): "Structured JSON-LD Title 32oz"');
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Issue #189: Acceptance Criterion 3 — Duplicate-Fair Image Scores
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('Acceptance Criterion 3: Duplicate-fair image recall and duplicate contamination reporting', () => {
+    it('scores half recall with duplicate contamination reported when 10 admissions of one hero image occur with second expected image missing', () => {
+      const twoImageSample: AuditManifestSample = {
+        ...sample,
+        groundTruth: {
+          ...sample.groundTruth,
+          images: {
+            primaryImage: 'https://example.com/hero.jpg',
+            admissibleImages: [
+              'https://example.com/hero.jpg',
+              'https://example.com/gallery-back.jpg',
+            ],
+            inadmissibleImages: [
+              'https://example.com/unrelated-banner.jpg',
+            ],
+          },
+        },
+      };
+
+      // 10 admissions of one hero image, with gallery-back.jpg missing
+      const tenHeroAdmissions: string[] = Array(10).fill('https://example.com/hero.jpg');
+
+      const outcome: ExtractionOutcome = {
+        configuration: 'current_extraction',
+        data: ExtractionDataSchema.parse({
+          title: 'Hot Spot Relief Spray',
+          brand: 'earthbath',
+          confidence: 1,
+        }),
+        admittedImages: tenHeroAdmissions,
+        rejectedImages: [],
+        primaryImage: 'https://example.com/hero.jpg',
+        isEvidenceGap: false,
+      };
+
+      const scored = scoreExtraction(outcome, twoImageSample);
+
+      // Recall must be exactly 0.5 (half recall), NOT ~0.909 (10/11) from duplicate inflation!
+      expect(scored.imageScores.recall).toBe(0.5);
+
+      // Precision over unique canonical set is 1.0 (hero image is admissible)
+      expect(scored.imageScores.precision).toBe(1.0);
+
+      // Primary image matches
+      expect(scored.imageScores.primaryAccuracy).toBe(1);
+
+      // Duplicate contamination is reported separately
+      expect(scored.imageScores.duplicateContamination).toBe(true);
+      expect(scored.imageScores.duplicateContaminationCount).toBe(9);
+      expect(scored.duplicateContamination).toBe(true);
+      expect(scored.duplicateContaminationCount).toBe(9);
+    });
+  });
 });

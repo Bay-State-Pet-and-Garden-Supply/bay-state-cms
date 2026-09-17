@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fallow audit auto-detects the base branch
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -27,6 +29,16 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
+
+      - name: Fallow audit (changed-code gate)
+        # Fails only on findings the change introduces (ADR 0036); the legacy
+        # backlog is quarantined in .fallow-baselines (generated at the base
+        # tree) and never blocks. Zero-install via bunx; exit 1 = findings.
+        run: >
+          bunx fallow audit
+          --dead-code-baseline .fallow-baselines/dead-code.json
+          --health-baseline .fallow-baselines/health.json
+          --dupes-baseline .fallow-baselines/dupes.json
 
       - name: Test-runner coverage gate
         run: bun run test:runner-coverage

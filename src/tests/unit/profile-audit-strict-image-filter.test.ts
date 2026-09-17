@@ -85,11 +85,11 @@ describe('profile audit strict image filter', () => {
     expect(singleResult.rejectedImages).toHaveLength(0);
   });
 
-  it('admits selected-variant images and excludes other-variant images when matrix is present', () => {
+  it('admits selected-variant images and excludes other-variant images and unknown-membership images when matrix is present', () => {
     const rawImages = [
       'https://example.com/cdn/products/widget-blue-front.jpg',
       'https://example.com/cdn/products/widget-red-front.jpg',
-      'https://example.com/cdn/products/widget-shared-dimensions.jpg',
+      'https://example.com/cdn/products/widget-unrelated-probe.jpg',
     ];
 
     const fakeMatrix: any = {
@@ -112,11 +112,58 @@ describe('profile audit strict image filter', () => {
       selectedVariantKey: 'blue',
     });
 
+    // Selected variant admitted
     expect(result.admittedImages).toContain('https://example.com/cdn/products/widget-blue-front.jpg');
-    expect(result.admittedImages).toContain('https://example.com/cdn/products/widget-shared-dimensions.jpg');
+    expect(result.admittedImages).toHaveLength(1);
+
+    // Other variant rejected with machine-readable reason other_variant
     expect(result.admittedImages).not.toContain('https://example.com/cdn/products/widget-red-front.jpg');
     expect(result.rejectedImages).toContain('https://example.com/cdn/products/widget-red-front.jpg');
     expect(result.rejectionReasons['https://example.com/cdn/products/widget-red-front.jpg']).toBe('other_variant');
+
+    // Unrelated-product image with no membership evidence rejected with unknown_membership
+    expect(result.admittedImages).not.toContain('https://example.com/cdn/products/widget-unrelated-probe.jpg');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/widget-unrelated-probe.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/widget-unrelated-probe.jpg']).toBe('unknown_membership');
+  });
+
+  it('rejects an unrelated-product image with no membership evidence (the probe that was admitted previously)', () => {
+    const rawImages = [
+      'https://example.com/cdn/products/variant-selected.jpg',
+      'https://example.com/cdn/products/variant-other.jpg',
+      'https://example.com/cdn/products/recommended-cat-treats.jpg', // Probe with no variant membership
+      'https://example.com/cdn/products/carousel-dog-toy.jpg',       // Another unrelated probe
+    ];
+
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'selected-var',
+          images: [{ url: 'https://example.com/cdn/products/variant-selected.jpg' }],
+        },
+        {
+          variantKey: 'other-var',
+          images: [{ url: 'https://example.com/cdn/products/variant-other.jpg' }],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: rawImages,
+      baseUrl: 'https://example.com/products/test',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: 'selected-var',
+    });
+
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/products/variant-selected.jpg']);
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/variant-other.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/variant-other.jpg']).toBe('other_variant');
+
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/recommended-cat-treats.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/recommended-cat-treats.jpg']).toBe('unknown_membership');
+
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/carousel-dog-toy.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/carousel-dog-toy.jpg']).toBe('unknown_membership');
   });
 
   it('admits proven shared-product images across all candidates even if not in otherVariant set', () => {
@@ -155,6 +202,112 @@ describe('profile audit strict image filter', () => {
     expect(result.admittedImages).not.toContain('https://example.com/cdn/p/var-2-hero.jpg');
     expect(result.rejectedImages).toContain('https://example.com/cdn/p/var-2-hero.jpg');
     expect(result.rejectionReasons['https://example.com/cdn/p/var-2-hero.jpg']).toBe('other_variant');
+  });
+
+  it('admits only proven shared images when selectedVariantKey is unresolved/null on multi-variant matrix', () => {
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'var-1',
+          images: [
+            { url: 'https://example.com/cdn/p/var-1-hero.jpg' },
+            { url: 'https://example.com/cdn/p/nutrition-label.jpg' },
+          ],
+        },
+        {
+          variantKey: 'var-2',
+          images: [
+            { url: 'https://example.com/cdn/p/var-2-hero.jpg' },
+            { url: 'https://example.com/cdn/p/nutrition-label.jpg' },
+          ],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: [
+        'https://example.com/cdn/p/var-1-hero.jpg',
+        'https://example.com/cdn/p/var-2-hero.jpg',
+        'https://example.com/cdn/p/nutrition-label.jpg',
+        'https://example.com/cdn/p/unrelated.jpg',
+      ],
+      baseUrl: 'https://example.com/products/kibble',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: null,
+    });
+
+    // Proven shared image admitted
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/p/nutrition-label.jpg']);
+
+    // Unresolved variant images rejected with other_variant
+    expect(result.rejectedImages).toContain('https://example.com/cdn/p/var-1-hero.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/p/var-1-hero.jpg']).toBe('other_variant');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/p/var-2-hero.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/p/var-2-hero.jpg']).toBe('other_variant');
+
+    // Unrelated image rejected with unknown_membership
+    expect(result.rejectedImages).toContain('https://example.com/cdn/p/unrelated.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/p/unrelated.jpg']).toBe('unknown_membership');
+  });
+
+  it('enforces membership on single-candidate matrices: the lone candidate counts as selected (finding 4)', () => {
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'only',
+          images: [{ url: 'https://example.com/cdn/products/solo-hero.jpg' }],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: [
+        'https://example.com/cdn/products/solo-hero.jpg',
+        'https://example.com/cdn/products/stowaway.jpg',
+      ],
+      baseUrl: 'https://example.com/products/solo',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: null,
+    });
+
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/products/solo-hero.jpg']);
+    expect(result.primaryImage).toBe('https://example.com/cdn/products/solo-hero.jpg');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/stowaway.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/stowaway.jpg']).toBe('unknown_membership');
+  });
+
+  it('rejects a custom-flagged primary without membership evidence instead of bypassing the check (finding 5a)', () => {
+    const fakeMatrix: any = {
+      candidates: [
+        {
+          variantKey: 'blue',
+          images: [{ url: 'https://example.com/cdn/products/widget-blue-front.jpg' }],
+        },
+        {
+          variantKey: 'red',
+          images: [{ url: 'https://example.com/cdn/products/widget-red-front.jpg' }],
+        },
+      ],
+    };
+
+    const result = applyStrictImageFilter({
+      images: [
+        'https://example.com/cdn/products/widget-blue-front.jpg',
+        {
+          url: 'https://example.com/cdn/products/unrelated-pick.jpg',
+          role: 'primary' as const,
+        },
+      ],
+      baseUrl: 'https://example.com/products/widget',
+      variantMatrix: fakeMatrix,
+      selectedVariantKey: 'blue',
+      customPrimaryImage: 'https://example.com/cdn/products/unrelated-pick.jpg',
+    });
+
+    expect(result.admittedImages).toEqual(['https://example.com/cdn/products/widget-blue-front.jpg']);
+    expect(result.primaryImage).toBe('https://example.com/cdn/products/widget-blue-front.jpg');
+    expect(result.rejectedImages).toContain('https://example.com/cdn/products/unrelated-pick.jpg');
+    expect(result.rejectionReasons['https://example.com/cdn/products/unrelated-pick.jpg']).toBe('unknown_membership');
   });
 
   it('respects role: primary and customPrimaryImage priority for primary flagging', () => {

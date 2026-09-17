@@ -73,6 +73,12 @@ Product Intelligence / Agent Lab (epic #28) removed per ADR 0030 (rollback: `pre
 
 ## Agent skills
 
+### Skill-directory ownership (ADR 0036 deslop)
+
+- Claude Code / pi sessions → `.agents/skills/` (tracked: bay-state-store, shopsite-*) + `.claude/skills/` (tracked: skill-creator only; rest local-only).
+- GitHub Copilot → `.github/skills/impeccable/` + `.github/agents/` + `.github/hooks/impeccable.json` (wired, committed, live — never deslop targets; fallow flags on their CLI `.mjs` scripts are entry-point false positives, excluded via `.fallowrc.json`).
+- `scripts/*.ts` are CMS CLI tooling, unrelated to agent skills, and are fallow entry points (not dead code) unless the invoking workflow is proven obsolete.
+
 ### Issue tracker
 
 Issues live in this repo's GitHub Issues. See `docs/agents/issue-tracker.md`.

@@ -39,6 +39,23 @@ import {
   IMAGE_RECALL_FLOOR_FACTOR,
 } from './shared-metrics';
 
+import {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  evaluatePromotionEligibility,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+} from './promotion-eligibility';
+
+/** Re-exported promotion eligibility helpers (Issue #185 / T1 Prefactor). */
+export {
+  resolveUsableObservations,
+  inspectLabelProvenance,
+  evaluatePromotionEligibility,
+  buildBlockedReasons,
+  formatPromotionRecommendation,
+};
+
 /** Critical fields (re-exported single source of truth from shared-metrics). */
 export const CRITICAL_FIELDS: string[] = SHARED_CRITICAL_FIELDS;
 /** Wilson interval (re-exported single source of truth from shared-metrics). */
@@ -470,21 +487,49 @@ export interface BaselineThresholdInput {
   baselineMeanFieldCorrectness: number;
   hybridMeanFieldCorrectness: number;
   hybridFieldCorrectnessUncertainty?: number;
+  baselineFieldCorrectnessUncertainty?: number;
   baselineMeanImagePrecision: number;
   hybridMeanImagePrecision: number;
   hybridImagePrecisionUncertainty?: number;
+  baselineImagePrecisionUncertainty?: number;
   baselineMeanImageRecall: number;
   hybridMeanImageRecall: number;
   hybridImageRecallUncertainty?: number;
   baselinePrimaryAccuracy: number;
   hybridPrimaryAccuracy: number;
+  hybridPrimaryAccuracyUncertainty?: number;
+  baselinePrimaryAccuracyUncertainty?: number;
+  hybridIdentityAccuracyUncertainty?: number;
   baselineServedRate: number;
   hybridServedRate: number;
   hybridServedRateUncertainty?: number;
+  baselineServedRateUncertainty?: number;
   baselineEvidenceGaps: number;
   hybridEvidenceGaps: number;
   baselineOperatorMinutes: number;
   hybridOperatorMinutes: number;
+}
+
+/**
+ * Demonstrated-improvement test (Issue #188 / T2, review finding 2): the
+ * candidate-minus-baseline delta must exclude zero within the REPORTED
+ * confidence margins. The combined margin is the root-sum-square of the two
+ * reported margins — the standard margin of a difference — so a tiny
+ * point-estimate gain with heavily overlapping uncertainty does not promote.
+ * Missing uncertainties degrade to a strict point-estimate comparison, never
+ * to a pass. Equality — including zero-equality — never promotes.
+ */
+function demonstratedImprovement(
+  hybridMean: number,
+  hybridUncertainty: number | undefined,
+  baselineMean: number,
+  baselineUncertainty: number | undefined,
+): { improved: boolean; delta: number; combinedUncertainty: number } {
+  const hU = hybridUncertainty ?? 0;
+  const bU = baselineUncertainty ?? 0;
+  const delta = hybridMean - baselineMean;
+  const combinedUncertainty = Math.sqrt(hU * hU + bU * bU);
+  return { improved: delta - combinedUncertainty > 0, delta, combinedUncertainty };
 }
 
 /**
@@ -502,6 +547,7 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     baselineValue: input.baselineIdentityErrors,
     thresholdValue: 0,
     actualValue: input.hybridIdentityErrors,
+    actualUncertainty: input.hybridIdentityAccuracyUncertainty,
     unit: 'errors',
     rule: 'actual <= 0',
     passed: idPassed,
@@ -526,8 +572,17 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: ${input.criticalFieldRegressions} critical field regressions versus baseline on title/brand/price`,
   });
 
-  // 3. Field Completeness & Correctness: Match or exceed baseline coverage
-  const fcPassed = input.hybridMeanFieldCorrectness >= input.baselineMeanFieldCorrectness - 1e-9;
+  // 3. Field Completeness & Correctness: Demonstrated improvement within the
+  // reported confidence margin (Issue #188 / T2). Equality — including
+  // equality with a zero-quality baseline — never promotes.
+  const fcZeroEquality = input.baselineMeanFieldCorrectness === 0 && input.hybridMeanFieldCorrectness === 0;
+  const fcDelta = demonstratedImprovement(
+    input.hybridMeanFieldCorrectness,
+    input.hybridFieldCorrectnessUncertainty,
+    input.baselineMeanFieldCorrectness,
+    input.baselineFieldCorrectnessUncertainty,
+  );
+  const fcPassed = !fcZeroEquality && fcDelta.improved;
   checks.push({
     name: 'Field Completeness & Correctness',
     dimension: 'field_completeness',
@@ -536,15 +591,29 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridMeanFieldCorrectness,
     actualUncertainty: input.hybridFieldCorrectnessUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'delta(candidate - baseline) excludes zero within the combined reported margin',
     passed: fcPassed,
-    reason: fcPassed
-      ? `✓ Maintained or improved field completeness (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}%)`
-      : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`,
+    reason: fcZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on field correctness (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (fcPassed
+          ? `✓ Demonstrated field improvement (delta +${(fcDelta.delta * 100).toFixed(1)}% with ±${(fcDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}% baseline)`
+          : (Math.abs(fcDelta.delta) <= 1e-9
+              ? `Blocked: No field improvement over baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}% — equality never promotes)`
+              : (fcDelta.delta > 0
+                  ? `Blocked: Field improvement not demonstrated within the confidence margin (delta +${(fcDelta.delta * 100).toFixed(1)}% with ±${(fcDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}% baseline — overlapping uncertainty)`
+                  : `Blocked: Mean field correctness regressed below baseline (${(input.hybridMeanFieldCorrectness * 100).toFixed(1)}% vs ${(input.baselineMeanFieldCorrectness * 100).toFixed(1)}%)`))),
   });
 
-  // 4. Image Precision: Match or exceed baseline precision
-  const ipPassed = input.hybridMeanImagePrecision >= input.baselineMeanImagePrecision - 1e-9;
+  // 4. Image Precision: Demonstrated improvement within the reported
+  // confidence margin (Issue #188 / T2). Equality never promotes.
+  const ipZeroEquality = input.baselineMeanImagePrecision === 0 && input.hybridMeanImagePrecision === 0;
+  const ipDelta = demonstratedImprovement(
+    input.hybridMeanImagePrecision,
+    input.hybridImagePrecisionUncertainty,
+    input.baselineMeanImagePrecision,
+    input.baselineImagePrecisionUncertainty,
+  );
+  const ipPassed = !ipZeroEquality && ipDelta.improved;
   checks.push({
     name: 'Image Precision',
     dimension: 'image_precision',
@@ -553,11 +622,17 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridMeanImagePrecision,
     actualUncertainty: input.hybridImagePrecisionUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'delta(candidate - baseline) excludes zero within the combined reported margin',
     passed: ipPassed,
-    reason: ipPassed
-      ? `✓ Improved image precision (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
-      : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`,
+    reason: ipZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on image precision (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (ipPassed
+          ? `✓ Demonstrated image precision improvement (delta +${(ipDelta.delta * 100).toFixed(1)}% with ±${(ipDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`
+          : (Math.abs(ipDelta.delta) <= 1e-9
+              ? `Blocked: No image precision improvement over baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% — equality never promotes)`
+              : (ipDelta.delta > 0
+                  ? `Blocked: Mean image precision gain (delta +${(ipDelta.delta * 100).toFixed(1)}% with ±${(ipDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}% baseline) not demonstrated within the confidence margin — overlapping uncertainty`
+                  : `Blocked: Mean image precision regressed below baseline (${(input.hybridMeanImagePrecision * 100).toFixed(1)}% vs ${(input.baselineMeanImagePrecision * 100).toFixed(1)}%)`))),
   });
 
   // 5. Image Recall: Bounded drop allowed (e.g. dedupe of thumbnails/icons).
@@ -580,24 +655,47 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: Image recall (${(input.hybridMeanImageRecall * 100).toFixed(1)}%) dropped excessively below baseline bound (${(recallThreshold * 100).toFixed(1)}%)`,
   });
 
-  // 6. Primary Image Accuracy: Match or exceed baseline primary accuracy
-  const paPassed = input.hybridPrimaryAccuracy >= input.baselinePrimaryAccuracy - 1e-9;
+  // 6. Primary Image Accuracy: Demonstrated improvement within the reported
+  // confidence margin (Issue #188 / T2). Equality never promotes.
+  const paZeroEquality = input.baselinePrimaryAccuracy === 0 && input.hybridPrimaryAccuracy === 0;
+  const paDelta = demonstratedImprovement(
+    input.hybridPrimaryAccuracy,
+    input.hybridPrimaryAccuracyUncertainty,
+    input.baselinePrimaryAccuracy,
+    input.baselinePrimaryAccuracyUncertainty,
+  );
+  const paPassed = !paZeroEquality && paDelta.improved;
   checks.push({
     name: 'Primary Image Accuracy',
     dimension: 'primary_image_accuracy',
     baselineValue: input.baselinePrimaryAccuracy,
     thresholdValue: input.baselinePrimaryAccuracy,
     actualValue: input.hybridPrimaryAccuracy,
+    actualUncertainty: input.hybridPrimaryAccuracyUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'delta(candidate - baseline) excludes zero within the combined reported margin',
     passed: paPassed,
-    reason: paPassed
-      ? `✓ Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`
-      : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`,
+    reason: paZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on primary image accuracy (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (paPassed
+          ? `✓ Demonstrated primary image accuracy improvement (delta +${(paDelta.delta * 100).toFixed(1)}% with ±${(paDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselinePrimaryAccuracy * 100).toFixed(1)}% baseline)`
+          : (Math.abs(paDelta.delta) <= 1e-9
+              ? `Blocked: No primary image accuracy improvement over baseline (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}% vs ${(input.baselinePrimaryAccuracy * 100).toFixed(1)}% — equality never promotes)`
+              : (paDelta.delta > 0
+                  ? `Blocked: Primary image accuracy gain (delta +${(paDelta.delta * 100).toFixed(1)}% with ±${(paDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselinePrimaryAccuracy * 100).toFixed(1)}% baseline) not demonstrated within the confidence margin — overlapping uncertainty`
+                  : `Blocked: Primary image accuracy (${(input.hybridPrimaryAccuracy * 100).toFixed(1)}%) regressed below baseline threshold (${(input.baselinePrimaryAccuracy * 100).toFixed(1)}%)`))),
   });
 
-  // 7. Served Rate: Match or exceed baseline served rate
-  const srPassed = input.hybridServedRate >= input.baselineServedRate - 1e-9;
+  // 7. Served Rate: Demonstrated improvement within the reported confidence
+  // margin (Issue #188 / T2). Equality never promotes.
+  const srZeroEquality = input.baselineServedRate === 0 && input.hybridServedRate === 0;
+  const srDelta = demonstratedImprovement(
+    input.hybridServedRate,
+    input.hybridServedRateUncertainty,
+    input.baselineServedRate,
+    input.baselineServedRateUncertainty,
+  );
+  const srPassed = !srZeroEquality && srDelta.improved;
   checks.push({
     name: 'Served Rate',
     dimension: 'served_rate',
@@ -606,11 +704,17 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     actualValue: input.hybridServedRate,
     actualUncertainty: input.hybridServedRateUncertainty,
     unit: 'rate',
-    rule: 'actual >= threshold',
+    rule: 'delta(candidate - baseline) excludes zero within the combined reported margin',
     passed: srPassed,
-    reason: srPassed
-      ? `✓ Served rate (${(input.hybridServedRate * 100).toFixed(1)}%) met or exceeded baseline threshold (${(input.baselineServedRate * 100).toFixed(1)}%)`
-      : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`,
+    reason: srZeroEquality
+      ? `Blocked: Equality with zero-quality baseline on served rate (0.0% vs 0.0% baseline); promotion requires demonstrated quality and improvement`
+      : (srPassed
+          ? `✓ Demonstrated served rate improvement (delta +${(srDelta.delta * 100).toFixed(1)}% with ±${(srDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineServedRate * 100).toFixed(1)}% baseline)`
+          : (Math.abs(srDelta.delta) <= 1e-9
+              ? `Blocked: No served rate improvement over baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}% — equality never promotes)`
+              : (srDelta.delta > 0
+                  ? `Blocked: Hybrid served rate gain (delta +${(srDelta.delta * 100).toFixed(1)}% with ±${(srDelta.combinedUncertainty * 100).toFixed(1)}% combined margin vs ${(input.baselineServedRate * 100).toFixed(1)}% baseline) not demonstrated within the confidence margin — overlapping uncertainty`
+                  : `Blocked: Hybrid served rate regressed below baseline (${(input.hybridServedRate * 100).toFixed(1)}% vs ${(input.baselineServedRate * 100).toFixed(1)}%)`))),
   });
 
   // 8. Abstention Bound (Evidence Gaps): Cannot exceed baseline evidence gaps
@@ -661,11 +765,9 @@ export function evaluateScopeGate(
   const minSamples = options.minSamplesForPromote ?? MIN_SAMPLES_FOR_PROMOTE_DEFAULT;
   const z = resolveZForConfidence(options.targetConfidence);
 
-  const sampleCount = samples.length;
-  const sampleIdSet = new Set(samples.map(s => s.sampleId));
-
-  const baselineRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'current_extraction');
-  const hybridRows = rows.filter(r => sampleIdSet.has(r.sampleId) && r.configuration === 'hybrid_identity_first');
+  const usableObs = resolveUsableObservations(samples, rows, minSamples);
+  const { sampleCount, baselineRows, hybridRows } = usableObs;
+  const labelProvenance = inspectLabelProvenance(samples);
 
   // Served predicate: single source of truth in shared-metrics.ts (fix #13).
   // (Local isSampleServed removed — use the shared isSampleServed.)
@@ -773,6 +875,14 @@ export function evaluateScopeGate(
     hybridMeanImagePrecision: hybridPrecisionStats.mean,
   });
 
+  // Baseline uncertainty intervals (review finding 2): improvement must be
+  // demonstrated within the REPORTED margins on both arms, so the baseline
+  // side gets the same interval treatment as the candidate side.
+  const baselineFieldStats = computeContinuousMetricInterval(baselineFieldScores, z);
+  const baselinePrecisionStats = computeContinuousMetricInterval(baselinePrecisionScores, z);
+  const baselinePrimaryStats = computeWilsonScoreInterval(baselinePrimaryAccSum, baselineRows.length, z);
+  const baselineServedStats = computeWilsonScoreInterval(baselineServedCount, sampleCount, z);
+
   // Derived Baseline Thresholds Check
   const baselineIdentityErrors = baselineRows.filter(
     b => !b.isEvidenceGap && (b.identityVerdict !== 'correct_match' || b.identityResolution?.confusionDetected),
@@ -785,17 +895,23 @@ export function evaluateScopeGate(
     baselineMeanFieldCorrectness,
     hybridMeanFieldCorrectness: hybridFieldStats.mean,
     hybridFieldCorrectnessUncertainty: hybridFieldStats.marginOfError,
+    baselineFieldCorrectnessUncertainty: baselineFieldStats.marginOfError,
     baselineMeanImagePrecision,
     hybridMeanImagePrecision: hybridPrecisionStats.mean,
     hybridImagePrecisionUncertainty: hybridPrecisionStats.marginOfError,
+    baselineImagePrecisionUncertainty: baselinePrecisionStats.marginOfError,
     baselineMeanImageRecall,
     hybridMeanImageRecall: hybridRecallStats.mean,
     hybridImageRecallUncertainty: hybridRecallStats.marginOfError,
     baselinePrimaryAccuracy,
     hybridPrimaryAccuracy: hybridPrimaryStats.rate,
+    hybridPrimaryAccuracyUncertainty: hybridPrimaryStats.marginOfError,
+    baselinePrimaryAccuracyUncertainty: baselinePrimaryStats.marginOfError,
+    hybridIdentityAccuracyUncertainty: identityStats.marginOfError,
     baselineServedRate,
     hybridServedRate: hybridServedStats.rate,
     hybridServedRateUncertainty: hybridServedStats.marginOfError,
+    baselineServedRateUncertainty: baselineServedStats.marginOfError,
     baselineEvidenceGaps,
     hybridEvidenceGaps,
     baselineOperatorMinutes: costMetrics.baselineOperatorMinutes,
@@ -804,44 +920,38 @@ export function evaluateScopeGate(
 
   const allThresholdsPassed = thresholds.every(t => t.passed);
 
-  // Verdict Determination
-  let verdict: ContractPromotionVerdict;
-  let isPromotable: boolean;
-  let promotabilityVerdict: 'PROMOTABLE' | 'BLOCKED' | 'NEEDS_REVIEW';
-  const promotabilityReasons: string[] = [];
+  // Per-observation label contract (review finding 1): every usable scored
+  // pair must rest on an independently labeled, reviewed, versioned sample.
+  // Exploratory rows without a usable pair never veto.
+  const provenanceViolations = samples
+    .filter(s => {
+      const b = baselineRows.find(row => row.sampleId === s.sampleId);
+      const h = hybridRows.find(row => row.sampleId === s.sampleId);
+      if (!b || !h || b.isEvidenceGap || h.isEvidenceGap) return false;
+      return s.groundTruthSource !== 'independent' || s.isReviewed !== true || !s.labelVersion;
+    })
+    .map(s => s.sampleId);
 
-  const isSufficientSample = sampleCount >= minSamples;
+  // Unified Promotion Eligibility Determination (Issue #185 / T1 Prefactor)
+  const eligibility = evaluatePromotionEligibility({
+    scope,
+    sampleCount,
+    minSamples,
+    allThresholdsPassed,
+    thresholds,
+    abstentionGaming,
+    costMetrics,
+    hybridPrecisionMean: hybridPrecisionStats.mean,
+    baselineMeanImagePrecision,
+    hybridFieldStatsMean: hybridFieldStats.mean,
+    usableObservations: usableObs,
+    labelProvenance,
+    provenanceViolations,
+    baselineServedRate,
+    hybridServedRate: hybridServedStats.rate,
+  });
 
-  if (!allThresholdsPassed || abstentionGaming.gamingDetected) {
-    verdict = 'NO_GO';
-    promotabilityVerdict = 'BLOCKED';
-    isPromotable = false;
-
-    // Collate blocking reasons
-    for (const t of thresholds) {
-      if (!t.passed) promotabilityReasons.push(t.reason);
-    }
-    for (const r of abstentionGaming.reasons) {
-      if (!promotabilityReasons.includes(r)) promotabilityReasons.push(`Blocked: ${r}`);
-    }
-  } else if (!isSufficientSample) {
-    verdict = 'NEEDS_REVIEW';
-    promotabilityVerdict = 'NEEDS_REVIEW';
-    isPromotable = false;
-    promotabilityReasons.push(
-      `Needs Review: Sample count (${sampleCount}) is below standard gate threshold (minimum ${minSamples} required) to prove superiority within confidence margin`,
-    );
-  } else {
-    verdict = 'GO';
-    promotabilityVerdict = 'PROMOTABLE';
-    isPromotable = true;
-    promotabilityReasons.push('✓ Zero observed identity errors (100% correct identity match)');
-    promotabilityReasons.push('✓ Zero critical-field regressions on title, brand, or price');
-    promotabilityReasons.push(`✓ Improved image precision (${(hybridPrecisionStats.mean * 100).toFixed(1)}% vs ${(baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`);
-    promotabilityReasons.push(`✓ Maintained or improved field completeness (${(hybridFieldStats.mean * 100).toFixed(1)}%)`);
-    promotabilityReasons.push('✓ Zero evidence-gap inflation / no abstention gaming');
-    promotabilityReasons.push(`✓ Bounded maintenance: ${costMetrics.hybridOperatorMinutes.toFixed(1)} mins vs ${costMetrics.baselineOperatorMinutes.toFixed(1)} mins baseline`);
-  }
+  const { verdict, isPromotable, promotabilityVerdict, promotabilityReasons } = eligibility;
 
   // Metric Uncertainties
   const servedRate = buildPromotionUncertainty('servedRate', hybridServedStats, 'wilson_score');
@@ -851,11 +961,19 @@ export function evaluateScopeGate(
   const imageRecall = buildPromotionUncertainty('imageRecall', hybridRecallStats, 'standard_error');
   const primaryImageAccuracy = buildPromotionUncertainty('primaryImageAccuracy', hybridPrimaryStats, 'wilson_score');
 
+  const labelVersion = samples.find(s => !!s.labelVersion)?.labelVersion ?? options.labelVersion ?? '1.0.0';
+  const partition = options.partition ?? 'all';
+
   return {
     scope,
     domain,
     platform,
+    labelVersion,
+    partition,
     sampleCount,
+    usableObservationCount: usableObs.usableObservationCount,
+    evidenceGapCount: usableObs.evidenceGapCount,
+    samples,
     verdict,
     isPromotable,
     promotabilityVerdict,
@@ -888,8 +1006,11 @@ export function evaluateScopeGate(
 export interface FullGateArithmeticResult {
   domain: string;
   verdictsByScope: Record<string, ScopePromotionVerdict>;
+  tuningVerdictsByScope: Record<string, ScopePromotionVerdict>;
+  holdoutVerdictsByScope: Record<string, ScopePromotionVerdict>;
   domainCostMetrics: DomainCostMetrics;
   overallContractVerdict: ContractPromotionVerdict;
+  labelVersion: string;
 }
 
 export function evaluateGateArithmetic(
@@ -898,29 +1019,65 @@ export function evaluateGateArithmetic(
   options: GateArithmeticOptions = {},
 ): FullGateArithmeticResult {
   const domain = samples[0]?.domain || 'unknown';
+  const labelVersion = samples.find(s => !!s.labelVersion)?.labelVersion ?? options.labelVersion ?? '1.0.0';
   const scopeKeys = Array.from(new Set(samples.map(s => s.pageStructureScope || 'standard_pdp')));
 
   const verdictsByScope: Record<string, ScopePromotionVerdict> = {};
+  const tuningVerdictsByScope: Record<string, ScopePromotionVerdict> = {};
+  const holdoutVerdictsByScope: Record<string, ScopePromotionVerdict> = {};
 
   for (const sk of scopeKeys) {
     const scopeSamples = samples.filter(s => (s.pageStructureScope || 'standard_pdp') === sk);
-    verdictsByScope[sk] = evaluateScopeGate(sk, scopeSamples, rows, options);
+    verdictsByScope[sk] = evaluateScopeGate(sk, scopeSamples, rows, { ...options, labelVersion, partition: 'all' });
+
+    const tuningSamples = scopeSamples.filter(s => !s.isHoldout);
+    if (tuningSamples.length > 0) {
+      tuningVerdictsByScope[sk] = evaluateScopeGate(sk, tuningSamples, rows, { ...options, labelVersion, partition: 'tuning' });
+    }
+
+    const holdoutSamples = scopeSamples.filter(s => s.isHoldout);
+    if (holdoutSamples.length > 0) {
+      holdoutVerdictsByScope[sk] = evaluateScopeGate(sk, holdoutSamples, rows, { ...options, labelVersion, partition: 'holdout' });
+    }
   }
 
   const domainCostMetrics = computeDomainCostMetrics(domain, samples, rows, options);
 
-  // Overall Contract Verdict:
-  // GO only if at least 1 scope evaluated and all scopes are GO.
-  // NO_GO if any scope has NO_GO.
-  // Otherwise NEEDS_REVIEW.
+  // Overall Contract Verdict (Issue #196 — explicit holdout GO required):
+  // Tuning and holdout partitions are evaluated separately, but the overall
+  // verdict must never let strong tuning mask weak generalization. GO
+  // requires an explicit holdout GO on every evaluated scope:
+  // - NO_GO if any combined OR any holdout scope verdict is NO_GO. A holdout
+  //   NO_GO is a demonstrated generalization failure and blocks promotion.
+  // - Otherwise NEEDS_REVIEW if any combined OR any holdout verdict needs
+  //   review, or if any scope has no holdout coverage at all. Generalization
+  //   cannot be claimed without sufficient holdout evidence (fail-closed).
+  // - Otherwise GO: at least 1 scope evaluated, every combined verdict GO,
+  //   and every holdout verdict GO.
   const scopeVerdictValues = Object.values(verdictsByScope);
+  const holdoutVerdictValues = Object.values(holdoutVerdictsByScope);
+  const scopesMissingHoldout = Object.keys(verdictsByScope).filter(
+    sk => !(sk in holdoutVerdictsByScope),
+  );
   let overallContractVerdict: ContractPromotionVerdict;
 
   if (scopeVerdictValues.length === 0) {
     overallContractVerdict = 'NEEDS_REVIEW';
-  } else if (scopeVerdictValues.some(v => v.verdict === 'NO_GO')) {
+  } else if (
+    scopeVerdictValues.some(v => v.verdict === 'NO_GO') ||
+    holdoutVerdictValues.some(v => v.verdict === 'NO_GO')
+  ) {
     overallContractVerdict = 'NO_GO';
-  } else if (scopeVerdictValues.every(v => v.verdict === 'GO')) {
+  } else if (
+    scopeVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
+    holdoutVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
+    scopesMissingHoldout.length > 0
+  ) {
+    overallContractVerdict = 'NEEDS_REVIEW';
+  } else if (
+    scopeVerdictValues.every(v => v.verdict === 'GO') &&
+    holdoutVerdictValues.every(v => v.verdict === 'GO')
+  ) {
     overallContractVerdict = 'GO';
   } else {
     overallContractVerdict = 'NEEDS_REVIEW';
@@ -929,7 +1086,10 @@ export function evaluateGateArithmetic(
   return {
     domain,
     verdictsByScope,
+    tuningVerdictsByScope,
+    holdoutVerdictsByScope,
     domainCostMetrics,
     overallContractVerdict,
+    labelVersion,
   };
 }
