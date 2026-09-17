@@ -456,14 +456,15 @@ describe('negative cases (temp copies)', () => {
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
   });
 
-  it('rejects guidance with an unknown product type ref', () => {
+  it('rejects guidance referencing a non-classifiable node as a product type', () => {
     const dir = freshCopy();
     const g = readJson(dir, 'guidance.json');
+    // pet-supplies is a non-classifiable L1 department root in the hierarchy
     g.entries.push({
       id: 'bad-guidance-ref',
       scope: 'productType',
       scopeId: 'dog-food-dry',
-      structured: { productTypeIds: ['nonexistent-node-id'] },
+      structured: { productTypeIds: ['pet-supplies'] },
       freeForm: null,
       manualReviewRequirement: false,
     });

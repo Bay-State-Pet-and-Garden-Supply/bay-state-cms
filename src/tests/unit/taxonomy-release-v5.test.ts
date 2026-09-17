@@ -328,15 +328,16 @@ describe('bay-state-v5 release validation & invariants', () => {
       expectFinding(report, 'measured_attribute_missing_unit');
     });
 
-    it('fails when guidance structured references contain an unknown product type', () => {
-      const dir = copyV5Release('unknown-guidance-type');
+    it('fails when guidance structured references contain a non-classifiable node ID', () => {
+      const dir = copyV5Release('non-classifiable-guidance-type');
       const gPath = path.join(dir, 'guidance.json');
       const g = JSON.parse(fs.readFileSync(gPath, 'utf8'));
+      // pet-supplies is a non-classifiable L1 department root in the hierarchy
       g.entries.push({
         id: 'bad-guidance-ref',
         scope: 'productType',
         scopeId: 'dog-food-dry',
-        structured: { productTypeIds: ['non-existent-type'] },
+        structured: { productTypeIds: ['pet-supplies'] },
         freeForm: null,
         manualReviewRequirement: false,
       });

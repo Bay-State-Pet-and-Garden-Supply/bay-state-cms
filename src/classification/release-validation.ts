@@ -1744,7 +1744,7 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
   // ── Rule B: guidance ids unique; page-assignment-policy validity ─────────
   {
     const seenGuidanceIds = new Set<string>();
-    const knownNodeIds = new Set(hierarchy.map(n => n.id));
+    const knownNodeIds = new Set(hierarchy.filter(n => n.classifiable).map(n => n.id));
     const knownDeptIds = new Set(hierarchy.filter(n => n.parentId === null).map(n => n.id));
     for (const g of guidance) {
       if (seenGuidanceIds.has(g.id)) {
