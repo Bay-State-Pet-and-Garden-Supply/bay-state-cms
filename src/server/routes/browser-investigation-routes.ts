@@ -18,7 +18,13 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { normalizeInvestigationDomain, InvestigationBudgetInputSchema } from '../../shared/schemas/browser-investigation';
+import {
+  describeInvestigationBudget,
+  normalizeInvestigationDomain,
+  resolveInvestigationBudget,
+  InvestigationBudgetInputSchema,
+  InvestigationProviderIdSchema,
+} from '../../shared/schemas/browser-investigation';
 import {
   cancelInvestigation,
   discardInvestigation,
@@ -38,16 +44,23 @@ import {
   getInvestigationProvider,
   registerInvestigationProvider,
 } from '../../onboarding/browser-investigation/provider';
+import { LocalBrowserHarnessProvider } from '../../onboarding/browser-investigation/local-harness';
 
 export const browserInvestigationRoutes = new Hono();
 
-// Register the deterministic fake provider exactly once. The local harness
-// intentionally stays UNREGISTERED in T1: dispatching to it fails closed
-// with `isolation_unavailable` until T3 proves container isolation.
+// Register investigation providers exactly once. The fake stays for
+// deterministic fixtures; the T3 local harness is registered with default
+// (production) dependencies and fails closed with `isolation_unavailable`
+// when isolation is not enabled — missing isolation never falls back.
 try {
   getInvestigationProvider('fake');
 } catch {
   registerInvestigationProvider(fakeInvestigationProvider);
+}
+try {
+  getInvestigationProvider('local_browser_harness');
+} catch {
+  registerInvestigationProvider(new LocalBrowserHarnessProvider());
 }
 
 function getWorkspaceId(): string {
@@ -128,6 +141,10 @@ const LaunchBodySchema = z.object({
   // Single source of truth for caps lives in the shared budget schema;
   // routes accept partial overrides, never redeclare bounds.
   budget: InvestigationBudgetInputSchema.optional(),
+  // T3: explicit provider choice. Default stays `fake` so existing callers
+  // keep deterministic fixtures; `local_browser_harness` runs the isolated
+  // harness and fails closed without isolation. Unknown/cloud ids rejected.
+  provider: InvestigationProviderIdSchema.optional(),
   modelPolicy: z
     .object({
       allowCloudTextAnalysis: z.boolean().optional(),
@@ -136,8 +153,8 @@ const LaunchBodySchema = z.object({
     .optional(),
   knownContext: z.record(z.string(), z.unknown()).optional(),
   // Test-only seam: deterministic fake scenario for this launch (defaults to
-  // `valid`). Lets route-level tests drive failure paths deterministically;
-  // removed when the real harness lands in T3.
+  // `valid`). Lets route-level tests drive failure paths deterministically.
+  // Only honored when `provider` is `fake` (the default).
   scenario: FakeInvestigationScenarioSchema.optional(),
   // Launch without running (queue only). Default runs immediately so one
   // explicit operator action produces a terminal fixture via the fake.
@@ -154,7 +171,8 @@ async function handleLaunch(
   if (!parsed.success) {
     return c.json({ error: 'Invalid investigation payload', details: parsed.error.format() }, 400);
   }
-  fakeInvestigationProvider.setScenario(parsed.data.scenario ?? 'valid');
+  const provider = parsed.data.provider ?? 'fake';
+  if (provider === 'fake') fakeInvestigationProvider.setScenario(parsed.data.scenario ?? 'valid');
   const input = {
     domain,
     mode,
@@ -162,15 +180,42 @@ async function handleLaunch(
     budget: parsed.data.budget,
     modelPolicy: parsed.data.modelPolicy,
     knownContext: parsed.data.knownContext,
-    provider: 'fake' as const,
+    provider,
   };
+  // Budgets are shown at launch: the resolved caps travel with the response
+  // so the operator sees action/byte/token/image/artifact/request budgets
+  // before (and after) the bounded run. Enforcement lives at the
+  // broker/capture/dispatch layers, not in this preview.
+  const budgets = describeInvestigationBudget(resolveInvestigationBudget(parsed.data.budget));
   // requestAndRun returns the failed/cancelled record instead of throwing
   // for terminal provider outcomes; throws here mean validation/conflict.
   return withInvestigationScope(c, 201, async (workspaceId, store) => ({
+    budgets,
     investigation: parsed.data.queueOnly
       ? requestInvestigation(store, { ...input, workspaceId })
       : await requestAndRunInvestigation(store, { ...input, workspaceId }),
   }));
+}
+
+const BudgetPreviewBodySchema = z.object({
+  sampleUrls: z.array(z.string().url()).min(1).max(5).optional(),
+  budget: InvestigationBudgetInputSchema.optional(),
+});
+
+/**
+ * POST /api/domains/:domain/investigations/preview — resolve and SHOW the
+ * full budget (action, byte, token, image, artifact, request-attempt caps)
+ * without creating a run. Registered before `:id` routes so the static
+ * segment wins over the param match.
+ */
+async function handleBudgetPreview(c: RouteContext): Promise<Response> {
+  const raw = await c.req.json().catch(() => ({}));
+  const parsed = BudgetPreviewBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid budget preview payload', details: parsed.error.format() }, 400);
+  }
+  const budgets = describeInvestigationBudget(resolveInvestigationBudget(parsed.data.budget));
+  return c.json({ budgets }, 200);
 }
 
 browserInvestigationRoutes.post('/domains/:domain/investigations', (c) =>
@@ -179,6 +224,10 @@ browserInvestigationRoutes.post('/domains/:domain/investigations', (c) =>
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/drift-repair', (c) =>
   handleLaunch(c as never, 'drift_repair'),
+);
+
+browserInvestigationRoutes.post('/domains/:domain/investigations/preview', (c) =>
+  handleBudgetPreview(c as never),
 );
 
 browserInvestigationRoutes.get('/domains/:domain/investigations', (c) => {

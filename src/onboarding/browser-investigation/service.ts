@@ -28,6 +28,7 @@ import {
 // Type-only bridge to the SQLite adapter contract. Erased at compile time,
 // so this module stays runtime-clean (no bun:sqlite) and Vitest-safe.
 import { hashCanonicalJson } from '../../shared/stable-id';
+import { isExtendedUsageWithinBudget } from './budgets';
 import type {
   InvestigationInsert,
   InvestigationPatch,
@@ -256,6 +257,7 @@ function toFailureCode(err: unknown): { code: InvestigationFailureCode; detail: 
       timeout: 'timeout',
       provider_error: 'provider_error',
       budget_exhausted: 'budget_exhausted',
+      budget_not_enforceable: 'budget_not_enforceable',
       cancelled: 'cancelled',
       isolation_unavailable: 'isolation_unavailable',
       cloud_disabled: 'cloud_disabled',
@@ -269,6 +271,14 @@ function toFailureCode(err: unknown): { code: InvestigationFailureCode; detail: 
 
 function checkUsageWithinBudget(usage: InvestigationUsage | null | undefined, budget: InvestigationBudget): boolean {
   if (!usage) return true;
+  return (
+    checkCoreUsageWithinBudget(usage, budget) &&
+    // T3 resource counters (broker request attempts, byte/artifacts/model-payload totals).
+    isExtendedUsageWithinBudget(usage, budget)
+  );
+}
+
+function checkCoreUsageWithinBudget(usage: InvestigationUsage, budget: InvestigationBudget): boolean {
   const bounded: ReadonlyArray<readonly [actual: number, cap: number]> = [
     [usage.modelCalls ?? 0, budget.maxModelCalls],
     [usage.pagesVisited ?? 0, budget.maxPages],

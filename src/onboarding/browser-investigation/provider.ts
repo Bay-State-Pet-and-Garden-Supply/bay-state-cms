@@ -49,6 +49,7 @@ export class InvestigationProviderError extends Error {
     | 'timeout'
     | 'provider_error'
     | 'budget_exhausted'
+    | 'budget_not_enforceable'
     | 'cancelled'
     | 'isolation_unavailable'
     | 'cloud_disabled';

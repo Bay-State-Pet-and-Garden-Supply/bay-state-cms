@@ -89,6 +89,55 @@ export const DEFAULT_INVESTIGATION_BUDGET = {
   timeoutMs: 10 * 60 * 1000,
 } as const;
 
+/**
+ * T3 resource budgets (design-doc §"Observation and inference budgets").
+ * Versioned investigation configuration, shown before launch via
+ * `describeInvestigationBudget` and enforced live at the broker (network /
+ * byte caps), capture (artifact caps), and dispatch (model-payload caps)
+ * layers. Defaults are maxima: overrides may lower caps but never raise
+ * them — an oversized response cannot silently increase the budget.
+ */
+export const DEFAULT_INVESTIGATION_RESOURCE_BUDGET = {
+  /** Per-response body cap, enforced on transferred AND decompressed bytes while streaming. */
+  maxResponseBytesPerResponse: 5 * 1024 * 1024,
+  /** Aggregate transferred body bytes per investigation (assets, redirects, retries included). */
+  maxTotalResponseBytesTransferred: 50 * 1024 * 1024,
+  /** Aggregate decompressed body bytes per investigation. */
+  maxTotalResponseBytesDecompressed: 50 * 1024 * 1024,
+  /** Broker request attempts per investigation (subresources, redirects, denied, retries). */
+  maxRequestAttempts: 500,
+  /** Retained DOM/state/network artifact cap each (screenshots included). */
+  maxArtifactBytesPerArtifact: 5 * 1024 * 1024,
+  /** Retained artifact total per investigation. */
+  maxArtifactBytesTotal: 50 * 1024 * 1024,
+  /** Model-visible text/DOM/JSON/network-body observation cap per operation, UTF-8. */
+  maxObservationBytesPerOperation: 32 * 1024,
+  /** Model input cap per call, including instructions/schemas/history. */
+  maxModelInputBytesPerCall: 64 * 1024,
+  /** Cumulative model input cap, including repeated history. */
+  maxModelInputBytesTotal: 256 * 1024,
+  /** Enforceable provider output-token limit required before dispatch. */
+  maxModelOutputTokensPerCall: 4096,
+  /** Accepted structured result cap per call. */
+  maxModelResultBytesPerCall: 32 * 1024,
+  /** Image attachments across all calls (zero without image-sharing permission). */
+  maxImageAttachmentsTotal: 2,
+  /** Per-image byte cap. */
+  maxImageBytesPerImage: 512 * 1024,
+  /** Per-image longest-edge pixel cap. */
+  maxImageLongestEdgePx: 1024,
+  /** Declarative-query selector length cap (matches the policy-selector cap). */
+  maxSelectorLength: 512,
+  /** Declarative-query returned-match cap. */
+  maxSelectorMatches: 100,
+  /** JSON/pointer depth cap. */
+  maxJsonPointerDepth: 32,
+  /** JSON nodes visited per operation. */
+  maxJsonNodesVisited: 10_000,
+  /** Redirect hops revalidated per fetch (every hop re-resolves + revalidates). */
+  maxRedirectHops: 5,
+} as const;
+
 export const InvestigationBudgetSchema = z.object({
   maxPages: z.number().int().min(1).max(5).default(DEFAULT_INVESTIGATION_BUDGET.maxPages),
   maxReads: z.number().int().min(1).max(20).default(DEFAULT_INVESTIGATION_BUDGET.maxReads),
@@ -102,8 +151,216 @@ export const InvestigationBudgetSchema = z.object({
   /** Optional monetary ceiling. A provider that cannot enforce it must fail
    * before dispatch with `budget_not_enforceable`; post-hoc checks are not caps. */
   maxCostUsd: z.number().positive().optional(),
+  // ── T3 resource budgets (defaults are maxima; overrides may only lower) ──
+  maxResponseBytesPerResponse: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxResponseBytesPerResponse)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxResponseBytesPerResponse),
+  maxTotalResponseBytesTransferred: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxTotalResponseBytesTransferred)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxTotalResponseBytesTransferred),
+  maxTotalResponseBytesDecompressed: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxTotalResponseBytesDecompressed)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxTotalResponseBytesDecompressed),
+  maxRequestAttempts: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxRequestAttempts)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxRequestAttempts),
+  maxArtifactBytesPerArtifact: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxArtifactBytesPerArtifact)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxArtifactBytesPerArtifact),
+  maxArtifactBytesTotal: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxArtifactBytesTotal)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxArtifactBytesTotal),
+  maxObservationBytesPerOperation: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxObservationBytesPerOperation)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxObservationBytesPerOperation),
+  maxModelInputBytesPerCall: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelInputBytesPerCall)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelInputBytesPerCall),
+  maxModelInputBytesTotal: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelInputBytesTotal)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelInputBytesTotal),
+  maxModelOutputTokensPerCall: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelOutputTokensPerCall)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelOutputTokensPerCall),
+  maxModelResultBytesPerCall: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelResultBytesPerCall)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxModelResultBytesPerCall),
+  maxImageAttachmentsTotal: z
+    .number()
+    .int()
+    .min(0)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageAttachmentsTotal)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageAttachmentsTotal),
+  maxImageBytesPerImage: z
+    .number()
+    .int()
+    .min(1024)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageBytesPerImage)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageBytesPerImage),
+  maxImageLongestEdgePx: z
+    .number()
+    .int()
+    .min(16)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageLongestEdgePx)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxImageLongestEdgePx),
+  maxSelectorLength: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxSelectorLength)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxSelectorLength),
+  maxSelectorMatches: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxSelectorMatches)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxSelectorMatches),
+  maxJsonPointerDepth: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxJsonPointerDepth)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxJsonPointerDepth),
+  maxJsonNodesVisited: z
+    .number()
+    .int()
+    .min(1)
+    .max(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxJsonNodesVisited)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxJsonNodesVisited),
+  maxRedirectHops: z
+    .number()
+    .int()
+    .min(0)
+    .max(10)
+    .default(DEFAULT_INVESTIGATION_RESOURCE_BUDGET.maxRedirectHops),
 });
 export type InvestigationBudget = z.infer<typeof InvestigationBudgetSchema>;
+
+/** One operator-visible budget row, shown before launch and stored with the input. */
+export interface InvestigationBudgetRow {
+  key: string;
+  label: string;
+  value: string;
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024 * 1024) return `${trimNum(n / (1024 * 1024))} MiB`;
+  if (n >= 1024) return `${trimNum(n / 1024)} KiB`;
+  return `${n} B`;
+}
+
+function trimNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function formatMs(ms: number): string {
+  if (ms >= 60_000) return `${trimNum(ms / 60_000)} min`;
+  if (ms >= 1000) return `${trimNum(ms / 1000)} s`;
+  return `${ms} ms`;
+}
+
+/**
+ * Operator-visible budget preview. Routes return this before launch so the
+ * action, byte, token, image, artifact, and request-attempt budgets are
+ * shown up front; the same caps are enforced live at the broker, capture,
+ * and dispatch layers. Pure and Vitest-safe.
+ */
+// fallow-ignore-next-line unused-export — consumed by routes + tests
+export function describeInvestigationBudget(budget: InvestigationBudget): InvestigationBudgetRow[] {
+  return [
+    { key: 'maxPages', label: 'Product pages', value: `up to ${budget.maxPages}` },
+    { key: 'maxReads', label: 'Model-visible read operations', value: `up to ${budget.maxReads}` },
+    { key: 'maxModelCalls', label: 'Model calls', value: `up to ${budget.maxModelCalls}` },
+    { key: 'timeoutMs', label: 'Wall-clock timeout', value: formatMs(budget.timeoutMs) },
+    {
+      key: 'maxCostUsd',
+      label: 'Cost ceiling',
+      value: budget.maxCostUsd != null ? `$${budget.maxCostUsd}` : 'none requested',
+    },
+    {
+      key: 'maxResponseBytesPerResponse',
+      label: 'Response body (per response)',
+      value: formatBytes(budget.maxResponseBytesPerResponse),
+    },
+    {
+      key: 'maxTotalResponseBytes',
+      label: 'Response bodies (total, transferred + decompressed)',
+      value: `${formatBytes(budget.maxTotalResponseBytesTransferred)} each`,
+    },
+    {
+      key: 'maxRequestAttempts',
+      label: 'Broker request attempts',
+      value: `up to ${budget.maxRequestAttempts}`,
+    },
+    {
+      key: 'maxArtifactBytes',
+      label: 'Retained artifacts',
+      value: `${formatBytes(budget.maxArtifactBytesPerArtifact)} each / ${formatBytes(budget.maxArtifactBytesTotal)} total`,
+    },
+    {
+      key: 'maxObservationBytesPerOperation',
+      label: 'Observation (per operation)',
+      value: formatBytes(budget.maxObservationBytesPerOperation),
+    },
+    {
+      key: 'maxModelInputBytes',
+      label: 'Model input',
+      value: `${formatBytes(budget.maxModelInputBytesPerCall)} per call / ${formatBytes(budget.maxModelInputBytesTotal)} total`,
+    },
+    {
+      key: 'maxModelOutputTokensPerCall',
+      label: 'Model output',
+      value: `${budget.maxModelOutputTokensPerCall} tokens + ${formatBytes(budget.maxModelResultBytesPerCall)} result per call`,
+    },
+    {
+      key: 'maxImages',
+      label: 'Image attachments',
+      value:
+        budget.maxImageAttachmentsTotal === 0
+          ? 'none'
+          : `up to ${budget.maxImageAttachmentsTotal} × ${formatBytes(budget.maxImageBytesPerImage)}, ${budget.maxImageLongestEdgePx}px longest edge (requires image-sharing permission; otherwise zero)`,
+    },
+    {
+      key: 'maxQuery',
+      label: 'Declarative query bounds',
+      value: `selector ${budget.maxSelectorLength} chars / ${budget.maxSelectorMatches} matches, pointer depth ${budget.maxJsonPointerDepth}, ${budget.maxJsonNodesVisited} JSON nodes`,
+    },
+    { key: 'maxRedirectHops', label: 'Redirect hops', value: `up to ${budget.maxRedirectHops}` },
+  ];
+}
 
 export const InvestigationModelPolicySchema = z.object({
   /** Cloud text analysis requires explicit opt-in. Default off. */
@@ -152,6 +409,15 @@ export const InvestigationUsageSchema = z.object({
   costUsd: z.number().min(0).nullable().optional(),
   /** Rate-derived estimates must stay distinct from billed cost. */
   costBasis: z.enum(['billed', 'estimated', 'unavailable']).default('unavailable'),
+  // ── T3 cumulative resource counters (reported by the broker/capture/dispatch layers) ──
+  requestAttempts: z.number().int().min(0).optional(),
+  responseBytesTransferred: z.number().int().min(0).optional(),
+  responseBytesDecompressed: z.number().int().min(0).optional(),
+  artifactsRetainedBytes: z.number().int().min(0).optional(),
+  artifactsCount: z.number().int().min(0).optional(),
+  modelInputBytesTotal: z.number().int().min(0).optional(),
+  modelOutputTokensTotal: z.number().int().min(0).optional(),
+  imageAttachmentsTotal: z.number().int().min(0).optional(),
 });
 export type InvestigationUsage = z.infer<typeof InvestigationUsageSchema>;
 
