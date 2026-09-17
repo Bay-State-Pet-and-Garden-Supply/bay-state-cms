@@ -20,7 +20,7 @@
  * cursor pagination, projection health, fail-closed on corrupt data.
  */
 import { getManualEvidenceFlags } from './flags';
-import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
+import { listItemsByBatch, listItemsByBatchChunked, findItemById, findItemsByIds } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { listCohortsByBatch, getCohortMembersForCohorts, getActiveCohortForItem, getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getLatestExtractionBindingsByItemIds } from '../db/repositories/onboarding-extraction-repo';
@@ -152,9 +152,14 @@ export function buildSingleItemCohortContext(item: OnboardingItem): Map<string, 
 
   const members = getCohortMembers(activeCohort.id);
   const memberItemIds = members.map(m => m.onboardingItemId);
-  const memberItems = memberItemIds
-    .map(id => (id === item.id ? item : (findItemById(id) as OnboardingItem | null)))
-    .filter((i): i is OnboardingItem => i !== null);
+  const loadedItems = findItemsByIds(memberItemIds);
+  const memberItemMap = new Map<string, OnboardingItem>(loadedItems.map(i => [i.id, i]));
+  memberItemMap.set(item.id, item);
+  const memberItems: OnboardingItem[] = [];
+  for (const id of memberItemIds) {
+    const found = memberItemMap.get(id);
+    if (found) memberItems.push(found);
+  }
 
   const membersByCohortId = new Map([[activeCohort.id, members]]);
   const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(memberItemIds);

@@ -370,6 +370,8 @@ describe('onboarding work-state query plan — bounded bulk reads', () => {
 
     expect(state).toBeDefined();
     expect(state?.itemId).toBe(targetItemId);
+    expect(state?.category).toBe('processing');
+    expect(qc).toBeLessThanOrEqual(6);
     console.log(`[getItemWorkState Baseline] N=500 batch: ${duration.toFixed(2)}ms, ${qc} queries`);
   });
 });

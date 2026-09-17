@@ -479,6 +479,14 @@ export function findItemById(id: string): OnboardingItemWithEntryPolicy | undefi
   return row ? mapRowToItem(row) : undefined;
 }
 
+export function findItemsByIds(ids: string[]): OnboardingItemWithEntryPolicy[] {
+  if (ids.length === 0) return [];
+  const db = getDb();
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = db.query(`SELECT * FROM onboarding_items WHERE id IN (${placeholders})`).all(...ids) as OnboardingItemRow[];
+  return rows.map(row => mapRowToItem(row));
+}
+
 /**
  * Raw `extraction_data_json` lookup by item id — the exact legacy inline
  * query from product-curator's post-run OCR/extraction refresh (packaging-ocr
