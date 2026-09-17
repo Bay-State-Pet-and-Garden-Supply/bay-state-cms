@@ -171,21 +171,18 @@ async function downloadAndProcessImages(
 
   for (const rawCandidate of candidatePool) {
     if (!rawCandidate || typeof rawCandidate !== 'string') continue;
-    let trimmed = rawCandidate.trim();
+    const trimmed = rawCandidate.trim();
     if (!trimmed) continue;
 
-    if (trimmed.startsWith('//')) {
-      trimmed = 'https:' + trimmed;
-    }
-
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      if (!isUsableImageSource(trimmed)) continue;
-      const canonKey = canonicalizeUrl(trimmed);
+    const normalizedCandidate = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
+    if (normalizedCandidate.startsWith('http://') || normalizedCandidate.startsWith('https://')) {
+      if (!isUsableImageSource(normalizedCandidate)) continue;
+      const canonKey = canonicalizeUrl(normalizedCandidate);
       if (seenCanonical.has(canonKey)) continue;
       seenCanonical.add(canonKey);
 
       // Upgrade BigCommerce stencil URLs to high-res 1280x1280
-      let targetUrl = trimmed;
+      let targetUrl = normalizedCandidate;
       if (targetUrl.includes('/images/stencil/')) {
         targetUrl = targetUrl.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/1280x1280/');
       }

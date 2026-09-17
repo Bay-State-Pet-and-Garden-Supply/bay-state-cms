@@ -125,8 +125,10 @@ Batch Workspace as in Slice 6.
 - Temporary `ClassicWorkspace` primary branch removed from
 `BatchWorkspace.tsx`; `shellV2Enabled=false` renders
 `shell-disabled-notice` (header + archived-bridge-client rollback
-instruction). `WorkStateTabs`/`batch-workspace-logic` retained as secondary
-operation navigation/helpers; every frozen operation view preserved.
+instruction). `batch-workspace-logic` retained as secondary operation
+navigation helpers; `WorkStateTabs.tsx` deleted as unreachable (deslop ADR 0036 —
+never mounted; Slice 7 rollback is the archived bridge client); every frozen
+operation view preserved.
 - Verification: audit gate green before AND after deletion; retired +
 pre-retirement ledgers green; flag/logic/import/matrix/linear-shell
 (incl. the one documented frozen-review mock flake)/brand-gate/strip

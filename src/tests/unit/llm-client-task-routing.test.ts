@@ -10,12 +10,12 @@
  * the test database via the `api_keys` table.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn } from 'bun:test';
+import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn, mock } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -36,6 +36,28 @@ import {
 } from '../../onboarding/llm-client';
 import { ModelPolicyDeniedError, buildModelPolicyView } from '../../classification/model-policy-gateway';
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
+
+// Offline-safe DNS for the DeterministicNetworkGate. The cloud-VLM tests below
+// stub globalThis.fetch, but image fetching goes through
+// DeterministicNetworkGate, which resolves hostnames via node:dns/promises.
+// In sandboxes without DNS (CI), example.com fixtures fail closed with
+// dns_failed before the stubbed fetch is ever reached. Resolve example.com
+// fixtures to its public documentation IP (93.184.216.34 — non-private, so
+// the gate's SSRF floor is still exercised) and delegate every other hostname
+// to the real resolver (Bun.dns bypasses this mock) to preserve fail-closed
+// behavior elsewhere. Scoped to this file: bun isolates module registries
+// per test file, so later suites are unaffected.
+mock.module('node:dns/promises', () => ({
+  lookup: (async (hostname: string, options?: { all?: boolean }) => {
+    if (hostname === 'example.com' || hostname.endsWith('.example.com')) {
+      const recs = [{ address: '93.184.216.34', family: 4 }];
+      return options?.all ? recs : recs[0];
+    }
+    const recs = await Bun.dns.lookup(hostname);
+    const mapped = recs.map((r) => ({ address: r.address, family: r.family }));
+    return options?.all ? mapped : mapped[0];
+  }) as typeof import('node:dns/promises').lookup,
+}));
 
 // Captured at MODULE LOAD — never a stale cross-file mock. A beforeEach-time
 // capture can race with another test file's pending afterEach restore when bun
@@ -83,13 +105,6 @@ describe('LLM Client — task-specific routing', () => {
   });
 
   beforeEach(() => {
-    if (!isDbInitialized()) {
-      initDb(testDbPath);
-      runMigrations();
-    }
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -413,15 +428,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => {
-    if (!isDbInitialized()) {
-      initDb(testDbPath);
-      runMigrations();
-      upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
-      upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-    }
-    originalFetch = globalThis.fetch;
-  });
+  beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
@@ -749,7 +756,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     );
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-      const signedUrl = 'https://93.184.216.34/img/1.jpg?Signature=SECRETSIG&Expires=123';
+      const signedUrl = 'https://example.com/img/1.jpg?Signature=SECRETSIG&Expires=123';
       await extractPackagingOcrFromCloud({ imageUrl: signedUrl, modelPolicy: view });
       const joined = spy.mock.calls.map(c => String(c[0])).join('\n');
       expect(joined).not.toContain('SECRETSIG');
@@ -820,7 +827,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try {
       const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
       const result = await extractPackagingOcrFromCloud({
-        imageUrl: 'https://93.184.216.34/img/1.jpg',
+        imageUrl: 'https://example.com/img.jpg',
         modelPolicy: view,
       });
       expect(result).toBeNull();
@@ -862,7 +869,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
     }) as unknown as typeof fetch;
     globalThis.fetch = mock;
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://93.184.216.34/a.jpg', modelPolicy: tampered });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: tampered });
     // Fail closed: no OCR result from a tampered policy and ZERO transport —
     // the image is never downloaded once policy resolution is denied.
     expect(result).toBeNull();
@@ -946,7 +953,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-local' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://93.184.216.34/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).toBeNull();
     // No image download, no model call — the image never leaves the machine.
     expect(fetchCalls).toBe(0);
@@ -982,7 +989,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
       { snapshotHash: 'snap-cv-img-cloud' },
     );
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
-    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://93.184.216.34/a.jpg', modelPolicy: view });
+    const result = await extractPackagingOcrFromCloud({ imageUrl: 'https://example.com/a.jpg', modelPolicy: view });
     expect(result).not.toBeNull();
     expect(result?.productName).toBe('Test Product');
     // Image download + model call both happened.
@@ -1097,14 +1104,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   afterAll(() => {
     closeDb();
     try { unlinkSync(testDbPath); } catch { /* ok */ }
-  });
-
-  beforeEach(() => {
-    if (!isDbInitialized()) {
-      initDb(testDbPath);
-      runMigrations();
-      upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
-    }
   });
 
   test('audited success returns the full result and persists a durable success row with tokens and honest local cost', async () => {
@@ -1701,23 +1700,13 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => {
-    if (!isDbInitialized()) {
-      initDb(testDbPath);
-      runMigrations();
-      upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-      upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
-    }
-    originalFetch = globalThis.fetch;
-  });
+  beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => {
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
-    if (isDbInitialized()) {
-      getDb().run('DELETE FROM ai_workload_routes');
-      getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
-    }
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {

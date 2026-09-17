@@ -287,8 +287,8 @@ function settledExtraction(overrides: Record<string, any> = {}): Record<string, 
     brand: 'Acme',
     description: 'Original description',
     bulletPoints: ['Bullet one', 'Bullet two'],
-    primaryImage: 'https://img.example.com/primary.jpg',
-    additionalImages: ['https://img.example.com/alt1.jpg'],
+    primaryImage: 'https://example.com/primary.jpg',
+    additionalImages: ['https://example.com/alt1.jpg'],
     searchKeywords: 'kibble dog',
     customFields: { Flavor: 'Chicken' },
     fieldProvenance: { title: 'json-ld' },
@@ -301,7 +301,7 @@ function settledExtraction(overrides: Record<string, any> = {}): Record<string, 
       weight: '5 lb',
       confidenceByField: { productName: 0.95, weight: 0.8 },
       metadata: {
-        imageSourceUrl: 'https://img.example.com/primary.jpg',
+        imageSourceUrl: 'https://example.com/primary.jpg',
         model: 'test-vlm',
         extractedAt: new Date().toISOString(),
         modelCallIds: ['mock-call-1'],
@@ -619,7 +619,7 @@ describe('PR12 C6 — promotion hygiene: 3-phase promoteItems (issue #30, DECISI
     // member BEFORE any download, so ZERO fetches occur.
     const fixture = {
       '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', brand: 'Blue Buffalo', primaryImage: 'https://img.example.com/b/primary.jpg' }),
+      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', brand: 'Blue Buffalo', primaryImage: 'https://example.com/b/primary.jpg' }),
       '100000000003': promotableExtraction('100000000003', { _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Salmon 5 lb' }),
     };
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, fixture);
@@ -664,9 +664,9 @@ describe('PR12 C6 — promotion hygiene: 3-phase promoteItems (issue #30, DECISI
     // with zero change-set rows; the images were downloaded exactly once
     // (the residual (b)→(c) race — the item still never drafts).
     const fixture = {
-      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', primaryImage: 'https://img.example.com/a/primary.jpg' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', primaryImage: 'https://img.example.com/b/primary.jpg' }),
-      '100000000003': promotableExtraction('100000000003', { _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', primaryImage: 'https://img.example.com/c/primary.jpg' }),
+      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', primaryImage: 'https://example.com/a/primary.jpg' }),
+      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', primaryImage: 'https://example.com/b/primary.jpg' }),
+      '100000000003': promotableExtraction('100000000003', { _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', primaryImage: 'https://example.com/c/primary.jpg' }),
     };
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, fixture);
     const run = await freezeActiveCohort(workspaceId, wsPath);
@@ -718,8 +718,8 @@ describe('PR12 C6 — promotion hygiene: 3-phase promoteItems (issue #30, DECISI
   it('healthy items promote with EXACTLY-ONCE image downloads', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const fixture = {
-      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', primaryImage: 'https://img.example.com/a/primary.jpg' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', primaryImage: 'https://img.example.com/b/primary.jpg' }),
+      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', primaryImage: 'https://example.com/a/primary.jpg' }),
+      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme', title: 'Purina Pro Plan Dry Dog Food Beef 10 lb', primaryImage: 'https://example.com/b/primary.jpg' }),
     };
     const { items } = await promoteReadyCoherent(workspaceId, wsPath, fixture);
 
