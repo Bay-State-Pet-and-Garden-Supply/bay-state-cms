@@ -260,15 +260,35 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
     }
   }
 
+  const cands = Array.from(candidateGtins);
+  let minCandLen = Infinity;
+  for (const cand of cands) {
+    if (cand.length < minCandLen) minCandLen = cand.length;
+  }
+
   for (const url of sitemapUrls) {
     if (!url) continue;
-    for (const cand of candidateGtins) {
+
+    // Fast character digit count pass: avoid regex allocation when URL has 0 digits or fewer digits than min GTIN length
+    let digitCount = 0;
+    for (let i = 0; i < url.length; i++) {
+      const code = url.charCodeAt(i);
+      if (code >= 48 && code <= 57) digitCount++;
+    }
+
+    if (digitCount === 0) continue;
+
+    for (const cand of cands) {
       if (url.includes(cand)) return url;
     }
-    const urlDigits = url.replace(/\D+/g, '');
-    if (urlDigits) {
-      for (const cand of candidateGtins) {
-        if (urlDigits.includes(cand)) return url;
+
+    // Only extract digits if the URL has enough digits to possibly match a candidate GTIN
+    if (digitCount >= minCandLen) {
+      const urlDigits = url.replace(/\D+/g, '');
+      if (urlDigits) {
+        for (const cand of cands) {
+          if (urlDigits.includes(cand)) return url;
+        }
       }
     }
   }
