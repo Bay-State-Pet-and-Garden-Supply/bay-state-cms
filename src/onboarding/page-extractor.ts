@@ -149,7 +149,6 @@ export interface ExtractHttpDetailedOptions {
  * 2. Deterministic ladder enrichment: additive-only structured signal extraction.
  * 3. Never throws: degrades gracefully on parsing errors.
  */
-// fallow-ignore-next-line unused-export
 export async function extractProductFromHtml(
   html: string,
   url: string,
@@ -223,7 +222,6 @@ export async function extractProductFromHtml(
  * extracts structured data without launching a browser. Returns the
  * detailed diagnostics needed by the profile-generation trigger.
  */
-// fallow-ignore-next-line unused-export
 export async function extractViaHttpDetailed(
   url: string,
   profile?: ExtractorProfile | null,
