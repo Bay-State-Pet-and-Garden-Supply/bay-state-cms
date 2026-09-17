@@ -1,0 +1,161 @@
+// Deterministic fake investigation provider (T1).
+//
+// Covers the eight provider behaviors the lifecycle must survive:
+// valid, malformed, evidence-missing, timeout, error, cancellation,
+// replayed-completion, and budget-exhaustion. No network, no timers, no
+// randomness — scenario is explicit per invocation so tests are deterministic.
+//
+// Stale/replayed completions are rejected by the SERVICE (runId + inputHash
+// binding), not by this fake: the `replayed_completion` scenario exposes a
+// `replay()` helper that re-delivers an already-accepted completion.
+
+import { z } from 'zod';
+import type {
+  InvestigationProviderCompletion,
+  InvestigationProviderRequest,
+  InvestigationProvider,
+} from './provider';
+import { InvestigationProviderError } from './provider';
+import { INVESTIGATION_RESULT_VERSION } from '../../shared/schemas/browser-investigation';
+
+export const FakeInvestigationScenarioSchema = z.enum([
+  'valid',
+  'malformed',
+  'evidence_missing',
+  'timeout',
+  'error',
+  'cancellation',
+  'replayed_completion',
+  'budget_exhaustion',
+]);
+
+// Scenario selector for the deterministic fake. Routes set it per launch (test-only
+// seam for deterministic route-level failure coverage; removed when the real
+// harness lands in T3); T2+ suites reuse it for compiler/validation fixtures.
+// fallow-ignore-next-line unused-type
+export type FakeInvestigationScenario = z.infer<typeof FakeInvestigationScenarioSchema>;
+
+export const FAKE_INVESTIGATION_SCENARIOS: readonly FakeInvestigationScenario[] =
+  FakeInvestigationScenarioSchema.options;
+
+function artifactHash(seed: string): string {
+  let h = 0x811c9dc5;
+  const s = `fake-artifact:${seed}`;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0').repeat(4).slice(0, 32);
+}
+
+function validResult(request: InvestigationProviderRequest): Record<string, unknown> {
+  return {
+    version: INVESTIGATION_RESULT_VERSION,
+    summary: `Fake investigation of ${request.domain} (${request.mode}): deterministic fixture, untrusted.`,
+    observations: request.sampleUrls.slice(0, 5).map((url, i) => ({
+      kind: 'fake_dom_observation',
+      sourceUrl: url,
+      artifactHash: artifactHash(`${request.investigationId}:${i}:${url}`),
+      detail: `Deterministic fake observation ${i + 1} for ${request.domain}. Untrusted proposal evidence only.`,
+      incomplete: false,
+    })),
+    evidenceRefs: request.sampleUrls.slice(0, 5).map((_, i) => `fake-evidence:${request.investigationId}:${i}`),
+    gaps: [],
+    recommendedStrategy: 'fake-adapter-first',
+    renderedBrowserRequired: false,
+  };
+}
+
+export class FakeInvestigationProvider implements InvestigationProvider {
+  readonly id = 'fake' as const;
+  private scenario: FakeInvestigationScenario = 'valid';
+  private lastCompletion: InvestigationProviderCompletion | null = null;
+
+  setScenario(scenario: FakeInvestigationScenario): void {
+    this.scenario = scenario;
+    this.lastCompletion = null;
+  }
+
+  /** Re-deliver the last completion (replay-attack fixture). */
+  replay(): InvestigationProviderCompletion {
+    if (!this.lastCompletion) {
+      throw new InvestigationProviderError('provider_error', 'provider_error: no completion available to replay');
+    }
+    return { ...this.lastCompletion };
+  }
+
+  async invoke(request: InvestigationProviderRequest): Promise<InvestigationProviderCompletion> {
+    // NOTE: call accounting lives in invokeInvestigationProvider (provider.ts) —
+    // recording here as well would double-count one run as two calls.
+    const base = {
+      investigationId: request.investigationId,
+      runId: request.runId,
+      provider: this.id,
+      inputHash: request.inputHash,
+      usage: {
+        modelCalls: 1,
+        pagesVisited: Math.min(request.sampleUrls.length, request.budget.maxPages),
+        readsPerformed: Math.min(request.sampleUrls.length, request.budget.maxReads),
+        durationMs: 5,
+        costUsd: null,
+        costBasis: 'unavailable' as const,
+      },
+      actualModel: { provider: 'fake', model: 'fake-deterministic-v1' },
+      durationMs: 5,
+    } satisfies Partial<InvestigationProviderCompletion>;
+
+    switch (this.scenario) {
+      case 'valid':
+      case 'replayed_completion': {
+        const completion: InvestigationProviderCompletion = { ...base, result: validResult(request) };
+        this.lastCompletion = completion;
+        return completion;
+      }
+      case 'malformed': {
+        // Structurally invalid: wrong version type + missing observations.
+        const completion: InvestigationProviderCompletion = {
+          ...base,
+          result: { version: 'not-a-version', summary: '', observations: 'oops' },
+        };
+        this.lastCompletion = completion;
+        return completion;
+      }
+      case 'evidence_missing': {
+        // Well-formed envelope but zero observations — must fail closed.
+        const completion: InvestigationProviderCompletion = {
+          ...base,
+          result: {
+            version: INVESTIGATION_RESULT_VERSION,
+            summary: 'Fake evidence-missing fixture: no observations captured.',
+            observations: [],
+            evidenceRefs: [],
+            gaps: ['no observations captured within budget'],
+            renderedBrowserRequired: false,
+          },
+        };
+        this.lastCompletion = completion;
+        return completion;
+      }
+      case 'timeout': {
+        throw new InvestigationProviderError('timeout', 'timeout: fake investigation exceeded its budget');
+      }
+      case 'error': {
+        throw new InvestigationProviderError('provider_error', 'provider_error: fake investigation failed');
+      }
+      case 'cancellation': {
+        throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation acknowledged cancellation');
+      }
+      case 'budget_exhaustion': {
+        throw new InvestigationProviderError(
+          'budget_exhausted',
+          'budget_exhausted: fake investigation exceeded maxReads within budget',
+        );
+      }
+      default: {
+        throw new InvestigationProviderError('provider_error', `provider_error: unknown fake scenario ${String(this.scenario)}`);
+      }
+    }
+  }
+}
+
+export const fakeInvestigationProvider = new FakeInvestigationProvider();

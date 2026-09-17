@@ -434,6 +434,9 @@ export default defineConfig({
       'src/tests/unit/type-change-impact.test.ts',
       'src/tests/unit/type-first-guardrails-fixes.test.ts',
       'src/tests/unit/type-review-detail.test.ts',
+      // T1 (#225) browser investigation lifecycle — bun:sqlite via the
+      // repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-lifecycle.test.ts',
     ],
   },
 });

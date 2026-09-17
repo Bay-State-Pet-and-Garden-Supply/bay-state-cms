@@ -36,6 +36,7 @@ import { inventoryPickerRoutes } from './routes/inventory-picker-routes';
 import { profileBuilderGenerateDraftRoutes } from './routes/profile-builder-generate-draft-routes';
 import { profileMatrixRoutes } from './routes/profile-matrix-routes';
 import { profileInspectRoutes } from './routes/profile-inspect-routes';
+import { browserInvestigationRoutes } from './routes/browser-investigation-routes';
 import releaseRoutes from './routes/release-routes';
 import { getCurrentWorkspace } from './services/workspace-service';
 import { timingSafeCompare } from '../shared/timing-safe';
@@ -117,6 +118,8 @@ app.route('/api', inventoryPickerRoutes);
 app.route('/api', profileBuilderGenerateDraftRoutes);
 app.route('/api', profileMatrixRoutes);
 app.route('/api', profileInspectRoutes);
+// T1 (#225): workspace-scoped Browser Investigation lifecycle (fake provider).
+app.route('/api', browserInvestigationRoutes);
 // P4: taxonomy release status + sanctioned pin activation (sole state.json writer).
 app.route('/api', releaseRoutes);
 
