@@ -146,7 +146,7 @@ function normalizeHost(url: string | null | undefined): string | null {
 /**
  * Build the cohort context map for a single item without scanning all items in the batch.
  */
-export function buildSingleItemCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
+function buildSingleItemCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
   const activeCohort = getActiveCohortForItem(item.id);
   if (!activeCohort) return new Map();
 
