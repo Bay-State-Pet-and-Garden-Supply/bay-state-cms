@@ -115,7 +115,7 @@ export interface BulkVariantDisposition {
  * migration on old fixtures) degrades to empty, never throws into the
  * projection; the WithHealth wrapper reports it.
  */
-export function bulkLoadVariantDispositions(
+function bulkLoadVariantDispositions(
   itemIds: string[],
 ): Map<string, BulkVariantDisposition> {
   if (itemIds.length === 0) return new Map();
