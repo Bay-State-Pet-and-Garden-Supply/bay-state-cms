@@ -8,12 +8,12 @@
 // replayed completions cannot mutate terminal state.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { initDb, closeDb, resetDb } from '../../db/connection';
-import { runMigrations } from '../../db/migrations';
-import { insertWorkspace } from '../../db/repositories/workspace-repo';
+import {
+  getJson,
+  initInvestigationDb,
+  postJson,
+  teardownInvestigationDb,
+} from './helpers/browser-investigation-route-suite';
 import {
   findActiveInvestigation,
   findInvestigationById,
@@ -30,62 +30,22 @@ import { acceptCompletion,
   getInvestigation,
   requestInvestigation,
 } from '../../onboarding/browser-investigation/service';
-import app from '../../server/app';
-
 const WS_MAIN = 'ws-binv-lifecycle-main';
 const WS_FOREIGN = 'ws-binv-lifecycle-foreign';
 
 let tempDir: string;
 
-async function postJson(url: string, body: unknown): Promise<{ status: number; json: any }> {
-  const res = await app.request(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return { status: res.status, json: (await res.json().catch(() => ({}))) as any };
-}
-
-async function getJson(url: string): Promise<{ status: number; json: any }> {
-  const res = await app.request(url);
-  return { status: res.status, json: (await res.json().catch(() => ({}))) as any };
-}
-
 describe('browser investigation lifecycle over SQLite (T1)', () => {
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'binv-lifecycle-test-'));
-    initDb(path.join(tempDir, 'test.db'));
-    runMigrations();
-    const now = new Date().toISOString();
-    // Main workspace first: findWorkspace() (LIMIT 1) resolves to it, so it
-    // is the requesting workspace for route-level tests.
-    insertWorkspace({
-      id: WS_MAIN,
-      name: 'Investigation Lifecycle Workspace',
-      workspacePath: path.join(tempDir, 'ws-main'),
-      gitPath: path.join(tempDir, 'ws-main', '.git'),
-      createdAt: now,
-      updatedAt: now,
-      bootstrapStatus: 'complete',
-      baselineCommit: null,
-    });
-    insertWorkspace({
-      id: WS_FOREIGN,
-      name: 'Foreign Workspace',
-      workspacePath: path.join(tempDir, 'ws-foreign'),
-      gitPath: path.join(tempDir, 'ws-foreign', '.git'),
-      createdAt: now,
-      updatedAt: now,
-      bootstrapStatus: 'complete',
-      baselineCommit: null,
-    });
+    tempDir = initInvestigationDb('binv-lifecycle-test-', [
+      { id: WS_MAIN, name: 'Investigation Lifecycle Workspace' },
+      { id: WS_FOREIGN, name: 'Foreign Workspace' },
+    ]);
   });
 
   afterAll(() => {
     fakeInvestigationProvider.setScenario('valid');
-    closeDb();
-    if (tempDir && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+    teardownInvestigationDb(tempDir);
   });
 
   beforeEach(() => {

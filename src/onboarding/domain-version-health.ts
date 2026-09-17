@@ -35,6 +35,7 @@
  * error yields unhealthy (`health_check_failed`).
  */
 import { getActiveVersion, getVersionById, profileFromVersion } from '../db/repositories/profile-version-repo';
+import { isPolicyBindingIntact } from '../shared/schemas/browser-investigation-policy';
 import { findProfileByDomain, type ExtractorProfile } from '../db/repositories/extractor-profile-repo';
 import { isDeepStrictEqual } from 'node:util';
 import { hasValidWaiver } from '../db/repositories/waiver-repo';
@@ -50,6 +51,8 @@ function normalizeHealthDomain(domain: string): string {
 }
 
 /** Read-only reviewed-health verdict for one domain plus profile version. */
+// Shared verdict consumed by activation, release, and health routes.
+// fallow-ignore-next-line unused-type
 export interface DomainVersionHealth {
   domain: string;
   /** Evaluated version id; null when no version resolved (unknown/active-missing). */
@@ -84,6 +87,13 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
     }
     if (version.domain !== normalized) {
       return { domain: normalized, versionId: version.id, healthy: false, reason: 'version_domain_mismatch', gate: null };
+    }
+    // Policy content participates in immutable version binding (T2): a
+    // version whose validation summary carries a `policyHash` must still
+    // carry the identical policy content — edits invalidate prior
+    // validation instead of silently inheriting it.
+    if (!isPolicyBindingIntact(version.selectors, version.validationSummary)) {
+      return { domain: normalized, versionId: version.id, healthy: false, reason: 'executable_content_changed', gate: null };
     }
     const matrix = getMatrixResult(normalized, version.id);
     const sampleUrls = serverSampleIds(normalized);
@@ -143,8 +153,9 @@ export function evaluateCandidateVersionHealth(domain: string, versionId: string
 function executableContent(profile: ExtractorProfile) {
   // Complete executable snapshot: the version row and the legacy profile
   // must agree on every field the worker executes — core + custom
-  // selectors, variant strategy, runtime, AND supporting settings. Any
-  // drift forces re-evaluation (fail closed) instead of silent reuse.
+  // selectors, variant strategy, runtime, supporting settings, AND shared
+  // extraction-policy content (T2). Any drift forces re-evaluation (fail
+  // closed) instead of silent reuse. Legacy profiles normalize to null.
   return {
     titleSelector: profile.titleSelector,
     titleOptionalSelectors: profile.titleOptionalSelectors,
@@ -158,6 +169,7 @@ function executableContent(profile: ExtractorProfile) {
     sitemapProductUrlPattern: profile.sitemapProductUrlPattern,
     shopifyJSONPath: profile.shopifyJSONPath,
     customSelectorMetadata: profile.customSelectorMetadata,
+    extractionPolicy: profile.extractionPolicy ?? null,
   };
 }
 

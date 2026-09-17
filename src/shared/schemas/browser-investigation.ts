@@ -10,6 +10,13 @@
 // fallow-ignore-file unused-export
 
 import { z } from 'zod';
+import {
+  CodeAdapterNeedSchema,
+  FieldRecommendationSchema,
+  InvestigationPlatformSchema,
+  PolicyIdentitySchema,
+  PolicyStructureSchema,
+} from './browser-investigation-policy';
 
 export const INVESTIGATION_RESULT_VERSION = 1 as const;
 
@@ -68,6 +75,10 @@ export const InvestigationFailureCodeSchema = z.enum([
   'stale_completion',
   'isolation_unavailable',
   'cloud_disabled',
+  // T2 compiler/apply outcomes (additive: T1 lifecycle codes unchanged).
+  'unappliable_proposal',
+  'already_applied',
+  'stale_proposal',
 ]);
 export type InvestigationFailureCode = z.infer<typeof InvestigationFailureCodeSchema>;
 
@@ -164,6 +175,13 @@ export type InvestigationObservation = z.infer<typeof InvestigationObservationSc
  * activation, release, or image attestation. The deterministic compiler
  * (T2) decides what is compilable; unsupported paths yield
  * `requires_code_adapter` there, not here.
+ *
+ * T2 structured findings (platform, structures, field recommendations,
+ * identity requirements, adapter needs) are additive and optional: T1 rows
+ * and minimal fixtures still validate. The compiler treats absent structure
+ * as one implicit structure and absent recommendations as missing evidence.
+ * `recommendedStrategy` stays a display-only string — the compiler never
+ * branches on it, so model-influenced prose cannot select executables.
  */
 export const InvestigationResultSchema = z.object({
   version: z.literal(INVESTIGATION_RESULT_VERSION),
@@ -174,9 +192,15 @@ export const InvestigationResultSchema = z.object({
   recommendedStrategy: z.string().min(1).max(2000).optional(),
   renderedBrowserRequired: z.boolean().default(false),
   renderedBrowserReason: z.string().max(2000).optional(),
+  platform: InvestigationPlatformSchema.optional(),
+  structures: z.array(PolicyStructureSchema).max(8).default([]),
+  /** Structure ids the investigator declares mutually incompatible: the
+   * compiler must block a single domain-wide policy, never merge them. */
+  incompatibleStructureIds: z.array(z.string().min(1).max(64)).max(8).default([]),
+  fieldRecommendations: z.array(FieldRecommendationSchema).max(72).default([]),
+  identityRequirements: PolicyIdentitySchema.optional(),
+  codeAdapterNeeded: CodeAdapterNeedSchema.optional(),
 });
-// Forward-looking T2 API: untrusted result type for the deterministic compiler.
-// fallow-ignore-next-line unused-type
 export type InvestigationResult = z.infer<typeof InvestigationResultSchema>;
 
 /** Immutable input snapshot persisted with every investigation. */

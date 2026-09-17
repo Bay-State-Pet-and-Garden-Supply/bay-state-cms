@@ -70,6 +70,36 @@ function ensureBrowserInvestigationTables(): void {
     CREATE INDEX IF NOT EXISTS idx_browser_inv_ws_created
       ON browser_investigations(workspace_id, created_at);
   `);
+  ensureProposalColumns();
+}
+
+/**
+ * T2 proposal/apply columns. Added idempotently: pre-T2 databases gain the
+ * columns on first access; rows created before T2 read back as nulls
+ * (never compiled/applied).
+ */
+function ensureProposalColumns(): void {
+  const db = getDb();
+  const cols = db.query('PRAGMA table_info(browser_investigations)').all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  const additions: Array<[column: string, ddl: string]> = [
+    ['proposal_json', 'ALTER TABLE browser_investigations ADD COLUMN proposal_json TEXT'],
+    ['proposal_hash', 'ALTER TABLE browser_investigations ADD COLUMN proposal_hash TEXT'],
+    ['applied_version_id', 'ALTER TABLE browser_investigations ADD COLUMN applied_version_id TEXT'],
+    ['applied_at', 'ALTER TABLE browser_investigations ADD COLUMN applied_at TEXT'],
+    ['apply_actor', 'ALTER TABLE browser_investigations ADD COLUMN apply_actor TEXT'],
+  ];
+  for (const [column, ddl] of additions) {
+    if (!names.has(column)) db.exec(ddl);
+  }
+}
+
+export interface InvestigationProposalState {
+  proposalJson: string | null;
+  proposalHash: string | null;
+  appliedVersionId: string | null;
+  appliedAt: string | null;
+  applyActor: string | null;
 }
 
 interface DbRow {
@@ -289,4 +319,63 @@ export function updateInvestigation(
     id,
   );
   return findInvestigationById(workspaceId, id);
+}
+
+// ─── T2 proposal/apply persistence ─────────────────────────────────────────
+// Immutable proposal references plus apply history for one investigation.
+// Workspace-scoped like every other read/write in this module.
+
+function rowToProposalState(row: Record<string, unknown>): InvestigationProposalState {
+  return {
+    proposalJson: (row.proposal_json as string | null) ?? null,
+    proposalHash: (row.proposal_hash as string | null) ?? null,
+    appliedVersionId: (row.applied_version_id as string | null) ?? null,
+    appliedAt: (row.applied_at as string | null) ?? null,
+    applyActor: (row.apply_actor as string | null) ?? null,
+  };
+}
+
+export function getInvestigationProposalState(
+  workspaceId: string,
+  id: string,
+): InvestigationProposalState | null {
+  ensureBrowserInvestigationTables();
+  const db = getDb();
+  const row = db
+    .query(
+      'SELECT proposal_json, proposal_hash, applied_version_id, applied_at, apply_actor FROM browser_investigations WHERE workspace_id = ? AND id = ?',
+    )
+    .get(workspaceId, id) as Record<string, unknown> | undefined;
+  return row ? rowToProposalState(row) : null;
+}
+
+export function saveInvestigationProposal(
+  workspaceId: string,
+  id: string,
+  proposalJson: string,
+  proposalHash: string,
+): InvestigationProposalState | null {
+  ensureBrowserInvestigationTables();
+  const db = getDb();
+  const result = db
+    .query('UPDATE browser_investigations SET proposal_json = ?, proposal_hash = ? WHERE workspace_id = ? AND id = ?')
+    .run(proposalJson, proposalHash, workspaceId, id);
+  if (result.changes === 0) return null;
+  return getInvestigationProposalState(workspaceId, id);
+}
+
+export function markInvestigationApplied(
+  workspaceId: string,
+  id: string,
+  versionId: string,
+  actor: string,
+  appliedAt: string,
+): InvestigationProposalState | null {
+  ensureBrowserInvestigationTables();
+  const db = getDb();
+  const result = db
+    .query('UPDATE browser_investigations SET applied_version_id = ?, applied_at = ?, apply_actor = ? WHERE workspace_id = ? AND id = ?')
+    .run(versionId, appliedAt, actor, workspaceId, id);
+  if (result.changes === 0) return null;
+  return getInvestigationProposalState(workspaceId, id);
 }

@@ -1292,6 +1292,14 @@ export const ExtractorProfileSchema = z.object({
   shopifyJSONPath: z.boolean().default(false),
   variantSelectionStrategy: z.record(z.string(), z.unknown()).nullable().default(null),
   customSelectorMetadata: z.record(z.string(), z.unknown()).default(() => ({})),
+  /**
+   * Shared extraction-policy content (T2 browser investigation). Forward-
+   * compatible: legacy profiles omit it and keep current semantics.
+   * Participates in the executable snapshot and drift comparison, so edits
+   * invalidate prior validation bound to it. Optional (not defaulted) so
+   * existing profile literals without the key keep assigning cleanly.
+   */
+  extractionPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
   runtime: z.enum(['static', 'rendered']).default('rendered'),
   version: z.number().int().positive().optional(),
   profileType: z.enum(['brand', 'retailer']).optional().default('brand'),

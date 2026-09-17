@@ -106,6 +106,12 @@
       ]
     },
     {
+      "file": "src/shared/schemas/browser-investigation-policy.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
       "file": "src/onboarding/page-extractor.ts",
       "exports": [
         "*"

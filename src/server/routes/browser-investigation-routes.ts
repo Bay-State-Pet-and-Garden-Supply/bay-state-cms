@@ -8,10 +8,13 @@
 // GET  /api/domains/:domain/investigations/:id/status
 // POST /api/domains/:domain/investigations/:id/cancel
 // POST /api/domains/:domain/investigations/:id/discard
+// GET  /api/domains/:domain/investigations/:id/proposal (T2: compile only)
+// POST /api/domains/:domain/investigations/:id/apply (T2: inactive draft)
 //
 // All routes are workspace-scoped via getCurrentWorkspace. Foreign-workspace
-// access is rejected without leaking cross-workspace state. No validation,
-// apply, activation, release, or image-attestation routes ship in T1.
+// access is rejected without leaking cross-workspace state. No activation,
+// release, or image-attestation routes ship here: apply publishes an
+// inactive draft only and never touches the active pointer.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -27,7 +30,9 @@ import {
   InvestigationServiceError,
   type InvestigationStore,
 } from '../../onboarding/browser-investigation/service';
-import { createSqliteInvestigationStore } from '../../onboarding/browser-investigation/store';
+import { createSqliteInvestigationStore, createSqliteProposalStore } from '../../onboarding/browser-investigation/store';
+import { applyProposalToDraft, compileProposalForInvestigation, type ApplyProposalResult, type ApplyValidationInput } from '../../onboarding/browser-investigation/apply';
+import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
 import { fakeInvestigationProvider, FakeInvestigationScenarioSchema } from '../../onboarding/browser-investigation/fake-provider';
 import {
   getInvestigationProvider,
@@ -56,7 +61,7 @@ function getWorkspaceId(): string {
   return ws.id;
 }
 
-type InvestigationHttpStatus = 400 | 403 | 404 | 409 | 500 | 502;
+type InvestigationHttpStatus = 400 | 403 | 404 | 409 | 422 | 500 | 502;
 
 /** Operator-safe failure code → HTTP status. Terminal provider outcomes
  * (timeout/error/isolation) surface as 502; validation and replay
@@ -65,7 +70,12 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   not_found: 404,
   workspace_mismatch: 403,
   conflict_active_investigation: 409,
+  already_applied: 409,
+  stale_proposal: 409,
+  stale_completion: 409,
+  replay_rejected: 409,
   cancelled: 409,
+  unappliable_proposal: 422,
   timeout: 502,
   provider_error: 502,
   isolation_unavailable: 502,
@@ -86,7 +96,7 @@ function serviceErrorBody(err: unknown): { error: string; code: string } {
 
 type RouteContext = {
   req: { param: (key: string) => string; json: () => Promise<unknown> };
-  json: (body: unknown, status?: 200 | 201 | 400 | 403 | 404 | 409 | 500 | 502) => Response;
+  json: (body: unknown, status?: 200 | 201 | 400 | 403 | 404 | 409 | 422 | 500 | 502) => Response;
 };
 
 /**
@@ -206,6 +216,68 @@ browserInvestigationRoutes.post('/domains/:domain/investigations/:id/cancel', (c
 
 const DiscardBodySchema = z.object({
   actor: z.string().min(1),
+});
+
+// ─── T2: proposal compile + blocked-draft apply ────────────────────────────
+// GET  /api/domains/:domain/investigations/:id/proposal — deterministic
+//      compile of the stored result; persists the immutable proposal
+//      reference. Creates no versions.
+// POST /api/domains/:domain/investigations/:id/apply — publish a compilable
+//      proposal as a sanitized INACTIVE shared draft with blockers
+//      preserved. Never touches the active pointer, never grants image
+//      review, never implies validation success. Unappliable outcomes
+//      (requires_code_adapter / unresolved) are rejected with 422 and
+//      create no version.
+
+const ApplyBodySchema = z.object({
+  actor: z.string().min(1),
+  validation: z
+    .object({
+      status: z.enum(['passed', 'failed', 'incomplete', 'not_run']),
+      blockers: z.array(z.string().min(1).max(500)).max(50).optional(),
+      validationRef: z.string().min(1).max(500).optional(),
+    })
+    .optional(),
+});
+
+browserInvestigationRoutes.get('/domains/:domain/investigations/:id/proposal', (c) => {
+  const ctx = c as never as RouteContext;
+  const id = ctx.req.param('id') ?? '';
+  return withInvestigationScope(ctx, 200, async (workspaceId, store) => ({
+    outcome: await compileProposalForInvestigation(
+      { investigations: store, proposals: createSqliteProposalStore() },
+      workspaceId,
+      id,
+    ),
+  }));
+});
+
+browserInvestigationRoutes.post('/domains/:domain/investigations/:id/apply', async (c) => {
+  const raw = await c.req.json().catch(() => ({}));
+  const parsed = ApplyBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: 'Apply actor required', details: parsed.error.format() }, 400);
+  }
+  return withInvestigationScope(c as never, 201, async (workspaceId, store) => {
+    const validation: ApplyValidationInput | undefined = parsed.data.validation;
+    const applied: ApplyProposalResult = await applyProposalToDraft(
+      {
+        investigations: store,
+        proposals: createSqliteProposalStore(),
+        createVersion: (input) => createVersion({ ...input, runtime: input.runtime as 'static' | 'rendered' }),
+      },
+      {
+        workspaceId,
+        investigationId: (c as never as RouteContext).req.param('id') ?? '',
+        actor: parsed.data.actor,
+        validation,
+      },
+    );
+    return {
+      applied,
+      version: getVersionById(applied.appliedVersionId),
+    };
+  });
 });
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/:id/discard', async (c) => {

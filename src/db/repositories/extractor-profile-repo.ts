@@ -16,6 +16,8 @@ export interface ExtractorProfile {
   shopifyJSONPath: boolean;
   variantSelectionStrategy: Record<string, unknown> | null;
   customSelectorMetadata: Record<string, unknown>;
+  /** Shared extraction-policy content (T2); null for legacy profiles. */
+  extractionPolicy?: Record<string, unknown> | null;
   runtime: 'static' | 'rendered';
   profileType?: 'brand' | 'retailer';
   createdAt: string;
@@ -57,6 +59,9 @@ function mapToProfile(db: DbProfile): ExtractorProfile {
     shopifyJSONPath: !!db.shopify_json_path,
     variantSelectionStrategy: db.variant_selection_strategy_json ? JSON.parse(db.variant_selection_strategy_json) : null,
     customSelectorMetadata: db.custom_selector_metadata_json ? JSON.parse(db.custom_selector_metadata_json) : {},
+    // Legacy profile rows predate extraction policies; the health evaluator
+    // normalizes absent policies to null for drift comparison.
+    extractionPolicy: null,
     runtime: db.runtime === 'static' ? 'static' : 'rendered',
     profileType: (db.profile_type === 'retailer' ? 'retailer' : 'brand'),
     createdAt: db.created_at,

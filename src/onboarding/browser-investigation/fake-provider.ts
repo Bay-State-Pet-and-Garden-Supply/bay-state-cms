@@ -17,6 +17,7 @@ import type {
 } from './provider';
 import { InvestigationProviderError } from './provider';
 import { INVESTIGATION_RESULT_VERSION } from '../../shared/schemas/browser-investigation';
+import { POLICY_FIELDS } from '../../shared/schemas/browser-investigation-policy';
 
 export const FakeInvestigationScenarioSchema = z.enum([
   'valid',
@@ -49,6 +50,11 @@ function artifactHash(seed: string): string {
 }
 
 function validResult(request: InvestigationProviderRequest): Record<string, unknown> {
+  // Adapter-first Shopify fixture: every field prefers the platform JSON
+  // adapter with structured-data fallbacks, so the T2 compiler yields a
+  // clean proposal with zero selector exceptions. Display-only
+  // `recommendedStrategy` never influences compilation.
+  const structureId = 'fake-shopify-default';
   return {
     version: INVESTIGATION_RESULT_VERSION,
     summary: `Fake investigation of ${request.domain} (${request.mode}): deterministic fixture, untrusted.`,
@@ -63,6 +69,31 @@ function validResult(request: InvestigationProviderRequest): Record<string, unkn
     gaps: [],
     recommendedStrategy: 'fake-adapter-first',
     renderedBrowserRequired: false,
+    platform: 'shopify',
+    structures: [
+      {
+        id: structureId,
+        sampleUrls: request.sampleUrls.slice(0, 5),
+        description: 'Single Shopify product template (deterministic fake).',
+        platformSource: 'shopify_product_json',
+      },
+    ],
+    fieldRecommendations: POLICY_FIELDS.map((field) => ({
+      field,
+      sources: ['shopify_product_json', 'json_ld', 'meta'],
+      structureId,
+    })),
+    identityRequirements: {
+      productIdentity: ['gtin_exact', 'sku_exact', 'platform_product_id'],
+      variantIdentity: [
+        'gtin_exact',
+        'sku_exact',
+        'platform_variant_id_exact',
+        'options_exact_tuple',
+        'operator_selection',
+      ],
+      optionAxes: [],
+    },
   };
 }
 

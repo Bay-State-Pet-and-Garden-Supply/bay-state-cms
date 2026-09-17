@@ -9,10 +9,15 @@ import {
   findActiveInvestigation,
   findInvestigationById,
   findInvestigationByIdAnyWorkspace,
+  getInvestigationProposalState,
   insertInvestigation,
   listInvestigationRecords as listRepoRecords,
+  markInvestigationApplied,
+  saveInvestigationProposal,
   updateInvestigation as updateRepo,
+  type InvestigationProposalState,
 } from '../../db/repositories/browser-investigation-repo';
+import type { ProposalStore, StoredProposal } from './apply';
 import type { InvestigationStore } from './service';
 
 export function createSqliteInvestigationStore(): InvestigationStore {
@@ -59,6 +64,25 @@ export function createSqliteInvestigationStore(): InvestigationStore {
     },
     update(workspaceId, id, patch) {
       return updateRepo(workspaceId, id, patch);
+    },
+  };
+}
+
+/** SQLite-backed ProposalStore adapter (T2). Thin bridge over the
+ * investigation repository's proposal/apply columns. The repository row
+ * shape and the domain proposal state are structurally identical; the
+ * annotations below pin that boundary explicitly. */
+export function createSqliteProposalStore(): ProposalStore {
+  return {
+    getProposal(workspaceId, investigationId): StoredProposal | null {
+      const state: InvestigationProposalState | null = getInvestigationProposalState(workspaceId, investigationId);
+      return state;
+    },
+    saveProposal(workspaceId, investigationId, proposalJson, proposalHash) {
+      saveInvestigationProposal(workspaceId, investigationId, proposalJson, proposalHash);
+    },
+    markApplied(workspaceId, investigationId, versionId, actor, appliedAt) {
+      markInvestigationApplied(workspaceId, investigationId, versionId, actor, appliedAt);
     },
   };
 }

@@ -437,6 +437,9 @@ export default defineConfig({
       // T1 (#225) browser investigation lifecycle — bun:sqlite via the
       // repository layer; run under bun test via test:db.
       'src/tests/unit/browser-investigation-lifecycle.test.ts',
+      // T2 (#226) policy drafts (apply/binding/discard) — bun:sqlite via
+      // the repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-policy-drafts.test.ts',
     ],
   },
 });
