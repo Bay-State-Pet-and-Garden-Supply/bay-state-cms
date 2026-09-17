@@ -82,6 +82,42 @@ function hasUnresolvedVariantDisposition(disposition?: { disposition: string } |
 }
 
 /**
+ * Eligibility from the current variant-resolution row alone. Returns null
+ * when no row exists so the caller falls through to the gate-error and
+ * disposition checks. Positive proof (`selected`/`resolved` carrying a
+ * variant key) wins here; every other status waits for operator selection.
+ */
+function eligibilityFromResolutionRow(
+  resolution: VariantIdentityResolutionView | null,
+  itemId: string,
+): VariantIdentityEligibility | null {
+  if (!resolution) return null;
+  const status = (resolution.status ?? '').toLowerCase();
+  if (status === 'selected') {
+    if (resolution.selected_variant_key) {
+      return { eligible: true, reason: 'eligible: operator-selected variant identity' };
+    }
+    return {
+      eligible: false,
+      reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is selected but carries no selected variant key (item ${itemId})`,
+    };
+  }
+  if (status === 'resolved') {
+    if (resolution.selected_variant_key || resolution.automatic_variant_key) {
+      return { eligible: true, reason: 'eligible: automatically resolved variant identity' };
+    }
+    return {
+      eligible: false,
+      reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is resolved but carries no variant key (item ${itemId})`,
+    };
+  }
+  return {
+    eligible: false,
+    reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is ${resolution.status} — operator variant selection required first (item ${itemId})`,
+  };
+}
+
+/**
  * Runtime variant-identity eligibility for one blocked extraction item.
  * Fail-closed: any variant-bearing signal without a proven selection is
  * ineligible with a clear `variant_resolution_required` reason.
@@ -89,32 +125,8 @@ function hasUnresolvedVariantDisposition(disposition?: { disposition: string } |
 export function variantIdentityEligibilityForItem(
   input: VariantIdentityEligibilityInput,
 ): VariantIdentityEligibility {
-  const resolution = input.variantResolution ?? null;
-  if (resolution) {
-    const status = (resolution.status ?? '').toLowerCase();
-    if (status === 'selected') {
-      if (resolution.selected_variant_key) {
-        return { eligible: true, reason: 'eligible: operator-selected variant identity' };
-      }
-      return {
-        eligible: false,
-        reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is selected but carries no selected variant key (item ${input.itemId})`,
-      };
-    }
-    if (status === 'resolved') {
-      if (resolution.selected_variant_key || resolution.automatic_variant_key) {
-        return { eligible: true, reason: 'eligible: automatically resolved variant identity' };
-      }
-      return {
-        eligible: false,
-        reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is resolved but carries no variant key (item ${input.itemId})`,
-      };
-    }
-    return {
-      eligible: false,
-      reason: `${VARIANT_INELIGIBILITY_REASON_PREFIX}: variant resolution is ${resolution.status} — operator variant selection required first (item ${input.itemId})`,
-    };
-  }
+  const fromResolution = eligibilityFromResolutionRow(input.variantResolution ?? null, input.itemId);
+  if (fromResolution) return fromResolution;
   if (isVariantGateError(input.errorMessage)) {
     return {
       eligible: false,
