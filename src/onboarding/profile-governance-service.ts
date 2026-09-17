@@ -67,7 +67,7 @@ import {
   type ProfileGenerationFieldDecision as RepoProfileGenerationFieldDecision,
 } from '../db/repositories/profile-generation-field-decision-repo';
 import { listValidationSamplesByDomain } from '../db/repositories/onboarding-source-repo';
-import { isPrivateOrLinkLocalHost } from '../shared/ssrf';
+import { isPrivateOrLinkLocalHost, fetchPinned } from '../shared/ssrf';
 import {
   promoteGeneratedProfile,
   rollbackProfileField,
@@ -283,24 +283,7 @@ async function fetchSampleHtml(url: string): Promise<string | null> {
     let response: Response | null = null;
 
     for (let hop = 0; hop < 5; hop++) {
-      let parsed: URL;
-      try {
-        parsed = new URL(currentUrl);
-      } catch {
-        return null;
-      }
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return null;
-      }
-      if (parsed.username || parsed.password) {
-        return null;
-      }
-      const host = parsed.hostname.replace(/^\[|\]$/g, '').trim();
-      if (await isPrivateOrLinkLocalHost(host)) {
-        return null;
-      }
-
-      response = await fetch(currentUrl, {
+      const hopResult = await fetchPinned(currentUrl, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -309,9 +292,10 @@ async function fetchSampleHtml(url: string): Promise<string | null> {
           'Cache-Control': 'no-cache',
           Pragma: 'no-cache',
         },
-        signal: AbortSignal.timeout(12_000),
-        redirect: 'manual',
+        timeoutMs: 12_000,
       });
+
+      response = hopResult.response;
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');

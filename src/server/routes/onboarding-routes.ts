@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono';
-import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
+import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost, fetchPinned, sanitizeUrlForError } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
 import { OLLAMA_VLM_SERVICE_NAME, DEFAULT_LOCAL_VISION_MODEL } from '../../ai/vision-model-defaults';
 import { streamSSE } from 'hono/streaming';
@@ -3634,48 +3634,28 @@ route.post('/onboarding/settings/profile-tooling/fetch-html', async (c) => {
     return c.json({ ok: false, error: 'url is required' }, 400);
   }
 
-  // Block non-HTTP(S) protocols and private/internal IP ranges (SSRF & Local File Disclosure protection)
-  try {
-    const parsedUrl = new URL(url);
-    // Security: Only allow http and https protocols to prevent file:// local file leakage or other schemes
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-      return c.json({ ok: false, error: 'Only http and https protocols are allowed' }, 400);
-    }
-    const hostname = parsedUrl.hostname.replace(/^\[|\]$/g, '');
-    if (await isPrivateOrLinkLocalHost(hostname)) {
-      return c.json({ ok: false, error: 'URL points to a private network address' }, 400);
-    }
-  } catch {
-    return c.json({ ok: false, error: 'Invalid URL' }, 400);
-  }
-
   try {
     let currentUrl = url;
     let response: Response | null = null;
     for (let redirectCount = 0; redirectCount < 5; redirectCount++) {
-      // Per-hop SSRF validation: re-validate each redirect target
+      let hopResult;
       try {
-        const parsedCurrent = new URL(currentUrl);
-        if (parsedCurrent.protocol !== 'http:' && parsedCurrent.protocol !== 'https:') {
-          return c.json({ ok: false, error: 'Only http and https protocols are allowed' }, 400);
-        }
-        const curHostname = parsedCurrent.hostname.replace(/^\[|\]$/g, '');
-        if (await isPrivateOrLinkLocalHost(curHostname)) {
-          return c.json({ ok: false, error: 'URL points to a private network address' }, 400);
-        }
-      } catch {
-        return c.json({ ok: false, error: 'Invalid URL' }, 400);
+        hopResult = await fetchPinned(currentUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+          },
+          timeoutMs: 15_000,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return c.json({ ok: false, error: msg }, 400);
       }
-      response = await fetch(currentUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept':
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        },
-        signal: AbortSignal.timeout(15_000),
-        redirect: 'manual',
-      });
+
+      response = hopResult.response;
+
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
         if (location) {
@@ -4623,38 +4603,21 @@ route.post('/onboarding/settings/profile-generations/:id/revisions', async (c) =
     let response: Response | null = null;
 
     for (let hop = 0; hop < 5; hop++) {
-      let parsedUrl: URL;
       try {
-        parsedUrl = new URL(currentFetchUrl);
-      } catch {
-        break;
-      }
-      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        break;
-      }
-      if (parsedUrl.username || parsedUrl.password) {
-        break;
-      }
-      const host = parsedUrl.hostname.replace(/^\[|\]$/g, '').trim();
-      if (await isPrivateOrLinkLocalHost(host)) {
-        break;
-      }
+        const hopResult = await fetchPinned(currentFetchUrl, {
+          headers: HTTP_EXTRACTION_HEADERS,
+          timeoutMs: 15000,
+        });
+        response = hopResult.response;
 
-      response = await fetch(currentFetchUrl, {
-        headers: HTTP_EXTRACTION_HEADERS,
-        signal: AbortSignal.timeout(15000),
-        redirect: 'manual',
-      });
-
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) break;
-        try {
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location');
+          if (!location) break;
           currentFetchUrl = new URL(location, currentFetchUrl).toString();
           continue;
-        } catch {
-          break;
         }
+      } catch {
+        break;
       }
       break;
     }

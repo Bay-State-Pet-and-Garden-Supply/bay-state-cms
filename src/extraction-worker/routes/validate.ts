@@ -29,7 +29,7 @@ import {
   type VariantSelectionStrategy,
 } from '../../shared/schemas/extraction-worker';
 import { resolveArtifactDir, writeArtifact, generateJobId, extractDomainFromUrl } from '../artifacts';
-import { isPrivateOrLinkLocalHost } from '../../shared/ssrf';
+import { isPrivateOrLinkLocalHost, fetchPinned, sanitizeUrlForError } from '../../shared/ssrf';
 import {
   cleanAndDeduplicateImages,
   collectImageSourcesFromElement,
@@ -399,17 +399,6 @@ function sanitizeUrlSegment(url: string): string {
     .substring(0, 120);
 }
 
-function sanitizeUrlForError(rawUrl: string): string {
-  try {
-    const parsed = new URL(rawUrl);
-    parsed.username = '';
-    parsed.password = '';
-    return parsed.toString();
-  } catch {
-    return rawUrl.replace(/\/\/[^@]+@/, '//[REDACTED]@');
-  }
-}
-
 // ─── Static sample fetch ───────────────────────────────────────────────────────
 
 async function validateSampleStatic(
@@ -436,28 +425,12 @@ async function validateSampleStatic(
     let response: Response | null = null;
 
     for (let hop = 0; hop < 5; hop++) {
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(currentFetchUrl);
-      } catch {
-        throw new Error(`Invalid URL: ${sanitizeUrlForError(currentFetchUrl)}`);
-      }
-      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        throw new Error(`Unsupported protocol ${parsedUrl.protocol}`);
-      }
-      if (parsedUrl.username || parsedUrl.password) {
-        throw new Error('URL contains credentials');
-      }
-      const host = parsedUrl.hostname.replace(/^\[|\]$/g, '').trim();
-      if (await isPrivateOrLinkLocalHost(host)) {
-        throw new Error(`SSRF blocked: URL points to a private or link-local address ${host}`);
-      }
-
-      response = await fetch(currentFetchUrl, {
+      const hopResult = await fetchPinned(currentFetchUrl, {
         headers: HTTP_EXTRACTION_HEADERS,
-        signal: AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS),
-        redirect: 'manual',
+        timeoutMs: HTTP_FETCH_TIMEOUT_MS,
       });
+
+      response = hopResult.response;
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');

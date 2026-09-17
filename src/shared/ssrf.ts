@@ -214,6 +214,256 @@ export async function isPrivateOrLinkLocalHost(
   return false;
 }
 
+/** True when the hostname is a literal IP (v4 dotted or v6). */
+export function isIpLiteralHostname(hostname: string): boolean {
+  const clean = hostname.replace(/^\[|\]$/g, '').trim();
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(clean) || clean.includes(':');
+}
+
+/**
+ * Resolve a hostname to a single PUBLIC address suitable for connection pinning.
+ * Returns null (deny) when ANY record is private/link-local/loopback or when
+ * DNS resolution fails (fail closed).
+ */
+export async function resolvePublicAddress(
+  hostname: string,
+  opts: { lookup?: typeof dnsLookup } = {}
+): Promise<string | null> {
+  const hostLower = hostname.toLowerCase().replace(/^\[|\]$/g, '').trim();
+  if (!hostLower || hostLower === 'localhost' || hostLower.endsWith('.local')) {
+    return null;
+  }
+  const literalKind = classifyIp(hostLower);
+  if (literalKind === 'private' || literalKind === 'link_local') {
+    return null;
+  }
+  if (literalKind === 'public') {
+    return hostLower;
+  }
+
+  const doLookup = opts.lookup ?? dnsLookup;
+  let addrs: Array<{ address: string }>;
+  try {
+    addrs = (await doLookup(hostLower, { all: true } as any)) as any;
+  } catch {
+    return null; // Fail closed on DNS error
+  }
+  if (!addrs || addrs.length === 0) {
+    return null; // Fail closed if no DNS records
+  }
+  for (const a of addrs) {
+    const kind = classifyIp(a.address);
+    if (kind !== 'public') {
+      return null; // Fail closed if any IP is not public
+    }
+  }
+  return addrs[0].address;
+}
+
+/**
+ * Pure URL rewrite that closes the DNS-rebinding TOCTOU window for http destinations.
+ * Rewrites an http URL to the address literal so the socket connects directly to
+ * the validated address (caller sends Host header).
+ */
+export function pinHttpDestination(rawUrl: string, address: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:') return null;
+  if (isIpLiteralHostname(parsed.hostname)) return null;
+  if (!address) return null;
+  const formatted = address.includes(':') ? `[${address}]` : address;
+  return `http://${formatted}${parsed.pathname}${parsed.search}`;
+}
+
+export function sanitizeUrlForError(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    return rawUrl.replace(/\/\/[^@]+@/, '//[REDACTED]@');
+  }
+}
+
+export interface FetchPinnedOptions {
+  timeoutMs?: number;
+  headers?: Record<string, string>;
+  body?: BodyInit | null;
+  method?: string;
+  lookupFn?: typeof dnsLookup;
+  fetchFn?: typeof fetch;
+}
+
+/**
+ * Fetch one logical http(s) destination with the connection PINNED for http.
+ * The http URL is rewritten to the validated public IP literal and the original
+ * hostname is sent in the Host header.
+ */
+export async function fetchPinned(
+  logicalUrl: string,
+  options: FetchPinnedOptions = {}
+): Promise<{ response: Response; pinned: boolean; finalUrl: string }> {
+  let parsed: URL;
+  try {
+    parsed = new URL(logicalUrl);
+  } catch {
+    throw new Error(`Invalid URL: ${sanitizeUrlForError(logicalUrl)}`);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`Unsupported protocol ${parsed.protocol}`);
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('URL contains credentials');
+  }
+
+  const timeoutMs = options.timeoutMs ?? 15_000;
+  const fetchFn = options.fetchFn ?? fetch;
+  const address = await resolvePublicAddress(parsed.hostname, { lookup: options.lookupFn });
+  if (address === null) {
+    throw new Error(`SSRF blocked: URL points to a private or link-local address ${parsed.hostname}`);
+  }
+
+  const headers: Record<string, string> = { ...(options.headers ?? {}) };
+  let fetchUrl = logicalUrl;
+  let pinned = false;
+
+  if (parsed.protocol === 'http:' && !isIpLiteralHostname(parsed.hostname)) {
+    const pinnedUrl = pinHttpDestination(logicalUrl, address);
+    if (pinnedUrl) {
+      fetchUrl = pinnedUrl;
+      headers.Host = parsed.hostname;
+      pinned = true;
+    }
+  }
+
+  const response = await fetchFn(fetchUrl, {
+    method: options.method ?? 'GET',
+    headers,
+    body: options.body ?? undefined,
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: 'manual',
+  });
+
+  return {
+    response,
+    pinned,
+    finalUrl: logicalUrl,
+  };
+}
+
+export interface SubrequestBudgetState {
+  bytes: number;
+}
+
+export async function readBoundedBody(response: Response, cap: number): Promise<Buffer> {
+  const declared = Number(response.headers.get('content-length') ?? '0');
+  if (declared > cap) {
+    throw new Error(`subrequest response declares ${declared} bytes (cap ${cap})`);
+  }
+  if (!response.body) {
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.length > cap) {
+      throw new Error(`subrequest response exceeds ${cap} bytes (${fallback.length})`);
+    }
+    return fallback;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > cap) {
+        throw new Error(`subrequest response exceeds ${cap} bytes (${total})`);
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function fulfillPinnedSubrequest(
+  requestInfo: {
+    url: string;
+    method?: string | null;
+    headers?: Record<string, string> | null;
+    body?: Buffer | string | null;
+  },
+  deps: {
+    resolveFn?: (hostname: string) => Promise<string | null>;
+    fetchFn?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+    timeoutMs?: number;
+    maxResponseBytes?: number;
+    maxBodyBytes?: number;
+    budget?: SubrequestBudgetState;
+    maxAggregateBytes?: number;
+  } = {},
+): Promise<{ status: number; headers: Record<string, string>; body: Buffer } | null> {
+  const timeoutMs = deps.timeoutMs ?? 15_000;
+  const resolveFn = deps.resolveFn ?? ((h: string) => resolvePublicAddress(h));
+  const fetchFn = deps.fetchFn ?? fetch;
+  const maxResponseBytes = deps.maxResponseBytes ?? 2_000_000;
+  const maxBodyBytes = deps.maxBodyBytes ?? 1_000_000;
+  const maxAggregateBytes = deps.maxAggregateBytes ?? 8_000_000;
+  let parsed: URL;
+  try {
+    parsed = new URL(requestInfo.url);
+  } catch {
+    throw new Error(`Cannot pin invalid subrequest URL: ${requestInfo.url}`);
+  }
+  if (parsed.protocol !== 'http:' || isIpLiteralHostname(parsed.hostname)) {
+    return null;
+  }
+  const address = await resolveFn(parsed.hostname);
+  if (address === null) {
+    throw new Error(`Subrequest destination ${parsed.hostname} cannot be proven public (fail closed)`);
+  }
+  const pinnedUrl = pinHttpDestination(requestInfo.url, address);
+  if (pinnedUrl === null) {
+    throw new Error(`Subrequest ${requestInfo.url} could not be pinned to ${address}`);
+  }
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(requestInfo.headers ?? {})) {
+    const lower = key.toLowerCase();
+    if (lower === 'host' || lower === 'content-length' || lower === 'connection' || lower === 'accept-encoding') continue;
+    headers[key] = value;
+  }
+  headers.Host = parsed.hostname;
+  const body = requestInfo.body ? (Buffer.isBuffer(requestInfo.body) ? requestInfo.body : Buffer.from(String(requestInfo.body))) : undefined;
+  if (body && body.length > maxBodyBytes) {
+    throw new Error(`subrequest body exceeds ${maxBodyBytes} bytes (${body.length})`);
+  }
+  const response = await fetchFn(pinnedUrl, {
+    method: requestInfo.method ?? 'GET',
+    headers,
+    body: body && body.length > 0 ? new Uint8Array(body) : undefined,
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: 'manual',
+  });
+  const responseBody = await readBoundedBody(response, maxResponseBytes);
+  if (deps.budget && deps.budget.bytes + responseBody.length > maxAggregateBytes) {
+    throw new Error(`aggregate subrequest budget exceeded (${deps.budget.bytes + responseBody.length} > ${maxAggregateBytes})`);
+  }
+  if (deps.budget) deps.budget.bytes += responseBody.length;
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (lower === 'content-length' || lower === 'transfer-encoding' || lower === 'connection' || lower === 'keep-alive') return;
+    responseHeaders[key] = value;
+  });
+  return { status: response.status, headers: responseHeaders, body: responseBody };
+}
+
 /**
  * Shared destination assertion for variant/discovery network boundary.
  * Reused by job-queue and variant-url-resolver to prevent drift.

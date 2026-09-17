@@ -204,4 +204,49 @@ describe('Profile Governance & Worker SSRF Protection Adversarial Tests', () => 
       expect(parsed.results[0].imageResults.warnings.join(' ')).not.toContain('secretpass');
     }
   });
+
+  it('fetchPinned pins connection to validated IP and detects DNS rebinding attempts', async () => {
+    const { fetchPinned } = await import('../../shared/ssrf');
+
+    let dnsCallCount = 0;
+    // Mock lookup that returns public IP on first call, but loopback on second call (rebinding)
+    const rebindingLookup = (async () => {
+      dnsCallCount++;
+      if (dnsCallCount === 1) {
+        return [{ address: '93.184.216.34', family: 4 }];
+      }
+      return [{ address: '127.0.0.1', family: 4 }];
+    }) as any;
+
+    let targetFetchUrl = '';
+    let targetFetchHeaders: any = {};
+    const mockFetch = (async (input: any, init: any) => {
+      targetFetchUrl = String(input);
+      targetFetchHeaders = init?.headers ?? {};
+      return new Response('ok', { status: 200 });
+    }) as any;
+
+    const result = await fetchPinned('http://rebinding-domain.example.com/page', {
+      lookupFn: rebindingLookup,
+      fetchFn: mockFetch,
+    });
+
+    expect(result.pinned).toBe(true);
+    // The HTTP connection URL must be rewritten to the IP literal from validation time
+    expect(targetFetchUrl).toBe('http://93.184.216.34/page');
+    // Host header must preserve the original hostname
+    expect(targetFetchHeaders.Host).toBe('rebinding-domain.example.com');
+  });
+
+  it('fetchPinned fails closed when hostname resolves to a private IP', async () => {
+    const { fetchPinned } = await import('../../shared/ssrf');
+
+    const privateLookup = (async () => [{ address: '169.254.169.254', family: 4 }]) as any;
+
+    await expect(
+      fetchPinned('http://metadata-attacker.example.com/meta', {
+        lookupFn: privateLookup,
+      })
+    ).rejects.toThrow(/SSRF blocked/);
+  });
 });
