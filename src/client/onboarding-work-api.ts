@@ -282,6 +282,58 @@ export async function getExtractorProfileBlockers(batchId: string): Promise<Extr
   return request<ExtractorProfileBlockersResponse>(`/batches/${batchId}/extractor-profile-blockers`);
 }
 
+// ─── Variant-identity disposition mark/clear (issue #220) ───────────────────
+
+/**
+ * Explicit unresolved variant-identity disposition for one item, as
+ * surfaced on the board (null when unmarked). Display-only state — the
+ * release hold consults the same row server-side.
+ */
+export interface VariantIdentityDispositionView {
+  itemId: string;
+  disposition: string;
+  reason: string;
+  markedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Read the current disposition for one item (null when unmarked). */
+export async function getVariantIdentityDisposition(
+  itemId: string,
+): Promise<{ itemId: string; disposition: VariantIdentityDispositionView | null }> {
+  return request(`/items/${encodeURIComponent(itemId)}/variant-identity-disposition`);
+}
+
+/**
+ * Audited operator mark: records that an item is variant-bearing without
+ * matrix enforcement, so the release hold engages with a
+ * `variant_resolution_required` reason. The server records its own
+ * principal as the marking identity.
+ */
+export async function markVariantIdentityUnresolved(
+  itemId: string,
+  reason: string,
+): Promise<{ itemId: string; disposition: VariantIdentityDispositionView }> {
+  return request(`/items/${encodeURIComponent(itemId)}/variant-identity-disposition`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/**
+ * Audited operator clear: removes the disposition (identity proven),
+ * restoring prior release behavior. Idempotent — succeeds with a null
+ * disposition when the item was already unmarked.
+ */
+export async function clearVariantIdentityDisposition(
+  itemId: string,
+): Promise<{ itemId: string; disposition: null }> {
+  return request(`/items/${encodeURIComponent(itemId)}/variant-identity-disposition`, {
+    method: 'DELETE',
+  });
+}
+
 // ─── Brand-domain setup queue (ADR 0017) ───────────────────────────────────────
 
 /**

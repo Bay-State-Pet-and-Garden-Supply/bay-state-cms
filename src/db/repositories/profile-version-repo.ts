@@ -1,5 +1,7 @@
 // story: e07s01 — transactional immutable versions (SQLite, not Maps)
 import { randomUUID } from 'node:crypto';
+import { ExtractorProfileSchema } from '../../shared/schemas/onboarding';
+import type { ExtractorProfile } from './extractor-profile-repo';
 
 // Lazy connection helpers — avoid top-level bun:sqlite import under vitest node env
 function getConnectionHelpers(): { getDb: () => any; isDbInitialized: () => boolean } | null {
@@ -34,6 +36,40 @@ export interface ProfileVersion {
   approver: string;
   reason: string;
   createdAt: string;
+}
+
+export function profileFromVersion(version: ProfileVersion): ExtractorProfile {
+  const selectors = version.selectors as Record<string, unknown> & {
+    variant_selection_strategy?: unknown;
+    shopify_json_path?: unknown;
+    custom_selector_metadata?: unknown;
+  };
+  return {
+    ...ExtractorProfileSchema.parse({
+      ...selectors,
+      titleSelector: selectors.titleSelector ?? selectors.title_selector,
+      priceSelector: selectors.priceSelector ?? selectors.price_selector,
+      descriptionSelector: selectors.descriptionSelector ?? selectors.description_selector,
+      brandSelector: selectors.brandSelector ?? selectors.brand_selector,
+      imagesSelector: selectors.imagesSelector ?? selectors.images_selector ?? selectors.imageSelector ?? selectors.image_selector,
+      titleOptionalSelectors: selectors.titleOptionalSelectors ?? selectors.title_optional_selectors,
+      customSelectors: selectors.customSelectors ?? selectors.custom_selectors,
+      sitemapProductUrlPattern: selectors.sitemapProductUrlPattern ?? selectors.sitemap_product_url_pattern,
+      // Complete executable snapshot: custom-field extraction and variant
+      // interaction survive activation only when the version row carries
+      // them — the builder writes them via draftToVersionPayload and this
+      // function must not drop them back to schema defaults.
+      variantSelectionStrategy: selectors.variantSelectionStrategy ?? selectors.variant_selection_strategy ?? null,
+      shopifyJSONPath: selectors.shopifyJSONPath ?? selectors.shopify_json_path ?? false,
+      customSelectorMetadata: selectors.customSelectorMetadata ?? selectors.custom_selector_metadata ?? {},
+      id: version.id,
+      domain: version.domain,
+      runtime: version.runtime,
+      createdAt: version.createdAt,
+      updatedAt: version.createdAt,
+      version: version.version,
+    }),
+  };
 }
 
 function normalizeDomain(domain: string): string {
@@ -148,7 +184,7 @@ export function updateVersionEvidence(id: string, input: { sampleIds?: string[];
     if (v) {
       if (input.sampleIds) v.sampleIds = input.sampleIds;
       if (input.artifactHashes) v.artifactHashes = [...input.artifactHashes].sort();
-      if (input.validationSummary) v.validationSummary = input.validationSummary;
+      if (input.validationSummary) v.validationSummary = mergeValidationSummary(v.validationSummary, input.validationSummary);
     }
     return;
   }
@@ -157,7 +193,9 @@ export function updateVersionEvidence(id: string, input: { sampleIds?: string[];
   if (!existing) return;
   const sampleIds = input.sampleIds ?? existing.sampleIds;
   const artifactHashes = (input.artifactHashes ?? existing.artifactHashes).slice().sort();
-  const validationSummary = input.validationSummary ?? existing.validationSummary;
+  const validationSummary = input.validationSummary !== undefined
+    ? mergeValidationSummary(existing.validationSummary, input.validationSummary)
+    : existing.validationSummary;
   db.query(
     `UPDATE profile_versions SET sample_ids = ?, artifact_hashes = ?, validation_summary = ? WHERE id = ?`
   ).run(
@@ -166,6 +204,55 @@ export function updateVersionEvidence(id: string, input: { sampleIds?: string[];
     JSON.stringify(validationSummary),
     id
   );
+}
+
+/**
+ * Merge matrix-supplied validation evidence over the stored summary
+ * WITHOUT fabricating image attestation: `imageRuleOk` is version-bound
+ * operator attestation (see `attestVersionImageReview`) and is preserved
+ * from the stored row unless the caller explicitly sets it. Matrix re-runs
+ * that omit the key therefore never clear — and never grant — review.
+ */
+function mergeValidationSummary(existing: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...existing, ...incoming };
+  if (!('imageRuleOk' in incoming) && ('imageRuleOk' in existing)) {
+    merged.imageRuleOk = existing.imageRuleOk;
+  }
+  return merged;
+}
+
+/**
+ * Version-bound explicit image-review action: the operator confirms they
+ * reviewed the image previews for the version's confirmed samples.
+ *
+ * This is the ONLY path that writes `validationSummary.imageRuleOk` after
+ * creation (creation sets it via `draftToVersionPayload`'s explicit
+ * boolean; the matrix path preserves it via `mergeValidationSummary`).
+ * Default false/absent stays blocked at the activation gate.
+ */
+export function attestVersionImageReview(id: string, reviewed: boolean, opts?: { approver?: string }): ProfileVersion | null {
+  const apply = (v: ProfileVersion): ProfileVersion => {
+    v.validationSummary = { ...v.validationSummary, imageRuleOk: reviewed === true };
+    if (opts?.approver !== undefined) {
+      v.validationSummary.imageReviewedBy = opts.approver;
+      v.validationSummary.imageReviewedAt = new Date().toISOString();
+    }
+    return v;
+  };
+  if (useFallback()) {
+    const v = fallbackIds.get(id);
+    if (!v) return null;
+    return apply(v);
+  }
+  const db = getDbSafe();
+  const existing = getVersionById(id);
+  if (!existing) return null;
+  const next = apply({ ...existing, validationSummary: { ...existing.validationSummary } });
+  db.query(`UPDATE profile_versions SET validation_summary = ? WHERE id = ?`).run(
+    JSON.stringify(next.validationSummary),
+    id,
+  );
+  return next;
 }
 
 export function getVersionById(id: string): ProfileVersion | null {

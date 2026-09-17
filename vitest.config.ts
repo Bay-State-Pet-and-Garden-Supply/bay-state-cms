@@ -40,6 +40,8 @@ export default defineConfig({
       'src/tests/unit/brand-strategy-select-source-guard.test.ts',
       // Strategy setup-attention worker test — bun:sqlite, run under bun test (test:db)
       'src/tests/unit/brand-strategy-setup-attention.test.ts',
+      // Issue #199 brand resolutions — bun:sqlite via the approval repo; run under bun test (test:db)
+      'src/tests/unit/brand-strategies-199.test.ts',
       // M7 scraper acceptance — bun:sqlite/bun:test, run under bun test (test:db)
       'src/tests/unit/distributor-scrapers-acceptance.test.ts',
       // M6 live-smoke DB suite — uses bun:sqlite, run under bun test instead of vitest
@@ -377,6 +379,21 @@ export default defineConfig({
       // Manual-evidence retry route suite (ticket #105 review P1-2) —
       // real Hono app + bun:sqlite; run under bun test via test:db.
       'src/tests/unit/manual-evidence-retry-route.test.ts',
+      // Release-guard + selected-retry suite (issue #198) — real Hono app
+      // + bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/domain-release-guard.test.ts',
+      // Shared domain/version health evaluator suite (issue #214) — real
+      // Hono app + bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/domain-version-health-evaluator.test.ts',
+      // Variant-identity rollout-hold suite (issue #218) — bun:sqlite;
+      // run under bun test via test:db.
+      'src/tests/unit/variant-identity-release-hold-218.test.ts',
+      // Explicit unresolved variant-identity disposition suite (no-matrix
+      // Sitecore follow-up) — bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/variant-identity-disposition.test.ts',
+      // Version image-attestation + complete-config activation suite
+      // (fixes 1+2) — bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/profile-attestation-activation.test.ts',
       // Slice 1 v2 stage-read suites — bun:test/bun:sqlite (one imports the
       // route layer + real Hono app); run under bun test via test:db.
       // The schema suite is pure (no DB) but its chain (./onboarding →

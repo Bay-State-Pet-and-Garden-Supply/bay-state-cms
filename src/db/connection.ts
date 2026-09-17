@@ -36,6 +36,25 @@ export function isDbInitialized(): boolean {
   return _db !== null;
 }
 
+/**
+ * Run a parameterized `IN (...)` select in chunks (SQLite variable limit).
+ * Returns concatenated rows in chunk order. Callers keep their own error
+ * mapping, query instrumentation, and row shaping.
+ */
+export function queryInChunks<T>(
+  buildSql: (placeholders: string) => string,
+  ids: string[],
+  chunkSize = 900,
+): T[] {
+  const db = getDb();
+  const rows: T[] = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    rows.push(...(db.query(buildSql(chunk.map(() => '?').join(','))).all(...chunk) as T[]));
+  }
+  return rows;
+}
+
 // fallow-ignore-next-line unused-export
 export function resetDb(): void {
   closeDb();

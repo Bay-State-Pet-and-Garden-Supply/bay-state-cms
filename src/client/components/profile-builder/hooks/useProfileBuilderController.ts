@@ -26,6 +26,7 @@ import {
   draftToSavePayload,
   draftToValidatePayload,
   draftToTestPayload,
+  draftToVersionPayload,
 } from '../profileBuilderMapping';
 import {
   getExtractorProfiles,
@@ -677,22 +678,20 @@ export function useProfileBuilderController(
     }
     dispatch({ type: 'save/start' });
     try {
-      const selectors: Record<string, unknown> = {
-        titleSelector: state.draft.titleSelector,
-        titleOptionalSelectors: (state.draft as any).titleOptionalSelectors,
-        priceSelector: state.draft.priceSelector,
-        descriptionSelector: state.draft.descriptionSelector,
-        brandSelector: state.draft.brandSelector,
-        imagesSelector: state.draft.imagesSelector,
-      };
+      // The version row carries the COMPLETE executable configuration
+      // (core + custom selectors + variant strategy + runtime + supporting
+      // settings) plus the version-bound explicit image-review attestation.
+      // Activation rebuilds the profile from this same snapshot, so saving
+      // here never discards configured custom-field or variant behavior.
       const sampleIds = state.samples.map(s => s.id);
+      const versionPayload = draftToVersionPayload(state.draft, state.imagePreviewsReviewed, { sampleCount: sampleIds.length });
       const snapHash = (state.snapshot as any)?.hash as string | undefined;
       const artifactHashes = snapHash ? [snapHash].sort() : sampleIds.slice().sort();
       const provenance = { provider: 'client', model: 'manual', configId: 'manual' };
       const res = await fetch('/api/profile-versions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: state.draft.domain, selectors, runtime: state.draft.runtime, sampleIds, artifactHashes, validationSummary: { rowCount: sampleIds.length }, provenance, approver: 'operator', reason: 'save' }),
+        body: JSON.stringify({ domain: versionPayload.domain, selectors: versionPayload.selectors, runtime: versionPayload.runtime, sampleIds, artifactHashes, validationSummary: versionPayload.validationSummary, provenance, approver: 'operator', reason: 'save' }),
       });
       const data = await res.json().catch(() => ({})) as any;
       if (!res.ok || !data?.id) {
@@ -706,7 +705,12 @@ export function useProfileBuilderController(
     } catch (err) {
       dispatch({ type: 'save/failed', error: err instanceof Error ? err.message : 'Save failed' });
     }
-  }, [state.draft, state.samples, state.snapshot, props.onSaved]);
+  }, [state.draft, state.samples, state.snapshot, state.imagePreviewsReviewed, props.onSaved]);
+
+  // ── Image review attestation ──────────────────────────────────────────
+  const setImageReviewed = useCallback((reviewed: boolean) => {
+    dispatch({ type: 'imageReview/set', reviewed });
+  }, []);
 
   // ── Reset ───────────────────────────────────────────────────────────────
   const resetDraft = useCallback(() => {
@@ -842,6 +846,7 @@ export function useProfileBuilderController(
       removeSample,
       runValidation,
       saveProfile,
+      setImageReviewed,
       resetDraft,
       generateSelectors,
       generateDraftFromSuite,
@@ -870,6 +875,7 @@ export function useProfileBuilderController(
       removeSample,
       runValidation,
       saveProfile,
+      setImageReviewed,
       resetDraft,
       generateSelectors,
       generateDraftFromSuite,

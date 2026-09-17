@@ -2,65 +2,17 @@
 // Ticket #102 (parent #101) — manual-evidence foundation, vitest lane
 // (no bun:sqlite imports here; DB-backed coverage lives in
 // manual-evidence-foundation-db.test.ts under `bun test` via test:db).
-import { describe, it, expect, afterEach } from 'vitest';
-import {
-  MANUAL_EVIDENCE_ENV_KEY,
-  DEFAULT_MANUAL_EVIDENCE_FLAGS,
-  loadManualEvidenceFlags,
-  getManualEvidenceFlags,
-  overrideManualEvidenceFlags,
-  resetManualEvidenceFlagsOverride,
-} from '../../onboarding/flags';
+//
+// NOTE: the manual-evidence route is always available (no toggle); the flag
+// suite that lived here was removed with BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED.
+// This file now pins the additive source vocabulary only.
+import { describe, it, expect } from 'vitest';
 import {
   SourceTypeEnum,
   ManualEvidenceExtractionMethodEnum,
   ManualEvidenceAttestationSchema,
   ExtractionDataSchema,
 } from '../../shared/schemas/onboarding';
-
-afterEach(() => {
-  resetManualEvidenceFlagsOverride();
-});
-
-describe('manual-evidence flag (fail-closed, default OFF)', () => {
-  it('is OFF when the env key is absent', () => {
-    expect(DEFAULT_MANUAL_EVIDENCE_FLAGS.enabled).toBe(false);
-    expect(DEFAULT_MANUAL_EVIDENCE_FLAGS.reason).toBe('disabled_default');
-    expect(loadManualEvidenceFlags({})).toEqual(DEFAULT_MANUAL_EVIDENCE_FLAGS);
-  });
-
-  it('accepts every true spelling as enabled', () => {
-    for (const raw of ['true', '1', 'yes', 'TRUE', ' Yes ']) {
-      const flags = loadManualEvidenceFlags({ [MANUAL_EVIDENCE_ENV_KEY]: raw });
-      expect(flags.enabled).toBe(true);
-      expect(flags.reason).toBe('env_enabled');
-    }
-  });
-
-  it('treats explicit false spellings as disabled', () => {
-    for (const raw of ['false', '0', 'no', 'FALSE', ' No ']) {
-      const flags = loadManualEvidenceFlags({ [MANUAL_EVIDENCE_ENV_KEY]: raw });
-      expect(flags.enabled).toBe(false);
-      expect(flags.reason).toBe('env_disabled');
-    }
-  });
-
-  it('treats empty/whitespace/malformed values as malformed (disabled)', () => {
-    for (const raw of ['', '   ', 'maybe', 'on']) {
-      const flags = loadManualEvidenceFlags({ [MANUAL_EVIDENCE_ENV_KEY]: raw });
-      expect(flags.enabled).toBe(false);
-      expect(flags.reason).toBe('malformed_config');
-    }
-  });
-
-  it('in-memory override wins and reset restores the default', () => {
-    expect(getManualEvidenceFlags().enabled).toBe(false);
-    overrideManualEvidenceFlags({ enabled: true });
-    expect(getManualEvidenceFlags()).toEqual({ enabled: true, reason: 'override' });
-    resetManualEvidenceFlagsOverride();
-    expect(getManualEvidenceFlags().enabled).toBe(false);
-  });
-});
 
 describe('source vocabulary audit (plan §2: no new enum)', () => {
   it('SourceTypeEnum stays two-valued', () => {

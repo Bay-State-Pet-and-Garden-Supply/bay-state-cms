@@ -76,7 +76,6 @@ export function createEmptyDraft(args?: {
  * Hydrate a ProfileDraft from an existing ExtractorProfile.
  * Sets productUrl to empty — the operator must enter a URL.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export function profileToDraft(profile: ExtractorProfile): ProfileDraft {
   return {
     domain: profile.domain,
@@ -99,6 +98,29 @@ export function profileToDraft(profile: ExtractorProfile): ProfileDraft {
 // ─── Draft → Save Payload ─────────────────────────────────────────────────────
 
 /**
+ * Core selector fields shared by the save payload and the version payload.
+ *
+ * Both payloads project the same draft selectors with the same
+ * empty-to-null / filter-Boolean rules; only `customSelectors` handling
+ * differs per payload (save omits when empty, version keeps the filtered
+ * map). Shared here so the two projections cannot drift.
+ */
+function draftCoreSelectorFields(draft: ProfileDraft) {
+  return {
+    titleSelector: emptyToNull(draft.titleSelector),
+    titleOptionalSelectors: draft.titleOptionalSelectors.filter(Boolean),
+    brandSelector: emptyToNull(draft.brandSelector),
+    descriptionSelector: emptyToNull(draft.descriptionSelector),
+    imagesSelector: emptyToNull(draft.imagesSelector),
+    priceSelector: emptyToNull(draft.priceSelector),
+    sitemapProductUrlPattern: emptyToNull(draft.sitemapProductUrlPattern),
+    shopifyJSONPath: draft.shopifyJSONPath,
+    variantSelectionStrategy: draft.variantSelectionStrategy,
+    customSelectorMetadata: draft.customSelectorMetadata,
+  };
+}
+
+/**
  * Convert a draft into the payload for `saveExtractorProfile`.
  *
  * Rules:
@@ -110,19 +132,10 @@ export function draftToSavePayload(draft: ProfileDraft): SaveExtractorProfilePay
   return {
     domain: draft.domain,
     runtime: draft.runtime,
-    titleSelector: emptyToNull(draft.titleSelector),
-    titleOptionalSelectors: draft.titleOptionalSelectors.filter(Boolean),
-    brandSelector: emptyToNull(draft.brandSelector),
-    descriptionSelector: emptyToNull(draft.descriptionSelector),
-    imagesSelector: emptyToNull(draft.imagesSelector),
-    priceSelector: emptyToNull(draft.priceSelector),
+    ...draftCoreSelectorFields(draft),
     customSelectors: Object.keys(omitEmptyValues(draft.customSelectors)).length > 0
       ? omitEmptyValues(draft.customSelectors)
       : undefined,
-    sitemapProductUrlPattern: emptyToNull(draft.sitemapProductUrlPattern),
-    shopifyJSONPath: draft.shopifyJSONPath,
-    variantSelectionStrategy: draft.variantSelectionStrategy,
-    customSelectorMetadata: draft.customSelectorMetadata,
   };
 }
 
@@ -170,6 +183,54 @@ export function draftToValidatePayload(
   };
 }
 
+// ─── Draft → Version Payload ─────────────────────────────────────────────────
+
+/**
+ * Complete executable configuration snapshot for one profile version row.
+ *
+ * The version row is the source of truth for validation AND activation:
+ * `profileFromVersion` rebuilds the executable profile from `selectors`,
+ * so this payload must carry the COMPLETE configuration — core selectors
+ * plus custom selectors, variant strategy, runtime, and supporting
+ * settings. Saving only core selectors here while writing custom/variant
+ * config to the legacy profile would let activation wipe them.
+ */
+export interface VersionPayload {
+  domain: string;
+  selectors: Record<string, unknown>;
+  runtime: 'static' | 'rendered';
+  validationSummary: { imageRuleOk: boolean; rowCount?: number };
+}
+
+/**
+ * Convert a draft into the body for `POST /api/profile-versions`.
+ *
+ * `imagePreviewsReviewed` is the version-bound explicit image-review
+ * attestation: the operator confirms they reviewed the image previews for
+ * the confirmed samples. It is the ONLY writer of
+ * `validationSummary.imageRuleOk` on the save path — default false stays
+ * blocked at the activation gate, never fabricated by matrix runs.
+ */
+export function draftToVersionPayload(
+  draft: ProfileDraft,
+  imagePreviewsReviewed: boolean,
+  opts?: { sampleCount?: number },
+): VersionPayload {
+  return {
+    domain: draft.domain,
+    selectors: {
+      ...draftCoreSelectorFields(draft),
+      customSelectors: omitEmptyValues(draft.customSelectors),
+      customSelectorMetadata: draft.customSelectorMetadata ?? {},
+    },
+    runtime: draft.runtime,
+    validationSummary: {
+      imageRuleOk: imagePreviewsReviewed === true,
+      ...(opts?.sampleCount !== undefined ? { rowCount: opts.sampleCount } : {}),
+    },
+  };
+}
+
 // ─── Draft → Test Payload ─────────────────────────────────────────────────────
 
 /**
@@ -195,7 +256,6 @@ export function draftToTestPayload(draft: ProfileDraft): TestExtractorProfileReq
  * Get a flat `Record<string, string | null>` of all selectors in the
  * draft, including both core and custom fields.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export function draftToSelectorMap(draft: ProfileDraft): Record<string, string | null> {
   return {
     titleSelector: draft.titleSelector,
@@ -211,6 +271,5 @@ export function draftToSelectorMap(draft: ProfileDraft): Record<string, string |
 
 // ─── Test helpers (exported for direct use in reducer/evaluation) ─────────
 
-// fallow-ignore-next-line unused-export — used by tests
 export { emptyToNull, omitEmptyValues };
 

@@ -150,6 +150,15 @@ export function SaveBar({ state, controller }: SaveBarProps) {
         {isSaving ? 'Saving…' : 'Save Profile'}
       </button>
 
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: fonts.body, color: colors.ledgerCharcoal, flexBasis: '100%' }}>
+        <input
+          type="checkbox"
+          checked={state.imagePreviewsReviewed}
+          onChange={(e) => controller.setImageReviewed(e.target.checked)}
+        />
+        I reviewed the image previews for the confirmed samples — images show the actual product
+      </label>
+
       {blockingErrors.length > 0 && (
         <div style={s.errorBox}>{blockingErrors.map((err, i) => <div key={i}>✗ {err}</div>)}</div>
       )}

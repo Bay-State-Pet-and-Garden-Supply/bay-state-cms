@@ -23,7 +23,7 @@ describe('profile rollback (e06s04)', () => {
 
   it('rollback re-evaluates evidence and does not auto-activate failing version', async () => {
     const gate = await import('../../onboarding/profile-activation-gate');
-    const result = gate.evaluateGate({ requiredResults: [{ field:'title', success:true }, { field:'title', success:false }], wrongProduct:false, wrongVariant:false, waiver:false, confirmedCount:3 });
+    const result = gate.evaluateGate({ requiredResults: [{ field:'title', success:true }, { field:'title', success:false }], wrongProduct:false, wrongVariant:false, waiver:false, confirmedCount:3, imageRuleOk:true });
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('title');
   });

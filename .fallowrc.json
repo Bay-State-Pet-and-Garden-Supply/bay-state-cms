@@ -5,7 +5,8 @@
     "src/client/App.tsx",
     "src/extraction-worker/server.ts",
     "src/onboarding/job-queue.ts",
-    "src/db/migrations.ts"
+    "src/db/migrations.ts",
+    "scripts/apply-brand-strategies-199.ts"
   ],
   "ignorePatterns": [
     "scratch/**",

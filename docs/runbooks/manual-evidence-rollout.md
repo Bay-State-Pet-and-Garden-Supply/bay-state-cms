@@ -1,39 +1,30 @@
-# Manual-Evidence Rollout Runbook (parent #101)
+# Manual-Evidence Runbook (parent #101)
 
-How the manual-evidence extraction route behaves and how to enable it safely.
-**The capability is DEFAULT OFF**: a missing
-`BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED` means disabled. Enabling alone changes
-no automated behavior — every submission is an explicit, audited operator act
-on an already-blocked item.
+How the manual-evidence extraction route behaves. **The route is always
+available** (no toggle): profile-blocked items offer manual entry as a
+fallback, and every submission is an explicit, audited operator act on an
+already-blocked item. Automated behavior is unchanged — the worker never
+writes manual rows.
 
 Exemplar: The Butcher's Pup (family/parent page only, no per-SKU product
 pages, no healthy extractor profile possible within Profile Scope).
 
 ## Quick reference
 
-| Action | Command / location |
-|---|---|
-| Enable | `BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED=true` + restart |
-| Kill switch (OFF) | unset the key, or `=false` + restart |
 | Eligible items | Pipeline Board → Needs Attention → `manual_evidence_available` |
 | Manual entry UI | Official Site Resolution workspace → manual phase |
 | Withdraw a submission | Same drawer → **Withdraw manual evidence** |
 | Retry after withdraw | Settings → profile retry preview (failed items only) |
 
-### Flag parsing (fail-closed)
+## Availability
 
-The flag is re-read from the environment per call. There is no `.env.example`
-in this repo — set the key in the process environment directly.
-
-| Input | Effective state | reason |
-|---|---|---|
-| env key absent | disabled | `disabled_default` |
-| `true` / `1` / `yes` (trimmed, case-insensitive) | enabled | `env_enabled` |
-| `false` / `0` / `no` (trimmed, case-insensitive) | disabled | `env_disabled` |
-| empty / whitespace / unparseable | disabled | `malformed_config` |
-| in-memory runtime override in effect | per override | `override` |
-
-Reason codes are stable and non-secret. In-memory overrides are test-only.
+There is no flag. Profile-blocked / triaged family-page-only items always
+surface `manual_evidence_available`, and submit is always accepted for
+eligible items. (The retired `BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED` toggle
+was removed per owner decision: manual evidence is a permanent fallback,
+and Review hold + per-item withdraw are the safety net. If the key still
+exists in a local `.env` or shell export, it is dead configuration — unset
+it.)
 
 ## What the route does
 
@@ -91,28 +82,25 @@ WHERE e.extraction_method = 'manual_evidence_v1' AND a.attestation_id IS NULL;
 -- manual_image_rights_missing.
 ```
 
-All three SQL queries must return sensible results on a scratch copy before
-enabling in any shared environment; the coverage query must return zero rows.
+All three SQL queries must return sensible results on a scratch copy after
+restores or migrations; the coverage query must return zero rows.
 
-## Enable procedure
+## Operator trial (first use in a new environment)
 
 1. Verify a current database backup (`sqlite-backup-verifier` pattern) and
    confirm the observation queries above on a scratch copy.
-2. Set `BAYSTATE_CMS_MANUAL_EVIDENCE_ENABLED=true` in the environment and
-   restart. Confirm no behavior change for non-blocked items.
-3. Trial on one profile-blocked, family-page-only SKU: submit, verify
+2. Trial on one profile-blocked, family-page-only SKU: submit, verify
    `extraction/completed` with attestation id, verify review holds it as
    unreviewed, then withdraw and verify the blocked state returns.
-4. Roll out to operators with the attestation checklist guidance (no family
+3. Roll out to operators with the attestation checklist guidance (no family
    inheritance, per-SKU verified, image rights).
 
-## Incident rollback
+## Incident control
 
-- Set the key to `false` (or unset it) + restart. New submissions stop
-  immediately; existing manual rows stay gated by Review and can be withdrawn
-  per item — withdraw is deliberately NOT flag-gated so the kill-switch can
-  never strand an active-manual item in a state that is neither retryable
-  (retry refuses active-manual items withdraw-first) nor withdrawable.
+- There is no kill switch. Stop bad submissions by holding the affected
+  items in Review and withdrawing per item — withdraw returns the item to
+  the fail-closed blocked state and is never gated, so an active-manual
+  item is always either retryable-after-withdraw or withdrawable.
   No migration rollback is needed (all schema additions additive).
 - Boot-time verification throws (refuses boot, never repairs) only on genuine
   invariant violations: changed source-type vocabulary, manual rows with a

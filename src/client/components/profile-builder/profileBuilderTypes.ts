@@ -155,6 +155,13 @@ export interface ProfileBuilderState {
   pageHtml: string | null;
   samples: ValidationSample[];
   sampleCaptures?: Record<string, { html: string; dom: string }>;
+  /**
+   * Version-bound explicit image-review attestation: the operator confirms
+   * they reviewed the image previews for the confirmed samples. Fed into
+   * `draftToVersionPayload` on save — the ONLY save-path writer of
+   * `validationSummary.imageRuleOk`. Default false stays blocked.
+   */
+  imagePreviewsReviewed: boolean;
   validation: ValidateResponse | null;
   extractionPreview: ExtractorTestResult | null;
   generation: SelectorGenerationState;
@@ -229,6 +236,9 @@ export interface ProfileBuilderController {
   updateSample(id: string, patch: Partial<ValidationSample>): void;
   removeSample(id: string): void;
   runValidation(): Promise<void>;
+
+  /** Set the explicit image-preview review attestation for the next save. */
+  setImageReviewed(reviewed: boolean): void;
 
   generateSelectors(): Promise<void>;
   generateDraftFromSuite(suiteUrls: string[]): Promise<void>;

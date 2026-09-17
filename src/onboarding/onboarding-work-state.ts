@@ -19,7 +19,6 @@
  * Milestone 3 (P1-E): Bounded read model — all DB access via bulk repositories,
  * cursor pagination, projection health, fail-closed on corrupt data.
  */
-import { getManualEvidenceFlags } from './flags';
 import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { listCohortsByBatch, getCohortMembersForCohorts } from '../db/repositories/curation-cohort-repo';
@@ -43,6 +42,8 @@ import {
   bulkGetCohortRunStatusByItemWithHealth,
   bulkGetLatestClassificationRunIdByItemWithHealth,
   bulkGetClassificationStageResultsWithHealth,
+  bulkLoadVariantDispositionsWithHealth,
+  type BulkVariantDisposition,
   WorkStateProjectionError,
   type BulkStageRow,
 } from '../db/repositories/onboarding-work-state-repo';
@@ -120,6 +121,12 @@ export interface WorkStateContext {
   changeSetStatusBySku: Map<string, string>;
   candidateCountByItem: Map<string, number>;
   variantResolutionByItem: Map<string, { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string }>;
+  /**
+   * Explicit unresolved variant-identity dispositions by item (issue #220,
+   * display-only board state). Optional so hand-built test/stage contexts
+   * keep compiling — absent reads as unmarked.
+   */
+  variantDispositionByItem?: Map<string, BulkVariantDisposition>;
   /** Milestone 3 bulk: cohort run status (freezing/running) per item. */
   cohortRunStatusByItem: Map<string, string>;
   /** Milestone 3 bulk: latest classification run id per item. */
@@ -226,6 +233,15 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     hasCriticalIssue = true;
   }
   const variantResolutionByItem = variantRes.data;
+  // Issue #220 — explicit unresolved variant-identity dispositions
+  // (display-only board state; the release hold re-reads the repo
+  // inside its own fail-closed try). One bulk statement, same budget.
+  const dispositionRes = bulkLoadVariantDispositionsWithHealth(itemIds);
+  if (dispositionRes.issue) {
+    healthIssues.push(dispositionRes.issue);
+    hasCriticalIssue = true;
+  }
+  const variantDispositionByItem = dispositionRes.data;
 
   const cohortRunRes = bulkGetCohortRunStatusByItemWithHealth(itemIds);
   if (cohortRunRes.issue) {
@@ -279,6 +295,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     changeSetStatusBySku,
     candidateCountByItem,
     variantResolutionByItem,
+    variantDispositionByItem,
     cohortRunStatusByItem,
     latestRunIdByItem: runIdByItem,
     stageResultsByRunId,
@@ -324,6 +341,8 @@ interface DerivationInput {
   suggestedAction?: SuggestedAction | null;
   findingDetails?: FindingDetail[] | null;
   variantResolution?: { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string } | null;
+  /** Issue #220 — explicit unresolved variant-identity disposition (display-only board state). */
+  variantDisposition?: { disposition: string; reason: string | null; markedBy: string | null; updatedAt: string } | null;
 }
 
 /** Map a semantic finding code to the granular curation sub-activity it blocks. */
@@ -595,6 +614,7 @@ function build(
     stage: item.stage,
     stageStatus: item.stageStatus,
     variantResolution: (input as any).variantResolution ?? null,
+    variantDisposition: (input as any).variantDisposition ?? null,
     upc: item.upc,
     name: item.name,
     brand: item.brandHint ?? (typeof extData?.brand === 'string' ? extData.brand : null),
@@ -610,23 +630,24 @@ function build(
 // ─── The mapping table ─────────────────────────────────────────────────────────
 
 /**
- * Parent #101 (manual-evidence route): flag-gated availability with a
- * fail-closed read — any flag-read failure disables the route so the
- * extractor-profile-required projection stays byte-identical.
- */
-function isManualEvidenceRouteAvailable(): boolean {
-  try {
-    return getManualEvidenceFlags().enabled === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Derive the operator work state for ONE item. Pure given the batch context;
  * the mapping follows the epic #46 test plan.
+ *
+ * Issue #220: the explicit unresolved variant-identity disposition rides
+ * the context (bulk-loaded once per batch) and is attached here — one
+ * seam covering every mapping-table branch, so the board shows the hold
+ * state without each branch opting in.
  */
 export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext): OnboardingWorkState {
+  const state = deriveItemWorkStateInner(item, ctx);
+  const disposition = ctx.variantDispositionByItem?.get(item.id);
+  state.variantDisposition = disposition
+    ? { disposition: disposition.disposition, reason: disposition.reason, markedBy: disposition.markedBy, updatedAt: disposition.updatedAt }
+    : null;
+  return state;
+}
+
+function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): OnboardingWorkState {
   const row = ctx.reviewStates.get(item.id);
   const cohort = ctx.cohortByItem.get(item.id) ?? null;
   const error = item.errorMessage ?? null;
@@ -798,19 +819,13 @@ export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext)
       if (item.stageStatus === 'failed') {
         if (isProfileFailure) {
           // Parent #101 (manual-evidence route): profile-blocked items are
-          // eligible for operator manual evidence while the flag is ON.
-          // The projection helper below reads the flag fail-closed (any
-          // read failure keeps today's extractor-profile-required
-          // projection byte-identical).
-          if (isManualEvidenceRouteAvailable()) {
-            return attention(
-              'manual_evidence_available',
-              'enter_manual_evidence',
-              'Manual evidence available',
-              'No per-product page exists for this brand family — enter product facts manually (per-SKU attestation required). Family page is reference only.',
-            );
-          }
-          return attention('extractor_profile_required', 'setup_extractor_profile', 'Extractor profile required');
+          // always eligible for operator manual evidence (no toggle).
+          return attention(
+            'manual_evidence_available',
+            'enter_manual_evidence',
+            'Manual evidence available',
+            'No per-product page exists for this brand family — enter product facts manually (per-SKU attestation required). Family page is reference only.',
+          );
         }
         if (isNoUrlFailure) {
           return attention('no_official_url', 'choose_official_url', 'Official product page needed');
@@ -918,6 +933,44 @@ export function matchesFilters(state: OnboardingWorkState, filters: WorkStateFil
   return true;
 }
 
+/**
+ * Fail-closed corrupt-projection fallback shared by the work-state
+ * projections (fallow audit #212: dedupes the needs_attention builders).
+ * Still produces a visible row — never silently drops. The summary path
+ * keeps its shorter detail string (exact output preserved per path).
+ */
+function corruptProjectionFallback(item: OnboardingItem, detail = 'Corrupt work-state data — operator attention required'): OnboardingWorkState {
+  return {
+    itemId: item.id,
+    category: 'needs_attention',
+    activity: null,
+    label: 'Projection error',
+    detail,
+    attentionReason: 'processing_failed',
+    attentionAction: 'retry_processing',
+    findingCode: null,
+    findingSummary: null,
+    conflictingValues: null,
+    suggestedAction: null,
+    findingDetails: null,
+    family: null,
+    reviewState: 'not_ready',
+    stage: item.stage as any,
+    stageStatus: item.stageStatus as any,
+    variantResolution: null,
+    variantDisposition: null,
+    upc: item.upc,
+    name: item.name,
+    brand: item.brandHint ?? null,
+    sourceType: item.sourceType as any,
+    domain: normalizeHost(item.sourceUrl),
+    curatedTitle: null,
+    imageUrl: null,
+    description: null,
+    weight: null,
+  };
+}
+
 function deriveAllStatesWithHealth(batchId: string, filters: WorkStateFilters): {
   counts: WorkStateCounts;
   filtered: OnboardingWorkState[];
@@ -950,34 +1003,7 @@ function deriveAllStatesWithHealth(batchId: string, filters: WorkStateFilters): 
     } catch {
       corruptCount += 1;
       // Fail-closed: still produce a visible row, never silently drop
-      allStates.push({
-        itemId: item.id,
-        category: 'needs_attention',
-        activity: null,
-        label: 'Projection error',
-        detail: 'Corrupt work-state data — operator attention required',
-        attentionReason: 'processing_failed',
-        attentionAction: 'retry_processing',
-        findingCode: null,
-        findingSummary: null,
-        conflictingValues: null,
-        suggestedAction: null,
-        findingDetails: null,
-        family: null,
-        reviewState: 'not_ready',
-        stage: item.stage as any,
-        stageStatus: item.stageStatus as any,
-        variantResolution: null,
-        upc: item.upc,
-        name: item.name,
-        brand: item.brandHint ?? null,
-        sourceType: item.sourceType as any,
-        domain: normalizeHost(item.sourceUrl),
-        curatedTitle: null,
-        imageUrl: null,
-        description: null,
-        weight: null,
-      });
+      allStates.push(corruptProjectionFallback(item));
     }
   }
   const counts = initCounts();
@@ -1121,34 +1147,7 @@ export function getBatchWorkStateItems(batchId: string, filters: WorkStateFilter
           }
         } catch {
           healthIssues.push({ source: 'onboarding_items', code: 'corrupt_projection', affectedCount: 1 });
-          const fallback: OnboardingWorkState = {
-            itemId: item.id,
-            category: 'needs_attention',
-            activity: null,
-            label: 'Projection error',
-            detail: 'Corrupt work-state data — operator attention required',
-            attentionReason: 'processing_failed',
-            attentionAction: 'retry_processing',
-            findingCode: null,
-            findingSummary: null,
-            conflictingValues: null,
-            suggestedAction: null,
-            findingDetails: null,
-            family: null,
-            reviewState: 'not_ready',
-            stage: item.stage as any,
-            stageStatus: item.stageStatus as any,
-            variantResolution: null,
-            upc: item.upc,
-            name: item.name,
-            brand: item.brandHint ?? null,
-            sourceType: item.sourceType as any,
-            domain: normalizeHost(item.sourceUrl),
-            curatedTitle: null,
-            imageUrl: null,
-            description: null,
-            weight: null,
-          };
+          const fallback: OnboardingWorkState = corruptProjectionFallback(item);
           if (matchesFilters(fallback, filters)) {
             collected.push(fallback);
             lastCollectedCursor = { rowNumber: (item as any).rowNumber ?? 0, id: item.id };
@@ -1202,34 +1201,7 @@ export function getBatchWorkStateForItems(batchId: string, items: OnboardingItem
       byItem.set(item.id, state);
       counts[state.category] += 1;
     } catch {
-      byItem.set(item.id, {
-        itemId: item.id,
-        category: 'needs_attention',
-        activity: null,
-        label: 'Projection error',
-        detail: 'Corrupt work-state data',
-        attentionReason: 'processing_failed',
-        attentionAction: 'retry_processing',
-        findingCode: null,
-        findingSummary: null,
-        conflictingValues: null,
-        suggestedAction: null,
-        findingDetails: null,
-        family: null,
-        reviewState: 'not_ready',
-        stage: item.stage as any,
-        stageStatus: item.stageStatus as any,
-        variantResolution: null,
-        upc: item.upc,
-        name: item.name,
-        brand: item.brandHint ?? null,
-        sourceType: item.sourceType as any,
-        domain: normalizeHost(item.sourceUrl),
-        curatedTitle: null,
-        imageUrl: null,
-        description: null,
-        weight: null,
-      });
+      byItem.set(item.id, corruptProjectionFallback(item, 'Corrupt work-state data'));
       counts.needs_attention += 1;
     }
   }
@@ -1247,6 +1219,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);
+  const variantDispositionByItem = bulkLoadVariantDispositionsWithHealth([item.id]).data;
   const cohortRunStatusByItem = bulkGetCohortRunStatusByItem([item.id]);
   const latestRunIdByItemRaw = bulkGetLatestClassificationRunIdByItem([item.id]);
   // Prefer explicit runId from curationData
@@ -1263,6 +1236,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
     changeSetStatusBySku,
     candidateCountByItem,
     variantResolutionByItem,
+    variantDispositionByItem,
     cohortRunStatusByItem,
     latestRunIdByItem: runIdByItem,
     stageResultsByRunId,
@@ -1271,33 +1245,6 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   try {
     return deriveItemWorkState(item, ctx);
   } catch {
-    return {
-      itemId: item.id,
-      category: 'needs_attention',
-      activity: null,
-      label: 'Projection error',
-      detail: 'Corrupt work-state data — operator attention required',
-      attentionReason: 'processing_failed',
-      attentionAction: 'retry_processing',
-      findingCode: null,
-      findingSummary: null,
-      conflictingValues: null,
-      suggestedAction: null,
-      findingDetails: null,
-      family: null,
-      reviewState: 'not_ready',
-      stage: item.stage as any,
-      stageStatus: item.stageStatus as any,
-      variantResolution: null,
-      upc: item.upc,
-      name: item.name,
-      brand: item.brandHint ?? null,
-      sourceType: item.sourceType as any,
-      domain: normalizeHost(item.sourceUrl),
-      curatedTitle: null,
-      imageUrl: null,
-      description: null,
-      weight: null,
-    };
+    return corruptProjectionFallback(item);
   }
 }

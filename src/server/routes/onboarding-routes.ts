@@ -1,3 +1,10 @@
+// NOTE (#212 audit): this route file keeps per-endpoint handler preambles (workspace/item lookup +
+// ownership guard + body parsing) intentionally uniform yet endpoint-specific: each handler returns its own
+// error messages and status precedence ('Item not found' vs 'Onboarding item not found',
+// body-validation-before-vs-after ownership checks), so unifying them further would change API responses.
+// The one byte-identical preamble (six batch-scope guards) was extracted to requireWorkspaceBatch; the
+// remaining clones are baselined in .fallow-baselines/dupes.json. Revisit only with a response-preserving
+// contract change, never as a drive-by refactor.
 import { Hono, type Context } from 'hono';
 import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
@@ -69,7 +76,7 @@ import {
 } from '../onboarding-stage-api';
 import { isStageV1String, parseV2StageInput, V1_TO_V2 } from '../../shared/onboarding-stage-vocabulary';
 import { ResolveSourcingRequestSchema, FallbackSourcingItemsRequestSchema, MediaSelectionRequestSchema } from '../../shared/schemas/onboarding';
-import { readStorageVersion, encodeForStorage } from '../../db/repositories/onboarding-stage-vocabulary-repo';
+import { readStorageVersion, encodeForStorage, toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 
 /**
  * Slice 5b native: canonical equality for hydrated (either-spelling) stages.
@@ -235,6 +242,7 @@ import { fetchAndParseSitemap } from '../../onboarding/sitemap-fetcher';
 import { listAllSitemapCaches, insertSitemapCache } from '../../db/repositories/sitemap-cache-repo';
 import { HTTP_EXTRACTION_HEADERS } from '../../onboarding/page-extractor';
 import { promoteItems } from '../../onboarding/draft-promoter';
+import { getDomainReleaseHealth } from '../../onboarding/domain-release';
 import { listCandidateCohortViews } from '../../onboarding/curation-cohort-service';
 import { CohortListResponseSchema } from '../../shared/schemas/cohorts';
 import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state';
@@ -289,6 +297,55 @@ function itemWorkspaceError(c: Context, item: { batchId: string }): Response | n
     return c.json({ error: 'Onboarding item not found' }, 404);
   }
   return null;
+}
+
+/**
+ * Workspace + batch-scope preamble shared by the batch handlers
+ * (fallow audit #212: dedupes the six guard clones). Returns the scoped
+ * workspace, or the error response the handler must return.
+ */
+function requireWorkspaceBatch(
+  c: Context,
+  batchId: string,
+):
+  | { workspace: NonNullable<ReturnType<typeof findWorkspace>> }
+  | { error: Response } {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return { error: c.json({ error: 'No active workspace loaded' }, 400) };
+  }
+  const batch = findBatchById(batchId);
+  if (!batch || batch.workspaceId !== workspace.id) {
+    return { error: c.json({ error: 'Batch not found' }, 404) };
+  }
+  return { workspace };
+}
+
+/**
+ * Shared pause/resume transition for batch execution endpoints: guard +
+ * state update + progress event + envelope. The resume path additionally
+ * retriggers the worker poll loop via `onTransition`.
+ */
+function transitionBatchExecution(
+  c: Context,
+  batchId: string,
+  state: 'paused' | 'running',
+  onTransition?: (workspace: NonNullable<ReturnType<typeof findWorkspace>>) => void,
+) {
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
+
+  updateBatchExecutionState(batchId, state);
+  onTransition?.(workspace);
+
+  onboardingEvents.emit({
+    type: 'batch:progress',
+    batchId,
+    data: { executionState: state },
+  });
+
+  return c.json({ success: true, executionState: state });
 }
 
 const route = new Hono();
@@ -723,15 +780,10 @@ route.delete('/onboarding/batches/:id', async (c) => {
  * Grouped missing-brand clusters for the attention queue (brand assignments only).
  */
 route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   try {
     const groups = buildMissingBrandGroups(batchId);
@@ -748,15 +800,10 @@ route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
  * Body: { mode?: 'ready_only' | 'all' }
  */
 route.post('/onboarding/batches/:id/start', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   let body: { mode?: string } = {};
   try {
@@ -805,25 +852,7 @@ route.post('/onboarding/batches/:id/start', async (c) => {
  * Pauses batch execution.
  */
 route.post('/onboarding/batches/:id/pause', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
-
-  updateBatchExecutionState(batchId, 'paused');
-
-  onboardingEvents.emit({
-    type: 'batch:progress',
-    batchId,
-    data: { executionState: 'paused' },
-  });
-
-  return c.json({ success: true, executionState: 'paused' });
+  return transitionBatchExecution(c, c.req.param('id'), 'paused');
 });
 
 /**
@@ -831,32 +860,14 @@ route.post('/onboarding/batches/:id/pause', async (c) => {
  * Resumes paused batch execution.
  */
 route.post('/onboarding/batches/:id/resume', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
-
-  updateBatchExecutionState(batchId, 'running');
-
-  // Trigger worker poll loop
-  try {
-    getWorker(workspace.id, workspace.workspacePath).poll();
-  } catch (err) {
-    console.error('[OnboardingRoutes] Worker poll trigger failed on batch resume:', err);
-  }
-
-  onboardingEvents.emit({
-    type: 'batch:progress',
-    batchId,
-    data: { executionState: 'running' },
+  return transitionBatchExecution(c, c.req.param('id'), 'running', (workspace) => {
+    // Trigger worker poll loop
+    try {
+      getWorker(workspace.id, workspace.workspacePath).poll();
+    } catch (err) {
+      console.error('[OnboardingRoutes] Worker poll trigger failed on batch resume:', err);
+    }
   });
-
-  return c.json({ success: true, executionState: 'running' });
 });
 
 /**
@@ -864,15 +875,10 @@ route.post('/onboarding/batches/:id/resume', async (c) => {
  * Bulk assigns a brand to a list of items and releases them if held.
  */
 route.post('/onboarding/batches/:id/assign-brand-group', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   const { itemIds, brand } = await c.req.json();
   if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0 || !brand?.trim()) {
@@ -2877,16 +2883,10 @@ route.get('/onboarding/batches/:id/brand-domain-setup', async (c) => {
  *          | 400 { error } | 404 { error }
  */
 route.post('/onboarding/batches/:id/brand-domain-setup/:brand', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-
   const batchId = c.req.param('id');
-  const batch = findBatchById(batchId);
-  if (!batch || batch.workspaceId !== workspace.id) {
-    return c.json({ error: 'Batch not found' }, 404);
-  }
+  const scoped = requireWorkspaceBatch(c, batchId);
+  if ('error' in scoped) return scoped.error;
+  const { workspace } = scoped;
 
   const brand = c.req.param('brand').trim();
   if (!brand) {
@@ -4873,7 +4873,11 @@ route.get('/onboarding/settings/profile-retry-preview/:domain', (c) => {
     }
   }
 
-  return c.json({ items });
+  // Issue #214: read-only health from the shared domain/version evaluator
+  // (active-version verdict, display only). The deliberate per-item retry
+  // below stays available without reviewed health per #198 — this field
+  // never gates.
+  return c.json({ items, health: getDomainReleaseHealth(normalizedDomain) });
 });
 
 /**
@@ -4897,16 +4901,28 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
     return c.json({ error: 'itemIds array is required' }, 400);
   }
 
+  // Issue #198: selected retry is a deliberate per-item operator action, so
+  // it stays available without reviewed health — but ONLY for items in
+  // failed extraction owned by the requesting workspace (gate: failed
+  // extraction + own workspace). Contrast (issue #215): automatic release
+  // (`releaseDomainExtractionItems` / `sweepDomainReleases`) is health-gated
+  // via `getDomainReleaseHealth`; selected retry here is not. Every check runs
+  // BEFORE any write so an ineligible item refuses the whole batch with
+  // zero partial mutation.
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
   for (const itemId of itemIds) {
     const item = findItemById(itemId);
     if (!item) {
       return c.json({ error: `Item ${itemId} not found` }, 404);
     }
-    const itemDomain = item.sourceUrl
-      ? new URL(item.sourceUrl).hostname.replace(/^www\./, '')
-      : item.brandHint || '';
-    if (itemDomain !== normalizedDomain) {
-      return c.json({ error: `Item ${itemId} does not belong to domain ${domain}` }, 400);
+    // Workspace ownership via the owning batch (fail closed: a batch in
+    // another workspace — or a missing batch — reads as not found here).
+    const batch = findBatchById(item.batchId);
+    if (!batch || batch.workspaceId !== workspace.id) {
+      return c.json({ error: `Item ${itemId} not found` }, 404);
     }
   }
 
@@ -4915,7 +4931,9 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
   // strand its extraction row + active attestation and silently clobber
   // operator work, so refuse the whole batch with zero writes and direct
   // the operator to withdraw first; the withdrawn (failed) item is
-  // retryable again per item.
+  // retryable again per item. This prescan keeps precedence over the
+  // eligibility checks below so a manual-completed item still reports the
+  // withdraw-first code (not a generic ineligible-status).
   const activeManualIds = itemIds.filter((itemId) => hasActiveManualEvidence(itemId));
   if (activeManualIds.length > 0) {
     return c.json(
@@ -4928,6 +4946,48 @@ route.post('/onboarding/settings/profile-retry-preview/:domain/retry', async (c)
       },
       409,
     );
+  }
+
+  for (const itemId of itemIds) {
+    // Existence + workspace already verified above; re-read for the checks.
+    const item = findItemById(itemId)!;
+    // Eligibility: failed extraction only.
+    const canonicalStage: string | null = (() => {
+      try {
+        return toCanonicalStored(item.stage);
+      } catch {
+        return null;
+      }
+    })();
+    if (canonicalStage !== 'collect_details') {
+      return c.json({
+        error: {
+          code: 'retry_ineligible_stage',
+          message: `Item ${itemId} is not in extraction (stage=${item.stage}); only failed extraction items can be retried`,
+          itemId,
+        },
+      }, 400);
+    }
+    if (item.stageStatus !== 'failed') {
+      return c.json({
+        error: {
+          code: 'retry_ineligible_status',
+          message: `Item ${itemId} is not failed (status=${item.stageStatus}); only failed extraction items can be retried`,
+          itemId,
+        },
+      }, 400);
+    }
+    let itemDomain: string;
+    try {
+      itemDomain = item.sourceUrl
+        ? new URL(item.sourceUrl).hostname.replace(/^www\./, '').toLowerCase()
+        : (item.brandHint || '');
+    } catch {
+      itemDomain = item.brandHint || '';
+    }
+    if (itemDomain !== normalizedDomain) {
+      return c.json({ error: `Item ${itemId} does not belong to domain ${domain}` }, 400);
+    }
   }
 
   let accepted = 0;

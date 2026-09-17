@@ -10,8 +10,9 @@
  * tables it owns; `src/onboarding/onboarding-work-state.ts` must not call
  * `getDb()` at all.
  */
-import { getDb } from '../connection';
+import { getDb, queryInChunks } from '../connection';
 import type { WorkStateProjectionHealthIssue } from '../../shared/schemas/onboarding-work-state';
+import { listVariantIdentityDispositions } from './variant-identity-disposition-repo';
 
 export class WorkStateProjectionError extends Error {
   constructor(public source: string, public code: string, message?: string) {
@@ -94,6 +95,57 @@ export function bulkLoadVariantResolutionsWithHealth(
     return {
       data: new Map(),
       issue: { source: err.source ?? 'onboarding_variant_resolutions', code: err.code ?? 'variant_resolution_failed', affectedCount: itemIds.length },
+    };
+  }
+}
+
+// ─── Bulk variant-identity dispositions (issue #220) ────────────────────────
+
+export interface BulkVariantDisposition {
+  disposition: string;
+  reason: string | null;
+  markedBy: string | null;
+  updatedAt: string;
+}
+
+/**
+ * Bulk load explicit unresolved variant-identity dispositions for a set of
+ * item ids. Display-only projection read (the release hold re-reads the
+ * single-item repo inside its own fail-closed try) — one statement per
+ * call, chunked past SQLite's variable limit. Missing table (predates the
+ * migration on old fixtures) degrades to empty, never throws into the
+ * projection; the WithHealth wrapper reports it.
+ */
+function bulkLoadVariantDispositions(
+  itemIds: string[],
+): Map<string, BulkVariantDisposition> {
+  if (itemIds.length === 0) return new Map();
+  _incrementQueryCount();
+  try {
+    // Single implementation lives in the disposition repo (table owner);
+    // this projection only narrows rows to the display shape it needs.
+    const rows = listVariantIdentityDispositions(itemIds);
+    const map = new Map<string, BulkVariantDisposition>();
+    for (const [itemId, r] of rows) {
+      map.set(itemId, { disposition: r.disposition, reason: r.reason, markedBy: r.markedBy, updatedAt: r.updatedAt });
+    }
+    return map;
+  } catch (e) {
+    throw new WorkStateProjectionError('onboarding_variant_identity_dispositions', 'variant_disposition_failed', String(e));
+  }
+}
+
+export function bulkLoadVariantDispositionsWithHealth(
+  itemIds: string[],
+): BulkResult<BulkVariantDisposition> {
+  if (itemIds.length === 0) return { data: new Map(), issue: null };
+  try {
+    return { data: bulkLoadVariantDispositions(itemIds), issue: null };
+  } catch (e) {
+    const err = e as WorkStateProjectionError;
+    return {
+      data: new Map(),
+      issue: { source: err.source ?? 'onboarding_variant_identity_dispositions', code: err.code ?? 'variant_disposition_failed', affectedCount: itemIds.length },
     };
   }
 }
@@ -235,23 +287,17 @@ export function bulkGetClassificationStageResults(
 ): Map<string, BulkStageRow[]> {
   if (runIds.length === 0) return new Map();
   _incrementQueryCount();
-  const db = getDb();
-  const CHUNK = 900;
   const map = new Map<string, BulkStageRow[]>();
   try {
-    for (let i = 0; i < runIds.length; i += CHUNK) {
-      const chunk = runIds.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(',');
-      const rows = db
-        .query(
-          `SELECT run_id, stage_name, status FROM classification_stage_results WHERE run_id IN (${placeholders}) ORDER BY run_id, started_at ASC`,
-        )
-        .all(...chunk) as Array<{ run_id: string; stage_name: string; status: string }>;
-      for (const r of rows) {
-        const list = map.get(r.run_id) ?? [];
-        list.push({ stage_name: r.stage_name, status: r.status });
-        map.set(r.run_id, list);
-      }
+    const rows = queryInChunks<{ run_id: string; stage_name: string; status: string }>(
+      (placeholders) =>
+        `SELECT run_id, stage_name, status FROM classification_stage_results WHERE run_id IN (${placeholders}) ORDER BY run_id, started_at ASC`,
+      runIds,
+    );
+    for (const r of rows) {
+      const list = map.get(r.run_id) ?? [];
+      list.push({ stage_name: r.stage_name, status: r.status });
+      map.set(r.run_id, list);
     }
     return map;
   } catch (e) {

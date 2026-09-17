@@ -6,8 +6,7 @@
  * operator category/label/attention pair. Mirrors the epic #46 test plan
  * mapping table.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { overrideManualEvidenceFlags, resetManualEvidenceFlagsOverride } from '../../onboarding/flags';
+import { describe, it, expect, beforeAll } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -153,12 +152,7 @@ function makeBatch(name = 'Test Batch'): string {
 }
 
 beforeAll(() => {
-  overrideManualEvidenceFlags({ enabled: false });
   makeWorkspace();
-});
-
-afterAll(() => {
-  resetManualEvidenceFlagsOverride();
 });
 
 describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
@@ -276,7 +270,7 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     expect(state.label).toBe('Extracting product data');
   });
 
-  it('extraction failed with missing profile → needs_attention / extractor_profile_required', () => {
+  it('extraction failed with missing profile → needs_attention / manual_evidence_available', () => {
     const batchId = makeBatch();
     const id = createItem(batchId, {
       upc: 'U9', name: 'X', stage: 'extraction', stageStatus: 'failed',
@@ -285,9 +279,9 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     });
     const state = derive(batchId, id);
     expect(state.category).toBe('needs_attention');
-    expect(state.attentionReason).toBe('extractor_profile_required');
-    expect(state.attentionAction).toBe('setup_extractor_profile');
-    expect(state.label).toBe('Extractor profile required');
+    expect(state.attentionReason).toBe('manual_evidence_available');
+    expect(state.attentionAction).toBe('enter_manual_evidence');
+    expect(state.label).toBe('Manual evidence available');
   });
 
   it('extraction failed with no confirmed source URL → needs_attention / choose_official_url', () => {

@@ -20,10 +20,6 @@ import {
   updateItemStageStatus,
 } from '../../db/repositories/onboarding-item-repo';
 import {
-  overrideManualEvidenceFlags,
-  resetManualEvidenceFlagsOverride,
-} from '../../onboarding/flags';
-import {
   submitManualEvidence,
   withdrawManualEvidence,
   MANUAL_EVIDENCE_ACTIVE_RETRY_CODE,
@@ -70,11 +66,9 @@ describe('manual-evidence retry route guard (ticket #105)', () => {
       bootstrapStatus: 'complete',
       baselineCommit: 'baseline-sha',
     });
-    overrideManualEvidenceFlags({ enabled: true });
   });
 
   afterAll(() => {
-    resetManualEvidenceFlagsOverride();
     closeDb();
     if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
   });

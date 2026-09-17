@@ -73,9 +73,9 @@ export async function runProfileExtraction(
 
   const request: any = {
     profileId: profile.id,
-    profileVersion: profile.updatedAt
+    profileVersion: profile.version ?? (profile.updatedAt
       ? Math.floor(new Date(profile.updatedAt).getTime() / 1000)
-      : 0,
+      : 0),
     sourceUrl,
     expected: {
       name: expected.name,

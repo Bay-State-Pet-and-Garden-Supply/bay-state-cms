@@ -427,6 +427,7 @@ function projectChunk(
           stage: item.stage,
           stageStatus: item.stageStatus,
           variantResolution: null,
+          variantDisposition: null,
           upc: item.upc,
           name: item.name,
           brand: item.brandHint ?? null,

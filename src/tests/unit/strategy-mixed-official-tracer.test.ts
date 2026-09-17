@@ -34,7 +34,10 @@ import { upsertBrandSite } from '../../db/repositories/brand-site-repo';
 import { DefaultSourcingEngine } from '../../onboarding/sourcing/engine';
 import type { ConnectorRegistry } from '../../onboarding/sourcing/connector-registry';
 import type { DistributorConnector, SourcingLookupRequest, SourcingLookupResult } from '../../onboarding/sourcing/contracts';
-import { collectOfficialDomain } from '../../onboarding/sourcing/official-collector';
+import { collectOfficialDomain, type OfficialCollectorDeps } from '../../onboarding/sourcing/official-collector';
+import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
+import { getActiveVersion } from '../../db/repositories/profile-version-repo';
+import { makeDomainHealthy } from './helpers/domain-health-fixture';
 import { buildStrategyCollectionEnvelope } from '../../onboarding/sourcing/strategy-collection-result';
 import {
   finalizeStrategyCollectionForGeneration,
@@ -200,6 +203,71 @@ function strategyDecision(generationId: string, accepted: string[], providers: s
 }
 
 describe('ticket #123: mixed official-page + distributor collection', () => {
+  it.each(['legacy', 'before discovery', 'during discovery', 'during verification'])('default profile resolution rejects edits or missing active versions: %s', async (phase) => {
+    if (phase !== 'legacy') await makeDomainHealthy('acme.com');
+    if (phase === 'legacy' || phase === 'before discovery') {
+      upsertProfile('acme.com', { titleSelector: '.unreviewed-title' });
+    }
+    const { item } = seedItem();
+    const generation = startSourcingGeneration(item.id);
+    const deps: OfficialCollectorDeps = { ...makeOfficialDeps(), findProfile: undefined, isProfileHealthy: undefined };
+    const discover = deps.discover!;
+    const verify = deps.verify!;
+    let discoverCalls = 0;
+    let extractCalls = 0;
+    deps.discover = async (...args) => {
+      discoverCalls += 1;
+      if (phase === 'during discovery') upsertProfile('acme.com', { titleSelector: '.unreviewed-title' });
+      return discover(...args);
+    };
+    deps.verify = async (...args) => {
+      if (phase === 'during verification') upsertProfile('acme.com', { titleSelector: '.unreviewed-title' });
+      return verify(...args);
+    };
+    deps.extract = async () => {
+      extractCalls += 1;
+      throw new Error('must not dispatch an unreviewed profile');
+    };
+    const result = await collectOfficialDomain({
+      itemId: item.id, generationId: generation.id, workspaceId,
+      domain: 'acme.com', identifier: '012345678905', itemName: 'Acana Food', brandHint: 'Acana',
+      signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString(), deps,
+    });
+    expect(result).toMatchObject({ kind: 'attempt', summary: { outcome: 'source_error', errorCode: 'profile_required' } });
+    const attempts = getEvidenceAttemptsByItemAndGeneration(item.id, generation.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0].errorMessage).toContain(phase === 'legacy' ? 'no_active_version' : 'executable_content_changed');
+    expect(discoverCalls).toBe(phase.startsWith('during') ? 1 : 0);
+    expect(extractCalls).toBe(0);
+  });
+
+  it.each([false, true])('default dispatch uses current healthy version content (activation during verification: %s)', async (activateDuringVerification) => {
+    await makeDomainHealthy('acme.com');
+    const initialVersion = getActiveVersion('acme.com')!;
+    const { item } = seedItem();
+    const generation = startSourcingGeneration(item.id);
+    const deps: OfficialCollectorDeps = { ...makeOfficialDeps(), findProfile: undefined, isProfileHealthy: undefined };
+    const verify = deps.verify!;
+    const extract = deps.extract!;
+    let dispatchedProfile: Parameters<NonNullable<OfficialCollectorDeps['extract']>>[0]['profile'] | undefined;
+    deps.verify = async (...args) => {
+      if (activateDuringVerification) await makeDomainHealthy('acme.com');
+      return verify(...args);
+    };
+    deps.extract = async (args) => {
+      dispatchedProfile = args.profile;
+      return extract(args);
+    };
+    const result = await collectOfficialDomain({
+      itemId: item.id, generationId: generation.id, workspaceId,
+      domain: 'acme.com', identifier: '012345678905', itemName: 'Acana Food', brandHint: 'Acana',
+      signal: new AbortController().signal, deadlineAt: new Date(Date.now() + 30000).toISOString(), deps,
+    });
+    expect(result).toMatchObject({ kind: 'attempt', summary: { outcome: 'found' } });
+    expect(dispatchedProfile).toMatchObject({ id: getActiveVersion('acme.com')!.id, titleSelector: 'h1', runtime: 'rendered' });
+    if (activateDuringVerification) expect(dispatchedProfile?.id).not.toBe(initialVersion.id);
+  });
+
   it('happy path: official description + distributor spec consolidate with attribution; no first-success cancel', async () => {
     seedConnections();
     approveMixed();

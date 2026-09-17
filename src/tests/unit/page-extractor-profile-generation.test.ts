@@ -83,7 +83,7 @@ mock.module('../../onboarding/llm-client', () => ({
   PROFILE_TASKS_REQUIRE_EXPLICIT: new Set(['profile_generation', 'profile_revision']),
 }));
 
-import { extractProductData } from '../../onboarding/page-extractor';
+import { extractViaHttpDetailed } from '../../onboarding/page-extractor';
 
 const originalFetch = globalThis.fetch;
 
@@ -148,8 +148,9 @@ describe('page-extractor profile generation (decision 20: proposal-only)', () =>
   it('does not apply generated selectors to the current extraction result', async () => {
     stubFetch(HTML_WITH_AI_SELECTORS);
 
-    const result = await extractProductData(
+    const { data: result } = await extractViaHttpDetailed(
       'https://example.com/products/sample',
+      null,
       { name: 'Sample Product', brandHint: null },
     );
 
@@ -175,8 +176,9 @@ describe('page-extractor profile generation (decision 20: proposal-only)', () =>
   it('does NOT create profile proposals during extraction (auto-generation disabled)', async () => {
     stubFetch(HTML_WITH_AI_SELECTORS);
 
-    await extractProductData(
+    await extractViaHttpDetailed(
       'https://example.com/products/sample',
+      null,
       { name: 'Sample Product', brandHint: null },
     );
 

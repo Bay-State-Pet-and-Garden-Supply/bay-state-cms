@@ -60,6 +60,7 @@ function makeItem(
     description: null,
     weight: null,
     variantResolution: null,
+    variantDisposition: null,
     ...overrides,
   };
 }

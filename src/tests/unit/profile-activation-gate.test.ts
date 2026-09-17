@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { titleMatrixFixture } from './helpers/gate-matrix-fixture';
 
 // story: e06s04
 describe('profile activation gate (e06s04)', () => {
@@ -43,16 +44,16 @@ import { describe as describe2, it as it2, expect as expect2 } from 'vitest';
 
 describe2('profile activation gate evidence (e07s01)', () => {
   function matrix(ids: string[], hashes: string[]) {
-    return {
-      domain: 'example.com',
-      draftVersion: 'v6',
-      createdAt: new Date().toISOString(),
-      rows: ids.map((id, i) => ({
-        sampleId: id,
-        sampleUrl: `https://example.com/${id}`,
-        cells: [{ field: 'title', extracted: 'T', expected: 'T', provenance: 'test', artifactHash: hashes[i] ?? hashes[0], success: true, failureReason: null }],
-      })),
-    } as any;
+    return titleMatrixFixture('example.com', ids, hashes);
+  }
+
+  async function evidenceRefusal(opts: { expected: string[]; samples: string[]; confirmed: number }) {
+    const { evaluateGate } = await import('../../onboarding/profile-activation-gate');
+    return evaluateGate({
+      requiredResults: [{ field: 'title', success: true }],
+      wrongProduct: false, wrongVariant: false, waiver: false, confirmedCount: opts.confirmed, imageRuleOk: true,
+      matrixResult: matrix(['s1', 's2'], ['h1', 'h2']), expectedArtifactHashes: opts.expected, sampleIds: opts.samples,
+    });
   }
 
   it2('blocks with missing_matrix when matrixResult is null', async () => {
@@ -67,25 +68,13 @@ describe2('profile activation gate evidence (e07s01)', () => {
   });
 
   it2('blocks with artifact_mismatch when hashes differ', async () => {
-    const { evaluateGate } = await import('../../onboarding/profile-activation-gate');
-    const m = matrix(['s1', 's2'], ['h1', 'h2']);
-    const r = evaluateGate({
-      requiredResults: [{ field: 'title', success: true }],
-      wrongProduct: false, wrongVariant: false, waiver: false, confirmedCount: 2, imageRuleOk: true,
-      matrixResult: m, expectedArtifactHashes: ['h1', 'h2', 'h4'], sampleIds: ['s1', 's2'],
-    });
+    const r = await evidenceRefusal({ expected: ['h1', 'h2', 'h4'], samples: ['s1', 's2'], confirmed: 2 });
     expect2(r.allowed).toBe(false);
     expect2(r.blockReason).toBe('artifact_mismatch');
   });
 
   it2('blocks with missing_samples when matrix does not cover all sampleIds', async () => {
-    const { evaluateGate } = await import('../../onboarding/profile-activation-gate');
-    const m = matrix(['s1', 's2'], ['h1', 'h2']);
-    const r = evaluateGate({
-      requiredResults: [{ field: 'title', success: true }],
-      wrongProduct: false, wrongVariant: false, waiver: false, confirmedCount: 3, imageRuleOk: true,
-      matrixResult: m, expectedArtifactHashes: ['h1', 'h2'], sampleIds: ['s1', 's2', 's3'],
-    });
+    const r = await evidenceRefusal({ expected: ['h1', 'h2'], samples: ['s1', 's2', 's3'], confirmed: 3 });
     expect2(r.allowed).toBe(false);
     expect2(r.blockReason).toBe('missing_samples');
   });

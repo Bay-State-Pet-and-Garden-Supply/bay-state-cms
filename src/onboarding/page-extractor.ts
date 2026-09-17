@@ -7,7 +7,8 @@
 import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { type ExtractionData, ExtractionDataSchema } from '../shared/schemas/onboarding';
-import { findProfileByDomain, type ExtractorProfile } from '../db/repositories/extractor-profile-repo';
+import { type ExtractorProfile } from '../db/repositories/extractor-profile-repo';
+import { resolveExecutableProfile } from './domain-version-health';
 import { findBrandSites } from '../db/repositories/brand-site-repo';
 import { recordDomainStatus } from '../db/repositories/domain-status-repo';
 import { enrichUrlMetadata } from '../db/repositories/brand-url-index-repo';
@@ -148,7 +149,6 @@ export interface ExtractHttpDetailedOptions {
  * 2. Deterministic ladder enrichment: additive-only structured signal extraction.
  * 3. Never throws: degrades gracefully on parsing errors.
  */
-// fallow-ignore-next-line unused-export
 export async function extractProductFromHtml(
   html: string,
   url: string,
@@ -222,7 +222,6 @@ export async function extractProductFromHtml(
  * extracts structured data without launching a browser. Returns the
  * detailed diagnostics needed by the profile-generation trigger.
  */
-// fallow-ignore-next-line unused-export
 export async function extractViaHttpDetailed(
   url: string,
   profile?: ExtractorProfile | null,
@@ -281,15 +280,40 @@ export class VariantExtractionError extends Error {
   }
 }
 
+type ExpectedProduct = {
+  name: string;
+  brandHint?: string | null;
+  price?: string | null;
+  gtin?: string;
+  variantSelection?: { resolutionId: string; identityMatrixHash: string; variantKey: string };
+};
+
 export async function extractProductData(
   url: string,
-  expected?: { name: string; brandHint?: string | null; price?: string | null; gtin?: string; variantSelection?: { resolutionId: string; identityMatrixHash: string; variantKey: string } }
+  expected?: ExpectedProduct,
+): Promise<ExtractionData> {
+  const domain = new URL(url).hostname.replace(/^www\./, '');
+  const profile = resolveExecutableProfile(domain);
+  return extractProductDataWithProfile(url, profile, expected ?? { name: '' });
+}
+
+export async function extractProductDataForTooling(
+  url: string,
+  profile?: ExtractorProfile | null,
+  expected?: ExpectedProduct,
+): Promise<ExtractionData> {
+  return extractProductDataWithProfile(url, profile, expected);
+}
+
+async function extractProductDataWithProfile(
+  url: string,
+  profile: ExtractorProfile | null | undefined,
+  expected: ExpectedProduct | undefined,
 ): Promise<ExtractionData> {
   let domain = '';
   try {
     domain = new URL(url).hostname.replace(/^www\./, '');
   } catch { /* skip */ }
-  const profile = domain ? findProfileByDomain(domain) : null;
 
   // Determine if it is a known official brand site
   const isKnownBrand = domain && expected?.brandHint

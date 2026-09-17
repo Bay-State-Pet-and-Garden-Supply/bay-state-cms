@@ -18,6 +18,7 @@ import {
   getAttentionGroupLabel,
 } from './attention-logic';
 import { SemanticConflictPanel } from './SemanticConflictPanel';
+import { VariantDispositionPanel } from './VariantDispositionPanel';
 import './semantic-conflict.css';
 
 interface AttentionRowProps {
@@ -119,6 +120,7 @@ export function AttentionRow({ workState, batchId, onResolve, resolving = false,
           <span className="attn-answer-text">{detail}</span>
         </div>
       ) : null}
+      <VariantDispositionPanel itemId={itemId} workState={workState} onChanged={onActionComplete} />
       {isSemanticBlocked && expanded ? (
         <div id={detailsId} onClick={(e) => e.stopPropagation()}>
           <SemanticConflictPanel item={workState} batchId={batchId} onActionComplete={onActionComplete} />

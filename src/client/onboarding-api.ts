@@ -730,6 +730,22 @@ export async function saveExtractorProfile(data: SaveExtractorProfilePayload): P
   });
 }
 
+/**
+ * Version-bound explicit image-review action: records the operator's
+ * image-preview attestation on one profile version row. The ONLY
+ * post-creation writer of `validationSummary.imageRuleOk`.
+ */
+export async function attestVersionImageReview(
+  domain: string,
+  versionId: string,
+  reviewed: boolean,
+): Promise<unknown> {
+  return request(`/domains/${encodeURIComponent(domain)}/profile/versions/${encodeURIComponent(versionId)}/image-review`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewed }),
+  });
+}
+
 export interface DomainConfigPayload {
   titleSelector?: string | null;
   priceSelector?: string | null;
@@ -745,7 +761,6 @@ export interface DomainConfigPayload {
   }>;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function saveDomainConfig(
   domain: string,
   data: DomainConfigPayload,
@@ -759,7 +774,6 @@ export async function saveDomainConfig(
   ).then((r) => r.domain);
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function getDomainDiagnostics(): Promise<DomainDiagnosticsResponse> {
   return request<DomainDiagnosticsResponse>('/settings/domain-diagnostics');
 }
@@ -896,7 +910,6 @@ export async function getClassificationReadiness(): Promise<{
   }>('/readiness');
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function saveClassificationConfig(config: any): Promise<{ success: boolean; config: any }> {
   return classificationRequest<{ success: boolean; config: any }>('/config', {
     method: 'PUT',
@@ -1081,7 +1094,6 @@ export async function getDomainProfileGovernance(
 }
 
 /** Fetch the latest open (non-rejected, non-failed) proposal for a domain. */
-// fallow-ignore-next-line unused-export — used by tests
 export async function getLatestProposalForDomain(
   domain: string,
 ): Promise<ProfileGenerationGeneration | null> {
@@ -1231,7 +1243,6 @@ export interface RejectRevisionFieldsResponse {
   decisionIds: string[];
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export async function rejectRevisionFields(
   generationId: string,
   revisionId: string,
@@ -1317,9 +1328,14 @@ export async function validateProfileDraft(
   });
 }
 
+export interface ProfileRetryPreviewHealth {
+  healthy: boolean;
+  reason: string | null;
+}
+
 export async function getProfileRetryPreview(
   domain: string,
-): Promise<{ items: ProfileBlockedItem[] }> {
+): Promise<{ items: ProfileBlockedItem[]; health: ProfileRetryPreviewHealth | null }> {
   return request(`/settings/profile-retry-preview/${encodeURIComponent(domain)}`);
 }
 

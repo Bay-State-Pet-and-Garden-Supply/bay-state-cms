@@ -112,6 +112,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6b7280',
     gap: 10,
   },
+  healthBanner: {
+    background: '#f9fafb',
+    border: '1px solid #e5e7eb',
+    borderRadius: 6,
+    padding: '8px 12px',
+    fontSize: 12,
+    color: '#4b5563',
+    marginBottom: 12,
+  },
   spinner: {
     display: 'inline-block',
     width: 20,
@@ -227,8 +236,27 @@ const styles: Record<string, React.CSSProperties> = {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
+interface HealthBannerProps {
+  loading: boolean;
+  error: string | null;
+  health: { healthy: boolean; reason: string | null } | null;
+}
+
+/** Reviewed-health banner: read-only, never gates the deliberate retry. */
+function HealthBanner({ loading, error, health }: HealthBannerProps) {
+  if (loading || error || !health) return null;
+  return (
+    <div style={styles.healthBanner}>
+      {health.healthy
+        ? 'Reviewed health: healthy — automatic release applies to newly blocked items.'
+        : `Reviewed health: not healthy (${health.reason ?? 'unknown'}) — selected retry stays available as a deliberate operator act.`}
+    </div>
+  );
+}
+
 export function ProfileRetryPreview({ domain, onClose }: ProfileRetryPreviewProps) {
   const [items, setItems] = useState<ProfileBlockedItem[]>([]);
+  const [health, setHealth] = useState<{ healthy: boolean; reason: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -246,6 +274,7 @@ export function ProfileRetryPreview({ domain, onClose }: ProfileRetryPreviewProp
         const result = await getProfileRetryPreview(domain);
         if (!cancelled) {
           setItems(result.items);
+          setHealth(result.health ?? null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -328,6 +357,7 @@ export function ProfileRetryPreview({ domain, onClose }: ProfileRetryPreviewProp
 
         {/* ── Body ── */}
         <div style={styles.body}>
+          <HealthBanner loading={loading} error={error} health={health} />
           {/* Loading */}
           {loading && (
             <div style={styles.loading}>

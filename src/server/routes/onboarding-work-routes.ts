@@ -12,7 +12,7 @@
  *   domain-level release: after an extractor profile becomes usable, blocked
  *   extraction items on that domain are re-queued automatically.
  */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { findWorkspace } from '../../db/repositories/workspace-repo';
 import { previewBatchFilenames, previewBatchFilenamesWithSummary, recordFilenameDecision, filenameGateReason } from '../../onboarding/filename-review';
 import { findBatchById } from '../../db/repositories/onboarding-batch-repo';
@@ -676,13 +676,18 @@ route.post('/onboarding/batches/:id/create-export-drafts', async (c) => {
 
 /**
  * POST /api/onboarding/domains/:domain/release
- * Deterministic domain-level release (epic #46 UX workstream 4 / Phase 8):
+ * Automatic release (epic #46 UX workstream 4 / Phase 8):
  * after an extractor profile becomes usable for a domain, every blocked
  * extraction item on that domain is re-queued automatically. Delegates to
  * the canonical `releaseDomainExtractionItems` primitive (Phase 2) with
  * `releaseAllBlocked` — this is the explicit operator-triggered release (the
  * profile was just set up), so every blocked item on the domain releases.
- * A missing profile fails closed (400).
+ * Gate (issue #198): automatic release is health-gated via
+ * `getDomainReleaseHealth` — a missing or not-yet-healthy profile fails
+ * closed (400). Contrast (issue #215): selected retry
+ * (`POST /api/onboarding/settings/profile-retry-preview/:domain/retry`) is a
+ * separate deliberate workspace-scoped failed-extraction-only operator act
+ * intentionally available WITHOUT reviewed health.
  */
 route.post('/onboarding/domains/:domain/release', async (c) => {
   const workspace = findWorkspace();
@@ -697,7 +702,8 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
 
   const result = releaseDomainExtractionItems(workspace.id, domain, { releaseAllBlocked: true });
   if (!result.profileAvailable) {
-    return c.json({ error: `No usable extractor profile for "${domain}"` }, 400);
+    const suffix = result.healthReason ? ` (${result.healthReason})` : '';
+    return c.json({ error: `No usable extractor profile for "${domain}"${suffix}`, healthReason: result.healthReason ?? null }, 400);
   }
 
   const releasedIds = result.releasedIds;
@@ -721,6 +727,30 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
 });
 
 /**
+ * Workspace + principal preamble shared by the manual-evidence handlers
+ * (fallow audit #212: dedupes the submit/withdraw/read guards). Returns
+ * the scoped pair, or the error response the handler must return.
+ */
+function requireWorkspacePrincipal(
+  c: Context,
+):
+  | {
+      workspace: NonNullable<ReturnType<typeof findWorkspace>>;
+      principal: NonNullable<ReturnType<typeof derivePrincipal>>;
+    }
+  | { error: Response } {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return { error: c.json({ error: 'No active workspace loaded' }, 400) };
+  }
+  const principal = derivePrincipal(c);
+  if (!principal) {
+    return { error: c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401) };
+  }
+  return { workspace, principal };
+}
+
+/**
  * POST /api/onboarding/items/:id/submit-manual-evidence
  * Parent #101 (manual-evidence route, ticket #103 thin slice): audited
  * operator submission of manual evidence for one profile-blocked item
@@ -729,14 +759,9 @@ route.post('/onboarding/domains/:domain/release', async (c) => {
  * principal actor is recorded as the attesting operator.
  */
 route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   let body: unknown;
   try {
     body = await c.req.json();
@@ -788,14 +813,9 @@ route.post('/onboarding/items/:id/submit-manual-evidence', async (c) => {
  * Parent #101: operator withdrawal restores the prior blocked state.
  */
 route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   const { withdrawManualEvidence } = await import('../../onboarding/manual-evidence-service');
   const result = withdrawManualEvidence({
     itemId: c.req.param('id'),
@@ -827,14 +847,9 @@ route.post('/onboarding/items/:id/withdraw-manual-evidence', async (c) => {
  * it (no generation id, no attempt ids leave this endpoint).
  */
 route.get('/onboarding/items/:id/manual-evidence', async (c) => {
-  const workspace = findWorkspace();
-  if (!workspace) {
-    return c.json({ error: 'No active workspace loaded' }, 400);
-  }
-  const principal = derivePrincipal(c);
-  if (!principal) {
-    return c.json({ error: 'Unauthorized', code: 'unauthorized' }, 401);
-  }
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
   const itemId = c.req.param('id');
   const item = findItemById(itemId);
   if (!item) {
@@ -879,6 +894,116 @@ async function readDistributorReferenceForManualEvidence(itemId: string): Promis
   }
   return Object.keys(out).length > 0 ? out : null;
 }
+
+/**
+ * Workspace + item preamble shared by the variant-identity disposition
+ * handlers (issue #220). Returns the scoped workspace/principal/item, or
+ * the error response the handler must return. Foreign-workspace items are
+ * 404, never mutated — same ownership rule as every other item mutation.
+ */
+function requireWorkspaceDispositionItem(
+  c: Context,
+):
+  | {
+      workspace: NonNullable<ReturnType<typeof findWorkspace>>;
+      principal: NonNullable<ReturnType<typeof derivePrincipal>>;
+      item: NonNullable<ReturnType<typeof findItemById>>;
+    }
+  | { error: Response } {
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped;
+  const itemId = c.req.param('id') ?? '';
+  const item = findItemById(itemId);
+  if (!item) {
+    return { error: c.json({ error: 'Item not found', code: 'item_not_found' }, 404) };
+  }
+  const batch = findBatchById(item.batchId);
+  if (!batch || batch.workspaceId !== scoped.workspace.id) {
+    return { error: c.json({ error: 'Item not found', code: 'item_not_found' }, 404) };
+  }
+  return { workspace: scoped.workspace, principal: scoped.principal, item };
+}
+
+/**
+ * GET /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: read model for the board — the current explicit unresolved
+ * variant-identity disposition for one item (null when unmarked).
+ */
+route.get('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { getVariantIdentityDisposition } = await import('../../db/repositories/variant-identity-disposition-repo');
+  return c.json({ itemId: scoped.item.id, disposition: getVariantIdentityDisposition(scoped.item.id) });
+});
+
+/**
+ * POST /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: audited operator mark — records that an item is
+ * variant-bearing without matrix enforcement (e.g. a size-specific
+ * Nylabone row on a no-matrix Sitecore family page), so the release hold
+ * engages with a `variant_resolution_required` reason. The mark identity
+ * is the server-derived principal actor — client-supplied identity is
+ * never trusted. Body: `{ reason: string }` (1..500 chars).
+ */
+route.post('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal, item } = scoped;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400);
+  }
+  const reason = (body as Record<string, unknown> | null)?.reason;
+  if (typeof reason !== 'string' || reason.trim().length === 0) {
+    return c.json({ error: 'reason is required.' }, 400);
+  }
+  if (reason.trim().length > 500) {
+    return c.json({ error: 'reason must be 500 characters or fewer.' }, 400);
+  }
+  const { markVariantIdentityUnresolved } = await import('../../db/repositories/variant-identity-disposition-repo');
+  let disposition;
+  try {
+    disposition = markVariantIdentityUnresolved(item.id, reason.trim(), { markedBy: principal.actor });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'Could not record the disposition.' }, 400);
+  }
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: item.id,
+    action: 'mark_variant_identity_unresolved',
+    message: `Operator ${principal.actor} marked variant identity unresolved (${disposition.reason})`,
+    detailsJson: JSON.stringify({ reason: disposition.reason, markedBy: disposition.markedBy }),
+  });
+  return c.json({ itemId: item.id, disposition });
+});
+
+/**
+ * DELETE /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: audited operator clear — removes the explicit disposition
+ * (operator variant selection proved identity), restoring prior release
+ * behavior. The clear is itself audited via `audit_log` since the row is
+ * deleted. Idempotent: clearing an unmarked item succeeds with null.
+ */
+route.delete('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal, item } = scoped;
+  const { getVariantIdentityDisposition, clearVariantIdentityDisposition } = await import('../../db/repositories/variant-identity-disposition-repo');
+  const prior = getVariantIdentityDisposition(item.id);
+  clearVariantIdentityDisposition(item.id);
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: item.id,
+    action: 'clear_variant_identity_disposition',
+    message: `Operator ${principal.actor} cleared variant-identity disposition${prior ? ` (was: ${prior.reason})` : ' (item was unmarked)'}`,
+    detailsJson: JSON.stringify({ clearedBy: principal.actor, priorReason: prior?.reason ?? null, priorMarkedBy: prior?.markedBy ?? null }),
+  });
+  return c.json({ itemId: item.id, disposition: null });
+});
 
 /**
  * GET /api/onboarding/metrics?batchId=<id>

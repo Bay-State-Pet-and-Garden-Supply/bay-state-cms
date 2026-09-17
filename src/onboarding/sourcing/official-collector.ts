@@ -1,7 +1,7 @@
 import { discoverSources } from '../source-discovery';
 import { verifyTopCandidates } from '../page-verifier';
-import { findProfileByDomain } from '../../db/repositories/extractor-profile-repo';
-import { getDomainProfileState } from '../../db/repositories/domain-profile-state-repo';
+import type { findProfileByDomain } from '../../db/repositories/extractor-profile-repo';
+import { resolveExecutableProfile } from '../domain-version-health';
 import { runProfileExtraction, type ProfileRunnerResult } from '../profile-runner-client';
 import { isKnownRetailerOrDistributorDomain } from '../discovery/retailer-domain-list';
 import { isOfficialDomainMatch } from '../domain-utils';
@@ -51,7 +51,6 @@ export interface OfficialCollectorDeps {
     allowedDomains: string[];
   }) => Promise<ProfileRunnerResult>;
   findProfile?: typeof findProfileByDomain;
-  /** Healthy applicable profile gate (default: hasProfile + tests-pass evidence). */
   isProfileHealthy?: (domain: string) => boolean;
   fetchFn?: typeof fetch;
 }
@@ -66,15 +65,6 @@ const MIN_PHASE_BUDGET_MS = 8_000;
 function remainingMs(deadlineAt: string): number {
   const remaining = new Date(deadlineAt).getTime() - Date.now();
   return Number.isFinite(remaining) ? remaining : 0;
-}
-
-function defaultProfileHealthy(domain: string): boolean {
-  try {
-    const state = getDomainProfileState(domain);
-    return state.hasProfile && state.testsPassEvidence != null;
-  } catch {
-    return false;
-  }
 }
 
 async function defaultExtract(args: {
@@ -120,8 +110,7 @@ export async function collectOfficialDomain(input: {
   const discover = deps.discover ?? discoverSources;
   const verify = deps.verify ?? verifyTopCandidates;
   const extract = deps.extract ?? defaultExtract;
-  const findProfile = deps.findProfile ?? findProfileByDomain;
-  const isHealthy = deps.isProfileHealthy ?? defaultProfileHealthy;
+  const findProfile = deps.findProfile ?? resolveExecutableProfile;
   const fetchFn = deps.fetchFn ?? fetch;
   const domain = input.domain.trim().toLowerCase();
   const providerId = officialProviderId(domain);
@@ -206,34 +195,29 @@ export async function collectOfficialDomain(input: {
 
   // Strict profile gate: no profile (or no healthy applicable profile)
   // means a terminal unavailable outcome — never a generic HTTP fallback.
-  let profile: NonNullable<ReturnType<typeof findProfileByDomain>>;
-  try {
-    const found = findProfile(domain);
-    if (!found) {
-      return persistTerminal('source_error', {
-        errorCode: 'profile_required',
-        errorMessage: `No extractor profile for ${domain} — profile required`,
-      });
+  const resolveProfile = (): { profile: NonNullable<ReturnType<typeof findProfileByDomain>> } | { failure: OfficialCollectionOutcome } => {
+    let errorCode = 'profile_required';
+    try {
+      const profile = findProfile(domain);
+      if (!profile) throw new Error(`No extractor profile for ${domain} — profile required`);
+      errorCode = 'profile_not_healthy';
+      if (deps.isProfileHealthy) {
+        if (!deps.isProfileHealthy(domain)) {
+          throw new Error(`Extractor profile for ${domain} is not healthy — profile setup required`);
+        }
+      } else if (deps.findProfile) {
+        resolveExecutableProfile(domain);
+      }
+      return { profile };
+    } catch (err) {
+      return { failure: persistTerminal('source_error', {
+        errorCode,
+        errorMessage: err instanceof Error ? err.message.slice(0, 200) : `Extractor profile for ${domain} could not be resolved`,
+      }) };
     }
-    profile = found;
-  } catch {
-    return persistTerminal('source_error', {
-      errorCode: 'profile_required',
-      errorMessage: `No extractor profile for ${domain} — profile required`,
-    });
-  }
-  let healthy = false;
-  try {
-    healthy = isHealthy(domain);
-  } catch {
-    healthy = false;
-  }
-  if (!healthy) {
-    return persistTerminal('source_error', {
-      errorCode: 'profile_not_healthy',
-      errorMessage: `Extractor profile for ${domain} is not healthy — profile setup required`,
-    });
-  }
+  };
+  const initialProfile = resolveProfile();
+  if ('failure' in initialProfile) return initialProfile.failure;
 
   if (remainingMs(input.deadlineAt) < MIN_PHASE_BUDGET_MS) {
     return { kind: 'skipped', connectionId: skipId, reason: 'deadline_exceeded' };
@@ -297,12 +281,15 @@ export async function collectOfficialDomain(input: {
     return { kind: 'skipped', connectionId: skipId, reason: 'deadline_exceeded' };
   }
 
+  const dispatchProfile = resolveProfile();
+  if ('failure' in dispatchProfile) return dispatchProfile.failure;
+
   // Strict profile-only extraction inside the frozen domain boundary.
   let extracted: ProfileRunnerResult;
   try {
     extracted = await extract({
       url: verified.candidate.url,
-      profile,
+      profile: dispatchProfile.profile,
       expected: { name: input.itemName ?? '', brandHint: input.brandHint, upc: input.identifier },
       allowedDomains: [domain],
     });

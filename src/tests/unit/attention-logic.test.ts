@@ -55,6 +55,7 @@ function makeWorkState(
     description: null,
     weight: null,
     variantResolution: null,
+    variantDisposition: null,
   };
 }
 

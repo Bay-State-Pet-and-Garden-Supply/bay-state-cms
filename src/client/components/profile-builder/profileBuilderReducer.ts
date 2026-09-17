@@ -102,6 +102,7 @@ export function createInitialState(args?: {
     snapshot: null,
     pageHtml: null,
     samples: [],
+    imagePreviewsReviewed: false,
     validation: null,
     extractionPreview: null,
     dirty: false,
@@ -173,6 +174,9 @@ export type ProfileBuilderAction =
   | { type: 'sampleCaptures/set'; sampleCaptures: Record<string, { html: string; dom: string }> }
   | { type: 'sample/update'; id: string; patch: Partial<ValidationSample> }
   | { type: 'sample/remove'; id: string }
+
+  // Image review attestation
+  | { type: 'imageReview/set'; reviewed: boolean }
 
   // Validation
   | { type: 'validation/start' }
@@ -309,6 +313,8 @@ export function profileBuilderReducer(
         draft,
         fields,
         customFieldOrder,
+        // Fresh profile scope needs fresh image attestation (fail-closed).
+        imagePreviewsReviewed: false,
         dirty: false,
       };
     }
@@ -322,6 +328,7 @@ export function profileBuilderReducer(
         snapshot: null,
         pageHtml: null,
         samples: [],
+        imagePreviewsReviewed: false,
         validation: null,
         extractionPreview: null,
         dirty: false,
@@ -596,7 +603,6 @@ export function profileBuilderReducer(
     // ── Field selector changed ───────────────────────────────────────────
     case 'field/selectorChanged': {
       const { key, selector } = action;
-
       // Update the appropriate field in the draft.
       const updatedDraft = updateDraftSelector(state.draft, key, selector);
 
@@ -618,6 +624,9 @@ export function profileBuilderReducer(
         ...state,
         draft: updatedDraft,
         fields: updatedFields,
+        // The attestation covers image previews produced by the images
+        // selector — a selector change voids it (fail-closed).
+        imagePreviewsReviewed: key === 'imagesSelector' ? false : state.imagePreviewsReviewed,
         dirty: true,
       };
     }
@@ -810,6 +819,8 @@ export function profileBuilderReducer(
       };
 
     // ── Samples ──────────────────────────────────────────────────────────
+    // The image attestation covers the confirmed sample set — any sample
+    // change voids it (fail-closed; the operator re-attests for the set).
     case 'sample/add': {
       const exists = state.samples.some((s) => s.id === action.sample.id);
       if (exists) return state;
@@ -818,6 +829,7 @@ export function profileBuilderReducer(
         samples: [...state.samples, action.sample],
         // Validated results are stale once samples change.
         validation: null,
+        imagePreviewsReviewed: false,
       };
     }
 
@@ -826,6 +838,7 @@ export function profileBuilderReducer(
         ...state,
         samples: action.samples,
         validation: null,
+        imagePreviewsReviewed: false,
       };
     }
 
@@ -843,6 +856,7 @@ export function profileBuilderReducer(
         ...state,
         samples,
         validation: null,
+        imagePreviewsReviewed: false,
       };
     }
 
@@ -851,6 +865,16 @@ export function profileBuilderReducer(
         ...state,
         samples: state.samples.filter((s) => s.id !== action.id),
         validation: null,
+        imagePreviewsReviewed: false,
+      };
+    }
+
+    // ── Image review attestation ─────────────────────────────────────────
+    case 'imageReview/set': {
+      return {
+        ...state,
+        imagePreviewsReviewed: action.reviewed,
+        dirty: true,
       };
     }
 

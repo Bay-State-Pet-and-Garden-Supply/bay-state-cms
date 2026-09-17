@@ -13,10 +13,6 @@ import {
   getActiveManualEvidenceAttestationForItem,
 } from '../../db/repositories/onboarding-manual-evidence-repo';
 import {
-  overrideManualEvidenceFlags,
-  resetManualEvidenceFlagsOverride,
-} from '../../onboarding/flags';
-import {
   submitManualEvidence,
   withdrawManualEvidence,
 } from '../../onboarding/manual-evidence-service';
@@ -69,11 +65,9 @@ beforeAll(() => {
   initDb(TEST_DB);
   runMigrations();
   seedBatch();
-  overrideManualEvidenceFlags({ enabled: true });
 });
 
 afterAll(() => {
-  resetManualEvidenceFlagsOverride();
   closeDb();
   for (const suffix of ['', '-wal', '-shm', '-journal']) {
     try {
@@ -198,21 +192,6 @@ describe('thin slice: title-only blocked item end to end', () => {
 });
 
 describe('thin slice: fail-closed entries', () => {
-  test('flag OFF hides the entire path', () => {
-    seedItem('item-flagoff-1');
-    overrideManualEvidenceFlags({ enabled: false });
-    try {
-      const result = submitManualEvidence(
-        { itemId: 'item-flagoff-1', workspaceId: 'ws-1', operatorId: OPERATOR, title: 'Nope', attestation: { noFamilyInheritance: true, perSkuVerified: true, rightsAttested: true } },
-        noProfile,
-      );
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.code).toBe('manual_evidence_disabled');
-    } finally {
-      overrideManualEvidenceFlags({ enabled: true });
-    }
-  });
-
   test('sourcing, discovery, and never-attempted items are rejected with distinct codes', () => {
     seedItem('item-rej-sourcing', { stage: 'sourcing', stageStatus: 'pending', errorMessage: null });
     seedItem('item-rej-discovery', { stage: 'discovery', stageStatus: 'failed', errorMessage: 'No extractor profile for butcherspup.example.com' });

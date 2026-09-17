@@ -32,11 +32,14 @@ mock.module('../../onboarding/profile-runner-client', () => ({
     return runnerResponse;
   },
 }));
-mock.module('../../db/repositories/extractor-profile-repo', () => ({
-  findProfileByDomain: (domain: string) =>
-    domain === 'forwarding.example'
-      ? { id: 'prof-fwd-1', domain, titleSelector: '.pdp-title', updatedAt: null }
-      : null,
+const resolveExecutableProfile = mock((domain: string): ExtractorProfile => {
+  if (domain !== 'forwarding.example') {
+    throw new Error(`No extractor profile for ${domain} — profile required (no_active_version)`);
+  }
+  return makeProfile({ id: 'prof-fwd-1', domain, version: 7 });
+});
+mock.module('../../onboarding/domain-version-health', () => ({
+  resolveExecutableProfile,
 }));
 mock.module('../../db/repositories/brand-site-repo', () => ({
   findBrandSites: () => [],
@@ -134,6 +137,7 @@ function stubHtml(html: string): { calls: string[] } {
 }
 
 beforeEach(() => {
+  resolveExecutableProfile.mockClear();
   runnerCalls = [];
   renderedRunCalls = 0;
   runnerResponse = { ok: false, error: 'mocked-worker-down', warnings: [] };
@@ -386,15 +390,62 @@ describe('extraction ladder wiring — production profile/worker seam (ADR-0031)
     expect(result.data.additionalImages.some((u) => u.startsWith(RENDERED_SOURCE_URL))).toBe(false);
   });
 
+  test.each(['no_active_version', 'executable_content_changed', 'health_check_failed'])(
+    'extractProductData fails closed before fetching when resolution rejects: %s',
+    async (reason) => {
+      const { calls } = stubHtml('<html><h1>Generic fallback title</h1></html>');
+      const error = new Error(`No extractor profile for forwarding.example — profile required (${reason})`);
+      resolveExecutableProfile.mockImplementationOnce(() => { throw error; });
+
+      await expect(extractProductData('https://www.forwarding.example/products/widget', {
+        name: 'Forwarded Widget',
+      })).rejects.toThrow(error.message);
+
+      expect(resolveExecutableProfile).toHaveBeenCalledWith('forwarding.example');
+      expect(runnerCalls).toHaveLength(0);
+      expect(renderedRunCalls).toBe(0);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
+  test('extractProductData without expected data still resolves and uses the profile runner', async () => {
+    const { calls } = stubHtml('<html><h1>Generic fallback title</h1></html>');
+
+    await expect(extractProductData('https://forwarding.example/products/widget'))
+      .rejects.toThrow('mocked-worker-down');
+
+    expect(resolveExecutableProfile).toHaveBeenCalledWith('forwarding.example');
+    expect(runnerCalls).toHaveLength(1);
+    expect(runnerCalls[0].profile).toEqual(makeProfile({
+      id: 'prof-fwd-1', domain: 'forwarding.example', version: 7,
+    }));
+    expect(calls).toHaveLength(0);
+  });
+
+  test('extractProductData rejects a missing profile without expected data or generic fallback', async () => {
+    const { calls } = stubHtml('<html><h1>Generic fallback title</h1></html>');
+
+    await expect(extractProductData('https://missing.example/products/widget'))
+      .rejects.toThrow('No extractor profile for missing.example — profile required (no_active_version)');
+
+    expect(runnerCalls).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
   test('extractProductData forwards expected.gtin as upc to the profile runner', async () => {
-    stubHtml('<html></html>'); // unused by the mocked runner
+    const { calls } = stubHtml('<html></html>');
     await expect(
       extractProductData('https://forwarding.example/products/widget', {
         name: 'Forwarded Widget',
         gtin: '0012345678905',
       }),
     ).rejects.toThrow('mocked-worker-down');
+    expect(resolveExecutableProfile).toHaveBeenCalledWith('forwarding.example');
     expect(runnerCalls.length).toBe(1);
+    expect(runnerCalls[0].profile).toEqual(makeProfile({
+      id: 'prof-fwd-1', domain: 'forwarding.example', version: 7,
+    }));
+    expect(calls).toHaveLength(0);
     const expectedArg = (runnerCalls[0] as { expected?: { upc?: string } }).expected;
     expect(expectedArg?.upc).toBe('0012345678905');
   });
