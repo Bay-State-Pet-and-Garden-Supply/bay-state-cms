@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   ReleaseValidationError,
   assertReleaseValidV4,
@@ -73,6 +74,14 @@ function readJson(dir: string, fileName: string): any {
 
 function writeJson(dir: string, fileName: string, data: unknown): void {
   fs.writeFileSync(path.join(dir, fileName), JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
+function syncManifestHash(dir: string, fileName: string): void {
+  const filePath = path.join(dir, fileName);
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  const manifest = readJson(dir, 'manifest.json');
+  manifest.fileVersions[fileName] = hash;
+  writeJson(dir, 'manifest.json', manifest);
 }
 
 // ─── Positive: the committed release ───────────────────────────────────────────
@@ -407,6 +416,73 @@ describe('negative cases (temp copies)', () => {
     writeJson(dir, 'facet-profiles.json', profiles);
     const report = validateTaxonomyReleaseV4(dir);
     expectFinding(report, 'profile_missing_provenance');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a controlled attribute with duplicate allowed values', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
+    foodForm.allowedValues.push(foodForm.allowedValues[0]);
+    writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'duplicate_allowed_value');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a controlled attribute with an unresolved value alias', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const foodForm = attrs.entries.find((a: any) => a.id === 'food-form');
+    foodForm.valueAliases.push({ alias: 'bogus', mapsTo: 'UnknownForm' });
+    writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'unresolved_value_alias');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects a measured attribute missing canonicalUnit', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    const attr = attrs.entries.find((a: any) => a.valueMode === 'measured') ?? attrs.entries[0];
+    attr.valueMode = 'measured';
+    attr.canonicalUnit = '';
+    writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'measured_attribute_missing_unit');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects guidance referencing a non-classifiable node as a product type', () => {
+    const dir = freshCopy();
+    const g = readJson(dir, 'guidance.json');
+    // pet-supplies is a non-classifiable L1 department root in the hierarchy
+    g.entries.push({
+      id: 'bad-guidance-ref',
+      scope: 'productType',
+      scopeId: 'dog-food-dry',
+      structured: { productTypeIds: ['pet-supplies'] },
+      freeForm: null,
+      manualReviewRequirement: false,
+    });
+    writeJson(dir, 'guidance.json', g);
+    syncManifestHash(dir, 'guidance.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'guidance_unknown_type_ref');
+    expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
+  });
+
+  it('rejects inconsistent envelope origins across focused files', () => {
+    const dir = freshCopy();
+    const attrs = readJson(dir, 'attributes.json');
+    attrs.bundleOrigin.releaseId = 'other-release-id';
+    writeJson(dir, 'attributes.json', attrs);
+    syncManifestHash(dir, 'attributes.json');
+    const report = validateTaxonomyReleaseV4(dir);
+    expectFinding(report, 'inconsistent_release_origin');
     expect(() => loadTaxonomyReleaseV4(dir)).toThrow(ReleaseValidationError);
   });
 });
