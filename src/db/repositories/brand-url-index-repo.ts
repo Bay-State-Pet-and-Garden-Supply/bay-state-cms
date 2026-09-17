@@ -130,7 +130,7 @@ export function reconcileSitemapUrls(
 
     const ftsInsert = db.prepare(`
       INSERT INTO brand_url_fts (rowid, domain, url, path, slug, title, h1, brand)
-      SELECT rowid, domain, url, path, slug, title, h1, brand FROM brand_url_index WHERE domain = ? AND url = ?
+      VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL)
     `);
 
     for (const item of observedUrls) {
@@ -145,7 +145,7 @@ export function reconcileSitemapUrls(
         const { path, slug } = parseUrlPathAndSlug(u);
         const pageType = item.pageType || 'product';
         const id = `bui_${randomUUID()}`;
-        insertStmt.run(
+        const info = insertStmt.run(
           id,
           normDomain,
           u,
@@ -158,7 +158,7 @@ export function reconcileSitemapUrls(
           nowIso,
           item.lastmod || null,
         );
-        ftsInsert.run(normDomain, u);
+        ftsInsert.run(info.lastInsertRowid, normDomain, u, path, slug);
         addedCount++;
       } else {
         // Existing URL
@@ -665,7 +665,7 @@ export function indexVariantUrls(domain: string, variants: VariantUrlInput[]): n
       } else {
         const { path, slug } = parseUrlPathAndSlug(u);
         const id = `bui_${randomUUID()}`;
-        insertStmt.run(
+        const info = insertStmt.run(
           id,
           normDomain,
           u,
@@ -681,10 +681,9 @@ export function indexVariantUrls(domain: string, variants: VariantUrlInput[]): n
           v.brand || null,
           variantJson,
         );
-        const newRow = db.query('SELECT rowid FROM brand_url_index WHERE id = ?').get(id) as { rowid: number } | undefined;
-        if (newRow) {
+        if (info.lastInsertRowid) {
           try {
-            ftsInsertStmt.run(newRow.rowid);
+            ftsInsertStmt.run(info.lastInsertRowid);
           } catch { /* non-fatal */ }
         }
         affected++;

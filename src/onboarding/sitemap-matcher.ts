@@ -239,7 +239,16 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
-function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+function countDigits(s: string): number {
+  let count = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 48 && code <= 57) count++;
+  }
+  return count;
+}
+
+function buildCandidateGtins(upc: string): { cands: string[]; minCandLen: number } | null {
   const needle = upc.trim();
   if (!needle) return null;
   const stripped = needle.replace(/\D+/g, '');
@@ -260,16 +269,43 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
     }
   }
 
-  for (const url of sitemapUrls) {
-    if (!url) continue;
-    for (const cand of candidateGtins) {
-      if (url.includes(cand)) return url;
-    }
+  const cands = Array.from(candidateGtins);
+  if (cands.length === 0) return null;
+
+  let minCandLen = Infinity;
+  for (const cand of cands) {
+    if (cand.length < minCandLen) minCandLen = cand.length;
+  }
+
+  return { cands, minCandLen };
+}
+
+function matchUrlGtins(url: string, cands: string[], digitCount: number, minCandLen: number): boolean {
+  for (const cand of cands) {
+    if (url.includes(cand)) return true;
+  }
+  if (digitCount >= minCandLen) {
     const urlDigits = url.replace(/\D+/g, '');
     if (urlDigits) {
-      for (const cand of candidateGtins) {
-        if (urlDigits.includes(cand)) return url;
+      for (const cand of cands) {
+        if (urlDigits.includes(cand)) return true;
       }
+    }
+  }
+  return false;
+}
+
+function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+  const info = buildCandidateGtins(upc);
+  if (!info) return null;
+
+  const { cands, minCandLen } = info;
+  for (const url of sitemapUrls) {
+    if (!url) continue;
+    const digitCount = countDigits(url);
+    if (digitCount === 0) continue;
+    if (matchUrlGtins(url, cands, digitCount, minCandLen)) {
+      return url;
     }
   }
   return null;
