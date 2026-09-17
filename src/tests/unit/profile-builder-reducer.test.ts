@@ -656,3 +656,50 @@ describe('deriveFieldStatus', () => {
     expect(status).toBe('tested');
   });
 });
+
+// ─── Image Review Attestation ───────────────────────────────────────────────
+
+describe('imageReview/set', () => {
+  it('defaults to false and records an explicit attestation', () => {
+    expect(initial().imagePreviewsReviewed).toBe(false);
+    const next = profileBuilderReducer(initial(), { type: 'imageReview/set', reviewed: true });
+    expect(next.imagePreviewsReviewed).toBe(true);
+    expect(next.dirty).toBe(true);
+  });
+
+  it('voids the attestation when samples change (fail-closed per sample set)', () => {
+    const attested = profileBuilderReducer(initial(), { type: 'imageReview/set', reviewed: true });
+    const added = profileBuilderReducer(attested, {
+      type: 'sample/add',
+      sample: { id: 's1', url: 'https://acmepet.com/p/1', confirmed: true },
+    });
+    expect(added.imagePreviewsReviewed).toBe(false);
+    const reattested = profileBuilderReducer(added, { type: 'imageReview/set', reviewed: true });
+    const removed = profileBuilderReducer(reattested, { type: 'sample/remove', id: 's1' });
+    expect(removed.imagePreviewsReviewed).toBe(false);
+  });
+
+  it('voids the attestation when the images selector changes', () => {
+    const attested = profileBuilderReducer(initial(), { type: 'imageReview/set', reviewed: true });
+    const changed = profileBuilderReducer(attested, {
+      type: 'field/selectorChanged',
+      key: 'imagesSelector',
+      selector: '.new-gallery img',
+    });
+    expect(changed.imagePreviewsReviewed).toBe(false);
+    const titleChanged = profileBuilderReducer(attested, {
+      type: 'field/selectorChanged',
+      key: 'titleSelector',
+      selector: 'h1.new',
+    });
+    expect(titleChanged.imagePreviewsReviewed).toBe(true);
+  });
+
+  it('resets on draft reset and profile hydration', () => {
+    const attested = profileBuilderReducer(initial(), { type: 'imageReview/set', reviewed: true });
+    expect(profileBuilderReducer(attested, { type: 'draft/reset' }).imagePreviewsReviewed).toBe(false);
+    expect(
+      profileBuilderReducer(attested, { type: 'draft/hydrateFromProfile', profile: sampleProfile() }).imagePreviewsReviewed,
+    ).toBe(false);
+  });
+});

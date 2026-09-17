@@ -730,6 +730,22 @@ export async function saveExtractorProfile(data: SaveExtractorProfilePayload): P
   });
 }
 
+/**
+ * Version-bound explicit image-review action: records the operator's
+ * image-preview attestation on one profile version row. The ONLY
+ * post-creation writer of `validationSummary.imageRuleOk`.
+ */
+export async function attestVersionImageReview(
+  domain: string,
+  versionId: string,
+  reviewed: boolean,
+): Promise<unknown> {
+  return request(`/domains/${encodeURIComponent(domain)}/profile/versions/${encodeURIComponent(versionId)}/image-review`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewed }),
+  });
+}
+
 export interface DomainConfigPayload {
   titleSelector?: string | null;
   priceSelector?: string | null;

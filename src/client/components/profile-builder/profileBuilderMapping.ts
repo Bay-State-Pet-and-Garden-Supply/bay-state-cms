@@ -170,6 +170,62 @@ export function draftToValidatePayload(
   };
 }
 
+// ─── Draft → Version Payload ─────────────────────────────────────────────────
+
+/**
+ * Complete executable configuration snapshot for one profile version row.
+ *
+ * The version row is the source of truth for validation AND activation:
+ * `profileFromVersion` rebuilds the executable profile from `selectors`,
+ * so this payload must carry the COMPLETE configuration — core selectors
+ * plus custom selectors, variant strategy, runtime, and supporting
+ * settings. Saving only core selectors here while writing custom/variant
+ * config to the legacy profile would let activation wipe them.
+ */
+export interface VersionPayload {
+  domain: string;
+  selectors: Record<string, unknown>;
+  runtime: 'static' | 'rendered';
+  validationSummary: { imageRuleOk: boolean; rowCount?: number };
+}
+
+/**
+ * Convert a draft into the body for `POST /api/profile-versions`.
+ *
+ * `imagePreviewsReviewed` is the version-bound explicit image-review
+ * attestation: the operator confirms they reviewed the image previews for
+ * the confirmed samples. It is the ONLY writer of
+ * `validationSummary.imageRuleOk` on the save path — default false stays
+ * blocked at the activation gate, never fabricated by matrix runs.
+ */
+export function draftToVersionPayload(
+  draft: ProfileDraft,
+  imagePreviewsReviewed: boolean,
+  opts?: { sampleCount?: number },
+): VersionPayload {
+  return {
+    domain: draft.domain,
+    selectors: {
+      titleSelector: emptyToNull(draft.titleSelector),
+      titleOptionalSelectors: draft.titleOptionalSelectors.filter(Boolean),
+      brandSelector: emptyToNull(draft.brandSelector),
+      descriptionSelector: emptyToNull(draft.descriptionSelector),
+      imagesSelector: emptyToNull(draft.imagesSelector),
+      priceSelector: emptyToNull(draft.priceSelector),
+      customSelectors: omitEmptyValues(draft.customSelectors),
+      sitemapProductUrlPattern: emptyToNull(draft.sitemapProductUrlPattern),
+      shopifyJSONPath: draft.shopifyJSONPath,
+      variantSelectionStrategy: draft.variantSelectionStrategy,
+      customSelectorMetadata: draft.customSelectorMetadata ?? {},
+    },
+    runtime: draft.runtime,
+    validationSummary: {
+      imageRuleOk: imagePreviewsReviewed === true,
+      ...(opts?.sampleCount !== undefined ? { rowCount: opts.sampleCount } : {}),
+    },
+  };
+}
+
 // ─── Draft → Test Payload ─────────────────────────────────────────────────────
 
 /**

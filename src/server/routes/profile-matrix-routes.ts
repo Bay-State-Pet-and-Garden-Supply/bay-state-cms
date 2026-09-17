@@ -61,6 +61,9 @@ profileMatrixRoutes.post('/domains/:domain/profile/test-matrix', async (c) => {
   try {
     const actualHashes = [...new Set(result.rows.flatMap(r => r.cells.map(c => c.artifactHash)))].sort();
     const sampleIds = result.rows.map(r => r.sampleId);
+    // Evidence only: sample coverage + artifact hashes. Never passes
+    // validationSummary — `updateVersionEvidence` preserves the stored
+    // version-bound image attestation (`imageRuleOk`) by construction.
     updateVersionEvidence(versionId, { sampleIds, artifactHashes: actualHashes });
   } catch (_e) {
     // Non-fatal if DB update fails in test/fallback env

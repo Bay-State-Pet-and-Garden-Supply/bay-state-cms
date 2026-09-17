@@ -1,6 +1,6 @@
 // story: e07s04 — POST /api/domains/:domain/profile/activate (cluster-aware fail-closed, deterministic release)
 import { Hono } from 'hono';
-import { getVersionById, setActiveVersion, createVersion, listVersions, profileFromVersion } from '../../db/repositories/profile-version-repo';
+import { getVersionById, setActiveVersion, createVersion, listVersions, profileFromVersion, attestVersionImageReview } from '../../db/repositories/profile-version-repo';
 import { upsertProfile } from '../../db/repositories/extractor-profile-repo';
 import { evaluateCandidateVersionHealth } from '../../onboarding/domain-version-health';
 import { getDb } from '../../db/connection';
@@ -30,6 +30,25 @@ profileActivationRoutes.post('/profile-versions', async (c) => {
     reason: body.reason ?? 'save',
   });
   return c.json(v, 201);
+});
+
+// Version-bound explicit image-review action (issue #198 follow-up): the
+// operator confirms they reviewed the image previews for the version's
+// confirmed samples. The ONLY post-creation writer of
+// `validationSummary.imageRuleOk` — default false/absent stays blocked at
+// the activation gate, and matrix re-runs preserve (never fabricate) it.
+profileActivationRoutes.post('/domains/:domain/profile/versions/:versionId/image-review', async (c) => {
+  const domain = (c.req.param('domain') ?? '').toLowerCase().replace(/^www\./, '').trim();
+  const versionId = c.req.param('versionId') ?? '';
+  const body = (await c.req.json().catch(() => ({}))) as { reviewed?: unknown; approver?: unknown };
+  if (typeof body.reviewed !== 'boolean') return c.json({ error: 'reviewed (boolean) required' }, 400);
+  const version = getVersionById(versionId);
+  if (!version) return c.json({ error: 'version not found' }, 404);
+  if (version.domain !== domain) return c.json({ error: 'version domain mismatch' }, 400);
+  const approver = typeof body.approver === 'string' && body.approver.trim() ? body.approver.trim() : undefined;
+  const next = attestVersionImageReview(versionId, body.reviewed, approver ? { approver } : undefined);
+  if (!next) return c.json({ error: 'version not found' }, 404);
+  return c.json(next);
 });
 
 profileActivationRoutes.post('/domains/:domain/profile/activate', async (c) => {

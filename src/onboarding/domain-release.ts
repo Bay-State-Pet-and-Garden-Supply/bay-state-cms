@@ -43,8 +43,10 @@
  *   operator must make a deliberate per-item reset.
  * - releases are idempotent (guarded UPDATE re-asserts blocked status).
  * - VARIANT-IDENTITY HOLD (issue #218): items whose evidence cannot
- *   enforce variant identity (variant-gate `variant:…` errors, or a
- *   non-selected/non-resolved `onboarding_variant_resolutions` row) are
+ *   enforce variant identity (variant-gate `variant:…` errors, a
+ *   non-selected/non-resolved `onboarding_variant_resolutions` row, or an
+ *   explicit unresolved variant-identity disposition for no-matrix
+ *   variant-bearing pages) are
  *   excluded from BOTH the automatic sweep and bulk (`releaseAllBlocked`)
  *   activation-triggered release, with a `variant_resolution_required`
  *   skip reason. They wait for operator variant selection by
@@ -57,6 +59,7 @@ import {
 import { findProfileByDomain } from '../db/repositories/extractor-profile-repo';
 import { evaluateActiveVersionHealth } from './domain-version-health';
 import { variantIdentityEligibilityForItem, type VariantIdentityEligibility, type VariantIdentityEligibilityInput, type VariantIdentityResolutionView } from './variant-identity-eligibility';
+import { getVariantIdentityDisposition } from '../db/repositories/variant-identity-disposition-repo';
 import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
 import { getDb } from '../db/connection';
 import { onboardingEvents } from './sse-emitter';
@@ -196,7 +199,11 @@ export function releaseDomainExtractionItems(
       const resolutionView: VariantIdentityResolutionView | null = current
         ? { status: current.status, selected_variant_key: current.selected_variant_key, automatic_variant_key: current.automatic_variant_key }
         : null;
-      const holdInput: VariantIdentityEligibilityInput = { itemId: row.id, errorMessage: row.error_message, variantResolution: resolutionView };
+      // Explicit unresolved variant-identity disposition (no-matrix
+      // Sitecore case): read inside the same fail-closed try so a read
+      // failure holds rather than releases blind.
+      const variantDisposition = getVariantIdentityDisposition(row.id);
+      const holdInput: VariantIdentityEligibilityInput = { itemId: row.id, errorMessage: row.error_message, variantResolution: resolutionView, variantDisposition };
       const variantHold: VariantIdentityEligibility = variantIdentityEligibilityForItem(holdInput);
       if (!variantHold.eligible) {
         skipped.push({ itemId: row.id, reason: variantHold.reason });

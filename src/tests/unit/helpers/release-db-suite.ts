@@ -89,6 +89,14 @@ export function cleanReleaseDomain(domain: string): void {
   try {
     db.query(`DELETE FROM onboarding_variant_resolutions WHERE source_url LIKE ?`).run(`%${domain}%`);
   } catch (_e) { /* best-effort */ }
+  try {
+    db.query(`DELETE FROM onboarding_variant_identity_dispositions WHERE item_id IN (SELECT id FROM onboarding_items WHERE source_url LIKE ?)`).run(`%${domain}%`);
+  } catch (_e) { /* best-effort: table may predate the migration on old fixtures */ }
+  // Dispositions whose items were already deleted cascade via FK; sweep any
+  // orphaned rows best-effort so per-domain runs stay isolated.
+  try {
+    db.query(`DELETE FROM onboarding_variant_identity_dispositions WHERE item_id NOT IN (SELECT id FROM onboarding_items)`).run();
+  } catch (_e) { /* best-effort */ }
   db.query(`DELETE FROM extractor_profiles WHERE domain = ?`).run(domain);
   db.query(`DELETE FROM profile_active WHERE domain = ?`).run(domain);
   db.query(`DELETE FROM profile_versions WHERE domain = ?`).run(domain);

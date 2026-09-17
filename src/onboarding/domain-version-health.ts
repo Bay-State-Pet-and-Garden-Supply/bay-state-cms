@@ -141,6 +141,10 @@ export function evaluateCandidateVersionHealth(domain: string, versionId: string
  * closed — release refuses non-active versions.
  */
 function executableContent(profile: ExtractorProfile) {
+  // Complete executable snapshot: the version row and the legacy profile
+  // must agree on every field the worker executes — core + custom
+  // selectors, variant strategy, runtime, AND supporting settings. Any
+  // drift forces re-evaluation (fail closed) instead of silent reuse.
   return {
     titleSelector: profile.titleSelector,
     titleOptionalSelectors: profile.titleOptionalSelectors,
@@ -151,6 +155,9 @@ function executableContent(profile: ExtractorProfile) {
     customSelectors: profile.customSelectors,
     variantSelectionStrategy: profile.variantSelectionStrategy,
     runtime: profile.runtime,
+    sitemapProductUrlPattern: profile.sitemapProductUrlPattern,
+    shopifyJSONPath: profile.shopifyJSONPath,
+    customSelectorMetadata: profile.customSelectorMetadata,
   };
 }
 

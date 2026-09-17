@@ -388,6 +388,12 @@ export default defineConfig({
       // Variant-identity rollout-hold suite (issue #218) — bun:sqlite;
       // run under bun test via test:db.
       'src/tests/unit/variant-identity-release-hold-218.test.ts',
+      // Explicit unresolved variant-identity disposition suite (no-matrix
+      // Sitecore follow-up) — bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/variant-identity-disposition.test.ts',
+      // Version image-attestation + complete-config activation suite
+      // (fixes 1+2) — bun:sqlite; run under bun test via test:db.
+      'src/tests/unit/profile-attestation-activation.test.ts',
       // Slice 1 v2 stage-read suites — bun:test/bun:sqlite (one imports the
       // route layer + real Hono app); run under bun test via test:db.
       // The schema suite is pure (no DB) but its chain (./onboarding →
