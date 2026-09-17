@@ -33,6 +33,7 @@ import {
 import { getItemWorkState } from '../../../onboarding-work-api';
 import { CandidateUrlPanel } from './CandidateUrlPanel';
 import { ExtractorStatusPanel } from './ExtractorStatusPanel';
+import { VariantDispositionPanel } from './VariantDispositionPanel';
 import { SemanticConflictPanel } from './SemanticConflictPanel';
 import { ChooseVariantPanel } from './ChooseVariantPanel';
 import { ManualEvidencePanel } from './ManualEvidencePanel';
@@ -645,23 +646,32 @@ export function OfficialSiteResolutionWorkspace({
         ) : null}
 
         {phase === 'extractor' && domain ? (
-          <ExtractorStatusPanel
-            domain={domain}
-            attentionReason={reason}
-            seedItem={
-              item
-                ? { expectedName: item.expectedName, upc: item.upc, brandHint: item.brandHint }
-                : null
-            }
-            onRetry={() => void handleRetry()}
-            onReleaseResult={(result) => {
-              setReleaseResult(result);
-              setPhase('done');
-            }}
-          />
+          <>
+            {workState ? (
+              <VariantDispositionPanel itemId={itemId} workState={workState} onChanged={() => void loadDetail()} />
+            ) : null}
+            <ExtractorStatusPanel
+              domain={domain}
+              attentionReason={reason}
+              seedItem={
+                item
+                  ? { expectedName: item.expectedName, upc: item.upc, brandHint: item.brandHint }
+                  : null
+              }
+              onRetry={() => void handleRetry()}
+              onReleaseResult={(result) => {
+                setReleaseResult(result);
+                setPhase('done');
+              }}
+            />
+          </>
         ) : null}
 
         {phase === 'manual' ? (
+          <>
+            {workState ? (
+              <VariantDispositionPanel itemId={itemId} workState={workState} onChanged={() => void loadDetail()} />
+            ) : null}
           <ManualEvidencePanel
             itemId={itemId}
             defaultTitle={workState?.name ?? item?.name ?? ''}
@@ -671,6 +681,7 @@ export function OfficialSiteResolutionWorkspace({
               setPhase('done');
             }}
           />
+          </>
         ) : null}
 
         {phase === 'conflicts' ? (

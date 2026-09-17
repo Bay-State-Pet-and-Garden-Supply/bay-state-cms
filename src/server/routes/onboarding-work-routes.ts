@@ -896,6 +896,116 @@ async function readDistributorReferenceForManualEvidence(itemId: string): Promis
 }
 
 /**
+ * Workspace + item preamble shared by the variant-identity disposition
+ * handlers (issue #220). Returns the scoped workspace/principal/item, or
+ * the error response the handler must return. Foreign-workspace items are
+ * 404, never mutated — same ownership rule as every other item mutation.
+ */
+function requireWorkspaceDispositionItem(
+  c: Context,
+):
+  | {
+      workspace: NonNullable<ReturnType<typeof findWorkspace>>;
+      principal: NonNullable<ReturnType<typeof derivePrincipal>>;
+      item: NonNullable<ReturnType<typeof findItemById>>;
+    }
+  | { error: Response } {
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped;
+  const itemId = c.req.param('id') ?? '';
+  const item = findItemById(itemId);
+  if (!item) {
+    return { error: c.json({ error: 'Item not found', code: 'item_not_found' }, 404) };
+  }
+  const batch = findBatchById(item.batchId);
+  if (!batch || batch.workspaceId !== scoped.workspace.id) {
+    return { error: c.json({ error: 'Item not found', code: 'item_not_found' }, 404) };
+  }
+  return { workspace: scoped.workspace, principal: scoped.principal, item };
+}
+
+/**
+ * GET /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: read model for the board — the current explicit unresolved
+ * variant-identity disposition for one item (null when unmarked).
+ */
+route.get('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { getVariantIdentityDisposition } = await import('../../db/repositories/variant-identity-disposition-repo');
+  return c.json({ itemId: scoped.item.id, disposition: getVariantIdentityDisposition(scoped.item.id) });
+});
+
+/**
+ * POST /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: audited operator mark — records that an item is
+ * variant-bearing without matrix enforcement (e.g. a size-specific
+ * Nylabone row on a no-matrix Sitecore family page), so the release hold
+ * engages with a `variant_resolution_required` reason. The mark identity
+ * is the server-derived principal actor — client-supplied identity is
+ * never trusted. Body: `{ reason: string }` (1..500 chars).
+ */
+route.post('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal, item } = scoped;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400);
+  }
+  const reason = (body as Record<string, unknown> | null)?.reason;
+  if (typeof reason !== 'string' || reason.trim().length === 0) {
+    return c.json({ error: 'reason is required.' }, 400);
+  }
+  if (reason.trim().length > 500) {
+    return c.json({ error: 'reason must be 500 characters or fewer.' }, 400);
+  }
+  const { markVariantIdentityUnresolved } = await import('../../db/repositories/variant-identity-disposition-repo');
+  let disposition;
+  try {
+    disposition = markVariantIdentityUnresolved(item.id, reason.trim(), { markedBy: principal.actor });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'Could not record the disposition.' }, 400);
+  }
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: item.id,
+    action: 'mark_variant_identity_unresolved',
+    message: `Operator ${principal.actor} marked variant identity unresolved (${disposition.reason})`,
+    detailsJson: JSON.stringify({ reason: disposition.reason, markedBy: disposition.markedBy }),
+  });
+  return c.json({ itemId: item.id, disposition });
+});
+
+/**
+ * DELETE /api/onboarding/items/:id/variant-identity-disposition
+ * Issue #220: audited operator clear — removes the explicit disposition
+ * (operator variant selection proved identity), restoring prior release
+ * behavior. The clear is itself audited via `audit_log` since the row is
+ * deleted. Idempotent: clearing an unmarked item succeeds with null.
+ */
+route.delete('/onboarding/items/:id/variant-identity-disposition', async (c) => {
+  const scoped = requireWorkspaceDispositionItem(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal, item } = scoped;
+  const { getVariantIdentityDisposition, clearVariantIdentityDisposition } = await import('../../db/repositories/variant-identity-disposition-repo');
+  const prior = getVariantIdentityDisposition(item.id);
+  clearVariantIdentityDisposition(item.id);
+  addAuditLog({
+    workspaceId: workspace.id,
+    entityType: 'onboarding_item',
+    entityId: item.id,
+    action: 'clear_variant_identity_disposition',
+    message: `Operator ${principal.actor} cleared variant-identity disposition${prior ? ` (was: ${prior.reason})` : ' (item was unmarked)'}`,
+    detailsJson: JSON.stringify({ clearedBy: principal.actor, priorReason: prior?.reason ?? null, priorMarkedBy: prior?.markedBy ?? null }),
+  });
+  return c.json({ itemId: item.id, disposition: null });
+});
+
+/**
  * GET /api/onboarding/metrics?batchId=<id>
  * Epic #46 observability — batch-scoped (when batchId is given) or global
  * onboarding success metrics, all derived from durable state at query time.

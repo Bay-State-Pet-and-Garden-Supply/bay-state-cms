@@ -208,6 +208,23 @@ export const OnboardingWorkStateSchema = z.object({
     .nullable()
     .optional()
     .default(null),
+  /**
+   * Explicit unresolved variant-identity disposition for the item, if any
+   * (issue #220). Display-only board state: the operator-marked
+   * variant-bearing hold (`unresolved_variant_identity`) with its audited
+   * identity. Null when unmarked. The release hold consults the same row
+   * server-side — the board never gates releases itself.
+   */
+  variantDisposition: z
+    .object({
+      disposition: z.string(),
+      reason: z.string().nullable(),
+      markedBy: z.string().nullable(),
+      updatedAt: z.string(),
+    })
+    .nullable()
+    .optional()
+    .default(null),
   /** Structured semantic finding (populated when attentionReason is semantic_validation_blocked). */
   findingCode: FindingCodeEnum.nullable().default(null),
   findingSummary: z.string().nullable().default(null),

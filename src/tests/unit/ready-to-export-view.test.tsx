@@ -51,6 +51,7 @@ function makeItem(i: number, overrides: Partial<OnboardingWorkState> = {}): Onbo
     imageUrl: `https://example.com/images/product-${i}.jpg`,
     description: `Premium dry dog food made with real chicken for product ${i}.`,
     weight: `${i * 5} lbs`,
+    variantDisposition: null,
     ...overrides,
   };
 }

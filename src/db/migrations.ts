@@ -5480,6 +5480,31 @@ export function runMigrations(): void {
     console.error('[Migrations] Failed to create variant resolution table:', e);
   }
 
+  // ── Explicit unresolved variant-identity dispositions (issue #220) ───
+  // Durable home for the table the disposition repo otherwise creates on
+  // demand via ensureTable: per-item `unresolved_variant_identity` marks
+  // with the audited operator identity (`marked_by`) that hold no-matrix
+  // variant-bearing rows (Nylabone Sitecore precedent) out of release.
+  // ensureTable stays as the backstop for DBs that predate this migration.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS onboarding_variant_identity_dispositions (
+        item_id TEXT PRIMARY KEY REFERENCES onboarding_items(id) ON DELETE CASCADE,
+        disposition TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        marked_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    const dispCols = db.query(`PRAGMA table_info(onboarding_variant_identity_dispositions)`).all() as Array<{ name: string }>;
+    if (!dispCols.some((c) => c.name === 'marked_by')) {
+      db.exec(`ALTER TABLE onboarding_variant_identity_dispositions ADD COLUMN marked_by TEXT;`);
+    }
+  } catch (e) {
+    console.error('[Migrations] Failed to create variant-identity disposition table:', e);
+  }
+
   // ── ADR-0030 Phase 4: Agent Lab data retirement ────────────────────────
   // Drops every PI-only table after the Agent Lab runtime deletion (Phase 3).
   // KEPT: product_intelligence_assets (live-written by onboarding distributor

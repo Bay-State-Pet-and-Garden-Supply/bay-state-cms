@@ -98,6 +98,66 @@ export function bulkLoadVariantResolutionsWithHealth(
   }
 }
 
+// ─── Bulk variant-identity dispositions (issue #220) ────────────────────────
+
+export interface BulkVariantDisposition {
+  disposition: string;
+  reason: string | null;
+  markedBy: string | null;
+  updatedAt: string;
+}
+
+/**
+ * Bulk load explicit unresolved variant-identity dispositions for a set of
+ * item ids. Display-only projection read (the release hold re-reads the
+ * single-item repo inside its own fail-closed try) — one statement per
+ * call, chunked past SQLite's variable limit. Missing table (predates the
+ * migration on old fixtures) degrades to empty, never throws into the
+ * projection; the WithHealth wrapper reports it.
+ */
+export function bulkLoadVariantDispositions(
+  itemIds: string[],
+): Map<string, BulkVariantDisposition> {
+  if (itemIds.length === 0) return new Map();
+  _incrementQueryCount();
+  const db = getDb();
+  const map = new Map<string, BulkVariantDisposition>();
+  const CHUNK = 900;
+  try {
+    for (let i = 0; i < itemIds.length; i += CHUNK) {
+      const chunk = itemIds.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = db
+        .query(
+          `SELECT item_id as itemId, disposition, reason, marked_by as markedBy, updated_at as updatedAt
+           FROM onboarding_variant_identity_dispositions WHERE item_id IN (${placeholders})`,
+        )
+        .all(...chunk) as Array<{ itemId: string; disposition: string; reason: string | null; markedBy: string | null; updatedAt: string }>;
+      for (const r of rows) {
+        map.set(r.itemId, { disposition: r.disposition, reason: r.reason, markedBy: r.markedBy, updatedAt: r.updatedAt });
+      }
+    }
+    return map;
+  } catch (e) {
+    throw new WorkStateProjectionError('onboarding_variant_identity_dispositions', 'variant_disposition_failed', String(e));
+  }
+}
+
+export function bulkLoadVariantDispositionsWithHealth(
+  itemIds: string[],
+): BulkResult<BulkVariantDisposition> {
+  if (itemIds.length === 0) return { data: new Map(), issue: null };
+  try {
+    return { data: bulkLoadVariantDispositions(itemIds), issue: null };
+  } catch (e) {
+    const err = e as WorkStateProjectionError;
+    return {
+      data: new Map(),
+      issue: { source: err.source ?? 'onboarding_variant_identity_dispositions', code: err.code ?? 'variant_disposition_failed', affectedCount: itemIds.length },
+    };
+  }
+}
+
 // ─── Bulk discovery candidate counts ─────────────────────────────────────────
 
 export function bulkCountDiscoveryCandidates(

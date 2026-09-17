@@ -42,6 +42,8 @@ import {
   bulkGetCohortRunStatusByItemWithHealth,
   bulkGetLatestClassificationRunIdByItemWithHealth,
   bulkGetClassificationStageResultsWithHealth,
+  bulkLoadVariantDispositionsWithHealth,
+  type BulkVariantDisposition,
   WorkStateProjectionError,
   type BulkStageRow,
 } from '../db/repositories/onboarding-work-state-repo';
@@ -119,6 +121,12 @@ export interface WorkStateContext {
   changeSetStatusBySku: Map<string, string>;
   candidateCountByItem: Map<string, number>;
   variantResolutionByItem: Map<string, { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string }>;
+  /**
+   * Explicit unresolved variant-identity dispositions by item (issue #220,
+   * display-only board state). Optional so hand-built test/stage contexts
+   * keep compiling — absent reads as unmarked.
+   */
+  variantDispositionByItem?: Map<string, BulkVariantDisposition>;
   /** Milestone 3 bulk: cohort run status (freezing/running) per item. */
   cohortRunStatusByItem: Map<string, string>;
   /** Milestone 3 bulk: latest classification run id per item. */
@@ -225,6 +233,15 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     hasCriticalIssue = true;
   }
   const variantResolutionByItem = variantRes.data;
+  // Issue #220 — explicit unresolved variant-identity dispositions
+  // (display-only board state; the release hold re-reads the repo
+  // inside its own fail-closed try). One bulk statement, same budget.
+  const dispositionRes = bulkLoadVariantDispositionsWithHealth(itemIds);
+  if (dispositionRes.issue) {
+    healthIssues.push(dispositionRes.issue);
+    hasCriticalIssue = true;
+  }
+  const variantDispositionByItem = dispositionRes.data;
 
   const cohortRunRes = bulkGetCohortRunStatusByItemWithHealth(itemIds);
   if (cohortRunRes.issue) {
@@ -278,6 +295,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     changeSetStatusBySku,
     candidateCountByItem,
     variantResolutionByItem,
+    variantDispositionByItem,
     cohortRunStatusByItem,
     latestRunIdByItem: runIdByItem,
     stageResultsByRunId,
@@ -323,6 +341,8 @@ interface DerivationInput {
   suggestedAction?: SuggestedAction | null;
   findingDetails?: FindingDetail[] | null;
   variantResolution?: { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string } | null;
+  /** Issue #220 — explicit unresolved variant-identity disposition (display-only board state). */
+  variantDisposition?: { disposition: string; reason: string | null; markedBy: string | null; updatedAt: string } | null;
 }
 
 /** Map a semantic finding code to the granular curation sub-activity it blocks. */
@@ -594,6 +614,7 @@ function build(
     stage: item.stage,
     stageStatus: item.stageStatus,
     variantResolution: (input as any).variantResolution ?? null,
+    variantDisposition: (input as any).variantDisposition ?? null,
     upc: item.upc,
     name: item.name,
     brand: item.brandHint ?? (typeof extData?.brand === 'string' ? extData.brand : null),
@@ -611,8 +632,22 @@ function build(
 /**
  * Derive the operator work state for ONE item. Pure given the batch context;
  * the mapping follows the epic #46 test plan.
+ *
+ * Issue #220: the explicit unresolved variant-identity disposition rides
+ * the context (bulk-loaded once per batch) and is attached here — one
+ * seam covering every mapping-table branch, so the board shows the hold
+ * state without each branch opting in.
  */
 export function deriveItemWorkState(item: OnboardingItem, ctx: WorkStateContext): OnboardingWorkState {
+  const state = deriveItemWorkStateInner(item, ctx);
+  const disposition = ctx.variantDispositionByItem?.get(item.id);
+  state.variantDisposition = disposition
+    ? { disposition: disposition.disposition, reason: disposition.reason, markedBy: disposition.markedBy, updatedAt: disposition.updatedAt }
+    : null;
+  return state;
+}
+
+function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): OnboardingWorkState {
   const row = ctx.reviewStates.get(item.id);
   const cohort = ctx.cohortByItem.get(item.id) ?? null;
   const error = item.errorMessage ?? null;
@@ -923,6 +958,7 @@ function corruptProjectionFallback(item: OnboardingItem, detail = 'Corrupt work-
     stage: item.stage as any,
     stageStatus: item.stageStatus as any,
     variantResolution: null,
+    variantDisposition: null,
     upc: item.upc,
     name: item.name,
     brand: item.brandHint ?? null,
@@ -1183,6 +1219,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);
+  const variantDispositionByItem = bulkLoadVariantDispositionsWithHealth([item.id]).data;
   const cohortRunStatusByItem = bulkGetCohortRunStatusByItem([item.id]);
   const latestRunIdByItemRaw = bulkGetLatestClassificationRunIdByItem([item.id]);
   // Prefer explicit runId from curationData
@@ -1199,6 +1236,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
     changeSetStatusBySku,
     candidateCountByItem,
     variantResolutionByItem,
+    variantDispositionByItem,
     cohortRunStatusByItem,
     latestRunIdByItem: runIdByItem,
     stageResultsByRunId,
