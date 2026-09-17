@@ -6,7 +6,7 @@
 // approved official domains are admitted, non-official candidates are held
 // with 409 strategy_source_not_approved, and legacy unbound rows keep their
 // historical semantics (no check without an approved strategy).
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { initDb, closeDb, resetDb } from '../../db/connection';
@@ -43,6 +43,9 @@ function seedItem(brandHint: string | null) {
 describe('select-source strategy guard', () => {
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
+    for (const suffix of ['', '-shm', '-wal']) {
+      try { unlinkSync(testDbPath + suffix); } catch { /* ok */ }
+    }
     initDb(testDbPath);
     runMigrations();
     const now = new Date().toISOString();
