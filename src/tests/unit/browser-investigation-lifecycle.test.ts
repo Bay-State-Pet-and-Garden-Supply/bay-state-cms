@@ -551,6 +551,26 @@ describe('#244 cancel aborts the run and stays cancelled (memory store)', () => 
       expect(() => acceptCompletion(store, WS_MAIN, created.id, late)).toThrowError(/replay_rejected/);
       expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
       expect(store.find(WS_MAIN, created.id)?.failureCode).toBe('cancelled');
+      // A late failure for the cancelled investigation is dropped without
+      // mutating the terminal row (late-failure leg of the same guard).
+      const failingProbe = new FakeInvestigationProvider();
+      failingProbe.setScenario('malformed');
+      const lateFailure = await failingProbe.invoke({
+        investigationId: created.id,
+        workspaceId: WS_MAIN,
+        domain: created.domain,
+        mode: 'domain_onboarding',
+        sampleUrls: [`https://${domain}/products/alpha`],
+        inputSnapshot: created.inputSnapshot,
+        inputHash: created.inputHash,
+        budget: created.budget,
+        modelPolicy: created.inputSnapshot.modelPolicy,
+        knownContext: {},
+        runId: created.runId,
+      });
+      expect(() => acceptCompletion(store, WS_MAIN, created.id, lateFailure)).toThrowError(/replay_rejected/);
+      expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
+      expect(store.find(WS_MAIN, created.id)?.failureCode).toBe('cancelled');
       // Cancelling the terminal row stays a stable invalid transition.
       expect(() => cancelInvestigation(store, WS_MAIN, created.id)).toThrowError(/invalid_transition/);
       expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
