@@ -571,6 +571,12 @@ describe('#245 live watch and cancel for running investigations', () => {
     });
   }
 
+  function completedWorkspace(id: string): InvestigationWorkspaceView {
+    return workspaceFixture({
+      investigation: { id, domain: DOMAIN, mode: 'domain_onboarding', status: 'completed', provider: 'local_browser_harness' },
+    });
+  }
+
   it('launch selects the queued investigation immediately with cancel available', async () => {
     vi.mocked(listInvestigations).mockResolvedValue([]);
     vi.mocked(launchInvestigation).mockResolvedValue({
@@ -597,7 +603,7 @@ describe('#245 live watch and cancel for running investigations', () => {
       vi.mocked(fetchInvestigationWorkspace)
         .mockResolvedValueOnce({ workspace: queuedWorkspace('binv_poll') })
         .mockResolvedValueOnce({ workspace: runningWorkspace('binv_poll') })
-        .mockResolvedValue({ workspace: workspaceFixture() });
+        .mockResolvedValue({ workspace: completedWorkspace('binv_poll') });
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
@@ -623,6 +629,13 @@ describe('#245 live watch and cancel for running investigations', () => {
       await act(async () => {});
       expect(container.textContent).toContain('completed');
       expect(container.textContent).toContain('binv_poll');
+      // #245 review: polling stops once terminal — further ticks issue no workspace fetches.
+      const callsAtTerminal = vi.mocked(fetchInvestigationWorkspace).mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(9000);
+      });
+      await act(async () => {});
+      expect(vi.mocked(fetchInvestigationWorkspace).mock.calls.length).toBe(callsAtTerminal);
       await act(async () => {
         root.unmount();
       });
@@ -654,6 +667,41 @@ describe('#245 live watch and cancel for running investigations', () => {
       clickButton(container, 'Cancel investigation').click();
     });
     expect(cancelInvestigation).toHaveBeenCalledWith(DOMAIN, 'binv_run');
+    expect(container.textContent).toContain('cancelled');
+    // Cancel affordance is gone once terminal; validate/apply are not offered.
+    expect(container.textContent).not.toContain('Cancel investigation');
+    expect(container.textContent).not.toContain('Run validation');
+    expect(container.textContent).not.toContain('Apply to Draft');
+    expect(container.textContent).toContain('Discard investigation');
+    const text = (container.textContent ?? '').toLowerCase();
+    expect(text).not.toContain('activate');
+    expect(text).not.toContain('release');
+  });
+
+  it('cancel while queued reflects cancelled and hides validate/apply', async () => {
+    vi.mocked(listInvestigations).mockResolvedValue([
+      { id: 'binv_queued', domain: DOMAIN, mode: 'domain_onboarding', status: 'queued', provider: 'local_browser_harness' },
+    ]);
+    vi.mocked(fetchInvestigationWorkspace).mockResolvedValue({ workspace: queuedWorkspace('binv_queued') });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<InvestigationPanel domain={DOMAIN} suiteUrls={[REP_A]} />);
+    });
+    await act(async () => {
+      clickButton(container, 'Open').click();
+    });
+    expect(container.textContent).toContain('queued');
+    expect(container.textContent).toContain('Cancel investigation');
+    vi.mocked(cancelInvestigation).mockResolvedValue({
+      investigation: { id: 'binv_queued', domain: DOMAIN, mode: 'domain_onboarding', status: 'cancelled', provider: 'local_browser_harness' },
+    });
+    vi.mocked(fetchInvestigationWorkspace).mockResolvedValue({ workspace: cancelledWorkspace('binv_queued') });
+    await act(async () => {
+      clickButton(container, 'Cancel investigation').click();
+    });
+    expect(cancelInvestigation).toHaveBeenCalledWith(DOMAIN, 'binv_queued');
     expect(container.textContent).toContain('cancelled');
     // Cancel affordance is gone once terminal; validate/apply are not offered.
     expect(container.textContent).not.toContain('Cancel investigation');

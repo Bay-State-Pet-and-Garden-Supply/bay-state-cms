@@ -14,7 +14,7 @@
 // No automatic step exists beyond the three explicit actions: nothing here
 // activates a profile or releases anything.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isReservedUrl,
   isTrustedValidationEntry,
@@ -71,15 +71,27 @@ function useInvestigationList(domain: string): ListControls {
   const [investigations, setInvestigations] = useState<InvestigationListItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  // #245 review: ignore late list resolutions after unmount (wasted work / latent hazard).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const refreshList = useCallback(async (): Promise<void> => {
+    if (!mountedRef.current) return;
     setListLoading(true);
     setListError(null);
     try {
-      setInvestigations(await listInvestigations(domain));
+      const rows = await listInvestigations(domain);
+      if (!mountedRef.current) return;
+      setInvestigations(rows);
     } catch (error) {
+      if (!mountedRef.current) return;
       setListError(messageOf(error));
     } finally {
-      setListLoading(false);
+      if (mountedRef.current) setListLoading(false);
     }
   }, [domain]);
   return { investigations, listLoading, listError, refreshList };
@@ -91,6 +103,7 @@ interface WorkspaceControls {
   wsError: string | null;
   setWsError: (message: string | null) => void;
   refreshWorkspace: (id: string) => Promise<void>;
+  clearWorkspace: () => void;
 }
 
 /** One investigation's workspace view, refreshed on demand. */
@@ -98,23 +111,38 @@ function useInvestigationWorkspace(domain: string): WorkspaceControls {
   const [workspace, setWorkspace] = useState<InvestigationWorkspaceView | null>(null);
   const [wsLoading, setWsLoading] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
+  // #245 review: ignore late workspace resolutions after unmount (wasted work / latent hazard).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  const clearWorkspace = useCallback((): void => {
+    if (!mountedRef.current) return;
+    setWorkspace(null);
+  }, []);
   const refreshWorkspace = useCallback(
     async (id: string): Promise<void> => {
+      if (!mountedRef.current) return;
       setWsLoading(true);
       setWsError(null);
       try {
         const body = await fetchInvestigationWorkspace(domain, id);
+        if (!mountedRef.current) return;
         setWorkspace(body.workspace);
       } catch (error) {
+        if (!mountedRef.current) return;
         setWsError(messageOf(error));
         setWorkspace(null);
       } finally {
-        setWsLoading(false);
+        if (mountedRef.current) setWsLoading(false);
       }
     },
     [domain],
   );
-  return { workspace, wsLoading, wsError, setWsError, refreshWorkspace };
+  return { workspace, wsLoading, wsError, setWsError, refreshWorkspace, clearWorkspace };
 }
 
 interface SelectionControls {
@@ -134,8 +162,15 @@ function useSelection(
   refreshWorkspace: (id: string) => Promise<void>,
 ): SelectionControls {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // #245 review: only trust the workspace status when it belongs to the
+  // selected investigation; otherwise fall back to the list so a stale
+  // workspace never paints the previous row's status during a switch.
+  const workspaceStatus =
+    workspace?.investigation?.id === selectedId
+      ? (workspace?.investigation?.status as string | undefined)
+      : undefined;
   const selectedStatus: string | null =
-    (workspace?.investigation?.status as string | undefined) ??
+    workspaceStatus ??
     investigations.find((i) => i.id === selectedId)?.status ??
     null;
   const isActive = isActiveStatus(selectedStatus);
@@ -601,23 +636,32 @@ export function useInvestigationPanel(domain: string, suiteUrls: string[]): Inve
   const list = useInvestigationList(domain);
   const { refreshList } = list;
   const workspaceControls = useInvestigationWorkspace(domain);
-  const { refreshWorkspace, setWsError } = workspaceControls;
+  const { refreshWorkspace, clearWorkspace, setWsError } = workspaceControls;
   const selection = useSelection(list.investigations, workspaceControls.workspace, refreshWorkspace);
   const { selectedId, setSelectedId } = selection;
-  const reservedUrls = useReservedHoldouts(workspaceControls.workspace);
+  // #245 review: the rendered workspace definitively belongs to the
+  // selected investigation. The cached workspace is cleared on selection
+  // change and gated on id, so a switch never briefly renders the previous
+  // row's status/details/action cards (including Validate/Apply) while the
+  // fetch resolves. The launch path still selects the queued id immediately.
+  const workspace =
+    workspaceControls.workspace?.investigation?.id === selectedId ? workspaceControls.workspace : null;
+  const reservedUrls = useReservedHoldouts(workspace);
 
   const select = useCallback(
     (id: string): void => {
+      clearWorkspace();
       setSelectedId(id);
       void refreshWorkspace(id);
     },
-    [setSelectedId, refreshWorkspace],
+    [clearWorkspace, setSelectedId, refreshWorkspace],
   );
 
   useEffect(() => {
     setSelectedId(null);
+    clearWorkspace();
     void refreshList();
-  }, [domain, refreshList, setSelectedId]);
+  }, [domain, refreshList, setSelectedId, clearWorkspace]);
 
   const launch = useLaunchControls({
     domain,
@@ -632,7 +676,7 @@ export function useInvestigationPanel(domain: string, suiteUrls: string[]): Inve
   const validation = useValidationControls({
     domain,
     selectedId,
-    workspace: workspaceControls.workspace,
+    workspace,
     reservedUrls,
     refreshWorkspace,
   });
@@ -648,7 +692,7 @@ export function useInvestigationPanel(domain: string, suiteUrls: string[]): Inve
     selectedStatus: selection.selectedStatus,
     isActive: selection.isActive,
     select,
-    workspace: workspaceControls.workspace,
+    workspace,
     list,
     wsLoading: workspaceControls.wsLoading,
     wsError: workspaceControls.wsError,
