@@ -35,6 +35,7 @@
  * error yields unhealthy (`health_check_failed`).
  */
 import { getActiveVersion, getVersionById, profileFromVersion } from '../db/repositories/profile-version-repo';
+import { isPolicyBindingIntact } from '../shared/schemas/browser-investigation-policy';
 import { findProfileByDomain, type ExtractorProfile } from '../db/repositories/extractor-profile-repo';
 import { isDeepStrictEqual } from 'node:util';
 import { hasValidWaiver } from '../db/repositories/waiver-repo';
@@ -50,7 +51,8 @@ function normalizeHealthDomain(domain: string): string {
 }
 
 /** Read-only reviewed-health verdict for one domain plus profile version. */
-export interface DomainVersionHealth {
+// Shared verdict consumed by activation, release, and health routes.
+interface DomainVersionHealth {
   domain: string;
   /** Evaluated version id; null when no version resolved (unknown/active-missing). */
   versionId: string | null;
@@ -85,6 +87,13 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
     if (version.domain !== normalized) {
       return { domain: normalized, versionId: version.id, healthy: false, reason: 'version_domain_mismatch', gate: null };
     }
+    // Policy content participates in immutable version binding (T2): a
+    // version whose validation summary carries a `policyHash` must still
+    // carry the identical policy content — edits invalidate prior
+    // validation instead of silently inheriting it.
+    if (!isPolicyBindingIntact(version.selectors, version.validationSummary)) {
+      return { domain: normalized, versionId: version.id, healthy: false, reason: 'executable_content_changed', gate: null };
+    }
     const matrix = getMatrixResult(normalized, version.id);
     const sampleUrls = serverSampleIds(normalized);
     const clusterIds: string[] = (() => {
@@ -105,6 +114,14 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
       : [];
     const wrongProduct = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_product'))) : false;
     const wrongVariant = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_variant'))) : false;
+    // T4: investigation-derived versions carry their production-worker
+    // validation outcome plus blind-holdout evidence in the version-bound
+    // validation summary; legacy versions omit these keys (undefined).
+    const summary = (version.validationSummary ?? {}) as {
+      investigationDerived?: unknown;
+      validationStatus?: unknown;
+      holdoutPassedCount?: unknown;
+    };
     const gate = evaluateGate({
       requiredResults,
       wrongProduct,
@@ -116,6 +133,15 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
       expectedArtifactHashes: version.artifactHashes,
       sampleIds: sampleUrls,
       clusterIds,
+      investigationDerived: summary.investigationDerived === true,
+      policyValidationStatus:
+        summary.validationStatus === 'passed' ||
+        summary.validationStatus === 'failed' ||
+        summary.validationStatus === 'incomplete'
+          ? summary.validationStatus
+          : undefined,
+      holdoutPassedCount:
+        typeof summary.holdoutPassedCount === 'number' ? summary.holdoutPassedCount : undefined,
     });
     if (!gate.allowed) {
       return { domain: normalized, versionId: version.id, healthy: false, reason: gate.blockReason ?? gate.reason ?? 'activation_gate_failed', gate };
@@ -143,8 +169,9 @@ export function evaluateCandidateVersionHealth(domain: string, versionId: string
 function executableContent(profile: ExtractorProfile) {
   // Complete executable snapshot: the version row and the legacy profile
   // must agree on every field the worker executes — core + custom
-  // selectors, variant strategy, runtime, AND supporting settings. Any
-  // drift forces re-evaluation (fail closed) instead of silent reuse.
+  // selectors, variant strategy, runtime, supporting settings, AND shared
+  // extraction-policy content (T2). Any drift forces re-evaluation (fail
+  // closed) instead of silent reuse. Legacy profiles normalize to null.
   return {
     titleSelector: profile.titleSelector,
     titleOptionalSelectors: profile.titleOptionalSelectors,
@@ -158,6 +185,7 @@ function executableContent(profile: ExtractorProfile) {
     sitemapProductUrlPattern: profile.sitemapProductUrlPattern,
     shopifyJSONPath: profile.shopifyJSONPath,
     customSelectorMetadata: profile.customSelectorMetadata,
+    extractionPolicy: profile.extractionPolicy ?? null,
   };
 }
 

@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { expectEndpointGtinResolved, publicTestLookup, routingTestTransport } from './helpers/shopify-worker-test-transport';
 import { doStaticExtract } from '../../extraction-worker/routes/extract';
 import { overrideVariantFlags, resetVariantFlagsOverride } from '../../onboarding/variant-flags';
 
@@ -94,9 +95,6 @@ function endpointJsWithDuplicateGtin(): string {
   });
 }
 
-function publicLookup() {
-  return async () => [{ address: '93.184.215.14' }];
-}
 
 function makeRequest(): any {
   return {
@@ -110,6 +108,17 @@ function makeRequest(): any {
   };
 }
 
+/** Run one ambiguous-endpoint case through the worker (shared harness). */
+async function runAmbiguousEndpointCase(js: string): Promise<any> {
+  overrideVariantFlags({ mode: 'active' });
+  const html = embeddedHtmlWithoutBarcodes();
+  const fetchFn = routingTestTransport(html, js, []);
+  return doStaticExtract(makeRequest(), {
+    lookupFn: publicTestLookup() as any,
+    fetchFn: fetchFn as any,
+  });
+}
+
 describe('issue #216: endpoint variant evidence selection', () => {
   beforeEach(() => resetVariantFlagsOverride());
 
@@ -118,24 +127,15 @@ describe('issue #216: endpoint variant evidence selection', () => {
     const html = embeddedHtmlWithoutBarcodes();
     const js = endpointJsWithBarcodes();
     const calls: string[] = [];
-    const fetchFn = vi.fn(async (url: string | URL | Request) => {
-      const u = String(url);
-      calls.push(u);
-      if (u.endsWith('.js')) return new Response(js, { status: 200, headers: { 'content-type': 'application/json' } });
-      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
-    });
+    const fetchFn = routingTestTransport(html, js, calls);
     const result: any = await doStaticExtract(makeRequest(), {
-      lookupFn: publicLookup() as any,
+      lookupFn: publicTestLookup() as any,
       fetchFn: fetchFn as any,
     });
 
-    // Endpoint must have been consulted (page + .js).
+    // Endpoint must have been consulted (page + .js) and resolve exactly.
     expect(calls.length).toBeGreaterThanOrEqual(2);
-    expect(calls.some((u) => u.endsWith('.js'))).toBe(true);
-    // Exact-identifier match resolves without manual selection.
-    expect(result.failureCode).toBeFalsy();
-    expect(result.selectedReceipt).toBeDefined();
-    expect(result.selectedReceipt?.matchedBy).toBe('gtin');
+    expectEndpointGtinResolved(expect, result, calls);
     // Provenance records the endpoint source through the existing carrier.
     const vp = (result.data as any)?.variantProvenance ?? {};
     const fpd = result.fieldProvenanceDetails ?? {};
@@ -146,35 +146,13 @@ describe('issue #216: endpoint variant evidence selection', () => {
   });
 
   it('WITHOUT endpoint barcodes: genuine ambiguity still fails closed', async () => {
-    overrideVariantFlags({ mode: 'active' });
-    const html = embeddedHtmlWithoutBarcodes();
-    const js = endpointJsWithoutBarcodes();
-    const fetchFn = vi.fn(async (url: string | URL | Request) => {
-      const u = String(url);
-      if (u.endsWith('.js')) return new Response(js, { status: 200, headers: { 'content-type': 'application/json' } });
-      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
-    });
-    const result: any = await doStaticExtract(makeRequest(), {
-      lookupFn: publicLookup() as any,
-      fetchFn: fetchFn as any,
-    });
+    const result: any = await runAmbiguousEndpointCase(endpointJsWithoutBarcodes());
     expect(result.failureCode).toBe('variant_selection_required');
     expect(result.selectedReceipt).toBeFalsy();
   });
 
   it('WITH duplicate endpoint GTIN: genuine ambiguity still fails closed', async () => {
-    overrideVariantFlags({ mode: 'active' });
-    const html = embeddedHtmlWithoutBarcodes();
-    const js = endpointJsWithDuplicateGtin();
-    const fetchFn = vi.fn(async (url: string | URL | Request) => {
-      const u = String(url);
-      if (u.endsWith('.js')) return new Response(js, { status: 200, headers: { 'content-type': 'application/json' } });
-      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
-    });
-    const result: any = await doStaticExtract(makeRequest(), {
-      lookupFn: publicLookup() as any,
-      fetchFn: fetchFn as any,
-    });
+    const result: any = await runAmbiguousEndpointCase(endpointJsWithDuplicateGtin());
     // Duplicate GTIN can never resolve alone via the existing matcher.
     expect(result.failureCode).toBe('variant_selection_required');
     expect(result.selectedReceipt).toBeFalsy();

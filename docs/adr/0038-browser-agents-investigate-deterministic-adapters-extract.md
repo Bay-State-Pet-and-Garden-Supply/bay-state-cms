@@ -1,0 +1,53 @@
+# ADR 0038: Browser agents investigate; deterministic adapters extract
+
+**Status:** Accepted — implemented T1–T6 (#225–#230) on `main`. Design decisions recorded during grilling; implementation complete per the T6 closeout record (`docs/plans/browser-investigation-t6-closeout.md`).
+
+**Related:** ADR 0008 (profile scope), ADR 0009 (separate browser worker), ADR 0030 (Agent Lab decommission), ADR 0031 (extraction ladder); [design and seam audit](../plans/browser-investigation-design.md).
+
+## Decision
+
+Browser Investigation is an explicitly requested, workspace-scoped control-plane operation for domain onboarding or drift repair. Its observations are untrusted proposal evidence. A deterministic compiler converts supported recommendations into per-field source ordering and minimal selector exceptions in an inactive Domain Extractor Profile draft. Normal product extraction never invokes an investigation provider or model-driven browser; approved strategies execute through the existing deterministic production worker. Existing deterministic rendered-page extraction remains possible where required by an approved profile—rendering is not Browser Investigation.
+
+Investigations cannot activate profiles, release onboarding items, attest image review, or write trusted product extraction output. Compilable but unsuccessful proposals may be saved as blocked drafts. Production-worker validation, product/variant identity checks, image review, and existing governed activation remain authoritative. Representative and blind-holdout results feed the existing health evaluator rather than creating a second health definition. Investigation-derived policies require at least one passing blind holdout; samples revealed to investigation or tuning cannot count as holdouts for that proposal. One holdout establishes an independent check, not statistical generalization. Suite selection should seek a blind holdout per discovered extraction structure and at least two total where available, without adding an unconditional numeric gate or dropping failing reserved samples.
+
+The runtime accepts only Bay State-supported deterministic primitives. Arbitrary agent-generated Python, JavaScript, or executable adapter code is never persisted for later execution. Unsupported discoveries return `requires_code_adapter` with evidence. Multiple incompatible extraction structures are reported and cannot silently become one domain-wide selector policy; multi-template runtime dispatch is deferred.
+
+## Initial provider: constrained local harness, not unrestricted Cloud v4
+
+The original preference was the official TypeScript `browser-use-sdk/v4`, hidden behind a provider-neutral interface. The API audit found no documented v4 run controls establishing the required all-request host/network restrictions or read-only action surface. Its automatic CAPTCHA solver cannot be disabled through run `browserSettings`. Credential allowed domains are not a navigation allowlist. V4 structured output is JSON instructions followed by application-side validation, not an `outputSchema` request parameter.
+
+The owner chose to preserve the security requirements and change the initial provider to an app-owned `local_browser_harness`. Cloud v4 remains disabled pending an enforceable provider contract. Do not ship prompt-only restrictions as equivalent enforcement or claim a Cloud integration has been completed. A future Cloud provider would still use the supported v4 SDK, server-side `BROWSER_USE_API_KEY`, and the same provider-neutral interface, not legacy CodeAgent APIs.
+
+The local harness exposes a versioned declarative inspection grammar, not merely one-off platform helpers: bounded selector queries, attribute/meta reads, strict script-JSON parsing, captured network-response inspection, and own-property JSON-pointer reads. Arguments and artifact references are schema-validated and scope-bound. No operation accepts executable expressions or generic click/type/evaluate/shell commands; successful investigation of a novel representation does not make its runtime extraction a supported primitive.
+
+It reuses compatible Node browser-worker infrastructure inside an isolated Docker browser runtime. The authoritative network enforcement is **outside the browser process**: the container/network namespace has no direct egress, and every permitted HTTP(S) request traverses a Bay State-controlled broker that enforces methods, paths, headers, public DNS/IP destinations, redirects, body sizes, and content types. Browser interception is defense-in-depth only. An opaque HTTPS `CONNECT` tunnel is insufficient for method/path/body enforcement; the broker must mediate full requests and preserve upstream TLS verification. DNS validation must bind to the actual connection destination.
+
+Require fresh state, non-root execution, dropped Linux capabilities, no-new-privileges, retained browser/container sandboxes, no host networking or privileged mode, no Docker socket, no credentials or host-profile mounts, a read-only root filesystem with narrow bounded writable exceptions, bounded tmpfs scratch, and explicit CPU/memory/process limits. Missing isolation fails closed. Prove direct-egress denial even with browser interceptors disabled before a live pilot. Interaction-only and POST-only sites can remain unsupported rather than relaxing the contract. A restricted Browser Use OSS agent was considered but adds a Python runtime without eliminating the need for independent network enforcement.
+
+Browser execution is local; model inference need not be. Cloud analysis requires explicit configuration and data-sharing permission, with image permission separate from text and no silent provider fallback.
+
+## Governance, cost, and repair
+
+Existing shared domain profiles and version governance remain in place. Raw investigations remain workspace-private; publishing a sanitized policy/evidence draft to shared configuration is a distinct operator action. The policy content participates in the same immutable executable snapshot and health binding as selectors, so editing it cannot inherit stale validation.
+
+Default investigation limits are five PDPs, twenty bounded reads, eight model calls, and ten minutes, with one active investigation per workspace/domain and serialized local browser investigation. One idempotent-read retry may consume the same budget; no automatic investigation reruns or recursive repair. Independently cap transferred/decompressed response bytes, request fan-out, retained artifacts, per-operation DOM/text/JSON output, cumulative model input, output tokens, and image count/bytes/pixels; proposed starting values are in the design document. Count retries and repeated model history/images, and never interpret clipped observations as complete identity or coverage evidence.
+
+The provider-neutral budget may include `maxCostUsd`, but a requested ceiling must be enforceable before dispatch or fail closed; a post-hoc threshold or undocumented SDK promise is not a hard billing cap. Record provider/model, actual usage/cost when available, lifecycle events, validation outcomes, and coded failures as runtime state—not static checked-in ledgers. Cancellation and timeout must stop owned work; missing usage is reported as unavailable, not zero or fabricated cost, and rate-derived estimates must be distinguished from billed cost.
+
+Drift repair compares a frozen last-healthy policy/evidence baseline with current failures and proposes the smallest supported deterministic change. It follows the same validation and human-review path. Existing health thresholds and image rules are retained, with the additional blind-holdout requirement applied to investigation-derived policies through the shared evaluator.
+
+The first complete runtime adapter slice is Shopify, reusing the existing GTIN-aware variant representation/matcher and richer-endpoint evidence selection. This work must not reintroduce the stale assumption that Shopify barcodes are universally discarded. Equivalent new platform adapters can follow once the end-to-end investigation-to-governed-draft path is demonstrated.
+
+## Consequences
+
+We amortize investigation across future deterministic extractions without restoring the retired Agent Lab or giving model output production authority. Prefer one thin vertical slice that genuinely works over thousands of lines of record-only evidence. Keep the feature and persistence vendor-neutral: Browser-Assisted Extraction Investigation, not a Browser Use integration. The trade-off is narrower browser capability and an investigation-only Docker dependency. Cloud v4 delivery, unrestricted interactive browsing, full WooCommerce endpoint support, and true multi-template dispatch are deferred explicitly, not simulated with records or unsafe fallbacks.
+
+## Addendum: Tier 1 rendered investigation deferred by default (#246)
+
+Tier 1 rendered investigation is deferred by default pending #237's render-navigation proof. Issue #237 stays open; this ticket neither closes nor modifies it.
+
+Verified defect: the render container's only egress is the validating forward proxy, which refuses CONNECT as an opaque tunnel (405 `opaque_tunnel_refused`) — while Chromium carries HTTPS through an HTTP proxy using CONNECT. Real https product pages therefore cannot load in the render container. The passing relay tests do not disprove that: they issue manual absolute-form HTTP GETs through the proxy, not Chromium HTTPS navigation via CONNECT.
+
+Default behavior: a rendered-required investigation (Tier 0 reports no DOM evidence over broker-approved captures) refuses with the stable code `render_deferred` and performs no render attempt — no proxy, no container, no rendered observations, and no rendered-coverage claims. The Tier 1 render machinery stays reachable only behind the explicit non-default switch (`allowTier1Render` / `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`), which is diagnostics/tests only and is not production-valid until #237 lands.
+
+The Tier 1 suites do not prove navigation.

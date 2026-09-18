@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import {
   VARIANT_PARSER_VERSION,
+  computeIdentityMatrixHash,
   type VariantMatrix,
   type NormalizedVariantCandidate,
   type VariantMatchInput,
@@ -9,6 +10,44 @@ import {
   type VariantOption,
   type VariantImage,
 } from '../shared/schemas/variant-resolution';
+
+/** Operator selection receipt (stale-safe extraction, M4). */
+export interface OperatorSelectionReceiptInput {
+  resolutionId: string;
+  identityMatrixHash: string;
+  variantKey: string;
+}
+
+export type OperatorReceiptVerification =
+  | { ok: true; candidate: NormalizedVariantCandidate; liveHash: string | null }
+  | { ok: false; kind: 'stale' | 'missing'; liveHash: string | null };
+
+/** Live identity hash for a matrix (null when unhashable — fail closed downstream). */
+function liveMatrixHash(matrix: VariantMatrix): string | null {
+  try {
+    return computeIdentityMatrixHash(matrix);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify an operator receipt against the live matrix: the identity hash
+ * must still bind and the selected key must still exist. Shared by the
+ * legacy worker gate and T4 policy execution so stale-selection handling
+ * cannot drift between the two paths.
+ */
+// worker gate + policy execution + tests
+export function verifyOperatorSelectionReceipt(
+  matrix: VariantMatrix,
+  receipt: OperatorSelectionReceiptInput,
+): OperatorReceiptVerification {
+  const liveHash = liveMatrixHash(matrix);
+  if (liveHash !== receipt.identityMatrixHash) return { ok: false, kind: 'stale', liveHash };
+  const candidate = matrix.candidates.find((c) => c.variantKey === receipt.variantKey);
+  if (!candidate) return { ok: false, kind: 'missing', liveHash };
+  return { ok: true, candidate, liveHash };
+}
 
 export interface VariantCandidate {
   url: string | null;
@@ -30,7 +69,7 @@ export interface VariantResolutionResult {
   ambiguous: boolean;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export const SIZE_ALIASES: Record<string, string[]> = {
   xs:        ['x-small', 'xsmall', 'extra small', 'xtra small', 'x small'],
   sm:        ['small', 'sm'],
@@ -49,7 +88,7 @@ export const SIZE_ALIASES: Record<string, string[]> = {
   'extra small': ['x-small', 'xsmall', 'extra small', 'xtra small'],
 };
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export const COLOR_ALIASES: Record<string, string[]> = {
   lav: ['lavender', 'lav'],
   chkn: ['chicken', 'chkn'],
@@ -59,7 +98,7 @@ export const COLOR_ALIASES: Record<string, string[]> = {
   pkg: ['package', 'pkg'],
 };
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function normalizeToken(s: string): string {
   return s.normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -73,7 +112,7 @@ export function tokenSet(s: string): Set<string> {
   return new Set(normalizeToken(s).split(/\s+/).filter(Boolean));
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function variantDescriptor(v: any): { text: string; tokens: Set<string> } {
   const parts: string[] = [];
   if (v?.title) parts.push(String(v.title));
@@ -92,7 +131,7 @@ export function variantDescriptor(v: any): { text: string; tokens: Set<string> }
   return { text, tokens: tokenSet(parts.join(' ')) };
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function expandExpectedNameTokens(expected: string): Set<string> {
   const raw = normalizeToken(expected);
   const words = raw.split(/\s+/).filter(Boolean);
@@ -109,7 +148,7 @@ export function expandExpectedNameTokens(expected: string): Set<string> {
   return expanded;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function getExpectedSizeAliasForms(expected: string): Set<string> {
   const raw = normalizeToken(expected);
   const words = raw.split(/\s+/).filter(Boolean);
@@ -129,7 +168,7 @@ export function getExpectedSizeAliasForms(expected: string): Set<string> {
 /**
  * Strategy 1: Extract variants from Schema.org JSON-LD hasVariant / ProductGroup
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function extractVariantsFromJsonLd(html: string): VariantCandidate[] {
   const $ = cheerio.load(html);
   const scripts: string[] = [];
@@ -189,7 +228,7 @@ export function extractVariantsFromJsonLd(html: string): VariantCandidate[] {
 /**
  * Strategy 2: Extract variants from Shopify productJSON script embeds
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function extractVariantsFromShopify(html: string): VariantCandidate[] {
   const $ = cheerio.load(html);
   const candidates: VariantCandidate[] = [];
@@ -268,7 +307,7 @@ function mapShopifyVariant(v: any): VariantCandidate {
 /**
  * Strategy 3: Extract variants from WooCommerce data-product_variations attribute
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function extractVariantsFromWooCommerce(html: string): VariantCandidate[] {
   const $ = cheerio.load(html);
   const candidates: VariantCandidate[] = [];
@@ -340,7 +379,7 @@ export function diffRegisterVsExpected(
 /**
  * Score a candidate variant against variant hint tokens
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function scoreVariantCandidate(
   v: VariantCandidate,
   hints: Set<string>
@@ -398,7 +437,7 @@ export function scoreVariantCandidate(
 /**
  * Shared Matching Core
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export function matchVariant(
   candidates: VariantCandidate[],
   registerName: string,
@@ -472,7 +511,7 @@ export function matchVariant(
 /**
  * Top-level resolveVariantUrl
  */
-// fallow-ignore-next-line unused-export — used by tests
+// used by tests
 export async function resolveVariantUrl(
   baseUrl: string,
   registerName: string,
@@ -736,7 +775,7 @@ export function parseShopifyMatrix(htmlOrJson: string, parentUrl: string): Varia
       variantKey: stableVariantKey('shopify', String(v.id), v.title ?? opts.map(o=>o.value).join(' / ') ?? String(v.id), idx),
       platformId: v.id != null ? String(v.id) : null,
       title: v.title ?? opts.map(o=>o.value).join(' / ') ?? String(v.id),
-      identifiers: makeIdentifiers({ platformId: v.id != null ? String(v.id) : null, sku: v.sku ?? null, barcode: v.barcode ?? v.gtin ?? null, sourcePath: `shopify.variants[${idx}]` }),
+      identifiers: makeIdentifiers({ platformId: v.id != null ? String(v.id) : null, sku: v.sku ?? null, barcode: v.barcode ?? v.gtin ?? v.gtin12 ?? v.gtin13 ?? null, sourcePath: `shopify.variants[${idx}]` }),
       options: makeOptions(opts, `shopify.variants[${idx}].options`),
       available: v.available !== false,
       price: price ? (String(price).includes('.') ? price : String(parseInt(price,10)/100)) : null,
@@ -991,6 +1030,49 @@ export function deriveVariantTokens(name: string, brandHint?: string | null): st
   return all.filter(t => !stop.has(t));
 }
 
+/** Normalize a supplied known platform variant ID for exact comparison. */
+function normalizePlatformVariantId(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const norm = String(raw).trim().toLowerCase();
+  return norm ? norm : null;
+}
+
+/** Candidates carrying an exact identifier of one kind, key-sorted for determinism. */
+function candidatesWithIdentifier(
+  matrix: VariantMatrix,
+  kind: 'gtin' | 'sku' | 'mpn',
+  normalizedValue: string,
+): NormalizedVariantCandidate[] {
+  return matrix.candidates
+    .filter((c) => c.identifiers.some((i) => i.kind === kind && i.normalizedValue === normalizedValue))
+    .sort((a, b) => a.variantKey.localeCompare(b.variantKey));
+}
+
+/** Candidates carrying an exact platform variant ID, key-sorted for determinism. */
+function candidatesWithPlatformId(matrix: VariantMatrix, norm: string): NormalizedVariantCandidate[] {
+  return matrix.candidates
+    .filter((c) => (c.platformId ?? '').trim().toLowerCase() === norm)
+    .sort((a, b) => a.variantKey.localeCompare(b.variantKey));
+}
+
+/** Variant key uniquely identified by a known platform variant ID, or null (absent/unknown/duplicate). */
+function platformVariantIdUniqueKey(matrix: VariantMatrix, norm: string | null): string | null {
+  if (!norm) return null;
+  const hits = candidatesWithPlatformId(matrix, norm);
+  return hits.length === 1 ? hits[0].variantKey : null;
+}
+
+/** Candidates matching the complete exact option tuple, key-sorted for determinism. */
+function sortedTupleHits(
+  candidates: NormalizedVariantCandidate[],
+  allTokens: string[],
+  expectedOptionsNorm: Array<{ axis: string; value: string }>,
+): NormalizedVariantCandidate[] {
+  return candidates
+    .filter((c) => matchesCompleteOptionTuple(c, allTokens, expectedOptionsNorm))
+    .sort((a, b) => a.variantKey.localeCompare(b.variantKey));
+}
+
 export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantMatchInput): VariantMatchDecision {
   if (!matrix || matrix.candidates.length === 0) {
     return { status: 'no_match', selectedVariantKey: null, reasonCodes: ['no_matrix'], matchedBy: 'none', diagnostics: ['no matrix'], rankedKeys: [] };
@@ -1016,6 +1098,8 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
   const gtinNorm = normalizeGtin(input.gtin ?? null);
   const skuNorm = normalizeSkuMpn(input.sku ?? null);
   const mpnNorm = normalizeSkuMpn(input.mpn ?? null);
+  // Known platform variant ID (T4): exact-only, weaker than GTIN/SKU/MPN.
+  const platformVariantIdNorm = normalizePlatformVariantId((input as { platformVariantId?: string | null }).platformVariantId);
   const tokens = deriveVariantTokens(input.name, input.brandHint ?? null);
   // Merge explicit variantTokens if provided
   const explicitTokens = (input.variantTokens ?? []).map(t=> normalizeOptionValue(t)).filter(Boolean) as string[];
@@ -1024,7 +1108,7 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
 
   // 1. Unique exact GTIN — but verify consistency with supplied SKU/MPN if they map elsewhere
   if (gtinNorm) {
-    const hits = matrix.candidates.filter(c => c.identifiers.some(i => i.kind==='gtin' && i.normalizedValue===gtinNorm));
+    const hits = candidatesWithIdentifier(matrix, 'gtin', gtinNorm);
     if (hits.length===1) {
       const gtinWinner = hits[0];
       // Consistency check: compare supplied trusted identifiers directly against winner's identifiers
@@ -1033,7 +1117,7 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
         if (winnerSku && winnerSku !== skuNorm) {
           return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_gtin_sku'], matchedBy: 'none', diagnostics: [`gtin ${gtinNorm} winner sku ${winnerSku} mismatched supplied sku ${skuNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
         }
-        const skuHits = matrix.candidates.filter(c => c.identifiers.some(i => i.kind==='sku' && i.normalizedValue===skuNorm));
+        const skuHits = candidatesWithIdentifier(matrix, 'sku', skuNorm);
         if (skuHits.length===1 && skuHits[0].variantKey !== gtinWinner.variantKey) {
           return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_gtin_sku'], matchedBy: 'none', diagnostics: [`gtin ${gtinNorm} vs sku ${skuNorm} point to different variants`], rankedKeys: hits.map(c=>c.variantKey) };
         }
@@ -1044,12 +1128,17 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
         if (winnerMpn && winnerMpn !== mpnNorm) {
           return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_gtin_mpn'], matchedBy: 'none', diagnostics: [`gtin ${gtinNorm} winner mpn mismatched supplied mpn`], rankedKeys: hits.map(c=>c.variantKey) };
         }
-        const mpnHits = matrix.candidates.filter(c => c.identifiers.some(i => i.kind==='mpn' && i.normalizedValue===mpnNorm));
+        const mpnHits = candidatesWithIdentifier(matrix, 'mpn', mpnNorm);
         if (mpnHits.length===1 && mpnHits[0].variantKey !== gtinWinner.variantKey) {
           return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_gtin_mpn'], matchedBy: 'none', diagnostics: [`gtin ${gtinNorm} vs mpn maps to different variants`], rankedKeys: hits.map(c=>c.variantKey) };
         }
       }
       // Availability check for GTIN exact: unavailable only allowed with exact identifier (which we have — gtin itself)
+      // A known platform variant ID pointing at a different variant conflicts: fail closed.
+      const platformKey = platformVariantIdUniqueKey(matrix, platformVariantIdNorm);
+      if (platformKey && platformKey !== gtinWinner.variantKey) {
+        return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_gtin_platform_id'], matchedBy: 'none', diagnostics: [`gtin ${gtinNorm} vs platform variant id ${platformVariantIdNorm} point to different variants`], rankedKeys: [gtinWinner.variantKey, platformKey].sort() };
+      }
       return { status:'resolved', selectedVariantKey: gtinWinner.variantKey, reasonCodes: ['gtin_exact'], matchedBy: 'gtin', diagnostics: [`gtin exact ${gtinNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
     }
     if (hits.length>1) {
@@ -1064,7 +1153,7 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
       }
       // try complete exact option tuple (prefer typed expectedOptions when supplied)
       if (expectedOptionsNorm.length>0 || allTokens.length>0) {
-        const tupleHits = hits.filter(c=> matchesCompleteOptionTuple(c, allTokens, expectedOptionsNorm)).sort((a,b)=> a.variantKey.localeCompare(b.variantKey));
+        const tupleHits = sortedTupleHits(hits, allTokens, expectedOptionsNorm);
         if (tupleHits.length===1) {
           const winner = tupleHits[0];
           if (!winner.available) {
@@ -1079,20 +1168,47 @@ export function matchVariantMatrix(matrix: VariantMatrix | null, input: VariantM
   }
   // 2. Unique trusted SKU
   if (skuNorm) {
-    const hits = matrix.candidates.filter(c => c.identifiers.some(i => i.kind==='sku' && i.normalizedValue===skuNorm)).sort((a,b)=> a.variantKey.localeCompare(b.variantKey));
-    if (hits.length===1) return { status:'resolved', selectedVariantKey: hits[0].variantKey, reasonCodes: ['sku_exact'], matchedBy: 'sku', diagnostics: [`sku exact ${skuNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
+    const hits = candidatesWithIdentifier(matrix, 'sku', skuNorm);
+    if (hits.length===1) {
+      const platformKey = platformVariantIdUniqueKey(matrix, platformVariantIdNorm);
+      if (platformKey && platformKey !== hits[0].variantKey) {
+        return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_sku_platform_id'], matchedBy: 'none', diagnostics: [`sku ${skuNorm} vs platform variant id ${platformVariantIdNorm} point to different variants`], rankedKeys: [hits[0].variantKey, platformKey].sort() };
+      }
+      return { status:'resolved', selectedVariantKey: hits[0].variantKey, reasonCodes: ['sku_exact'], matchedBy: 'sku', diagnostics: [`sku exact ${skuNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
+    }
     if (hits.length>1) return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['duplicate_identifier'], matchedBy: 'none', diagnostics: [`duplicate sku ${skuNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
   }
   if (mpnNorm) {
-    const hits = matrix.candidates.filter(c => c.identifiers.some(i => i.kind==='mpn' && i.normalizedValue===mpnNorm)).sort((a,b)=> a.variantKey.localeCompare(b.variantKey));
-    if (hits.length===1) return { status:'resolved', selectedVariantKey: hits[0].variantKey, reasonCodes: ['mpn_exact'], matchedBy: 'mpn', diagnostics: [`mpn exact`], rankedKeys: hits.map(c=>c.variantKey) };
+    const hits = candidatesWithIdentifier(matrix, 'mpn', mpnNorm);
+    if (hits.length===1) {
+      const platformKey = platformVariantIdUniqueKey(matrix, platformVariantIdNorm);
+      if (platformKey && platformKey !== hits[0].variantKey) {
+        return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['inconsistent_identifiers_mpn_platform_id'], matchedBy: 'none', diagnostics: [`mpn vs platform variant id ${platformVariantIdNorm} point to different variants`], rankedKeys: [hits[0].variantKey, platformKey].sort() };
+      }
+      return { status:'resolved', selectedVariantKey: hits[0].variantKey, reasonCodes: ['mpn_exact'], matchedBy: 'mpn', diagnostics: [`mpn exact`], rankedKeys: hits.map(c=>c.variantKey) };
+    }
+  }
+  // 3. Exact known platform variant ID — weaker than GTIN/SKU/MPN.
+  // Compared only against candidate variant IDs (never the parent product
+  // ID, which cannot equal a variant ID). Precedence is structural: any
+  // unique GTIN/SKU/MPN resolution — or a conflict with one — returns
+  // from the steps above, so reaching here means no stronger identifier
+  // decided the match.
+  if (platformVariantIdNorm) {
+    const hits = candidatesWithPlatformId(matrix, platformVariantIdNorm);
+    if (hits.length>1) {
+      return { status:'ambiguous', selectedVariantKey: null, reasonCodes: ['duplicate_identifier'], matchedBy: 'none', diagnostics: [`duplicate platform variant id ${platformVariantIdNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
+    }
+    if (hits.length===1) {
+      return { status:'resolved', selectedVariantKey: hits[0].variantKey, reasonCodes: ['platform_id_exact'], matchedBy: 'platform_id', diagnostics: [`platform variant id exact ${platformVariantIdNorm}`], rankedKeys: hits.map(c=>c.variantKey) };
+    }
   }
   // 3. Complete exact option tuple — requires expectedOptions if supplied, otherwise token-based but still requires availability signal
   {
     const hasExpected = expectedOptionsNorm.length>0;
     const tupleSource: string[] = hasExpected ? expectedOptionsNorm.map(o=> `${o.axis}=${o.value}`) : allTokens;
     if (tupleSource.length>0) {
-      const tupleHits = matrix.candidates.filter(c => matchesCompleteOptionTuple(c, allTokens, expectedOptionsNorm)).sort((a,b)=> a.variantKey.localeCompare(b.variantKey));
+      const tupleHits = sortedTupleHits(matrix.candidates, allTokens, expectedOptionsNorm);
       if (tupleHits.length===1) {
         // Availability: unavailable auto-select only with exact trusted identifier matching that candidate
         const winner = tupleHits[0];

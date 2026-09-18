@@ -1,4 +1,5 @@
-// fallow-ignore-file unused-export
+// Worker/API shared envelope: the server, the worker, and their suites import
+// the subset each needs.
 
 import { z } from 'zod';
 import { ExtractionDataSchema, StrictVariantSelectionStrategySchema } from './onboarding';
@@ -275,6 +276,10 @@ export const ExtractRequestSchema = z.object({
     name: z.string(),
     brandHint: z.string().nullable().default(null),
     upc: z.string().optional(),
+    /** Trusted source SKU for variant-identity matching (T4, optional). */
+    sku: z.string().optional(),
+    /** Exact known platform variant ID for identity matching (T4, optional). */
+    platformVariantId: z.string().optional(),
     spreadsheetHints: SpreadsheetHintSchema.default(() => ({})),
     price: z.string().nullable().default(null),
   }),
@@ -287,6 +292,13 @@ export const ExtractRequestSchema = z.object({
     customSelectors: z.record(z.string(), z.string()).default(() => ({})),
     imageRules: z.record(z.string(), z.unknown()).default(() => ({})),
     variantSelectionStrategy: z.union([StrictVariantSelectionStrategySchema, VariantSelectionStrategySchema]).nullable().default(null),
+    /**
+     * Shared extraction-policy content (T4 browser investigation). When
+     * present and Shopify-backed, the worker executes the policy's
+     * per-field source order through the Shopify endpoint adapter.
+     * Absent (legacy profiles) keeps current selector semantics exactly.
+     */
+    extractionPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
     /** Worker-side source-domain allowlist for this profile execution. When
      * non-empty, every destination (initial fetch, every redirect hop, and
      * every rendered sub-resource) must be an exact or subdomain-suffix match
@@ -332,6 +344,9 @@ export const ExtractResponseSchema = z.object({
   identityMatrixHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
   /** Bounded candidates subset (max 250) for evidence preservation. */
   candidates: z.array(NormalizedVariantCandidateSchema).max(250).nullable().optional(),
+  /** Parent product ID for Shopify policy extractions (T4 browser investigation
+   * product-identity verification). Absent for legacy paths. */
+  parentProductId: z.string().min(1).nullable().optional(),
 });
 
 export type ExtractResponse = z.infer<typeof ExtractResponseSchema>;

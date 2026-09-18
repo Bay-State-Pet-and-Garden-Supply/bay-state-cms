@@ -699,6 +699,18 @@ _Avoid_: Auto-profile creator, trusted extractor, profile autopilot
 A domain-first review surface for building, validating, and approving Domain Extractor Profile proposals.
 _Avoid_: Review drawer, product drawer, inline extraction result
 
+**Browser Investigation**:
+An explicitly requested investigation of public product pages to propose deterministic extraction sources for domain onboarding or drift repair. It belongs to the requesting workspace and cannot itself establish Profile Health or release Onboarding Items.
+_Avoid_: Extraction run, per-SKU browser agent, trusted extractor
+
+**Investigation Evidence**:
+An untrusted, source-attributed observation supporting a Browser Investigation recommendation. It is not trusted product evidence or proof that the recommended extraction strategy works.
+_Avoid_: Verified extraction, healthy profile, model confidence as approval
+
+**Extraction Policy Proposal**:
+A reviewable proposal for per-field extraction source order, optional selector exceptions, and product and Source-Page Variant identity requirements. Applying it to a shared Domain Extractor Profile draft is an explicit operator action, not validation, activation, or release.
+_Avoid_: Executable agent script, automatic adapter, active profile
+
 **Profile Validation Sample**:
 A product page used to test whether a Domain Extractor Profile extracts the expected product evidence within its Profile Scope.
 _Avoid_: Training data, random URL, product approval
@@ -706,6 +718,18 @@ _Avoid_: Training data, random URL, product approval
 **Confirmed Profile Sample**:
 A Profile Validation Sample whose source URL has been reviewed as the correct product page for its product.
 _Avoid_: Sitemap guess, search result, unreviewed candidate
+
+**Blind Profile Holdout**:
+A Profile Validation Sample withheld from Browser Investigation and proposal tuning, reserved for independently testing the proposed extraction policy rather than establishing statistical generalization. A sample disclosed during investigation or tuning is no longer a holdout for that proposal.
+_Avoid_: Agent-visible holdout, representative training sample, reused tuning evidence
+
+**Tier 0 Static Reconnaissance**:
+The default Browser Investigation runtime: host-side broker fetch of approved pages with deterministic analysis inside an isolated container that has no network egress of its own. Page bytes are never processed in the host; only typed observations leave the container. No model reasoning is involved.
+_Avoid_: Host-side scraping, rendered browser, model-led browsing
+
+**Tier 1 Rendered Investigation**:
+The deferred Browser Investigation runtime behind Tier 0: a render-required investigation fails closed with the stable `render_deferred` code and performs no render attempt, leaving Tier 0 evidence standing; the render machinery exists but is not production-valid until rendered navigation works through the validating boundary (#237 stays open).
+_Avoid_: Unrestricted browser, direct-egress rendering, implied proxy
 
 **Curation** (v2 canonical `prepare_listing` / Prepare listing — owner-approved 2026-09-08):
 The pipeline stage that synthesizes final clean store-ready titles (integrating spreadsheet hints, web scraped details, and local packaging OCR) and classifies products into internal product types and existing category pages.
@@ -748,11 +772,16 @@ _Avoid_: Table view, item list, batch detail view
 - **Profile Tooling Extraction** cannot produce trusted product evidence or advance an item past **Extraction**.
 - The **Profile Builder** produces Domain Extractor Profile proposals only.
 - The **Profile Builder** cannot create **Profile Health** without validation and reviewer approval.
+- A **Browser Investigation** is explicitly requested for domain onboarding or drift repair, never invoked by normal per-product **Extraction**.
+- A **Browser Investigation** produces **Investigation Evidence** and an **Extraction Policy Proposal**, not trusted product data or **Profile Health**.
+- **Browser Investigation** inputs and results belong to one workspace; applying an **Extraction Policy Proposal** to a shared **Domain Extractor Profile** draft is a separate operator decision.
+- An **Extraction Policy Proposal** may be saved as an inactive draft despite failed or incomplete validation; its failures remain visible and prevent activation.
+- An investigation-derived extraction policy requires passing **Blind Profile Holdout** validation in addition to existing **Profile Health** requirements. A confirmation-count waiver does not waive the holdout requirement.
 - A **Profile Builder Workspace** is organized around one domain, not one product item.
 - An **Onboarding Item** may provide a seed **Profile Validation Sample** for a **Profile Builder Workspace**.
 - A **Profile Builder Workspace** may use unreviewed sitemap product URLs as exploratory Profile Validation Samples.
 - Only **Confirmed Profile Samples** count toward **Profile Health**.
-- A normal **Domain Extractor Profile** requires at least two **Confirmed Profile Samples** within its **Profile Scope** before it can be healthy.
+- A normal **Domain Extractor Profile** requires at least three **Confirmed Profile Samples** within its **Profile Scope**, or an audited confirmation-count waiver, before it can be healthy.
 - A variant-bearing **Domain Extractor Profile** requires at least one **Confirmed Profile Sample** that demonstrates correct Source-Page Variant distinction before it can be healthy.
 - A **Product SKU** may require selecting one **Source-Page Variant** during **Extraction**.
 - A **Variant Selection Strategy** may use product-linked inputs such as expected name, UPC, SKU, spreadsheet hints, URL variant parameters, embedded source-page variant data, and visible selected option labels.

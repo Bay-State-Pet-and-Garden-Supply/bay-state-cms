@@ -434,6 +434,22 @@ export default defineConfig({
       'src/tests/unit/type-change-impact.test.ts',
       'src/tests/unit/type-first-guardrails-fixes.test.ts',
       'src/tests/unit/type-review-detail.test.ts',
+      // T1 (#225) browser investigation lifecycle — bun:sqlite via the
+      // repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-lifecycle.test.ts',
+      // T2 (#226) policy drafts (apply/binding/discard) — bun:sqlite via
+      // the repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-policy-drafts.test.ts',
+      // T4 (#228) validation persistence/route/health wiring — bun:sqlite
+      // via the repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-validation-routes.test.ts',
+      // T5 (#229) workspace operator flow routes — bun:sqlite via the
+      // repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-workspace-routes.test.ts',
+      // #239 broker transport binding — asserts Bun's node:https binding
+      // behavior (the production runtime), which Node-run Vitest cannot
+      // exercise; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-transport-bun.test.ts',
     ],
   },
 });

@@ -43,6 +43,7 @@ export function profileFromVersion(version: ProfileVersion): ExtractorProfile {
     variant_selection_strategy?: unknown;
     shopify_json_path?: unknown;
     custom_selector_metadata?: unknown;
+    extractionPolicy?: unknown;
   };
   return {
     ...ExtractorProfileSchema.parse({
@@ -62,6 +63,9 @@ export function profileFromVersion(version: ProfileVersion): ExtractorProfile {
       variantSelectionStrategy: selectors.variantSelectionStrategy ?? selectors.variant_selection_strategy ?? null,
       shopifyJSONPath: selectors.shopifyJSONPath ?? selectors.shopify_json_path ?? false,
       customSelectorMetadata: selectors.customSelectorMetadata ?? selectors.custom_selector_metadata ?? {},
+      // Forward-compatible policy content (T2): legacy versions lack the
+      // key and resolve to null, preserving current semantics.
+      extractionPolicy: (selectors.extractionPolicy as Record<string, unknown> | null | undefined) ?? null,
       id: version.id,
       domain: version.domain,
       runtime: version.runtime,
@@ -102,7 +106,8 @@ function useFallback(): boolean {
   return !isDbInitializedSafe();
 }
 
-export function createVersion(input: {
+/** Shared input for immutable version creation (single versions and activate flows alike). */
+export interface CreateVersionInput {
   domain: string;
   selectors: Record<string, unknown>;
   runtime: string;
@@ -112,7 +117,9 @@ export function createVersion(input: {
   provenance: { provider: string; model: string; configId: string };
   approver: string;
   reason: string;
-}): ProfileVersion {
+}
+
+export function createVersion(input: CreateVersionInput): ProfileVersion {
   const domain = normalizeDomain(input.domain);
   if (useFallback()) {
     const list = fallbackDomain.get(domain) ?? [];
@@ -308,17 +315,7 @@ export function setActiveVersion(domain: string, id: string): void {
   tx();
 }
 
-export function createAndActivateVersion(input: {
-  domain: string;
-  selectors: Record<string, unknown>;
-  runtime: string;
-  sampleIds: string[];
-  artifactHashes: string[];
-  validationSummary: Record<string, unknown>;
-  provenance: { provider: string; model: string; configId: string };
-  approver: string;
-  reason: string;
-}): ProfileVersion {
+export function createAndActivateVersion(input: CreateVersionInput): ProfileVersion {
   const domain = normalizeDomain(input.domain);
   if (useFallback()) {
     const created = createVersion(input);
