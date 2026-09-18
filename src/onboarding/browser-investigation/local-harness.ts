@@ -195,8 +195,21 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     analysis: Tier0AnalysisResult,
   ): InvestigationProviderCompletion {
     const { evidenceRefs, gaps: captureGaps } = captured;
-    const { observations, gaps: analysisGaps, platformSignals, domSignals, readsPerformed } = analysis;
-    const gaps = [...captureGaps, ...analysisGaps];
+    const { observations, gaps: analysisGaps, platformSignals, domSignals, readsPerformed, identity } = analysis;
+    // Tier 0 identity (#233): conflict notes stay visible instead of being
+    // resolved; an identity-absent run says so plainly so the compiler's
+    // missing_identity refusal is never a surprise. Schema-capped.
+    const gaps = [
+      ...captureGaps,
+      ...analysisGaps,
+      ...identity.conflicts,
+      ...(identity.productIdentity.length === 0 || identity.variantIdentity.length === 0
+        ? [
+            'no product or variant identity signals in captured evidence; ' +
+              'a proposal cannot compile until identity evidence is captured',
+          ]
+        : []),
+    ].slice(0, 50);
     const platform = platformSignals.includes('shopify') ? 'shopify' : undefined;
     // This slice performs static broker-mediated reads only (no browser
     // rendering process). When fetched pages yield no DOM evidence, that is
@@ -219,12 +232,31 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
           ...(platform === 'shopify' ? { platformSource: 'shopify_product_json' } : {}),
         },
       ],
-      fieldRecommendations: this.fieldRecommendations(observations, evidenceRefs),
-      identityRequirements: {
-        productIdentity: [],
-        variantIdentity: [],
-        optionAxes: [],
-      },
+      fieldRecommendations: [
+        ...this.fieldRecommendations(observations, evidenceRefs),
+        // Tier 0 (#233): identifier fields backed by in-container identity
+        // evidence. Every entry carries the retained-artifact ref its
+        // signals came from; sources list only representations observed.
+        ...identity.fields.map((entry) => ({
+          field: entry.field,
+          sources: [...entry.sources],
+          structureId: 'harness-static-read',
+          evidenceRef: entry.evidenceRef,
+        })),
+      ],
+      // Absent identity is omitted (not empty): the service schema rejects
+      // empty requirement lists as malformed, while the compiler refuses an
+      // omitted identity with the typed missing_identity gap. The gate is
+      // unchanged — Tier 0 only populates what captured evidence supports.
+      ...(identity.productIdentity.length > 0 && identity.variantIdentity.length > 0
+        ? {
+            identityRequirements: {
+              productIdentity: [...identity.productIdentity],
+              variantIdentity: [...identity.variantIdentity],
+              optionAxes: [...identity.optionAxes],
+            },
+          }
+        : {}),
     };
     const ledgerUsage = ledger.toUsage();
     return {

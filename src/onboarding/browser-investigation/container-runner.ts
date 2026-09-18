@@ -82,12 +82,36 @@ export interface Tier0AnalysisObservation {
   artifactRef: string;
 }
 
+/** Provenance for one identifier field from Tier 0 static identity (#233). */
+export interface Tier0IdentityField {
+  field: string;
+  sources: string[];
+  evidenceRef: string;
+}
+
+/**
+ * Tier 0 static identity (#233): product/variant identity and option-axis
+ * requirements derived deterministically in-container from the same
+ * broker-approved captures. Requirement strings use the variant-resolver
+ * vocabulary for the unchanged compiler gate; `conflicts` defers ambiguous
+ * identifiers downstream instead of resolving them.
+ */
+export interface Tier0IdentityResult {
+  productIdentity: string[];
+  variantIdentity: string[];
+  optionAxes: string[];
+  fields: Tier0IdentityField[];
+  conflicts: string[];
+  contributingArtifacts: string[];
+}
+
 export interface Tier0AnalysisResult {
   observations: Tier0AnalysisObservation[];
   gaps: string[];
   platformSignals: string[];
   domSignals: { title: boolean; meta: boolean; jsonLd: boolean; images: boolean };
   readsPerformed: number;
+  identity: Tier0IdentityResult;
 }
 
 export type ContainerRunnerCode =
@@ -322,6 +346,30 @@ function refusedEnvelopeError(env: AnalysisEnvelope): ContainerRunnerError {
 }
 
 /** Narrow an accepted envelope payload to the typed result (fail closed). */
+/** Shape check for the Tier 0 identity block (fail closed on deviation). */
+function isTier0IdentityResult(value: unknown): value is Tier0IdentityResult {
+  if (!value || typeof value !== 'object') return false;
+  const identity = value as Record<string, unknown>;
+  if (
+    !Array.isArray(identity.productIdentity) ||
+    !Array.isArray(identity.variantIdentity) ||
+    !Array.isArray(identity.optionAxes) ||
+    !Array.isArray(identity.conflicts) ||
+    !Array.isArray(identity.contributingArtifacts) ||
+    !Array.isArray(identity.fields)
+  ) {
+    return false;
+  }
+  return (identity.fields as unknown[]).every(
+    (entry) =>
+      !!entry &&
+      typeof entry === 'object' &&
+      typeof (entry as { field?: unknown }).field === 'string' &&
+      Array.isArray((entry as { sources?: unknown }).sources) &&
+      typeof (entry as { evidenceRef?: unknown }).evidenceRef === 'string',
+  );
+}
+
 function coerceEnvelopeResult(raw: unknown): Tier0AnalysisResult {
   const result = raw as Tier0AnalysisResult | null;
   const wellFormed =
@@ -332,7 +380,8 @@ function coerceEnvelopeResult(raw: unknown): Tier0AnalysisResult {
     Array.isArray(result.platformSignals) &&
     !!result.domSignals &&
     typeof result.domSignals === 'object' &&
-    typeof result.readsPerformed === 'number';
+    typeof result.readsPerformed === 'number' &&
+    isTier0IdentityResult((result as { identity?: unknown }).identity);
   if (!wellFormed) {
     throw new ContainerRunnerError('provider_error', 'provider_error: container returned a malformed result');
   }
