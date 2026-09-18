@@ -1,4 +1,4 @@
-// Constrained local browser-harness provider (T3, containerized in #236, Tier 1 in #237).
+// Constrained local browser-harness provider (T3, containerized in #236, Tier 1 in #237, deferred by default in #246).
 //
 // Investigation-only `local_browser_harness` implementation of the
 // provider-neutral seam. Tier 0 runs always: a fixed application-authored
@@ -7,12 +7,16 @@
 // observations out; the host never parses page bytes).
 //
 // Tier 1 engages conditionally on top of the Tier 0 base:
-// - Rendered investigation: only when Tier 0 reports no DOM evidence
-//   (`renderedBrowserRequired`). Rendered reads execute inside the render
-//   container (proxy-only egress to the validating forward proxy) and
-//   merge as `page_rendered` observations anchored to host-retained
-//   artifacts. An unavailable render container is a visible gap (the Tier 0
-//   verdict stands); an engaged-but-failed render fails the run closed.
+// - Rendered investigation (#246: DEFERRED by default): only when Tier 0
+//   reports no DOM evidence (`renderedBrowserRequired`) AND the explicit
+//   non-default switch (`allowTier1Render` / BAYSTATE_INVESTIGATION_ALLOW_RENDER)
+//   is set. Without the switch the default path refuses with
+//   `render_deferred` and performs no render attempt. With the switch,
+//   rendered reads execute inside the render container (proxy-only egress
+//   to the validating forward proxy) and merge as `page_rendered`
+//   observations anchored to host-retained artifacts. The switch is
+//   diagnostics/tests only — not production-valid until #237 lands with
+//   render-navigation proof (HTTPS requires CONNECT; the proxy refuses it).
 // - Bounded model reasoning: only when the operator opts in
 //   (`modelPolicy.allowCloudTextAnalysis`) AND a reasoner is configured.
 //   One bounded call over the redacted, holdout-blind context; advisory
@@ -88,6 +92,19 @@ export interface LocalHarnessDeps {
   containerRunner?: Tier0ContainerRunner;
   /** Tier 1 rendered-execution seam. Default is the real Docker render runner (fail-closed without the image). */
   renderRunner?: Tier1RenderRunner;
+  /**
+   * #246 Tier 1 rendered deferral: rendered investigation is DEFERRED by
+   * default. The render container's sole egress (validating forward proxy)
+   * refuses CONNECT as an opaque tunnel, while Chromium carries HTTPS
+   * through an HTTP proxy via CONNECT — so real https navigation cannot
+   * load. The default path refuses rendered-required work with
+   * `render_deferred` and performs no render attempt (no proxy, no
+   * container, no rendered observations). Set to true ONLY for
+   * diagnostics/tests; it is not production-valid until #237 lands with
+   * render-navigation proof. `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1` is the
+   * equivalent env switch for out-of-process diagnostics (also non-default).
+   */
+  allowTier1Render?: boolean;
   /**
    * Tier 1 model-reasoning seam. Default is unconfigured: deterministic
    * Tier 0 stands and a gap records the missing model. Tests inject a
@@ -260,9 +277,17 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
   }
 
   /**
-   * Tier 1 (#237): conditional rendered investigation + bounded model
-   * reasoning over the Tier 0 base. Tier 0 evidence is never rewritten —
-   * Tier 1 only appends observations/evidence/gaps and advisory strategy.
+   * Tier 1 (#237, deferred by default in #246): conditional rendered
+   * investigation + bounded model reasoning over the Tier 0 base. Tier 0
+   * evidence is never rewritten — Tier 1 only appends
+   * observations/evidence/gaps and advisory strategy.
+   *
+   * #246 deferral: when Tier 0 reports no DOM evidence over broker-approved
+   * captures, the default path refuses with `render_deferred` and performs
+   * NO render attempt (no proxy, no container, no rendered observations or
+   * coverage claims). The render machinery stays reachable ONLY behind the
+   * explicit non-default switch (`allowTier1Render` / env), which is not
+   * production-valid until #237 lands with render-navigation proof.
    */
   private async runTier1(
     request: InvestigationProviderRequest,
@@ -287,6 +312,20 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     const domEvidence =
       analysis.domSignals.title || analysis.domSignals.meta || analysis.domSignals.jsonLd || analysis.domSignals.images;
     if (!domEvidence) {
+      // #246: default path refuses rendered-required work before any render
+      // machinery is touched. Real https pages cannot load in the render
+      // container (HTTPS through an HTTP proxy requires CONNECT; the
+      // validating proxy refuses CONNECT by design as opaque_tunnel_refused),
+      // and the passing relay tests do not disprove that (manual
+      // absolute-form HTTP GETs only). Fail closed with the stable deferred
+      // code; the opt-in switch preserves the #237 machinery for
+      // diagnostics/tests only.
+      if (captured.captures.length > 0 && !isTier1RenderAllowed(this.deps)) {
+        throw new InvestigationProviderError(
+          'render_deferred',
+          'render_deferred: Tier 1 rendered investigation deferred by default (#246): HTTPS through an HTTP proxy requires CONNECT, the validating forward proxy refuses CONNECT by design, and rendered navigation proof is outstanding in #237; no render attempted',
+        );
+      }
       await this.attemptTier1Render(request, artifacts, ledger, captured, elapsed, outcome);
     }
     await this.attemptTier1Reasoning(request, ledger, captured, analysis, outcome, elapsed);
@@ -294,11 +333,12 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
   }
 
   /**
-   * Rendered investigation, only on Tier 0 rendering need. An unavailable
-   * render container (image/network missing) is a visible gap — the Tier 0
-   * verdict stands. An engaged render that fails (budget/time/worker) fails
-   * the run closed: need was claimed, so Tier 0-only evidence must not
-   * silently stand in for it.
+   * Rendered investigation, only on Tier 0 rendering need AND the explicit
+   * #246 opt-in switch (callers guarantee the switch; this method never runs
+   * on the default path). An unavailable render container (image/network
+   * missing) is a visible gap — the Tier 0 verdict stands. An engaged render
+   * that fails (budget/time/worker) fails the run closed: need was claimed,
+   * so Tier 0-only evidence must not silently stand in for it.
    */
   private async attemptTier1Render(
     request: InvestigationProviderRequest,
@@ -768,6 +808,18 @@ function sanitizeRunId(runId: string): string {
   const cleaned = runId.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   if (!cleaned) throw new InvestigationProviderError('provider_error', 'provider_error: invalid run identity');
   return cleaned;
+}
+
+/**
+ * #246 explicit non-default switch for the Tier 1 render machinery.
+ * Default (absent/false/any other value) defers: the render container is
+ * never touched. `allowTier1Render: true` or
+ * `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1` opts diagnostics/tests into the
+ * #237 machinery, which stays not production-valid until #237 lands.
+ */
+function isTier1RenderAllowed(deps: LocalHarnessDeps): boolean {
+  if (deps.allowTier1Render === true) return true;
+  return process.env.BAYSTATE_INVESTIGATION_ALLOW_RENDER === '1';
 }
 
 function truncateUrl(url: string): string {

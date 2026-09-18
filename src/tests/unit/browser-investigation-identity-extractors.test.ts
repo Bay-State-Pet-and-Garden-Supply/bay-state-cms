@@ -379,7 +379,9 @@ afterEach(() => {
 describe('Tier 0 harness identity (#233)', () => {
   it('compiles a Shopify static result through the existing gate with no new network or model calls', async () => {
     const fetched: string[] = [];
-    const provider = harness({}, jsonTransport(fetched));
+    // #246 opt-in: Shopify JSON has no DOM signals, so the default path
+    // defers; this Tier 0 identity test exercises the #237 gap path.
+    const provider = harness({ allowTier1Render: true }, jsonTransport(fetched));
     const req = requestFor(['https://brand.example/products/alpha.js']);
     const completion = await provider.invoke(req);
 
@@ -413,7 +415,9 @@ describe('Tier 0 harness identity (#233)', () => {
   });
 
   it('refuses identity-absent static results with the typed compiler gap', async () => {
-    const provider = harness({}, htmlTransport(BARE_HTML));
+    // #246: opt into the #237 render machinery so this Tier 0 identity test
+    // sees the static verdict (default path defers rendered-need instead).
+    const provider = harness({ allowTier1Render: true }, htmlTransport(BARE_HTML));
     const req = requestFor(['https://brand.example/products/alpha']);
     const completion = await provider.invoke(req);
 

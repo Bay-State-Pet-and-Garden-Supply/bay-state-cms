@@ -41,3 +41,13 @@ The first complete runtime adapter slice is Shopify, reusing the existing GTIN-a
 ## Consequences
 
 We amortize investigation across future deterministic extractions without restoring the retired Agent Lab or giving model output production authority. Prefer one thin vertical slice that genuinely works over thousands of lines of record-only evidence. Keep the feature and persistence vendor-neutral: Browser-Assisted Extraction Investigation, not a Browser Use integration. The trade-off is narrower browser capability and an investigation-only Docker dependency. Cloud v4 delivery, unrestricted interactive browsing, full WooCommerce endpoint support, and true multi-template dispatch are deferred explicitly, not simulated with records or unsafe fallbacks.
+
+## Addendum: Tier 1 rendered investigation deferred by default (#246)
+
+Tier 1 rendered investigation is deferred by default pending #237's render-navigation proof. Issue #237 stays open; this ticket neither closes nor modifies it.
+
+Verified defect: the render container's only egress is the validating forward proxy, which refuses CONNECT as an opaque tunnel (405 `opaque_tunnel_refused`) — while Chromium carries HTTPS through an HTTP proxy using CONNECT. Real https product pages therefore cannot load in the render container. The passing relay tests do not disprove that: they issue manual absolute-form HTTP GETs through the proxy, not Chromium HTTPS navigation via CONNECT.
+
+Default behavior: a rendered-required investigation (Tier 0 reports no DOM evidence over broker-approved captures) refuses with the stable code `render_deferred` and performs no render attempt — no proxy, no container, no rendered observations, and no rendered-coverage claims. The Tier 1 render machinery stays reachable only behind the explicit non-default switch (`allowTier1Render` / `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`), which is diagnostics/tests only and is not production-valid until #237 lands.
+
+The Tier 1 suites do not prove navigation.

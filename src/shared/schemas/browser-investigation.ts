@@ -79,6 +79,10 @@ export const InvestigationFailureCodeSchema = z.enum([
   'replay_rejected',
   'stale_completion',
   'isolation_unavailable',
+  // #246 Tier 1 rendered deferral (additive): the default path refuses
+  // rendered-required work because real https navigation cannot load
+  // through the CONNECT-refusing validating proxy (proof outstanding in #237).
+  'render_deferred',
   'cloud_disabled',
   // T2 compiler/apply outcomes (additive: T1 lifecycle codes unchanged).
   'unappliable_proposal',

@@ -52,6 +52,9 @@ export class InvestigationProviderError extends Error {
     | 'budget_not_enforceable'
     | 'cancelled'
     | 'isolation_unavailable'
+    // #246 Tier 1 rendered deferral: default path refuses rendered-required
+    // work with this stable code and performs no render attempt (#237 open).
+    | 'render_deferred'
     | 'cloud_disabled'
     // #237 Tier 1 model-context blindness: reserved-holdout material in the
     // reasoning context fails the run with the validation-stage code.

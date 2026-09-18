@@ -228,7 +228,10 @@ describe('local harness bounded read', () => {
 
   it('reports a rendering need when static reads yield no DOM evidence', async () => {
     const bare = '<html><head></head><body><div id="app"></div></body></html>';
-    const { provider } = harness({}, htmlTransport(bare));
+    // #246: explicit opt-in so this Tier 0 need-reporting test exercises the
+    // #237 unavailable-container gap; the default path defers instead (see
+    // tier1 deferral suite for the render_deferred proof).
+    const { provider } = harness({ allowTier1Render: true }, htmlTransport(bare));
     const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha']));
     const result = completion.result as unknown as {
       observations: Array<{ kind: string }>;

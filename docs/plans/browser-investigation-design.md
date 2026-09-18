@@ -312,6 +312,16 @@ docker build -t baystate/investigation-render:1 \
 docker network create --internal binv-render-only
 ```
 
+## Addendum: Tier 1 rendered investigation deferred by default (#246)
+
+Tier 1 rendered investigation is deferred by default pending #237's render-navigation proof (issue #237 stays open; this ticket neither closes nor modifies it).
+
+Verified defect: HTTPS through an HTTP proxy requires CONNECT; the validating forward proxy refuses CONNECT by design (405 `opaque_tunnel_refused`, mirroring the broker) — while Chromium carries HTTPS through an HTTP proxy using CONNECT. Rendered navigation is therefore deferred to #237: real https product pages cannot load in the render container as built.
+
+The passing relay tests do not disprove that: they issue manual absolute-form HTTP GETs through the proxy channel, not Chromium HTTPS navigation via CONNECT. The Tier 1 suites do not prove navigation.
+
+Default behavior: a rendered-required investigation (Tier 0 reports no DOM evidence over broker-approved captures) refuses with the stable code `render_deferred` and performs no render attempt — no proxy start, no container start, no rendered observations, and no rendered-coverage claims. The Tier 1 render machinery (`render-runner.ts`, `render-proxy.ts`, render container argv) stays intact for #237's work and remains reachable only behind the explicit non-default switch (`LocalHarnessDeps.allowTier1Render` / `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`), which is diagnostics/tests only and is not production-valid until #237 lands.
+
 ## Pilot record (#239)
 
 The real thin-slice pilot — opt-in, against a live Shopify domain, through the

@@ -277,6 +277,7 @@ function toFailureCode(err: unknown): { code: InvestigationFailureCode; detail: 
       budget_not_enforceable: 'budget_not_enforceable',
       cancelled: 'cancelled',
       isolation_unavailable: 'isolation_unavailable',
+      render_deferred: 'render_deferred',
       cloud_disabled: 'cloud_disabled',
       holdout_exposed: 'holdout_exposed',
     };

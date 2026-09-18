@@ -577,7 +577,9 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   }
 
   it('returns non-empty identity that compiles, with Tier 0 usage when no model is configured', async () => {
-    const { provider } = harness({}, shopifyTransport());
+    // #246 opt-in: Shopify JSON carries no DOM signals, so the default path
+    // would defer; this Tier 0 identity test exercises the #237 gap path.
+    const { provider } = harness({ allowTier1Render: true }, shopifyTransport());
     const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha.js']));
     const result = completion.result as unknown as {
       identityRequirements?: { productIdentity: string[]; variantIdentity: string[]; optionAxes: string[] };
@@ -606,7 +608,8 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   it('reports one counted call and the acting model after bounded reasoning', async () => {
     const seen: Tier1ModelContext[] = [];
     const { provider } = harness(
-      { modelReasoner: stubReasoner({}, seen) },
+      // #246 opt-in (Shopify JSON has no DOM; default would defer).
+      { allowTier1Render: true, modelReasoner: stubReasoner({}, seen) },
       shopifyTransport(),
     );
     const req = requestFor(['https://brand.example/products/alpha.js'], {
@@ -646,7 +649,8 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
 
   it('still compiles when the reasoner returns junk (advisory-only output)', async () => {
     const { provider } = harness(
-      { modelReasoner: stubReasoner({ strategy: 'x'.repeat(5000), gaps: Array.from({ length: 25 }, (_, i) => `junk-${i}`) }) },
+      // #246 opt-in (Shopify JSON has no DOM; default would defer).
+      { allowTier1Render: true, modelReasoner: stubReasoner({ strategy: 'x'.repeat(5000), gaps: Array.from({ length: 25 }, (_, i) => `junk-${i}`) }) },
       shopifyTransport(),
     );
     const completion = await provider.invoke(
@@ -674,7 +678,8 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   });
 
   it('records a gap (not a call) when the operator opts in but no model is configured', async () => {
-    const { provider } = harness({}, shopifyTransport());
+    // #246 opt-in: preserves the #237 no-model gap path for Shopify JSON.
+    const { provider } = harness({ allowTier1Render: true }, shopifyTransport());
     const completion = await provider.invoke(
       requestFor(['https://brand.example/products/alpha.js'], { modelPolicy: { allowCloudTextAnalysis: true } }),
     );
@@ -725,6 +730,8 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   it('fails closed when the engaged model call exhausts tokens or time', async () => {
     const tokenHog = harness(
       {
+        // #246 opt-in (Shopify JSON has no DOM; default would defer).
+        allowTier1Render: true,
         modelReasoner: stubReasoner({
           outputTokens: resolveInvestigationBudget({}).maxModelOutputTokensPerCall + 1,
         }),
@@ -738,7 +745,8 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
     ).rejects.toThrowError(/budget_exhausted/);
 
     const hanging: Tier1ModelReasoner = { reason: () => new Promise(() => {}) };
-    const slow = harness({ modelReasoner: hanging }, shopifyTransport());
+    // #246 opt-in for the same Shopify-JSON reason as above.
+    const slow = harness({ allowTier1Render: true, modelReasoner: hanging }, shopifyTransport());
     await expect(
       slow.provider.invoke(
         requestFor(['https://brand.example/products/alpha.js'], {
@@ -755,6 +763,9 @@ describe('harness Tier 1 render: need-gated, merged, fail-closed', () => {
     const renderTornDown: string[] = [];
     const { provider } = harness(
       {
+        // #246: explicit non-default opt-in — render machinery is
+        // diagnostics/tests only, not production-valid until #237 lands.
+        allowTier1Render: true,
         renderRunner: stubRenderRunner({
           observations: [renderedObs('https://brand.example/products/alpha', 'artifact:binv_tier1_1:p0')],
           gaps: ['render note'],
@@ -789,6 +800,9 @@ describe('harness Tier 1 render: need-gated, merged, fail-closed', () => {
   it('records a gap (Tier 0 verdict stands) when the render container is unavailable', async () => {
     const { provider } = harness(
       {
+        // #246 opt-in: exercises the #237 unavailable-container gap behind
+        // the explicit switch (default path defers instead — see below).
+        allowTier1Render: true,
         renderRunner: stubRenderRunner({
           startError: new RenderRunnerError('isolation_unavailable', 'isolation_unavailable: no image'),
         }),
@@ -804,6 +818,8 @@ describe('harness Tier 1 render: need-gated, merged, fail-closed', () => {
   it('fails the run closed when the engaged render exhausts budget', async () => {
     const { provider } = harness(
       {
+        // #246 opt-in: engaged-render failure stays fail-closed behind the switch.
+        allowTier1Render: true,
         renderRunner: stubRenderRunner({
           runError: new RenderRunnerError('budget_exhausted', 'budget_exhausted: render reads overran'),
         }),
@@ -827,6 +843,42 @@ describe('harness Tier 1 render: need-gated, merged, fail-closed', () => {
     expect(renderCalls).toBe(0);
     const result = completion.result as unknown as { renderedBrowserRequired: boolean };
     expect(result.renderedBrowserRequired).toBe(false);
+  });
+});
+
+describe('#246 Tier 1 rendered deferral: default path refuses honestly', () => {
+  it('refuses rendered-required work with render_deferred and performs no render attempt', async () => {
+    let renderCalls = 0;
+    const counting: Tier1RenderRunner = {
+      start: async () => { renderCalls += 1; },
+      runRender: async () => {
+        renderCalls += 1;
+        return { observations: [], gaps: [], readsPerformed: 0 };
+      },
+      teardown: async () => { renderCalls += 1; },
+    };
+    // Default path: no allowTier1Render switch, even with a render runner
+    // injected — the harness must refuse before touching the machinery.
+    const { provider } = harness({ renderRunner: counting }, htmlTransport(BARE_HTML));
+    await expect(
+      provider.invoke(requestFor(['https://brand.example/products/alpha'])),
+    ).rejects.toThrowError(/render_deferred/);
+    // No render attempt occurred: no start/run/teardown calls, hence no
+    // rendered observations and no rendered-coverage claims to assert.
+    expect(renderCalls).toBe(0);
+  });
+
+  it('still completes static-sufficient work without the switch (only render-need defers)', async () => {
+    // DOM evidence means no rendering need: Tier 0 completes on the default
+    // path with no deferred code and no render attempt.
+    const { provider } = harness({}, htmlTransport(DOM_HTML));
+    const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha.js']));
+    const result = completion.result as unknown as {
+      renderedBrowserRequired: boolean;
+      observations: Array<{ kind: string }>;
+    };
+    expect(result.renderedBrowserRequired).toBe(false);
+    expect(result.observations.map((o) => o.kind)).not.toContain('page_rendered');
   });
 });
 
