@@ -160,8 +160,9 @@ export function buildCohortContext(batchId: string, items: OnboardingItem[]): Ma
   const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
   const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
   const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
+  const itemsById = new Map(items.map(item => [item.id, item]));
   const views: CurationCohortView[] = cohorts.map(cohort =>
-    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId),
+    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId, itemsById),
   );
   const map = new Map<string, FamilyCohortState>();
   for (const view of views) {
