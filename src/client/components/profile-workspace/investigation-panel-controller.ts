@@ -195,29 +195,11 @@ interface LaunchControls {
   driftError: string | null;
 }
 
-/** Launch, cancel, budget-preview, and drift-entry controls for one domain. */
-function useLaunchControls(args: {
-  domain: string;
-  suiteUrls: string[];
-  reservedUrls: string[];
-  selectedId: string | null;
-  refreshList: () => Promise<void>;
-  refreshWorkspace: (id: string) => Promise<void>;
-  select: (id: string) => void;
-  setWsError: (message: string | null) => void;
-}): LaunchControls {
-  const { domain, suiteUrls, reservedUrls, selectedId, refreshList, refreshWorkspace, select, setWsError } = args;
+/** Representative selection + the custom-URL entry (pruned of reserved holdouts). */
+function useLaunchSelection(suiteUrls: string[], reservedUrls: string[]) {
   const [launchSelected, toggleLaunchUrl, setLaunchSelected] = useReservedHoldoutPruning(reservedUrls);
   const [customUrl, setCustomUrl] = useState('');
-  const [launching, setLaunching] = useState<InvestigationMode | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [budgetRows, setBudgetRows] = useState<BudgetRow[] | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [driftPreview, setDriftPreview] = useState<InvestigationDriftContextView | null>(null);
-  const [driftLoading, setDriftLoading] = useState(false);
-  const [driftError, setDriftError] = useState<string | null>(null);
 
   // Default the selection to the first few suite samples; re-default only
   // when the suite itself changes (never on every render).
@@ -241,12 +223,19 @@ function useLaunchControls(args: {
     setCustomUrl('');
   }, [customUrl, reservedUrls, setLaunchSelected]);
 
+  return { launchSelected, toggleLaunchUrl, setLaunchSelected, customUrl, setCustomUrl, addCustomUrl, launchError, setLaunchError };
+}
+
+/** Read-only budget preview over the same pruned candidate set a launch sends. */
+function useBudgetPreview(domain: string, launchSelected: string[], reservedUrls: string[]) {
+  const [budgetRows, setBudgetRows] = useState<BudgetRow[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const previewBudgets = useCallback(async (): Promise<void> => {
     setPreviewLoading(true);
     setPreviewError(null);
     try {
-      // Preview the same pruned candidate set a launch would send, so
-      // reserved holdouts never reach even the read-only preview payload.
+      // Reserved holdouts never reach even the read-only preview payload.
       const urls = launchCandidatesOf(launchSelected, reservedUrls);
       if (urls.length === 0) {
         setPreviewError('Selected URLs are all reserved holdouts — pick a representative page.');
@@ -259,7 +248,14 @@ function useLaunchControls(args: {
       setPreviewLoading(false);
     }
   }, [domain, launchSelected, reservedUrls]);
+  return { budgetRows, setBudgetRows, previewBudgets, previewLoading, previewError };
+}
 
+/** Read-only drift-entry availability check for the domain's active version. */
+function useDriftPreview(domain: string) {
+  const [driftPreview, setDriftPreview] = useState<InvestigationDriftContextView | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const [driftError, setDriftError] = useState<string | null>(null);
   const checkDriftEntry = useCallback(async (): Promise<void> => {
     setDriftLoading(true);
     setDriftError(null);
@@ -271,15 +267,28 @@ function useLaunchControls(args: {
       setDriftLoading(false);
     }
   }, [domain]);
+  return { driftPreview, checkDriftEntry, driftLoading, driftError };
+}
 
+/** Explicit launch: representatives only, then refresh the list and open the run. */
+function useLaunchRun(args: {
+  domain: string;
+  selection: ReturnType<typeof useLaunchSelection>;
+  reservedUrls: string[];
+  refreshList: () => Promise<void>;
+  select: (id: string) => void;
+  setBudgetRows: (rows: BudgetRow[] | null) => void;
+}) {
+  const { domain, selection, reservedUrls, refreshList, select, setBudgetRows } = args;
+  const [launching, setLaunching] = useState<InvestigationMode | null>(null);
   const launch = useCallback(
     async (mode: InvestigationMode): Promise<void> => {
       setLaunching(mode);
-      setLaunchError(null);
+      selection.setLaunchError(null);
       try {
-        const urls = launchCandidatesOf(launchSelected, reservedUrls);
+        const urls = launchCandidatesOf(selection.launchSelected, reservedUrls);
         if (urls.length === 0) {
-          setLaunchError('Selected URLs are all reserved holdouts — pick a representative page.');
+          selection.setLaunchError('Selected URLs are all reserved holdouts — pick a representative page.');
           return;
         }
         const launched = await launchInvestigation(domain, mode, urls);
@@ -287,14 +296,26 @@ function useLaunchControls(args: {
         await refreshList();
         select(launched.investigation.id);
       } catch (error) {
-        setLaunchError(messageOf(error));
+        selection.setLaunchError(messageOf(error));
       } finally {
         setLaunching(null);
       }
     },
-    [domain, launchSelected, reservedUrls, refreshList, select],
+    [domain, selection, reservedUrls, refreshList, select, setBudgetRows],
   );
+  return { launching, launch };
+}
 
+/** Explicit cancel for the open investigation (queued/running only). */
+function useCancellation(args: {
+  domain: string;
+  selectedId: string | null;
+  refreshList: () => Promise<void>;
+  refreshWorkspace: (id: string) => Promise<void>;
+  setWsError: (message: string | null) => void;
+}) {
+  const { domain, selectedId, refreshList, refreshWorkspace, setWsError } = args;
+  const [cancelling, setCancelling] = useState(false);
   const cancel = useCallback(async (): Promise<void> => {
     if (!selectedId) return;
     setCancelling(true);
@@ -309,26 +330,37 @@ function useLaunchControls(args: {
       setCancelling(false);
     }
   }, [domain, selectedId, refreshList, refreshWorkspace, setWsError]);
+  return { cancelling, cancel };
+}
 
+/** Launch, cancel, budget-preview, and drift-entry controls for one domain. */
+function useLaunchControls(args: {
+  domain: string;
+  suiteUrls: string[];
+  reservedUrls: string[];
+  selectedId: string | null;
+  refreshList: () => Promise<void>;
+  refreshWorkspace: (id: string) => Promise<void>;
+  select: (id: string) => void;
+  setWsError: (message: string | null) => void;
+}): LaunchControls {
+  const { domain, suiteUrls, reservedUrls, selectedId, refreshList, refreshWorkspace, select, setWsError } = args;
+  const selection = useLaunchSelection(suiteUrls, reservedUrls);
+  const budgets = useBudgetPreview(domain, selection.launchSelected, reservedUrls);
+  const drift = useDriftPreview(domain);
+  const run = useLaunchRun({ domain, selection, reservedUrls, refreshList, select, setBudgetRows: budgets.setBudgetRows });
+  const cancellation = useCancellation({ domain, selectedId, refreshList, refreshWorkspace, setWsError });
   return {
-    launchSelected,
-    toggleLaunchUrl,
-    customUrl,
-    setCustomUrl,
-    addCustomUrl,
-    launchError,
-    launching,
-    launch,
-    cancel,
-    cancelling,
-    budgetRows,
-    previewBudgets,
-    previewLoading,
-    previewError,
-    driftPreview,
-    checkDriftEntry,
-    driftLoading,
-    driftError,
+    launchSelected: selection.launchSelected,
+    toggleLaunchUrl: selection.toggleLaunchUrl,
+    customUrl: selection.customUrl,
+    setCustomUrl: selection.setCustomUrl,
+    addCustomUrl: selection.addCustomUrl,
+    launchError: selection.launchError,
+    ...budgets,
+    ...drift,
+    ...run,
+    ...cancellation,
   };
 }
 

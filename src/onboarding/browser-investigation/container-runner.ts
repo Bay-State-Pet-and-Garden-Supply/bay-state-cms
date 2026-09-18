@@ -158,7 +158,7 @@ interface DockerTier0RunnerOptions {
   imageOverride?: string;
 }
 
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
   constructor(private readonly opts: DockerTier0RunnerOptions = {}) {}
 

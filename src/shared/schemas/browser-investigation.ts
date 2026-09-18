@@ -312,7 +312,7 @@ function formatMs(ms: number): string {
  * shown up front; the same caps are enforced live at the broker, capture,
  * and dispatch layers. Pure and Vitest-safe.
  */
-// fallow-ignore-next-line unused-export -- consumed by routes + tests
+// consumed by routes + tests
 export function describeInvestigationBudget(budget: InvestigationBudget): InvestigationBudgetRow[] {
   return [
     { key: 'maxPages', label: 'Product pages', value: `up to ${budget.maxPages}` },

@@ -18,7 +18,7 @@ export interface MaterializeOptions {
  * values. Shared by the legacy materializer and T4 Shopify policy
  * execution so the two paths cannot drift on provenance shape.
  */
-// fallow-ignore-next-line unused-export — worker policy execution + tests
+// worker policy execution + tests
 export function buildVariantProvenance(
   selected: NormalizedVariantCandidate,
   existing: Record<string, string> = {},

@@ -39,7 +39,7 @@ function fail(
 }
 
 /** Trusted expected identity for one validation sample (operator-supplied, frozen). */
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface ValidationExpectedIdentity {
   name: string;
   brandHint?: string | null;
@@ -56,7 +56,7 @@ export interface ValidationExpectedIdentity {
   productId?: string | null;
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface ValidationSampleInput {
   url: string;
   role: 'representative' | 'holdout';
@@ -64,7 +64,7 @@ export interface ValidationSampleInput {
   artifactRef?: string | null;
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface PolicyWorkerResult {
   ok: boolean;
   data?: {
@@ -91,7 +91,7 @@ export interface PolicyWorkerResult {
 }
 
 /** Injected production-worker seam: compiled draft profile + sample → extraction outcome. */
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface PolicyWorkerRunner {
   run(input: {
     profile: ExtractorProfile;
@@ -107,9 +107,9 @@ export interface PolicyWorkerRunner {
   }): Promise<PolicyWorkerResult>;
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export type ValidationSampleStatus = 'pass' | 'fail' | 'incomplete';
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export type IdentityOutcome =
   | 'match'
   | 'wrong_product'
@@ -119,7 +119,7 @@ export type IdentityOutcome =
   | 'error'
   | 'unevaluated';
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface ValidationSampleResult {
   url: string;
   role: 'representative' | 'holdout';
@@ -132,10 +132,10 @@ export interface ValidationSampleResult {
   artifactHash: string;
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export type ProposalValidationStatus = 'passed' | 'failed' | 'incomplete' | 'unappliable';
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface ProposalValidation {
   validationId: string;
   investigationId: string;
@@ -152,7 +152,7 @@ export interface ProposalValidation {
 }
 
 /** Persisted immutable validation reference for one investigation. */
-// fallow-ignore-next-line unused-type — public validation contract (store + tests)
+// public validation contract (store + tests)
 export interface StoredValidation {
   validationJson: string | null;
   validationHash: string | null;
@@ -160,7 +160,7 @@ export interface StoredValidation {
   validatedAt: string | null;
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (store + tests)
+// public validation contract (store + tests)
 export interface ValidationStore {
   getValidation(workspaceId: string, investigationId: string): StoredValidation | null;
   saveValidation(
@@ -185,7 +185,7 @@ export function createMemoryValidationStore(): ValidationStore {
   };
 }
 
-// fallow-ignore-next-line unused-type — public validation contract (route + tests)
+// public validation contract (route + tests)
 export interface ValidateProposalOptions {
   workspaceId: string;
   investigationId: string;

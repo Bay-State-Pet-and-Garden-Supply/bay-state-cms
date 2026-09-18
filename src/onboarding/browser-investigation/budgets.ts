@@ -17,7 +17,6 @@ import type {
 } from '../../shared/schemas/browser-investigation';
 
 export class InvestigationBudgetError extends Error {
-  // fallow-ignore-next-line unused-class-member
   readonly code = 'budget_exhausted' as const;
   constructor(message: string) {
     super(`budget_exhausted: ${message}`);

@@ -119,7 +119,7 @@ interface PolicyHelperFns {
 // enter this path and keep current semantics exactly.
 
 /** Parsed Shopify policy content, or null for legacy / non-Shopify profiles. */
-// fallow-ignore-next-line unused-export — trusted profile runner dispatch
+// trusted profile runner dispatch
 export function shopifyPolicyOf(profile: ExtractRequest['profile']): ExtractionPolicyContent | null {
   const raw = (profile as { extractionPolicy?: unknown }).extractionPolicy;
   if (!raw) return null;
@@ -917,7 +917,7 @@ function markShopifyMatrixSource(
   variantProvenance.matrixSource = 'shopify_js';
 }
 
-// fallow-ignore-next-line unused-export — trusted profile runner dispatch
+// trusted profile runner dispatch
 export async function doShopifyPolicyExtract(args: {
   request: ExtractRequest;
   policy: ExtractionPolicyContent;

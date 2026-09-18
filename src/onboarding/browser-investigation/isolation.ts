@@ -134,7 +134,6 @@ export interface InvestigationContainerSpec {
 
 export class IsolationError extends Error {
   // Stable machine code read by the service error mapper (never by static name).
-  // fallow-ignore-next-line unused-class-member
   readonly code = 'isolation_unavailable' as const;
   constructor(message: string) {
     super(`isolation_unavailable: ${message}`);
@@ -307,7 +306,7 @@ const MAX_SINGLE_TMPFS_MB = 1024;
  * Deterministic container name for a run. Shared by argv construction and
  * teardown so explicit removal targets the same container `--rm` reaps.
  */
-// fallow-ignore-next-line unused-export -- default runner + containment tests
+// default runner + containment tests
 export function containerNameForRun(runId: string): string {
   const cleaned = runId.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
   if (!cleaned) throw new IsolationError('runId required to scope fresh container state');
@@ -319,7 +318,7 @@ export function containerNameForRun(runId: string): string {
  * artifact: containment tests assert the denial flags here AND exercise them
  * against a live daemon when one is available.
  */
-// fallow-ignore-next-line unused-export -- containment tests + future runner
+// containment tests + future runner
 export function containerSpecToDockerArgs(spec: InvestigationContainerSpec): string[] {
   assertContainerPosture(spec);
   const args = [
@@ -347,7 +346,7 @@ export function containerSpecToDockerArgs(spec: InvestigationContainerSpec): str
  * extra mounts, no network beyond `none`: Tier 0 analysis never renders,
  * so it carries no proxy affordance at all.
  */
-// fallow-ignore-next-line unused-export -- container runner + tests
+// container runner + tests
 export function tier0AnalysisDockerArgs(spec: InvestigationContainerSpec): string[] {
   const base = containerSpecToDockerArgs(spec);
   // base = ['run', '--rm', ...flags, image]; insert '-i' after 'run' and
@@ -364,7 +363,7 @@ export function tier0AnalysisDockerArgs(spec: InvestigationContainerSpec): strin
  * name suffix, plus the validating-forward-proxy URL that is the
  * container's sole egress.
  */
-// fallow-ignore-next-line unused-export -- render runner + tests
+// render runner + tests
 export function buildRenderContainerSpec(
   runId: string,
   proxyUrl: string,
@@ -454,7 +453,7 @@ function assertRenderProxyUrl(proxyUrl: string): void {
  * nothing secret), and the same sandbox/limits/teardown discipline as
  * Tier 0. Any deviation throws.
  */
-// fallow-ignore-next-line unused-export -- render runner + tests
+// render runner + tests
 export function assertRenderContainerPosture(spec: RenderContainerSpec): void {
   assertRenderNetwork(spec);
   assertRenderProxyDeclaration(spec);
@@ -543,7 +542,7 @@ function assertRenderLimits(spec: RenderContainerSpec): void {
  * level, proxy channel open). `-i` carries the render task on stdin;
  * typed observations leave on stdout.
  */
-// fallow-ignore-next-line unused-export -- render runner + tests
+// render runner + tests
 export function renderContainerDockerArgs(spec: RenderContainerSpec): string[] {
   assertRenderContainerPosture(spec);
   const args = [
@@ -624,19 +623,19 @@ async function defaultDockerProbe(): Promise<boolean> {
 let slotHeld = false;
 
 /** Acquire the single local-investigation slot. Returns false when busy. */
-// fallow-ignore-next-line unused-export -- harness + tests
+// harness + tests
 export function tryAcquireInvestigationSlot(): boolean {
   if (slotHeld) return false;
   slotHeld = true;
   return true;
 }
 
-// fallow-ignore-next-line unused-export -- harness + tests
+// harness + tests
 export function releaseInvestigationSlot(): void {
   slotHeld = false;
 }
 
-// fallow-ignore-next-line unused-export -- tests
+// tests
 export function isInvestigationSlotHeld(): boolean {
   return slotHeld;
 }
@@ -652,7 +651,7 @@ interface ContainerRunner {
  * removed on success, failure, timeout, AND cancellation. Teardown failures
  * are swallowed (idempotent best-effort) so they cannot mask the run outcome.
  */
-// fallow-ignore-next-line unused-export -- harness + tests
+// harness + tests
 export async function withIsolatedRun<T>(
   runId: string,
   runner: ContainerRunner,

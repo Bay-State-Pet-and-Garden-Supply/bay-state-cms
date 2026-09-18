@@ -123,7 +123,7 @@ const DEFAULT_RENDER_TIMEOUT_MS = 120_000;
 /** Stdout ceiling for the typed-observation envelope (observations are byte-capped upstream). */
 const MAX_RENDER_ENVELOPE_BYTES = 16 * 1024 * 1024;
 
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export class DockerRenderContainerRunner implements Tier1RenderRunner {
   async start(spec: RenderContainerSpec): Promise<void> {
     assertRenderContainerPosture(spec);

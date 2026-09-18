@@ -835,10 +835,12 @@ describe('containment: Tier 1 network surface stays authorized', () => {
 
   it('the in-container render worker loads with its protocol version', async () => {
     // Host code never imports this module (pinned above); this dynamic
-    // import proves the container entrypoint loads error-free.
+    // import proves the container entrypoint loads error-free. The import
+    // pulls the whole rendered-page stack, so give it a realistic budget
+    // under a fully parallel suite instead of the 5s default.
     const worker = await import('../../onboarding/browser-investigation/render-worker');
     expect(worker.RENDER_WORKER_PROTOCOL_VERSION).toBe(1);
-  });
+  }, 60_000);
 
   it('host modules other than broker/proxy have no network surface', () => {
     const modules = [

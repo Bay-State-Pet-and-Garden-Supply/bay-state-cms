@@ -72,21 +72,21 @@ export function assertRefScope(ref: ScopedRef, investigationId: string): void {
 }
 
 /** Mint an opaque artifact reference. Capture ids are harness-generated, never model-chosen. */
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export function mintArtifactRef(investigationId: string, captureId: string): string {
   assertRefId(investigationId);
   assertRefId(captureId);
   return `artifact:${investigationId}:${captureId}`;
 }
 
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export function mintResponseRef(investigationId: string, captureId: string): string {
   assertRefId(investigationId);
   assertRefId(captureId);
   return `response:${investigationId}:${captureId}`;
 }
 
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export function mintElementRef(investigationId: string, pageIndex: number, elementIndex: number): string {
   assertRefId(investigationId);
   if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex > 999_999) {
@@ -405,21 +405,20 @@ export function certifyFieldAbsence(observations: ReadonlyArray<{ incomplete?: b
   }
 }
 
-// fallow-ignore-next-line unused-export — harness coverage gate + tests
+// harness coverage gate + tests
 export function certifyImageMembership(observations: ReadonlyArray<{ incomplete?: boolean }>): void {
   if (observations.some((o) => o.incomplete)) {
     throw new CertificationError('clipped observations cannot certify exhaustive image membership');
   }
 }
 
-// fallow-ignore-next-line unused-export — harness identity gate + tests
+// harness identity gate + tests
 export function certifyVariantIdentity(observations: ReadonlyArray<{ incomplete?: boolean }>): void {
   if (observations.some((o) => o.incomplete)) {
     throw new CertificationError('clipped observations cannot certify unique variant identity');
   }
 }
 
-// fallow-ignore-next-line unused-export — harness coverage gate + tests
 export function certifyCoverage(observations: ReadonlyArray<{ incomplete?: boolean }>): void {
   if (observations.some((o) => o.incomplete)) {
     throw new CertificationError('clipped observations cannot certify coverage');

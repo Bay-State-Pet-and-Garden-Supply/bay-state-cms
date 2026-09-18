@@ -27,7 +27,7 @@ export function routingTestTransport(html: string, js: string, calls: string[]):
 }
 
 /** Shared endpoint-resolution assertions (T4 + #216 suites must not drift). */
-// fallow-ignore-next-line unused-export — shared by both Shopify worker suites
+// shared by both Shopify worker suites
 export function expectEndpointGtinResolved(
   expectFn: ExpectStatic,
   result: {

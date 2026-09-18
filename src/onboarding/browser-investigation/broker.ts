@@ -156,7 +156,7 @@ function normalizeHost(hostname: string): string {
 }
 
 /** Derive the broker scope from sample URLs: approved hosts are exact-match only. */
-// fallow-ignore-next-line unused-export — harness + tests
+// harness + tests
 export function scopeFromSampleUrls(
   investigationId: string,
   workspaceId: string,
@@ -471,7 +471,7 @@ function assertAllowedContentType(contentType: string): void {
  * Aborts the response past `req.maxBodyBytes` instead of buffering
  * unbounded: the ceiling, not Content-Length, bounds memory.
  */
-// fallow-ignore-next-line unused-export — TLS suite + broker default
+// TLS suite + broker default
 export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<BrokerTransportResponse> {
   const url = new URL(req.url);
   const secure = url.protocol === 'https:';
