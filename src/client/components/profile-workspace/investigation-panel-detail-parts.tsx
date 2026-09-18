@@ -580,17 +580,25 @@ function CancelButton({ controller }: { controller: InvestigationPanelController
   );
 }
 
+// #245: cancelled investigations offer neither validate nor apply — the
+// terminal cancelled row keeps evidence/proposal/discard visible only.
+function isCancelledInvestigation(controller: InvestigationPanelController): boolean {
+  const status = controller.selectedStatus ?? controller.workspace?.investigation?.status ?? null;
+  return status === 'cancelled';
+}
+
 function DetailBody({ controller }: { controller: InvestigationPanelController }): React.ReactElement | null {
   const workspace = controller.workspace;
   if (!workspace) return null;
+  const cancelled = isCancelledInvestigation(controller);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <HoldoutCoverageBlock workspace={workspace} reservedUrls={controller.reservedUrls} />
       <EvidenceBlock workspace={workspace} />
       <ProposalBlock workspace={workspace} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <ValidationActionCard controller={controller} />
-        <ApplyActionCard controller={controller} />
+        {!cancelled && <ValidationActionCard controller={controller} />}
+        {!cancelled && <ApplyActionCard controller={controller} />}
         <DiscardActionCard controller={controller} />
       </div>
     </div>

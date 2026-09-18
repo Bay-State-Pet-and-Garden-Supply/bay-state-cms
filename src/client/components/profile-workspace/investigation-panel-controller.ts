@@ -124,7 +124,10 @@ interface SelectionControls {
   isActive: boolean;
 }
 
-/** Selection state: which investigation is open, and its status. */
+/** #245 selection state: which investigation is open, and its status.
+ * While the selected investigation is queued/running the existing workspace
+ * read route is polled on a bounded interval; the poll stops on terminal
+ * state and on unmount (no streaming surface). */
 function useSelection(
   investigations: InvestigationListItem[],
   workspace: InvestigationWorkspaceView | null,
@@ -273,7 +276,7 @@ function useDriftPreview(domain: string) {
   return { driftPreview, checkDriftEntry, driftLoading, driftError };
 }
 
-/** Explicit launch: representatives only, then refresh the list and open the run. */
+/** #245 explicit launch: representatives only, select the queued row immediately, then refresh. */
 function useLaunchRun(args: {
   domain: string;
   selection: ReturnType<typeof useLaunchSelection>;
@@ -296,8 +299,11 @@ function useLaunchRun(args: {
         }
         const launched = await launchInvestigation(domain, mode, urls);
         if (launched.budgets) setBudgetRows(launched.budgets);
-        await refreshList();
+        // #245: select the returned queued id immediately so the queued
+        // state is visible before the run finishes; the watch poll observes
+        // queued -> running -> terminal from there.
         select(launched.investigation.id);
+        await refreshList();
       } catch (error) {
         selection.setLaunchError(messageOf(error));
       } finally {

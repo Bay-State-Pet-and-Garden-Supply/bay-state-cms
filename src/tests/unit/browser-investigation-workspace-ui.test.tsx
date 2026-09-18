@@ -10,7 +10,7 @@
 // - apply sends the operator name only (server-authoritative apply, #234).
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
@@ -521,6 +521,145 @@ describe('holdout coverage, evidence, and separate actions', () => {
 
   it('offers no banned affordance anywhere in the investigation view', async () => {
     const { container } = await openCompleted();
+    const text = (container.textContent ?? '').toLowerCase();
+    expect(text).not.toContain('activate');
+    expect(text).not.toContain('release');
+  });
+});
+
+describe('#245 live watch and cancel for running investigations', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function queuedWorkspace(id: string): InvestigationWorkspaceView {
+    return workspaceFixture({
+      investigation: { id, domain: DOMAIN, mode: 'domain_onboarding', status: 'queued', provider: 'local_browser_harness' },
+      proposal: { available: false, reason: 'investigation is queued; no proposal to preview' },
+      validation: null,
+      actions: {
+        validate: { allowed: false, reason: 'only completed investigations can be validated (is queued)' },
+        apply: { allowed: false, reason: 'only completed investigations can be applied (is queued)' },
+        discard: { allowed: false, reason: 'only terminal investigations can be discarded (is queued)' },
+      },
+    });
+  }
+
+  function runningWorkspace(id: string): InvestigationWorkspaceView {
+    return workspaceFixture({
+      investigation: { id, domain: DOMAIN, mode: 'domain_onboarding', status: 'running', provider: 'local_browser_harness' },
+      proposal: { available: false, reason: 'investigation is running; no proposal to preview' },
+      validation: null,
+      actions: {
+        validate: { allowed: false, reason: 'only completed investigations can be validated (is running)' },
+        apply: { allowed: false, reason: 'only completed investigations can be applied (is running)' },
+        discard: { allowed: false, reason: 'only terminal investigations can be discarded (is running)' },
+      },
+    });
+  }
+
+  function cancelledWorkspace(id: string): InvestigationWorkspaceView {
+    return workspaceFixture({
+      investigation: { id, domain: DOMAIN, mode: 'domain_onboarding', status: 'cancelled', provider: 'local_browser_harness' },
+      proposal: { available: false, reason: 'investigation is cancelled; no proposal to preview' },
+      validation: null,
+      actions: {
+        validate: { allowed: false, reason: 'only completed investigations can be validated (is cancelled)' },
+        apply: { allowed: false, reason: 'only completed investigations can be applied (is cancelled)' },
+        discard: { allowed: true, reason: 'terminal investigations can be discarded; active versions, health, and items stay untouched' },
+      },
+    });
+  }
+
+  it('launch selects the queued investigation immediately with cancel available', async () => {
+    vi.mocked(listInvestigations).mockResolvedValue([]);
+    vi.mocked(launchInvestigation).mockResolvedValue({
+      investigation: { id: 'binv_new', domain: DOMAIN, mode: 'domain_onboarding', status: 'queued', provider: 'local_browser_harness' },
+    });
+    vi.mocked(fetchInvestigationWorkspace).mockResolvedValue({ workspace: queuedWorkspace('binv_new') });
+    const { container } = await renderPanel();
+    await act(async () => {
+      clickButton(container, 'Investigate Domain').click();
+    });
+    // The returned queued id is selected immediately: detail shows the
+    // queued state before the run finishes, with cancel offered.
+    expect(container.textContent).toContain('binv_new');
+    expect(container.textContent).toContain('queued');
+    expect(container.textContent).toContain('Cancel investigation');
+  });
+
+  it('status progresses queued -> running -> terminal via polling without a manual refresh', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(listInvestigations).mockResolvedValue([
+        { id: 'binv_poll', domain: DOMAIN, mode: 'domain_onboarding', status: 'queued', provider: 'local_browser_harness' },
+      ]);
+      vi.mocked(fetchInvestigationWorkspace)
+        .mockResolvedValueOnce({ workspace: queuedWorkspace('binv_poll') })
+        .mockResolvedValueOnce({ workspace: runningWorkspace('binv_poll') })
+        .mockResolvedValue({ workspace: workspaceFixture() });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      await act(async () => {
+        root.render(<InvestigationPanel domain={DOMAIN} suiteUrls={[REP_A]} />);
+      });
+      await act(async () => {
+        clickButton(container, 'Open').click();
+      });
+      expect(container.textContent).toContain('queued');
+      const callsAfterOpen = vi.mocked(fetchInvestigationWorkspace).mock.calls.length;
+      // First poll tick moves queued -> running without any manual refresh.
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      await act(async () => {});
+      expect(vi.mocked(fetchInvestigationWorkspace).mock.calls.length).toBeGreaterThan(callsAfterOpen);
+      expect(container.textContent).toContain('running');
+      // Second poll tick reaches the terminal completed state.
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      await act(async () => {});
+      expect(container.textContent).toContain('completed');
+      expect(container.textContent).toContain('binv_poll');
+      await act(async () => {
+        root.unmount();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancel while running reflects cancelled and hides validate/apply', async () => {
+    vi.mocked(listInvestigations).mockResolvedValue([
+      { id: 'binv_run', domain: DOMAIN, mode: 'domain_onboarding', status: 'running', provider: 'local_browser_harness' },
+    ]);
+    vi.mocked(fetchInvestigationWorkspace).mockResolvedValue({ workspace: runningWorkspace('binv_run') });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<InvestigationPanel domain={DOMAIN} suiteUrls={[REP_A]} />);
+    });
+    await act(async () => {
+      clickButton(container, 'Open').click();
+    });
+    expect(container.textContent).toContain('Cancel investigation');
+    vi.mocked(cancelInvestigation).mockResolvedValue({
+      investigation: { id: 'binv_run', domain: DOMAIN, mode: 'domain_onboarding', status: 'cancelled', provider: 'local_browser_harness' },
+    });
+    vi.mocked(fetchInvestigationWorkspace).mockResolvedValue({ workspace: cancelledWorkspace('binv_run') });
+    await act(async () => {
+      clickButton(container, 'Cancel investigation').click();
+    });
+    expect(cancelInvestigation).toHaveBeenCalledWith(DOMAIN, 'binv_run');
+    expect(container.textContent).toContain('cancelled');
+    // Cancel affordance is gone once terminal; validate/apply are not offered.
+    expect(container.textContent).not.toContain('Cancel investigation');
+    expect(container.textContent).not.toContain('Run validation');
+    expect(container.textContent).not.toContain('Apply to Draft');
+    expect(container.textContent).toContain('Discard investigation');
     const text = (container.textContent ?? '').toLowerCase();
     expect(text).not.toContain('activate');
     expect(text).not.toContain('release');
