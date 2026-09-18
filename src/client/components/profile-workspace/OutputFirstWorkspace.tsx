@@ -18,8 +18,8 @@ import type {
   ExceptionQueueItem,
   SiblingValidationResult,
   ExceptionResolutionOption,
-} from '../../../onboarding/profile-workspace/output-first-service';
-import { applyExceptionResolution } from '../../../onboarding/profile-workspace/output-first-service';
+} from '../../../shared/profile-workspace/inspection';
+import { applyExceptionResolution } from '../../../shared/profile-workspace/inspection';
 
 interface OutputFirstWorkspaceProps {
   domain: string;

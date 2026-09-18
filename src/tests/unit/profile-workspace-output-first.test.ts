@@ -4,8 +4,8 @@ import {
   applyExceptionResolution,
   validateSiblingUrls,
   type OutputFirstInspectionResult,
-  type ExceptionQueueItem,
 } from '../../onboarding/profile-workspace/output-first-service';
+import type { ExceptionQueueItem } from '../../shared/profile-workspace/inspection';
 import {
   getProfileWorkspacePath,
   parseWorkspaceParams,

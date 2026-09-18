@@ -24,31 +24,20 @@ import { isGenericTitleFragment } from '../profile-audit/scorer';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 import type { HybridConflict, IdentityVerdict } from '../../shared/schemas/profile-audit';
 
-export type ExceptionCategory =
-  | 'missing'
-  | 'conflicted'
-  | 'unknown-membership'
-  | 'vague-identity';
+import type {
+  ExceptionQueueItem,
+  OutputFirstInspectionResult,
+  SiblingValidationResult,
+} from '../../shared/profile-workspace/inspection';
 
-export interface ExceptionResolutionOption {
-  action: string;
-  label: string;
-  value?: string;
-}
-
-export interface ExceptionQueueItem {
-  id: string;
-  category: ExceptionCategory;
-  field?: string;
-  imageUrl?: string;
-  title: string;
-  description: string;
-  currentValue?: string | null;
-  conflictingValue?: string | null;
-  sources?: string[];
-  severity: 'critical' | 'warning';
-  resolutions: ExceptionResolutionOption[];
-}
+// Re-exported for existing server consumers and tests; the Profile Workspace UI now
+// imports these from the shared, client-safe module instead.
+export { applyExceptionResolution } from '../../shared/profile-workspace/inspection';
+export type {
+  ExceptionCategory,
+  OutputFirstInspectionResult,
+  SiblingValidationResult,
+} from '../../shared/profile-workspace/inspection';
 
 export interface OutputFirstInspectOptions {
   domain: string;
@@ -63,54 +52,6 @@ export interface OutputFirstInspectOptions {
     sku?: string | null;
   };
   startTime?: number;
-}
-
-export interface OutputFirstInspectionResult {
-  url: string;
-  domain: string;
-  identity: {
-    status: string;
-    verdict: IdentityVerdict;
-    selectedVariantKey: string | null;
-    selectedCandidateTitle: string | null;
-    parentTitle: string | null;
-    confusionDetected: boolean;
-    confusionType: string | null;
-    confusionDetails: string | null;
-    isVague: boolean;
-    vagueReason: string | null;
-  };
-  fields: Record<
-    string,
-    {
-      value: string | null;
-      source: string;
-      status: 'extracted' | 'missing' | 'conflicted';
-      conflict?: HybridConflict | null;
-    }
-  >;
-  gallery: {
-    primaryImage: string | null;
-    admittedImages: string[];
-    rejectedImages: Array<{
-      url: string;
-      reason: string;
-    }>;
-  };
-  exceptionQueue: ExceptionQueueItem[];
-  canApprove: boolean;
-  siblingValidationRequired: boolean;
-  metrics: {
-    timeToFirstWorkingProfileMs: number;
-    exceptionsCount: number;
-    missingCount: number;
-    conflictedCount: number;
-    unknownMembershipCount: number;
-    vagueIdentityCount: number;
-    manualCorrectionsCount: number;
-    wrongProductCount: number;
-    wrongImageCount: number;
-  };
 }
 
 const COMMON_GENERIC_WORDS = new Set([
@@ -386,100 +327,6 @@ export async function inspectProfileUrl(
   };
 }
 
-export function applyExceptionResolution(
-  inspection: OutputFirstInspectionResult,
-  exceptionId: string,
-  resolution: {
-    action: string;
-    value?: string;
-    selectedVariantKey?: string;
-  },
-): OutputFirstInspectionResult {
-  const exc = inspection.exceptionQueue.find((e) => e.id === exceptionId);
-  if (!exc) return inspection;
-
-  const nextFields = { ...inspection.fields };
-  const nextGallery = {
-    ...inspection.gallery,
-    admittedImages: [...inspection.gallery.admittedImages],
-    rejectedImages: [...inspection.gallery.rejectedImages],
-  };
-  let nextIdentity = { ...inspection.identity };
-
-  if (exc.category === 'missing' || exc.category === 'conflicted') {
-    const f = exc.field;
-    if (f) {
-      const resolvedVal = resolution.value ?? exc.conflictingValue ?? exc.currentValue ?? null;
-      const source =
-        resolution.action === 'choose_structured'
-          ? (exc.sources?.[1] || 'structured')
-          : resolution.action === 'choose_selector'
-          ? 'custom-selector'
-          : 'manual-override';
-
-      nextFields[f] = {
-        value: resolvedVal,
-        source,
-        status: 'extracted',
-        conflict: null,
-      };
-    }
-  } else if (exc.category === 'unknown-membership' && exc.imageUrl) {
-    if (resolution.action === 'admit_variant_image') {
-      if (!nextGallery.admittedImages.includes(exc.imageUrl)) {
-        nextGallery.admittedImages.push(exc.imageUrl);
-      }
-      nextGallery.rejectedImages = nextGallery.rejectedImages.filter((r) => r.url !== exc.imageUrl);
-    } else if (resolution.action === 'set_primary') {
-      nextGallery.primaryImage = exc.imageUrl;
-      nextGallery.admittedImages = [
-        exc.imageUrl,
-        ...nextGallery.admittedImages.filter((u) => u !== exc.imageUrl),
-      ];
-      nextGallery.rejectedImages = nextGallery.rejectedImages.filter((r) => r.url !== exc.imageUrl);
-    } else if (resolution.action === 'keep_rejected') {
-      // Confirmed rejected, no change to gallery
-    }
-  } else if (exc.category === 'vague-identity') {
-    nextIdentity.isVague = false;
-    nextIdentity.vagueReason = null;
-    nextIdentity.verdict = 'correct_match';
-    if (resolution.value) {
-      nextFields.title = {
-        value: resolution.value,
-        source: 'manual-override',
-        status: 'extracted',
-        conflict: null,
-      };
-    }
-    if (resolution.selectedVariantKey) {
-      nextIdentity.selectedVariantKey = resolution.selectedVariantKey;
-      nextIdentity.status = 'resolved_variant';
-    }
-  }
-
-  const nextQueue = inspection.exceptionQueue.filter((e) => e.id !== exceptionId);
-  const hasCritical = nextQueue.some((e) => e.severity === 'critical');
-
-  return {
-    ...inspection,
-    fields: nextFields,
-    gallery: nextGallery,
-    identity: nextIdentity,
-    exceptionQueue: nextQueue,
-    canApprove: !hasCritical && nextQueue.length === 0,
-    metrics: {
-      ...inspection.metrics,
-      exceptionsCount: nextQueue.length,
-      missingCount: nextQueue.filter((e) => e.category === 'missing').length,
-      conflictedCount: nextQueue.filter((e) => e.category === 'conflicted').length,
-      unknownMembershipCount: nextQueue.filter((e) => e.category === 'unknown-membership').length,
-      vagueIdentityCount: nextQueue.filter((e) => e.category === 'vague-identity').length,
-      manualCorrectionsCount: inspection.metrics.manualCorrectionsCount + 1,
-    },
-  };
-}
-
 export interface ValidateSiblingUrlsOptions {
   domain: string;
   siblingPages: Array<{
@@ -494,20 +341,6 @@ export interface ValidateSiblingUrlsOptions {
     };
   }>;
   profile?: ExtractorProfile | null;
-}
-
-export interface SiblingValidationResult {
-  ok: boolean;
-  passRate: number;
-  totalSiblings: number;
-  passedCount: number;
-  canApprove: boolean;
-  results: Array<{
-    url: string;
-    success: boolean;
-    failureReasons: string[];
-    inspection: OutputFirstInspectionResult;
-  }>;
 }
 
 export async function validateSiblingUrls(
