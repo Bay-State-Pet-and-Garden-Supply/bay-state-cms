@@ -9,6 +9,7 @@ import { EvidenceRail } from './EvidenceRail';
 import { HistoryShell } from './HistoryShell';
 import { ProfileBuilder } from '../profile-builder/ProfileBuilder';
 import { OutputFirstWorkspace } from './OutputFirstWorkspace';
+import { InvestigationPanel } from './InvestigationPanel';
 import type { DomainProfileState } from '../../../db/repositories/domain-profile-state-repo';
 import { deriveReadinessState } from '../../../onboarding/profile-readiness';
 import { SuitePanel } from './SuitePanel';
@@ -441,6 +442,9 @@ export function ProfileWorkspacePage({ domain: rawDomain }: { domain: string }):
               void loadMatrix(versionId);
             }}
           />
+
+          {/* Section: Browser Investigation operator UI (#238) */}
+          <InvestigationPanel domain={domain} suiteUrls={suiteResp?.suite ?? []} />
 
           {/* Section 3: Selectors & Profile Builder (Repair Controls) */}
           <div
