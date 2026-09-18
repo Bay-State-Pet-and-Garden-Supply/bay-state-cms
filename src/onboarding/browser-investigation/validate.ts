@@ -373,6 +373,16 @@ function classifyWorkerFailure(result: PolicyWorkerResult): IdentityClassificati
   };
 }
 
+/** Exactly one candidate with a non-empty string key yields that key; anything else yields null. */
+function soleCandidateKey(candidates: unknown): string | null {
+  if (!Array.isArray(candidates)) return null;
+  if (candidates.length !== 1) return null;
+  const key = (candidates[0] as { variantKey?: unknown } | null | undefined)?.variantKey;
+  if (typeof key !== 'string') return null;
+  if (key.length === 0) return null;
+  return key;
+}
+
 /**
  * Affirmative single-variant signal (#241): the worker variant matrix with
  * exactly one candidate proves the page is single-variant. Only this
@@ -380,17 +390,7 @@ function classifyWorkerFailure(result: PolicyWorkerResult): IdentityClassificati
  * key — absence of variant data never satisfies it.
  */
 function singleVariantKeyOf(result: PolicyWorkerResult): string | null {
-  const matrixCandidates = result.variantMatrix?.candidates;
-  if (Array.isArray(matrixCandidates) && matrixCandidates.length === 1) {
-    const key = matrixCandidates[0]?.variantKey;
-    if (typeof key === 'string' && key) return key;
-  }
-  const candidates = result.candidates;
-  if (Array.isArray(candidates) && candidates.length === 1) {
-    const key = (candidates[0] as { variantKey?: unknown } | null)?.variantKey;
-    if (typeof key === 'string' && key) return key;
-  }
-  return null;
+  return soleCandidateKey(result.variantMatrix?.candidates) ?? soleCandidateKey(result.candidates);
 }
 
 /** Variant identity against the frozen expectation: exact key or trusted-identifier resolution. */

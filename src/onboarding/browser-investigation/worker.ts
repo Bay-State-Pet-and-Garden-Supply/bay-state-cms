@@ -140,10 +140,111 @@ export function createInvestigationWorker(
     return reconciled;
   }
 
+  /**
+   * List rows still `queued`, oldest-first. Returns null when the list
+   * itself failed (caller skips the workspace, same as the inline
+   * `continue`). Pure read path shared by every sweep.
+   */
+  function loadQueuedRows(store: InvestigationStore, workspaceId: string): InvestigationRecord[] | null {
+    let rows: InvestigationRecord[];
+    try {
+      rows = store.list(workspaceId);
+    } catch (err) {
+      log.error(`[InvestigationWorker] list failed for workspace ${workspaceId}:`, err);
+      return null;
+    }
+    return rows
+      .filter((r) => r.status === 'queued')
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  }
+
+  /**
+   * Re-read one row before dispatch (#244). Returns the row only when it
+   * is still `queued`; a find throw or a row that moved on (cancelled /
+   * discarded) yields null so the caller skips it, never resurrecting it.
+   */
+  function readStillQueued(
+    store: InvestigationStore,
+    workspaceId: string,
+    id: string,
+  ): InvestigationRecord | null {
+    let latest: InvestigationRecord | null | undefined;
+    try {
+      latest = store.find(workspaceId, id);
+    } catch {
+      return null;
+    }
+    if (!latest) return null;
+    if (latest.status !== 'queued') return null;
+    return latest;
+  }
+
+  /**
+   * Settle an unexpected dispatch throw. Only a row still `queued` after
+   * the throw is marked failed with the stable `provider_error` code —
+   * rows `runInvestigation` already settled (or moved on) are untouched.
+   */
+  function settleDispatchThrow(store: InvestigationStore, workspaceId: string, id: string, err: unknown): void {
+    try {
+      const after = store.find(workspaceId, id);
+      if (!after) return;
+      if (after.status !== 'queued') return;
+      const at = now().toISOString();
+      const detail = err instanceof Error ? err.message : String(err);
+      store.update(workspaceId, id, {
+        status: 'failed',
+        failureCode: 'provider_error',
+        failureDetail: `provider_error: investigation dispatch failed (${detail})`.slice(0, 500),
+        completedAt: at,
+        updatedAt: at,
+      });
+    } catch (markErr) {
+      log.error(`[InvestigationWorker] investigation ${id} failure-marking failed:`, markErr);
+    }
+  }
+
+  /**
+   * Dispatch one listed candidate. Returns true when the row was still
+   * queued and dispatched (success or settled failure both count as
+   * processed); false when the re-read skipped it.
+   */
+  async function dispatchOne(
+    store: InvestigationStore,
+    workspaceId: string,
+    candidate: InvestigationRecord,
+  ): Promise<boolean> {
+    // Re-read before dispatch: a queued row cancelled/discarded after
+    // listing must be skipped, never resurrected to running (#244).
+    const latest = readStillQueued(store, workspaceId, candidate.id);
+    if (!latest) return false;
+    try {
+      await run(store, latest.provider, workspaceId, latest.id);
+    } catch (err) {
+      // `runInvestigation` already records terminal state for known
+      // outcomes (provider/budget/resolve failures, cancellation).
+      // Fallback for unexpected dispatch throws: never leave queued
+      // forever — mark failed with the stable `provider_error` code.
+      settleDispatchThrow(store, workspaceId, latest.id, err);
+      log.error(`[InvestigationWorker] investigation ${latest.id} dispatch failed:`, err);
+    }
+    return true;
+  }
+
+  /** Sweep one workspace queue; returns queued investigations processed. */
+  async function sweepWorkspace(store: InvestigationStore, workspaceId: string): Promise<number> {
+    const queued = loadQueuedRows(store, workspaceId);
+    if (!queued) return 0;
+    let processed = 0;
+    for (const candidate of queued) {
+      const dispatched = await dispatchOne(store, workspaceId, candidate);
+      if (dispatched) processed += 1;
+    }
+    return processed;
+  }
+
   async function tickOnce(): Promise<number> {
     if (inFlight) return 0; // one writer
     inFlight = true;
-    let processed = 0;
     try {
       let store: InvestigationStore;
       try {
@@ -152,54 +253,9 @@ export function createInvestigationWorker(
         log.error('[InvestigationWorker] store unavailable:', err);
         return 0;
       }
+      let processed = 0;
       for (const workspaceId of resolveWorkspaceIds()) {
-        let queued: InvestigationRecord[] = [];
-        try {
-          const rows = store.list(workspaceId);
-          queued = rows
-            .filter((r) => r.status === 'queued')
-            .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
-        } catch (err) {
-          log.error(`[InvestigationWorker] list failed for workspace ${workspaceId}:`, err);
-          continue;
-        }
-        for (const candidate of queued) {
-          // Re-read before dispatch: a queued row cancelled/discarded after
-          // listing must be skipped, never resurrected to running (#244).
-          let latest: Awaited<ReturnType<InvestigationStore['find']>>;
-          try {
-            latest = store.find(workspaceId, candidate.id);
-          } catch {
-            continue;
-          }
-          if (!latest || latest.status !== 'queued') continue;
-          try {
-            await run(store, latest.provider, workspaceId, latest.id);
-          } catch (err) {
-            // `runInvestigation` already records terminal state for known
-            // outcomes (provider/budget/resolve failures, cancellation).
-            // Fallback for unexpected dispatch throws: never leave queued
-            // forever — mark failed with the stable `provider_error` code.
-            try {
-              const after = store.find(workspaceId, latest.id);
-              if (after && after.status === 'queued') {
-                const at = now().toISOString();
-                const detail = err instanceof Error ? err.message : String(err);
-                store.update(workspaceId, latest.id, {
-                  status: 'failed',
-                  failureCode: 'provider_error',
-                  failureDetail: `provider_error: investigation dispatch failed (${detail})`.slice(0, 500),
-                  completedAt: at,
-                  updatedAt: at,
-                });
-              }
-            } catch (markErr) {
-              log.error(`[InvestigationWorker] investigation ${latest.id} failure-marking failed:`, markErr);
-            }
-            log.error(`[InvestigationWorker] investigation ${latest.id} dispatch failed:`, err);
-          }
-          processed += 1;
-        }
+        processed += await sweepWorkspace(store, workspaceId);
       }
       return processed;
     } finally {
@@ -279,12 +335,6 @@ let singleton: InvestigationWorker | null = null;
 export function getInvestigationWorker(): InvestigationWorker {
   if (!singleton) singleton = createInvestigationWorker();
   return singleton;
-}
-
-/** Test seam: stop and clear the singleton (idempotent). */
-export function resetInvestigationWorkerForTest(): void {
-  singleton?.stop();
-  singleton = null;
 }
 
 /**
