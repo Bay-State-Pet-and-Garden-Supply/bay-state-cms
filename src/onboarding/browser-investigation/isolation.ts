@@ -18,15 +18,16 @@
 
 export const INVESTIGATION_CONTAINER_IMAGE = 'baystate/investigation-browser:1' as const;
 
-// ─── Tier 0 / Tier 1 network shape (recorded decision, #236) ───────────────
+// ─── Tier 0 / Tier 1 network shape (recorded decision, #236 + #237) ───────
 // Tier 0 (implemented): host-side broker fetch with in-container analysis.
 // Page bytes travel host → container on stdin as broker-approved captures;
 // the container has no egress of its own (`network none`, deny all) and
 // returns typed observations on stdout. The host never parses page bytes.
-// Tier 1 (deferred): a render container reusing the existing rendered-page
-// stack whose ONLY egress is a validating forward proxy.
-// That proxy, and the render container, do not exist yet — nothing here
-// implies them. See docs/plans/browser-investigation-design.md (addendum).
+// Tier 1 (implemented, #237): a render container reusing the existing
+// rendered-page stack whose ONLY egress is the validating forward proxy
+// (`render-proxy.ts`, host-side, broker-validated per request) on the
+// isolated render network. Direct container egress is denied at container
+// level (proven by the Tier 1 denial suite). See docs/plans/browser-investigation-design.md
 
 export const INVESTIGATION_NETWORK_SHAPE = {
   tier0: {
@@ -37,15 +38,67 @@ export const INVESTIGATION_NETWORK_SHAPE = {
     containerEgress: 'deny_all' as const,
   },
   tier1: {
-    implemented: false as const,
+    implemented: true as const,
     egress: 'proxy_only' as const,
-    note: 'deferred: render container with proxy-only egress to a validating forward proxy (#237)',
+    note: 'render container on the isolated render network; sole egress is the validating forward proxy (#237)',
   },
 } as const;
 
-/** Tier 1 rendered investigation stays explicitly deferred, never implied. */
+/** Tier 1 rendered investigation runs in the render container (proxy-only egress). */
 export const TIER1_RENDER_CONTAINER_STATUS =
-  'deferred: no render container and no validating forward proxy exist yet (#237)' as const;
+  'active: render container on the isolated render network with proxy-only egress to the validating forward proxy (#237)' as const;
+
+/** Pinned image for the Tier 1 render container (posture-pinned, like the Tier 0 image). */
+export const RENDER_CONTAINER_IMAGE = 'baystate/investigation-render:1' as const;
+
+/**
+ * Isolated Docker network for the Tier 1 render container. Created with
+ * `--internal` (no external route): the container's sole network path is
+ * the validating forward proxy, reached as a peer on this network. The
+ * proxy itself is host-side and validates every request through the
+ * broker policy before forwarding.
+ */
+export const RENDER_CONTAINER_NETWORK = 'binv-render-only' as const;
+
+/** Container path of the Tier 1 render-worker entrypoint (baked into the pinned render image, run under bun). */
+export const RENDER_WORKER_CONTAINER_ENTRYPOINT =
+  '/app/src/onboarding/browser-investigation/render-worker.ts' as const;
+
+/** Posture spec for one Tier 1 render-container run. */
+export interface RenderContainerSpec {
+  image: string;
+  /** Must be 'proxy-only': the container lives on the isolated render network. */
+  networkMode: string;
+  /** Docker network name. Must be the isolated render network. */
+  networkName: string;
+  /** Validating forward proxy URL (http, credential-free). The sole egress. */
+  proxyUrl: string;
+  privileged: boolean;
+  capDrop: string[];
+  capAdd: string[];
+  securityOpt: string[];
+  /** Non-root `uid:gid`. */
+  user: string;
+  readOnlyRootFilesystem: boolean;
+  /** Narrow bounded writable exceptions only (no host mounts). */
+  tmpfs: Record<string, string>;
+  /** Host bind mounts. Must always be empty. */
+  mounts: string[];
+  /**
+   * Environment passed into the container. Must be exactly the proxy
+   * declaration (proxy vars + empty NO_PROXY) — no secrets, no extras.
+   */
+  env: Record<string, string>;
+  cpus: number;
+  memory: string;
+  pidsLimit: number;
+  /** Browser flags. Must retain the sandbox (never `--no-sandbox`). */
+  browserArgs: string[];
+  /** Fresh per-run identifier (container name suffix). */
+  runId: string;
+  /** Teardown policy. Always 'always-remove'. */
+  teardown: string;
+}
 
 /** Container path of the Tier 0 analyzer entrypoint (baked into the pinned image). */
 // fallow-ignore-next-line unused-exports — analysis argv + tests
@@ -292,7 +345,8 @@ export function containerSpecToDockerArgs(spec: InvestigationContainerSpec): str
  * Same deny-by-default flags as {@link containerSpecToDockerArgs}, plus
  * `-i` (captures arrive on stdin; observations leave on stdout) and the
  * analyzer entrypoint as the container command. No proxy variables, no
- * extra mounts, no network beyond `none`: Tier 1 egress stays deferred.
+ * extra mounts, no network beyond `none`: Tier 0 analysis never renders,
+ * so it carries no proxy affordance at all.
  */
 // fallow-ignore-next-line unused-export — container runner + tests
 export function tier0AnalysisDockerArgs(spec: InvestigationContainerSpec): string[] {
@@ -301,6 +355,221 @@ export function tier0AnalysisDockerArgs(spec: InvestigationContainerSpec): strin
   // append the analyzer command after the image.
   const [run, ...rest] = base;
   return [run!, '-i', ...rest, 'node', TIER0_ANALYZER_CONTAINER_ENTRYPOINT];
+}
+
+// ─── Tier 1 render-container posture (proxy-only egress, #237) ───────────
+
+/**
+ * Build the investigation-only render-container spec for one run. Fresh
+ * state per run: the caller supplies a unique runId used as the container
+ * name suffix, plus the validating-forward-proxy URL that is the
+ * container's sole egress.
+ */
+// fallow-ignore-next-line unused-export — render runner + tests
+export function buildRenderContainerSpec(
+  runId: string,
+  proxyUrl: string,
+  overrides?: ContainerLimitOverrides,
+): RenderContainerSpec {
+  if (!runId || !/^[A-Za-z0-9_-]{1,128}$/.test(runId)) {
+    throw new IsolationError('runId required to scope fresh container state');
+  }
+  assertRenderProxyUrl(proxyUrl);
+  return {
+    image: RENDER_CONTAINER_IMAGE,
+    networkMode: 'proxy-only',
+    networkName: RENDER_CONTAINER_NETWORK,
+    proxyUrl,
+    privileged: false,
+    capDrop: ['ALL'],
+    capAdd: [],
+    securityOpt: ['no-new-privileges'],
+    user: '65532:65532',
+    readOnlyRootFilesystem: true,
+    tmpfs: {
+      '/tmp': 'size=256m,mode=1777',
+      '/home/browser': 'size=256m,mode=700',
+      '/dev/shm': 'size=512m,mode=1777',
+    },
+    mounts: [],
+    env: renderProxyEnv(proxyUrl),
+    cpus: overrides?.cpus ?? 2,
+    memory: overrides?.memory ?? '2g',
+    pidsLimit: overrides?.pidsLimit ?? 256,
+    browserArgs: [
+      '--headless=new',
+      '--disable-dev-shm-usage',
+      '--disable-extensions',
+      '--disable-sync',
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
+    runId,
+    teardown: 'always-remove',
+  };
+}
+
+/**
+ * The exact proxy declaration: standard proxy vars plus the worker-stack
+ * proxy knob (the Crawlee stack reads `BAYSTATE_CMS_WORKER_PROXY_URLS`,
+ * not the standard vars) plus an empty NO_PROXY (nothing bypasses the
+ * proxy). Credential-free by construction (asserted at build).
+ */
+function renderProxyEnv(proxyUrl: string): Record<string, string> {
+  return {
+    HTTP_PROXY: proxyUrl,
+    HTTPS_PROXY: proxyUrl,
+    http_proxy: proxyUrl,
+    https_proxy: proxyUrl,
+    BAYSTATE_CMS_WORKER_PROXY_URLS: proxyUrl,
+    NO_PROXY: '',
+    no_proxy: '',
+  };
+}
+
+/** The proxy URL is the container's sole egress: http(s), credential-free, no query/fragment. */
+function assertRenderProxyUrl(proxyUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(proxyUrl);
+  } catch {
+    throw new IsolationError('render proxy URL must be a valid http(s) URL');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new IsolationError('render proxy URL must be http(s)');
+  }
+  if (url.username || url.password) {
+    throw new IsolationError('render proxy URL must not carry credentials');
+  }
+  if (url.search || url.hash) {
+    throw new IsolationError('render proxy URL must carry no query or fragment');
+  }
+}
+
+/**
+ * Fail-closed posture assertion for the render container. Proxy-only
+ * egress means: the isolated render network (never host/bridge/none
+ * drift), the pinned render image, the exact proxy env (nothing else,
+ * nothing secret), and the same sandbox/limits/teardown discipline as
+ * Tier 0. Any deviation throws.
+ */
+// fallow-ignore-next-line unused-export — render runner + tests
+export function assertRenderContainerPosture(spec: RenderContainerSpec): void {
+  assertRenderNetwork(spec);
+  assertRenderProxyDeclaration(spec);
+  assertRenderSandbox(spec);
+}
+
+/** Isolated render network, pinned render image, fresh per-run state, deterministic teardown. */
+function assertRenderNetwork(spec: RenderContainerSpec): void {
+  if (spec.networkMode !== 'proxy-only') {
+    throw new IsolationError(`container posture violation: networkMode must be 'proxy-only', got '${spec.networkMode}'`);
+  }
+  if (spec.networkName !== RENDER_CONTAINER_NETWORK) {
+    throw new IsolationError(
+      `container posture violation: network must be the isolated render network ${RENDER_CONTAINER_NETWORK}`,
+    );
+  }
+  if (spec.image !== RENDER_CONTAINER_IMAGE) {
+    throw new IsolationError(`container posture violation: image must be the pinned render image ${RENDER_CONTAINER_IMAGE}`);
+  }
+  if (!spec.runId) throw new IsolationError('container posture violation: per-run fresh state requires a runId');
+  if (spec.teardown !== 'always-remove') {
+    throw new IsolationError('container posture violation: deterministic teardown (always-remove) required');
+  }
+}
+
+/** The env is exactly the credential-free proxy declaration (nothing else, nothing secret). */
+function assertRenderProxyDeclaration(spec: RenderContainerSpec): void {
+  assertRenderProxyUrl(spec.proxyUrl);
+  const expectedEnv = renderProxyEnv(spec.proxyUrl);
+  const keys = Object.keys(spec.env).sort();
+  const expectedKeys = Object.keys(expectedEnv).sort();
+  if (keys.length !== expectedKeys.length || !keys.every((k, i) => k === expectedKeys[i])) {
+    throw new IsolationError('container posture violation: render container env must be exactly the proxy declaration');
+  }
+  for (const [key, value] of Object.entries(spec.env)) {
+    if (expectedEnv[key] !== value) {
+      throw new IsolationError('container posture violation: render container proxy env mismatch');
+    }
+  }
+  assertNoSecretEnv(spec.env);
+}
+
+/** Same sandbox/limits discipline as Tier 0: non-root, dropped caps, read-only root, bounded tmpfs, no mounts. */
+function assertRenderSandbox(spec: RenderContainerSpec): void {
+  assertRenderIdentity(spec);
+  assertRenderFilesystem(spec);
+  assertRenderLimits(spec);
+  if (spec.browserArgs.includes('--no-sandbox')) {
+    throw new IsolationError('container posture violation: browser sandbox must be retained (no --no-sandbox workarounds)');
+  }
+}
+
+/** Non-root, dropped capabilities, no-new-privileges. */
+function assertRenderIdentity(spec: RenderContainerSpec): void {
+  if (spec.privileged) throw new IsolationError('container posture violation: privileged mode forbidden');
+  if (!spec.capDrop.includes('ALL')) throw new IsolationError('container posture violation: all Linux capabilities must be dropped');
+  if (spec.capAdd.length > 0) throw new IsolationError('container posture violation: no Linux capabilities may be added');
+  if (!spec.securityOpt.includes('no-new-privileges')) {
+    throw new IsolationError('container posture violation: no-new-privileges required');
+  }
+  if (!spec.user || spec.user === 'root' || spec.user === '0' || spec.user === '0:0') {
+    throw new IsolationError('container posture violation: non-root user required');
+  }
+}
+
+/** Read-only root, narrow bounded tmpfs, no host mounts. */
+function assertRenderFilesystem(spec: RenderContainerSpec): void {
+  if (!spec.readOnlyRootFilesystem) throw new IsolationError('container posture violation: read-only root filesystem required');
+  assertTmpfsBounds(spec.tmpfs);
+  assertNoHostMounts(spec.mounts);
+}
+
+/** Explicit non-unlimited CPU, memory, and process limits. */
+function assertRenderLimits(spec: RenderContainerSpec): void {
+  if (!(spec.cpus > 0) || spec.cpus > 16) throw new IsolationError('container posture violation: explicit CPU limit required (0 < cpus <= 16)');
+  if (!/^\d+[mg]$/i.test(spec.memory)) throw new IsolationError('container posture violation: explicit memory limit required (e.g. 2g)');
+  if (!(spec.pidsLimit > 0) || spec.pidsLimit > 4096) {
+    throw new IsolationError('container posture violation: explicit process limit required');
+  }
+}
+
+/**
+ * Translate the render posture spec to `docker run` argv. The argv is the
+ * auditable artifact: Tier 1 tests assert the proxy-only flags here AND
+ * exercise them against a live daemon (direct egress denied at container
+ * level, proxy channel open). `-i` carries the render task on stdin;
+ * typed observations leave on stdout.
+ */
+// fallow-ignore-next-line unused-export — render runner + tests
+export function renderContainerDockerArgs(spec: RenderContainerSpec): string[] {
+  assertRenderContainerPosture(spec);
+  const args = [
+    'run',
+    '-i',
+    '--rm',
+    `--name=${containerNameForRun(spec.runId)}`,
+    `--network=${spec.networkName}`,
+    // The ONLY host route: the validating forward proxy via the
+    // host-gateway alias (the proxy URL advertises host.docker.internal).
+    // No other extra hosts, no host networking — direct egress stays denied.
+    '--add-host=host.docker.internal:host-gateway',
+    '--cap-drop=ALL',
+    '--security-opt=no-new-privileges',
+    `--user=${spec.user}`,
+    '--read-only',
+  ];
+  for (const [path, opts] of Object.entries(spec.tmpfs)) args.push(`--tmpfs=${path}:${opts}`);
+  args.push(`--cpus=${spec.cpus}`, `--memory=${spec.memory}`, `--pids-limit=${spec.pidsLimit}`);
+  for (const [key, value] of Object.entries(spec.env)) args.push(`--env=${key}=${value}`);
+  // Bun runs the TypeScript worker directly (no build step); the image
+  // pre-installs production deps + headless Chromium (see
+  // docker/investigation-render/Dockerfile).
+  args.push(spec.image, 'bun', RENDER_WORKER_CONTAINER_ENTRYPOINT);
+  return args;
 }
 
 // ─── Availability gating ──────────────────────────────────────────────────

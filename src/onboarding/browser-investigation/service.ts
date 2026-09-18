@@ -278,6 +278,7 @@ function toFailureCode(err: unknown): { code: InvestigationFailureCode; detail: 
       cancelled: 'cancelled',
       isolation_unavailable: 'isolation_unavailable',
       cloud_disabled: 'cloud_disabled',
+      holdout_exposed: 'holdout_exposed',
     };
     const code = map[err.code] ?? 'provider_error';
     return { code, detail: err.message.slice(0, 500) };

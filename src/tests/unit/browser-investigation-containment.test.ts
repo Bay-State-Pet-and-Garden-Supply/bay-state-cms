@@ -49,6 +49,13 @@ describe('no egress outside the broker (static)', () => {
     'src/onboarding/browser-investigation/tier0-analyzer.mjs',
     'src/onboarding/browser-investigation/tier0-analyzer-cli.mjs',
     'src/onboarding/browser-investigation/container-runner.ts',
+    // #237: Tier 1 host modules. The model context is pure (no network);
+    // the render runner only spawns the container runtime CLI (no sockets
+    // of its own). The validating forward proxy (`render-proxy.ts`) and
+    // the in-container worker (`render-worker.ts`) are the AUTHORIZED
+    // additional surfaces — asserted separately below, never in this list.
+    'src/onboarding/browser-investigation/model-context.ts',
+    'src/onboarding/browser-investigation/render-runner.ts',
   ];
   const EGRESS_PATTERNS = [
     /http\.request\s*\(/,
@@ -86,6 +93,11 @@ describe('no egress outside the broker (static)', () => {
     expect(broker).toContain('rejectUnauthorized: true');
     // No CONNECT tunneling, no proxy tunneling, no websocket upgrade.
     expect(broker).not.toMatch(/CONNECT\s+tunnel.*allow|allow.*CONNECT/i);
+    // #237: the validating forward proxy adds no second transport — its
+    // sole upstream is broker.fetch (transport-level singularity holds).
+    const proxy = readSource('src/onboarding/browser-investigation/render-proxy.ts');
+    expect(proxy).toMatch(/broker\.fetch\(/);
+    expect(proxy).not.toMatch(/http\.request\s*\(|http\.get\s*\(/);
   });
 });
 

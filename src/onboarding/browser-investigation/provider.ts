@@ -52,7 +52,10 @@ export class InvestigationProviderError extends Error {
     | 'budget_not_enforceable'
     | 'cancelled'
     | 'isolation_unavailable'
-    | 'cloud_disabled';
+    | 'cloud_disabled'
+    // #237 Tier 1 model-context blindness: reserved-holdout material in the
+    // reasoning context fails the run with the validation-stage code.
+    | 'holdout_exposed';
   constructor(
     code: InvestigationProviderError['code'],
     message: string,

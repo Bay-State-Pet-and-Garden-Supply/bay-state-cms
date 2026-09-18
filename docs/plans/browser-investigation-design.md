@@ -244,11 +244,10 @@ Recorded network-shape decision (also encoded in code as
   fails closed with `isolation_unavailable` and never falls back to host
   execution. Teardown (`docker rm -f` on the deterministic container name)
   runs on success, failure, timeout, and cancellation.
-- **Tier 1 (explicitly deferred, #237): render container with proxy-only
-  egress.** A rendered investigation reusing the existing rendered-page stack
-  inside a container whose only egress is a validating forward proxy does not
-  exist yet. Nothing in the Tier 0 argv, image, or docs implies it: the Tier 0
-  container has no proxy variables and no network beyond `none`.
+- **Tier 1 (implemented, #237): render container with proxy-only
+  egress.** See the Tier 1 addendum below. Nothing in the Tier 0 argv,
+  image, or docs implies it: the Tier 0 container has no proxy variables
+  and no network beyond `none`.
 
 Image build (rebuild whenever the analyzer files change; `:1` is the
 posture-pinned artifact the runner asserts):
@@ -263,3 +262,52 @@ and stay daemon-free; live container execution (real `docker run` per run,
 envelope parsing, teardown verification) is proven by
 `browser-investigation-tier0-container.test.ts` whenever a daemon is
 available, and skips loudly otherwise.
+
+## Addendum: Tier 1 rendered investigation + bounded model reasoning (#237)
+
+Recorded Tier 1 implementation (also encoded in code as
+`INVESTIGATION_NETWORK_SHAPE.tier1` in `src/onboarding/browser-investigation/isolation.ts`):
+
+- **Render container, proxy-only egress.** The render container
+  (`baystate/investigation-render:1`, `docker/investigation-render/Dockerfile`)
+  runs the Tier 1 render worker (`render-worker.ts`, reusing the existing
+  rendered-page stack with the pre-warmed Playwright backend) on the
+  isolated render network (`binv-render-only`, `--internal`: no external
+  route). Its env carries ONLY the validating-forward-proxy declaration
+  (standard proxy vars + `BAYSTATE_CMS_WORKER_PROXY_URLS` + empty NO_PROXY)
+  plus one `--add-host=host.docker.internal:host-gateway` alias — the sole
+  host route. The validating forward proxy (`render-proxy.ts`, host-side,
+  per-run) forwards ONLY broker-validated GETs (`broker.fetch` is its sole
+  upstream); CONNECT tunnels, non-GET methods, and non-absolute targets are
+  refused. Direct egress denial is proven at container level by the Tier 1
+  denial suite (probe container on the render argv shape: external fetch
+  fails, proxy-channel fetch succeeds).
+- **Engagement.** Tier 1 render runs ONLY when Tier 0 reports no DOM
+  evidence. An unavailable render container (image/network missing) or an
+  unstartable proxy is a visible gap with the Tier 0 verdict standing —
+  never host-side rendering. An engaged render that fails
+  (budget/time/worker) fails the run closed. Rendered observations merge as
+  `page_rendered` evidence anchored to host-retained artifacts (result hash
+  is the retained bytes' hash; the worker snapshot hash rides in detail).
+- **Bounded model reasoning.** One call, only on operator opt-in
+  (`modelPolicy.allowCloudTextAnalysis`) with a configured reasoner;
+  unconfigured is a visible gap and deterministic Tier 0 stands. The
+  context (`model-context.ts`) is holdout-blind by construction (no
+  holdout/failure/report/metadata/knownContext-value/page-body channel;
+  reserved holdouts probed, `holdout_exposed` on match), redacted (bounded
+  detail, hashes, key names only), and budget pre-checked. Output is
+  advisory-only (strategy display prose + gaps; no identity/fields/
+  structures/platform channel), input/output charged to the run ledger,
+  timed against the remaining budget. Usage reports counted calls and the
+  acting model identity — 0/app-authored-read-plan for Tier 0 alone.
+
+Image builds (rebuild whenever the worker/stack changes; tags are the
+posture-pinned artifacts the runners assert):
+
+```sh
+docker build -t baystate/investigation-browser:1 \
+  -f docker/investigation-browser/Dockerfile .
+docker build -t baystate/investigation-render:1 \
+  -f docker/investigation-render/Dockerfile .
+docker network create --internal binv-render-only
+```

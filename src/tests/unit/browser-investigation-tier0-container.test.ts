@@ -605,23 +605,23 @@ describe('Tier 0 / Tier 1 network shape (recorded decision)', () => {
     expect(INVESTIGATION_NETWORK_SHAPE.tier0.containerEgress).toBe('deny_all');
   });
 
-  it('marks the Tier 1 proxy-only render container explicitly deferred, not implied', () => {
-    expect(INVESTIGATION_NETWORK_SHAPE.tier1.implemented).toBe(false);
-    expect(TIER1_RENDER_CONTAINER_STATUS).toMatch(/deferred/i);
+  it('marks the Tier 1 proxy-only render container implemented (#237), not implied by Tier 0', () => {
+    expect(INVESTIGATION_NETWORK_SHAPE.tier1.implemented).toBe(true);
+    expect(TIER1_RENDER_CONTAINER_STATUS).toMatch(/proxy-only egress/);
     expect(`${TIER1_RENDER_CONTAINER_STATUS} ${INVESTIGATION_NETWORK_SHAPE.tier1.note}`.toLowerCase())
       .toMatch(/proxy/);
   });
 
-  it('records the Tier 0 / Tier 1 shape in docs, with Tier 1 deferred not implied', () => {
+  it('records the Tier 0 / Tier 1 shape in docs, with Tier 1 implemented not implied', () => {
     const design = readFileSync(
       new URL('../../../docs/plans/browser-investigation-design.md', import.meta.url),
       'utf8',
     );
-    expect(design).toMatch(/Tier 1.*deferred/s);
+    expect(design).toMatch(/Tier 1.*implemented/s);
     expect(design).toMatch(/proxy-only/);
     const context = readFileSync(new URL('../../../CONTEXT.md', import.meta.url), 'utf8');
     expect(context).toMatch(/Tier 1 Rendered Investigation/);
-    expect(context).toMatch(/no render container and no validating proxy exist yet/);
+    expect(context).toMatch(/validating forward proxy/);
   });
 
   it('builds Tier 0 analysis argv from the posture spec with stdin attached and no proxy', () => {
@@ -635,7 +635,8 @@ describe('Tier 0 / Tier 1 network shape (recorded decision)', () => {
     expect(joined).toContain('--network=none');
     // The container executes the analyzer over piped captures, nothing else.
     expect(argv.slice(-3)).toEqual([spec.image, 'node', '/app/tier0-analyzer-cli.mjs']);
-    // No proxy affordance anywhere: Tier 1 egress is deferred, not half-wired.
+    // No proxy affordance anywhere: Tier 0 analysis never renders, so the
+    // proxy declaration lives only in the render argv (Tier 1).
     expect(joined).not.toMatch(/proxy/i);
     expect(joined).not.toMatch(/HTTP_PROXY|HTTPS_PROXY|ALL_PROXY/i);
   });
