@@ -16,6 +16,7 @@
     "test:db-catalog": "bun test src/tests/unit/catalog-classification-db.test.ts",
     "classification:integrity": "bun scripts/classification-integrity.ts",
     "sourcing:live-smoke": "bun scripts/sourcing-live-smoke.ts",
+    "browser-investigation:live-smoke": "bun scripts/browser-investigation-live-smoke.ts",
     "worker:dev": "node --import ./preload/crawlee-storage.mjs --import tsx src/extraction-worker/server.ts",
     "worker:start": "node --import ./preload/crawlee-storage.mjs dist/extraction-worker/server.js",
     "rebuild:native": "npm rebuild better-sqlite3",

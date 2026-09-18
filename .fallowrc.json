@@ -224,6 +224,24 @@
       "exports": [
         "*"
       ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/drift.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/telemetry.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/live-smoke.ts",
+      "exports": [
+        "*"
+      ]
     }
   ]
 }

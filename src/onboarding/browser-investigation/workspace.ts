@@ -61,10 +61,15 @@ export function describeInvestigationCost(usage: InvestigationUsage | null): Inv
   };
 }
 
-function modelDisplay(model: InvestigationRecord['requestedModel']): string {
+/** Operator display for requested/actual model metadata (unreported when absent). */
+export function describeInvestigationModel(model: InvestigationRecord['requestedModel']): string {
   if (!model) return 'unreported';
   const parts = [model.provider, model.model ?? model.requested ?? model.actual].filter(Boolean);
   return parts.length > 0 ? parts.join('/') : 'unreported';
+}
+
+function modelDisplay(model: InvestigationRecord['requestedModel']): string {
+  return describeInvestigationModel(model);
 }
 
 export interface InvestigationEvidenceSummary {

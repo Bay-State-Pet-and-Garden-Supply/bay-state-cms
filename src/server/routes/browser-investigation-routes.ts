@@ -12,6 +12,10 @@
 // GET  /api/domains/:domain/investigations/:id/workspace (T5: operator view)
 // GET  /api/domains/:domain/investigations/:id/proposal (T2: compile only)
 // POST /api/domains/:domain/investigations/:id/apply (T2: inactive draft)
+// POST /api/domains/:domain/investigations/:id/validate (T4: worker validation)
+// GET  /api/domains/:domain/investigations/:id/validation (T4: validation ref)
+// GET  /api/domains/:domain/investigations/:id/telemetry (T6: runtime telemetry)
+// GET  /api/domains/:domain/investigations/:id/drift-proposal (T6: smallest-change repair)
 //
 // All routes are workspace-scoped via getCurrentWorkspace. Foreign-workspace
 // access is rejected without leaking cross-workspace state. No activation,
@@ -57,7 +61,14 @@ import { getActiveVersion } from '../../db/repositories/profile-version-repo';
 import { getMatrixResult } from '../../onboarding/profile-test-matrix';
 import { runProfileExtraction } from '../../onboarding/profile-runner-client';
 import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
+import { compileInvestigationResult } from '../../onboarding/browser-investigation/compiler';
+import { proposeDriftRepair } from '../../onboarding/browser-investigation/drift';
 import { fakeInvestigationProvider, FakeInvestigationScenarioSchema } from '../../onboarding/browser-investigation/fake-provider';
+import {
+  describeInvestigationTelemetry,
+  withCompileGapCount,
+} from '../../onboarding/browser-investigation/telemetry';
+import { extractionPolicyOfSelectors } from '../../shared/schemas/browser-investigation-policy';
 import {
   getInvestigationProvider,
   registerInvestigationProvider,
@@ -617,6 +628,94 @@ browserInvestigationRoutes.get('/domains/:domain/investigations/:id/validation',
       id,
     ),
   }));
+});
+
+/**
+ * Pure re-compilation of a stored investigation result for read-only
+ * routes (telemetry gap counts, drift proposals). No persistence, no
+ * provider calls — the proposal route remains the persisting read path.
+ */
+function compileStoredResult(record: ReturnType<typeof getInvestigation>) {
+  if (!record.result || !record.resultHash) return null;
+  try {
+    return compileInvestigationResult(record.result, {
+      domain: record.domain,
+      investigationId: record.id,
+      runId: record.runId,
+      inputHash: record.inputHash,
+      resultHash: record.resultHash,
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ─── T6: runtime telemetry ───────────────────────────────────────────────
+// GET /api/domains/:domain/investigations/:id/telemetry — operator-visible
+// telemetry derived from persisted investigation + validation state.
+// Actual usage/cost or explicit unavailable (billed vs estimated never
+// fabricated); wrong-product / wrong-variant signals included; keys,
+// prompts, and page content never leave the workspace tables. Read-only.
+browserInvestigationRoutes.get('/domains/:domain/investigations/:id/telemetry', (c) => {
+  const ctx = c as never as RouteContext;
+  const id = ctx.req.param('id') ?? '';
+  return withInvestigationScope(ctx, 200, (workspaceId, store) => {
+    const record = getInvestigation(store, workspaceId, id);
+    const validation = getProposalValidation(
+      { investigations: store, validations: createSqliteValidationStore() },
+      workspaceId,
+      id,
+    );
+    let telemetry = describeInvestigationTelemetry(record, validation);
+    const outcome = compileStoredResult(record);
+    if (outcome) {
+      telemetry = withCompileGapCount(
+        telemetry,
+        outcome.status === 'proposal' ? outcome.gaps.length : null,
+      );
+    }
+    return { telemetry };
+  });
+});
+
+// ─── T6: drift-repair proposal ───────────────────────────────────────────
+// GET /api/domains/:domain/investigations/:id/drift-proposal — smallest
+// supported deterministic change from the frozen last-healthy baseline to
+// the freshly compiled proposal. Pure derivation over stored state: no
+// provider calls, no automatic reruns, no auto-promotion. The returned
+// proposal must still travel validate → human-review → governed-activation.
+browserInvestigationRoutes.get('/domains/:domain/investigations/:id/drift-proposal', (c) => {
+  const ctx = c as never as RouteContext;
+  const id = ctx.req.param('id') ?? '';
+  return withInvestigationScope(ctx, 200, (workspaceId, store) => {
+    const record = getInvestigation(store, workspaceId, id);
+    const domain = normalizeInvestigationDomain(ctx.req.param('domain') ?? record.domain);
+    const outcome = compileStoredResult(record);
+    if (!outcome) {
+      return {
+        driftProposal: proposeDriftRepair({
+          baselinePolicy: null,
+          outcome: { status: 'unresolved', gaps: [{ kind: 'missing_field_evidence', detail: 'investigation has no typed result to compile' }] },
+          affectedFields: [],
+          failureCodes: [],
+        }),
+      };
+    }
+    const driftContext = productionDriftContext(domain);
+    const affectedFields = driftContext.available ? driftContext.affectedFields : [];
+    const failureCodes = driftContext.available ? driftContext.failureCodes : [];
+    const baselinePolicy: unknown = (() => {
+      try {
+        const active = getActiveVersion(domain);
+        return active ? extractionPolicyOfSelectors(active.selectors) : null;
+      } catch {
+        return null;
+      }
+    })();
+    return {
+      driftProposal: proposeDriftRepair({ baselinePolicy, outcome, affectedFields, failureCodes }),
+    };
+  });
 });
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/:id/discard', async (c) => {
