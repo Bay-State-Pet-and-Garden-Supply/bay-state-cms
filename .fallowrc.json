@@ -108,19 +108,13 @@
     {
       "file": "src/shared/schemas/browser-investigation-policy.ts",
       "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/holdouts.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/workspace.ts",
-      "exports": [
-        "*"
+        "InvestigationStructure",
+        "ProposalStructure",
+        "PolicyIdentity",
+        "CodeAdapterNeed",
+        "FieldPolicy",
+        "InvestigationPlatform",
+        "CodeAdapterRequest"
       ]
     },
     {
@@ -221,24 +215,6 @@
     },
     {
       "file": "src/shared/profile-fields.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/drift.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/telemetry.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/live-smoke.ts",
       "exports": [
         "*"
       ]

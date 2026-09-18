@@ -35,7 +35,7 @@ export const POLICY_FIELDS = [
 ] as const;
 export type PolicyField = (typeof POLICY_FIELDS)[number];
 
-export const PolicyFieldSchema = z.enum(POLICY_FIELDS);
+const PolicyFieldSchema = z.enum(POLICY_FIELDS);
 
 /**
  * Supported versioned extraction primitives — the ONLY source kinds the
@@ -57,7 +57,7 @@ export const PolicyFieldSchema = z.enum(POLICY_FIELDS);
  * adapter) is reported as an unresolved gap or `requires_code_adapter` —
  * never persisted as executable policy.
  */
-export const SUPPORTED_POLICY_SOURCES = [
+const SUPPORTED_POLICY_SOURCES = [
   'shopify_product_json',
   'json_ld',
   'microdata',
@@ -67,17 +67,14 @@ export const SUPPORTED_POLICY_SOURCES = [
 ] as const;
 export type SupportedPolicySource = (typeof SUPPORTED_POLICY_SOURCES)[number];
 
-export const SupportedPolicySourceSchema = z.enum(SUPPORTED_POLICY_SOURCES);
+const SupportedPolicySourceSchema = z.enum(SUPPORTED_POLICY_SOURCES);
 
 export function isSupportedPolicySource(value: string): value is SupportedPolicySource {
   return (SUPPORTED_POLICY_SOURCES as readonly string[]).includes(value);
 }
 
 /** Maximum selector-exception length (bounded data, matching the T3 grammar cap). */
-export const MAX_POLICY_SELECTOR_LENGTH = 512;
-/** Maximum selector exceptions per proposal: at most one per field. */
-export const MAX_POLICY_SELECTOR_EXCEPTIONS = POLICY_FIELDS.length;
-
+const MAX_POLICY_SELECTOR_LENGTH = 512;
 /**
  * Substrings/patterns that disqualify a proposed selector. Selectors are
  * read-only element queries — never scripts, URLs, style directives, or
@@ -175,7 +172,7 @@ export const CodeAdapterNeedSchema = z.object({
 export type CodeAdapterNeed = z.infer<typeof CodeAdapterNeedSchema>;
 
 /** One compiled per-field policy entry: ordered supported sources plus an optional selector exception. */
-export const FieldPolicySchema = z.object({
+const FieldPolicySchema = z.object({
   field: PolicyFieldSchema,
   sources: z.array(SupportedPolicySourceSchema).min(1).max(6),
   selector: z.string().min(1).max(MAX_POLICY_SELECTOR_LENGTH).optional(),
@@ -200,7 +197,7 @@ export type InvestigationPlatform = z.infer<typeof InvestigationPlatformSchema>;
  * binding (investigationId/runId/inputHash/resultHash) so stale or replayed
  * applications are rejected at apply time.
  */
-export const ExtractionPolicyProposalSchema = z.object({
+const ExtractionPolicyProposalSchema = z.object({
   version: z.literal(EXTRACTION_POLICY_VERSION),
   domain: z.string().min(1).max(253),
   investigationId: z.string().min(1),
@@ -234,7 +231,7 @@ export const UnresolvedGapSchema = z.object({
 export type UnresolvedGap = z.infer<typeof UnresolvedGapSchema>;
 
 /** Typed `requires_code_adapter` outcome: evidence succeeded, no supported runtime primitive exists. */
-export const CodeAdapterRequestSchema = z.object({
+const CodeAdapterRequestSchema = z.object({
   summary: z.string().min(1).max(500),
   capability: z.string().min(1).max(200),
   reason: z.string().min(1).max(2000),
