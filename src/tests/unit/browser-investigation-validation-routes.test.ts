@@ -148,6 +148,20 @@ describe('T4 validation persistence and route wiring', () => {
     expect(getInvestigationValidationState(WS_MAIN, id)?.validationJson).toBeNull();
   });
 
+  it('rejects a name-only expected identity without invoking the production worker (#241)', async () => {
+    const rep = `https://${DOMAIN}/products/alpha`;
+    const id = await launchSamples([rep]);
+    const res = await postJson(`/api/domains/${DOMAIN}/investigations/${id}/validate`, {
+      samples: [
+        { url: rep, role: 'representative', expected: { name: 'Alpha' } },
+      ],
+    });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.json)).toMatch(/untrusted_expectation/);
+    // No validation reference was persisted for the rejected run.
+    expect(getInvestigationValidationState(WS_MAIN, id)?.validationJson).toBeNull();
+  });
+
   it('rejects validation on non-completed investigations', async () => {
     const launched = await postJson(`/api/domains/${DOMAIN}/investigations`, {
       sampleUrls: [`https://${DOMAIN}/products/queued-1`],

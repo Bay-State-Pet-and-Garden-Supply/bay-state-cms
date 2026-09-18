@@ -497,7 +497,10 @@ export function classifyIdentity(sample: ValidationSampleInput, result: PolicyWo
     checkProductIdentity(sample.expected, result, selectedKey, parentId) ?? {
       outcome: 'match' as const,
       reasons: [],
-      selectedKey,
+      // #241 single-variant match: persist the effective variant key used
+      // for the comparison (the affirmative single-variant signal when no
+      // key resolved) so identityCellFor records the real variant key.
+      selectedKey: selectedKey ?? singleVariantKeyOf(result),
       parentId,
     }
   );
