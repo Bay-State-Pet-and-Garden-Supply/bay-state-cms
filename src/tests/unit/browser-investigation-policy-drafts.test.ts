@@ -15,6 +15,7 @@ import {
   initInvestigationDb,
   postJson,
   teardownInvestigationDb,
+  waitForInvestigationTerminal,
 } from './helpers/browser-investigation-route-suite';
 import {
   createVersion,
@@ -281,6 +282,10 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
       sampleUrls: [`https://${domain}/products/beta`],
     });
     expect(second.status).toBe(201);
+    // #243 async launch: queued immediately; wait for the background run to
+    // reach terminal state before discarding (discard requires terminal).
+    expect(second.json.investigation.status).toBe('queued');
+    await waitForInvestigationTerminal(domain, second.json.investigation.id as string);
     const versionsBefore = listVersions(domain).map((v) => v.id);
     const healthBefore = evaluateActiveVersionHealth(domain);
     const discarded = await postJson(

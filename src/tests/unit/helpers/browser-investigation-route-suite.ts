@@ -64,3 +64,49 @@ export function teardownInvestigationDb(tempDir: string): void {
   closeDb();
   if (tempDir && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
 }
+
+const TERMINAL_INVESTIGATION_STATUSES = new Set(['completed', 'failed', 'cancelled', 'discarded']);
+
+/**
+ * #243 bounded poll helper: async launches return the queued row
+ * immediately, so suites that need the terminal outcome wait for it instead
+ * of asserting immediate completion. Polls the status read route until the
+ * row reaches a terminal state; throws on timeout without weakening the
+ * caller's assertions.
+ */
+export interface InvestigationTerminalStatus {
+  id: string;
+  status: string;
+  failureCode: string | null;
+  updatedAt: string;
+}
+
+export async function waitForInvestigationTerminal(
+  domain: string,
+  id: string,
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<InvestigationTerminalStatus> {
+  const timeoutMs = opts?.timeoutMs ?? 15000;
+  const intervalMs = opts?.intervalMs ?? 25;
+  const start = Date.now();
+  let last: InvestigationTerminalStatus | null = null;
+  for (;;) {
+    const res = await getJson(`/api/domains/${domain}/investigations/${id}/status`);
+    if (res.status === 200 && res.json?.status) {
+      last = res.json.status as InvestigationTerminalStatus;
+      if (TERMINAL_INVESTIGATION_STATUSES.has(last.status)) return last;
+    }
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for terminal investigation ${id} (last=${JSON.stringify(last)})`);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+/** Wait for terminal state, then read back the full investigation record. */
+export async function waitForInvestigationRecord(domain: string, id: string): Promise<any> {
+  await waitForInvestigationTerminal(domain, id);
+  const res = await getJson(`/api/domains/${domain}/investigations/${id}`);
+  if (res.status !== 200) throw new Error(`investigation ${id} unreadable after terminal wait (status ${res.status})`);
+  return res.json.investigation;
+}

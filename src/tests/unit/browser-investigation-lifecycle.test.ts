@@ -14,6 +14,8 @@ import {
   initInvestigationDb,
   postJson,
   teardownInvestigationDb,
+  waitForInvestigationRecord,
+  waitForInvestigationTerminal,
 } from './helpers/browser-investigation-route-suite';
 import {
   findActiveInvestigation,
@@ -71,7 +73,13 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
       sampleUrls: [`https://${domain}/products/alpha`],
     });
     expect(status).toBe(201);
-    const inv = json.investigation;
+    // #243 async launch: the operator gets the queued row immediately.
+    expect(json.investigation.status).toBe('queued');
+    const id = json.investigation.id as string;
+    const terminal = await waitForInvestigationTerminal(domain, id);
+    expect(terminal.status).toBe('failed');
+    expect(terminal.failureCode).toBe('isolation_unavailable');
+    const inv = await waitForInvestigationRecord(domain, id);
     expect(inv.workspaceId).toBe(WS_MAIN);
     expect(inv.domain).toBe(domain);
     expect(inv.mode).toBe('domain_onboarding');
@@ -98,8 +106,11 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     expect(status).toBe(201);
     expect(json.investigation.mode).toBe('drift_repair');
     expect(json.investigation.provider).toBe('local_browser_harness');
-    expect(json.investigation.status).toBe('failed');
-    expect(json.investigation.failureCode).toBe('isolation_unavailable');
+    // #243 async launch: queued immediately, terminal off the request path.
+    expect(json.investigation.status).toBe('queued');
+    const terminal = await waitForInvestigationTerminal(domain, json.investigation.id as string);
+    expect(terminal.status).toBe('failed');
+    expect(terminal.failureCode).toBe('isolation_unavailable');
   });
 
   it('diagnostics reads make zero provider calls; only an explicit launch dispatches (negative invariant)', async () => {
@@ -113,6 +124,9 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     });
     expect(launched.status).toBe(201);
     expect(launched.json.investigation.provider).toBe('local_browser_harness');
+    // #243 async launch: queued immediately; the background worker dispatches once.
+    expect(launched.json.investigation.status).toBe('queued');
+    await waitForInvestigationTerminal(domain, launched.json.investigation.id as string);
     // Exactly one provider dispatch per explicit investigation run.
     expect(getInvestigationProviderCallCount()).toBe(1);
   });
@@ -138,6 +152,26 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     const cancel = await postJson(`/api/domains/${domain}/investigations/${first.json.investigation.id}/cancel`, {});
     expect(cancel.status).toBe(200);
     void store;
+  });
+
+  it('concurrent launches for the same domain keep exactly one active investigation (#243)', async () => {
+    const domain = `concurrent-${Date.now()}.example.com`;
+    const body = {
+      sampleUrls: [`https://${domain}/products/alpha`],
+      queueOnly: true,
+    };
+    const [first, second] = await Promise.all([
+      postJson(`/api/domains/${domain}/investigations`, body),
+      postJson(`/api/domains/${domain}/investigations`, body),
+    ]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([201, 409]);
+    const winner = first.status === 201 ? first : second;
+    const loser = first.status === 409 ? first : second;
+    expect(winner.json.investigation.status).toBe('queued');
+    expect(String(loser.json.error)).toMatch(/conflict_active_investigation/);
+    const cancel = await postJson(`/api/domains/${domain}/investigations/${winner.json.investigation.id}/cancel`, {});
+    expect(cancel.status).toBe(200);
   });
 
   it('foreign-workspace reads are rejected without leaking state', async () => {
@@ -208,7 +242,11 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     expect(res.status).toBe(201);
     // Stripped, never honored: still the real harness, not a fake failure.
     expect(res.json.investigation.provider).toBe('local_browser_harness');
-    expect(res.json.investigation.failureCode).toBe('isolation_unavailable');
+    // #243 async launch: queued immediately, terminal off the request path.
+    expect(res.json.investigation.status).toBe('queued');
+    const terminal = await waitForInvestigationTerminal(domain, res.json.investigation.id as string);
+    expect(terminal.status).toBe('failed');
+    expect(terminal.failureCode).toBe('isolation_unavailable');
   });
 
   it('replayed completions against terminal investigations are rejected', async () => {

@@ -2,6 +2,7 @@ import { serve } from 'bun';
 import app from './app';
 import { createStoreManagerScheduler } from './services/store-manager-scheduler';
 import { createStoreManagerEventWorker } from './services/store-manager-event-worker';
+import { getInvestigationWorker } from '../onboarding/browser-investigation/worker';
 import { getStoreManagerFlags } from '../store-manager/flags';
 import { pruneStoreManagerRetention } from '../db/store-manager-operations-migration';
 import { findWorkspace } from '../db/repositories/workspace-repo';
@@ -34,9 +35,19 @@ const eventWorkerStarted = (() => {
   return true;
 })();
 
+// ── Browser Investigation background worker (#243): sequential worker-loop
+// that runs QUEUED investigations off the HTTP launch path. Always started
+// (explicit operator requests must always make progress — no flag or kill
+// switch gates it, unlike the Store Manager automation workers above).
+// Reuses the same sequential worker-loop pattern and the existing
+// browser_investigations rows as the queue: no new queue system/table. ────
+const investigationWorker = getInvestigationWorker();
+investigationWorker.start();
+
 const shutdown = async () => {
   storeManagerScheduler.stop();
   storeManagerEventWorker.stop();
+  investigationWorker.stop();
   if (retentionTimer) clearInterval(retentionTimer);
   // Amendment B (M2): release all in-memory Distributor Scraper sessions
   // (cookies/credentials are never persisted; browsers are closed).
@@ -86,6 +97,7 @@ const server = serve({
 console.log(`Bay State CMS API server running on http://${HOST}:${PORT}`);
 console.log(`Store Manager scheduler: ${schedulerStarted ? 'running' : 'inert (flag off or kill switch on)'}`);
 console.log(`Store Manager event worker: ${eventWorkerStarted ? 'running' : 'inert (flag off or kill switch on)'}`);
+console.log(`Investigation worker: ${investigationWorker.running ? 'running' : 'stopped'}`);
 console.log(`Store Manager retention: ${retentionStarted ? 'running (startup + hourly)' : 'inert (flag off or kill switch on)'}`);
 if (process.env.BAYSTATE_CMS_API_TOKEN) {
   console.log(`API token authentication is enabled for mutating requests.`);

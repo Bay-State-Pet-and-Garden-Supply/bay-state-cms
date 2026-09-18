@@ -36,11 +36,11 @@ import {
   getInvestigation,
   getInvestigationStatus,
   listInvestigations,
-  requestAndRunInvestigation,
   requestInvestigation,
   InvestigationServiceError,
   type InvestigationStore,
 } from '../../onboarding/browser-investigation/service';
+import { scheduleInvestigationDispatch } from '../../onboarding/browser-investigation/worker';
 import { createSqliteInvestigationStore, createSqliteProposalStore, createSqliteValidationStore } from '../../onboarding/browser-investigation/store';
 import { applyProposalToDraft, compileProposalForInvestigation, type ApplyProposalResult } from '../../onboarding/browser-investigation/apply';
 import {
@@ -180,9 +180,12 @@ const LaunchBodySchema = z.object({
     })
     .optional(),
   knownContext: z.record(z.string(), z.unknown()).optional(),
-  // Launch without running (queue only). Default runs immediately through
-  // the real harness (fails closed with `isolation_unavailable` when the
-  // isolated runtime is not enabled).
+  // #243 internal/test seam: `queueOnly: true` creates the queued row
+  // without scheduling background dispatch (tests drive the run explicitly
+  // via the service). Absent/false is the operator default: the launch
+  // responds immediately with the queued investigation and the background
+  // worker runs it off the request path (queued -> running -> terminal
+  // observable through the existing read routes).
   queueOnly: z.boolean().optional(),
 });
 
@@ -230,15 +233,26 @@ async function handleLaunch(
   // before (and after) the bounded run. Enforcement lives at the
   // broker/capture/dispatch layers, not in this preview.
   const budgets = describeInvestigationBudget(resolveInvestigationBudget(parsed.data.budget));
-  // requestAndRun returns the failed/cancelled record instead of throwing
-  // for terminal provider outcomes; throws here mean validation/conflict.
-  return withInvestigationScope(c, 201, async (workspaceId, store) => ({
-    budgets,
-    ...(driftContext ? { driftContext } : {}),
-    investigation: parsed.data.queueOnly
-      ? requestInvestigation(store, { ...input, workspaceId })
-      : await requestAndRunInvestigation(store, { ...input, workspaceId }),
-  }));
+  // #243 async launch: create the queued investigation, return its id
+  // immediately, and run it off the request path through the background
+  // worker. Throws here mean validation/conflict only — provider outcomes
+  // land on the row as queued -> running -> terminal, observable through
+  // the existing read routes. The active-per-workspace-and-domain guard
+  // lives in `requestInvestigation` (check-then-insert runs synchronously
+  // with no await between, so concurrent launches cannot both insert).
+  return withInvestigationScope(c, 201, async (workspaceId, store) => {
+    const investigation = requestInvestigation(store, { ...input, workspaceId });
+    if (!parsed.data.queueOnly) {
+      // Fire-and-forget: never awaited, never throws — the interval sweep
+      // is the backstop, so the row cannot stay queued on a scheduling miss.
+      scheduleInvestigationDispatch(workspaceId, investigation.id);
+    }
+    return {
+      budgets,
+      ...(driftContext ? { driftContext } : {}),
+      investigation,
+    };
+  });
 }
 
 /**

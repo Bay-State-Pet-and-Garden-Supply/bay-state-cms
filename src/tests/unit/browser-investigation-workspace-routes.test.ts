@@ -136,6 +136,8 @@ describe('T5 workspace view and drift entry routes', () => {
       knownContext: { operatorNote: 'price changed overnight' },
     });
     expect(launched.status).toBe(201);
+    // #243 async launch: queued immediately with the entry context attached.
+    expect(launched.json.investigation.status).toBe('queued');
     expect(launched.json.driftContext.available).toBe(false);
     const stored = launched.json.investigation.inputSnapshot.knownContext as Record<string, unknown>;
     expect(stored.operatorNote).toBe('price changed overnight');
