@@ -723,6 +723,14 @@ _Avoid_: Sitemap guess, search result, unreviewed candidate
 A Profile Validation Sample withheld from Browser Investigation and proposal tuning, reserved for independently testing the proposed extraction policy rather than establishing statistical generalization. A sample disclosed during investigation or tuning is no longer a holdout for that proposal.
 _Avoid_: Agent-visible holdout, representative training sample, reused tuning evidence
 
+**Tier 0 Static Reconnaissance**:
+The default Browser Investigation runtime: host-side broker fetch of approved pages with deterministic analysis inside an isolated container that has no network egress of its own. Page bytes are never processed in the host; only typed observations leave the container. No model reasoning is involved.
+_Avoid_: Host-side scraping, rendered browser, model-led browsing
+
+**Tier 1 Rendered Investigation**:
+A future Browser Investigation runtime that renders pages in an isolated container whose only egress is a validating forward proxy, plus bounded model reasoning over redacted observations. Explicitly deferred: no render container and no validating proxy exist yet, and Tier 0 implies neither.
+_Avoid_: Unrestricted browser, direct-egress rendering, implied proxy
+
 **Curation** (v2 canonical `prepare_listing` / Prepare listing — owner-approved 2026-09-08):
 The pipeline stage that synthesizes final clean store-ready titles (integrating spreadsheet hints, web scraped details, and local packaging OCR) and classifies products into internal product types and existing category pages.
 

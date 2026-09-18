@@ -26,9 +26,10 @@ import {
   type LocalHarnessDeps,
 } from '../../onboarding/browser-investigation/local-harness';
 import {
+  assertContainerPosture,
   releaseInvestigationSlot,
-  type ContainerRunner,
 } from '../../onboarding/browser-investigation/isolation';
+import type { Tier0ContainerRunner } from '../../onboarding/browser-investigation/container-runner';
 import type { BrokerTransport } from '../../onboarding/browser-investigation/broker';
 
 const ENV_KEY = 'BAYSTATE_INVESTIGATION_ISOLATION';
@@ -69,16 +70,32 @@ function lookupPublic(host: string): Promise<string[]> {
   return Promise.resolve([PUBLIC_IP]);
 }
 
+// Test-only double for the Tier 0 container runner: executes the same analyzer
+// code in-process so deterministic suites stay daemon-free. Production always
+// executes in-container (DockerTier0ContainerRunner); a missing container
+// fails closed and never falls back to this path.
+function inProcessTier0Runner(tornDown: string[]): Tier0ContainerRunner {
+  return {
+    start: async (spec) => void assertContainerPosture(spec),
+    runAnalysis: async (_spec, request) => {
+      const { analyzeTier0Captures } = await import(
+        '../../onboarding/browser-investigation/tier0-analyzer.mjs'
+      );
+      return analyzeTier0Captures(request);
+    },
+    teardown: async (runId: string) => void tornDown.push(runId),
+  };
+}
+
 function harness(
   deps: LocalHarnessDeps = {},
   transport?: BrokerTransport,
 ): { provider: LocalBrowserHarnessProvider; tornDown: string[] } {
   const tornDown: string[] = [];
-  const runner: ContainerRunner = { teardown: async (runId: string) => void tornDown.push(runId) };
   const provider = new LocalBrowserHarnessProvider({
     isolationProbe: { dockerReachable: async () => true },
     brokerDeps: { lookup: lookupPublic, transport: transport ?? htmlTransport(PAGE_HTML) },
-    containerRunner: runner,
+    containerRunner: inProcessTier0Runner(tornDown),
     ...deps,
   });
   return { provider, tornDown };

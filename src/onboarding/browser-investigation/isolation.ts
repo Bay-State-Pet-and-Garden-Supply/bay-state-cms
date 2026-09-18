@@ -17,6 +17,40 @@
 // gating are Vitest-exercisable without a daemon.
 
 export const INVESTIGATION_CONTAINER_IMAGE = 'baystate/investigation-browser:1' as const;
+
+// ─── Tier 0 / Tier 1 network shape (recorded decision, #236) ───────────────
+// Tier 0 (implemented): host-side broker fetch with in-container analysis.
+// Page bytes travel host → container on stdin as broker-approved captures;
+// the container has no egress of its own (`network none`, deny all) and
+// returns typed observations on stdout. The host never parses page bytes.
+// Tier 1 (deferred): a render container reusing the existing rendered-page
+// stack whose ONLY egress is a validating forward proxy.
+// That proxy, and the render container, do not exist yet — nothing here
+// implies them. See docs/plans/browser-investigation-design.md (addendum).
+
+export const INVESTIGATION_NETWORK_SHAPE = {
+  tier0: {
+    implemented: true as const,
+    fetchLocation: 'host_broker' as const,
+    analysisLocation: 'container' as const,
+    containerNetwork: 'none' as const,
+    containerEgress: 'deny_all' as const,
+  },
+  tier1: {
+    implemented: false as const,
+    egress: 'proxy_only' as const,
+    note: 'deferred: render container with proxy-only egress to a validating forward proxy (#237)',
+  },
+} as const;
+
+/** Tier 1 rendered investigation stays explicitly deferred, never implied. */
+export const TIER1_RENDER_CONTAINER_STATUS =
+  'deferred: no render container and no validating forward proxy exist yet (#237)' as const;
+
+/** Container path of the Tier 0 analyzer entrypoint (baked into the pinned image). */
+// fallow-ignore-next-line unused-exports — analysis argv + tests
+// (consumed via tier0AnalysisDockerArgs; asserted by argv tests)
+export const TIER0_ANALYZER_CONTAINER_ENTRYPOINT = '/app/tier0-analyzer-cli.mjs' as const;
 /** Container user is a numeric non-root uid:gid (`65532:65532`); never `root`. */
 
 export interface InvestigationContainerSpec {
@@ -253,6 +287,22 @@ export function containerSpecToDockerArgs(spec: InvestigationContainerSpec): str
   return args;
 }
 
+/**
+ * Translate the posture spec to `docker run` argv for one Tier 0 analysis.
+ * Same deny-by-default flags as {@link containerSpecToDockerArgs}, plus
+ * `-i` (captures arrive on stdin; observations leave on stdout) and the
+ * analyzer entrypoint as the container command. No proxy variables, no
+ * extra mounts, no network beyond `none`: Tier 1 egress stays deferred.
+ */
+// fallow-ignore-next-line unused-export — container runner + tests
+export function tier0AnalysisDockerArgs(spec: InvestigationContainerSpec): string[] {
+  const base = containerSpecToDockerArgs(spec);
+  // base = ['run', '--rm', ...flags, image]; insert '-i' after 'run' and
+  // append the analyzer command after the image.
+  const [run, ...rest] = base;
+  return [run!, '-i', ...rest, 'node', TIER0_ANALYZER_CONTAINER_ENTRYPOINT];
+}
+
 // ─── Availability gating ──────────────────────────────────────────────────
 
 export interface IsolationProbe {
@@ -323,6 +373,8 @@ export function isInvestigationSlotHeld(): boolean {
   return slotHeld;
 }
 
+// fallow-ignore-next-line unused-types — teardown-only seam
+// (withIsolatedRun contract; full runners extend it structurally)
 export interface ContainerRunner {
   /** Remove the run container. Must be idempotent and never throw. */
   teardown(runId: string): Promise<void>;

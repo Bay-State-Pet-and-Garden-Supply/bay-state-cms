@@ -242,6 +242,25 @@
       "exports": [
         "*"
       ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/container-runner.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/isolation.ts",
+      "exports": [
+        "TIER0_ANALYZER_CONTAINER_ENTRYPOINT",
+        "ContainerRunner"
+      ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/tier0-analyzer.mjs",
+      "exports": [
+        "Tier0AnalyzerError"
+      ]
     }
   ]
 }

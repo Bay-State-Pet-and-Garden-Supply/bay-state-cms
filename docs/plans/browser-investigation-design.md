@@ -226,3 +226,40 @@ Checked 2026-09-17; public contracts can change and must be rechecked before any
 - [OSS browser parameters](https://docs.browser-use.com/open-source/customize/browser/all-parameters), [tools](https://docs.browser-use.com/open-source/customize/tools/available), [security watchdog source](https://github.com/browser-use/browser-use/blob/main/browser_use/browser/watchdogs/security_watchdog.py): tool/navigation controls do not replace all-request DNS/egress enforcement.
 
 The read-only audit verified API shapes and existing code; it did not prove live isolation or execute an investigation. Those remain implementation acceptance work.
+
+## Addendum: Tier 0 containerized execution (#236)
+
+Recorded network-shape decision (also encoded in code as
+`INVESTIGATION_NETWORK_SHAPE` in `src/onboarding/browser-investigation/isolation.ts`):
+
+- **Tier 0 (implemented): host-side broker fetch with in-container analysis.**
+  The host performs only broker-mediated captures and artifact retention
+  (hashing). The fixed read plan executes inside the investigation container
+  (`baystate/investigation-browser:1`, `--network=none`) as the
+  dependency-free analyzer (`tier0-analyzer.mjs` via `tier0-analyzer-cli.mjs`):
+  captures arrive on stdin, typed observations leave on stdout as a versioned
+  envelope. The container launches zero fetches of its own; the host never
+  parses page bytes (no DOM library in `local-harness.ts`). Missing or
+  unavailable isolation — including a runner that cannot execute analysis —
+  fails closed with `isolation_unavailable` and never falls back to host
+  execution. Teardown (`docker rm -f` on the deterministic container name)
+  runs on success, failure, timeout, and cancellation.
+- **Tier 1 (explicitly deferred, #237): render container with proxy-only
+  egress.** A rendered investigation reusing the existing rendered-page stack
+  inside a container whose only egress is a validating forward proxy does not
+  exist yet. Nothing in the Tier 0 argv, image, or docs implies it: the Tier 0
+  container has no proxy variables and no network beyond `none`.
+
+Image build (rebuild whenever the analyzer files change; `:1` is the
+posture-pinned artifact the runner asserts):
+
+```sh
+docker build -t baystate/investigation-browser:1 \
+  -f docker/investigation-browser/Dockerfile .
+```
+
+Deterministic suites inject an explicitly labeled in-process analyzer double
+and stay daemon-free; live container execution (real `docker run` per run,
+envelope parsing, teardown verification) is proven by
+`browser-investigation-tier0-container.test.ts` whenever a daemon is
+available, and skips loudly otherwise.

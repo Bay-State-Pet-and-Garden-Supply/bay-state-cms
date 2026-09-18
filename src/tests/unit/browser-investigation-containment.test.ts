@@ -43,6 +43,12 @@ describe('no egress outside the broker (static)', () => {
     'src/onboarding/browser-investigation/budgets.ts',
     'src/onboarding/browser-investigation/isolation.ts',
     'src/onboarding/browser-investigation/artifacts.ts',
+    // #236: the container boundary. The analyzer executes in-container over
+    // piped captures with zero network surface; the runner only spawns the
+    // container runtime CLI (no sockets of its own).
+    'src/onboarding/browser-investigation/tier0-analyzer.mjs',
+    'src/onboarding/browser-investigation/tier0-analyzer-cli.mjs',
+    'src/onboarding/browser-investigation/container-runner.ts',
   ];
   const EGRESS_PATTERNS = [
     /http\.request\s*\(/,
