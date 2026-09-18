@@ -8,11 +8,12 @@
 // submitted validation status and holdout counts/identities are rejected as
 // `validation_untrusted` credentials — so this module exposes no builder
 // that could produce them, and `buildApplyBody` returns exactly one key.
-// Validation sends sample references (URL + role + trusted expected name),
-// never verdicts or holdout counts. Launch sends sample URLs only (never a
-// provider id or test scenario knob); reserved holdouts are excluded from
-// launch candidates so blind-holdout material is never exposed to the
-// investigator through the UI.
+// Validation sends sample references (URL + role + trusted expected
+// identity: name + parent productId + at least one trusted identifier),
+// never verdicts or holdout counts (#241 fail-closed, #242 form). Launch
+// sends sample URLs only (never a provider id or test scenario knob);
+// reserved holdouts are excluded from launch candidates so blind-holdout
+// material is never exposed to the investigator through the UI.
 
 interface LaunchBody {
   sampleUrls: string[];
@@ -20,17 +21,39 @@ interface LaunchBody {
 
 type ValidationSampleRole = 'representative' | 'holdout';
 
+export type ValidationExpectationField =
+  | 'expectedName'
+  | 'expectedProductId'
+  | 'expectedGtin'
+  | 'expectedSku'
+  | 'expectedPlatformVariantId'
+  | 'expectedVariantKey';
+
 export interface ValidationSampleEntry {
   url: string;
   role: ValidationSampleRole;
   expectedName: string;
+  /** Trusted parent product ID the worker must prove product identity against (#241). */
+  expectedProductId: string;
+  /** Trusted identifiers — at least one must be present (#241). */
+  expectedGtin: string;
+  expectedSku: string;
+  expectedPlatformVariantId: string;
+  expectedVariantKey: string;
 }
 
 interface ValidateBody {
   samples: Array<{
     url: string;
     role: ValidationSampleRole;
-    expected: { name: string };
+    expected: {
+      name: string;
+      productId: string;
+      gtin?: string;
+      sku?: string;
+      platformVariantId?: string;
+      variantKey?: string;
+    };
   }>;
   baselineVersionId?: string;
 }
@@ -113,9 +136,47 @@ export function reservedHoldoutsCovered(
 }
 
 /**
- * Validate body: sample references (URL + role + trusted expected name).
- * Never carries verdicts, holdout counts, or validation status — the server
- * persists the validation reference and Apply binds it by hash.
+ * Per-sample trusted-expectation problems (#242). Each message names
+ * exactly the missing field so the form can render it inline and block
+ * submission instead of sending a name-only sample. Mirrors the
+ * server-side trusted-identity rule (#241) without importing server code.
+ */
+export function validationExpectationProblems(entry: ValidationSampleEntry): string[] {
+  const problems: string[] = [];
+  if (!entry.expectedName.trim()) {
+    problems.push(`sample ${entry.url} needs an expected product name`);
+  }
+  if (!entry.expectedProductId.trim()) {
+    problems.push(
+      `sample ${entry.url} needs a trusted parent productId \u2014 the worker must prove product identity`,
+    );
+  }
+  const hasIdentifier =
+    !!entry.expectedGtin.trim() ||
+    !!entry.expectedSku.trim() ||
+    !!entry.expectedPlatformVariantId.trim() ||
+    !!entry.expectedVariantKey.trim();
+  if (!hasIdentifier) {
+    problems.push(
+      `sample ${entry.url} needs a trusted identifier (gtin, sku, platformVariantId, or variantKey) \u2014 ` +
+        'names alone cannot prove variant identity',
+    );
+  }
+  return problems;
+}
+
+/** True when the entry carries a name plus the full trusted identity (#241). */
+export function isTrustedValidationEntry(entry: ValidationSampleEntry): boolean {
+  return validationExpectationProblems(entry).length === 0;
+}
+
+/**
+ * Validate body: sample references (URL + role + trusted expected
+ * identity). Never carries verdicts, holdout counts, or validation status
+ * — the server persists the validation reference and Apply binds it by
+ * hash (#234). Every sample must carry a trusted parent product ID plus at
+ * least one trusted identifier, or the builder throws naming the missing
+ * field before anything is sent (#241 fail-closed, #242 form).
  */
 export function buildValidateBody(
   entries: ValidationSampleEntry[],
@@ -128,12 +189,24 @@ export function buildValidateBody(
     if (e.role !== 'representative' && e.role !== 'holdout') {
       throw new Error(`sample ${e.url} needs a representative/holdout role`);
     }
-    const name = e.expectedName.trim();
-    if (!name) throw new Error(`sample ${e.url} needs an expected product name`);
+    const problems = validationExpectationProblems(e);
+    if (problems.length > 0) throw new Error(problems[0]);
+    const expected: ValidateBody['samples'][number]['expected'] = {
+      name: e.expectedName.trim().slice(0, 512),
+      productId: e.expectedProductId.trim().slice(0, 256),
+    };
+    const gtin = e.expectedGtin.trim().slice(0, 32);
+    const sku = e.expectedSku.trim().slice(0, 512);
+    const platformVariantId = e.expectedPlatformVariantId.trim().slice(0, 256);
+    const variantKey = e.expectedVariantKey.trim().slice(0, 256);
+    if (gtin) expected.gtin = gtin;
+    if (sku) expected.sku = sku;
+    if (platformVariantId) expected.platformVariantId = platformVariantId;
+    if (variantKey) expected.variantKey = variantKey;
     return {
       url: assertHttpUrl(e.url, 'sample URL'),
       role: e.role,
-      expected: { name: name.slice(0, 512) },
+      expected,
     };
   });
   const body: ValidateBody = { samples };

@@ -17,11 +17,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   isReservedUrl,
+  isTrustedValidationEntry,
   launchCandidatesOf,
   reservedHoldoutsCovered,
+  validationExpectationProblems,
   type InvestigationAppliedView,
   type InvestigationDriftContextView,
   type InvestigationWorkspaceView,
+  type ValidationExpectationField,
   type ValidationSampleEntry,
 } from './investigation-contracts';
 import {
@@ -382,14 +385,16 @@ function customUrlRefusal(url: string, reservedUrls: string[]): string | null {
 
 interface ValidationControls {
   entries: ValidationSampleEntry[];
-  setExpectedName: (entry: ValidationSampleEntry, value: string) => void;
+  setExpectedField: (entry: ValidationSampleEntry, field: ValidationExpectationField, value: string) => void;
+  problemsByKey: Record<string, string[]>;
+  allTrusted: boolean;
   coverageMet: boolean;
   validate: () => Promise<void>;
   validating: boolean;
   validateError: string | null;
 }
 
-/** Validate-proposal controls: every reserved holdout must run. */
+/** Validate-proposal controls: every sample needs a trusted identity and every reserved holdout must run. */
 function useValidationControls(args: {
   domain: string;
   selectedId: string | null;
@@ -398,7 +403,7 @@ function useValidationControls(args: {
   refreshWorkspace: (id: string) => Promise<void>;
 }): ValidationControls {
   const { domain, selectedId, workspace, reservedUrls, refreshWorkspace } = args;
-  const [expectedNames, setExpectedNames] = useState<Record<string, string>>({});
+  const [edits, setEdits] = useState<Record<string, Partial<Record<ValidationExpectationField, string>>>>({});
   const [validating, setValidating] = useState(false);
   const [validateError, setValidateError] = useState<string | null>(null);
 
@@ -406,27 +411,52 @@ function useValidationControls(args: {
     () =>
       validationEntries(workspace, reservedUrls).map((entry) => ({
         ...entry,
-        expectedName: expectedNames[sampleKey(entry)] ?? '',
+        ...(edits[sampleKey(entry)] as Partial<ValidationSampleEntry> | undefined),
       })),
-    [workspace, reservedUrls, expectedNames],
+    [workspace, reservedUrls, edits],
   );
-  const setExpectedName = useCallback((entry: ValidationSampleEntry, value: string): void => {
-    setExpectedNames((previous) => ({ ...previous, [sampleKey(entry)]: value }));
-  }, []);
-  const filled = useMemo(() => entries.filter((entry) => entry.expectedName.trim()), [entries]);
-  const coverageMet = reservedUrls.length === 0 || reservedHoldoutsCovered(filled, reservedUrls);
+  const setExpectedField = useCallback(
+    (entry: ValidationSampleEntry, field: ValidationExpectationField, value: string): void => {
+      const key = sampleKey(entry);
+      setEdits((previous) => ({ ...previous, [key]: { ...previous[key], [field]: value } }));
+    },
+    [],
+  );
+  const problemsByKey = useMemo(() => {
+    const problems: Record<string, string[]> = {};
+    for (const entry of entries) {
+      problems[sampleKey(entry)] = validationExpectationProblems(entry);
+    }
+    return problems;
+  }, [entries]);
+  const allTrusted = useMemo(
+    () => entries.length > 0 && entries.every((entry) => isTrustedValidationEntry(entry)),
+    [entries],
+  );
+  const trustedEntries = useMemo(() => entries.filter((entry) => isTrustedValidationEntry(entry)), [entries]);
+  const coverageMet = reservedUrls.length === 0 || reservedHoldoutsCovered(trustedEntries, reservedUrls);
 
   const validate = useCallback(async (): Promise<void> => {
     if (!selectedId) return;
-    const rows = entries.filter((entry) => entry.expectedName.trim());
-    if (!reservedHoldoutsCovered(rows, reservedUrls)) {
-      setValidateError('Every reserved holdout must run — fill in the expected name for each holdout row.');
+    if (entries.length === 0) {
+      setValidateError('No validation samples — confirm representatives or reserve a holdout first.');
+      return;
+    }
+    for (const entry of entries) {
+      const problems = validationExpectationProblems(entry);
+      if (problems.length > 0) {
+        setValidateError(problems[0]);
+        return;
+      }
+    }
+    if (!reservedHoldoutsCovered(entries, reservedUrls)) {
+      setValidateError('Every reserved holdout must run — fill in the trusted identity for each holdout row.');
       return;
     }
     setValidating(true);
     setValidateError(null);
     try {
-      await validateInvestigation(domain, selectedId, rows);
+      await validateInvestigation(domain, selectedId, entries);
       await refreshWorkspace(selectedId);
     } catch (error) {
       setValidateError(messageOf(error));
@@ -435,7 +465,7 @@ function useValidationControls(args: {
     }
   }, [domain, selectedId, entries, reservedUrls, refreshWorkspace]);
 
-  return { entries, setExpectedName, coverageMet, validate, validating, validateError };
+  return { entries, setExpectedField, problemsByKey, allTrusted, coverageMet, validate, validating, validateError };
 }
 
 /** Representative + reserved-holdout rows for the validate action. */
@@ -451,11 +481,21 @@ function validationEntries(
     url,
     role: 'representative',
     expectedName: '',
+    expectedProductId: '',
+    expectedGtin: '',
+    expectedSku: '',
+    expectedPlatformVariantId: '',
+    expectedVariantKey: '',
   }));
   const holdouts: ValidationSampleEntry[] = reservedUrls.map((url) => ({
     url,
     role: 'holdout',
     expectedName: '',
+    expectedProductId: '',
+    expectedGtin: '',
+    expectedSku: '',
+    expectedPlatformVariantId: '',
+    expectedVariantKey: '',
   }));
   return [...representatives, ...holdouts];
 }

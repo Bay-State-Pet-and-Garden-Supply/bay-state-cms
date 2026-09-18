@@ -9,7 +9,7 @@
 import React from 'react';
 import { colors, fonts, rounded } from '../../theme';
 import type { BudgetRow } from '../../investigation-api';
-import type { InvestigationWorkspaceView, ValidationSampleEntry } from './investigation-contracts';
+import type { InvestigationWorkspaceView, ValidationExpectationField, ValidationSampleEntry } from './investigation-contracts';
 import type { InvestigationPanelController } from './investigation-panel-controller';
 import {
   AlertBox,
@@ -345,29 +345,68 @@ function RolePill({ role }: { role: string }): React.ReactElement {
   );
 }
 
-function ValidationSampleRow({
-  entry,
+function ExpectationInput({
+  value,
+  placeholder,
   onChange,
 }: {
-  entry: ValidationSampleEntry;
+  value: string;
+  placeholder: string;
   onChange: (value: string) => void;
 }): React.ReactElement {
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-      <RolePill role={entry.role} />
-      <span
-        style={{ fontFamily: fonts.mono, fontSize: 11, color: colors.ledgerCharcoal, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        title={entry.url}
-      >
-        {shortPath(entry.url)}
-      </span>
-      <input
-        type="text"
-        value={entry.expectedName}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Expected product name"
-        style={{ ...textInput, width: 220 }}
-      />
+    <input
+      type="text"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      style={{ ...textInput, width: '100%', boxSizing: 'border-box' }}
+    />
+  );
+}
+
+function ValidationSampleRow({
+  entry,
+  problems,
+  onChange,
+}: {
+  entry: ValidationSampleEntry;
+  problems: string[];
+  onChange: (field: ValidationExpectationField, value: string) => void;
+}): React.ReactElement {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        padding: 8,
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: rounded.sm,
+      }}
+    >
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <RolePill role={entry.role} />
+        <span
+          style={{ fontFamily: fonts.mono, fontSize: 11, color: colors.ledgerCharcoal, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          title={entry.url}
+        >
+          {shortPath(entry.url)}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 6 }}>
+        <ExpectationInput value={entry.expectedName} placeholder="Expected product name" onChange={(value) => onChange('expectedName', value)} />
+        <ExpectationInput value={entry.expectedProductId} placeholder="Parent product ID" onChange={(value) => onChange('expectedProductId', value)} />
+        <ExpectationInput value={entry.expectedGtin} placeholder="GTIN" onChange={(value) => onChange('expectedGtin', value)} />
+        <ExpectationInput value={entry.expectedSku} placeholder="SKU" onChange={(value) => onChange('expectedSku', value)} />
+        <ExpectationInput value={entry.expectedPlatformVariantId} placeholder="Platform variant ID" onChange={(value) => onChange('expectedPlatformVariantId', value)} />
+        <ExpectationInput value={entry.expectedVariantKey} placeholder="Variant key" onChange={(value) => onChange('expectedVariantKey', value)} />
+      </div>
+      {problems.length > 0 && (
+        <div role="alert" style={{ ...hint, color: colors.signetBurgundy, fontWeight: 600 }}>
+          {problems.join('; ')}
+        </div>
+      )}
     </div>
   );
 }
@@ -394,26 +433,41 @@ function CoverageRefusalHint({ shown }: { shown: boolean }): React.ReactElement 
   if (!shown) return null;
   return (
     <div style={{ ...hint, marginBottom: 8 }}>
-      Every reserved holdout must run — fill in the expected name for each holdout row.
+      Every reserved holdout must run — fill in the trusted identity (parent product ID plus a trusted identifier) for each holdout row.
+    </div>
+  );
+}
+
+function IncompleteIdentityHint({ shown }: { shown: boolean }): React.ReactElement | null {
+  if (!shown) return null;
+  return (
+    <div style={{ ...hint, marginBottom: 8 }}>
+      Each sample needs a trusted parent product ID plus at least one trusted identifier (GTIN, SKU, platform variant ID, or variant key) — a name alone never proves identity.
     </div>
   );
 }
 
 function ValidationActionCard({ controller }: { controller: InvestigationPanelController }): React.ReactElement {
   const { validation, workspace } = controller;
-  const disabled = validation.validating || workspace?.actions?.validate.allowed !== true || !validation.coverageMet;
+  const disabled =
+    validation.validating || workspace?.actions?.validate.allowed !== true || !validation.allTrusted || !validation.coverageMet;
   return (
     <ActionCardShell title="Validate proposal" availability={availabilityLine(workspace?.actions?.validate)}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+      <div style={{ ...hint, marginBottom: 8 }}>
+        Trusted identity per sample — the server rejects name-only samples as untrusted_expectation.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
         {validation.entries.map((entry) => (
           <ValidationSampleRow
             key={`${entry.role}:${entry.url}`}
             entry={entry}
-            onChange={(value) => validation.setExpectedName(entry, value)}
+            problems={validation.problemsByKey[`${entry.role}:${entry.url}`] ?? []}
+            onChange={(field, value) => validation.setExpectedField(entry, field, value)}
           />
         ))}
       </div>
       <CoverageRefusalHint shown={!validation.coverageMet && controller.reservedUrls.length > 0} />
+      <IncompleteIdentityHint shown={!validation.allTrusted} />
       <button type="button" onClick={() => void validation.validate()} disabled={disabled} style={primaryButton(disabled)}>
         {validation.validating ? 'Validating…' : 'Run validation'}
       </button>

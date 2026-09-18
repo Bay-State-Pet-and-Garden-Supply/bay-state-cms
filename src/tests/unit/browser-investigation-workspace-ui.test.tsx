@@ -32,8 +32,10 @@ import {
   buildLaunchBody,
   buildValidateBody,
   isReservedUrl,
+  isTrustedValidationEntry,
   launchCandidatesOf,
   reservedHoldoutsCovered,
+  validationExpectationProblems,
   type InvestigationWorkspaceView,
   type ValidationSampleEntry,
 } from '../../client/components/profile-workspace/investigation-contracts';
@@ -46,6 +48,19 @@ import {
   listInvestigations,
   validateInvestigation,
 } from '../../client/investigation-api';
+
+function trustedEntry(url: string, role: 'representative' | 'holdout', name: string): ValidationSampleEntry {
+  return {
+    url,
+    role,
+    expectedName: name,
+    expectedProductId: 'gid://shopify/Product/999001',
+    expectedGtin: '810001234501',
+    expectedSku: '',
+    expectedPlatformVariantId: '',
+    expectedVariantKey: '',
+  };
+}
 
 function setTextInput(input: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -149,17 +164,49 @@ describe('request contracts (server-authoritative apply)', () => {
     expect(() => buildApplyBody('  ')).toThrow(/actor required/);
   });
 
-  it('validate body carries references (URL + role + expected name), never counts', () => {
+  it('validate body carries trusted identity (parent productId + identifier), never verdicts or counts', () => {
     const body = buildValidateBody([
-      { url: REP_A, role: 'representative', expectedName: 'Alpha' },
-      { url: HOLDOUT, role: 'holdout', expectedName: 'Holdout One' },
+      trustedEntry(REP_A, 'representative', 'Alpha'),
+      trustedEntry(HOLDOUT, 'holdout', 'Holdout One'),
     ]);
     expect(body.samples).toEqual([
-      { url: REP_A, role: 'representative', expected: { name: 'Alpha' } },
-      { url: HOLDOUT, role: 'holdout', expected: { name: 'Holdout One' } },
+      {
+        url: REP_A,
+        role: 'representative',
+        expected: { name: 'Alpha', productId: 'gid://shopify/Product/999001', gtin: '810001234501' },
+      },
+      {
+        url: HOLDOUT,
+        role: 'holdout',
+        expected: { name: 'Holdout One', productId: 'gid://shopify/Product/999001', gtin: '810001234501' },
+      },
     ]);
     expect(body).not.toHaveProperty('status');
+    expect(body).not.toHaveProperty('validationStatus');
     expect(body).not.toHaveProperty('holdouts');
+    expect(body).not.toHaveProperty('holdoutPassedCount');
+    expect(JSON.stringify(body)).not.toContain('passed');
+  });
+
+  it('validate body names the missing trusted field instead of sending a name-only sample', () => {
+    const nameOnly: ValidationSampleEntry = {
+      url: REP_A,
+      role: 'representative',
+      expectedName: 'Alpha',
+      expectedProductId: '',
+      expectedGtin: '',
+      expectedSku: '',
+      expectedPlatformVariantId: '',
+      expectedVariantKey: '',
+    };
+    expect(validationExpectationProblems(nameOnly).join('; ')).toContain('parent productId');
+    expect(validationExpectationProblems(nameOnly).join('; ')).toContain('trusted identifier');
+    expect(isTrustedValidationEntry(nameOnly)).toBe(false);
+    expect(() => buildValidateBody([nameOnly])).toThrow(/parent productId|trusted identifier/);
+    const noIdentifier: ValidationSampleEntry = { ...trustedEntry(REP_A, 'representative', 'Alpha'), expectedGtin: '' };
+    expect(() => buildValidateBody([noIdentifier])).toThrow(/trusted identifier/);
+    const noProduct: ValidationSampleEntry = { ...trustedEntry(REP_A, 'representative', 'Alpha'), expectedProductId: '  ' };
+    expect(() => buildValidateBody([noProduct])).toThrow(/parent productId/);
   });
 
   it('launch candidates exclude reserved holdouts; coverage requires every reserved holdout', () => {
@@ -168,10 +215,10 @@ describe('request contracts (server-authoritative apply)', () => {
     expect(isReservedUrl(`${HOLDOUT}/`, [HOLDOUT])).toBe(true);
     expect(isReservedUrl(REP_A, [HOLDOUT])).toBe(false);
     expect(
-      reservedHoldoutsCovered([{ url: HOLDOUT, role: 'holdout', expectedName: 'H' }], [HOLDOUT]),
+      reservedHoldoutsCovered([trustedEntry(HOLDOUT, 'holdout', 'H')], [HOLDOUT]),
     ).toBe(true);
     expect(
-      reservedHoldoutsCovered([{ url: REP_A, role: 'representative', expectedName: 'A' }], [HOLDOUT]),
+      reservedHoldoutsCovered([trustedEntry(REP_A, 'representative', 'A')], [HOLDOUT]),
     ).toBe(false);
   });
 });
@@ -331,15 +378,21 @@ describe('holdout coverage, evidence, and separate actions', () => {
     expect(container.textContent).toContain('Apply to Draft');
   });
 
-  it('validate posts sample references through the form (never verdicts)', async () => {
+  it('validate posts trusted identity through the form (never verdicts)', async () => {
     const { container } = await openCompleted();
     vi.mocked(validateInvestigation).mockResolvedValue({ validation: { status: 'failed' } });
     const nameInputs = [...container.querySelectorAll('input[placeholder="Expected product name"]')] as HTMLInputElement[];
+    const productInputs = [...container.querySelectorAll('input[placeholder="Parent product ID"]')] as HTMLInputElement[];
+    const gtinInputs = [...container.querySelectorAll('input[placeholder="GTIN"]')] as HTMLInputElement[];
     expect(nameInputs.length).toBe(3);
+    expect(productInputs.length).toBe(3);
+    expect(gtinInputs.length).toBe(3);
     await act(async () => {
       setTextInput(nameInputs[0], 'Alpha');
       setTextInput(nameInputs[1], 'Beta');
       setTextInput(nameInputs[2], 'Holdout One');
+      for (const input of productInputs) setTextInput(input, 'gid://shopify/Product/999001');
+      for (const input of gtinInputs) setTextInput(input, '810001234501');
     });
     await act(async () => {
       clickButton(container, 'Run validation').click();
@@ -347,13 +400,43 @@ describe('holdout coverage, evidence, and separate actions', () => {
     expect(validateInvestigation).toHaveBeenCalledTimes(1);
     const entries = vi.mocked(validateInvestigation).mock.calls[0][2] as ValidationSampleEntry[];
     expect(entries).toEqual([
-      { url: REP_A, role: 'representative', expectedName: 'Alpha' },
-      { url: REP_B, role: 'representative', expectedName: 'Beta' },
-      { url: HOLDOUT, role: 'holdout', expectedName: 'Holdout One' },
+      { url: REP_A, role: 'representative', expectedName: 'Alpha', expectedProductId: 'gid://shopify/Product/999001', expectedGtin: '810001234501', expectedSku: '', expectedPlatformVariantId: '', expectedVariantKey: '' },
+      { url: REP_B, role: 'representative', expectedName: 'Beta', expectedProductId: 'gid://shopify/Product/999001', expectedGtin: '810001234501', expectedSku: '', expectedPlatformVariantId: '', expectedVariantKey: '' },
+      { url: HOLDOUT, role: 'holdout', expectedName: 'Holdout One', expectedProductId: 'gid://shopify/Product/999001', expectedGtin: '810001234501', expectedSku: '', expectedPlatformVariantId: '', expectedVariantKey: '' },
     ]);
     for (const entry of entries) {
-      expect(Object.keys(entry).sort()).toEqual(['expectedName', 'role', 'url']);
+      expect(Object.keys(entry).sort()).toEqual([
+        'expectedGtin',
+        'expectedName',
+        'expectedPlatformVariantId',
+        'expectedProductId',
+        'expectedSku',
+        'expectedVariantKey',
+        'role',
+        'url',
+      ]);
+      expect(isTrustedValidationEntry(entry)).toBe(true);
     }
+    // The wire body carries expectations/references only — never verdicts or counts.
+    const wire = buildValidateBody(entries);
+    expect(wire.samples[0].expected).toMatchObject({ name: 'Alpha', productId: 'gid://shopify/Product/999001', gtin: '810001234501' });
+    expect(wire).not.toHaveProperty('status');
+    expect(wire).not.toHaveProperty('holdouts');
+  });
+
+  it('a name-only sample names the missing field inline and never submits', async () => {
+    const { container } = await openCompleted();
+    vi.mocked(validateInvestigation).mockClear();
+    const nameInputs = [...container.querySelectorAll('input[placeholder="Expected product name"]')] as HTMLInputElement[];
+    await act(async () => {
+      setTextInput(nameInputs[0], 'Alpha');
+      setTextInput(nameInputs[1], 'Beta');
+      setTextInput(nameInputs[2], 'Holdout One');
+    });
+    expect(container.textContent).toContain('parent productId');
+    expect(container.textContent).toContain('trusted identifier');
+    expect(clickButton(container, 'Run validation').disabled).toBe(true);
+    expect(validateInvestigation).not.toHaveBeenCalled();
   });
 
   it('rejects a reserved holdout as a custom launch URL', async () => {
@@ -409,18 +492,29 @@ describe('holdout coverage, evidence, and separate actions', () => {
     expect(previewInvestigationBudgets).toHaveBeenCalledWith(DOMAIN, [REP_A]);
   });
 
-  it('validation stays unavailable until every reserved holdout has an expected name', async () => {
+  it('validation stays unavailable until every sample carries its trusted identity', async () => {
     const { container } = await openCompleted();
     const runButton = clickButton(container, 'Run validation');
     expect(runButton.disabled).toBe(true);
     const nameInputs = [...container.querySelectorAll('input[placeholder="Expected product name"]')] as HTMLInputElement[];
+    const productInputs = [...container.querySelectorAll('input[placeholder="Parent product ID"]')] as HTMLInputElement[];
+    const gtinInputs = [...container.querySelectorAll('input[placeholder="GTIN"]')] as HTMLInputElement[];
     await act(async () => {
       setTextInput(nameInputs[0], 'Alpha');
       setTextInput(nameInputs[1], 'Beta');
-    });
-    expect(clickButton(container, 'Run validation').disabled).toBe(true);
-    await act(async () => {
       setTextInput(nameInputs[2], 'Holdout One');
+    });
+    // Names alone never unblock: the missing productId/identifier is named inline.
+    expect(clickButton(container, 'Run validation').disabled).toBe(true);
+    expect(container.textContent).toContain('parent productId');
+    await act(async () => {
+      for (const input of productInputs) setTextInput(input, 'gid://shopify/Product/999001');
+    });
+    // Product ID alone still blocks: a trusted identifier is required.
+    expect(clickButton(container, 'Run validation').disabled).toBe(true);
+    expect(container.textContent).toContain('trusted identifier');
+    await act(async () => {
+      for (const input of gtinInputs) setTextInput(input, '810001234501');
     });
     expect(clickButton(container, 'Run validation').disabled).toBe(false);
   });
