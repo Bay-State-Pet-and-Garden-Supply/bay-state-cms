@@ -15,6 +15,7 @@
 // The investigation provider seam is never touched here.
 
 import { hashCanonicalJson } from '../../shared/stable-id';
+import { findExposedHoldouts, normalizeHoldoutUrl } from './holdouts';
 import { ExtractorProfileSchema } from '../../shared/schemas/onboarding';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 import {
@@ -31,7 +32,7 @@ import { InvestigationServiceError, requireScopedInvestigation, type Investigati
 import { sanitizedDraftSelectors, type ProposalStore } from './apply';
 
 function fail(
-  code: 'invalid_input' | 'invalid_transition' | 'not_found' | 'workspace_mismatch' | 'holdout_exposed',
+  code: 'invalid_input' | 'invalid_transition' | 'not_found' | 'workspace_mismatch' | 'holdout_exposed' | 'reserved_holdout_dropped',
   message: string,
 ): never {
   throw new InvestigationServiceError(code, `${code}: ${message}`);
@@ -241,14 +242,55 @@ function assertSampleInputs(samples: ValidationSampleInput[]): void {
 }
 
 /**
- * Blindness check across ALL investigator-visible inputs: a holdout whose
- * URL was an investigation sample loses holdout status and must be
- * replaced. Fails closed before any worker call.
+ * Blindness check across ALL investigator-visible inputs (T5): sample
+ * URLs, captured artifacts, failure context, reports, and metadata — not
+ * just the investigation sample list. An exposed sample loses holdout
+ * status for that proposal: it becomes tuning evidence (re-supplied as a
+ * representative) and must be replaced by a fresh holdout. Fails closed
+ * before any worker call.
  */
 function assertHoldoutBlindness(record: InvestigationRecord, samples: ValidationSampleInput[]): void {
-  const investigated = new Set((record.inputSnapshot.sampleUrls ?? []).map((u) => u.trim()));
-  const exposed = samples.find((s) => s.role === 'holdout' && investigated.has(s.url.trim()));
-  if (exposed) fail('holdout_exposed', `holdout ${exposed.url} was an investigation sample and must be replaced`);
+  const exposures = findExposedHoldouts(
+    record,
+    samples.filter((s) => s.role === 'holdout').map((s) => ({
+      url: s.url,
+      ...(s.artifactRef ? { artifactRef: s.artifactRef } : {}),
+    })),
+  );
+  const exposed = exposures[0];
+  if (exposed) {
+    fail(
+      'holdout_exposed',
+      `holdout ${exposed.url} exposed via ${exposed.via} (${exposed.detail}) and must be replaced; ` +
+        'exposed samples become tuning evidence — re-supply as representatives, never as holdouts',
+    );
+  }
+}
+
+/**
+ * No-drop rule (T5): every holdout reserved by a prior validation must run
+ * again — including holdouts declared by an unappliable run. A failing
+ * reserved holdout is never dropped to recover a pass: replace only
+ * exposed holdouts (as tuning evidence with a fresh holdout), or discard
+ * the investigation and start over. Fails closed before any worker call.
+ * URL identity is canonical (slash variants neither bypass nor false-trigger).
+ */
+function assertReservedHoldoutsRun(prior: ProposalValidation | null, samples: ValidationSampleInput[]): void {
+  const reserved = prior?.holdouts.sampleIds ?? [];
+  if (reserved.length === 0) return;
+  const holdouts = new Set(samples.filter((s) => s.role === 'holdout').map((s) => normalizeHoldoutUrl(s.url)));
+  const dropped = reserved.find((url) => !holdouts.has(normalizeHoldoutUrl(url)));
+  if (dropped) fail('reserved_holdout_dropped', `reserved holdout ${dropped} was dropped; every reserved holdout must run`);
+}
+
+/** Load the prior validation reference and enforce the no-drop rule (one line at the call site). */
+function assertReservationIntact(
+  deps: { investigations: InvestigationStore; validations: ValidationStore },
+  workspaceId: string,
+  investigationId: string,
+  samples: ValidationSampleInput[],
+): void {
+  assertReservedHoldoutsRun(getProposalValidation({ investigations: deps.investigations, validations: deps.validations }, workspaceId, investigationId), samples);
 }
 
 type PolicyWorkerData = NonNullable<PolicyWorkerResult['data']>;
@@ -659,6 +701,7 @@ export async function validateProposal(
   if (!record.result || !record.resultHash) fail('invalid_transition', 'investigation has no typed result to validate');
   assertSampleInputs(options.samples);
   assertHoldoutBlindness(record, options.samples);
+  assertReservationIntact(deps, options.workspaceId, record.id, options.samples);
   const validatedAt = (options.now ?? new Date()).toISOString();
   const baselineVersionId = options.baselineVersionId ?? null;
 

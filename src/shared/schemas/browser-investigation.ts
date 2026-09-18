@@ -81,6 +81,9 @@ export const InvestigationFailureCodeSchema = z.enum([
   'stale_proposal',
   // T4 validation outcomes (additive).
   'holdout_exposed',
+  // T5 holdout governance (additive): a later validation dropped a
+  // previously reserved holdout instead of running it.
+  'reserved_holdout_dropped',
 ]);
 export type InvestigationFailureCode = z.infer<typeof InvestigationFailureCodeSchema>;
 

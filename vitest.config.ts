@@ -443,6 +443,9 @@ export default defineConfig({
       // T4 (#228) validation persistence/route/health wiring — bun:sqlite
       // via the repository layer; run under bun test via test:db.
       'src/tests/unit/browser-investigation-validation-routes.test.ts',
+      // T5 (#229) workspace operator flow routes — bun:sqlite via the
+      // repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-workspace-routes.test.ts',
     ],
   },
 });

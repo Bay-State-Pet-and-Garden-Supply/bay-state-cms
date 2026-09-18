@@ -112,6 +112,18 @@
       ]
     },
     {
+      "file": "src/onboarding/browser-investigation/holdouts.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
+      "file": "src/onboarding/browser-investigation/workspace.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
       "file": "src/onboarding/page-extractor.ts",
       "exports": [
         "*"

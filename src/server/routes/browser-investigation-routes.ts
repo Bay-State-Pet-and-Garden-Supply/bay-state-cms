@@ -8,6 +8,8 @@
 // GET  /api/domains/:domain/investigations/:id/status
 // POST /api/domains/:domain/investigations/:id/cancel
 // POST /api/domains/:domain/investigations/:id/discard
+// GET  /api/domains/:domain/investigations/drift-context (T5: drift entry preview)
+// GET  /api/domains/:domain/investigations/:id/workspace (T5: operator view)
 // GET  /api/domains/:domain/investigations/:id/proposal (T2: compile only)
 // POST /api/domains/:domain/investigations/:id/apply (T2: inactive draft)
 //
@@ -44,6 +46,15 @@ import {
   type PolicyWorkerResult,
   type PolicyWorkerRunner,
 } from '../../onboarding/browser-investigation/validate';
+import {
+  attachDriftRepairContext,
+  buildDriftRepairContext,
+  describeInvestigationWorkspace,
+  type DriftRepairContext,
+} from '../../onboarding/browser-investigation/workspace';
+import { getRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
+import { getActiveVersion } from '../../db/repositories/profile-version-repo';
+import { getMatrixResult } from '../../onboarding/profile-test-matrix';
 import { runProfileExtraction } from '../../onboarding/profile-runner-client';
 import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
 import { fakeInvestigationProvider, FakeInvestigationScenarioSchema } from '../../onboarding/browser-investigation/fake-provider';
@@ -96,6 +107,7 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   replay_rejected: 409,
   cancelled: 409,
   holdout_exposed: 422,
+  reserved_holdout_dropped: 422,
   unappliable_proposal: 422,
   timeout: 502,
   provider_error: 502,
@@ -181,13 +193,21 @@ async function handleLaunch(
   }
   const provider = parsed.data.provider ?? 'fake';
   if (provider === 'fake') fakeInvestigationProvider.setScenario(parsed.data.scenario ?? 'valid');
+  // T5 drift/failure entry: pre-attach the frozen last-healthy baseline
+  // (policy, artifact hashes, failing extraction, provenance, failure
+  // codes, affected fields) so repair starts from evidence. The driftRepair
+  // key is server-owned; launch-payload values are replaced, never merged.
+  const driftContext: DriftRepairContext | null =
+    mode === 'drift_repair' ? productionDriftContext(domain) : null;
   const input = {
     domain,
     mode,
     sampleUrls: parsed.data.sampleUrls,
     budget: parsed.data.budget,
     modelPolicy: parsed.data.modelPolicy,
-    knownContext: parsed.data.knownContext,
+    knownContext: driftContext
+      ? attachDriftRepairContext(parsed.data.knownContext, driftContext)
+      : parsed.data.knownContext,
     provider,
   };
   // Budgets are shown at launch: the resolved caps travel with the response
@@ -199,10 +219,41 @@ async function handleLaunch(
   // for terminal provider outcomes; throws here mean validation/conflict.
   return withInvestigationScope(c, 201, async (workspaceId, store) => ({
     budgets,
+    ...(driftContext ? { driftContext } : {}),
     investigation: parsed.data.queueOnly
       ? requestInvestigation(store, { ...input, workspaceId })
       : await requestAndRunInvestigation(store, { ...input, workspaceId }),
   }));
+}
+
+/**
+ * T5 production adapter for the drift-repair entry context: the frozen
+ * last-healthy baseline (active version) plus current matrix failures.
+ * Fail-closed to an explicit unavailable marker — never throws, never
+ * fabricates baseline evidence.
+ */
+function productionDriftContext(domain: string): DriftRepairContext {
+  try {
+    const active = getActiveVersion(domain);
+    if (!active) {
+      return buildDriftRepairContext(domain, { activeVersion: null, matrix: null });
+    }
+    return buildDriftRepairContext(domain, {
+      activeVersion: { id: active.id, selectors: active.selectors, artifactHashes: active.artifactHashes },
+      matrix: getMatrixResult(domain, active.id),
+    });
+  } catch {
+    return { available: false, reason: 'context_unavailable:drift baseline could not be read' };
+  }
+}
+
+/** Confirmed representative suite URLs, fail-closed to empty (shared suite, read-only). */
+function productionRepresentatives(domain: string): string[] {
+  try {
+    return getRepresentativeSuite(domain);
+  } catch {
+    return [];
+  }
 }
 
 const BudgetPreviewBodySchema = z.object({
@@ -246,12 +297,52 @@ browserInvestigationRoutes.get('/domains/:domain/investigations', (c) => {
   }));
 });
 
+// T5 drift entry preview: the frozen last-healthy baseline the
+// drift-repair launch would pre-attach. Static segment registered before
+// `:id` routes so it never parses as an investigation id.
+browserInvestigationRoutes.get('/domains/:domain/investigations/drift-context', (c) => {
+  const ctx = c as never as RouteContext;
+  const domain = normalizeInvestigationDomain(ctx.req.param('domain') ?? '');
+  return withInvestigationScope(ctx, 200, () => ({
+    driftContext: productionDriftContext(domain),
+  }));
+});
+
 browserInvestigationRoutes.get('/domains/:domain/investigations/:id', (c) => {
   const ctx = c as never as RouteContext;
   const id = ctx.req.param('id') ?? '';
   return withInvestigationScope(ctx, 200, (workspaceId, store) => ({
     investigation: getInvestigation(store, workspaceId, id),
   }));
+});
+
+// ─── T5: Profile Workspace operator view ────────────────────────────────
+// GET /api/domains/:domain/investigations/:id/workspace — representative
+// selection with visible holdout coverage and budgets, evidence-rich
+// results, proposal preview, stored validation, and separate Validate /
+// Apply / Discard affordances. Read-only: offers no activation or release
+// action, computes no health verdict (see the shared evaluator).
+browserInvestigationRoutes.get('/domains/:domain/investigations/:id/workspace', (c) => {
+  const ctx = c as never as RouteContext;
+  const id = ctx.req.param('id') ?? '';
+  return withInvestigationScope(ctx, 200, (workspaceId, store) => {
+    const record = getInvestigation(store, workspaceId, id);
+    const domain = normalizeInvestigationDomain(ctx.req.param('domain') ?? record.domain);
+    const representatives = productionRepresentatives(domain);
+    const validations = createSqliteValidationStore();
+    const validation = getProposalValidation({ investigations: store, validations }, workspaceId, id);
+    const reservedUrls = validation && validation.samples.length > 0 ? validation.holdouts.sampleIds : [];
+    return {
+      workspace: describeInvestigationWorkspace({
+        record,
+        budget: record.budget,
+        representatives,
+        corpusUrls: representatives,
+        reservedUrls,
+        validation,
+      }),
+    };
+  });
 });
 
 browserInvestigationRoutes.get('/domains/:domain/investigations/:id/status', (c) => {
