@@ -117,6 +117,7 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   timeout: 502,
   provider_error: 502,
   isolation_unavailable: 502,
+  render_deferred: 502,
   cloud_disabled: 502,
 };
 
