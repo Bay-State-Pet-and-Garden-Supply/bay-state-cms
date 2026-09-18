@@ -251,6 +251,19 @@ function scopedOrThrow(
   fail('not_found', `investigation ${id} not found`);
 }
 
+/**
+ * Shared workspace-scoped loader (T4): apply and validation resolve the
+ * same record through one definition so the two paths cannot drift on
+ * scoping or failure codes.
+ */
+export function requireScopedInvestigation(
+  store: InvestigationStore,
+  workspaceId: string,
+  id: string,
+): InvestigationRecord {
+  return scopedOrThrow(store, workspaceId, id);
+}
+
 function toFailureCode(err: unknown): { code: InvestigationFailureCode; detail: string } {
   if (err instanceof InvestigationProviderError) {
     const map: Record<string, InvestigationFailureCode> = {

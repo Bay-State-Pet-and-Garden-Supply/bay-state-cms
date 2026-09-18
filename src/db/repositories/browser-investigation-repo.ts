@@ -71,6 +71,16 @@ function ensureBrowserInvestigationTables(): void {
       ON browser_investigations(workspace_id, created_at);
   `);
   ensureProposalColumns();
+  ensureValidationColumns();
+}
+
+function ensureTableColumns(table: string, additions: Array<[column: string, ddl: string]>): void {
+  const db = getDb();
+  const cols = db.query(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  for (const [column, ddl] of additions) {
+    if (!names.has(column)) db.exec(ddl);
+  }
 }
 
 /**
@@ -79,19 +89,13 @@ function ensureBrowserInvestigationTables(): void {
  * (never compiled/applied).
  */
 function ensureProposalColumns(): void {
-  const db = getDb();
-  const cols = db.query('PRAGMA table_info(browser_investigations)').all() as Array<{ name: string }>;
-  const names = new Set(cols.map((c) => c.name));
-  const additions: Array<[column: string, ddl: string]> = [
+  ensureTableColumns('browser_investigations', [
     ['proposal_json', 'ALTER TABLE browser_investigations ADD COLUMN proposal_json TEXT'],
     ['proposal_hash', 'ALTER TABLE browser_investigations ADD COLUMN proposal_hash TEXT'],
     ['applied_version_id', 'ALTER TABLE browser_investigations ADD COLUMN applied_version_id TEXT'],
     ['applied_at', 'ALTER TABLE browser_investigations ADD COLUMN applied_at TEXT'],
     ['apply_actor', 'ALTER TABLE browser_investigations ADD COLUMN apply_actor TEXT'],
-  ];
-  for (const [column, ddl] of additions) {
-    if (!names.has(column)) db.exec(ddl);
-  }
+  ]);
 }
 
 export interface InvestigationProposalState {
@@ -100,6 +104,20 @@ export interface InvestigationProposalState {
   appliedVersionId: string | null;
   appliedAt: string | null;
   applyActor: string | null;
+}
+
+/**
+ * T4 validation-reference columns. Added idempotently: pre-T4 databases
+ * gain the columns on first access; rows validated before T4 read back as
+ * nulls (never validated).
+ */
+function ensureValidationColumns(): void {
+  ensureTableColumns('browser_investigations', [
+    ['validation_json', 'ALTER TABLE browser_investigations ADD COLUMN validation_json TEXT'],
+    ['validation_hash', 'ALTER TABLE browser_investigations ADD COLUMN validation_hash TEXT'],
+    ['validation_policy_hash', 'ALTER TABLE browser_investigations ADD COLUMN validation_policy_hash TEXT'],
+    ['validated_at', 'ALTER TABLE browser_investigations ADD COLUMN validated_at TEXT'],
+  ]);
 }
 
 interface DbRow {
@@ -378,4 +396,55 @@ export function markInvestigationApplied(
     .run(versionId, appliedAt, actor, workspaceId, id);
   if (result.changes === 0) return null;
   return getInvestigationProposalState(workspaceId, id);
+}
+
+// ─── T4 validation-reference persistence ───────────────────────────────────
+// Immutable validation references for one investigation. Workspace-scoped
+// like every other read/write in this module.
+
+export interface InvestigationValidationState {
+  validationJson: string | null;
+  validationHash: string | null;
+  policyHash: string | null;
+  validatedAt: string | null;
+}
+
+function rowToValidationState(row: Record<string, unknown>): InvestigationValidationState {
+  return {
+    validationJson: (row.validation_json as string | null) ?? null,
+    validationHash: (row.validation_hash as string | null) ?? null,
+    policyHash: (row.validation_policy_hash as string | null) ?? null,
+    validatedAt: (row.validated_at as string | null) ?? null,
+  };
+}
+
+export function getInvestigationValidationState(
+  workspaceId: string,
+  id: string,
+): InvestigationValidationState | null {
+  ensureBrowserInvestigationTables();
+  const db = getDb();
+  const row = db
+    .query(
+      'SELECT validation_json, validation_hash, validation_policy_hash, validated_at FROM browser_investigations WHERE workspace_id = ? AND id = ?',
+    )
+    .get(workspaceId, id) as Record<string, unknown> | undefined;
+  return row ? rowToValidationState(row) : null;
+}
+
+export function saveInvestigationValidation(
+  workspaceId: string,
+  id: string,
+  validationJson: string,
+  validationHash: string,
+  policyHash: string,
+  validatedAt: string,
+): InvestigationValidationState | null {
+  ensureBrowserInvestigationTables();
+  const db = getDb();
+  const result = db
+    .query('UPDATE browser_investigations SET validation_json = ?, validation_hash = ?, validation_policy_hash = ?, validated_at = ? WHERE workspace_id = ? AND id = ?')
+    .run(validationJson, validationHash, policyHash, validatedAt, workspaceId, id);
+  if (result.changes === 0) return null;
+  return getInvestigationValidationState(workspaceId, id);
 }

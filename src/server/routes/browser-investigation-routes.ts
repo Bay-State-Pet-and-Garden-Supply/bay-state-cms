@@ -36,8 +36,15 @@ import {
   InvestigationServiceError,
   type InvestigationStore,
 } from '../../onboarding/browser-investigation/service';
-import { createSqliteInvestigationStore, createSqliteProposalStore } from '../../onboarding/browser-investigation/store';
+import { createSqliteInvestigationStore, createSqliteProposalStore, createSqliteValidationStore } from '../../onboarding/browser-investigation/store';
 import { applyProposalToDraft, compileProposalForInvestigation, type ApplyProposalResult, type ApplyValidationInput } from '../../onboarding/browser-investigation/apply';
+import {
+  getProposalValidation,
+  validateProposal,
+  type PolicyWorkerResult,
+  type PolicyWorkerRunner,
+} from '../../onboarding/browser-investigation/validate';
+import { runProfileExtraction } from '../../onboarding/profile-runner-client';
 import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
 import { fakeInvestigationProvider, FakeInvestigationScenarioSchema } from '../../onboarding/browser-investigation/fake-provider';
 import {
@@ -88,6 +95,7 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   stale_completion: 409,
   replay_rejected: 409,
   cancelled: 409,
+  holdout_exposed: 422,
   unappliable_proposal: 422,
   timeout: 502,
   provider_error: 502,
@@ -285,6 +293,15 @@ const ApplyBodySchema = z.object({
       status: z.enum(['passed', 'failed', 'incomplete', 'not_run']),
       blockers: z.array(z.string().min(1).max(500)).max(50).optional(),
       validationRef: z.string().min(1).max(500).optional(),
+      // T4: validation-to-proposal binding plus blind-holdout evidence.
+      policyHash: z.string().length(64).optional(),
+      holdouts: z
+        .object({
+          passed: z.number().int().min(0),
+          required: z.number().int().min(0),
+          sampleIds: z.array(z.string().min(1).max(2048)).max(10).default([]),
+        })
+        .optional(),
     })
     .optional(),
 });
@@ -327,6 +344,188 @@ browserInvestigationRoutes.post('/domains/:domain/investigations/:id/apply', asy
       version: getVersionById(applied.appliedVersionId),
     };
   });
+});
+
+// ─── T4: representative validation ─────────────────────────────────────────
+// POST /api/domains/:domain/investigations/:id/validate — execute the
+// compiled proposal through the production worker on frozen representative
+// samples plus reserved blind holdouts. Persists the validation reference
+// for the apply path. Creates no versions, activates nothing.
+// GET  /api/domains/:domain/investigations/:id/validation — read the
+// persisted validation reference.
+
+const ValidateBodySchema = z.object({
+  baselineVersionId: z.string().min(1).max(256).optional(),
+  samples: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        role: z.enum(['representative', 'holdout']),
+        expected: z.object({
+          name: z.string().min(1).max(512),
+          brandHint: z.string().max(256).nullable().optional(),
+          price: z.string().max(64).nullable().optional(),
+          gtin: z.string().max(32).nullable().optional(),
+          sku: z.string().max(512).nullable().optional(),
+          platformVariantId: z.string().max(256).nullable().optional(),
+          variantKey: z.string().max(256).nullable().optional(),
+          productId: z.string().max(256).nullable().optional(),
+        }),
+        artifactRef: z.string().min(1).max(500).optional(),
+      }),
+    )
+    .min(1)
+    .max(10),
+});
+
+/** Production worker seam for validation: compiled draft profile through the profile runner. */
+function buildRunnerExpected(expected: {
+  name: string;
+  brandHint?: string | null;
+  price?: string | null;
+  upc?: string;
+  sku?: string;
+  platformVariantId?: string;
+}): { name: string; brandHint: string | null; price: string | null; upc?: string; sku?: string; platformVariantId?: string } {
+  return {
+    name: expected.name,
+    brandHint: expected.brandHint ?? null,
+    price: expected.price ?? null,
+    ...(expected.upc ? { upc: expected.upc } : {}),
+    ...(expected.sku ? { sku: expected.sku } : {}),
+    ...(expected.platformVariantId ? { platformVariantId: expected.platformVariantId } : {}),
+  };
+}
+
+type PolicyRunnerFailure = {
+  ok: false;
+  error: string;
+  failureCode: string | null;
+  matrixDecision: { status: string; selectedVariantKey: string | null; matchedBy?: string; reasonCodes?: string[] } | null;
+  selectedReceipt: { selectedVariantKey?: string } | null;
+};
+
+function mapRunnerFailure(res: {
+  error: string;
+  failureCode?: string | null;
+  matrixDecision?: unknown;
+  selectedReceipt?: unknown;
+}): PolicyRunnerFailure {
+  return {
+    ok: false,
+    error: res.error,
+    failureCode: res.failureCode ?? null,
+    matrixDecision: (res.matrixDecision ?? null) as PolicyRunnerFailure['matrixDecision'],
+    selectedReceipt: (res.selectedReceipt ?? null) as PolicyRunnerFailure['selectedReceipt'],
+  };
+}
+
+function runnerImagesOf(data: Record<string, unknown>): string[] {
+  if (Array.isArray((data as { images?: unknown }).images)) {
+    return (data as { images: unknown[] }).images.filter((u): u is string => typeof u === 'string');
+  }
+  const primary = (data as { primaryImage?: unknown }).primaryImage;
+  const additional = ((data as { additionalImages?: unknown }).additionalImages as unknown[] | undefined) ?? [];
+  return [primary, ...additional].filter((u): u is string => typeof u === 'string');
+}
+
+function runnerDataOf(
+  data: Record<string, unknown>,
+  images: string[],
+  fieldProvenance: Record<string, string>,
+): NonNullable<Extract<PolicyWorkerResult, { ok: true }>['data']> {
+  return {
+    title: (data.title as string | null) ?? null,
+    brand: (data.brand as string | null) ?? null,
+    description: (data.description as string | null) ?? null,
+    price: (data.price as string | null) ?? null,
+    primaryImage: images[0] ?? null,
+    additionalImages: images.slice(1),
+    customFields: ((data.customFields as Record<string, string> | undefined) ?? {}) as Record<string, string>,
+    fieldProvenance,
+  } as never;
+}
+
+function mapRunnerSuccess(
+  res: Record<string, unknown> & {
+    data: Record<string, unknown>;
+    fieldProvenance?: Record<string, string>;
+    matrixDecision?: unknown;
+    selectedReceipt?: unknown;
+    sourceContentHash?: string | null;
+  },
+): PolicyWorkerResult {
+  const data = res.data;
+  const images = runnerImagesOf(data);
+  return {
+    ok: true,
+    data: runnerDataOf(data, images, (res.fieldProvenance ?? {}) as Record<string, string>),
+    matrixDecision: (res.matrixDecision ?? null) as never,
+    selectedReceipt: (res.selectedReceipt ?? null) as never,
+    parentProductId: ((res as { parentProductId?: unknown }).parentProductId as string | undefined) ?? null,
+    sourceContentHash: res.sourceContentHash ?? null,
+  };
+}
+
+const productionPolicyRunner: PolicyWorkerRunner = {
+  run: async ({ profile, sampleUrl, expected }) => {
+    const res = await runProfileExtraction({ sourceUrl: sampleUrl, profile, expected: buildRunnerExpected(expected) });
+    if (!res.ok) return mapRunnerFailure(res);
+    return mapRunnerSuccess({
+      ...(res as unknown as Record<string, unknown>),
+      data: res.data as unknown as Record<string, unknown>,
+    });
+  },
+};
+
+browserInvestigationRoutes.post('/domains/:domain/investigations/:id/validate', async (c) => {
+  const raw = await c.req.json().catch(() => ({}));
+  const parsed = ValidateBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid validation payload', details: parsed.error.format() }, 400);
+  }
+  return withInvestigationScope(c as never, 200, async (workspaceId, store) => ({
+    validation: await validateProposal(
+      {
+        investigations: store,
+        proposals: createSqliteProposalStore(),
+        validations: createSqliteValidationStore(),
+        runner: productionPolicyRunner,
+      },
+      {
+        workspaceId,
+        investigationId: (c as never as RouteContext).req.param('id') ?? '',
+        samples: parsed.data.samples.map((s) => ({
+          url: s.url,
+          role: s.role,
+          expected: {
+            name: s.expected.name,
+            brandHint: s.expected.brandHint ?? null,
+            price: s.expected.price ?? null,
+            gtin: s.expected.gtin ?? null,
+            sku: s.expected.sku ?? null,
+            platformVariantId: s.expected.platformVariantId ?? null,
+            variantKey: s.expected.variantKey ?? null,
+            productId: s.expected.productId ?? null,
+          },
+          ...(s.artifactRef ? { artifactRef: s.artifactRef } : {}),
+        })),
+        ...(parsed.data.baselineVersionId ? { baselineVersionId: parsed.data.baselineVersionId } : {}),
+      },
+    ),
+  }));
+});
+
+browserInvestigationRoutes.get('/domains/:domain/investigations/:id/validation', (c) => {
+  const ctx = c as never as RouteContext;
+  const id = ctx.req.param('id') ?? '';
+  return withInvestigationScope(ctx, 200, (workspaceId, store) => ({
+    validation: getProposalValidation(
+      { investigations: store, validations: createSqliteValidationStore() },
+      workspaceId,
+      id,
+    ),
+  }));
 });
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/:id/discard', async (c) => {

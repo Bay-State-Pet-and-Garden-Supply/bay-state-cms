@@ -115,6 +115,14 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
       : [];
     const wrongProduct = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_product'))) : false;
     const wrongVariant = matrix ? matrix.rows.some(r => r.cells.some(c => (c.failureReason ?? '').includes('wrong_variant'))) : false;
+    // T4: investigation-derived versions carry their production-worker
+    // validation outcome plus blind-holdout evidence in the version-bound
+    // validation summary; legacy versions omit these keys (undefined).
+    const summary = (version.validationSummary ?? {}) as {
+      investigationDerived?: unknown;
+      validationStatus?: unknown;
+      holdoutPassedCount?: unknown;
+    };
     const gate = evaluateGate({
       requiredResults,
       wrongProduct,
@@ -126,6 +134,15 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
       expectedArtifactHashes: version.artifactHashes,
       sampleIds: sampleUrls,
       clusterIds,
+      investigationDerived: summary.investigationDerived === true,
+      policyValidationStatus:
+        summary.validationStatus === 'passed' ||
+        summary.validationStatus === 'failed' ||
+        summary.validationStatus === 'incomplete'
+          ? summary.validationStatus
+          : undefined,
+      holdoutPassedCount:
+        typeof summary.holdoutPassedCount === 'number' ? summary.holdoutPassedCount : undefined,
     });
     if (!gate.allowed) {
       return { domain: normalized, versionId: version.id, healthy: false, reason: gate.blockReason ?? gate.reason ?? 'activation_gate_failed', gate };

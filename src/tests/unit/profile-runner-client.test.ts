@@ -69,6 +69,31 @@ describe('runProfileExtraction image deduplication', () => {
 });
 
 describe('runProfileExtraction variantSelection forwarding', () => {
+  /** Shared worker profile literal for forwarding assertions. */
+  function mockProfile(): any {
+    return {
+      id: 'p1', domain: 'example.com', titleSelector: 'h1', titleOptionalSelectors: [], priceSelector: null, descriptionSelector: null, brandSelector: null, imagesSelector: null, sitemapProductUrlPattern: null, shopifyJSONPath: false, customSelectors: {}, variantSelectionStrategy: null, customSelectorMetadata: {}, runtime: 'static', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  /** Queue one successful worker extraction. */
+  function mockWorkerSuccess(): void {
+    vi.mocked(trustedExtract).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ok: true,
+        extractionData: { title: 'T', brand: 'B', description: 'D', primaryImage: null, additionalImages: [], price: null, fieldProvenance: {} },
+        warnings: [],
+      } as any,
+    });
+  }
+
+  /** Most recent worker request payload. */
+  function lastWorkerCall(): any {
+    const calls: any = vi.mocked(trustedExtract).mock.calls;
+    return calls[calls.length - 1][0];
+  }
+
   it('forwards variantSelection when provided', async () => {
     vi.clearAllMocks();
     const { runProfileExtraction } = await import('../../onboarding/profile-runner-client');
@@ -113,5 +138,36 @@ describe('runProfileExtraction variantSelection forwarding', () => {
     });
     expect(res.ok).toBe(false);
     expect(res.failureCode).toBe('variant_selection_required');
+  });
+
+  it('forwards extractionPolicy and trusted identity inputs for T4 policy execution', async () => {
+    const { runProfileExtraction } = await import('../../onboarding/profile-runner-client');
+    mockWorkerSuccess();
+    const extractionPolicy = { version: 1, platform: 'shopify', structures: [], fields: [], identity: {}, renderedBrowserRequired: false };
+    mockWorkerSuccess();
+    await runProfileExtraction({
+      sourceUrl: 'https://example.com/products/betterbone',
+      profile: { ...mockProfile(), extractionPolicy },
+      expected: { name: 'BetterBone', upc: '810001234501', sku: 'BB-SM-001', platformVariantId: '111' },
+    });
+    const call = lastWorkerCall();
+    expect(call.profile.extractionPolicy).toEqual(extractionPolicy);
+    expect(call.expected.upc).toBe('810001234501');
+    expect(call.expected.sku).toBe('BB-SM-001');
+    expect(call.expected.platformVariantId).toBe('111');
+  });
+
+  it('sends null extractionPolicy for legacy profiles', async () => {
+    const { runProfileExtraction } = await import('../../onboarding/profile-runner-client');
+    mockWorkerSuccess();
+    await runProfileExtraction({
+      sourceUrl: 'https://example.com/products/betterbone',
+      profile: mockProfile(),
+      expected: { name: 'BetterBone' },
+    });
+    const call = lastWorkerCall();
+    expect(call.profile.extractionPolicy).toBeNull();
+    expect(call.expected.sku).toBeUndefined();
+    expect(call.expected.platformVariantId).toBeUndefined();
   });
 });

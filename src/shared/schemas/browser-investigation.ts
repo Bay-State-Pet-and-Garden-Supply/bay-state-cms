@@ -79,6 +79,8 @@ export const InvestigationFailureCodeSchema = z.enum([
   'unappliable_proposal',
   'already_applied',
   'stale_proposal',
+  // T4 validation outcomes (additive).
+  'holdout_exposed',
 ]);
 export type InvestigationFailureCode = z.infer<typeof InvestigationFailureCodeSchema>;
 

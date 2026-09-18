@@ -25,8 +25,7 @@ import {
   type DraftVersionCreator,
   type ProposalStore,
 } from '../../onboarding/browser-investigation/apply';
-import type { InvestigationStore } from '../../onboarding/browser-investigation/service';
-import type { StoredInvestigationInsert } from '../../onboarding/browser-investigation/service';
+import { memoryInvestigationsFor } from './helpers/browser-investigation-memory-store';
 
 const WS = 'ws-apply-governance';
 const DOMAIN = 'shop.example.com';
@@ -110,21 +109,6 @@ function completedRecord(overrides: Partial<InvestigationRecord> = {}): Investig
   } as InvestigationRecord;
 }
 
-function memoryInvestigations(record: InvestigationRecord): InvestigationStore {
-  return {
-    insert(row: StoredInvestigationInsert) {
-      throw new Error(`unexpected insert ${row.domain}`);
-    },
-    find: (workspaceId: string, id: string) =>
-      workspaceId === record.workspaceId && id === record.id ? record : null,
-    list: () => [record],
-    findActive: () => null,
-    existsInOtherWorkspace: (workspaceId: string, id: string) =>
-      id === record.id && workspaceId !== record.workspaceId,
-    update: () => null,
-  };
-}
-
 function capturingCreator() {
   const created: Array<Record<string, unknown>> = [];
   const creator: DraftVersionCreator = {
@@ -148,7 +132,7 @@ function setupApply(recordOverrides: Partial<InvestigationRecord> = {}): ApplyHa
   const record = completedRecord(recordOverrides);
   const { created, creator } = capturingCreator();
   const deps: Parameters<typeof applyProposalToDraft>[0] = {
-    investigations: memoryInvestigations(record),
+    investigations: memoryInvestigationsFor(record),
     proposals: createMemoryProposalStore(),
     createVersion: creator.createVersion,
   };
@@ -300,7 +284,7 @@ describe('browser investigation apply governance (T2)', () => {
     const record = completedRecord();
     const proposals: ProposalStore = createMemoryProposalStore();
     const outcome = await compileProposalForInvestigation(
-      { investigations: memoryInvestigations(record), proposals },
+      { investigations: memoryInvestigationsFor(record), proposals },
       WS,
       record.id,
     );

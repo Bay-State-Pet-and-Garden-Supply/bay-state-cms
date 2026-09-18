@@ -268,6 +268,24 @@ export const CompileOutcomeSchema = z.discriminatedUnion('status', [
 export type CompileOutcome = z.infer<typeof CompileOutcomeSchema>;
 
 /**
+ * Stored extraction-policy content: the executable subset of a proposal
+ * persisted on a profile version (T2 `sanitizedDraftSelectors`). Carries
+ * NO investigation binding (ids/hashes live on the proposal artifact and
+ * the version's validationSummary) — this is what the production worker
+ * executes (T4 Shopify slice). Derived by pick so content and proposal
+ * can never drift on the shared executable shape.
+ */
+export const ExtractionPolicyContentSchema = ExtractionPolicyProposalSchema.pick({
+  version: true,
+  platform: true,
+  structures: true,
+  fields: true,
+  identity: true,
+  renderedBrowserRequired: true,
+});
+export type ExtractionPolicyContent = z.infer<typeof ExtractionPolicyContentSchema>;
+
+/**
  * Hash of the POLICY CONTENT only (platform, structures, fields, identity,
  * rendered-browser need) — the drift-comparison identity. Editing any policy
  * content changes this hash and invalidates prior validation bound to it.

@@ -78,6 +78,14 @@ export async function runMatrix(input: {
     success: boolean;
     failureReason?: string | null;
     extractedProduct?: ExtractedProductPreview | null;
+    /**
+     * Full cell override (T4 validation): when supplied, these cells are
+     * recorded verbatim instead of the title-only default — field and
+     * identity correctness (including explicit `wrong_product` /
+     * `wrong_variant` failure reasons) through the same matrix evidence
+     * path, never a second health definition.
+     */
+    cells?: MatrixCell[];
   }>;
 }): Promise<MatrixResult> {
   const rows: MatrixRow[] = [];
@@ -87,7 +95,7 @@ export async function runMatrix(input: {
       sampleId: s.id,
       sampleUrl: s.url,
       extractedProduct: r.extractedProduct ?? { title: r.extractedTitle },
-      cells: [{
+      cells: r.cells ?? [{
         field: 'title',
         extracted: r.extractedTitle,
         expected: s.expectedTitle,

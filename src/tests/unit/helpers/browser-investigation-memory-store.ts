@@ -9,7 +9,6 @@ import type {
   InvestigationStore,
   StoredInvestigationInsert,
 } from '../../../onboarding/browser-investigation/service';
-
 function parseJsonField(raw: string | null | undefined): unknown {
   if (!raw) return null;
   try {
@@ -95,5 +94,26 @@ export function createMemoryInvestigationStore(): InvestigationStore & {
       rows.set(key(ws, id), next);
       return next;
     },
+  };
+}
+
+/**
+ * Single-record store for apply-path suites: one completed investigation
+ * plus strict foreign-workspace semantics. Shared by the T2 apply
+ * governance and T4 validation-binding suites so scoping cannot drift.
+ */
+// fallow-ignore-next-line unused-export — apply suites + future validation suites
+export function memoryInvestigationsFor(record: InvestigationRecord): InvestigationStore {
+  return {
+    insert(row: StoredInvestigationInsert) {
+      throw new Error(`unexpected insert ${row.domain}`);
+    },
+    find: (workspaceId: string, id: string) =>
+      workspaceId === record.workspaceId && id === record.id ? record : null,
+    list: () => [record],
+    findActive: () => null,
+    existsInOtherWorkspace: (workspaceId: string, id: string) =>
+      id === record.id && workspaceId !== record.workspaceId,
+    update: () => null,
   };
 }

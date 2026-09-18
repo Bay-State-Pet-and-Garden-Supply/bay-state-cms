@@ -11,6 +11,31 @@ export interface MaterializeOptions {
   receipt: { variantKey?: string; selectedVariantKey?: string; identityMatrixHash: string; parserVersion: number };
 }
 
+/**
+ * Declared variant provenance for one selected candidate: per-option and
+ * per-identifier endpoint source paths plus the variant key. Identifiers
+ * stay in variantProvenance with their own source paths — never sibling
+ * values. Shared by the legacy materializer and T4 Shopify policy
+ * execution so the two paths cannot drift on provenance shape.
+ */
+// fallow-ignore-next-line unused-export — worker policy execution + tests
+export function buildVariantProvenance(
+  selected: NormalizedVariantCandidate,
+  existing: Record<string, string> = {},
+): Record<string, string> {
+  const variantProvenance: Record<string, string> = { ...existing };
+  for (const opt of selected.options) {
+    variantProvenance[`variantAttributes.${opt.normalizedAxis}`] = opt.sourcePath;
+  }
+  for (const ident of selected.identifiers) {
+    variantProvenance[`identifiers.${ident.kind}:${ident.normalizedValue}`] = ident.sourcePath;
+  }
+  variantProvenance.variantKey = selected.sourcePaths
+    ? Object.values(selected.sourcePaths)[0]
+    : 'variant-selected';
+  return variantProvenance;
+}
+
 export function materializeSelectedVariant(options: MaterializeOptions): ExtractionData {
   const { base, selected, receipt } = options;
   const variantKey = receipt.selectedVariantKey ?? receipt.variantKey ?? selected.variantKey;
@@ -59,14 +84,7 @@ export function materializeSelectedVariant(options: MaterializeOptions): Extract
   if (selected.dimensions) (out as any).dimensions = selected.dimensions;
   if (selected.currency) (out as any).currency = selected.currency;
   // identifiers: carry chosen candidate identifiers in provenance; do not copy sibling values
-  const variantProvenance: Record<string, string> = { ...(out as any).variantProvenance ?? {} };
-  for (const opt of selected.options) {
-    variantProvenance[`variantAttributes.${opt.normalizedAxis}`] = opt.sourcePath;
-  }
-  for (const ident of selected.identifiers) {
-    variantProvenance[`identifiers.${ident.kind}:${ident.normalizedValue}`] = ident.sourcePath;
-  }
-  variantProvenance['variantKey'] = selected.sourcePaths ? Object.values(selected.sourcePaths)[0] : 'variant-selected';
+  const variantProvenance = buildVariantProvenance(selected, (out as any).variantProvenance ?? {});
   (out as any).variantProvenance = variantProvenance;
   // Identifiers are NOT attached under selectedVariant (VariantSelectionReceiptSchema lacks identifiers) — they remain in variantProvenance only, which declares them; selectedVariant carries only the receipt fields
   (out as any).selectedVariant = {

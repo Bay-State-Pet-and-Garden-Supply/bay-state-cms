@@ -24,10 +24,18 @@ import type { Element, AnyNode } from 'domhandler';
 import { runRenderedPage } from '../browser/rendered-page-runner';
 import { loadWorkerBrowserConfig } from '../browser/config';
 import { applyLadderEnrichment } from '../../onboarding/extraction-ladder/enrich';
-import { parseVariantMatrix, matchVariantMatrix, normalizeGtin } from '../../onboarding/variant-resolver';
-import { computeIdentityMatrixHash } from '../../shared/schemas/variant-resolution';
+import { parseVariantMatrix, parseShopifyMatrix, matchVariantMatrix, normalizeGtin, verifyOperatorSelectionReceipt } from '../../onboarding/variant-resolver';
+import { doShopifyPolicyExtract, shopifyPolicyOf } from './extract-shopify-policy';
+import { shopifyProductUrl } from '../../onboarding/extraction-ladder/platforms';
+import {
+  ExtractionPolicyContentSchema,
+  type ExtractionPolicyContent,
+  type PolicyField,
+  type SupportedPolicySource,
+} from '../../shared/schemas/browser-investigation-policy';
+import { computeIdentityMatrixHash, VariantSelectionReceiptSchema, type NormalizedVariantCandidate } from '../../shared/schemas/variant-resolution';
 import { getEffectiveVariantResolutionMode, getEffectiveVariantInteractionEnabled } from '../../onboarding/variant-flags';
-import { materializeSelectedVariant } from '../../onboarding/selected-variant-materializer';
+import { materializeSelectedVariant, buildVariantProvenance } from '../../onboarding/selected-variant-materializer';
 import { buildVariantInteractionPlan } from '../variant-interaction';
 import {
   ExtractRequestSchema,
@@ -42,7 +50,6 @@ import { sha256Hex } from '../../shared/stable-id';
 import { lookup } from 'node:dns/promises';
 import { classifyIp } from '../../shared/ssrf';
 import { extractDomainFromUrl, generateJobId, resolveArtifactDir, writeArtifact } from '../artifacts';
-
 
 // ─── Variant resolution gate (Issue #90 M4) ────────────────────────────────
 import type { VariantFailureCode } from '../../shared/schemas/extraction-worker';
@@ -67,6 +74,47 @@ function embeddedLacksGtinForExpected(
     if (c.identifiers.some((i) => i.kind === 'gtin')) return false;
   }
   return true;
+}
+
+/**
+ * Same-host Shopify `.js` fetch through the safe transport (size-capped).
+ * Shared by the legacy variant gate (#216) and T4 policy execution so
+ * endpoint evidence selection cannot drift between the two paths.
+ * Failures are data (never thrown): callers own warning wording.
+ */
+async function fetchShopifyJsText(
+  jsUrl: string,
+  finalUrl: string,
+  allowedSourceDomains: string[],
+  deps: ProfileTransportDeps,
+): Promise<{
+  text: string | null;
+  attempted: boolean;
+  failure: 'transport_error' | 'http_error' | 'too_large' | 'cross_host' | null;
+  message: string;
+}> {
+  if (!isSameHostUrl(jsUrl, finalUrl)) {
+    return { text: null, attempted: false, failure: 'cross_host', message: 'cross-host endpoint refused' };
+  }
+  try {
+    const jsResp = await safeProfileFetch(jsUrl, AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS), allowedSourceDomains, deps);
+    if (!jsResp.ok) return { text: null, attempted: true, failure: 'http_error', message: `HTTP ${jsResp.status}` };
+    const jsText = await jsResp.text();
+    if (jsText.length > 5 * 1024 * 1024) {
+      return { text: null, attempted: true, failure: 'too_large', message: 'endpoint response too large' };
+    }
+    return { text: jsText, attempted: true, failure: null, message: '' };
+  } catch (e) {
+    return { text: null, attempted: true, failure: 'transport_error', message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+function isSameHostUrl(left: string, right: string): boolean {
+  try {
+    return new URL(left).hostname.toLowerCase() === new URL(right).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
 }
 async function resolveVariantGate(
   html: string,
@@ -99,28 +147,18 @@ async function resolveVariantGate(
     const isShopify = /\/cdn\/shop\//.test(html) || /Shopify\.theme/.test(html) || /shopify\.com/i.test(html) || /window\.Shopify/i.test(html);
     const isShopifyUrl = isShopify && finalUrl.includes('/products/');
     if (isShopifyUrl) {
-      try {
-        const jsUrl = finalUrl.split('?')[0].split('#')[0].replace(/\/$/, '') + '.js';
-        const jsHost = new URL(jsUrl).hostname.toLowerCase();
-        const finalHost = new URL(finalUrl).hostname.toLowerCase();
-        if (jsHost === finalHost) {
-          const jsResp = await safeProfileFetch(jsUrl, AbortSignal.timeout(HTTP_FETCH_TIMEOUT_MS), allowedSourceDomains, deps);
-          shopifyJsFetched = true;
-          if (jsResp.ok) {
-            const jsText = await jsResp.text();
-            if (jsText.length <= 5 * 1024 * 1024) {
-              const jsMatrix = parseVariantMatrix(jsText, finalUrl);
-              if (jsMatrix && jsMatrix.candidates.length > 1) {
-                matrix = jsMatrix;
-                matrixSource = 'shopify_js';
-                matrixSourceUrl = jsUrl;
-                warnings.push('Variant matrix from Shopify .js');
-              }
-            }
-          }
+      const jsUrl = finalUrl.split('?')[0].split('#')[0].replace(/\/$/, '') + '.js';
+      const fetched = await fetchShopifyJsText(jsUrl, finalUrl, allowedSourceDomains, deps);
+      shopifyJsFetched = fetched.attempted;
+      if (fetched.failure === 'transport_error') warnings.push(`Shopify .js fetch failed: ${fetched.message}`);
+      if (fetched.text) {
+        const jsMatrix = parseVariantMatrix(fetched.text, finalUrl);
+        if (jsMatrix && jsMatrix.candidates.length > 1) {
+          matrix = jsMatrix;
+          matrixSource = 'shopify_js';
+          matrixSourceUrl = jsUrl;
+          warnings.push('Variant matrix from Shopify .js');
         }
-      } catch (e) {
-        warnings.push(`Shopify .js fetch failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }
@@ -137,17 +175,16 @@ async function resolveVariantGate(
   };
   const sel = (request as any).variantSelection as { resolutionId: string; identityMatrixHash: string; variantKey: string } | undefined;
   if (sel) {
-    let liveHash: string | null = null;
-    try { liveHash = computeIdentityMatrixHash(matrix); } catch { liveHash = null; }
-    if (liveHash !== sel.identityMatrixHash) {
-      const decision = { status: 'stale_selection' as const, selectedVariantKey: null, reasonCodes: ['stale_selection'], matchedBy: 'none' as const, diagnostics: [`stale hash ${sel.identityMatrixHash} != ${liveHash}`], rankedKeys: [] };
+    const verified = verifyOperatorSelectionReceipt(matrix, sel);
+    if (!verified.ok && verified.kind === 'stale') {
+      const decision = { status: 'stale_selection' as const, selectedVariantKey: null, reasonCodes: ['stale_selection'], matchedBy: 'none' as const, diagnostics: [`stale hash ${sel.identityMatrixHash} != ${verified.liveHash}`], rankedKeys: [] };
       return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
-    const cand = matrix.candidates.find(c => c.variantKey === sel.variantKey);
-    if (!cand) {
+    if (!verified.ok) {
       const decision = { status: 'no_match' as const, selectedVariantKey: null, reasonCodes: ['stale_selection'], matchedBy: 'none' as const, diagnostics: ['variantKey not in current matrix'], rankedKeys: [] };
       return { matrix, decision, selectedCandidate: null, failureCode: 'variant_selection_stale', shopifyJsFetched, matrixSource, matrixSourceUrl };
     }
+    const cand = verified.candidate;
     const decision = { status: 'resolved' as const, selectedVariantKey: cand.variantKey, reasonCodes: ['operator_selected'], matchedBy: 'sku' as const, diagnostics: ['operator selection verified'], rankedKeys: [cand.variantKey] };
     return { matrix, decision, selectedCandidate: cand, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
   }
@@ -175,6 +212,7 @@ async function resolveVariantGate(
   }
   return { matrix, decision, selectedCandidate: null, failureCode: null, shopifyJsFetched, matrixSource, matrixSourceUrl };
 }
+
 
 // ─── HTTP constants (sourced from page-extractor.ts) ──────────────────────────
 
@@ -837,6 +875,37 @@ export async function doStaticExtract(
   }
 
   const finalUrl = response.url || sourceUrl;
+  // T4: policy-bearing Shopify profiles execute endpoint-backed policy;
+  // legacy profiles skip this branch and keep current semantics exactly.
+  const shopifyPolicy = shopifyPolicyOf(request.profile);
+  if (shopifyPolicy) {
+    return doShopifyPolicyExtract({
+      request,
+      policy: shopifyPolicy,
+      html,
+      finalUrl,
+      allowedSourceDomains,
+      deps,
+      // Explicit helpers seam: the policy module never imports this file,
+      // so the dependency edge stays one-way and no import cycle can form.
+      helpers: {
+        safeProfileFetch,
+        evaluateSelectorCheerio,
+        collectImagesCheerio,
+        buildExtractionData,
+        buildFailedResult,
+        buildFieldProvenanceDetails,
+        retainProfileSource,
+        cleanAndDeduplicateImages,
+        resolveUrl,
+        extractJsonLdFromCheerio,
+        extractMetaTagsFromCheerio,
+        extractMicrodataFromCheerio,
+        fetchShopifyJsText,
+      },
+      warnings,
+    });
+  }
   // ── Variant resolution gate (M4) ─────────────────────────────────
   let variantGateResult: Awaited<ReturnType<typeof resolveVariantGate>> | null = null;
   try {

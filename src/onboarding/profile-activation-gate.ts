@@ -14,6 +14,13 @@ export interface GateInput {
   expectedArtifactHashes?: string[] | null;
   sampleIds?: string[];
   clusterIds?: string[];
+  // T4 investigation evidence (optional for backward compat; when the
+  // version is investigation-derived, fail-closed and NON-WAIVABLE — the
+  // confirmation-count waiver excuses only the confirmation count, never
+  // validation or holdout independence).
+  investigationDerived?: boolean;
+  policyValidationStatus?: 'passed' | 'failed' | 'incomplete' | 'not_run';
+  holdoutPassedCount?: number;
 }
 
 export interface GateResult {
@@ -107,6 +114,33 @@ function identityRefusal(input: GateInput): GateResult | null {
 }
 
 /**
+ * T4 refusal for investigation-derived policies: production-worker
+ * validation must have passed AND at least one blind holdout must have
+ * passed. Non-waivable by construction — the waiver excuses only the
+ * confirmation count below, never this bar.
+ */
+function investigationValidationRefusal(input: GateInput): GateResult | null {
+  if (!input.investigationDerived) return null;
+  if (input.policyValidationStatus !== 'passed') {
+    return {
+      allowed: false,
+      blockReason: 'validation_not_passed',
+      reviseAction: 'Validate the proposal through the production worker on representatives plus blind holdouts',
+      reason: `validation_not_passed: ${input.policyValidationStatus ?? 'not_run'}`,
+    };
+  }
+  if ((input.holdoutPassedCount ?? 0) < 1) {
+    return {
+      allowed: false,
+      blockReason: 'missing_blind_holdout',
+      reviseAction: 'Reserve and pass at least one blind holdout',
+      reason: 'missing_blind_holdout: investigation-derived policies require a passing blind holdout',
+    };
+  }
+  return null;
+}
+
+/**
  * Refusal when image attestation is failed or absent, else null.
  * Issue #218: absent image evidence is never read as approval.
  */
@@ -148,6 +182,9 @@ function signalGateResult(input: GateInput): GateResult | null {
 
 export function evaluateGate(input: GateInput): GateResult {
   return (
+    // Investigation-derived credentials first: validation + holdout
+    // independence are version-bound facts, reported before run evidence.
+    investigationValidationRefusal(input) ??
     evidenceGateResult(input) ??
     signalGateResult(input) ??
     (input.confirmedCount < 3 && !input.waiver

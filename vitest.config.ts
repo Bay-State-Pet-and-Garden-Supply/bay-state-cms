@@ -440,6 +440,9 @@ export default defineConfig({
       // T2 (#226) policy drafts (apply/binding/discard) — bun:sqlite via
       // the repository layer; run under bun test via test:db.
       'src/tests/unit/browser-investigation-policy-drafts.test.ts',
+      // T4 (#228) validation persistence/route/health wiring — bun:sqlite
+      // via the repository layer; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-validation-routes.test.ts',
     ],
   },
 });

@@ -37,6 +37,7 @@ import type { CreateVersionInput } from '../../db/repositories/profile-version-r
 import { compileInvestigationResult } from './compiler';
 import {
   InvestigationServiceError,
+  requireScopedInvestigation,
   type InvestigationStore,
 } from './service';
 
@@ -106,24 +107,77 @@ export interface ApplyValidationInput {
   /** Operator-supplied blockers (bounded strings, preserved verbatim). */
   blockers?: string[];
   validationRef?: string;
+  /**
+   * T4: policy hash the validation was computed against. When supplied it
+   * must equal the current proposal's policy hash, or the apply is
+   * rejected as stale — validation can never be replayed onto edited
+   * policy content.
+   */
+  policyHash?: string;
+  /**
+   * T4: blind-holdout evidence bound to the validation (preserved into
+   * the draft validation summary for the non-waivable health bar).
+   */
+  holdouts?: { passed: number; required: number; sampleIds: string[] };
 }
 
 const ApplyValidationInputStatuses = ['passed', 'failed', 'incomplete', 'not_run'] as const;
 
+type ApplyValidationStatus = ApplyValidationInput['status'];
+
+function parseValidationStatus(raw: unknown): ApplyValidationStatus {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'not_run';
+  const status = (raw as Record<string, unknown>).status;
+  return ApplyValidationInputStatuses.includes(status as never)
+    ? (status as ApplyValidationStatus)
+    : 'not_run';
+}
+
+function parseBlockerList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((b): b is string => typeof b === 'string' && b.trim().length > 0)
+    .map((b) => b.trim().slice(0, 500))
+    .slice(0, 50);
+}
+
+function parsePolicyHashRef(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !/^[a-f0-9]{64}$/.test(raw.trim())) return undefined;
+  return raw.trim();
+}
+
+function parseHoldoutInput(raw: unknown): ApplyValidationInput['holdouts'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const input = raw as { passed?: unknown; required?: unknown; sampleIds?: unknown };
+  const integerOrZero = (value: unknown): number =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
+  const sampleIds = Array.isArray(input.sampleIds)
+    ? input.sampleIds
+        .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+        .map((u) => u.trim().slice(0, 2048))
+        .slice(0, 10)
+    : [];
+  return { passed: integerOrZero(input.passed), required: integerOrZero(input.required), sampleIds };
+}
+
 function parseValidationInput(raw: unknown): ApplyValidationInput {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { status: 'not_run' };
   const input = raw as Record<string, unknown>;
-  const status = ApplyValidationInputStatuses.includes(input.status as never)
-    ? (input.status as ApplyValidationInput['status'])
-    : 'not_run';
-  const blockers = Array.isArray(input.blockers)
-    ? input.blockers.filter((b): b is string => typeof b === 'string' && b.trim().length > 0).map((b) => b.trim().slice(0, 500)).slice(0, 50)
-    : [];
+  const status = parseValidationStatus(raw);
+  const blockers = parseBlockerList(input.blockers);
   const validationRef =
     typeof input.validationRef === 'string' && input.validationRef.trim()
       ? input.validationRef.trim().slice(0, 500)
       : undefined;
-  return { status, blockers, ...(validationRef ? { validationRef } : {}) };
+  const policyHash = parsePolicyHashRef(input.policyHash);
+  const holdouts = parseHoldoutInput(input.holdouts);
+  return {
+    status,
+    blockers,
+    ...(validationRef ? { validationRef } : {}),
+    ...(policyHash ? { policyHash } : {}),
+    ...(holdouts ? { holdouts } : {}),
+  };
 }
 
 function scopedRecord(
@@ -131,13 +185,9 @@ function scopedRecord(
   workspaceId: string,
   investigationId: string,
 ): InvestigationRecord {
-  if (!workspaceId || !workspaceId.trim()) fail('invalid_input', 'workspaceId required');
-  const found = investigations.find(workspaceId, investigationId);
-  if (found) return found;
-  if (investigations.existsInOtherWorkspace(workspaceId, investigationId)) {
-    fail('workspace_mismatch', 'investigation belongs to another workspace');
-  }
-  fail('not_found', `investigation ${investigationId} not found`);
+  // Single definition in the lifecycle service (T4): apply and validation
+  // resolve the same record through one scoping contract.
+  return requireScopedInvestigation(investigations, workspaceId, investigationId);
 }
 
 function compileForRecord(
@@ -189,8 +239,13 @@ export async function compileProposalForInvestigation(
  * exceptions land in namespaced custom-selector keys. The shared
  * `extractionPolicy` carries policy content WITHOUT opaque evidence
  * pointers (those stay workspace-scoped on the proposal artifact).
+ *
+ * Exported for validation (T4): the Validate Proposal action executes the
+ * same sanitized content through the production worker before any draft
+ * exists, so validation and apply can never diverge on what "the proposal"
+ * means.
  */
-function sanitizedDraftSelectors(proposal: ExtractionPolicyProposal): Record<string, unknown> {
+export function sanitizedDraftSelectors(proposal: ExtractionPolicyProposal): Record<string, unknown> {
   const core: Record<string, string | null> = {
     titleSelector: null,
     priceSelector: null,
@@ -314,6 +369,11 @@ function draftValidationSummary(args: {
   appliedAt: string;
 }): Record<string, unknown> {
   const { record, proposalHash, policyHash, blockers, validation, actor, appliedAt } = args;
+  // T4: a validation bound to different policy content is stale — edits
+  // invalidate prior validation instead of silently inheriting it.
+  if (validation.policyHash && validation.policyHash !== policyHash) {
+    fail('stale_proposal', 'validation was computed against different policy content');
+  }
   return {
     imageRuleOk: false,
     investigationDerived: true,
@@ -323,6 +383,11 @@ function draftValidationSummary(args: {
     validationStatus: validation.status,
     blockers,
     ...(validation.validationRef ? { validationRef: validation.validationRef } : {}),
+    // T4: blind-holdout evidence for the non-waivable health bar.
+    holdoutPassedCount: validation.holdouts?.passed ?? 0,
+    ...(validation.holdouts
+      ? { holdouts: { required: validation.holdouts.required, passed: validation.holdouts.passed, sampleIds: validation.holdouts.sampleIds } }
+      : {}),
     appliedAt,
     appliedBy: actor,
   };

@@ -87,6 +87,14 @@ export const VariantMatchInputSchema = z.object({
   price: z.string().max(64).nullable().optional(),
   variantTokens: z.array(z.string().max(128)).max(32).optional(),
   expectedOptions: z.array(ExpectedOptionSchema).max(8).optional(),
+  /**
+   * Exact known platform variant ID (e.g. a Shopify variant ID observed on
+   * a trusted source page). Compared ONLY against candidate variant IDs —
+   * a parent product ID never equals a variant ID, so it can never select
+   * among variants. Weaker than GTIN/SKU/MPN: any conflict with a stronger
+   * identifier fails closed to ambiguity.
+   */
+  platformVariantId: z.string().max(256).nullable().optional(),
 });
 export type VariantMatchInput = z.infer<typeof VariantMatchInputSchema>;
 
@@ -104,7 +112,7 @@ export const VariantMatchDecisionSchema = z.object({
   status: VariantMatchDecisionStatusSchema,
   selectedVariantKey: z.string().max(256).nullable(),
   reasonCodes: z.array(z.string().max(128)),
-  matchedBy: z.enum(['gtin', 'sku', 'mpn', 'options', 'ranked', 'none']),
+  matchedBy: z.enum(['gtin', 'sku', 'mpn', 'platform_id', 'options', 'ranked', 'none']),
   diagnostics: z.array(z.string().max(512)),
   rankedKeys: z.array(z.string().max(256)),
   score: z.number().min(0).max(1000).optional(),

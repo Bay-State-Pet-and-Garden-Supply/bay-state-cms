@@ -275,6 +275,10 @@ export const ExtractRequestSchema = z.object({
     name: z.string(),
     brandHint: z.string().nullable().default(null),
     upc: z.string().optional(),
+    /** Trusted source SKU for variant-identity matching (T4, optional). */
+    sku: z.string().optional(),
+    /** Exact known platform variant ID for identity matching (T4, optional). */
+    platformVariantId: z.string().optional(),
     spreadsheetHints: SpreadsheetHintSchema.default(() => ({})),
     price: z.string().nullable().default(null),
   }),
@@ -287,6 +291,13 @@ export const ExtractRequestSchema = z.object({
     customSelectors: z.record(z.string(), z.string()).default(() => ({})),
     imageRules: z.record(z.string(), z.unknown()).default(() => ({})),
     variantSelectionStrategy: z.union([StrictVariantSelectionStrategySchema, VariantSelectionStrategySchema]).nullable().default(null),
+    /**
+     * Shared extraction-policy content (T4 browser investigation). When
+     * present and Shopify-backed, the worker executes the policy's
+     * per-field source order through the Shopify endpoint adapter.
+     * Absent (legacy profiles) keeps current selector semantics exactly.
+     */
+    extractionPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
     /** Worker-side source-domain allowlist for this profile execution. When
      * non-empty, every destination (initial fetch, every redirect hop, and
      * every rendered sub-resource) must be an exact or subdomain-suffix match

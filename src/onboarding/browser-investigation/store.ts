@@ -10,15 +10,19 @@ import {
   findInvestigationById,
   findInvestigationByIdAnyWorkspace,
   getInvestigationProposalState,
+  getInvestigationValidationState,
   insertInvestigation,
   listInvestigationRecords as listRepoRecords,
   markInvestigationApplied,
   saveInvestigationProposal,
+  saveInvestigationValidation,
   updateInvestigation as updateRepo,
   type InvestigationProposalState,
+  type InvestigationValidationState,
 } from '../../db/repositories/browser-investigation-repo';
 import type { ProposalStore, StoredProposal } from './apply';
 import type { InvestigationStore } from './service';
+import type { StoredValidation, ValidationStore } from './validate';
 
 export function createSqliteInvestigationStore(): InvestigationStore {
   return {
@@ -83,6 +87,23 @@ export function createSqliteProposalStore(): ProposalStore {
     },
     markApplied(workspaceId, investigationId, versionId, actor, appliedAt) {
       markInvestigationApplied(workspaceId, investigationId, versionId, actor, appliedAt);
+    },
+  };
+}
+
+/** SQLite-backed ValidationStore adapter (T4). Thin bridge over the
+ * investigation repository's validation-reference columns. */
+export function createSqliteValidationStore(): ValidationStore {
+  return {
+    getValidation(workspaceId, investigationId): StoredValidation | null {
+      const state: InvestigationValidationState | null = getInvestigationValidationState(
+        workspaceId,
+        investigationId,
+      );
+      return state;
+    },
+    saveValidation(workspaceId, investigationId, validationJson, validationHash, policyHash, validatedAt) {
+      saveInvestigationValidation(workspaceId, investigationId, validationJson, validationHash, policyHash, validatedAt);
     },
   };
 }
