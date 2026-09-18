@@ -132,8 +132,6 @@ export const PolicyStructureSchema = z.object({
   /** Extraction representation observed (e.g. `shopify_product_json`). Free text: transport only. */
   platformSource: z.string().min(1).max(120).optional(),
 });
-export type InvestigationStructure = z.infer<typeof PolicyStructureSchema>;
-export type ProposalStructure = z.infer<typeof PolicyStructureSchema>;
 
 /**
  * One per-field source recommendation from the typed investigation result.
@@ -162,14 +160,12 @@ export const PolicyIdentitySchema = z.object({
   variantIdentity: z.array(z.string().min(1).max(64)).min(1).max(8),
   optionAxes: z.array(z.string().min(1).max(64)).max(8).default([]),
 });
-export type PolicyIdentity = z.infer<typeof PolicyIdentitySchema>;
 
 /** Typed declaration that investigation succeeded as evidence but needs a coded runtime adapter. */
 export const CodeAdapterNeedSchema = z.object({
   capability: z.string().min(1).max(200),
   reason: z.string().min(1).max(2000),
 });
-export type CodeAdapterNeed = z.infer<typeof CodeAdapterNeedSchema>;
 
 /** One compiled per-field policy entry: ordered supported sources plus an optional selector exception. */
 const FieldPolicySchema = z.object({
@@ -178,7 +174,6 @@ const FieldPolicySchema = z.object({
   selector: z.string().min(1).max(MAX_POLICY_SELECTOR_LENGTH).optional(),
   evidenceRef: z.string().min(1).max(500).optional(),
 });
-export type FieldPolicy = z.infer<typeof FieldPolicySchema>;
 
 export const InvestigationPlatformSchema = z.enum([
   'shopify',
@@ -189,7 +184,6 @@ export const InvestigationPlatformSchema = z.enum([
   'custom',
   'unknown',
 ]);
-export type InvestigationPlatform = z.infer<typeof InvestigationPlatformSchema>;
 
 /**
  * Extraction Policy Proposal: the compilable, reviewable, version-bound
@@ -238,7 +232,6 @@ const CodeAdapterRequestSchema = z.object({
   evidenceRefs: z.array(z.string().min(1).max(500)).max(50).default([]),
   structureIds: z.array(z.string().min(1).max(64)).max(8).default([]),
 });
-export type CodeAdapterRequest = z.infer<typeof CodeAdapterRequestSchema>;
 
 /**
  * Deterministic compiler outcome. Only `proposal` is appliable to a draft;

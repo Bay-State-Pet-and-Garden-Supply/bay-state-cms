@@ -106,18 +106,6 @@
       ]
     },
     {
-      "file": "src/shared/schemas/browser-investigation-policy.ts",
-      "exports": [
-        "InvestigationStructure",
-        "ProposalStructure",
-        "PolicyIdentity",
-        "CodeAdapterNeed",
-        "FieldPolicy",
-        "InvestigationPlatform",
-        "CodeAdapterRequest"
-      ]
-    },
-    {
       "file": "src/onboarding/page-extractor.ts",
       "exports": [
         "*"
