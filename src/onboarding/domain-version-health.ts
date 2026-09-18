@@ -52,8 +52,7 @@ function normalizeHealthDomain(domain: string): string {
 
 /** Read-only reviewed-health verdict for one domain plus profile version. */
 // Shared verdict consumed by activation, release, and health routes.
-// fallow-ignore-next-line unused-type
-export interface DomainVersionHealth {
+interface DomainVersionHealth {
   domain: string;
   /** Evaluated version id; null when no version resolved (unknown/active-missing). */
   versionId: string | null;

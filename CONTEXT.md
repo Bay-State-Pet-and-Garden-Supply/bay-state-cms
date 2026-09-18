@@ -728,7 +728,7 @@ The default Browser Investigation runtime: host-side broker fetch of approved pa
 _Avoid_: Host-side scraping, rendered browser, model-led browsing
 
 **Tier 1 Rendered Investigation**:
-The conditional Browser Investigation runtime behind Tier 0: when static reads yield no DOM evidence, rendered reads execute inside the render container (`baystate/investigation-render:1`) on the isolated render network whose only egress is the validating forward proxy (host-side, broker-validated per request), reusing the rendered-page stack; plus one bounded model call over redacted, holdout-blind observations (advisory output only — strategy prose and gaps, never identity/fields/structures). Unavailable render/model surfaces as a visible gap with Tier 0 standing; engaged-but-failed Tier 1 fails closed.
+The deferred Browser Investigation runtime behind Tier 0: a render-required investigation fails closed with the stable `render_deferred` code and performs no render attempt, leaving Tier 0 evidence standing; the render machinery exists but is not production-valid until rendered navigation works through the validating boundary (#237 stays open).
 _Avoid_: Unrestricted browser, direct-egress rendering, implied proxy
 
 **Curation** (v2 canonical `prepare_listing` / Prepare listing — owner-approved 2026-09-08):

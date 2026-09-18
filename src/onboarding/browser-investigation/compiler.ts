@@ -32,10 +32,7 @@ import {
 } from '../../shared/schemas/browser-investigation-policy';
 import type { InvestigationResult } from '../../shared/schemas/browser-investigation';
 
-// Forward-looking T2/T5 API: compiler input binding for harness and
-// workspace flows that compile outside the apply path.
-// fallow-ignore-next-line unused-type
-export interface CompileContext {
+interface CompileContext {
   domain: string;
   investigationId: string;
   runId: string;

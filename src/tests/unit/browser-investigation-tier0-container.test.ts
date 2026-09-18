@@ -666,7 +666,9 @@ describe('Tier 0 / Tier 1 network shape (recorded decision)', () => {
     expect(design).toMatch(/proxy-only/);
     const context = readFileSync(new URL('../../../CONTEXT.md', import.meta.url), 'utf8');
     expect(context).toMatch(/Tier 1 Rendered Investigation/);
-    expect(context).toMatch(/validating forward proxy/);
+    // #248 correction: the glossary records the deferred state (render-required
+    // work fails closed), not the previously intended executing-render story.
+    expect(context).toMatch(/render_deferred/);
   });
 
   it('builds Tier 0 analysis argv from the posture spec with stdin attached and no proxy', () => {

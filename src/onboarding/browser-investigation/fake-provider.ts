@@ -38,8 +38,7 @@ const FakeInvestigationScenarioSchema = z.enum([
 // Scenario selector for the deterministic fake. Tests set it per invocation
 // (explicit injection only — never via any operator launch contract since
 // #235); T2+ suites reuse it for compiler/validation fixtures.
-// fallow-ignore-next-line unused-type
-export type FakeInvestigationScenario = z.infer<typeof FakeInvestigationScenarioSchema>;
+type FakeInvestigationScenario = z.infer<typeof FakeInvestigationScenarioSchema>;
 
 export const FAKE_INVESTIGATION_SCENARIOS: readonly FakeInvestigationScenario[] =
   FakeInvestigationScenarioSchema.options;

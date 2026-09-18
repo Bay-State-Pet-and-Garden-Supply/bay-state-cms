@@ -66,8 +66,7 @@ export class InvestigationServiceError extends Error {
 
 // Public options surface for explicit investigate/repair calls (routes in T1,
 // compiler and workspace flows in T2/T5).
-// fallow-ignore-next-line unused-type
-export interface RequestInvestigationOptions {
+interface RequestInvestigationOptions {
   workspaceId: string;
   domain: string;
   mode: InvestigationMode;

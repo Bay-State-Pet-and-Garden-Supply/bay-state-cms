@@ -266,7 +266,7 @@ describe('Tier 1 network shape lives in code and docs', () => {
     expect(design).toMatch(/proxy-only/);
     const context = readFileSync(new URL('../../../CONTEXT.md', import.meta.url), 'utf8');
     expect(context).toMatch(/Tier 1 Rendered Investigation/);
-    expect(context).toMatch(/validating forward proxy/);
+    expect(context).toMatch(/render_deferred/);
   });
 });
 

@@ -4,13 +4,9 @@
 // This module is pure (Zod + string/canonical JSON only): no DB, no network,
 // no provider SDK imports. Cloud browser integration stays disabled in T1.
 //
-// The contract surface below is consumed incrementally by T2 (compiler),
-// T3 (harness), and T5 (governance/workspace flow); symbols without a T1
-// importer are forward-looking API, not dead code.
 // Shared investigation envelope: consumers (service, compiler, workspace,
 // routes, tests) import the subset each needs, so the module's export surface
 // is intentionally wider than any single importer.
-// fallow-ignore-file unused-export
 
 import { z } from 'zod';
 import {
@@ -26,7 +22,7 @@ export const INVESTIGATION_RESULT_VERSION = 1 as const;
 export const InvestigationModeSchema = z.enum(['domain_onboarding', 'drift_repair']);
 export type InvestigationMode = z.infer<typeof InvestigationModeSchema>;
 
-export const InvestigationStatusSchema = z.enum([
+const InvestigationStatusSchema = z.enum([
   'queued',
   'running',
   'completed',
@@ -34,11 +30,9 @@ export const InvestigationStatusSchema = z.enum([
   'cancelled',
   'discarded',
 ]);
-// Forward-looking T2/T5 API: lifecycle status type for compiler and workspace flows.
-// fallow-ignore-next-line unused-type
-export type InvestigationStatus = z.infer<typeof InvestigationStatusSchema>;
+type InvestigationStatus = z.infer<typeof InvestigationStatusSchema>;
 
-export const TERMINAL_INVESTIGATION_STATUSES: readonly InvestigationStatus[] = [
+const TERMINAL_INVESTIGATION_STATUSES: readonly InvestigationStatus[] = [
   'completed',
   'failed',
   'cancelled',
@@ -49,17 +43,11 @@ export function isTerminalInvestigationStatus(status: InvestigationStatus): bool
   return (TERMINAL_INVESTIGATION_STATUSES as readonly string[]).includes(status);
 }
 
-export const ACTIVE_INVESTIGATION_STATUSES: readonly InvestigationStatus[] = ['queued', 'running'];
-
-export function isActiveInvestigationStatus(status: InvestigationStatus): boolean {
-  return (ACTIVE_INVESTIGATION_STATUSES as readonly string[]).includes(status);
-}
-
 /** Providers known to the seam. `fake` persists only for explicit test
  * injection (never launchable from production routes since #235); `cloud`
  * is intentionally absent: requesting it must fail closed with
  * `cloud_disabled` and no Cloud SDK ships. */
-export const InvestigationProviderIdSchema = z.enum(['fake', 'local_browser_harness']);
+const InvestigationProviderIdSchema = z.enum(['fake', 'local_browser_harness']);
 export type InvestigationProviderId = z.infer<typeof InvestigationProviderIdSchema>;
 
 /** Operator-safe stable failure codes. Never carry secrets, prompts, or raw HTML. */
@@ -119,7 +107,7 @@ export const DEFAULT_INVESTIGATION_BUDGET = {
  * layers. Defaults are maxima: overrides may lower caps but never raise
  * them — an oversized response cannot silently increase the budget.
  */
-export const DEFAULT_INVESTIGATION_RESOURCE_BUDGET = {
+const DEFAULT_INVESTIGATION_RESOURCE_BUDGET = {
   /** Per-response body cap, enforced on transferred AND decompressed bytes while streaming. */
   maxResponseBytesPerResponse: 5 * 1024 * 1024,
   /** Aggregate transferred body bytes per investigation (assets, redirects, retries included). */
@@ -393,9 +381,7 @@ export const InvestigationModelPolicySchema = z.object({
 export type InvestigationModelPolicy = z.infer<typeof InvestigationModelPolicySchema>;
 
 export const InvestigationBudgetInputSchema = InvestigationBudgetSchema.partial();
-// Forward-looking T2/T5 API: partial budget overrides for compiler and workspace flows.
-// fallow-ignore-next-line unused-type
-export type InvestigationBudgetInput = z.infer<typeof InvestigationBudgetInputSchema>;
+type InvestigationBudgetInput = z.infer<typeof InvestigationBudgetInputSchema>;
 
 export function resolveInvestigationBudget(input?: InvestigationBudgetInput): InvestigationBudget {
   return InvestigationBudgetSchema.parse(input ?? {});
@@ -410,11 +396,7 @@ export const InvestigationRequestInputSchema = z.object({
   modelPolicy: InvestigationModelPolicySchema.partial().optional(),
   knownContext: z.record(z.string(), z.unknown()).optional(),
 });
-// Forward-looking T2/T5 API: typed request input for compiler and workspace flows.
-// fallow-ignore-next-line unused-type
-export type InvestigationRequestInput = z.infer<typeof InvestigationRequestInputSchema>;
-
-export const InvestigationModelMetadataSchema = z.object({
+const InvestigationModelMetadataSchema = z.object({
   provider: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   requested: z.string().min(1).optional(),
@@ -422,7 +404,7 @@ export const InvestigationModelMetadataSchema = z.object({
 });
 export type InvestigationModelMetadata = z.infer<typeof InvestigationModelMetadataSchema>;
 
-export const InvestigationUsageSchema = z.object({
+const InvestigationUsageSchema = z.object({
   modelCalls: z.number().int().min(0).optional(),
   pagesVisited: z.number().int().min(0).optional(),
   readsPerformed: z.number().int().min(0).optional(),
@@ -452,7 +434,7 @@ export type InvestigationUsage = z.infer<typeof InvestigationUsageSchema>;
 export const MAX_RESULT_OBSERVATION_DETAIL_CHARS = 4000;
 
 /** One untrusted, source-attributed observation. Evidence, not proof. */
-export const InvestigationObservationSchema = z.object({
+const InvestigationObservationSchema = z.object({
   kind: z.string().min(1).max(120),
   sourceUrl: z.string().url(),
   /** Hash of the captured artifact bytes (hex). Prefix hashes must not
@@ -461,9 +443,6 @@ export const InvestigationObservationSchema = z.object({
   detail: z.string().max(MAX_RESULT_OBSERVATION_DETAIL_CHARS).optional(),
   incomplete: z.boolean().default(false),
 });
-// Forward-looking T2 API: observation type for the deterministic compiler.
-// fallow-ignore-next-line unused-type
-export type InvestigationObservation = z.infer<typeof InvestigationObservationSchema>;
 
 /**
  * Versioned, schema-validated but UNTRUSTED typed investigation result.
@@ -500,7 +479,7 @@ export const InvestigationResultSchema = z.object({
 export type InvestigationResult = z.infer<typeof InvestigationResultSchema>;
 
 /** Immutable input snapshot persisted with every investigation. */
-export const InvestigationInputSnapshotSchema = z.object({
+const InvestigationInputSnapshotSchema = z.object({
   domain: z.string().min(1),
   mode: InvestigationModeSchema,
   sampleUrls: z.array(z.string().url()).min(1).max(5),
