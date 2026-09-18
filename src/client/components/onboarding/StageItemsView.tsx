@@ -1165,11 +1165,12 @@ export function StageItemsView({
           role="region"
           aria-label="Unmapped brand resolution"
           style={{
-            backgroundColor: '#fffbeb',
-            border: '1px solid #fcd34d',
+            backgroundColor: colors.feedBagCream,
+            border: `1px solid ${colors.cardBorder}`,
             borderRadius: rounded.md,
-            padding: '10px 12px',
-            margin: '0 0 8px 0',
+            padding: '12px 16px',
+            margin: '0 0 10px 0',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
           }}
         >
           <p style={{ margin: '0 0 8px 0', fontSize: '0.8125rem', fontWeight: 700, color: colors.ledgerCharcoal }}>
@@ -1346,12 +1347,12 @@ export function StageItemsView({
             alignItems: 'center',
             gap: 12,
             flexWrap: 'wrap',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #16844D',
+            backgroundColor: colors.feedBagCream,
+            border: `1px solid ${colors.uniformGreen}`,
             borderRadius: rounded.md,
-            padding: '6px 12px',
-            margin: '0 0 8px 0',
-            boxShadow: '0 1px 4px rgba(20, 83, 45, 0.1)',
+            padding: '8px 14px',
+            margin: '0 0 10px 0',
+            boxShadow: '0 2px 8px rgba(20, 83, 45, 0.12)',
             position: 'sticky',
             top: 0,
             zIndex: 10,
@@ -1644,7 +1645,7 @@ export function StageItemsView({
         <table className="bws-results-table">
           <thead>
             <tr>
-              <th>
+              <th style={{ width: 38, textAlign: 'center' }}>
                 <input
                   type="checkbox"
                   data-testid="stage-select-all"
@@ -1656,8 +1657,16 @@ export function StageItemsView({
               <th>Product</th>
               <th>Brand</th>
               <th>Domain</th>
-              <th>Strategy</th>
-              <th>Status</th>
+              <th>
+                Strategy{' '}
+                <span
+                  title="Collection readiness: Ready means collection can run within an approved strategy. It does not guarantee a match, collected evidence, or sufficient listing information."
+                  style={{ cursor: 'help', fontWeight: 'normal', opacity: 0.75 }}
+                  aria-label="Strategy readiness info"
+                >
+                  ℹ️
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1768,20 +1777,50 @@ export function StageItemsView({
                 </td>
                 <td data-testid={`intake-domain-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 180 }}>
                   {flags.distributorExempt ? (
-                    <span className="bws-muted">— (Distributor record)</span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: '0.6875rem',
+                        fontWeight: 600,
+                        color: '#0369a1',
+                        backgroundColor: '#e0f2fe',
+                        border: '1px solid #bae6fd',
+                        borderRadius: rounded.full,
+                        padding: '2px 8px',
+                        width: 'fit-content',
+                      }}
+                      title="Distributor record — exempt from official website domain and profile requirements"
+                    >
+                      📦 Distributor record · No domain needed
+                    </span>
                   ) : flags.missingBrand ? (
                     <span className="bws-muted">—</span>
                   ) : flags.mappedDomain ? (
                     <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span title="Official domain mapped in Brand Hub">🌐 {flags.mappedDomain}</span>
+                      <span title="Official domain mapped in Brand Hub" style={{ fontWeight: 500, color: colors.ledgerCharcoal }}>
+                        🌐 {flags.mappedDomain}
+                      </span>
                       {strategy.suppressMissingDomain ? (
                         <span
                           data-testid={`intake-distributor-only-${item.itemId}`}
-                          className="bws-muted"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: '0.6875rem',
+                            fontWeight: 600,
+                            color: '#0369a1',
+                            backgroundColor: '#e0f2fe',
+                            border: '1px solid #bae6fd',
+                            borderRadius: rounded.full,
+                            padding: '2px 8px',
+                            width: 'fit-content',
+                          }}
                           title="Approved distributor-only strategy — official collection is out of scope, so no extractor profile is needed"
-                          style={{ fontSize: '0.6875rem' }}
                         >
-                          Distributor-only strategy — no profile needed
+                          📦 Distributor-only · no profile needed
                         </span>
                       ) : profileReady ? (
                         <span
@@ -1793,12 +1832,13 @@ export function StageItemsView({
                             fontWeight: 700,
                             color: colors.uniformGreen,
                             backgroundColor: '#e8f3ec',
+                            border: '1px solid #c7e5d3',
                             borderRadius: rounded.full,
                             padding: '2px 8px',
                             width: 'fit-content',
                           }}
                         >
-                          Profile Ready
+                          ✓ Profile Ready
                         </span>
                       ) : (
                         <button
@@ -1923,76 +1963,90 @@ export function StageItemsView({
                       )}
                     </span>
                   ) : (
-                    <span className="bws-muted" title="Approved distributor-only strategy — no official website required">
-                      Distributor-supported brand — no domain required
+                    <span
+                      data-testid={`intake-distributor-only-${item.itemId}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: '0.6875rem',
+                        fontWeight: 600,
+                        color: '#0369a1',
+                        backgroundColor: '#e0f2fe',
+                        border: '1px solid #bae6fd',
+                        borderRadius: rounded.full,
+                        padding: '2px 8px',
+                        width: 'fit-content',
+                      }}
+                      title="Approved distributor-only strategy — no official website required"
+                    >
+                      📦 Distributor brand · No domain needed
                     </span>
                   )}
                 </td>
                 <td data-testid={`intake-strategy-${item.itemId}`} style={{ fontSize: '0.75rem', minWidth: 160 }}>
-                  <span
-                    data-testid={`intake-readiness-${item.itemId}`}
-                    role="status"
-                    title="Collection readiness: whether collection can run within the approved strategy"
-                    style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}
-                  >
-                    {strategy.label}
-                  </span>
-                  {strategy.explanation && (
-                    <span className="bws-muted" style={{ display: 'block', fontSize: '0.6875rem', marginBottom: 6 }}>
-                      {strategy.explanation}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+                    <span
+                      data-testid={`intake-readiness-${item.itemId}`}
+                      role="status"
+                      title={strategy.explanation ?? 'Collection readiness: whether collection can run within the approved strategy'}
+                      style={{
+                        display: 'inline-block',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        color: strategy.canCollect ? colors.uniformGreen : '#92400e',
+                        backgroundColor: strategy.canCollect ? '#e8f3ec' : '#fffbeb',
+                        border: `1px solid ${strategy.canCollect ? '#c7e5d3' : '#fde68a'}`,
+                        borderRadius: rounded.md,
+                        padding: '2px 8px',
+                      }}
+                    >
+                      {strategy.label}
                     </span>
-                  )}
-                  {strategiesError && (
-                    <button
-                      type="button"
-                      data-testid={`intake-readiness-retry-${item.itemId}`}
-                      onClick={() => void refreshEpoch()}
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        backgroundColor: 'transparent',
-                        border: `1px solid ${colors.uniformGreen}`,
-                        borderRadius: rounded.md,
-                        padding: '0.25rem 0.625rem',
-                        cursor: 'pointer',
-                        width: 'fit-content',
-                        minHeight: 28,
-                      }}
-                    >
-                      Retry
-                    </button>
-                  )}
-                  {item.brand ? (
-                    <button
-                      type="button"
-                      data-testid={`intake-strategy-review-${item.itemId}`}
-                      aria-haspopup="dialog"
-                      onClick={(e) => openStrategyDialog(item.brand as string, e.currentTarget)}
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        color: colors.uniformGreen,
-                        backgroundColor: 'transparent',
-                        border: `1px solid ${colors.uniformGreen}`,
-                        borderRadius: rounded.md,
-                        padding: '0.25rem 0.625rem',
-                        cursor: 'pointer',
-                        width: 'fit-content',
-                        minHeight: 28,
-                      }}
-                    >
-                      Review strategy
-                    </button>
-                  ) : (
-                    <span className="bws-muted">—</span>
-                  )}
-                </td>
-                <td>
-                  <span className="bws-stage-badge" title={`Recorded pipeline state: ${item.stage} / ${item.stageStatus}`}>
-                    {item.stage} / {item.stageStatus}
-                  </span>
-                  <div className="bws-muted" style={{ fontSize: '0.75rem' }}>
-                    {item.label}
+                    {strategiesError && (
+                      <button
+                        type="button"
+                        data-testid={`intake-readiness-retry-${item.itemId}`}
+                        onClick={() => void refreshEpoch()}
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${colors.uniformGreen}`,
+                          borderRadius: rounded.md,
+                          padding: '0.25rem 0.625rem',
+                          cursor: 'pointer',
+                          width: 'fit-content',
+                          minHeight: 28,
+                        }}
+                      >
+                        Retry
+                      </button>
+                    )}
+                    {item.brand ? (
+                      <button
+                        type="button"
+                        data-testid={`intake-strategy-review-${item.itemId}`}
+                        aria-haspopup="dialog"
+                        onClick={(e) => openStrategyDialog(item.brand as string, e.currentTarget)}
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: colors.uniformGreen,
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${colors.uniformGreen}`,
+                          borderRadius: rounded.md,
+                          padding: '0.25rem 0.625rem',
+                          cursor: 'pointer',
+                          width: 'fit-content',
+                          minHeight: 28,
+                        }}
+                      >
+                        Review strategy
+                      </button>
+                    ) : (
+                      <span className="bws-muted">—</span>
+                    )}
                   </div>
                 </td>
               </tr>

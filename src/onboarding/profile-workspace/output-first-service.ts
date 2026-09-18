@@ -181,6 +181,24 @@ export async function inspectProfileUrl(
     };
   }
 
+  // 4b. Brand context backfill (mirrors the job-queue worker:
+  // `if (item.brandHint && !extractedData.brand) extractedData.brand =
+  // item.brandHint`). On an official brand site the brand is implied by the
+  // domain/sourcing context — brand pages almost never print their own brand
+  // name, so demanding a scraped brand just manufactures busywork. When the
+  // caller asserts a brandHint and the page yielded no brand, accept the
+  // context brand (source-labelled) instead of raising a missing-brand
+  // exception. Drafts resolve their authoritative brand from this same
+  // context (draft-promoter brand resolution), never from page copy.
+  if ((!fields.brand.value || !fields.brand.value.trim()) && expected?.brandHint?.trim()) {
+    fields.brand = {
+      value: expected.brandHint.trim(),
+      source: 'brand-hint',
+      status: 'extracted',
+      conflict: null,
+    };
+  }
+
   // 5. Gallery
   const rejectedImages: Array<{ url: string; reason: string }> = [];
   for (const [imgUrl, reason] of Object.entries(hybrid.imageRejectionReasons)) {
@@ -212,8 +230,13 @@ export async function inspectProfileUrl(
     });
   }
 
-  // B. Missing Fields (critical required fields: title, brand, price)
-  const criticalFields = ['title', 'brand', 'price'] as const;
+  // B. Missing Fields (critical required fields: title, brand).
+  // NOTE: price is intentionally NOT required here. Register prices are
+  // authoritative and web-scraped prices must never block profile approval
+  // (priceSelector is deprecated / never generated — see profile-fields.ts
+  // and profile-generator.ts). Extraction may still display a page price
+  // informationally, but its absence is never an exception.
+  const criticalFields = ['title', 'brand'] as const;
   for (const f of criticalFields) {
     if (fields[f].status === 'missing') {
       exceptionQueue.push({
@@ -366,9 +389,8 @@ export async function validateSiblingUrls(
     if (!inspection.fields.title?.value) {
       failureReasons.push('Missing title');
     }
-    if (!inspection.fields.price?.value) {
-      failureReasons.push('Missing price');
-    }
+    // NOTE: no 'Missing price' gate — register prices are authoritative;
+    // a page without a scrapable price must still validate.
 
     const hasCriticalExceptions = inspection.exceptionQueue.some((e) => e.severity === 'critical');
     if (hasCriticalExceptions) {

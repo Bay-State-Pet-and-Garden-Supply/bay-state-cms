@@ -234,18 +234,55 @@ describe('Output-First Workspace Flow (#191)', () => {
         profile: null,
       });
 
-      const missingPrice = initial.exceptionQueue.find((e) => e.category === 'missing' && e.field === 'price');
-      expect(missingPrice).toBeDefined();
+      // Price is intentionally NOT a required field (register prices are
+      // authoritative), so a missing page price must NOT raise an exception.
+      expect(initial.exceptionQueue.some((e) => e.category === 'missing' && e.field === 'price')).toBe(false);
+      expect(initial.fields.price.status).toBe('missing');
 
-      // Deep resolve missing price with manual value override or picker
-      const updatedAfterPrice = applyExceptionResolution(initial, missingPrice!.id, {
+      const missingBrand = initial.exceptionQueue.find((e) => e.category === 'missing' && e.field === 'brand');
+      expect(missingBrand).toBeDefined();
+
+      // Deep resolve missing brand with manual value override or picker
+      const updatedAfterBrand = applyExceptionResolution(initial, missingBrand!.id, {
         action: 'manual_value',
-        value: '12.99',
+        value: 'Earthbath',
       });
 
-      expect(updatedAfterPrice.fields.price.value).toBe('12.99');
-      expect(updatedAfterPrice.fields.price.source).toBe('manual-override');
-      expect(updatedAfterPrice.exceptionQueue.some((e) => e.category === 'missing' && e.field === 'price')).toBe(false);
+      expect(updatedAfterBrand.fields.brand.value).toBe('Earthbath');
+      expect(updatedAfterBrand.fields.brand.source).toBe('manual-override');
+      expect(updatedAfterBrand.exceptionQueue.some((e) => e.category === 'missing' && e.field === 'brand')).toBe(false);
+    });
+
+    it('accepts the context brand instead of demanding a scraped brand', async () => {
+      // Brand pages almost never print their own brand name — on an official
+      // brand site the brand is implied by the domain/sourcing context
+      // (expected.brandHint), mirroring the job-queue worker backfill.
+      const result = await inspectProfileUrl({
+        domain: 'example.com',
+        url: 'https://example.com/products/shampoo',
+        html: sampleHtmlMissingAndVague,
+        profile: null,
+        expected: { name: 'Earthbath Oatmeal Shampoo 16oz', brandHint: 'Earthbath' },
+      });
+
+      expect(result.fields.brand.value).toBe('Earthbath');
+      expect(result.fields.brand.source).toBe('brand-hint');
+      expect(result.fields.brand.status).toBe('extracted');
+      expect(result.exceptionQueue.some((e) => e.category === 'missing' && e.field === 'brand')).toBe(false);
+    });
+
+    it('still flags a missing brand when neither page nor context knows it', async () => {
+      const result = await inspectProfileUrl({
+        domain: 'example.com',
+        url: 'https://example.com/products/shampoo',
+        html: sampleHtmlMissingAndVague,
+        profile: null,
+        expected: { name: 'Earthbath Oatmeal Shampoo 16oz' },
+      });
+
+      const missingBrand = result.exceptionQueue.find((e) => e.category === 'missing' && e.field === 'brand');
+      expect(missingBrand).toBeDefined();
+      expect(missingBrand?.severity).toBe('critical');
     });
 
     it('deep-links item-level failures into workspace as seed samples via query params', () => {

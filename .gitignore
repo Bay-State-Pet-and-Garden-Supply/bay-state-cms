@@ -31,6 +31,8 @@ storage/
 .agents/*
 !.agents/skills/
 !.agents/skills/**
+# Third-party / local-only skill installs (never committed)
+.agents/skills/browser-use/
 skills-lock.json
 .pi-subagents/
 .pi/
@@ -47,6 +49,14 @@ test-*-workspace/
 # ── Parallel-session working docs (excess — never committed) ───────────────
 subagents-reports/
 .analysis/
+
+# ── Impeccable skill install artifacts (generated on skill upgrade/reinstall) ─
+.github/skills/impeccable/scripts/VERSION
+.github/skills/impeccable/scripts/bin/
+.github/skills/impeccable/scripts/data/
+.github/skills/impeccable/scripts/impeccable
+.github/skills/impeccable/scripts/impeccable.cmd
+.github/skills/impeccable/scripts/live-browser-ignores.js
 
 
 # ── PI decommission archival dumps (DB data never enters git) ─────────────────

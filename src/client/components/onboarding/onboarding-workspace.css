@@ -132,9 +132,9 @@
 }
 
 .bws-results-table td {
-  padding: 0.5rem 0.625rem;
+  padding: 0.4375rem 0.625rem;
   border-bottom: 1px solid var(--color-card-border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .bws-results-table tbody tr:hover {

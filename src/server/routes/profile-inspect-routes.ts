@@ -6,12 +6,31 @@ import { inspectProfileUrl, validateSiblingUrls } from '../../onboarding/profile
 import { captureProfilePage } from '../../onboarding/profile-capture';
 import { getVersionById, type ProfileVersion } from '../../db/repositories/profile-version-repo';
 import { getRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
+import { listAllBrandSites } from '../../db/repositories/brand-site-repo';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 
 export const profileInspectRoutes = new Hono();
 
 function normalizeDomain(d: string): string {
   return d.toLowerCase().replace(/^www\./, '').trim();
+}
+
+/**
+ * Resolve the implied brand for a domain from brand-site mappings.
+ * A profile workspace is always scoped to one official brand domain, so the
+ * brand is context — it must never have to be scraped from page copy.
+ * Returns null when the domain has no mapping (brand stays truly unknown).
+ */
+function resolveBrandForDomain(domain: string): string | null {
+  const norm = normalizeDomain(domain);
+  try {
+    for (const row of listAllBrandSites()) {
+      if (normalizeDomain(row.domain) === norm) return row.brandName;
+    }
+  } catch {
+    // best effort — a lookup failure must never fail inspection
+  }
+  return null;
 }
 
 export function versionToExtractorProfile(version: ProfileVersion): ExtractorProfile {
@@ -80,13 +99,23 @@ profileInspectRoutes.post('/domains/:domain/profile/inspect', async (c) => {
     if (v) profile = versionToExtractorProfile(v);
   }
 
+  // Domain-implied brand context: the workspace domain IS an official brand
+  // site, so backfill brandHint when the caller didn't assert one. The
+  // inspection service accepts this as the brand (source 'brand-hint')
+  // instead of demanding a scraped brandSelector.
+  let effectiveExpected = expected;
+  if (!effectiveExpected?.brandHint) {
+    const domainBrand = resolveBrandForDomain(domain);
+    if (domainBrand) effectiveExpected = { ...effectiveExpected, brandHint: domainBrand };
+  }
+
   try {
     const result = await inspectProfileUrl({
       domain,
       url,
       html,
       profile,
-      expected,
+      expected: effectiveExpected,
     });
     return c.json(result);
   } catch (err) {
@@ -123,7 +152,10 @@ profileInspectRoutes.post('/domains/:domain/profile/validate-siblings', async (c
     if (v) profile = versionToExtractorProfile(v);
   }
 
-  const siblingPages: Array<{ url: string; html?: string }> = [];
+  const siblingPages: Array<{ url: string; html?: string; expected?: { brandHint?: string | null } }> = [];
+  // Same domain-implied brand context as /inspect, applied to every sibling
+  // so a missing scraped brand can never fail sibling validation either.
+  const siblingBrandHint = resolveBrandForDomain(domain);
   for (const u of siblingUrls) {
     let sHtml = siblingHtmls[u];
     if (!sHtml) {
@@ -134,7 +166,11 @@ profileInspectRoutes.post('/domains/:domain/profile/validate-siblings', async (c
         // Leave undefined so runner handles empty/failed
       }
     }
-    siblingPages.push({ url: u, html: sHtml });
+    siblingPages.push({
+      url: u,
+      html: sHtml,
+      ...(siblingBrandHint ? { expected: { brandHint: siblingBrandHint } } : {}),
+    });
   }
 
   try {

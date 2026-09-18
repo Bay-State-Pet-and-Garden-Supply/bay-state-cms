@@ -170,7 +170,6 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenProfile
   const [updating, setUpdating] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
-  const hasAutoRoutedRef = useRef(false);
 
   const refreshStageCounts = useCallback(async () => {
     const gen = generation.current;
@@ -190,20 +189,6 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenProfile
       setProjectionHealth(res.projectionHealth);
       setCountsError(null);
       setCountsStale(false);
-      // Auto-land on Needs Attention if the batch has items needing attention and no explicit stage/tab was chosen
-      if (!hasAutoRoutedRef.current && (res.counts?.needs_attention ?? 0) > 0) {
-        const currentSel = parseWorkspaceSelection(typeof window !== 'undefined' ? window.location.search : '');
-        if (currentSel.kind === 'legacy' && currentSel.rawTab === null) {
-          hasAutoRoutedRef.current = true;
-          writeSearch((params) => {
-            params.delete('stage');
-            params.delete('stageVersion');
-            params.delete('wview');
-            params.set('tab', 'needs_attention');
-          }, false);
-          return;
-        }
-      }
     } catch (err) {
       if (generation.current !== gen) return;
       // Retain last successful counts with a stale badge — never zero them.
@@ -216,7 +201,6 @@ function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenProfile
 
   useEffect(() => {
     generation.current += 1;
-    hasAutoRoutedRef.current = false;
     setStageCounts(null);
     setOpCounts(null);
     setCountsError(null);
