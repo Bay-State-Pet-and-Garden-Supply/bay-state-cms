@@ -1,4 +1,5 @@
-// fallow-ignore-file unused-export
+// Worker/API shared envelope: the server, the worker, and their suites import
+// the subset each needs.
 
 import { z } from 'zod';
 import { ExtractionDataSchema, StrictVariantSelectionStrategySchema } from './onboarding';

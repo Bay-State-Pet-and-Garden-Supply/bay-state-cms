@@ -7,6 +7,9 @@
 // The contract surface below is consumed incrementally by T2 (compiler),
 // T3 (harness), and T5 (governance/workspace flow); symbols without a T1
 // importer are forward-looking API, not dead code.
+// Shared investigation envelope: consumers (service, compiler, workspace,
+// routes, tests) import the subset each needs, so the module's export surface
+// is intentionally wider than any single importer.
 // fallow-ignore-file unused-export
 
 import { z } from 'zod';
@@ -309,7 +312,7 @@ function formatMs(ms: number): string {
  * shown up front; the same caps are enforced live at the broker, capture,
  * and dispatch layers. Pure and Vitest-safe.
  */
-// fallow-ignore-next-line unused-export — consumed by routes + tests
+// fallow-ignore-next-line unused-export -- consumed by routes + tests
 export function describeInvestigationBudget(budget: InvestigationBudget): InvestigationBudgetRow[] {
   return [
     { key: 'maxPages', label: 'Product pages', value: `up to ${budget.maxPages}` },

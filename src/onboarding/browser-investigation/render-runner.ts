@@ -37,14 +37,14 @@ import {
 const execFileAsync = promisify(execFile);
 
 /** One page the render worker should load through the validating proxy. */
-export interface Tier1RenderPage {
+interface Tier1RenderPage {
   pageIndex: number;
   url: string;
   /** Host-retained broker-capture artifact ref for the same URL (evidence anchor). */
   artifactRef: string;
 }
 
-export interface Tier1RenderRequest {
+interface Tier1RenderRequest {
   investigationId: string;
   /** Exact-match approved hosts baked into the in-container guard (broker scope mirror). */
   approvedHosts: string[];
@@ -65,7 +65,7 @@ export interface Tier1RenderedObservation {
   pageIndex: number;
 }
 
-export interface Tier1RenderResult {
+interface Tier1RenderResult {
   observations: Tier1RenderedObservation[];
   gaps: string[];
   readsPerformed: number;
@@ -86,7 +86,7 @@ export function tier1RenderRequestOf(
   };
 }
 
-export type RenderRunnerCode =
+type RenderRunnerCode =
   | 'isolation_unavailable'
   | 'timeout'
   | 'provider_error'

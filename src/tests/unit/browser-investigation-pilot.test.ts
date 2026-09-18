@@ -162,6 +162,15 @@ describe('pilot gates (#239)', () => {
     expect(gate.ok).toBe(false);
   });
 
+  it('refuses a holdout that is a slash variant of a representative (canonical identity)', () => {
+    const gate = evaluatePilotGates(
+      { [PILOT_ENV_FLAG]: '1' },
+      ISOLATION_OK,
+      gateOptions({ holdoutUrls: [`${REP}/`], expectedByUrl: { [REP]: expected('A') } }),
+    );
+    expect(gate.ok).toBe(false);
+  });
+
   it('requires trusted expected identities (name, identifier, and productId)', () => {
     const noName = gateOptions({ expectedByUrl: { [REP]: { name: '', sku: 'S', productId: 'P' } as never, [HOLDOUT]: expected('H') } });
     expect(evaluatePilotGates({ [PILOT_ENV_FLAG]: '1' }, ISOLATION_OK, noName).ok).toBe(false);

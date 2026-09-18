@@ -48,6 +48,7 @@ import {
   type ValidationSampleInput,
   type ValidationStore,
 } from './validate';
+import { normalizeHoldoutUrl } from './holdouts';
 import { describeInvestigationWorkspace } from './workspace';
 import { describeInvestigationTelemetry } from './telemetry';
 import type { InvestigationRecord } from '../../shared/schemas/browser-investigation';
@@ -59,7 +60,7 @@ const MAX_SAMPLE_URLS = 5;
 
 // ─── Gate ──────────────────────────────────────────────────────────────────
 
-export interface PilotGateOptions {
+interface PilotGateOptions {
   domain: string | null;
   representativeUrls: string[];
   holdoutUrls: string[];
@@ -69,7 +70,7 @@ export interface PilotGateOptions {
   actor?: string | null;
 }
 
-export interface PilotGatedInput {
+interface PilotGatedInput {
   domain: string;
   representativeUrls: string[];
   holdoutUrls: string[];
@@ -77,7 +78,7 @@ export interface PilotGatedInput {
   actor: string;
 }
 
-export type PilotGate = ({ ok: true } & PilotGatedInput) | { ok: false; reason: string };
+type PilotGate = ({ ok: true } & PilotGatedInput) | { ok: false; reason: string };
 
 function parseHttpUrl(raw: string): URL | null {
   try {
@@ -108,8 +109,14 @@ function canonicalDomain(raw: string | null): string {
   return (raw ?? '').toLowerCase().replace(/^www\./, '').trim();
 }
 
+/**
+ * Canonical sample identity for comparison and expected-identity keys. The
+ * repo's holdout canonicalisation (trailing slashes stripped, trimmed) is the
+ * single definition, so a slash variant can neither bypass nor false-trigger
+ * the "holdout must be distinct from every representative" gate.
+ */
 function canonicalUrl(raw: string): string {
-  return raw.trim();
+  return normalizeHoldoutUrl(raw);
 }
 
 function sampleInDomain(raw: string, domain: string): boolean {
@@ -298,7 +305,7 @@ export function parseExpectedIdentities(
 
 // ─── CLI contract ──────────────────────────────────────────────────────────
 
-export interface PilotCliInput {
+interface PilotCliInput {
   domain: string | null;
   representativeUrls: string[];
   holdoutUrls: string[];
@@ -365,7 +372,7 @@ function applyPilotFlag(
 
 // ─── Report ────────────────────────────────────────────────────────────────
 
-export interface PilotReport {
+interface PilotReport {
   schemaVersion: number;
   domain: string;
   workspaceId: string;
@@ -411,7 +418,7 @@ export interface PilotReport {
   notes: string[];
 }
 
-export interface PilotStores {
+interface PilotStores {
   proposals?: ProposalStore;
   validations?: ValidationStore;
 }
@@ -436,7 +443,7 @@ export interface PilotDeps extends PilotGateOptions {
   now?: () => string;
 }
 
-export interface PilotOutcome {
+interface PilotOutcome {
   exitCode: 0 | 1 | 2;
   report: PilotReport | null;
   reason?: string;

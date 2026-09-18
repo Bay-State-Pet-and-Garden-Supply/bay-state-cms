@@ -16,9 +16,4 @@ export const TIER0_ANALYZER_CODES: {
   readonly invalidInput: 'invalid_input';
 };
 
-export class Tier0AnalyzerError extends Error {
-  readonly code: 'budget_exhausted' | 'invalid_input';
-  constructor(code: 'budget_exhausted' | 'invalid_input', message: string);
-}
-
 export function analyzeTier0Captures(request: Tier0AnalysisRequest): Tier0AnalysisResult;

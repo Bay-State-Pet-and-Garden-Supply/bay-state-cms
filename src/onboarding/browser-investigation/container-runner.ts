@@ -33,7 +33,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 /** Budget caps the analyzer enforces (subset of the run budget, by value). */
-export interface Tier0AnalysisBudgetCaps {
+interface Tier0AnalysisBudgetCaps {
   maxSelectorLength: number;
   maxSelectorMatches: number;
   maxObservationBytesPerOperation: number;
@@ -83,7 +83,7 @@ export interface Tier0AnalysisObservation {
 }
 
 /** Provenance for one identifier field from Tier 0 static identity (#233). */
-export interface Tier0IdentityField {
+interface Tier0IdentityField {
   field: string;
   sources: string[];
   evidenceRef: string;
@@ -96,7 +96,7 @@ export interface Tier0IdentityField {
  * vocabulary for the unchanged compiler gate; `conflicts` defers ambiguous
  * identifiers downstream instead of resolving them.
  */
-export interface Tier0IdentityResult {
+interface Tier0IdentityResult {
   productIdentity: string[];
   variantIdentity: string[];
   optionAxes: string[];
@@ -114,7 +114,7 @@ export interface Tier0AnalysisResult {
   identity: Tier0IdentityResult;
 }
 
-export type ContainerRunnerCode =
+type ContainerRunnerCode =
   | 'isolation_unavailable'
   | 'timeout'
   | 'provider_error'
@@ -153,7 +153,7 @@ const DEFAULT_RUN_TIMEOUT_MS = 60_000;
 /** Stdout ceiling for the typed-observation envelope (observations are byte-capped upstream). */
 const MAX_ENVELOPE_BYTES = 16 * 1024 * 1024;
 
-export interface DockerTier0RunnerOptions {
+interface DockerTier0RunnerOptions {
   /** Test-only prebuilt image (same /app entrypoints). Production never sets this. */
   imageOverride?: string;
 }

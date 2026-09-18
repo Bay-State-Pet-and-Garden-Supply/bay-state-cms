@@ -52,17 +52,17 @@ Recorded report (verbatim fields from the run):
   "holdoutUrls": [
     "https://www.allbirds.com/products/trino-tubers-onyx"
   ],
-  "investigationId": "binv_581264709_mu6jis6q",
-  "runId": "binvrun_20260918055106_745826107",
+  "investigationId": "binv_890015826_mu6jwe0g",
+  "runId": "binvrun_20260918060141_1154592539",
   "provider": "local_browser_harness",
   "actingModel": {
     "provider": "local_browser_harness",
     "model": "app-authored-read-plan-v1"
   },
   "modelCalls": 0,
-  "startedAt": "2026-09-18T05:51:05.706Z",
-  "endedAt": "2026-09-18T05:51:09.940Z",
-  "durationMs": 4234,
+  "startedAt": "2026-09-18T06:01:40.972Z",
+  "endedAt": "2026-09-18T06:01:43.935Z",
+  "durationMs": 2963,
   "isolation": {
     "verified": true,
     "detail": "isolated Docker runtime reachable"
@@ -74,8 +74,8 @@ Recorded report (verbatim fields from the run):
     "validation_passed",
     "draft_applied"
   ],
-  "proposalHash": "75731fbc3f1e9a489c3d532d9c422231b93343342b77a5399ea81454510c37be",
-  "policyHash": "7cf9b1dc4a19dd3a1eb5bdf37e1b7df7acc9e49a326a327115467d07d9325cc0",
+  "proposalHash": "49d394de0d8caf223f5b5ece233d4697015cbc2a46948d9ec7d08f8b175d1dc0",
+  "policyHash": "dee34e1a1b05ffc64b54118c68c552e224e761d1b885b12b58da1009bac6024d",
   "validation": {
     "status": "passed",
     "holdoutsRequired": 1,
@@ -86,7 +86,7 @@ Recorded report (verbatim fields from the run):
     "blockers": []
   },
   "draft": {
-    "appliedVersionId": "ver_pilot_mu6jiv03_1",
+    "appliedVersionId": "ver_pilot_mu6jwg72_1",
     "inactive": true,
     "imageRuleOk": false,
     "blockers": [
@@ -98,7 +98,7 @@ Recorded report (verbatim fields from the run):
   "usage": {
     "pagesVisited": 2,
     "readsPerformed": 20,
-    "durationMs": 1401,
+    "durationMs": 793,
     "modelCalls": 0
   },
   "activationPerformed": false,
@@ -107,7 +107,7 @@ Recorded report (verbatim fields from the run):
   "passed": true,
   "failureCode": null,
   "notes": [
-    "draft ver_pilot_mu6jiv03_1 is inactive with imageRuleOk false; blockers preserved (3)",
+    "draft ver_pilot_mu6jwg72_1 is inactive with imageRuleOk false; blockers preserved (3)",
     "workspace proposal available; automatic activation absent; telemetry validation passed",
     "no activation, release, or image attestation was performed or claimed"
   ]

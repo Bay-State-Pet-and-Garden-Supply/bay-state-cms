@@ -31,7 +31,7 @@ import { InvestigationBroker, scopeFromSampleUrls, type BrokerDeps } from './bro
 import { BudgetLedger } from './budgets';
 import type { InvestigationBudget } from '../../shared/schemas/browser-investigation';
 
-export interface RenderProxyOptions {
+interface RenderProxyOptions {
   investigationId: string;
   workspaceId: string;
   sampleUrls: string[];
@@ -53,7 +53,7 @@ export interface RenderProxyOptions {
   advertiseHost?: string;
 }
 
-export interface RunningRenderProxy {
+interface RunningRenderProxy {
   /** Proxy URL for the render spec env (advertised host + ephemeral port). */
   url: string;
   close(): Promise<void>;

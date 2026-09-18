@@ -33,7 +33,7 @@ import type { InvestigationBudget } from '../../shared/schemas/browser-investiga
 import { BudgetLedger } from './budgets';
 
 /** One Tier 0 observation, redacted for model visibility (no bodies, no keys). */
-export interface RedactedObservation {
+interface RedactedObservation {
   kind: string;
   sourceUrl: string;
   artifactHash: string;
@@ -47,7 +47,7 @@ export interface Tier1ExcludedHoldout {
   artifactRef?: string | null;
 }
 
-export interface Tier1ModelContextInput {
+interface Tier1ModelContextInput {
   investigationId: string;
   domain: string;
   observations: RedactedObservation[];
@@ -75,7 +75,7 @@ export interface Tier1ModelContext {
   inputBytes: number;
 }
 
-export type ModelContextCode = 'holdout_exposed' | 'budget_exhausted' | 'invalid_input';
+type ModelContextCode = 'holdout_exposed' | 'budget_exhausted' | 'invalid_input';
 
 export class ModelContextError extends Error {
   readonly code: ModelContextCode;
@@ -239,7 +239,7 @@ export function buildTier1ModelContext(input: Tier1ModelContextInput): Tier1Mode
  * There is deliberately NO channel for identity, fields, structures, or
  * platform — a model cannot select executables through this seam.
  */
-export interface Tier1ModelReasoning {
+interface Tier1ModelReasoning {
   /** Display-only strategy label/prose (bounded, truncated). */
   strategy?: string;
   /** Additional gaps the model noticed (bounded count + length, validated). */
@@ -255,7 +255,7 @@ export interface Tier1ModelReasoner {
   reason(context: Tier1ModelContext): Promise<Tier1ModelReasoning>;
 }
 
-export type ReasonCallCode = 'budget_exhausted' | 'timeout' | 'provider_error';
+type ReasonCallCode = 'budget_exhausted' | 'timeout' | 'provider_error';
 
 export class ReasonCallError extends Error {
   readonly code: ReasonCallCode;

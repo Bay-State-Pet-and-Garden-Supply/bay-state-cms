@@ -238,52 +238,9 @@
       ]
     },
     {
-      "file": "src/onboarding/browser-investigation/pilot.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
       "file": "src/onboarding/browser-investigation/live-smoke.ts",
       "exports": [
         "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/container-runner.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/model-context.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/render-proxy.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/render-runner.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/isolation.ts",
-      "exports": [
-        "TIER0_ANALYZER_CONTAINER_ENTRYPOINT",
-        "ContainerRunner"
-      ]
-    },
-    {
-      "file": "src/onboarding/browser-investigation/tier0-analyzer.mjs",
-      "exports": [
-        "Tier0AnalyzerError"
       ]
     }
   ]

@@ -26,9 +26,8 @@ export const TIER0_ANALYZER_CODES = {
   invalidInput: 'invalid_input',
 };
 
-// fallow-ignore-next-line unused-exports — CLI/tests/sibling #233 port
-// (thrown throughout the analyzer; matched by code at every boundary)
-export class Tier0AnalyzerError extends Error {
+/** Internal throw surface: consumers match the stable `code`, never the class. */
+class Tier0AnalyzerError extends Error {
   constructor(code, message) {
     super(`${code}: ${message}`);
     this.name = 'Tier0AnalyzerError';
