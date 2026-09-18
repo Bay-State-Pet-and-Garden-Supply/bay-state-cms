@@ -123,6 +123,11 @@ export class FakeInvestigationProvider implements InvestigationProvider {
   async invoke(request: InvestigationProviderRequest): Promise<InvestigationProviderCompletion> {
     // NOTE: call accounting lives in invokeInvestigationProvider (provider.ts) —
     // recording here as well would double-count one run as two calls.
+    // #244: an operator abort that lands before dispatch surfaces the stable
+    // cancelled code, like the production harness boundary checks.
+    if (request.signal?.aborted) {
+      throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation aborted by operator');
+    }
     const base = {
       investigationId: request.investigationId,
       runId: request.runId,

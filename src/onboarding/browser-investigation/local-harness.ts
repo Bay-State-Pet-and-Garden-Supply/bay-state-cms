@@ -167,6 +167,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
   ): Promise<InvestigationProviderCompletion> {
     const clock = this.deps.clock ?? Date.now;
     const startedAt = clock();
+    throwIfHarnessCancelled(request.signal);
 
     const isolation = await checkIsolationAvailable(this.deps.isolationProbe);
     if (!isolation.available) {
@@ -191,6 +192,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     // Image verified before any fetch: a missing image fails here, never
     // after page bytes have moved.
     await this.startContainer(runner, spec);
+    throwIfHarnessCancelled(request.signal);
 
     const elapsed = (): number => clock() - startedAt;
     const assertLive = (): void => {
@@ -212,10 +214,13 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     // here, then handed to the container for analysis.
     const captured = await this.captureSamplePages(request, pages, broker, artifacts, assertLive);
     assertLive();
+    throwIfHarnessCancelled(request.signal);
     const analysis = await this.analyzeInContainer(runner, spec, request, captured.captures, elapsed);
+    throwIfHarnessCancelled(request.signal);
     // Tier 1 (#237) engages on top of the Tier 0 base: conditional
     // rendered investigation plus conditional bounded model reasoning.
     const tier1 = await this.runTier1(request, pages, artifacts, ledger, captured, analysis, elapsed);
+    throwIfHarnessCancelled(request.signal);
     const mergedObservations = [...analysis.observations, ...tier1.extraObservations];
     if (mergedObservations.length === 0) {
       throw new InvestigationProviderError('provider_error', 'provider_error: no observations captured within budget');
@@ -241,6 +246,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     captures: Tier0AnalysisCapture[],
     elapsed: () => number,
   ): Promise<Tier0AnalysisResult> {
+    throwIfHarnessCancelled(request.signal);
     const remaining = Math.max(1, request.budget.timeoutMs - elapsed());
     try {
       return await runner.runAnalysis(
@@ -250,7 +256,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
           budget: tier0BudgetCapsOf(request.budget),
           captures,
         },
-        { timeoutMs: remaining },
+        { timeoutMs: remaining, signal: request.signal },
       );
     } catch (err) {
       throw this.mapRunnerError(err);
@@ -259,6 +265,11 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
 
   private mapRunnerError(err: unknown): InvestigationProviderError {
     if (err instanceof InvestigationProviderError) return err;
+    // A bare AbortError (e.g. an aborted wait) is always operator
+    // cancellation on this path — never a generic provider failure.
+    if (err instanceof Error && err.name === 'AbortError') {
+      return new InvestigationProviderError('cancelled', 'cancelled: investigation aborted by operator');
+    }
     if (err instanceof ContainerRunnerError) {
       return new InvestigationProviderError(err.code, err.message);
     }
@@ -348,6 +359,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     elapsed: () => number,
     outcome: Tier1Outcome,
   ): Promise<void> {
+    throwIfHarnessCancelled(request.signal);
     if (captured.captures.length === 0) {
       outcome.extraGaps.push('rendered investigation skipped: no broker-approved captures to render');
       return;
@@ -367,6 +379,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
       const scopeHosts = scopeFromSampleUrls(request.investigationId, request.workspaceId, request.sampleUrls).approvedHosts;
       let rendered;
       try {
+        throwIfHarnessCancelled(request.signal);
         rendered = await renderRunner.runRender(
           started.spec,
           tier1RenderRequestOf(
@@ -375,7 +388,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
             captured.captures.map((c) => ({ pageIndex: c.pageIndex, url: c.pageUrl, artifactRef: c.artifactRef })),
             request.budget,
           ),
-          { timeoutMs: remaining },
+          { timeoutMs: remaining, signal: request.signal },
         );
       } finally {
         try {
@@ -501,6 +514,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     outcome: Tier1Outcome,
     elapsed: () => number,
   ): Promise<void> {
+    throwIfHarnessCancelled(request.signal);
     if (!request.modelPolicy.allowCloudTextAnalysis) {
       outcome.extraGaps.push('Tier 1 model reasoning not requested (allowCloudTextAnalysis off); deterministic Tier 0 stands');
       return;
@@ -511,6 +525,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
       return;
     }
     try {
+      throwIfHarnessCancelled(request.signal);
       await this.reasonOnce(request, ledger, captured, analysis, outcome, elapsed, reasoner);
     } catch (err) {
       throw this.mapRunnerError(err);
@@ -662,6 +677,7 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     const gaps: string[] = [];
     for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
       assertLive();
+      throwIfHarnessCancelled(request.signal);
       const pageUrl = pages[pageIndex]!;
       try {
         const res = await broker.fetch(pageUrl);
@@ -714,6 +730,18 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     if (has('page_images') && platform === 'shopify') out.push(recommendation('images', []));
     if (has('page_json_ld')) out.push(recommendation('brand', ['json_ld', 'meta']));
     return out;
+  }
+}
+
+/**
+ * #244 single cancellation check for the harness. One AbortSignal flows
+ * from the lifecycle service into every phase: an aborted signal surfaces
+ * the stable `cancelled` code (never timeout/provider_error), so the
+ * service records terminal `cancelled` and the row stays cancelled.
+ */
+function throwIfHarnessCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new InvestigationProviderError('cancelled', 'cancelled: investigation aborted by operator');
   }
 }
 

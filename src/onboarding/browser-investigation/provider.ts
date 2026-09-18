@@ -30,6 +30,14 @@ export interface InvestigationProviderRequest {
   modelPolicy: InvestigationModelPolicy;
   knownContext: Record<string, unknown>;
   runId: string;
+  /**
+   * #244 operator cancellation. Threaded from the lifecycle service
+   * (`runInvestigation` owns the controller; `cancelInvestigation` aborts
+   * it) through the harness into the container/render runners, which
+   * terminate the child process and surface the stable `cancelled` code.
+   * Optional so existing test doubles without a signal keep working.
+   */
+  signal?: AbortSignal;
 }
 
 export interface InvestigationProviderCompletion {

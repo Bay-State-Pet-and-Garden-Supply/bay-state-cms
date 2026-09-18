@@ -90,6 +90,7 @@ type RenderRunnerCode =
   | 'isolation_unavailable'
   | 'timeout'
   | 'provider_error'
+  | 'cancelled'
   | 'budget_exhausted';
 
 export class RenderRunnerError extends Error {
@@ -109,11 +110,13 @@ export interface Tier1RenderRunner {
    * Execute the render worker in a fresh container. Kill paths (timeout,
    * envelope overflow) remove the container before reporting; every other
    * exit stays the caller's duty via `teardown` (the harness isolated run).
+   * Pass the #244 AbortSignal via opts: abort terminates the child
+   * process, removes the container, and surfaces `cancelled`.
    */
   runRender(
     spec: RenderContainerSpec,
     request: Tier1RenderRequest,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<Tier1RenderResult>;
   /** Remove the run container. Idempotent best-effort; never throws. */
   teardown(runId: string): Promise<void>;
@@ -142,9 +145,12 @@ export class DockerRenderContainerRunner implements Tier1RenderRunner {
   async runRender(
     spec: RenderContainerSpec,
     request: Tier1RenderRequest,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<Tier1RenderResult> {
     assertRenderContainerPosture(spec);
+    if (opts?.signal?.aborted) {
+      throw new RenderRunnerError('cancelled', 'cancelled: Tier 1 render container aborted before start');
+    }
     const timeoutMs = opts?.timeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
     const payload = JSON.stringify({
       investigationId: request.investigationId,
@@ -155,12 +161,24 @@ export class DockerRenderContainerRunner implements Tier1RenderRunner {
     });
     return new Promise<Tier1RenderResult>((resolve, reject) => {
       let settled = false;
+      const abortSignal = opts?.signal;
+      let aborted = false;
       const fail = (err: Error): void => {
         if (settled) return;
         settled = true;
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         reject(err);
       };
+      const onAbort = (): void => {
+        aborted = true;
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // Kill is best-effort; the close handler reports the cancellation.
+        }
+      };
       const child = spawn('docker', renderContainerDockerArgs(spec), { stdio: ['pipe', 'pipe', 'pipe'] });
+      if (abortSignal) abortSignal.addEventListener('abort', onAbort, { once: true });
       const stdout: Buffer[] = [];
       let stdoutBytes = 0;
       let stdoutOverflow = false;
@@ -174,6 +192,7 @@ export class DockerRenderContainerRunner implements Tier1RenderRunner {
       }, Math.max(1, timeoutMs));
       child.on('error', (err: Error) => {
         clearTimeout(timer);
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         fail(
           new RenderRunnerError(
             'isolation_unavailable',
@@ -198,12 +217,19 @@ export class DockerRenderContainerRunner implements Tier1RenderRunner {
       child.stderr.on('data', (chunk: Buffer) => {
         stderrTail = `${stderrTail}${chunk.toString('utf8')}`.slice(-500);
       });
-      child.on('close', (code: number | null, signal: string | null) => {
+      child.on('close', (code: number | null, exitSignal: string | null) => {
         clearTimeout(timer);
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         if (settled) return;
         settled = true;
-        if (signal === 'SIGKILL') {
+        if (exitSignal === 'SIGKILL') {
           void removeRenderContainer(spec.runId).then(() => {
+            if (aborted || opts?.signal?.aborted) {
+              reject(
+                new RenderRunnerError('cancelled', 'cancelled: Tier 1 render container aborted by operator'),
+              );
+              return;
+            }
             if (stdoutOverflow) {
               reject(
                 new RenderRunnerError('provider_error', 'provider_error: render envelope exceeded its ceiling'),

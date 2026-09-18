@@ -118,6 +118,7 @@ type ContainerRunnerCode =
   | 'isolation_unavailable'
   | 'timeout'
   | 'provider_error'
+  | 'cancelled'
   | 'budget_exhausted';
 
 export class ContainerRunnerError extends Error {
@@ -138,12 +139,14 @@ export interface Tier0ContainerRunner {
    * envelope overflow) remove the container before reporting; every other
    * exit stays the caller's duty via `teardown` (the harness isolated run).
    * Operator cancellation propagates as rejection through the caller, whose
-   * finally still tears down.
+   * finally still tears down. Pass `#244` AbortSignal via opts: abort
+   * terminates the child process, removes the container, and surfaces the
+   * stable `cancelled` code.
    */
   runAnalysis(
     spec: InvestigationContainerSpec,
     request: Tier0AnalysisRequest,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<Tier0AnalysisResult>;
   /** Remove the run container. Idempotent best-effort; never throws. */
   teardown(runId: string): Promise<void>;
@@ -195,9 +198,12 @@ export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
   async runAnalysis(
     spec: InvestigationContainerSpec,
     request: Tier0AnalysisRequest,
-    opts?: { timeoutMs?: number },
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<Tier0AnalysisResult> {
     assertContainerPosture(spec);
+    if (opts?.signal?.aborted) {
+      throw new ContainerRunnerError('cancelled', 'cancelled: Tier 0 container analysis aborted before start');
+    }
     const timeoutMs = opts?.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
     const payload = JSON.stringify({
       investigationId: request.investigationId,
@@ -206,12 +212,24 @@ export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
     });
     return new Promise<Tier0AnalysisResult>((resolve, reject) => {
       let settled = false;
+      const abortSignal = opts?.signal;
+      let aborted = false;
       const fail = (err: Error): void => {
         if (settled) return;
         settled = true;
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         reject(err);
       };
+      const onAbort = (): void => {
+        aborted = true;
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // Kill is best-effort; the close handler reports the cancellation.
+        }
+      };
       const child = spawn('docker', this.dockerArgs(spec), { stdio: ['pipe', 'pipe', 'pipe'] });
+      if (abortSignal) abortSignal.addEventListener('abort', onAbort, { once: true });
       const stdout: Buffer[] = [];
       let stdoutBytes = 0;
       let stdoutOverflow = false;
@@ -225,6 +243,7 @@ export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
       }, Math.max(1, timeoutMs));
       child.on('error', (err: Error) => {
         clearTimeout(timer);
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         fail(
           new ContainerRunnerError(
             'isolation_unavailable',
@@ -249,15 +268,22 @@ export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
       child.stderr.on('data', (chunk: Buffer) => {
         stderrTail = `${stderrTail}${chunk.toString('utf8')}`.slice(-500);
       });
-      child.on('close', (code: number | null, signal: string | null) => {
+      child.on('close', (code: number | null, exitSignal: string | null) => {
         clearTimeout(timer);
+        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
         if (settled) return;
         settled = true;
-        if (signal === 'SIGKILL') {
+        if (exitSignal === 'SIGKILL') {
           // Killing the client does not reliably reap the container, so
           // remove it here before reporting: every exit path tears down.
           // (The harness-level isolated-run finally remains the backstop.)
           void removeContainer(spec.runId).then(() => {
+              if (aborted || opts?.signal?.aborted) {
+                reject(
+                  new ContainerRunnerError('cancelled', 'cancelled: Tier 0 container analysis aborted by operator'),
+                );
+                return;
+              }
               if (stdoutOverflow) {
                 reject(
                   new ContainerRunnerError('provider_error', 'provider_error: analysis envelope exceeded its ceiling'),

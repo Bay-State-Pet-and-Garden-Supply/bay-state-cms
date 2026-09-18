@@ -24,7 +24,11 @@
 //   dispatch failures failed with the stable `provider_error` code so no
 //   investigation stays queued forever. Cancellation (#244) keeps working:
 //   the sweep re-reads each row before dispatch, so a queued row cancelled
-//   between listing and dispatch is skipped (never resurrected).
+//   between listing and dispatch is skipped (never resurrected); a cancel
+//   that lands mid-run aborts the live dispatch through the service's
+//   in-process registry (runInvestigation owns the AbortController,
+//   cancelInvestigation aborts it), the runner tears down the container,
+//   and the terminal `cancelled` row is never rewritten by the settling run.
 
 import type { InvestigationRecord } from '../../shared/schemas/browser-investigation';
 import { runInvestigation, type InvestigationStore } from './service';

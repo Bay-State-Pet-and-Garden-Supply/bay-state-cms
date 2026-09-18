@@ -23,17 +23,27 @@ import {
   insertInvestigation,
 } from '../../db/repositories/browser-investigation-repo';
 import { createSqliteInvestigationStore } from '../../onboarding/browser-investigation/store';
-import { fakeInvestigationProvider } from '../../onboarding/browser-investigation/fake-provider';
+import {
+  FakeInvestigationProvider,
+  fakeInvestigationProvider,
+} from '../../onboarding/browser-investigation/fake-provider';
+import { releaseInvestigationSlot } from '../../onboarding/browser-investigation/isolation';
+import { ContainerRunnerError } from '../../onboarding/browser-investigation/container-runner';
+import { LocalBrowserHarnessProvider } from '../../onboarding/browser-investigation/local-harness';
 import { getDomainDiagnosticsResponse } from '../../onboarding/domain-diagnostics-service';
 import {
   getInvestigationProviderCallCount,
   getInvestigationProvider,
   registerInvestigationProvider,
   resetInvestigationProviderCalls,
+  type InvestigationProvider,
+  type InvestigationProviderRequest,
 } from '../../onboarding/browser-investigation/provider';
 import { acceptCompletion,
+  cancelInvestigation,
   getInvestigation,
   requestInvestigation,
+  runInvestigation,
 } from '../../onboarding/browser-investigation/service';
 import { createInvestigationWorker } from '../../onboarding/browser-investigation/worker';
 import { createMemoryInvestigationStore } from './helpers/browser-investigation-memory-store';
@@ -405,6 +415,155 @@ describe('#243 worker orphan reconciliation and dispatch fallback (memory store)
     store.update(WS_MAIN, live.id, { status: 'running', startedAt: at, updatedAt: at });
     expect(await worker.tick()).toBe(0);
     expect(store.find(WS_MAIN, live.id)?.status).toBe('running');
+    worker.stop();
+  });
+});
+
+describe('#244 cancel aborts the run and stays cancelled (memory store)', () => {
+  const silentLog = { error: () => {}, warn: () => {}, log: () => {} };
+  const PAGE_HTML =
+    '<!doctype html><html><head><title>Acme Cancel Probe</title></head><body><h1>probe</h1></body></html>';
+
+  it('cancel during a running investigation aborts the runner, tears down, and stays cancelled', async () => {
+    releaseInvestigationSlot();
+    const savedEnv = process.env.BAYSTATE_INVESTIGATION_ISOLATION;
+    process.env.BAYSTATE_INVESTIGATION_ISOLATION = 'ready';
+    const store = createMemoryInvestigationStore();
+    let entered = false;
+    let observedAbort = false;
+    const tornDown: string[] = [];
+    // Blocking Tier 0 double: waits for the #244 AbortSignal, then fails
+    // with the stable cancelled code — the production Docker runner kills
+    // the child process on the same signal and reports the same code.
+    const blockingRunner = {
+      start: async () => {},
+      runAnalysis: async (_spec: unknown, _req: unknown, opts?: { signal?: AbortSignal }) => {
+        entered = true;
+        if (opts?.signal?.aborted) {
+          observedAbort = true;
+          throw new ContainerRunnerError('cancelled', 'cancelled: aborted before start');
+        }
+        await new Promise<never>((_resolve, reject) => {
+          opts?.signal?.addEventListener(
+            'abort',
+            () => {
+              observedAbort = true;
+              reject(new ContainerRunnerError('cancelled', 'cancelled: runner aborted by operator'));
+            },
+            { once: true },
+          );
+        });
+        throw new Error('unreachable: abort must settle the run');
+      },
+      teardown: async (runId: string) => void tornDown.push(runId),
+    };
+    const harness = new LocalBrowserHarnessProvider({
+      isolationProbe: { dockerReachable: async () => true },
+      brokerDeps: {
+        lookup: async () => ['93.184.216.34'],
+        transport: async (req) => ({
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+          body: Buffer.from(PAGE_HTML, 'utf8'),
+          connectedIp: req.validatedAddresses[0] ?? null,
+        }),
+      },
+      containerRunner: blockingRunner as never,
+    });
+    // Test-only injection behind the `fake` id (never launchable from
+    // production routes): delegates to the real harness so the test proves
+    // the service -> provider -> runner signal path end to end without
+    // disturbing the `local_browser_harness` registry entry other suites use.
+    const wrapper: InvestigationProvider = {
+      id: 'fake',
+      invoke: (req: InvestigationProviderRequest) => harness.invoke(req),
+    };
+    registerInvestigationProvider(wrapper);
+    try {
+      const domain = `cancel-abort-${Date.now()}.example.com`;
+      const created = requestInvestigation(store, {
+        workspaceId: WS_MAIN,
+        domain,
+        mode: 'domain_onboarding',
+        sampleUrls: [`https://${domain}/products/alpha`],
+        provider: 'fake',
+      });
+      const runPromise = runInvestigation(store, 'fake', WS_MAIN, created.id);
+      const start = Date.now();
+      while (!entered) {
+        if (Date.now() - start > 5000) throw new Error('timed out waiting for the runner to start');
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(store.find(WS_MAIN, created.id)?.status).toBe('running');
+      // Operator cancel mid-run: aborts the live run, marks cancelled.
+      const cancelled = cancelInvestigation(store, WS_MAIN, created.id);
+      expect(cancelled.status).toBe('cancelled');
+      // The aborted run settles with the stable cancelled code.
+      await expect(runPromise).rejects.toThrowError(/cancelled/);
+      // The runner observed the abort and the container was torn down.
+      expect(observedAbort).toBe(true);
+      expect(tornDown).toEqual([created.runId]);
+      // The record remains cancelled after the aborted run settles.
+      const after = store.find(WS_MAIN, created.id);
+      expect(after?.status).toBe('cancelled');
+      expect(after?.failureCode).toBe('cancelled');
+      // A late completion for the cancelled investigation is rejected
+      // without mutating the record.
+      const probe = new FakeInvestigationProvider();
+      probe.setScenario('valid');
+      const late = await probe.invoke({
+        investigationId: created.id,
+        workspaceId: WS_MAIN,
+        domain: created.domain,
+        mode: 'domain_onboarding',
+        sampleUrls: [`https://${domain}/products/alpha`],
+        inputSnapshot: created.inputSnapshot,
+        inputHash: created.inputHash,
+        budget: created.budget,
+        modelPolicy: created.inputSnapshot.modelPolicy,
+        knownContext: {},
+        runId: created.runId,
+      });
+      expect(() => acceptCompletion(store, WS_MAIN, created.id, late)).toThrowError(/replay_rejected/);
+      expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
+      expect(store.find(WS_MAIN, created.id)?.failureCode).toBe('cancelled');
+      // Cancelling the terminal row stays a stable invalid transition.
+      expect(() => cancelInvestigation(store, WS_MAIN, created.id)).toThrowError(/invalid_transition/);
+      expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
+    } finally {
+      registerInvestigationProvider(fakeInvestigationProvider);
+      fakeInvestigationProvider.setScenario('valid');
+      if (savedEnv === undefined) delete process.env.BAYSTATE_INVESTIGATION_ISOLATION;
+      else process.env.BAYSTATE_INVESTIGATION_ISOLATION = savedEnv;
+      releaseInvestigationSlot();
+    }
+  });
+
+  it('cancel of a queued run never dispatches (simply marked cancelled)', async () => {
+    const store = createMemoryInvestigationStore();
+    const domain = `cancel-queued-${Date.now()}.example.com`;
+    const created = requestInvestigation(store, {
+      workspaceId: WS_MAIN,
+      domain,
+      mode: 'domain_onboarding',
+      sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
+    });
+    const cancelled = cancelInvestigation(store, WS_MAIN, created.id);
+    expect(cancelled.status).toBe('cancelled');
+    let dispatchCalls = 0;
+    const worker = createInvestigationWorker({
+      storeFactory: () => store,
+      workspaceIds: [WS_MAIN],
+      run: async () => {
+        dispatchCalls += 1;
+        throw new Error('must not dispatch a cancelled row');
+      },
+      log: silentLog,
+    });
+    expect(await worker.tick()).toBe(0);
+    expect(dispatchCalls).toBe(0);
+    expect(store.find(WS_MAIN, created.id)?.status).toBe('cancelled');
     worker.stop();
   });
 });

@@ -90,6 +90,39 @@ function requireWorkspace(workspaceId: string): void {
   if (!workspaceId || !workspaceId.trim()) fail('invalid_input', 'workspaceId required');
 }
 
+/**
+ * #244 in-process cancellation registry. The background worker owns
+ * in-flight runs: `runInvestigation` (the worker's dispatch seam)
+ * registers one AbortController per live run, and `cancelInvestigation`
+ * aborts it so the signal reaches the provider and the container/render
+ * runners. Keyed by workspace+investigation id; a run that was never
+ * dispatched has no entry and cancel simply marks the queued row.
+ * AbortController.abort() is idempotent, so concurrent cancels of a live
+ * run are safe (cancel stays idempotent while the row is live).
+ */
+const liveInvestigationAborts = new Map<string, AbortController>();
+
+function liveInvestigationKey(workspaceId: string, id: string): string {
+  return `${workspaceId}::${id}`;
+}
+
+function abortLiveInvestigationRun(workspaceId: string, id: string): void {
+  const controller = liveInvestigationAborts.get(liveInvestigationKey(workspaceId, id));
+  if (!controller) return;
+  try {
+    controller.abort();
+  } catch {
+    // Abort is best-effort; the service state transition below still applies.
+  }
+}
+
+/** Terminal rows are never rewritten (#244): completion, failure, and
+ * cancel transitions re-read before writing and skip/throw when the row
+ * has already left the expected state. */
+function isTerminalInvestigationStatus(status: string): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'discarded';
+}
+
 /** Reject non-http(s), credential-bearing, and literal-private-host URLs.
  * DNS-backed checks (rebinding, redirected destinations) belong to the T3
  * broker; this boundary fails closed on what is statically provable. */
@@ -377,6 +410,14 @@ function completeWithResult(
   result: NonNullable<InvestigationRecord['result']>,
   now?: Date,
 ): InvestigationRecord {
+  // #244: completion applies only from running. A late completion that
+  // arrives after cancel (or any other terminal transition) is rejected
+  // without mutating the record — the terminal row stays as it was.
+  const latest = store.find(workspaceId, id);
+  if (!latest) fail('not_found', `investigation ${id} not found`);
+  if (latest!.status !== 'running') {
+    fail('replay_rejected', `investigation ${id} is ${latest!.status}; completion rejected`);
+  }
   const at = nowIso(now);
   const updated = store.update(workspaceId, id, {
     status: 'completed',
@@ -400,6 +441,17 @@ function markFailed(
   now?: Date,
   completion?: InvestigationProviderCompletion,
 ): void {
+  // #244: a terminal row is never rewritten. A late failure that arrives
+  // after cancel (or any other terminal transition) is dropped without
+  // mutating the record. Queued->failed stays allowed for the
+  // pre-dispatch fail-closed checks; running->failed covers dispatch.
+  let latest: InvestigationRecord | null;
+  try {
+    latest = store.find(workspaceId, record.id);
+  } catch {
+    return;
+  }
+  if (!latest || isTerminalInvestigationStatus(latest.status)) return;
   const at = nowIso(now);
   store.update(workspaceId, record.id, {
     status: 'failed',
@@ -449,9 +501,24 @@ export async function runInvestigation(
   }
 
   const startedAt = nowIso(now);
+  // #244: the queued->running transition applies only while still queued.
+  // A cancel that lands between the entry check and this write must win:
+  // re-read so a cancelled row is never resurrected to running.
+  const stillQueued = store.find(workspaceId, id);
+  if (!stillQueued) fail('not_found', `investigation ${id} not found`);
+  if (stillQueued!.status !== 'queued') {
+    fail('invalid_transition', `only queued investigations can run (is ${stillQueued!.status})`);
+  }
   const running = store.update(workspaceId, id, { status: 'running', startedAt, updatedAt: startedAt });
   if (!running) fail('not_found', `investigation ${id} not found`);
 
+  // #244: own the live run. The controller is registered before dispatch
+  // so a concurrent cancel aborts the provider invocation; it is removed
+  // when the run settles so a never-dispatched (queued) cancel stays a
+  // pure state transition with no signal to deliver.
+  const liveKey = liveInvestigationKey(workspaceId, id);
+  const controller = new AbortController();
+  liveInvestigationAborts.set(liveKey, controller);
   try {
     const completion = await invokeInvestigationProvider(providerId, {
       investigationId: record.id,
@@ -465,25 +532,39 @@ export async function runInvestigation(
       modelPolicy: record.inputSnapshot.modelPolicy,
       knownContext: record.inputSnapshot.knownContext,
       runId: record.runId,
+      signal: controller.signal,
     });
     return acceptCompletion(store, workspaceId, id, completion, now);
   } catch (err) {
     const mapped = toFailureCode(err);
     const at = nowIso(now);
     if (mapped.code === 'cancelled') {
-      store.update(workspaceId, id, {
-        status: 'cancelled',
-        completedAt: at,
-        failureCode: 'cancelled',
-        failureDetail: mapped.detail,
-        updatedAt: at,
-      });
+      // #244: the aborted run surfaces the stable cancelled code and the
+      // record stays cancelled. When cancel already terminalized the row,
+      // this write is skipped (no mutation, no rewrite); otherwise the
+      // running row moves to cancelled exactly once.
+      const latest = store.find(workspaceId, id);
+      if (latest && latest.status === 'running') {
+        store.update(workspaceId, id, {
+          status: 'cancelled',
+          completedAt: at,
+          failureCode: 'cancelled',
+          failureDetail: mapped.detail,
+          updatedAt: at,
+        });
+      }
       throw new InvestigationServiceError('cancelled', mapped.detail);
     }
+    // #244: a late non-cancelled failure for a cancelled row (e.g. a
+    // replay_rejected from acceptCompletion after cancel won the race) is
+    // dropped without mutating the terminal record. markFailed already
+    // guards on terminal, so this only records running->failed.
     markFailed(store, workspaceId, record, mapped.code, mapped.detail, now);
-    const failed = store.find(workspaceId, id);
-    void failed;
     throw new InvestigationServiceError(mapped.code, mapped.detail);
+  } finally {
+    if (liveInvestigationAborts.get(liveKey) === controller) {
+      liveInvestigationAborts.delete(liveKey);
+    }
   }
 }
 
@@ -512,6 +593,18 @@ export function cancelInvestigation(
   const record = scopedOrThrow(store, workspaceId, id);
   if (record.status !== 'queued' && record.status !== 'running') {
     fail('invalid_transition', `only queued/running investigations can be cancelled (is ${record.status})`);
+  }
+  // #244: deliver cancellation to the live run first. Abort is idempotent,
+  // so concurrent cancels of a live run are safe; a queued run that was
+  // never dispatched has no controller and this is a pure state transition.
+  abortLiveInvestigationRun(workspaceId, id);
+  // Re-read before writing: a concurrent terminal transition (completed /
+  // failed / cancelled / discarded) wins and cancel stays a stable
+  // invalid transition without corrupting the terminal row.
+  const latest = store.find(workspaceId, id);
+  if (!latest) fail('not_found', `investigation ${id} not found`);
+  if (latest!.status !== 'queued' && latest!.status !== 'running') {
+    fail('invalid_transition', `only queued/running investigations can be cancelled (is ${latest!.status})`);
   }
   const at = nowIso(now);
   const updated = store.update(workspaceId, id, {
