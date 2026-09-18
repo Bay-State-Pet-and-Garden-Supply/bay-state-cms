@@ -275,7 +275,20 @@ describe('Tier 0 container runner: real container per run, teardown on every exi
     try {
       const { execFile } = await import('node:child_process');
       const { promisify } = await import('node:util');
-      await promisify(execFile)('docker', ['info'], { timeout: 15_000 });
+      const run = promisify(execFile);
+      await run('docker', ['info'], { timeout: 15_000 });
+      const override = process.env.BAYSTATE_INVESTIGATION_TEST_IMAGE;
+      let image = override ?? '';
+      if (!image) {
+        try {
+          const { stdout } = await run('docker', ['images', '-q', 'node:22-bookworm'], { timeout: 15_000 });
+          if (stdout.trim()) image = 'node:22-bookworm';
+        } catch {
+          image = '';
+        }
+      }
+      if (!image) return false;
+      await run('docker', ['run', '--rm', image, 'node', '-e', ''], { timeout: 15_000 });
       return true;
     } catch {
       return false;
