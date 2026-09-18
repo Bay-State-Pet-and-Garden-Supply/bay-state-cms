@@ -419,6 +419,73 @@ describe('#243 worker orphan reconciliation and dispatch fallback (memory store)
   });
 });
 
+interface CancelProbeState {
+  entered: boolean;
+  observedAbort: boolean;
+  tornDown: string[];
+}
+
+function createCancelProbeState(): CancelProbeState {
+  return { entered: false, observedAbort: false, tornDown: [] };
+}
+
+/** Blocking Tier 0 double: waits for the #244 AbortSignal, then fails
+ * with the stable cancelled code — the production Docker runner kills
+ * the child process on the same signal and reports the same code. */
+function createCancelProbeRunner(state: CancelProbeState) {
+  return {
+    start: async () => {},
+    runAnalysis: async (_spec: unknown, _req: unknown, opts?: { signal?: AbortSignal }) => {
+      state.entered = true;
+      if (opts?.signal?.aborted) {
+        state.observedAbort = true;
+        throw new ContainerRunnerError('cancelled', 'cancelled: aborted before start');
+      }
+      await new Promise<never>((_resolve, reject) => {
+        opts?.signal?.addEventListener(
+          'abort',
+          () => {
+            state.observedAbort = true;
+            reject(new ContainerRunnerError('cancelled', 'cancelled: runner aborted by operator'));
+          },
+          { once: true },
+        );
+      });
+      throw new Error('unreachable: abort must settle the run');
+    },
+    teardown: async (runId: string) => void state.tornDown.push(runId),
+  };
+}
+
+function createCancelProbeHarness(state: CancelProbeState, pageHtml: string): LocalBrowserHarnessProvider {
+  return new LocalBrowserHarnessProvider({
+    isolationProbe: { dockerReachable: async () => true },
+    brokerDeps: {
+      lookup: async () => ['93.184.216.34'],
+      transport: async (req) => ({
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        body: Buffer.from(pageHtml, 'utf8'),
+        connectedIp: req.validatedAddresses[0] ?? null,
+      }),
+    },
+    containerRunner: createCancelProbeRunner(state) as never,
+  });
+}
+
+async function waitForCancelProbeEntry(state: CancelProbeState): Promise<void> {
+  const start = Date.now();
+  while (!state.entered) {
+    if (Date.now() - start > 5000) throw new Error('timed out waiting for the runner to start');
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+function restoreCancelProbeIsolationEnv(savedEnv: string | undefined): void {
+  if (savedEnv === undefined) delete process.env.BAYSTATE_INVESTIGATION_ISOLATION;
+  else process.env.BAYSTATE_INVESTIGATION_ISOLATION = savedEnv;
+}
+
 describe('#244 cancel aborts the run and stays cancelled (memory store)', () => {
   const silentLog = { error: () => {}, warn: () => {}, log: () => {} };
   const PAGE_HTML =
@@ -429,47 +496,8 @@ describe('#244 cancel aborts the run and stays cancelled (memory store)', () => 
     const savedEnv = process.env.BAYSTATE_INVESTIGATION_ISOLATION;
     process.env.BAYSTATE_INVESTIGATION_ISOLATION = 'ready';
     const store = createMemoryInvestigationStore();
-    let entered = false;
-    let observedAbort = false;
-    const tornDown: string[] = [];
-    // Blocking Tier 0 double: waits for the #244 AbortSignal, then fails
-    // with the stable cancelled code — the production Docker runner kills
-    // the child process on the same signal and reports the same code.
-    const blockingRunner = {
-      start: async () => {},
-      runAnalysis: async (_spec: unknown, _req: unknown, opts?: { signal?: AbortSignal }) => {
-        entered = true;
-        if (opts?.signal?.aborted) {
-          observedAbort = true;
-          throw new ContainerRunnerError('cancelled', 'cancelled: aborted before start');
-        }
-        await new Promise<never>((_resolve, reject) => {
-          opts?.signal?.addEventListener(
-            'abort',
-            () => {
-              observedAbort = true;
-              reject(new ContainerRunnerError('cancelled', 'cancelled: runner aborted by operator'));
-            },
-            { once: true },
-          );
-        });
-        throw new Error('unreachable: abort must settle the run');
-      },
-      teardown: async (runId: string) => void tornDown.push(runId),
-    };
-    const harness = new LocalBrowserHarnessProvider({
-      isolationProbe: { dockerReachable: async () => true },
-      brokerDeps: {
-        lookup: async () => ['93.184.216.34'],
-        transport: async (req) => ({
-          status: 200,
-          headers: { 'content-type': 'text/html; charset=utf-8' },
-          body: Buffer.from(PAGE_HTML, 'utf8'),
-          connectedIp: req.validatedAddresses[0] ?? null,
-        }),
-      },
-      containerRunner: blockingRunner as never,
-    });
+    const state = createCancelProbeState();
+    const harness = createCancelProbeHarness(state, PAGE_HTML);
     // Test-only injection behind the `fake` id (never launchable from
     // production routes): delegates to the real harness so the test proves
     // the service -> provider -> runner signal path end to end without
@@ -489,11 +517,7 @@ describe('#244 cancel aborts the run and stays cancelled (memory store)', () => 
         provider: 'fake',
       });
       const runPromise = runInvestigation(store, 'fake', WS_MAIN, created.id);
-      const start = Date.now();
-      while (!entered) {
-        if (Date.now() - start > 5000) throw new Error('timed out waiting for the runner to start');
-        await new Promise((r) => setTimeout(r, 10));
-      }
+      await waitForCancelProbeEntry(state);
       expect(store.find(WS_MAIN, created.id)?.status).toBe('running');
       // Operator cancel mid-run: aborts the live run, marks cancelled.
       const cancelled = cancelInvestigation(store, WS_MAIN, created.id);
@@ -501,8 +525,8 @@ describe('#244 cancel aborts the run and stays cancelled (memory store)', () => 
       // The aborted run settles with the stable cancelled code.
       await expect(runPromise).rejects.toThrowError(/cancelled/);
       // The runner observed the abort and the container was torn down.
-      expect(observedAbort).toBe(true);
-      expect(tornDown).toEqual([created.runId]);
+      expect(state.observedAbort).toBe(true);
+      expect(state.tornDown).toEqual([created.runId]);
       // The record remains cancelled after the aborted run settles.
       const after = store.find(WS_MAIN, created.id);
       expect(after?.status).toBe('cancelled');
@@ -533,8 +557,7 @@ describe('#244 cancel aborts the run and stays cancelled (memory store)', () => 
     } finally {
       registerInvestigationProvider(fakeInvestigationProvider);
       fakeInvestigationProvider.setScenario('valid');
-      if (savedEnv === undefined) delete process.env.BAYSTATE_INVESTIGATION_ISOLATION;
-      else process.env.BAYSTATE_INVESTIGATION_ISOLATION = savedEnv;
+      restoreCancelProbeIsolationEnv(savedEnv);
       releaseInvestigationSlot();
     }
   });

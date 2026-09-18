@@ -102,6 +102,96 @@ function validResult(request: InvestigationProviderRequest): Record<string, unkn
   };
 }
 
+function throwIfFakeAborted(signal?: AbortSignal): void {
+  // #244: an operator abort that lands before dispatch surfaces the stable
+  // cancelled code, like the production harness boundary checks.
+  if (signal?.aborted) {
+    throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation aborted by operator');
+  }
+}
+
+function buildFakeBaseCompletion(request: InvestigationProviderRequest) {
+  return {
+    investigationId: request.investigationId,
+    runId: request.runId,
+    provider: 'fake' as const,
+    inputHash: request.inputHash,
+    usage: {
+      modelCalls: 1,
+      pagesVisited: Math.min(request.sampleUrls.length, request.budget.maxPages),
+      readsPerformed: Math.min(request.sampleUrls.length, request.budget.maxReads),
+      durationMs: 5,
+      costUsd: null,
+      costBasis: 'unavailable' as const,
+    },
+    actualModel: { provider: 'fake', model: 'fake-deterministic-v1' },
+    durationMs: 5,
+  } satisfies Partial<InvestigationProviderCompletion>;
+}
+
+type FakeBaseCompletion = ReturnType<typeof buildFakeBaseCompletion>;
+
+/** Completion-carrying scenarios; null means the scenario throws instead. */
+function fakeCompletionForScenario(
+  scenario: FakeInvestigationScenario,
+  request: InvestigationProviderRequest,
+  base: FakeBaseCompletion,
+): InvestigationProviderCompletion | null {
+  switch (scenario) {
+    case 'valid':
+    case 'replayed_completion': {
+      return { ...base, result: validResult(request) };
+    }
+    case 'malformed': {
+      // Structurally invalid: wrong version type + missing observations.
+      return {
+        ...base,
+        result: { version: 'not-a-version', summary: '', observations: 'oops' },
+      };
+    }
+    case 'evidence_missing': {
+      // Well-formed envelope but zero observations — must fail closed.
+      return {
+        ...base,
+        result: {
+          version: INVESTIGATION_RESULT_VERSION,
+          summary: 'Fake evidence-missing fixture: no observations captured.',
+          observations: [],
+          evidenceRefs: [],
+          gaps: ['no observations captured within budget'],
+          renderedBrowserRequired: false,
+        },
+      };
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
+function throwFakeScenarioError(scenario: FakeInvestigationScenario): never {
+  switch (scenario) {
+    case 'timeout': {
+      throw new InvestigationProviderError('timeout', 'timeout: fake investigation exceeded its budget');
+    }
+    case 'error': {
+      throw new InvestigationProviderError('provider_error', 'provider_error: fake investigation failed');
+    }
+    case 'cancellation': {
+      throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation acknowledged cancellation');
+    }
+    case 'budget_exhaustion': {
+      throw new InvestigationProviderError(
+        'budget_exhausted',
+        'budget_exhausted: fake investigation exceeded maxReads within budget',
+      );
+    }
+    default: {
+      throw new InvestigationProviderError('provider_error', `provider_error: unknown fake scenario ${String(scenario)}`);
+    }
+  }
+}
+
 export class FakeInvestigationProvider implements InvestigationProvider {
   readonly id = 'fake' as const;
   private scenario: FakeInvestigationScenario = 'valid';
@@ -123,79 +213,14 @@ export class FakeInvestigationProvider implements InvestigationProvider {
   async invoke(request: InvestigationProviderRequest): Promise<InvestigationProviderCompletion> {
     // NOTE: call accounting lives in invokeInvestigationProvider (provider.ts) —
     // recording here as well would double-count one run as two calls.
-    // #244: an operator abort that lands before dispatch surfaces the stable
-    // cancelled code, like the production harness boundary checks.
-    if (request.signal?.aborted) {
-      throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation aborted by operator');
+    throwIfFakeAborted(request.signal);
+    const base = buildFakeBaseCompletion(request);
+    const completion = fakeCompletionForScenario(this.scenario, request, base);
+    if (completion) {
+      this.lastCompletion = completion;
+      return completion;
     }
-    const base = {
-      investigationId: request.investigationId,
-      runId: request.runId,
-      provider: this.id,
-      inputHash: request.inputHash,
-      usage: {
-        modelCalls: 1,
-        pagesVisited: Math.min(request.sampleUrls.length, request.budget.maxPages),
-        readsPerformed: Math.min(request.sampleUrls.length, request.budget.maxReads),
-        durationMs: 5,
-        costUsd: null,
-        costBasis: 'unavailable' as const,
-      },
-      actualModel: { provider: 'fake', model: 'fake-deterministic-v1' },
-      durationMs: 5,
-    } satisfies Partial<InvestigationProviderCompletion>;
-
-    switch (this.scenario) {
-      case 'valid':
-      case 'replayed_completion': {
-        const completion: InvestigationProviderCompletion = { ...base, result: validResult(request) };
-        this.lastCompletion = completion;
-        return completion;
-      }
-      case 'malformed': {
-        // Structurally invalid: wrong version type + missing observations.
-        const completion: InvestigationProviderCompletion = {
-          ...base,
-          result: { version: 'not-a-version', summary: '', observations: 'oops' },
-        };
-        this.lastCompletion = completion;
-        return completion;
-      }
-      case 'evidence_missing': {
-        // Well-formed envelope but zero observations — must fail closed.
-        const completion: InvestigationProviderCompletion = {
-          ...base,
-          result: {
-            version: INVESTIGATION_RESULT_VERSION,
-            summary: 'Fake evidence-missing fixture: no observations captured.',
-            observations: [],
-            evidenceRefs: [],
-            gaps: ['no observations captured within budget'],
-            renderedBrowserRequired: false,
-          },
-        };
-        this.lastCompletion = completion;
-        return completion;
-      }
-      case 'timeout': {
-        throw new InvestigationProviderError('timeout', 'timeout: fake investigation exceeded its budget');
-      }
-      case 'error': {
-        throw new InvestigationProviderError('provider_error', 'provider_error: fake investigation failed');
-      }
-      case 'cancellation': {
-        throw new InvestigationProviderError('cancelled', 'cancelled: fake investigation acknowledged cancellation');
-      }
-      case 'budget_exhaustion': {
-        throw new InvestigationProviderError(
-          'budget_exhausted',
-          'budget_exhausted: fake investigation exceeded maxReads within budget',
-        );
-      }
-      default: {
-        throw new InvestigationProviderError('provider_error', `provider_error: unknown fake scenario ${String(this.scenario)}`);
-      }
-    }
+    throwFakeScenarioError(this.scenario);
   }
 }
 

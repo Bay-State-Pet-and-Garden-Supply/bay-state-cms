@@ -464,6 +464,143 @@ function markFailed(
   });
 }
 
+/** Queued-only guard plus provider-identity guard for the dispatch seam. */
+function assertRunnableRecord(record: InvestigationRecord, providerId: InvestigationProviderId): void {
+  if (record.status !== 'queued') {
+    fail('invalid_transition', `only queued investigations can run (is ${record.status})`);
+  }
+  if (providerId !== record.provider) {
+    fail('invalid_input', `provider mismatch: investigation uses ${record.provider}`);
+  }
+}
+
+/** Monetary ceilings must be proven enforceable before dispatch. The T1
+ * fake honors the accounting contract; the local harness cannot prove a
+ * billing cap yet, so it fails closed here (post-hoc checks are not caps). */
+function refuseUnenforceableMonetaryCeiling(
+  store: InvestigationStore,
+  workspaceId: string,
+  record: InvestigationRecord,
+  providerId: InvestigationProviderId,
+  now?: Date,
+): void {
+  if (record.budget.maxCostUsd === undefined || providerId !== 'local_browser_harness') return;
+  markFailed(store, workspaceId, record, 'budget_not_enforceable', 'provider cannot enforce maxCostUsd', now);
+  fail('budget_not_enforceable', 'provider cannot enforce maxCostUsd');
+}
+
+/** Cloud stays disabled: never dispatch, even if a row somehow names it. */
+function resolveDispatchProviderOrFail(
+  store: InvestigationStore,
+  workspaceId: string,
+  record: InvestigationRecord,
+  providerId: InvestigationProviderId,
+  now?: Date,
+): void {
+  try {
+    resolveInvestigationProvider(providerId);
+  } catch (err) {
+    const mapped = toFailureCode(err);
+    markFailed(store, workspaceId, record, mapped.code, mapped.detail, now);
+    throw new InvestigationServiceError(mapped.code, mapped.detail);
+  }
+}
+
+/** #244: the queued->running transition applies only while still queued.
+ * A cancel that lands between the entry check and this write must win:
+ * re-read so a cancelled row is never resurrected to running. */
+function claimQueuedRowForRun(store: InvestigationStore, workspaceId: string, id: string, now?: Date): void {
+  const startedAt = nowIso(now);
+  const stillQueued = store.find(workspaceId, id);
+  if (!stillQueued) fail('not_found', `investigation ${id} not found`);
+  if (stillQueued!.status !== 'queued') {
+    fail('invalid_transition', `only queued investigations can run (is ${stillQueued!.status})`);
+  }
+  const running = store.update(workspaceId, id, { status: 'running', startedAt, updatedAt: startedAt });
+  if (!running) fail('not_found', `investigation ${id} not found`);
+}
+
+/** #244: own the live run. The controller is registered before dispatch
+ * so a concurrent cancel aborts the provider invocation; it is removed
+ * when the run settles so a never-dispatched (queued) cancel stays a
+ * pure state transition with no signal to deliver. */
+function registerLiveRun(workspaceId: string, id: string): { key: string; controller: AbortController } {
+  const key = liveInvestigationKey(workspaceId, id);
+  const controller = new AbortController();
+  liveInvestigationAborts.set(key, controller);
+  return { key, controller };
+}
+
+function unregisterLiveRun(key: string, controller: AbortController): void {
+  if (liveInvestigationAborts.get(key) === controller) {
+    liveInvestigationAborts.delete(key);
+  }
+}
+
+async function dispatchLiveRun(
+  store: InvestigationStore,
+  providerId: InvestigationProviderId,
+  workspaceId: string,
+  record: InvestigationRecord,
+  controller: AbortController,
+  now?: Date,
+): Promise<InvestigationRecord> {
+  const completion = await invokeInvestigationProvider(providerId, {
+    investigationId: record.id,
+    workspaceId: record.workspaceId,
+    domain: record.domain,
+    mode: record.mode,
+    sampleUrls: record.inputSnapshot.sampleUrls,
+    inputSnapshot: record.inputSnapshot,
+    inputHash: record.inputHash,
+    budget: record.budget,
+    modelPolicy: record.inputSnapshot.modelPolicy,
+    knownContext: record.inputSnapshot.knownContext,
+    runId: record.runId,
+    signal: controller.signal,
+  });
+  return acceptCompletion(store, workspaceId, record.id, completion, now);
+}
+
+/** #244: the aborted run surfaces the stable cancelled code and the
+ * record stays cancelled. When cancel already terminalized the row,
+ * this write is skipped (no mutation, no rewrite); otherwise the
+ * running row moves to cancelled exactly once. */
+function settleCancelledRun(store: InvestigationStore, workspaceId: string, id: string, detail: string, now?: Date): never {
+  const at = nowIso(now);
+  const latest = store.find(workspaceId, id);
+  if (latest && latest.status === 'running') {
+    store.update(workspaceId, id, {
+      status: 'cancelled',
+      completedAt: at,
+      failureCode: 'cancelled',
+      failureDetail: detail,
+      updatedAt: at,
+    });
+  }
+  throw new InvestigationServiceError('cancelled', detail);
+}
+
+function settleLiveRunFailure(
+  store: InvestigationStore,
+  workspaceId: string,
+  record: InvestigationRecord,
+  id: string,
+  err: unknown,
+  now?: Date,
+): never {
+  const mapped = toFailureCode(err);
+  if (mapped.code === 'cancelled') {
+    settleCancelledRun(store, workspaceId, id, mapped.detail, now);
+  }
+  // #244: a late non-cancelled failure for a cancelled row (e.g. a
+  // replay_rejected from acceptCompletion after cancel won the race) is
+  // dropped without mutating the terminal record. markFailed already
+  // guards on terminal, so this only records running->failed.
+  markFailed(store, workspaceId, record, mapped.code, mapped.detail, now);
+  throw new InvestigationServiceError(mapped.code, mapped.detail);
+}
+
 /**
  * Run a QUEUED investigation through the provider. Only explicit
  * investigate/repair routes call this. Enforces the monetary-ceiling
@@ -478,93 +615,17 @@ export async function runInvestigation(
   now?: Date,
 ): Promise<InvestigationRecord> {
   const record = scopedOrThrow(store, workspaceId, id);
-  if (record.status !== 'queued') {
-    fail('invalid_transition', `only queued investigations can run (is ${record.status})`);
-  }
-  if (providerId !== record.provider) {
-    fail('invalid_input', `provider mismatch: investigation uses ${record.provider}`);
-  }
-  // Monetary ceilings must be proven enforceable before dispatch. The T1
-  // fake honors the accounting contract; the local harness cannot prove a
-  // billing cap yet, so it fails closed here (post-hoc checks are not caps).
-  if (record.budget.maxCostUsd !== undefined && providerId === 'local_browser_harness') {
-    markFailed(store, workspaceId, record, 'budget_not_enforceable', 'provider cannot enforce maxCostUsd', now);
-    fail('budget_not_enforceable', 'provider cannot enforce maxCostUsd');
-  }
-  // Cloud stays disabled: never dispatch, even if a row somehow names it.
+  assertRunnableRecord(record, providerId);
+  refuseUnenforceableMonetaryCeiling(store, workspaceId, record, providerId, now);
+  resolveDispatchProviderOrFail(store, workspaceId, record, providerId, now);
+  claimQueuedRowForRun(store, workspaceId, id, now);
+  const live = registerLiveRun(workspaceId, id);
   try {
-    resolveInvestigationProvider(providerId);
+    return await dispatchLiveRun(store, providerId, workspaceId, record, live.controller, now);
   } catch (err) {
-    const mapped = toFailureCode(err);
-    markFailed(store, workspaceId, record, mapped.code, mapped.detail, now);
-    throw new InvestigationServiceError(mapped.code, mapped.detail);
-  }
-
-  const startedAt = nowIso(now);
-  // #244: the queued->running transition applies only while still queued.
-  // A cancel that lands between the entry check and this write must win:
-  // re-read so a cancelled row is never resurrected to running.
-  const stillQueued = store.find(workspaceId, id);
-  if (!stillQueued) fail('not_found', `investigation ${id} not found`);
-  if (stillQueued!.status !== 'queued') {
-    fail('invalid_transition', `only queued investigations can run (is ${stillQueued!.status})`);
-  }
-  const running = store.update(workspaceId, id, { status: 'running', startedAt, updatedAt: startedAt });
-  if (!running) fail('not_found', `investigation ${id} not found`);
-
-  // #244: own the live run. The controller is registered before dispatch
-  // so a concurrent cancel aborts the provider invocation; it is removed
-  // when the run settles so a never-dispatched (queued) cancel stays a
-  // pure state transition with no signal to deliver.
-  const liveKey = liveInvestigationKey(workspaceId, id);
-  const controller = new AbortController();
-  liveInvestigationAborts.set(liveKey, controller);
-  try {
-    const completion = await invokeInvestigationProvider(providerId, {
-      investigationId: record.id,
-      workspaceId: record.workspaceId,
-      domain: record.domain,
-      mode: record.mode,
-      sampleUrls: record.inputSnapshot.sampleUrls,
-      inputSnapshot: record.inputSnapshot,
-      inputHash: record.inputHash,
-      budget: record.budget,
-      modelPolicy: record.inputSnapshot.modelPolicy,
-      knownContext: record.inputSnapshot.knownContext,
-      runId: record.runId,
-      signal: controller.signal,
-    });
-    return acceptCompletion(store, workspaceId, id, completion, now);
-  } catch (err) {
-    const mapped = toFailureCode(err);
-    const at = nowIso(now);
-    if (mapped.code === 'cancelled') {
-      // #244: the aborted run surfaces the stable cancelled code and the
-      // record stays cancelled. When cancel already terminalized the row,
-      // this write is skipped (no mutation, no rewrite); otherwise the
-      // running row moves to cancelled exactly once.
-      const latest = store.find(workspaceId, id);
-      if (latest && latest.status === 'running') {
-        store.update(workspaceId, id, {
-          status: 'cancelled',
-          completedAt: at,
-          failureCode: 'cancelled',
-          failureDetail: mapped.detail,
-          updatedAt: at,
-        });
-      }
-      throw new InvestigationServiceError('cancelled', mapped.detail);
-    }
-    // #244: a late non-cancelled failure for a cancelled row (e.g. a
-    // replay_rejected from acceptCompletion after cancel won the race) is
-    // dropped without mutating the terminal record. markFailed already
-    // guards on terminal, so this only records running->failed.
-    markFailed(store, workspaceId, record, mapped.code, mapped.detail, now);
-    throw new InvestigationServiceError(mapped.code, mapped.detail);
+    settleLiveRunFailure(store, workspaceId, record, id, err, now);
   } finally {
-    if (liveInvestigationAborts.get(liveKey) === controller) {
-      liveInvestigationAborts.delete(liveKey);
-    }
+    unregisterLiveRun(live.key, live.controller);
   }
 }
 

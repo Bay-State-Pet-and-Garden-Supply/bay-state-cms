@@ -130,6 +130,27 @@ interface Tier1Outcome {
   actualModel: { provider: string; model: string };
 }
 
+/** Runner failures that already carry a stable provider code pass through unchanged. */
+function asPassthroughRunnerError(err: unknown): InvestigationProviderError | null {
+  if (err instanceof ContainerRunnerError) {
+    return new InvestigationProviderError(err.code, err.message);
+  }
+  if (err instanceof RenderRunnerError) {
+    return new InvestigationProviderError(err.code, err.message);
+  }
+  return null;
+}
+
+function isHarnessAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === 'AbortError';
+}
+
+function mapModelContextFailureCode(err: ModelContextError) {
+  if (err.code === 'holdout_exposed') return 'holdout_exposed' as const;
+  if (err.code === 'budget_exhausted') return 'budget_exhausted' as const;
+  return 'provider_error' as const;
+}
+
 export class LocalBrowserHarnessProvider implements InvestigationProvider {
   readonly id = 'local_browser_harness' as const;
 
@@ -267,18 +288,13 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     if (err instanceof InvestigationProviderError) return err;
     // A bare AbortError (e.g. an aborted wait) is always operator
     // cancellation on this path — never a generic provider failure.
-    if (err instanceof Error && err.name === 'AbortError') {
+    if (isHarnessAbortError(err)) {
       return new InvestigationProviderError('cancelled', 'cancelled: investigation aborted by operator');
     }
-    if (err instanceof ContainerRunnerError) {
-      return new InvestigationProviderError(err.code, err.message);
-    }
-    if (err instanceof RenderRunnerError) {
-      return new InvestigationProviderError(err.code, err.message);
-    }
+    const passthrough = asPassthroughRunnerError(err);
+    if (passthrough) return passthrough;
     if (err instanceof ModelContextError) {
-      const code = err.code === 'holdout_exposed' ? 'holdout_exposed' as const : err.code === 'budget_exhausted' ? 'budget_exhausted' as const : 'provider_error' as const;
-      return new InvestigationProviderError(code, err.message);
+      return new InvestigationProviderError(mapModelContextFailureCode(err), err.message);
     }
     if (err instanceof ReasonCallError) {
       return new InvestigationProviderError(err.code, err.message);
