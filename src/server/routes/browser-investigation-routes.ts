@@ -29,7 +29,6 @@ import {
   normalizeInvestigationDomain,
   resolveInvestigationBudget,
   InvestigationBudgetInputSchema,
-  InvestigationProviderIdSchema,
 } from '../../shared/schemas/browser-investigation';
 import {
   cancelInvestigation,
@@ -63,7 +62,6 @@ import { runProfileExtraction } from '../../onboarding/profile-runner-client';
 import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
 import { compileInvestigationResult } from '../../onboarding/browser-investigation/compiler';
 import { proposeDriftRepair } from '../../onboarding/browser-investigation/drift';
-import { fakeInvestigationProvider, FakeInvestigationScenarioSchema } from '../../onboarding/browser-investigation/fake-provider';
 import {
   describeInvestigationTelemetry,
   withCompileGapCount,
@@ -77,15 +75,11 @@ import { LocalBrowserHarnessProvider } from '../../onboarding/browser-investigat
 
 export const browserInvestigationRoutes = new Hono();
 
-// Register investigation providers exactly once. The fake stays for
-// deterministic fixtures; the T3 local harness is registered with default
-// (production) dependencies and fails closed with `isolation_unavailable`
-// when isolation is not enabled — missing isolation never falls back.
-try {
-  getInvestigationProvider('fake');
-} catch {
-  registerInvestigationProvider(fakeInvestigationProvider);
-}
+// Register production investigation providers exactly once. Only the real
+// local harness is registered here: the deterministic fake is never
+// reachable from any operator API (see #235). Tests construct
+// `FakeInvestigationProvider` explicitly and register it in their own
+// process; production launches default to the harness and reject `fake`.
 try {
   getInvestigationProvider('local_browser_harness');
 } catch {
@@ -172,10 +166,13 @@ const LaunchBodySchema = z.object({
   // Single source of truth for caps lives in the shared budget schema;
   // routes accept partial overrides, never redeclare bounds.
   budget: InvestigationBudgetInputSchema.optional(),
-  // T3: explicit provider choice. Default stays `fake` so existing callers
-  // keep deterministic fixtures; `local_browser_harness` runs the isolated
-  // harness and fails closed without isolation. Unknown/cloud ids rejected.
-  provider: InvestigationProviderIdSchema.optional(),
+  // #235 production hardening: omitting `provider` runs the real local
+  // harness. Requesting `fake` (or any unknown id) is rejected with the
+  // stable operator-safe `invalid_input` code — the deterministic fake is
+  // never reachable from any operator API. No `scenario` knob exists here:
+  // test scenarios survive only as explicit `FakeInvestigationProvider`
+  // injection in unit tests, never as launch-contract input.
+  provider: z.string().optional(),
   modelPolicy: z
     .object({
       allowCloudTextAnalysis: z.boolean().optional(),
@@ -183,12 +180,9 @@ const LaunchBodySchema = z.object({
     })
     .optional(),
   knownContext: z.record(z.string(), z.unknown()).optional(),
-  // Test-only seam: deterministic fake scenario for this launch (defaults to
-  // `valid`). Lets route-level tests drive failure paths deterministically.
-  // Only honored when `provider` is `fake` (the default).
-  scenario: FakeInvestigationScenarioSchema.optional(),
-  // Launch without running (queue only). Default runs immediately so one
-  // explicit operator action produces a terminal fixture via the fake.
+  // Launch without running (queue only). Default runs immediately through
+  // the real harness (fails closed with `isolation_unavailable` when the
+  // isolated runtime is not enabled).
   queueOnly: z.boolean().optional(),
 });
 
@@ -202,8 +196,18 @@ async function handleLaunch(
   if (!parsed.success) {
     return c.json({ error: 'Invalid investigation payload', details: parsed.error.format() }, 400);
   }
-  const provider = parsed.data.provider ?? 'fake';
-  if (provider === 'fake') fakeInvestigationProvider.setScenario(parsed.data.scenario ?? 'valid');
+  // Production provider gate (one place): only the real harness is
+  // launchable. `fake` and any unknown id fail with a stable code before
+  // any row is created; extra keys such as a legacy `scenario` are ignored
+  // by the schema above (stripped, never honored).
+  const rawProvider = parsed.data.provider;
+  if (rawProvider !== undefined && rawProvider !== 'local_browser_harness') {
+    return c.json(
+      { error: `invalid_input: unknown provider ${rawProvider}`, code: 'invalid_input' },
+      400,
+    );
+  }
+  const provider = 'local_browser_harness' as const;
   // T5 drift/failure entry: pre-attach the frozen last-healthy baseline
   // (policy, artifact hashes, failing extraction, provenance, failure
   // codes, affected fields) so repair starts from evidence. The driftRepair

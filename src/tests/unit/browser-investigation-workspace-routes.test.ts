@@ -21,6 +21,13 @@ import {
   teardownInvestigationDb,
 } from './helpers/browser-investigation-route-suite';
 import { saveInvestigationValidation } from '../../db/repositories/browser-investigation-repo';
+import { createSqliteInvestigationStore } from '../../onboarding/browser-investigation/store';
+import { requestInvestigation, runInvestigation } from '../../onboarding/browser-investigation/service';
+import { fakeInvestigationProvider } from '../../onboarding/browser-investigation/fake-provider';
+import {
+  getInvestigationProvider,
+  registerInvestigationProvider,
+} from '../../onboarding/browser-investigation/provider';
 import {
   getActiveVersion,
   getVersionById,
@@ -53,10 +60,32 @@ beforeEach(async () => {
   }
 });
 
+/** Explicit fake injection for deterministic setup (#235): production HTTP
+ * launches run the real harness, so tests needing a completed fake build it
+ * directly through the service (never via the operator API). */
+function ensureFakeForService(): void {
+  try {
+    getInvestigationProvider('fake');
+  } catch {
+    registerInvestigationProvider(fakeInvestigationProvider);
+  }
+}
+
 async function launchSamples(sampleUrls: string[]): Promise<string> {
-  const launched = await postJson(`/api/domains/${DOMAIN}/investigations`, { sampleUrls });
-  expect(launched.status).toBe(201);
-  return launched.json.investigation.id as string;
+  ensureFakeForService();
+  fakeInvestigationProvider.setScenario('valid');
+  const store = createSqliteInvestigationStore();
+  const created = requestInvestigation(store, {
+    // First workspace row is the requesting workspace in these suites.
+    workspaceId: 'ws-binv-workspace-main',
+    domain: DOMAIN,
+    mode: 'domain_onboarding',
+    sampleUrls,
+    provider: 'fake',
+  });
+  const completed = await runInvestigation(store, 'fake', 'ws-binv-workspace-main', created.id);
+  expect(completed.status).toBe('completed');
+  return created.id;
 }
 
 describe('T5 workspace view and drift entry routes', () => {

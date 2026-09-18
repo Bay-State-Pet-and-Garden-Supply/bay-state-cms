@@ -23,8 +23,12 @@ import {
   listVersions,
 } from '../../db/repositories/profile-version-repo';
 import { createSqliteInvestigationStore } from '../../onboarding/browser-investigation/store';
-import { acceptCompletion, requestInvestigation } from '../../onboarding/browser-investigation/service';
+import { acceptCompletion, requestInvestigation, runInvestigation } from '../../onboarding/browser-investigation/service';
 import { fakeInvestigationProvider } from '../../onboarding/browser-investigation/fake-provider';
+import {
+  getInvestigationProvider,
+  registerInvestigationProvider,
+} from '../../onboarding/browser-investigation/provider';
 import { evaluateCandidateVersionHealth, evaluateActiveVersionHealth } from '../../onboarding/domain-version-health';
 import { INVESTIGATION_RESULT_VERSION } from '../../shared/schemas/browser-investigation';
 const WS_MAIN = 'ws-binv-apply-main';
@@ -32,18 +36,44 @@ const WS_FOREIGN = 'ws-binv-apply-foreign';
 
 let tempDir: string;
 
+/** Explicit fake injection for deterministic setup (#235): production launches
+ * run the real harness, so tests needing a completed fake build it directly
+ * through the service with `provider: 'fake'` (never via the operator API). */
+function ensureFakeForService(): void {
+  try {
+    getInvestigationProvider('fake');
+  } catch {
+    registerInvestigationProvider(fakeInvestigationProvider);
+  }
+}
+
+async function launchCompletedFake(
+  domain: string,
+  launchBody?: Record<string, unknown>,
+): Promise<string> {
+  ensureFakeForService();
+  fakeInvestigationProvider.setScenario('valid');
+  const store = createSqliteInvestigationStore();
+  const created = requestInvestigation(store, {
+    workspaceId: WS_MAIN,
+    domain,
+    mode: 'domain_onboarding',
+    sampleUrls: (launchBody?.sampleUrls as string[] | undefined) ?? [`https://${domain}/products/alpha`],
+    ...(launchBody?.knownContext !== undefined ? { knownContext: launchBody.knownContext as Record<string, unknown> } : {}),
+    provider: 'fake',
+  });
+  const completed = await runInvestigation(store, 'fake', WS_MAIN, created.id);
+  expect(completed.status).toBe('completed');
+  return created.id;
+}
+
 /** Launch an investigation and apply its proposal; returns ids plus raw responses. */
 async function launchAndApply(
   domain: string,
   applyBody: Record<string, unknown>,
   launchBody?: Record<string, unknown>,
 ): Promise<{ id: string; applied: { status: number; json: any } }> {
-  const launched = await postJson(`/api/domains/${domain}/investigations`, {
-    sampleUrls: [`https://${domain}/products/alpha`],
-    ...launchBody,
-  });
-  expect(launched.status).toBe(201);
-  const id = launched.json.investigation.id as string;
+  const id = await launchCompletedFake(domain, launchBody);
   const applied = await postJson(`/api/domains/${domain}/investigations/${id}/apply`, applyBody);
   return { id, applied };
 }
@@ -67,13 +97,10 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
 
   it('apply publishes an inactive draft with blockers and no active-pointer touch', async () => {
     const domain = `apply-${Date.now()}.example.com`;
-    const launched = await postJson(`/api/domains/${domain}/investigations`, {
+    const id = await launchCompletedFake(domain, {
       sampleUrls: [`https://${domain}/products/alpha`],
       knownContext: { operatorPrompt: 'CANARY-PROMPT-APPLY workspace-private notes' },
     });
-    expect(launched.status).toBe(201);
-    const id = launched.json.investigation.id as string;
-    expect(launched.json.investigation.status).toBe('completed');
 
     const activeBefore = getActiveVersion(domain);
     const versionsBefore = listVersions(domain).length;
@@ -129,6 +156,7 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
       domain,
       mode: 'domain_onboarding',
       sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
     });
     store.update(WS_MAIN, created.id, {
       status: 'running',

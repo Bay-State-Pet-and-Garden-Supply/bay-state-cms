@@ -89,7 +89,11 @@ export function getInvestigationProvider(id: InvestigationProviderId): Investiga
   return found;
 }
 
-/** Resolve a provider by id. Unknown/cloud ids fail closed — never fall back. */
+/** Resolve a provider by id. Unknown/cloud ids fail closed — never fall back.
+ * Since #235 production routes register only the real harness: resolving
+ * `fake` there fails with `isolation_unavailable` (unregistered), while the
+ * HTTP gate rejects `fake`/unknown earlier with `invalid_input`. Tests
+ * register the fake explicitly in their own process. */
 export function resolveInvestigationProvider(id: string): InvestigationProvider {
   if (id === 'fake' || id === 'local_browser_harness') {
     return getInvestigationProvider(id as InvestigationProviderId);

@@ -4,6 +4,10 @@
 // scenarios, workspace scoping, active-conflict, replay/stale rejection,
 // cancel/discard transitions, and the zero-provider-call regression for
 // normal extraction paths. The SQLite repository seam has its own Bun suite.
+//
+// Since #235 the fake is explicit test injection only (`provider: 'fake'`
+// alongside a registered `FakeInvestigationProvider`); omitting `provider`
+// resolves to the real local harness.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
@@ -65,6 +69,7 @@ describe('fake provider scenario coverage (T1)', () => {
       domain: `${scenario}.${DOMAIN}`,
       mode: 'domain_onboarding',
       sampleUrls: URLS,
+      provider: 'fake',
     });
     expect(record.status).toBe(status);
     expect(record.failureCode).toBe(code);
@@ -89,6 +94,7 @@ describe('investigation lifecycle (T1, in-memory)', () => {
       domain: 'WWW.Shop.Example.COM',
       mode: 'drift_repair',
       sampleUrls: URLS,
+      provider: 'fake',
     });
     expect(record.workspaceId).toBe(WS);
     expect(record.domain).toBe('shop.example.com');
@@ -105,13 +111,13 @@ describe('investigation lifecycle (T1, in-memory)', () => {
   it('rejects a second active investigation per workspace+domain', () => {
     const store = createMemoryStore();
     useFake('valid');
-    requestInvestigation(store, { workspaceId: WS, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS });
+    requestInvestigation(store, { workspaceId: WS, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS, provider: 'fake' });
     expect(() =>
-      requestInvestigation(store, { workspaceId: WS, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS }),
+      requestInvestigation(store, { workspaceId: WS, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS, provider: 'fake' }),
     ).toThrowError(/conflict_active_investigation/);
     // A different workspace may investigate the same domain concurrently.
     expect(() =>
-      requestInvestigation(store, { workspaceId: FOREIGN, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS }),
+      requestInvestigation(store, { workspaceId: FOREIGN, domain: DOMAIN, mode: 'domain_onboarding', sampleUrls: URLS, provider: 'fake' }),
     ).not.toThrow();
   });
 
@@ -123,6 +129,7 @@ describe('investigation lifecycle (T1, in-memory)', () => {
       domain: DOMAIN,
       mode: 'domain_onboarding',
       sampleUrls: URLS,
+      provider: 'fake',
     });
     expect(() => getInvestigation(store, FOREIGN, record.id)).toThrowError(/workspace_mismatch/);
     expect(listInvestigations(store, FOREIGN)).toEqual([]);
@@ -140,6 +147,7 @@ describe('investigation lifecycle (T1, in-memory)', () => {
       domain: DOMAIN,
       mode: 'domain_onboarding',
       sampleUrls: URLS,
+      provider: 'fake',
     });
     expect(record.status).toBe('completed');
     const replayed = fake.replay();
@@ -255,6 +263,7 @@ describe('investigation lifecycle (T1, in-memory)', () => {
       domain: `regression.${DOMAIN}`,
       mode: 'domain_onboarding',
       sampleUrls: URLS,
+      provider: 'fake',
     });
     expect(getInvestigationProviderCallCount()).toBeGreaterThan(0);
   });
@@ -263,6 +272,32 @@ describe('investigation lifecycle (T1, in-memory)', () => {
     const { resolveInvestigationProvider } = await import('../../onboarding/browser-investigation/provider');
     expect(() => resolveInvestigationProvider('cloud')).toThrowError(/cloud_disabled/);
     expect(() => resolveInvestigationProvider('browser_use_cloud')).toThrowError(/cloud_disabled/);
+  });
+
+  it('omitting provider resolves to the local harness, never the fake (#235)', () => {
+    const store = createMemoryStore();
+    useFake('valid');
+    const created = requestInvestigation(store, {
+      workspaceId: WS,
+      domain: `default.${DOMAIN}`,
+      mode: 'domain_onboarding',
+      sampleUrls: URLS,
+    });
+    expect(created.provider).toBe('local_browser_harness');
+  });
+
+  it('unknown provider ids are rejected with a stable code (#235)', () => {
+    const store = createMemoryStore();
+    useFake('valid');
+    expect(() =>
+      requestInvestigation(store, {
+        workspaceId: WS,
+        domain: `unknown.${DOMAIN}`,
+        mode: 'domain_onboarding',
+        sampleUrls: URLS,
+        provider: 'browser_use_cloud' as never,
+      }),
+    ).toThrowError(/invalid_input/);
   });
 
   it('local harness without isolation fails closed', async () => {

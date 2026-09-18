@@ -1,11 +1,12 @@
-// T1 (#225) — Browser Investigation lifecycle over SQLite + routes.
+// T1 (#225) + #235 production hardening — lifecycle over SQLite + routes.
 //
 // Bun suite (bun:sqlite via the repository layer; run under `bun test` via
 // test:db, excluded from Vitest per the dual-runner gate). Proves the
-// workspace-scoped persistence contract end to end: explicit investigate /
-// drift-repair routes are the only provider callers, investigations persist
-// with the full envelope, foreign-workspace access is rejected, and stale /
-// replayed completions cannot mutate terminal state.
+// workspace-scoped persistence contract end to end plus the #235 production
+// provider gate: omitting `provider` runs the real harness (fails closed
+// without isolation), `fake`/unknown ids are rejected with `invalid_input`,
+// and the legacy `scenario` knob is ignored. The deterministic fake survives
+// only as explicit service-level injection in the replay test below.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
@@ -24,6 +25,8 @@ import { fakeInvestigationProvider } from '../../onboarding/browser-investigatio
 import { getDomainDiagnosticsResponse } from '../../onboarding/domain-diagnostics-service';
 import {
   getInvestigationProviderCallCount,
+  getInvestigationProvider,
+  registerInvestigationProvider,
   resetInvestigationProviderCalls,
 } from '../../onboarding/browser-investigation/provider';
 import { acceptCompletion,
@@ -43,6 +46,15 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     ]);
   });
 
+  function ensureFakeForDirectService(): void {
+    try {
+      getInvestigationProvider('fake');
+    } catch {
+      registerInvestigationProvider(fakeInvestigationProvider);
+    }
+    fakeInvestigationProvider.setScenario('valid');
+  }
+
   afterAll(() => {
     fakeInvestigationProvider.setScenario('valid');
     teardownInvestigationDb(tempDir);
@@ -53,7 +65,7 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     resetInvestigationProviderCalls();
   });
 
-  it('explicit investigate route persists a completed fake investigation with the full envelope', async () => {
+  it('omitting provider runs the real harness with the full envelope (#235)', async () => {
     const domain = `investigate-${Date.now()}.example.com`;
     const { status, json } = await postJson(`/api/domains/${domain}/investigations`, {
       sampleUrls: [`https://${domain}/products/alpha`],
@@ -63,19 +75,18 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     expect(inv.workspaceId).toBe(WS_MAIN);
     expect(inv.domain).toBe(domain);
     expect(inv.mode).toBe('domain_onboarding');
-    expect(inv.status).toBe('completed');
-    expect(inv.provider).toBe('fake');
+    // No isolation in test env: the real harness fails closed — never fabricates.
+    expect(inv.provider).toBe('local_browser_harness');
+    expect(inv.status).toBe('failed');
+    expect(inv.failureCode).toBe('isolation_unavailable');
     expect(inv.runId).toBeTruthy();
     expect(inv.inputHash).toBeTruthy();
     expect(inv.inputSnapshot.sampleUrls).toEqual([`https://${domain}/products/alpha`]);
     expect(inv.budget.maxPages).toBe(5);
-    expect(inv.result).not.toBeNull();
-    expect(inv.resultHash).toBeTruthy();
-    expect(inv.usage?.costBasis).toBe('unavailable');
     // Read-back is workspace-scoped and intact.
     const reread = findInvestigationById(WS_MAIN, inv.id);
     expect(reread?.id).toBe(inv.id);
-    expect(reread?.resultHash).toBe(inv.resultHash);
+    expect(reread?.provider).toBe('local_browser_harness');
   });
 
   it('drift-repair route persists mode drift_repair', async () => {
@@ -86,7 +97,9 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     });
     expect(status).toBe(201);
     expect(json.investigation.mode).toBe('drift_repair');
-    expect(json.investigation.status).toBe('completed');
+    expect(json.investigation.provider).toBe('local_browser_harness');
+    expect(json.investigation.status).toBe('failed');
+    expect(json.investigation.failureCode).toBe('isolation_unavailable');
   });
 
   it('diagnostics reads make zero provider calls; only an explicit launch dispatches (negative invariant)', async () => {
@@ -99,7 +112,7 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
       sampleUrls: [`https://${domain}/products/alpha`],
     });
     expect(launched.status).toBe(201);
-    expect(launched.json.investigation.status).toBe('completed');
+    expect(launched.json.investigation.provider).toBe('local_browser_harness');
     // Exactly one provider dispatch per explicit investigation run.
     expect(getInvestigationProviderCallCount()).toBe(1);
   });
@@ -163,27 +176,43 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     expect(discard.json.investigation.status).toBe('discarded');
   });
 
-  it('malformed and evidence-missing provider output fail closed with stable codes', async () => {
-    const malformedDomain = `malformed-${Date.now()}.example.com`;
-    const malformed = await postJson(`/api/domains/${malformedDomain}/investigations`, {
-      sampleUrls: [`https://${malformedDomain}/products/alpha`],
+  it('requesting the fake provider is rejected with a stable code (#235)', async () => {
+    const domain = `fake-rejected-${Date.now()}.example.com`;
+    const res = await postJson(`/api/domains/${domain}/investigations`, {
+      sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.json.code ?? res.json.error)).toMatch(/invalid_input/);
+    // No row was created for the rejected launch.
+    expect(findActiveInvestigation(WS_MAIN, domain)).toBeNull();
+  });
+
+  it('requesting an unknown provider is rejected with a stable code (#235)', async () => {
+    const domain = `unknown-rejected-${Date.now()}.example.com`;
+    const res = await postJson(`/api/domains/${domain}/investigations`, {
+      sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'browser_use_cloud',
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.json.code ?? res.json.error)).toMatch(/invalid_input/);
+    expect(findActiveInvestigation(WS_MAIN, domain)).toBeNull();
+  });
+
+  it('legacy scenario knob carries no control in production (#235)', async () => {
+    const domain = `scenario-ignored-${Date.now()}.example.com`;
+    const res = await postJson(`/api/domains/${domain}/investigations`, {
+      sampleUrls: [`https://${domain}/products/alpha`],
       scenario: 'malformed',
     });
-    expect(malformed.status).toBe(201);
-    expect(malformed.json.investigation.status).toBe('failed');
-    expect(malformed.json.investigation.failureCode).toBe('malformed_result');
-
-    const missingDomain = `missing-${Date.now()}.example.com`;
-    const missing = await postJson(`/api/domains/${missingDomain}/investigations`, {
-      sampleUrls: [`https://${missingDomain}/products/alpha`],
-      scenario: 'evidence_missing',
-    });
-    expect(missing.status).toBe(201);
-    expect(missing.json.investigation.status).toBe('failed');
-    expect(missing.json.investigation.failureCode).toBe('evidence_missing');
+    expect(res.status).toBe(201);
+    // Stripped, never honored: still the real harness, not a fake failure.
+    expect(res.json.investigation.provider).toBe('local_browser_harness');
+    expect(res.json.investigation.failureCode).toBe('isolation_unavailable');
   });
 
   it('replayed completions against terminal investigations are rejected', async () => {
+    ensureFakeForDirectService();
     const store = createSqliteInvestigationStore();
     const domain = `replay-${Date.now()}.example.com`;
     const created = requestInvestigation(store, {
@@ -191,8 +220,10 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
       domain,
       mode: 'domain_onboarding',
       sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
     });
-    // Drive to running, then accept a valid completion via the fake.
+    // Drive to running, then accept a valid completion via the explicitly
+    // injected fake (test-only; never reachable from production launches).
     const { runInvestigation } = await import('../../onboarding/browser-investigation/service');
     fakeInvestigationProvider.setScenario('valid');
     const completed = await runInvestigation(store, 'fake', WS_MAIN, created.id);

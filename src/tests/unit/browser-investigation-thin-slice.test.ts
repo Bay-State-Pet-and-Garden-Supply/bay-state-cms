@@ -87,11 +87,14 @@ describe('thin slice: request → investigation → Shopify policy → validatio
     fake.setScenario('valid');
     registerInvestigationProvider(fake);
     resetInvestigationProviderCalls();
+    // Deterministic contract double: the fake is explicit test injection
+    // only (never reachable from production launches since #235).
     const record = await requestAndRunInvestigation(investigations, {
       workspaceId: WS,
       domain: DOMAIN,
       mode: 'domain_onboarding',
       sampleUrls: [REP_A, REP_B],
+      provider: 'fake',
     });
     expect(record.status).toBe('completed');
     expect(record.result?.platform).toBe('shopify');
@@ -127,12 +130,15 @@ describe('thin slice: request → investigation → Shopify policy → validatio
     // Negative invariant, part 2: validation made zero provider calls.
     expect(getInvestigationProviderCallCount()).toBe(callsAfterInvestigation);
 
-    // Governed draft: sanitized inactive version with blockers preserved.
+    // Governed draft (#234 server-authoritative): the persisted validation
+    // record is resolved and bound by hashes — no client-submitted status
+    // or holdout counts cross the apply boundary.
     const created: Array<Record<string, unknown>> = [];
     const applied = await applyProposalToDraft(
       {
         investigations,
         proposals,
+        validations,
         createVersion: (input) => {
           created.push(input as unknown as Record<string, unknown>);
           return { id: 'ver_thin_slice_1', domain: input.domain, version: 1 };
@@ -142,20 +148,20 @@ describe('thin slice: request → investigation → Shopify policy → validatio
         workspaceId: WS,
         investigationId: record.id,
         actor: 'operator-thin-slice',
-        validation: {
-          status: validation.status === 'passed' ? 'passed' : 'failed',
-          policyHash: validation.policyHash,
-          holdouts: { passed: validation.holdouts.passed, required: validation.holdouts.required, sampleIds: validation.holdouts.sampleIds },
-        },
       },
     );
     expect(applied.appliedVersionId).toBe('ver_thin_slice_1');
+    expect(applied.proposalHash).toBe(validation.proposalHash);
+    expect(applied.policyHash).toBe(validation.policyHash);
     expect(getInvestigationProviderCallCount()).toBe(callsAfterInvestigation);
 
     const draft = created[0]!;
     const summary = draft.validationSummary as Record<string, unknown>;
     expect(summary.imageRuleOk).toBe(false);
     expect(summary.investigationDerived).toBe(true);
+    expect(summary.validationStatus).toBe('passed');
+    expect(summary.holdoutPassedCount).toBe(validation.holdouts.passed);
+    expect(summary.validationRef).toBe(validation.validationId);
     // No activation, release, or attestation performed or claimed.
     expect(draft).not.toHaveProperty('active');
     expect(summary).not.toHaveProperty('released');

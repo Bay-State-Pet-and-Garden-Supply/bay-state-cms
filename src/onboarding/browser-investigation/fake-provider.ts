@@ -1,9 +1,14 @@
-// Deterministic fake investigation provider (T1).
+// Deterministic fake investigation provider (T1; test-only since #235).
 //
 // Covers the eight provider behaviors the lifecycle must survive:
 // valid, malformed, evidence-missing, timeout, error, cancellation,
 // replayed-completion, and budget-exhaustion. No network, no timers, no
 // randomness — scenario is explicit per invocation so tests are deterministic.
+//
+// Never registered in production routes: tests construct it explicitly via
+// `new FakeInvestigationProvider()` (or the shared singleton) and register
+// it in their own process. Production launches default to the real local
+// harness and reject `fake` with `invalid_input` before any row is created.
 //
 // Stale/replayed completions are rejected by the SERVICE (runId + inputHash
 // binding), not by this fake: the `replayed_completion` scenario exposes a
@@ -30,9 +35,9 @@ export const FakeInvestigationScenarioSchema = z.enum([
   'budget_exhaustion',
 ]);
 
-// Scenario selector for the deterministic fake. Routes set it per launch (test-only
-// seam for deterministic route-level failure coverage; removed when the real
-// harness lands in T3); T2+ suites reuse it for compiler/validation fixtures.
+// Scenario selector for the deterministic fake. Tests set it per invocation
+// (explicit injection only — never via any operator launch contract since
+// #235); T2+ suites reuse it for compiler/validation fixtures.
 // fallow-ignore-next-line unused-type
 export type FakeInvestigationScenario = z.infer<typeof FakeInvestigationScenarioSchema>;
 

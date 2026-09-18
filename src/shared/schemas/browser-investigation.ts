@@ -52,8 +52,10 @@ export function isActiveInvestigationStatus(status: InvestigationStatus): boolea
   return (ACTIVE_INVESTIGATION_STATUSES as readonly string[]).includes(status);
 }
 
-/** Providers known to the T1 seam. `cloud` is intentionally absent: requesting
- * it must fail closed with `cloud_disabled` and no Cloud SDK ships in T1. */
+/** Providers known to the seam. `fake` persists only for explicit test
+ * injection (never launchable from production routes since #235); `cloud`
+ * is intentionally absent: requesting it must fail closed with
+ * `cloud_disabled` and no Cloud SDK ships. */
 export const InvestigationProviderIdSchema = z.enum(['fake', 'local_browser_harness']);
 export type InvestigationProviderId = z.infer<typeof InvestigationProviderIdSchema>;
 
@@ -84,6 +86,10 @@ export const InvestigationFailureCodeSchema = z.enum([
   // T5 holdout governance (additive): a later validation dropped a
   // previously reserved holdout instead of running it.
   'reserved_holdout_dropped',
+  // #234 server-authoritative apply (additive): client-submitted validation
+  // status / holdout counts presented as credentials, or a persisted
+  // validation record that fails integrity/binding checks.
+  'validation_untrusted',
 ]);
 export type InvestigationFailureCode = z.infer<typeof InvestigationFailureCodeSchema>;
 

@@ -181,7 +181,11 @@ export function requestInvestigation(
   if (!domain) fail('invalid_input', 'domain required');
   assertInvestigationSampleUrls(input.sampleUrls);
 
-  const provider: InvestigationProviderId = options.provider ?? 'fake';
+  // Production default is the real local harness — never the fake. The fake
+  // survives only as explicit test injection (`provider: 'fake'` from a test
+  // that registered `FakeInvestigationProvider`); production routes reject
+  // `fake` before reaching this service (see browser-investigation-routes).
+  const provider: InvestigationProviderId = options.provider ?? 'local_browser_harness';
   if (provider !== 'fake' && provider !== 'local_browser_harness') {
     fail('invalid_input', `unknown provider ${String(provider)}`);
   }
