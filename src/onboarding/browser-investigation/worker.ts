@@ -66,6 +66,14 @@ export function createInvestigationWorker(
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
   let inFlight = false;
+  // #243 startup reconciliation runs exactly once per worker instance, on
+  // the FIRST start only (never on tick/kick/interval). Any `running` row
+  // observed there predates this process — the current process has not
+  // dispatched anything yet — so it is an orphan from a previous process
+  // (throw after the row moved to running, or process death mid-run) that
+  // would otherwise block its domain forever. Live runs started by this
+  // process after reconciliation are never revisited.
+  let didReconcileOrphans = false;
   // A launch that arrives while a sweep is in flight must not be stranded:
   // the kick flag chains a follow-up sweep when the current one releases
   // the writer guard (the interval sweep is the production backstop; the
@@ -84,6 +92,52 @@ export function createInvestigationWorker(
     } catch {
       return [];
     }
+  }
+
+  /**
+   * #243 bounded startup reconciliation: mark pre-existing `running` rows
+   * as failed with the stable `provider_error` code. Workspace-agnostic
+   * (every resolved workspace), idempotent (re-reads before marking, skips
+   * non-running rows), and once-only per worker instance via the caller.
+   * Uses only the existing workspace-scoped `list`/`find`/`update` seam —
+   * no new repository query.
+   */
+  async function reconcileOrphanedRunningOnce(): Promise<number> {
+    let store: InvestigationStore;
+    try {
+      store = storeFactory();
+    } catch (err) {
+      log.error('[InvestigationWorker] reconcile store unavailable:', err);
+      return 0;
+    }
+    let reconciled = 0;
+    for (const workspaceId of resolveWorkspaceIds()) {
+      let orphans: InvestigationRecord[] = [];
+      try {
+        orphans = store.list(workspaceId).filter((r) => r.status === 'running');
+      } catch (err) {
+        log.error(`[InvestigationWorker] reconcile list failed for workspace ${workspaceId}:`, err);
+        continue;
+      }
+      for (const candidate of orphans) {
+        try {
+          const latest = store.find(workspaceId, candidate.id);
+          if (!latest || latest.status !== 'running') continue;
+          const at = now().toISOString();
+          store.update(workspaceId, candidate.id, {
+            status: 'failed',
+            failureCode: 'provider_error',
+            failureDetail: 'provider_error: investigation orphaned by previous process restart',
+            completedAt: at,
+            updatedAt: at,
+          });
+          reconciled += 1;
+        } catch (err) {
+          log.error(`[InvestigationWorker] reconcile of investigation ${candidate.id} failed:`, err);
+        }
+      }
+    }
+    return reconciled;
   }
 
   async function tickOnce(): Promise<number> {
@@ -168,7 +222,23 @@ export function createInvestigationWorker(
     start() {
       if (running) return;
       running = true;
-      void tickOnce().catch((err) => log.error('[InvestigationWorker] initial tick failed:', err));
+      // Sequence reconciliation before the first dispatch: the orphan
+      // snapshot must predate any running rows this process creates.
+      void (async () => {
+        if (!didReconcileOrphans) {
+          didReconcileOrphans = true;
+          try {
+            await reconcileOrphanedRunningOnce();
+          } catch (err) {
+            log.error('[InvestigationWorker] startup reconcile failed:', err);
+          }
+        }
+        try {
+          await tickOnce();
+        } catch (err) {
+          log.error('[InvestigationWorker] initial tick failed:', err);
+        }
+      })();
       timer = setInterval(() => {
         void tickOnce().catch((err) => log.error('[InvestigationWorker] tick failed:', err));
       }, pollIntervalMs);

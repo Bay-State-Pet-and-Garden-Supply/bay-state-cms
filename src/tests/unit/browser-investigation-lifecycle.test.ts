@@ -35,6 +35,8 @@ import { acceptCompletion,
   getInvestigation,
   requestInvestigation,
 } from '../../onboarding/browser-investigation/service';
+import { createInvestigationWorker } from '../../onboarding/browser-investigation/worker';
+import { createMemoryInvestigationStore } from './helpers/browser-investigation-memory-store';
 const WS_MAIN = 'ws-binv-lifecycle-main';
 const WS_FOREIGN = 'ws-binv-lifecycle-foreign';
 
@@ -181,6 +183,10 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     });
     expect(created.status).toBe(201);
     const id = created.json.investigation.id as string;
+    // #243 settle the async run before later tests: the launch above
+    // dispatches off the request path, so await its terminal state instead
+    // of leaving it in flight.
+    await waitForInvestigationTerminal(domain, id);
     // Same row under a foreign workspace id is invisible at the repo seam.
     expect(findInvestigationById(WS_FOREIGN, id)).toBeNull();
     // Service seam rejects with workspace_mismatch.
@@ -297,5 +303,108 @@ describe('browser investigation lifecycle over SQLite (T1)', () => {
     });
     expect(findInvestigationById(WS_MAIN, seeded.id)).toBeNull();
     expect(findInvestigationById(WS_FOREIGN, seeded.id)?.id).toBe(seeded.id);
+  });
+});
+
+describe('#243 worker orphan reconciliation and dispatch fallback (memory store)', () => {
+  const silentLog = { error: () => {}, warn: () => {}, log: () => {} };
+
+  async function waitForStoreStatus(
+    store: ReturnType<typeof createMemoryInvestigationStore>,
+    workspaceId: string,
+    id: string,
+    status: string,
+    timeoutMs = 5000,
+  ): Promise<void> {
+    const start = Date.now();
+    for (;;) {
+      const row = store.find(workspaceId, id);
+      if (row?.status === status) return;
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(`timed out waiting for ${id} to reach ${status} (last=${row?.status})`);
+      }
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+
+  it('marks an unexpected dispatch throw failed with provider_error (fallback, no service marking)', async () => {
+    const store = createMemoryInvestigationStore();
+    const domain = `dispatch-fallback-${Date.now()}.example.com`;
+    const created = requestInvestigation(store, {
+      workspaceId: WS_MAIN,
+      domain,
+      mode: 'domain_onboarding',
+      sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
+    });
+    expect(store.find(WS_MAIN, created.id)?.status).toBe('queued');
+    // Injected dispatch throws without touching the row: the service never
+    // marks anything, so the worker fallback must fail the row itself.
+    const worker = createInvestigationWorker({
+      storeFactory: () => store,
+      workspaceIds: [WS_MAIN],
+      run: async () => {
+        throw new Error('boom-dispatch');
+      },
+      log: silentLog,
+    });
+    const processed = await worker.tick();
+    expect(processed).toBe(1);
+    const after = store.find(WS_MAIN, created.id);
+    expect(after?.status).toBe('failed');
+    expect(after?.failureCode).toBe('provider_error');
+    expect(String(after?.failureDetail)).toMatch(/provider_error/);
+    worker.stop();
+  });
+
+  it('reconciles a pre-existing running row on first start and never touches live runs', async () => {
+    const store = createMemoryInvestigationStore();
+    const domain = `orphan-${Date.now()}.example.com`;
+    const created = requestInvestigation(store, {
+      workspaceId: WS_MAIN,
+      domain,
+      mode: 'domain_onboarding',
+      sampleUrls: [`https://${domain}/products/alpha`],
+      provider: 'fake',
+    });
+    // Simulate a previous-process orphan: queued -> running with no terminal outcome.
+    const at = new Date().toISOString();
+    store.update(WS_MAIN, created.id, { status: 'running', startedAt: at, updatedAt: at });
+    expect(store.find(WS_MAIN, created.id)?.status).toBe('running');
+    let dispatchCalls = 0;
+    const worker = createInvestigationWorker({
+      storeFactory: () => store,
+      workspaceIds: [WS_MAIN],
+      run: async () => {
+        dispatchCalls += 1;
+        throw new Error('should not dispatch: no queued rows');
+      },
+      log: silentLog,
+    });
+    worker.start();
+    try {
+      await waitForStoreStatus(store, WS_MAIN, created.id, 'failed');
+    } finally {
+      worker.stop();
+    }
+    const orphan = store.find(WS_MAIN, created.id);
+    expect(orphan?.status).toBe('failed');
+    expect(orphan?.failureCode).toBe('provider_error');
+    expect(String(orphan?.failureDetail)).toMatch(/orphaned/);
+    expect(dispatchCalls).toBe(0);
+    // Live runs in the current process are never reconciled: a running row
+    // created after startup survives later ticks (tick never reconciles).
+    const liveDomain = `live-${Date.now()}.example.com`;
+    const live = requestInvestigation(store, {
+      workspaceId: WS_MAIN,
+      domain: liveDomain,
+      mode: 'domain_onboarding',
+      sampleUrls: [`https://${liveDomain}/products/alpha`],
+      provider: 'fake',
+    });
+    store.update(WS_MAIN, live.id, { status: 'running', startedAt: at, updatedAt: at });
+    expect(await worker.tick()).toBe(0);
+    expect(store.find(WS_MAIN, live.id)?.status).toBe('running');
+    worker.stop();
   });
 });
