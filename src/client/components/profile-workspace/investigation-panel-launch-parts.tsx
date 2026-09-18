@@ -9,7 +9,7 @@
 import React from 'react';
 import { colors, fonts, rounded } from '../../theme';
 import type { BudgetRow } from '../../investigation-api';
-import type { InvestigationDriftContextView, InvestigationWorkspaceView } from './investigation-contracts';
+import { isReservedUrl, type InvestigationDriftContextView, type InvestigationWorkspaceView } from './investigation-contracts';
 import type { InvestigationPanelController } from './investigation-panel-controller';
 import {
   AlertBox,
@@ -178,7 +178,7 @@ function LaunchSelectionList({
         <SuiteSampleRow
           key={url}
           url={url}
-          reserved={reservedUrls.includes(url)}
+          reserved={isReservedUrl(url, reservedUrls)}
           checked={selected.includes(url)}
           onToggle={() => onToggle(url)}
         />
