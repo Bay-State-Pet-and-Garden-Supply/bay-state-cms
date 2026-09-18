@@ -6007,6 +6007,109 @@ export function runMigrations(): void {
     }
   }
 
+  // ── Drift 1/6 (#250): idempotent drift check with dedup upsert ──────
+  //
+  // Stops the table growth that turned two full-catalog checks into tens of
+  // thousands of open items. Enforces at most one outstanding finding per
+  // (workspace_id, sku) across `open` + `in_reconcile` (reconcile-linked
+  // state stays blocking and covered) via a partial unique index, after
+  // collapsing pre-existing redundant outstanding observations.
+  //
+  // - Destructive dedup touches ONLY outstanding (`open`/`in_reconcile`)
+  //   rows; resolved history (`kept_local`/`accepted_remote`/`resolved`)
+  //   is never deleted (preserved for the audit-retention slice, #255).
+  // - Blob-safe: grouping and survivor selection never SELECT
+  //   local_json/remote_json/diff_json; deletes run by id in bounded
+  //   batches so large row counts cannot exhaust memory.
+  // - Deterministic survivor: in_reconcile first, then linked rows, then
+  //   earliest detected_at, then id. A surviving unlinked row inherits the
+  //   earliest duplicate link (promoted to `in_reconcile`) so change-set
+  //   back-references (`findLinkedDrift`/`reopenDriftForChangeSet`) survive.
+  // - Restart-safe: marker `drift_dedup_schema_version` is written only
+  //   after zero duplicate groups remain AND the unique index exists;
+  //   a crash reruns the same idempotent collapse on next boot.
+  try {
+    const driftDedupVersion = db
+      .query('SELECT value FROM app_meta WHERE key = ?')
+      .get('drift_dedup_schema_version') as { value: string } | undefined;
+    if (!driftDedupVersion) {
+      console.log('[Migrations] Running drift dedup migration (#250)...');
+      const driftTable = db
+        .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'remote_drift'")
+        .get() as { name: string } | undefined;
+      if (driftTable) {
+        const GROUP_BATCH = 200;
+        for (let pass = 0; pass < 1000; pass++) {
+          const groups = db.query(
+            `SELECT workspace_id, sku, COUNT(*) AS cnt FROM remote_drift
+             WHERE status IN ('open', 'in_reconcile')
+             GROUP BY workspace_id, sku HAVING cnt > 1
+             LIMIT ${GROUP_BATCH}`,
+          ).all() as Array<{ workspace_id: string; sku: string; cnt: number }>;
+          if (groups.length === 0) break;
+          for (const g of groups) {
+            const rows = db.query(
+              `SELECT id, status, detected_at, reconcile_change_set_id FROM remote_drift
+               WHERE workspace_id = ? AND sku = ? AND status IN ('open', 'in_reconcile')
+               ORDER BY
+                 CASE WHEN status = 'in_reconcile' THEN 0 ELSE 1 END ASC,
+                 CASE WHEN reconcile_change_set_id IS NOT NULL THEN 0 ELSE 1 END ASC,
+                 detected_at ASC, id ASC`,
+            ).all(g.workspace_id, g.sku) as Array<{
+              id: string; status: string; detected_at: string; reconcile_change_set_id: string | null;
+            }>;
+            if (rows.length <= 1) continue;
+            const survivor = rows[0];
+            let link: string | null = survivor.reconcile_change_set_id;
+            if (!link) {
+              for (const dup of rows.slice(1)) {
+                if (dup.reconcile_change_set_id) {
+                  link = dup.reconcile_change_set_id;
+                  break;
+                }
+              }
+            }
+            if (link && link !== survivor.reconcile_change_set_id) {
+              db.run(
+                `UPDATE remote_drift SET reconcile_change_set_id = ?, status = 'in_reconcile' WHERE id = ?`,
+                [link, survivor.id],
+              );
+            }
+            for (const dup of rows.slice(1)) {
+              db.run('DELETE FROM remote_drift WHERE id = ?', [dup.id]);
+            }
+          }
+          if (groups.length < GROUP_BATCH) break;
+        }
+        const remaining = db.query(
+          `SELECT COUNT(*) AS cnt FROM (
+             SELECT 1 FROM remote_drift
+             WHERE status IN ('open', 'in_reconcile')
+             GROUP BY workspace_id, sku HAVING COUNT(*) > 1
+           )`,
+        ).get() as { cnt: number };
+        if (Number(remaining.cnt) > 0) {
+          throw new Error(`[Migrations] drift dedup incomplete: ${remaining.cnt} duplicate group(s) remain`);
+        }
+        db.exec(
+          `CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_outstanding
+           ON remote_drift(workspace_id, sku) WHERE status IN ('open', 'in_reconcile')`,
+        );
+      }
+      db.exec("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('drift_dedup_schema_version', '1');");
+      console.log('[Migrations] Drift dedup migration complete (#250).');
+    } else {
+      // Converge fresh installs and pre-marker databases on the constraint
+      // without rewriting the marker (idempotent, outside the gate).
+      db.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_outstanding
+         ON remote_drift(workspace_id, sku) WHERE status IN ('open', 'in_reconcile')`,
+      );
+    }
+  } catch (e) {
+    console.error('[Migrations] Drift dedup migration failed (marker retained for retry):', e);
+  }
+
   // Ticket #105 (review P1-1): enforce the manual-evidence invariants on
   // every boot once the foundation migration has applied — not only on the
   // first migration. Fail boot on violation, never silently repair.
@@ -6015,6 +6118,73 @@ export function runMigrations(): void {
     .get('manual_evidence_schema_version') as { value: string } | undefined;
   if (manualEvidenceApplied) {
     verifyManualEvidenceInvariants(db);
+  }
+
+  // Issue #252: canonical comparison projection version marker. Writes ONLY
+  // its own app_meta key (`catalog_comparison_projection_version`) via
+  // INSERT OR IGNORE so it never fights the dedup-key migration owned by
+  // the idempotency slice (#250): no drift-row reads/writes, no dedup-key
+  // touch, restart-safe and repeat-safe. Historical backfill of comparison
+  // caches stays in the follow-on slice (#256).
+  try {
+    db.run('INSERT OR IGNORE INTO app_meta (key, value) VALUES (?, ?)', [
+      'catalog_comparison_projection_version',
+      'catalog-comparison-v1',
+    ]);
+  } catch (e) {
+    console.error('[Migrations] catalog comparison projection version marker failed:', e);
+  }
+
+  // Issue #253: per-hunk rejection acknowledgements. Idempotent CREATE TABLE
+  // + indexes only (no row rewrites, no dedup-key touch, restart-safe).
+  try {
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS drift_hunk_ack (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        sku TEXT NOT NULL,
+        field TEXT NOT NULL,
+        baseline_value TEXT NOT NULL DEFAULT '',
+        remote_value TEXT NOT NULL DEFAULT '',
+        remote_hash TEXT NOT NULL,
+        baseline_commit TEXT NOT NULL DEFAULT '',
+        projection_version TEXT NOT NULL,
+        built_in_policy_version TEXT NOT NULL DEFAULT '',
+        field_catalog_version TEXT NOT NULL DEFAULT '',
+        page_import_hash TEXT NOT NULL DEFAULT '',
+        decision TEXT NOT NULL DEFAULT 'rejected',
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+    );
+    db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_drift_hunk_ack_unique
+        ON drift_hunk_ack(workspace_id, sku, field, baseline_value, remote_value,
+          remote_hash, baseline_commit,
+          projection_version, built_in_policy_version, field_catalog_version, page_import_hash)`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_drift_hunk_ack_ws_sku ON drift_hunk_ack(workspace_id, sku)`,
+    );
+  } catch (e) {
+    console.error('[Migrations] drift hunk ack table migration failed:', e);
+  }
+
+  // Issue #255: queryable drift audit history + retention verification gate.
+  // Idempotent CREATE INDEX only (no row rewrites, no deletes, restart-safe).
+  // The backfill + prune itself never runs at boot — it is an explicit
+  // operator action (POST /api/drift/retention/run).
+  try {
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_audit_log_ws_entity_action
+        ON audit_log(workspace_id, entity_id, action)`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_audit_log_ws_action_created
+        ON audit_log(workspace_id, action, created_at)`,
+    );
+  } catch (e) {
+    console.error('[Migrations] drift audit history index migration failed:', e);
   }
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as

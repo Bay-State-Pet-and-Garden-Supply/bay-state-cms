@@ -259,7 +259,52 @@ CREATE INDEX IF NOT EXISTS idx_sync_jobs_workspace ON sync_jobs(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_remote_drift_workspace ON remote_drift(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_status ON remote_drift(workspace_id, sku, status);
 CREATE INDEX IF NOT EXISTS idx_remote_drift_sku ON remote_drift(sku);
+-- Drift 1/6 (#250): at most one outstanding finding per product per workspace.
+-- Outstanding = open + in_reconcile (reconcile-linked state stays blocking).
+-- Enforced by the database so identical rechecks update rather than duplicate,
+-- including concurrent checks racing on the same SKU.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_outstanding
+  ON remote_drift(workspace_id, sku) WHERE status IN ('open', 'in_reconcile');
+
+-- Drift 4/6 (#253): per-hunk rejection acknowledgements. An explicit reject
+-- binds acknowledgement to the reviewed field, state, and context so an
+-- identical recheck does not recreate the same hunk, without falsely
+-- asserting remote equality (product_index stays drifted). A changed
+-- baseline (baseline_commit), newer remote (remote_hash), or changed
+-- comparison context (projection/policy/catalog/page-import) invalidates the
+-- acknowledgement and the hunk reappears. Values disambiguate repeated
+-- fields (e.g. multiple core.productOnPages identities sharing one field).
+-- Empty string stands in for NULL baseline_commit / page_import_hash /
+-- values so the uniqueness constraint holds.
+CREATE TABLE IF NOT EXISTS drift_hunk_ack (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  sku TEXT NOT NULL,
+  field TEXT NOT NULL,
+  baseline_value TEXT NOT NULL DEFAULT '',
+  remote_value TEXT NOT NULL DEFAULT '',
+  remote_hash TEXT NOT NULL,
+  baseline_commit TEXT NOT NULL DEFAULT '',
+  projection_version TEXT NOT NULL,
+  built_in_policy_version TEXT NOT NULL DEFAULT '',
+  field_catalog_version TEXT NOT NULL DEFAULT '',
+  page_import_hash TEXT NOT NULL DEFAULT '',
+  decision TEXT NOT NULL DEFAULT 'rejected',
+  actor TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_drift_hunk_ack_unique
+  ON drift_hunk_ack(workspace_id, sku, field, baseline_value, remote_value,
+    remote_hash, baseline_commit,
+    projection_version, built_in_policy_version, field_catalog_version, page_import_hash);
+CREATE INDEX IF NOT EXISTS idx_drift_hunk_ack_ws_sku ON drift_hunk_ack(workspace_id, sku);
 CREATE INDEX IF NOT EXISTS idx_audit_log_workspace ON audit_log(workspace_id);
+-- Drift 6/6 (#255): queryable audit history + retention verification gate.
+-- Decision-evidence lookups are (workspace, entity, action); history pages
+-- are (workspace, action, created_at).
+CREATE INDEX IF NOT EXISTS idx_audit_log_ws_entity_action ON audit_log(workspace_id, entity_id, action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_ws_action_created ON audit_log(workspace_id, action, created_at);
 CREATE INDEX IF NOT EXISTS idx_catalog_health_proposals_ws ON catalog_health_proposals(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_catalog_health_proposals_status ON catalog_health_proposals(status);
 

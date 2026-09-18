@@ -347,6 +347,12 @@ export function listSyncJobs() { return request<{ jobs: SyncJob[] }>('/sync/jobs
 export function getSyncJobDetail(id: string) { return request<SyncJobDetail>(`/sync/jobs/${id}`); }
 
 // --- Drift ---
+export interface DriftHunk {
+  field: string;
+  baselineValue: string | null;
+  remoteValue: string | null;
+}
+
 export interface DriftItem {
   id: string;
   workspaceId: string;
@@ -357,6 +363,30 @@ export interface DriftItem {
   remoteProductName: string | null;
   localPrice: string | null;
   remotePrice: string | null;
+  hunks?: DriftHunk[];
+  /** Genuinely new remote products vs changed products (#257). */
+  productKind?: 'new' | 'changed';
+  reconcileChangeSetId?: string | null;
+}
+
+export interface DriftHunkView {
+  id: string;
+  driftId: string;
+  workspaceId: string;
+  sku: string;
+  field: string;
+  baselineValue: string | null;
+  remoteValue: string | null;
+  remoteHash: string;
+  baselineCommit: string | null;
+  baselineSource: 'head' | 'working-tree';
+  projectionVersion: string;
+  detectedAt: string;
+  status: string;
+  heldReason: 'new_product' | 'in_reconcile' | 'unavailable_assignment' | null;
+  supported: boolean;
+  /** Genuinely new remote products vs changed products (#257). */
+  productKind?: 'new' | 'changed';
 }
 
 export interface DriftCheckResult {
@@ -370,16 +400,82 @@ export function checkDrift(remoteXml?: string) {
   return request<DriftCheckResult>('/drift/check', { method: 'POST', body: JSON.stringify({ remoteXml }) });
 }
 
-export function listDrift(status?: string) {
-  const qs = status ? `?status=${status}` : '';
-  return request<{ drifts: DriftItem[]; openCount: number }>(`/drift${qs}`);
+export function listDrift(status?: string, limit?: number, offset?: number, field?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined) params.set('offset', String(offset));
+  if (field) params.set('field', field);
+  const qs = params.toString();
+  return request<{
+    drifts: DriftItem[];
+    openCount: number;
+    reconcileCount: number;
+    total: number;
+    limit: number;
+    offset: number;
+    field: string | null;
+  }>(`/drift${qs ? '?' + qs : ''}`);
 }
 
-export function resolveDrift(id: string, action: 'keep_local' | 'accept_remote' | 'create_change_set') {
-  return request<{ success: boolean; action: string; sku: string }>(
+export function listDriftHunks(opts?: { status?: string; field?: string; limit?: number; offset?: number }) {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set('status', opts.status);
+  if (opts?.field) params.set('field', opts.field);
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  return request<{
+    hunks: DriftHunkView[];
+    total: number;
+    fieldCounts: Record<string, number>;
+    limit: number;
+    offset: number;
+    field: string | null;
+    status: string;
+  }>(`/drift/hunks${qs ? '?' + qs : ''}`);
+}
+
+export function resolveDrift(id: string, action: 'keep_local' | 'accept_remote' | 'create_change_set', fields?: string[]) {
+  return request<{ success: boolean; action: string; sku: string; changeSetId?: string; fields?: string[]; productKind?: string }>(
     `/drift/${id}/resolve`,
-    { method: 'POST', body: JSON.stringify({ action }) },
+    { method: 'POST', body: JSON.stringify(fields !== undefined ? { action, fields } : { action }) },
   );
+}
+
+export function importNewDriftProduct(id: string, expectedRemoteHash?: string | null) {
+  return request<{ success: boolean; driftId: string; sku: string; commitHash: string | null; productKind: string }>(
+    `/drift/${id}/import-new`,
+    { method: 'POST', body: JSON.stringify(expectedRemoteHash ? { confirmed: true, expectedRemoteHash } : { confirmed: true }) },
+  );
+}
+
+export function reopenDriftReconcile(id: string) {
+  return request<{ success: boolean; driftId: string; sku: string; changeSetId: string | null }>(
+    `/drift/${id}/reopen`,
+    { method: 'POST' },
+  );
+}
+
+export function resolveDriftHunk(input: {
+  driftId: string;
+  field: string;
+  decision: 'accept' | 'reject';
+  baselineValue?: string | null;
+  remoteValue?: string | null;
+  expectedRemoteHash?: string | null;
+  expectedBaselineCommit?: string | null;
+}) {
+  return request<{
+    success: boolean;
+    driftId: string;
+    sku: string;
+    field: string;
+    decision: string;
+    commitHash: string | null;
+    remainingHunks: number;
+    resolvedAll: boolean;
+  }>('/drift/hunks/resolve', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function fullReconcile() {
@@ -475,6 +571,7 @@ export interface DashboardMetrics {
   driftedProducts: number;
   draftChangeSets: number;
   openDrifts: number;
+  reconcileDrifts: number;
   productsWithWarnings: number;
   customFieldsCount: number;
 }
@@ -517,11 +614,136 @@ export function getDashboardStats() {
   return request<DashboardStats>('/dashboard/stats');
 }
 
-export function bulkResolveDrift(action: 'accept_remote') {
-  return request<{ success: boolean; resolvedCount: number; commitHash: string | null; message: string }>('/drift/bulk-resolve', {
+export function bulkResolveDrift(field: string, action: 'accept_remote' = 'accept_remote') {
+  return request<{ success: boolean; resolvedCount: number; acceptedCount: number; commitHash: string | null; changeSetId: string | null; message: string }>('/drift/bulk-resolve', {
     method: 'POST',
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, field }),
   });
+}
+
+export function previewBulkDrift(field: string) {
+  return request<{
+    success: boolean;
+    field: string;
+    baselineCommit: string | null;
+    count: number;
+    totalMatching: number;
+    truncated: boolean;
+    hunks: Array<{
+      driftId: string;
+      sku: string;
+      field: string;
+      baselineValue: string | null;
+      remoteValue: string | null;
+      remoteHash: string;
+      baselineCommit: string | null;
+    }>;
+    heldSkipped: number;
+    unsupportedSkipped: number;
+    maxHunks: number;
+  }>('/drift/bulk/preview', {
+    method: 'POST',
+    body: JSON.stringify({ field }),
+  });
+}
+
+export function approveBulkDrift(input: {
+  field: string;
+  baselineCommit: string | null;
+  hunks: Array<{
+    driftId: string;
+    sku: string;
+    field: string;
+    baselineValue: string | null;
+    remoteValue: string | null;
+    remoteHash: string;
+    baselineCommit: string | null;
+  }>;
+  confirmed: true;
+}) {
+  return request<{
+    success: boolean;
+    field: string;
+    changeSetId: string | null;
+    commitHash: string | null;
+    acceptedCount: number;
+    totalFrozen: number;
+    resolvedSkus: string[];
+  }>('/drift/bulk/approve', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export interface DriftAuditEventView {
+  id: string;
+  workspaceId: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  message: string;
+  detailsJson: string | null;
+  createdAt: string;
+}
+
+export function listDriftAudit(opts?: {
+  action?: string;
+  sku?: string;
+  field?: string;
+  decision?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const params = new URLSearchParams();
+  if (opts?.action) params.set('action', opts.action);
+  if (opts?.sku) params.set('sku', opts.sku);
+  if (opts?.field) params.set('field', opts.field);
+  if (opts?.decision) params.set('decision', opts.decision);
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  return request<{
+    events: DriftAuditEventView[];
+    total: number;
+    limit: number;
+    offset: number;
+    action: string | null;
+    sku: string | null;
+    field: string | null;
+    decision: string | null;
+  }>(`/drift/audit${qs ? '?' + qs : ''}`);
+}
+
+export function getDriftRetentionStats() {
+  return request<{
+    success: boolean;
+    workspaceId: string;
+    terminalRows: number;
+    terminalBlobCharsEstimate: number;
+    outstanding: { open: number; reconcile: number; blocking: number; total: number };
+    reusableFreelistBytes: number | null;
+    fileBytes: number | null;
+    vacuumNote: string;
+  }>('/drift/retention/stats');
+}
+
+export function runDriftRetention(input?: { batchSize?: number; maxBatches?: number; dryRun?: boolean }) {
+  return request<{
+    success: boolean;
+    workspaceId: string;
+    dryRun: boolean;
+    backfilled: number;
+    alreadyCovered: number;
+    pruned: number;
+    remaining: number;
+    unverified: number;
+    outstandingBefore: { open: number; reconcile: number; blocking: number };
+    outstandingAfter: { open: number; reconcile: number; blocking: number };
+    reclaimedBlobBytes: number;
+    reusableFreelistBytes: number | null;
+    fileBytes: number | null;
+    vacuumNote: string;
+  }>('/drift/retention/run', { method: 'POST', body: JSON.stringify(input ?? {}) });
 }
 
 export interface CatalogHealthIssue {

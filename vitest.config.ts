@@ -59,6 +59,12 @@ export default defineConfig({
       'src/tests/unit/catalog-health.test.ts',
       'src/tests/integration/phase2-change-set.test.ts',
       'src/tests/integration/phase3-sync-drift.test.ts',
+      'src/tests/integration/drift-counts-pagination.test.ts',
+      'src/tests/integration/drift-existing-hunks.test.ts',
+      'src/tests/integration/drift-canonical-baseline.test.ts',
+      'src/tests/integration/drift-bulk-resolution.test.ts',
+      'src/tests/integration/drift-retention.test.ts',
+      'src/tests/integration/drift-canonical-backfill.test.ts',
       'src/tests/unit/onboarding-repos.test.ts',
       'src/tests/unit/onboarding-approval-gates.test.ts',
       // e10s01 review-completeness gate — bun:sqlite/bun:test, run under bun test (test:db)

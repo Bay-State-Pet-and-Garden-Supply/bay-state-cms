@@ -1,8 +1,23 @@
-import { deterministicStringify, hashJson } from '../git/deterministic-json';
+import { deterministicStringify } from '../git/deterministic-json';
 import { ShopSiteProductCodec } from './product-codec';
 import { sanitizeXml } from './xml-sanitizer';
-import { createDrift, type DriftRow } from '../db/repositories/drift-repo';
+import {
+  buildComparisonProjection,
+  buildComparisonContext,
+  comparisonHashForProduct,
+  diffComparisonProjections,
+  hashComparisonProjection,
+  CATALOG_COMPARISON_PROJECTION_VERSION,
+  type ComparisonContext,
+  type ControlledValueConfig,
+  type PageIdentityResolver,
+} from './catalog-comparison';
+import { SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION } from './built-in-output-policy';
+import { SHOP_SITE_FIELD_CATALOG_VERSION } from './field-catalog';
+import { clearMatchedOpenDrift, upsertDrift, type DriftRow } from '../db/repositories/drift-repo';
+import { findHunkAck } from '../db/repositories/drift-hunk-repo';
 import { findProductBySku, insertProductIndex, updateProductIndex, listCatalogFilenameOwners } from '../db/repositories/product-index-repo';
+import { getActivePageImportHash, getPageByName } from '../db/repositories/page-repo';
 import { listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
 import { normalizeFileName, resolveBaseFileName, resolveReimportFilename } from './file-name';
 import { readProductFile, writeProductFile } from '../git/workspace-files';
@@ -14,6 +29,11 @@ export interface DriftDetectionResult {
   driftCount: number;
   drifts: DriftRow[];
   errors: string[];
+  baselineCommit: string | null;
+  baselineDirty: boolean;
+  baselineSource: 'head' | 'working-tree';
+  projectionVersion: string;
+  context: ComparisonContext;
 }
 
 export interface AcceptRemoteResult {
@@ -21,17 +41,78 @@ export interface AcceptRemoteResult {
   commitHash: string | null;
 }
 
+export interface DetectDriftOptions {
+  controlledByField?: Record<string, ControlledValueConfig>;
+  resolvePageIdentity?: PageIdentityResolver;
+  pageImportHash?: string | null;
+}
+
 /**
  * Detect remote drift by comparing downloaded/parsed remote products
- * against the locally approved product state.
+ * against the pinned approved Git HEAD baseline.
+ *
+ * The working tree is never the baseline: dirty files do not move the
+ * comparison, they are recorded as context (baselineDirty) so stale
+ * comparisons can be invalidated. The legacy lastSyncedRemoteHash pointer
+ * is observation-only and never gates drift — HEAD equality alone decides.
+ *
+ * Drift 1/6 (#250): rechecks are idempotent — identical remote data and
+ * unchanged baseline context produce zero new rows via `upsertDrift`
+ * (one outstanding finding per product per workspace, DB-enforced).
  */
 export function detectDrift(
   workspaceId: string,
   workspacePath: string,
   remoteXml: string,
+  options?: DetectDriftOptions,
 ): DriftDetectionResult {
   const errors: string[] = [];
   const drifts: DriftRow[] = [];
+
+  const git = new GitClient(workspacePath);
+  const isRepo = git.isRepo();
+  let baselineCommit: string | null = null;
+  let baselineDirty = false;
+  let baselineSource: 'head' | 'working-tree' = isRepo ? 'head' : 'working-tree';
+  if (isRepo) {
+    try {
+      const head = git.getHeadHash();
+      baselineCommit = head || null;
+    } catch {
+      baselineCommit = null;
+    }
+    try {
+      baselineDirty = git.status().length > 0;
+    } catch {
+      baselineDirty = false;
+    }
+    if (!baselineCommit) baselineSource = 'working-tree';
+  }
+
+  let pageImportHash: string | null = options?.pageImportHash ?? null;
+  if (options?.pageImportHash === undefined) {
+    try {
+      pageImportHash = getActivePageImportHash(workspaceId);
+    } catch {
+      pageImportHash = null;
+    }
+  }
+  const context = buildComparisonContext(pageImportHash);
+
+  let resolvePageIdentity: PageIdentityResolver | undefined = options?.resolvePageIdentity;
+  if (!resolvePageIdentity) {
+    resolvePageIdentity = (pageName: string): string | null => {
+      try {
+        const page = getPageByName(pageName);
+        if (page && page.identityStatus === 'verified' && page.availability === 'available' && page.identityKey) {
+          return `${page.identityKind}:${page.identityKey}`;
+        }
+      } catch {
+        // No page index available: fall back to name identity (missing identity path).
+      }
+      return null;
+    };
+  }
 
   try {
     const cleanXml = sanitizeXml(remoteXml);
@@ -41,46 +122,111 @@ export function detectDrift(
       const sku = remoteProduct.sku;
       if (!sku) continue;
 
-      const localProduct = readProductFile(workspacePath, sku);
-      const localHash = localProduct ? computeContentHash(localProduct) : null;
-      const remoteHash = computeContentHash(remoteProduct);
+      const baselineProduct = readPinnedBaseline(workspacePath, sku, baselineSource);
+      const baselineProjection = baselineProduct
+        ? buildComparisonProjection(baselineProduct, {
+            controlledByField: options?.controlledByField,
+            resolvePageIdentity,
+            pageImportHash,
+          })
+        : null;
+      const remoteProjection = buildComparisonProjection(remoteProduct, {
+        controlledByField: options?.controlledByField,
+        resolvePageIdentity,
+        pageImportHash,
+      });
+      const localHash = baselineProjection ? hashComparisonProjection(baselineProjection) : null;
+      const remoteHash = hashComparisonProjection(remoteProjection);
       const indexRow = findProductBySku(sku);
-      const lastSyncedHash = indexRow?.lastSyncedRemoteHash ?? null;
 
-      // Remote has changed if its hash differs from the last synced version we had.
-      // If we don't have a last synced hash yet, compare against the remote version directly.
-      const remoteChanged = lastSyncedHash === null || lastSyncedHash !== remoteHash;
+      // Pinned HEAD equality decides match; lastSynced is direction-only
+      // (never a competing baseline): when HEAD != remote but remote hasn't
+      // moved since the last successful sync, local approved state moved
+      // (staged, unpushed) — preserve `not_synced` and create no drift.
+      const isSynced = localHash !== null && localHash === remoteHash;
+      const remoteUnmoved =
+        indexRow?.lastSyncedRemoteHash != null && indexRow.lastSyncedRemoteHash === remoteHash;
 
-      if (localHash !== remoteHash && remoteChanged) {
-        const drift = createDrift({
-          workspaceId,
-          sku,
-          localHash,
-          remoteHash,
-          localJson: localProduct ? deterministicStringify(localProduct) : null,
-          remoteJson: deterministicStringify(remoteProduct),
-          diffJson: deterministicStringify({
-            localSku: localProduct?.sku ?? null,
-            remoteSku: sku,
-            hasLocalProduct: !!localProduct,
-            hasRemoteChanges: true,
-          }),
+      if (isSynced) {
+        // Drift 1/6 (#250): reverting to baseline clears findings that no
+        // longer differ — but only on an actual comparison match. A known
+        // outstanding difference is never reported as a match. `in_reconcile`
+        // rows are preserved so reconcile links never break via auto-clear.
+        clearMatchedOpenDrift(workspaceId, sku);
+      } else if (indexRow && remoteUnmoved) {
+        // Local ahead (unpushed approval): no new drift, keep staged signal.
+      } else {
+        const allHunks = diffComparisonProjections(baselineProjection, remoteProjection);
+        // Drift 4/6 (#253): every outstanding finding carries field identity —
+        // a product row with zero hunks says nothing and is never stored.
+        // Explicit rejections suppress only their reviewed hunk (same field,
+        // values, remote hash, baseline, and comparison context) without
+        // asserting remote equality; a changed baseline, newer remote, or
+        // changed context invalidates the acknowledgement and the hunk
+        // reappears.
+        const baselineCommitKey = baselineCommit ?? '';
+        const pageHashKey = context.pageImportHash ?? '';
+        const visibleHunks = allHunks.filter((h) => {
+          try {
+            return !findHunkAck({
+              workspaceId,
+              sku,
+              field: h.field,
+              baselineValue: h.baselineValue ?? '',
+              remoteValue: h.remoteValue ?? '',
+              remoteHash,
+              baselineCommit: baselineCommitKey,
+              projectionVersion: CATALOG_COMPARISON_PROJECTION_VERSION,
+              builtInPolicyVersion: SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
+              fieldCatalogVersion: SHOP_SITE_FIELD_CATALOG_VERSION,
+              pageImportHash: pageHashKey,
+            });
+          } catch {
+            return true;
+          }
         });
-        drifts.push(drift);
+        if (visibleHunks.length === 0) {
+          // All differences acknowledged (or none): no outstanding work to
+          // store, but never report a match — sync stays drifted, not synced.
+          // Clear any stale open row so identical rechecks stay flat.
+          if (allHunks.length > 0) {
+            clearMatchedOpenDrift(workspaceId, sku);
+          }
+        } else {
+          // Drift 1/6 (#250): identical rechecks are no-ops (zero new rows,
+          // existing unresolved differences stay visible); a newer remote
+          // state supersedes obsolete outstanding work in place.
+          const outcome = upsertDrift({
+            workspaceId,
+            sku,
+            localHash,
+            remoteHash,
+            localJson: baselineProduct ? deterministicStringify(baselineProduct) : null,
+            remoteJson: deterministicStringify(remoteProduct),
+            diffJson: deterministicStringify({
+              localSku: baselineProduct?.sku ?? null,
+              remoteSku: sku,
+              hasLocalProduct: !!baselineProduct,
+              hasRemoteChanges: true,
+              hunks: visibleHunks,
+              baselineCommit,
+              baselineSource,
+              baselineDirty,
+              projectionVersion: CATALOG_COMPARISON_PROJECTION_VERSION,
+              context,
+            }),
+          });
+          if (outcome.kind !== 'noop') {
+            drifts.push(outcome.row);
+          }
+        }
       }
 
       if (indexRow) {
-        const isSynced = localHash === remoteHash;
-        let nextSyncStatus = indexRow.syncStatus;
-        if (isSynced) {
-          nextSyncStatus = 'synced';
-        } else if (remoteChanged) {
-          nextSyncStatus = 'drifted';
-        } else {
-          // Local changes exist, but remote didn't change: keep as not_synced (staged)
-          nextSyncStatus = 'not_synced';
-        }
-
+        let nextSyncStatus: string;
+        if (isSynced) nextSyncStatus = 'synced';
+        else if (remoteUnmoved) nextSyncStatus = 'not_synced';
+        else nextSyncStatus = 'drifted';
         updateProductIndex({
           sku,
           lastPulledRemoteHash: remoteHash,
@@ -91,32 +237,58 @@ export function detectDrift(
       }
     }
 
-    return { driftCount: drifts.length, drifts, errors };
+    return {
+      driftCount: drifts.length,
+      drifts,
+      errors,
+      baselineCommit,
+      baselineDirty,
+      baselineSource,
+      projectionVersion: CATALOG_COMPARISON_PROJECTION_VERSION,
+      context,
+    };
   } catch (err) {
     const msg = `Drift detection failed: ${err instanceof Error ? err.message : String(err)}`;
     errors.push(msg);
-    return { driftCount: 0, drifts, errors };
+    return {
+      driftCount: 0,
+      drifts,
+      errors,
+      baselineCommit,
+      baselineDirty,
+      baselineSource,
+      projectionVersion: CATALOG_COMPARISON_PROJECTION_VERSION,
+      context,
+    };
   }
 }
 
 /**
- * Compute a deterministic hash of comparison-relevant product fields only.
- * Excludes transient fields (id, timestamps, pulled/synced hashes) that change
- * on every normalization and would cause false drift detection.
+ * Read the pinned baseline product: HEAD content when the workspace is a
+ * Git repo with a HEAD, otherwise the working-tree file. Missing files at
+ * HEAD mean no baseline (genuinely new remote product), never a fallback
+ * to dirty working-tree content when HEAD exists.
  */
-function computeContentHash(product: Record<string, unknown>): string {
-  const relevant: Record<string, unknown> = {
-    sku: product.sku,
-    status: product.status,
-    core: product.core,
-    customFields: product.customFields,
-    shopsite: product.shopsite ? {
-      source: (product.shopsite as Record<string, unknown>).source,
-      xmlVersion: (product.shopsite as Record<string, unknown>).xmlVersion,
-      preserved: (product.shopsite as Record<string, unknown>).preserved,
-    } : undefined,
-  };
-  return hashJson(relevant);
+function readPinnedBaseline(
+  workspacePath: string,
+  sku: string,
+  baselineSource: 'head' | 'working-tree',
+): Product | null {
+  if (baselineSource === 'head') {
+    try {
+      const git = new GitClient(workspacePath);
+      const content = git.readFileAtHead(skuToProductFilePath(sku));
+      if (content) return JSON.parse(content) as Product;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return readProductFile(workspacePath, sku);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -172,7 +344,14 @@ export function acceptRemoteForDrift(workspacePath: string, drift: DriftRow): Ac
 
   writeProductFile(workspacePath, remoteProduct);
 
-  const productHash = hashJson(remoteProduct);
+  // Canonical comparison value owned by the import/check slice (#256):
+  // drift acceptance writes the same hash drift checking reads, so an
+  // accepted product compares equal on the next check. drift.remoteHash is
+  // already canonical (written by detectDrift); productHash must match that
+  // language. Accepting means local now equals the observed remote, so both
+  // the observation pointer and the successful-sync pointer advance to the
+  // canonical remote hash together with a synced status.
+  const productHash = comparisonHashForProduct(remoteProduct);
   const existing = findProductBySku(remoteProduct.sku);
   if (existing) {
     updateProductIndex({

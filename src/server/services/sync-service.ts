@@ -1,8 +1,11 @@
 import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { sanitizeXml } from '../../shopsite/xml-sanitizer';
+import {
+  buildComparisonProjection,
+  hashComparisonProjection,
+} from '../../shopsite/catalog-comparison';
 import { writeProductFile, writeStoreConfig } from '../../git/workspace-files';
 import { skuToProductFilePath } from '../../git/product-file-path';
-import { hashJson } from '../../git/deterministic-json';
 import { createSyncJob, completeSyncJob, addSyncJobEvent } from '../../db/repositories/sync-job-repo';
 import { insertProductIndex } from '../../db/repositories/product-index-repo';
 import { indexProductPageAssignments } from '../../db/repositories/page-repo';
@@ -177,7 +180,11 @@ export function bootstrapFromXml(
     getDb().run('DELETE FROM product_pages');
 
     for (const product of products) {
-      const productHash = hashJson(product);
+      // Canonical comparison hash owned by the import/check slice (#252):
+      // bootstrap and drift checking speak the same comparison language so
+      // push-then-check yields zero findings. Remaining writers (push,
+      // approval, drift acceptance, reindex) adopt this value in #256.
+      const productHash = hashComparisonProjection(buildComparisonProjection(product));
       const hasAdvanced = product.shopsite.preserved.advancedBlocks
         && Object.keys(product.shopsite.preserved.advancedBlocks).length > 0;
 

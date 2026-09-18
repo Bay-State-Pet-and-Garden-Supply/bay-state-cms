@@ -14,7 +14,7 @@ import { updateProductIndex, insertProductIndex, findProductBySku } from '../../
 import { findConnection } from '../../db/repositories/connection-repo';
 import { hasBlockingDriftForSku } from '../../db/repositories/drift-repo';
 import { addAuditLog } from '../../db/repositories/audit-log-repo';
-import { hashJson } from '../../git/deterministic-json';
+import { comparisonHashForProduct } from '../../shopsite/catalog-comparison';
 import { skuToProductFilePath } from '../../git/product-file-path';
 import { getDb } from '../../db/connection';
 import { createImagesZip } from '../../shopsite/zip-generator';
@@ -320,12 +320,22 @@ async function runDirectSync(options: {
 
     const syncedAt = new Date().toISOString();
     for (const product of products) {
+      // Canonical comparison value owned by the import/check slice (#252,
+      // integrated here for #256): a successful push means the live store now
+      // matches the approved catalog, so the remote-observation pointer
+      // (lastPulledRemoteHash), the successful-sync pointer
+      // (lastSyncedRemoteHash), and the cached comparison (productHash) all
+      // speak the same canonical language drift checking reads. This is a
+      // genuine successful sync (not an approval-only local change), so
+      // advancing both pointers here is correct.
+      const canonicalHash = comparisonHashForProduct(product);
       updateProductIndex({
         sku: product.sku,
+        productHash: canonicalHash,
         syncStatus: 'synced',
         lastSyncedAt: syncedAt,
-        lastSyncedRemoteHash: hashJson(product),
-        lastPulledRemoteHash: hashJson(product),
+        lastSyncedRemoteHash: canonicalHash,
+        lastPulledRemoteHash: canonicalHash,
       });
     }
     addSyncJobEvent({ syncJobId: job.id, level: 'info', message: `Marked ${products.length} product(s) as synced.` });
@@ -452,7 +462,14 @@ route.post('/sync/full-reconcile', (c) => {
         try {
           const content = fs.readFileSync(path.join(productDir, file), 'utf-8');
           const product = JSON.parse(content) as Product;
-          const productHash = hashJson(product);
+          // Canonical comparison value owned by the import/check slice (#256):
+          // maintenance reindex rebuilds the cached comparison from approved
+          // catalog files only. Historical remote equality is never inferred
+          // from current local products, so reindexed rows stay in the
+          // explicit unverified pending-recheck state (not_synced with null
+          // remote/sync pointers) rather than a manufactured synced or
+          // drifted status. The next drift check repopulates observation.
+          const productHash = comparisonHashForProduct(product);
           const existing = findProductBySku(product.sku);
           const fields = {
             sku: product.sku,
@@ -510,6 +527,49 @@ route.post('/sync/full-reconcile', (c) => {
     completeSyncJob(job.id, 'failed', { errorSummary: msg });
     return c.json({ error: msg, jobId: job.id }, 500);
   }
+});
+
+/**
+ * POST /api/sync/canonical-backfill - Rebuild stale comparison caches.
+ * Body: { batchSize?, maxBatches? }
+ *
+ * Drift 3b (#256): resumable (loop until remaining is 0 and complete is
+ * true) and repeat-safe (already-canonical rows are no-ops). Rebuilds
+ * product_hash from pinned approved HEAD data only; stale rows move to the
+ * explicit unverified pending-recheck state (not_synced, null sync
+ * pointers) rather than manufactured synced/drifted. Missing sources stay
+ * unverified. Never touches classification hashes.
+ */
+route.post('/sync/canonical-backfill', async (c) => {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    batchSize?: unknown;
+    maxBatches?: unknown;
+  };
+  try {
+    const { runCanonicalComparisonBackfill } = await import('../../shopsite/canonical-comparison-backfill');
+    const result = runCanonicalComparisonBackfill(workspace.id, workspace.workspacePath, {
+      batchSize: body.batchSize as number | undefined,
+      maxBatches: body.maxBatches as number | undefined,
+    });
+    return c.json({ success: true, ...result });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: message }, status as 400);
+  }
+});
+
+/**
+ * GET /api/sync/canonical-backfill - Backfill progress snapshot.
+ */
+route.get('/sync/canonical-backfill', async (c) => {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { getCanonicalBackfillProgress } = await import('../../shopsite/canonical-comparison-backfill');
+  return c.json({ success: true, ...getCanonicalBackfillProgress(workspace.id) });
 });
 
 export default route;

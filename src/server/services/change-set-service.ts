@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { hashJson } from '../../git/deterministic-json';
+import {
+  comparisonHashForProduct,
+  buildComparisonProjection,
+  diffComparisonProjections,
+  hashComparisonProjection,
+  CATALOG_COMPARISON_PROJECTION_VERSION,
+} from '../../shopsite/catalog-comparison';
 import { writeProductFile } from '../../git/workspace-files';
 import { skuToProductFilePath } from '../../git/product-file-path';
 import {
@@ -10,7 +16,15 @@ import {
 import {
   findProductBySku, insertProductIndex, updateProductIndex,
 } from '../../db/repositories/product-index-repo';
-import { reopenDriftForChangeSet, findLinkedDrift, resolveDrift } from '../../db/repositories/drift-repo';
+import { reopenDriftForChangeSet, listLinkedDrifts, resolveDrift, findDriftById, updateDriftHunkState, releaseSingleReconcileDrift } from '../../db/repositories/drift-repo';
+import { findHunkAck } from '../../db/repositories/drift-hunk-repo';
+import { parseDriftDiff } from '../../shopsite/drift-hunks';
+import { getReconciledFieldsForDrift } from '../../shopsite/drift-reconcile-service';
+import { SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION } from '../../shopsite/built-in-output-policy';
+import { SHOP_SITE_FIELD_CATALOG_VERSION } from '../../shopsite/field-catalog';
+import { getActivePageImportHash, getPageByName } from '../../db/repositories/page-repo';
+import { readProductFile } from '../../git/workspace-files';
+import { deterministicStringify } from '../../git/deterministic-json';
 import { addAuditLog } from '../../db/repositories/audit-log-repo';
 import { GitClient } from '../../git/git-client';
 import { validateChangeSet } from '../../validation/change-set-validation';
@@ -76,7 +90,14 @@ export function approveChangeSet(
 
       // Update product index
       const existing = findProductBySku(item.sku);
-      const productHash = hashJson(product);
+      // Canonical comparison hash owned by the import/check slice (#252):
+      // approval writes the same value drift checking reads so approved
+      // products compare equal. Approval never advances remote-observation
+      // (lastPulledRemoteHash) or successful-sync (lastSyncedRemoteHash /
+      // lastSyncedAt) pointers merely because local approved state changed —
+      // those stay untouched here (update) or null (insert, unverified
+      // pending recheck). Sync status moves to not_synced (local ahead).
+      const productHash = comparisonHashForProduct(product);
       const hasAdvanced = product.shopsite.preserved.advancedBlocks
         && Object.keys(product.shopsite.preserved.advancedBlocks).length > 0;
       const hasWarnings = item.validationStatus === 'warning' ? 1 : 0;
@@ -175,11 +196,18 @@ export function approveChangeSet(
       } catch { /* skip */ }
     }
 
-        // Resolve any linked drift rows on successful approval
+        // Resolve linked reconcile drifts against the newly approved baseline
+    // (#257 lifecycle): every drift linked to this change set is settled,
+    // not just the first row. Recompute remaining hunks per SKU so surviving
+    // values are never stale: fully merged drifts resolve, drifts with
+    // remaining differences return to `open` (link cleared) with updated
+    // hunk content instead of being silently cleared.
     try {
-      const linkedDrift = findLinkedDrift(changeSet.workspaceId, changeSetId);
-      if (linkedDrift) {
-        resolveDrift(linkedDrift.id, 'resolved');
+      const linked = listLinkedDrifts(changeSet.workspaceId, changeSetId);
+      for (const linkedRow of linked) {
+        try {
+          settleLinkedDriftAfterApproval(changeSet.workspaceId, linkedRow.id, commitHash, workspacePath);
+        } catch { /* per-drift best-effort; commit already landed */ }
       }
     } catch { /* skip */ }
 
@@ -211,11 +239,170 @@ export function discardChangeSet(changeSetId: string): { success: boolean; reope
   const cs = findChangeSetById(changeSetId);
   if (!cs) return { success: false };
   const workspaceId = cs.workspaceId;
+  const linkedBefore = cs.status === 'draft' ? listLinkedDrifts(workspaceId, changeSetId) : [];
   deleteChangeSet(changeSetId);
 
   // Reopen linked drift so remote differences stay blocking
   if (cs.status === 'draft') {
     reopenDriftForChangeSet(workspaceId, changeSetId);
+    // Every reopened hunk stays answerable: one audit event per drift.
+    for (const row of linkedBefore) {
+      try {
+        addAuditLog({
+          workspaceId,
+          entityType: 'drift',
+          entityId: row.id,
+          action: 'drift_reconcile_reopened',
+          message: `Reopened reconcile for SKU "${row.sku}" back to open (change set ${changeSetId} discarded)`,
+          detailsJson: JSON.stringify({
+            sku: row.sku,
+            changeSetId,
+            decision: 'reopened',
+            reason: 'change-set-discarded',
+            actor: workspaceId,
+            at: new Date().toISOString(),
+          }),
+        });
+      } catch { /* audit best-effort */ }
+    }
   }
   return { success: true, reopenedDrift: cs.status === 'draft' };
+}
+
+/**
+ * Settle one reconcile-linked drift after its change set is approved (#257).
+ *
+ * The approved product file is the new baseline: diff it against the frozen
+ * remote observation (minus explicit rejections, which stay suppressed) and
+ * either resolve the drift when nothing visible remains or return it to
+ * `open` with refreshed hunk content. Unrelated outstanding fields that the
+ * operator did not reconcile are therefore never silently cleared — they
+ * come back as open hunks with current before/after values.
+ */
+function settleLinkedDriftAfterApproval(
+  workspaceId: string,
+  driftId: string,
+  commitHash: string,
+  workspacePath: string,
+): void {
+  const drift = findDriftById(driftId);
+  if (!drift || drift.workspaceId !== workspaceId) return;
+  if (drift.status !== 'in_reconcile') return;
+  const changeSetId = drift.reconcileChangeSetId;
+  const reconciled = getReconciledFieldsForDrift(drift);
+
+  let remote: Product;
+  try {
+    remote = JSON.parse(drift.remoteJson) as Product;
+  } catch {
+    return;
+  }
+  let newBaseline: Product;
+  try {
+    const loaded = readProductFile(workspacePath, drift.sku);
+    if (!loaded) return;
+    newBaseline = loaded;
+  } catch {
+    return;
+  }
+
+  const pageImportHash: string | null = (() => {
+    try {
+      return getActivePageImportHash(workspaceId);
+    } catch {
+      return null;
+    }
+  })();
+  const resolvePageIdentity = (pageName: string): string | null => {
+    try {
+      const page = getPageByName(pageName);
+      if (page && page.identityStatus === 'verified' && page.availability === 'available' && page.identityKey) {
+        return `${page.identityKind}:${page.identityKey}`;
+      }
+    } catch {
+      // No page index: fall back to name identity (missing identity path).
+    }
+    return null;
+  };
+
+  const newBaselineProj = buildComparisonProjection(newBaseline, { resolvePageIdentity, pageImportHash });
+  const remoteProj = buildComparisonProjection(remote, { resolvePageIdentity, pageImportHash });
+  const allHunks = diffComparisonProjections(newBaselineProj, remoteProj);
+  const newBaselineHash = hashComparisonProjection(newBaselineProj);
+  const baselineCommitKey = commitHash ?? '';
+  const pageHashKey = pageImportHash ?? '';
+  const visibleHunks = allHunks.filter((h) => {
+    try {
+      return !findHunkAck({
+        workspaceId,
+        sku: drift.sku,
+        field: h.field,
+        baselineValue: h.baselineValue ?? '',
+        remoteValue: h.remoteValue ?? '',
+        remoteHash: drift.remoteHash,
+        baselineCommit: baselineCommitKey,
+        projectionVersion: CATALOG_COMPARISON_PROJECTION_VERSION,
+        builtInPolicyVersion: SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION,
+        fieldCatalogVersion: SHOP_SITE_FIELD_CATALOG_VERSION,
+        pageImportHash: pageHashKey,
+      });
+    } catch {
+      return true;
+    }
+  });
+
+  const nowIso = new Date().toISOString();
+  if (visibleHunks.length === 0) {
+    resolveDrift(drift.id, 'resolved');
+    addAuditLog({
+      workspaceId,
+      entityType: 'drift',
+      entityId: drift.id,
+      action: 'drift_reconcile_approved',
+      message: `Reconcile approved for SKU "${drift.sku}" via change set ${changeSetId ?? 'unknown'} — no hunks remain`,
+      detailsJson: JSON.stringify({
+        sku: drift.sku,
+        changeSetId,
+        reconciledFields: reconciled ? [...reconciled] : null,
+        remainingHunks: 0,
+        resultingCommit: commitHash,
+        decision: 'reconciled',
+        actor: workspaceId,
+        at: nowIso,
+      }),
+    });
+    return;
+  }
+
+  const parsed = parseDriftDiff(drift);
+  const nextDiff = {
+    ...((parsed.raw as Record<string, unknown>) ?? {}),
+    hunks: visibleHunks,
+    baselineCommit: commitHash ?? parsed.baselineCommit,
+    baselineDirty: false,
+  };
+  updateDriftHunkState(drift.id, {
+    localHash: newBaselineHash,
+    localJson: deterministicStringify(newBaseline),
+    diffJson: deterministicStringify(nextDiff),
+  });
+  releaseSingleReconcileDrift(drift.id, workspaceId);
+  addAuditLog({
+    workspaceId,
+    entityType: 'drift',
+    entityId: drift.id,
+    action: 'drift_reconcile_approved',
+    message: `Reconcile approved for SKU "${drift.sku}" via change set ${changeSetId ?? 'unknown'} — ${visibleHunks.length} hunk(s) remain open`,
+    detailsJson: JSON.stringify({
+      sku: drift.sku,
+      changeSetId,
+      reconciledFields: reconciled ? [...reconciled] : null,
+      remainingFields: visibleHunks.map((h) => h.field),
+      remainingHunks: visibleHunks.length,
+      resultingCommit: commitHash,
+      decision: 'reconciled',
+      actor: workspaceId,
+      at: nowIso,
+    }),
+  });
 }

@@ -1,4 +1,5 @@
 import { getDb } from '../../db/connection';
+import { getDriftCounts } from '../../db/repositories/drift-repo';
 
 export interface DashboardStatsData {
   metrics: {
@@ -8,6 +9,7 @@ export interface DashboardStatsData {
     driftedProducts: number;
     draftChangeSets: number;
     openDrifts: number;
+    reconcileDrifts: number;
     productsWithWarnings: number;
     customFieldsCount: number;
   };
@@ -56,13 +58,21 @@ export function getDashboardStatsData(workspaceId: string): DashboardStatsData {
   const driftedCountRow = db.query("SELECT COUNT(*) as count FROM product_index WHERE sync_status = 'drifted'").get() as { count: number };
   const driftedProducts = driftedCountRow?.count ?? 0;
 
-  // 3. Draft change sets
-  const draftChangeSetsRow = db.query("SELECT COUNT(*) as count FROM change_sets WHERE status = 'draft'").get() as { count: number };
+  // 3. Draft change sets (workspace-scoped: other workspaces never leak).
+  const draftChangeSetsRow = db.query(
+    "SELECT COUNT(*) as count FROM change_sets WHERE workspace_id = ? AND status = 'draft'",
+  ).get(workspaceId) as { count: number };
   const draftChangeSets = draftChangeSetsRow?.count ?? 0;
 
-  // 4. Open drift items count
-  const openDriftRow = db.query("SELECT COUNT(*) as count FROM remote_drift WHERE status = 'open'").get() as { count: number };
-  const openDrifts = openDriftRow?.count ?? 0;
+  // 4. Open drift items + reconcile-linked items, both workspace-scoped.
+  // Drift 2/6 (#251): outstanding is explicit — `open` forms the open count,
+  // `in_reconcile` carries a separate visible reconcile count, neither folded
+  // into the other. Both derive from the same getDriftCounts snapshot the
+  // drift list uses so dashboard and list totals agree. product_index has no
+  // workspace column (single shared catalog) and stays global by design.
+  const driftCounts = getDriftCounts(workspaceId);
+  const openDrifts = driftCounts.open;
+  const reconcileDrifts = driftCounts.reconcile;
 
   // 5. Recent sync jobs
   const syncJobsRows = db.query("SELECT * FROM sync_jobs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT 5").all(workspaceId) as any[];
@@ -96,6 +106,7 @@ export function getDashboardStatsData(workspaceId: string): DashboardStatsData {
       driftedProducts,
       draftChangeSets,
       openDrifts,
+      reconcileDrifts,
       productsWithWarnings,
       customFieldsCount
     },

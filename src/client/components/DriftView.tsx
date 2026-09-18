@@ -1,27 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { checkDrift, listDrift, resolveDrift, fullReconcile, bulkResolveDrift, type DriftItem } from '../api';
+import { checkDrift, listDrift, listDriftHunks, resolveDrift, resolveDriftHunk, fullReconcile, bulkResolveDrift, importNewDriftProduct, reopenDriftReconcile, type DriftItem, type DriftHunkView } from '../api';
 import { ViewHeader } from './common/ViewHeader';
 import { colors } from '../theme';
 
 export function DriftView() {
   const [drifts, setDrifts] = useState<DriftItem[]>([]);
+  const [hunks, setHunks] = useState<DriftHunkView[]>([]);
+  const [fieldCounts, setFieldCounts] = useState<Record<string, number>>({});
   const [openCount, setOpenCount] = useState(0);
+  const [reconcileCount, setReconcileCount] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [hunkTotal, setHunkTotal] = useState(0);
+  const [fieldFilter, setFieldFilter] = useState('');
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [driftXml, setDriftXml] = useState('');
 
-  const fetchDrift = async () => {
+  const fetchDrift = async (field?: string) => {
     try {
-      const res = await listDrift('open');
+      const activeField = field !== undefined ? field : fieldFilter;
+      const res = await listDrift('open', undefined, undefined, activeField || undefined);
       setDrifts(res.drifts);
       setOpenCount(res.openCount);
+      setReconcileCount(res.reconcileCount ?? 0);
+      setTotal(res.total ?? res.drifts.length);
+      const hunkRes = await listDriftHunks({ status: 'open', field: activeField || undefined, limit: 100 });
+      setHunks(hunkRes.hunks);
+      setHunkTotal(hunkRes.total);
+      setFieldCounts(hunkRes.fieldCounts ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  useEffect(() => { fetchDrift(); }, []);
+  useEffect(() => { fetchDrift(''); }, []);
 
   const handleCheckDrift = async () => {
     if (!driftXml.trim()) {
@@ -47,7 +60,60 @@ export function DriftView() {
     setError('');
     try {
       const res = await resolveDrift(id, action);
-      setResult(`Resolved: ${res.action} for SKU "${res.sku}"`);
+      setResult(`Resolved: ${res.action} for SKU "${res.sku}"${(res as { changeSetId?: string }).changeSetId ? ` (change set ${(res as { changeSetId?: string }).changeSetId})` : ''}`);
+      await fetchDrift();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportNew = async (driftId: string, remoteHash?: string) => {
+    if (!confirm('Import this genuinely new remote product into the approved catalog? This creates a new product file and commit.')) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await importNewDriftProduct(driftId, remoteHash);
+      setResult(`Imported new product SKU "${res.sku}"${res.commitHash ? ` (commit ${res.commitHash.slice(0, 8)})` : ''}.`);
+      await fetchDrift();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReopen = async (driftId: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await reopenDriftReconcile(driftId);
+      setResult(`Reopened reconcile for SKU "${res.sku}" back to open. Every linked hunk is resolvable again.`);
+      await fetchDrift();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleHunkResolve = async (hunk: DriftHunkView, decision: 'accept' | 'reject') => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await resolveDriftHunk({
+        driftId: hunk.driftId,
+        field: hunk.field,
+        decision,
+        baselineValue: hunk.baselineValue,
+        remoteValue: hunk.remoteValue,
+        expectedRemoteHash: hunk.remoteHash,
+        expectedBaselineCommit: hunk.baselineCommit,
+      });
+      setResult(`${decision === 'accept' ? 'Accepted' : 'Rejected'} ${res.field} for SKU "${res.sku}"${res.resolvedAll ? ' (all hunks resolved)' : ` (${res.remainingHunks} hunk(s) remain)`}`);
       await fetchDrift();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -57,14 +123,18 @@ export function DriftView() {
   };
 
   const handleBulkAccept = async () => {
-    if (!confirm("Are you sure you want to accept all remote changes for products you haven't changed locally? This will write the remote versions to your local Git catalog and commit them in a single batch.")) {
+    if (!fieldFilter) {
+      setError('Bulk resolution requires an explicit filter scope: pick a field filter first (e.g. core.price). Unscoped accept-everything is not offered.');
+      return;
+    }
+    if (!confirm(`Accept all ${hunkTotal} "${fieldFilter}" hunk(s) through one reviewed change set? Only "${fieldFilter}" changes; other fields stay outstanding.`)) {
       return;
     }
     setLoading(true);
     setError('');
     setResult('');
     try {
-      const res = await bulkResolveDrift('accept_remote');
+      const res = await bulkResolveDrift(fieldFilter, 'accept_remote');
       setResult(res.message);
       await fetchDrift();
     } catch (err) {
@@ -104,7 +174,10 @@ export function DriftView() {
       padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, color: '#fff',
     } as React.CSSProperties,
     actionBtn: { padding: '4px 10px', fontSize: 11, cursor: 'pointer', border: 'none', borderRadius: 3, margin: '2px', color: '#fff' },
+    select: { padding: '6px 10px', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 4, marginRight: 8 },
   };
+
+  const fieldOptions = Object.keys(fieldCounts).sort();
 
   return (
     <div style={styles.container}>
@@ -114,6 +187,8 @@ export function DriftView() {
           <>
             Detects products that have changed in ShopSite since you last pulled.
             {openCount > 0 && <span style={{ color: '#dc2626', marginLeft: 8, fontWeight: 600 }}>⚠ {openCount} open drift item(s).</span>}
+            {reconcileCount > 0 && <span style={{ color: '#6b7280', marginLeft: 8, fontWeight: 600 }}>⇄ {reconcileCount} in reconcile.</span>}
+            {hunkTotal > 0 && <span style={{ color: '#6b7280', marginLeft: 8 }}>· {hunkTotal} field hunk(s).</span>}
           </>
         }
       />
@@ -140,19 +215,130 @@ export function DriftView() {
       </div>
 
       <div style={styles.section}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div style={styles.label}>
+            Field Hunks ({hunkTotal})
+            {fieldFilter && <span style={{ marginLeft: 8, fontWeight: 'normal' }}>filtered to {fieldFilter}</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select
+              style={styles.select}
+              value={fieldFilter}
+              onChange={(e) => { setFieldFilter(e.target.value); fetchDrift(e.target.value); }}
+            >
+              <option value="">All fields</option>
+              {fieldOptions.map(f => (
+                <option key={f} value={f}>{f} ({fieldCounts[f]})</option>
+              ))}
+            </select>
+            {fieldFilter && (
+              <button style={{ ...styles.btn, background: '#e5e7eb', color: '#111', fontSize: 11 }} onClick={() => { setFieldFilter(''); fetchDrift(''); }} disabled={loading}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {hunks.length === 0 ? (
+          <p style={{ color: '#9ca3af', fontSize: 13 }}>No field hunks outstanding{fieldFilter ? ` for ${fieldFilter}` : ''}. Run a drift check to detect remote changes.</p>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>SKU</th>
+                <th style={styles.th}>Field</th>
+                <th style={styles.th}>Before → After</th>
+                <th style={styles.th}>State</th>
+                <th style={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hunks.map(h => (
+                <tr key={h.id}>
+                  <td style={styles.td}><strong>{h.sku}</strong></td>
+                  <td style={styles.td}><code style={{ fontSize: 11 }}>{h.field}</code></td>
+                  <td style={styles.td}>
+                    <span style={{ color: '#6b7280' }}>{h.baselineValue ?? '∅'}</span>
+                    {' → '}
+                    <strong>{h.remoteValue ?? '∅'}</strong>
+                  </td>
+                  <td style={styles.td}>
+                    {h.heldReason === 'new_product' ? (
+                      <>
+                        <span style={{ ...styles.badge, background: '#0e7490' }}>new product</span>
+                        <div style={{ marginTop: 4 }}>
+                          <button style={{ ...styles.actionBtn, background: '#0e7490' }} onClick={() => handleImportNew(h.driftId, h.remoteHash)} disabled={loading}>
+                            Import new product
+                          </button>
+                        </div>
+                      </>
+                    ) : h.heldReason === 'unavailable_assignment' ? (
+                      <>
+                        <span style={{ ...styles.badge, background: '#b45309' }}>held: unverified page</span>
+                        <div style={{ marginTop: 4 }}>
+                          <button style={{ ...styles.actionBtn, background: '#16a34a' }} onClick={() => handleHunkResolve(h, 'reject')} disabled={loading}>
+                            Reject (keep local)
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Accept held: no stable page identity — reconcile for manual merge.</div>
+                      </>
+                    ) : h.heldReason === 'in_reconcile' ? (
+                      <>
+                        <span style={{ ...styles.badge, background: '#6b7280' }}>in reconcile</span>
+                        <div style={{ marginTop: 4 }}>
+                          <button style={{ ...styles.actionBtn, background: '#6b7280' }} onClick={() => handleReopen(h.driftId)} disabled={loading}>
+                            Reopen
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <span style={{ ...styles.badge, background: '#dc2626' }}>open</span>
+                    )}
+                  </td>
+                  <td style={styles.td}>
+                    {h.heldReason === 'new_product' ? (
+                      <span style={{ fontSize: 11, color: '#9ca3af' }}>Imports via the explicit new-product workflow</span>
+                    ) : h.heldReason === 'unavailable_assignment' ? (
+                      <span style={{ fontSize: 11, color: '#9ca3af' }}>Reject keeps local; accept stays held</span>
+                    ) : h.heldReason ? (
+                      <span style={{ fontSize: 11, color: '#9ca3af' }}>Settles through reconcile approve / discard / reopen</span>
+                    ) : (
+                      <>
+                        <button style={{ ...styles.actionBtn, background: '#7c3aed' }} onClick={() => handleHunkResolve(h, 'accept')} disabled={loading}>
+                          Accept hunk
+                        </button>
+                        <button style={{ ...styles.actionBtn, background: '#16a34a' }} onClick={() => handleHunkResolve(h, 'reject')} disabled={loading}>
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div style={styles.section}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={styles.label}>
-            Drift Items ({drifts.length})
-            {openCount > drifts.length && (
+            Drift Items ({total > 0 ? total : drifts.length})
+            {total > drifts.length && (
               <span style={{ fontSize: 12, fontWeight: 'normal', color: '#b45309', marginLeft: 8 }}>
-                (Showing first {drifts.length} of {openCount})
+                (Showing {drifts.length} of {total})
               </span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {drifts.length > 0 && (
-              <button style={{ ...styles.btn, background: '#10b981', color: '#fff', fontSize: 11 }} onClick={handleBulkAccept} disabled={loading}>
-                Bulk Accept Remote
+              <button
+                style={{ ...styles.btn, background: fieldFilter ? '#10b981' : '#9ca3af', color: '#fff', fontSize: 11 }}
+                onClick={handleBulkAccept}
+                disabled={loading}
+                title={fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter first — bulk requires an explicit scope'}
+              >
+                {fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a field)'}
               </button>
             )}
             <button style={{ ...styles.btn, background: '#6b7280', color: '#fff', fontSize: 11 }} onClick={handleReconcile} disabled={loading}>
@@ -170,6 +356,7 @@ export function DriftView() {
                 <th style={styles.th}>SKU</th>
                 <th style={styles.th}>Local Name</th>
                 <th style={styles.th}>Remote Name</th>
+                <th style={styles.th}>Hunks</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Actions</th>
               </tr>
@@ -177,9 +364,25 @@ export function DriftView() {
             <tbody>
               {drifts.map(d => (
                 <tr key={d.id}>
-                  <td style={styles.td}><strong>{d.sku}</strong></td>
+                  <td style={styles.td}>
+                    <strong>{d.sku}</strong>
+                    {d.productKind === 'new' && (
+                      <span style={{ ...styles.badge, background: '#0e7490', marginLeft: 6 }}>NEW</span>
+                    )}
+                  </td>
                   <td style={styles.td}>{d.localProductName ?? '—'}</td>
                   <td style={styles.td}>{d.remoteProductName ?? '—'}</td>
+                  <td style={styles.td}>
+                    {(d.hunks ?? []).length === 0 ? (
+                      <span style={{ color: '#9ca3af' }}>—</span>
+                    ) : (
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
+                        {(d.hunks ?? []).map((h, i) => (
+                          <li key={i}><code style={{ fontSize: 11 }}>{h.field}</code>: {h.baselineValue ?? '∅'} → {h.remoteValue ?? '∅'}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
                   <td style={styles.td}><span style={{...styles.badge, background: d.status === 'open' ? '#dc2626' : d.status === 'kept_local' ? '#16a34a' : d.status === 'accepted_remote' ? '#7c3aed' : '#6b7280'}}>{d.status}</span></td>
                   <td style={styles.td}>
                     {d.status === 'open' && (
@@ -187,15 +390,26 @@ export function DriftView() {
                         <button style={{ ...styles.actionBtn, background: '#16a34a' }} onClick={() => handleResolve(d.id, 'keep_local')}>
                           Keep Local
                         </button>
-                        <button style={{ ...styles.actionBtn, background: '#7c3aed' }} onClick={() => handleResolve(d.id, 'accept_remote')}>
-                          Accept Remote
-                        </button>
+                        {d.productKind === 'new' ? (
+                          <button style={{ ...styles.actionBtn, background: '#0e7490' }} onClick={() => handleImportNew(d.id, (d as { remoteHash?: string }).remoteHash || undefined)}>
+                            Import New
+                          </button>
+                        ) : (
+                          <button style={{ ...styles.actionBtn, background: '#7c3aed' }} onClick={() => handleResolve(d.id, 'accept_remote')}>
+                            Accept Remote
+                          </button>
+                        )}
                         <button style={{ ...styles.actionBtn, background: colors.uniformGreen }} onClick={() => handleResolve(d.id, 'create_change_set')}>
                           Reconcile
                         </button>
                       </>
                     )}
-                    {d.status !== 'open' && <span style={{ fontSize: 12, color: '#9ca3af' }}>Resolved</span>}
+                    {d.status === 'in_reconcile' && (
+                      <button style={{ ...styles.actionBtn, background: '#6b7280' }} onClick={() => handleReopen(d.id)}>
+                        Reopen
+                      </button>
+                    )}
+                    {d.status !== 'open' && d.status !== 'in_reconcile' && <span style={{ fontSize: 12, color: '#9ca3af' }}>Resolved</span>}
                   </td>
                 </tr>
               ))}
