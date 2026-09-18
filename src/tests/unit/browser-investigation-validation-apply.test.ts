@@ -167,8 +167,8 @@ async function honestValidation(
       workspaceId: WS,
       investigationId: record.id,
       samples: [
-        { url: REP, role: 'representative', expected: { name: 'Alpha' } },
-        { url: HOLDOUT, role: 'holdout', expected: { name: 'Holdout' } },
+        { url: REP, role: 'representative', expected: { name: 'Alpha', gtin: '810001234501', variantKey: 'shopify:111:Default', productId: '999001' } },
+        { url: HOLDOUT, role: 'holdout', expected: { name: 'Holdout', gtin: '810001234501', variantKey: 'shopify:111:Default', productId: '999001' } },
       ],
     },
   );

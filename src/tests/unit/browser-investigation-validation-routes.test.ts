@@ -138,8 +138,8 @@ describe('T4 validation persistence and route wiring', () => {
     const id = await launchSamples([rep]);
     const res = await postJson(`/api/domains/${DOMAIN}/investigations/${id}/validate`, {
       samples: [
-        { url: rep, role: 'representative', expected: { name: 'Alpha' } },
-        { url: rep, role: 'holdout', expected: { name: 'Alpha' } },
+        { url: rep, role: 'representative', expected: { name: 'Alpha', gtin: '810001234501', productId: '999001' } },
+        { url: rep, role: 'holdout', expected: { name: 'Alpha', gtin: '810001234501', productId: '999001' } },
       ],
     });
     expect(res.status).toBe(422);
@@ -156,7 +156,7 @@ describe('T4 validation persistence and route wiring', () => {
     expect(launched.status).toBe(201);
     const id = launched.json.investigation.id as string;
     const res = await postJson(`/api/domains/${DOMAIN}/investigations/${id}/validate`, {
-      samples: [{ url: `https://${DOMAIN}/products/queued-1`, role: 'representative', expected: { name: 'Q' } }],
+      samples: [{ url: `https://${DOMAIN}/products/queued-1`, role: 'representative', expected: { name: 'Q', gtin: '810001234501', productId: '999001' } }],
     });
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.json)).toMatch(/invalid_transition/);

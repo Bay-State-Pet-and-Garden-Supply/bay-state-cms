@@ -110,6 +110,7 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   replay_rejected: 409,
   cancelled: 409,
   validation_untrusted: 400,
+  untrusted_expectation: 400,
   holdout_exposed: 422,
   reserved_holdout_dropped: 422,
   unappliable_proposal: 422,

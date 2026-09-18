@@ -68,8 +68,25 @@ function dataOf(
   } as never;
 }
 
+/** Minimal single-variant candidate carrier (#241 affirmative signal). */
+function candidatesOfResult(res: Record<string, unknown>): Array<{ variantKey: string }> | null {
+  const raw =
+    (res.candidates as Array<{ variantKey?: unknown }> | undefined) ??
+    ((res.variantMatrix as { candidates?: Array<{ variantKey?: unknown }> } | null | undefined)?.candidates) ??
+    null;
+  if (!Array.isArray(raw)) return null;
+  const keys = raw
+    .map((c) => (typeof c?.variantKey === 'string' ? c.variantKey : null))
+    .filter((k): k is string => !!k);
+  // Preserve exact candidate count: only a single-candidate matrix is an
+  // affirmative single-variant signal; anything else stays null-shaped
+  // upstream but the count still matters, so return the mapped list as-is.
+  return keys.map((variantKey) => ({ variantKey }));
+}
+
 /** Successful worker response → policy worker result (parent product id rides through for identity). */
 function successOf(res: Record<string, unknown> & { data: Record<string, unknown> }): PolicyWorkerResult {
+  const matrix = (res.variantMatrix as { candidates?: Array<{ variantKey: string }> } | null | undefined) ?? null;
   return {
     ok: true,
     data: dataOf(res.data, imagesOf(res.data), (res.fieldProvenance ?? {}) as Record<string, string>),
@@ -77,6 +94,11 @@ function successOf(res: Record<string, unknown> & { data: Record<string, unknown
     selectedReceipt: (res.selectedReceipt ?? null) as never,
     parentProductId: (res.parentProductId as string | undefined) ?? null,
     sourceContentHash: (res.sourceContentHash as string | null | undefined) ?? null,
+    // #241: forward the affirmative single-variant signal (single-candidate
+    // matrix) so the variant bar can be satisfied without a resolved key.
+    // Absence of this signal never satisfies the bar (see validate.ts).
+    variantMatrix: matrix,
+    candidates: candidatesOfResult(res),
   };
 }
 
@@ -86,6 +108,8 @@ function failureOf(res: {
   failureCode?: string | null;
   matrixDecision?: unknown;
   selectedReceipt?: unknown;
+  variantMatrix?: unknown;
+  candidates?: unknown;
 }): PolicyWorkerResult {
   return {
     ok: false,

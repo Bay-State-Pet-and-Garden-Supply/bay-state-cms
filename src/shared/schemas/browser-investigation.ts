@@ -93,6 +93,10 @@ export const InvestigationFailureCodeSchema = z.enum([
   // status / holdout counts presented as credentials, or a persisted
   // validation record that fails integrity/binding checks.
   'validation_untrusted',
+  // #241 fail-closed validation identity (additive): a sample without a
+  // trusted parent product ID plus a trusted identifier is rejected before
+  // any worker call and never recorded as an identity match.
+  'untrusted_expectation',
 ]);
 export type InvestigationFailureCode = z.infer<typeof InvestigationFailureCodeSchema>;
 

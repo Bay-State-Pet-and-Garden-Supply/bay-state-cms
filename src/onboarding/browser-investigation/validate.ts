@@ -16,6 +16,7 @@
 
 import { hashCanonicalJson } from '../../shared/stable-id';
 import { findExposedHoldouts, normalizeHoldoutUrl } from './holdouts';
+import { hasTrustedIdentifier, hasTrustedParentProductId } from './trusted-identity';
 import { ExtractorProfileSchema } from '../../shared/schemas/onboarding';
 import type { ExtractorProfile } from '../../db/repositories/extractor-profile-repo';
 import {
@@ -32,7 +33,14 @@ import { InvestigationServiceError, requireScopedInvestigation, type Investigati
 import { sanitizedDraftSelectors, type ProposalStore } from './apply';
 
 function fail(
-  code: 'invalid_input' | 'invalid_transition' | 'not_found' | 'workspace_mismatch' | 'holdout_exposed' | 'reserved_holdout_dropped',
+  code:
+    | 'invalid_input'
+    | 'invalid_transition'
+    | 'not_found'
+    | 'workspace_mismatch'
+    | 'holdout_exposed'
+    | 'reserved_holdout_dropped'
+    | 'untrusted_expectation',
   message: string,
 ): never {
   throw new InvestigationServiceError(code, `${code}: ${message}`);
@@ -88,6 +96,15 @@ export interface PolicyWorkerResult {
   selectedReceipt?: { selectedVariantKey?: string } | null;
   parentProductId?: string | null;
   sourceContentHash?: string | null;
+  /**
+   * #241 affirmative single-variant signal: the worker variant matrix with
+   * exactly one candidate proves the page is single-variant. Forwarded from
+   * the extraction worker (which binds single-variant evidence directly);
+   * absence of this signal never satisfies the variant bar.
+   */
+  variantMatrix?: { candidates?: Array<{ variantKey: string }> } | null;
+  /** Bounded candidates subset (worker evidence preservation). */
+  candidates?: Array<{ variantKey: string }> | null;
 }
 
 /** Injected production-worker seam: compiled draft profile + sample → extraction outcome. */
@@ -232,6 +249,23 @@ function assertOneSampleInput(sample: ValidationSampleInput): void {
   if (!sample.expected || !sample.expected.name || !sample.expected.name.trim()) {
     fail('invalid_input', `sample ${sample.url} needs an expected product name`);
   }
+  // #241 fail closed at the validation boundary: a name alone never proves
+  // identity. Rejected before any worker call, so no validation record is
+  // created for the rejected sample set. Shares the trusted-identity rule
+  // with the pilot gate (see trusted-identity.ts).
+  if (!hasTrustedIdentifier(sample.expected)) {
+    fail(
+      'untrusted_expectation',
+      `sample ${sample.url} lacks a trusted identifier (gtin, sku, platformVariantId, or variantKey) — ` +
+        'names alone cannot prove variant identity',
+    );
+  }
+  if (!hasTrustedParentProductId(sample.expected)) {
+    fail(
+      'untrusted_expectation',
+      `sample ${sample.url} lacks a trusted parent productId — the worker must prove product identity`,
+    );
+  }
 }
 
 function assertSampleInputs(samples: ValidationSampleInput[]): void {
@@ -339,14 +373,38 @@ function classifyWorkerFailure(result: PolicyWorkerResult): IdentityClassificati
   };
 }
 
+/**
+ * Affirmative single-variant signal (#241): the worker variant matrix with
+ * exactly one candidate proves the page is single-variant. Only this
+ * positive signal satisfies the variant bar without a resolved selected
+ * key — absence of variant data never satisfies it.
+ */
+function singleVariantKeyOf(result: PolicyWorkerResult): string | null {
+  const matrixCandidates = result.variantMatrix?.candidates;
+  if (Array.isArray(matrixCandidates) && matrixCandidates.length === 1) {
+    const key = matrixCandidates[0]?.variantKey;
+    if (typeof key === 'string' && key) return key;
+  }
+  const candidates = result.candidates;
+  if (Array.isArray(candidates) && candidates.length === 1) {
+    const key = (candidates[0] as { variantKey?: unknown } | null)?.variantKey;
+    if (typeof key === 'string' && key) return key;
+  }
+  return null;
+}
+
 /** Variant identity against the frozen expectation: exact key or trusted-identifier resolution. */
 function checkVariantIdentity(
   expected: ValidationExpectedIdentity,
   selectedKey: string | null,
   parentId: string | null,
+  result: PolicyWorkerResult,
 ): IdentityClassification | null {
+  // #241: the variant bar is satisfied without a resolved key only by an
+  // affirmative single-variant signal. Anything else fails closed.
+  const effectiveKey = selectedKey ?? singleVariantKeyOf(result);
   if (expected.variantKey) {
-    if (!selectedKey) {
+    if (!effectiveKey) {
       return {
         outcome: 'ambiguous',
         reasons: ['identity_unresolved:expected variant identity did not resolve'],
@@ -354,17 +412,17 @@ function checkVariantIdentity(
         parentId,
       };
     }
-    if (selectedKey !== expected.variantKey) {
+    if (effectiveKey !== expected.variantKey) {
       return {
         outcome: 'wrong_variant',
-        reasons: [`wrong_variant:expected ${expected.variantKey} resolved ${selectedKey}`],
-        selectedKey,
+        reasons: [`wrong_variant:expected ${expected.variantKey} resolved ${effectiveKey}`],
+        selectedKey: effectiveKey,
         parentId,
       };
     }
     return null;
   }
-  if ((expected.gtin || expected.sku || expected.platformVariantId) && !selectedKey) {
+  if ((expected.gtin || expected.sku || expected.platformVariantId) && !effectiveKey) {
     return {
       outcome: 'ambiguous',
       reasons: ['identity_unresolved:trusted identifiers did not resolve'],
@@ -412,11 +470,30 @@ function checkProductIdentity(
   return null;
 }
 
-function classifyIdentity(sample: ValidationSampleInput, result: PolicyWorkerResult): IdentityClassification {
+/**
+ * #241 test seam: production path always gates untrusted expectations via
+ * assertOneSampleInput first; this stays exported so parity tests can prove
+ * the fail-closed 'unevaluated' shape for classification with nothing to
+ * compare (never 'match', never wrong_*).
+ */
+export function classifyIdentity(sample: ValidationSampleInput, result: PolicyWorkerResult): IdentityClassification {
   if (!result.ok) return classifyWorkerFailure(result);
   const { selectedKey, parentId } = selectedIdentityOf(result);
+  // #241 fail closed: a sample is never recorded as 'match' unless the
+  // product-identity comparison actually executed against the frozen
+  // expectation. Without a trusted parent product ID plus a trusted
+  // identifier there is nothing to compare — return the honest
+  // non-match outcome 'unevaluated' (never 'match', never wrong_*).
+  if (!sample.expected.productId?.trim() || !hasTrustedIdentifier(sample.expected)) {
+    return {
+      outcome: 'unevaluated',
+      reasons: ['identity_unevaluated:no trusted expectation compared'],
+      selectedKey,
+      parentId,
+    };
+  }
   return (
-    checkVariantIdentity(sample.expected, selectedKey, parentId) ??
+    checkVariantIdentity(sample.expected, selectedKey, parentId, result) ??
     checkProductIdentity(sample.expected, result, selectedKey, parentId) ?? {
       outcome: 'match' as const,
       reasons: [],

@@ -128,8 +128,8 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
     // reachable pages), bound by proposal/policy/validation hash.
     const validated = await postJson(`/api/domains/${domain}/investigations/${id}/validate`, {
       samples: [
-        { url: `https://${domain}/products/alpha`, role: 'representative', expected: { name: 'Alpha' } },
-        { url: `https://${domain}/products/holdout`, role: 'holdout', expected: { name: 'Holdout' } },
+        { url: `https://${domain}/products/alpha`, role: 'representative', expected: { name: 'Alpha', gtin: '810001234501', productId: '999001' } },
+        { url: `https://${domain}/products/holdout`, role: 'holdout', expected: { name: 'Holdout', gtin: '810001234502', productId: '999002' } },
       ],
     });
     expect(validated.status).toBe(200);

@@ -165,7 +165,7 @@ describe('T5 holdout no-drop and apply governance routes', () => {
     };
     saveInvestigationValidation('ws-binv-workspace-main', id, JSON.stringify(seed), 'r'.repeat(64), 'q'.repeat(64), seed.validatedAt);
     const res = await postJson(`/api/domains/${DOMAIN}/investigations/${id}/validate`, {
-      samples: [{ url: rep, role: 'representative', expected: { name: 'Alpha' } }],
+      samples: [{ url: rep, role: 'representative', expected: { name: 'Alpha', gtin: '810001234501', productId: '999001' } }],
     });
     expect(res.status).toBe(422);
     expect(JSON.stringify(res.json)).toMatch(/reserved_holdout_dropped/);

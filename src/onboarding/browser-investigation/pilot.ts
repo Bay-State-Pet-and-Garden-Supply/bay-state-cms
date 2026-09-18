@@ -49,6 +49,7 @@ import {
   type ValidationStore,
 } from './validate';
 import { normalizeHoldoutUrl } from './holdouts';
+import { trustedExpectationProblemsFor } from './trusted-identity';
 import { describeInvestigationWorkspace } from './workspace';
 import { describeInvestigationTelemetry } from './telemetry';
 import type { InvestigationRecord } from '../../shared/schemas/browser-investigation';
@@ -171,35 +172,14 @@ function firstDuplicateHoldout(representativeUrls: string[], holdoutUrls: string
   return holdoutUrls.find((url) => representatives.has(url)) ?? null;
 }
 
-/** Trusted identifier that can prove variant identity (a name alone cannot). */
-function hasTrustedIdentifier(expected: ValidationExpectedIdentity): boolean {
-  return (
-    !!expected.gtin?.trim() ||
-    !!expected.sku?.trim() ||
-    !!expected.platformVariantId?.trim() ||
-    !!expected.variantKey?.trim()
-  );
-}
-
-/** One sample's trusted-expectation problems (name, identifier, product anchor). */
+/**
+ * One sample's trusted-expectation problems (name, identifier, product anchor).
+ * #241: single shared definition — the pilot gate and the validation
+ * service consume the same rule via trusted-identity.ts, so the two can
+ * never drift.
+ */
 function expectedProblemsFor(url: string, expected: ValidationExpectedIdentity | undefined): string[] {
-  const shown = url.slice(0, 120);
-  if (!expected || !expected.name || !expected.name.trim()) {
-    return [`refused: trusted expected identity with a product name is required for ${shown}`];
-  }
-  const problems: string[] = [];
-  if (!hasTrustedIdentifier(expected)) {
-    problems.push(
-      `refused: trusted identifier (gtin, sku, platformVariantId, or variantKey) is required for ${shown} — ` +
-        'names alone cannot prove variant identity',
-    );
-  }
-  if (!expected.productId?.trim()) {
-    problems.push(
-      `refused: trusted parent productId is required for ${shown} — the worker must prove product identity`,
-    );
-  }
-  return problems;
+  return trustedExpectationProblemsFor(url, expected);
 }
 
 function firstExpectedProblem(
