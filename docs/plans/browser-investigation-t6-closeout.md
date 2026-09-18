@@ -8,9 +8,17 @@ Parent: #224 (spec). Ticket: #230. Blocked by #227 (T3) and #229 (T5) — both l
 - **Observability** (`src/onboarding/browser-investigation/telemetry.ts`): operator telemetry derived from persisted investigation + validation state at query time — lifecycle, provider/domain, mode, duration, sample counts, run identity, usage/cost, recommended strategy, rendered-browser need, gap counts, validation outcomes, wrong-product / wrong-variant signals. Missing usage is explicit `unavailable` (never zero, never fabricated); billed cost stays distinct from estimates. Never carries keys, prompts, page content, or `knownContext` values (key names only). Served read-only at `GET /api/domains/:domain/investigations/:id/telemetry`.
 - **Opt-in live smoke** (`src/onboarding/browser-investigation/live-smoke.ts` + `scripts/browser-investigation-live-smoke.ts` + `browser-investigation:live-smoke` package script): requires `BAYSTATE_CMS_BROWSER_INVESTIGATION_LIVE_SMOKE=1` exactly, refuses under `CI`, requires available isolation (`BAYSTATE_INVESTIGATION_ISOLATION=ready` + reachable runtime) and explicit model config (`--model` / `BAYSTATE_CMS_BROWSER_INVESTIGATION_LIVE_SMOKE_MODEL`, never secret material), plus an explicit domain with 1–5 in-domain public sample URLs. Reports record only performed steps plus explicit `activationPerformed: false` / `releasePerformed: false` / `attestationPerformed: false`. Gate refusals never touch the harness. No live browser was launched during implementation; the deterministic suites prove the gates.
 
-## Thin-slice demonstration (recorded)
+## Thin-slice demonstration (recorded) — contract test
 
-`src/tests/unit/browser-investigation-thin-slice.test.ts` (Vitest, memory stores, deterministic fake provider stand-in for the isolated harness):
+`src/tests/unit/browser-investigation-thin-slice.test.ts` (Vitest, memory
+stores, deterministic fake provider) is retained explicitly as a **contract
+test**, not the acceptance proof. Completion proof for the completion work is
+the recorded opt-in pilot in `docs/plans/browser-investigation-pilot.md`: a
+real containerized investigation of a live Shopify domain through the real
+production worker with a genuinely blind holdout and a governed inactive
+draft.
+
+The contract test still covers the same lifecycle deterministically:
 
 1. Explicit operator request (`requestAndRunInvestigation`, `domain_onboarding`, two Shopify representatives).
 2. Bounded investigation completes with a Shopify platform result.

@@ -95,6 +95,19 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
     fakeInvestigationProvider.setScenario('valid');
   });
 
+  it('rejects client-submitted validation credentials at the apply route', async () => {
+    const domain = `apply-cred-${Date.now()}.example.com`;
+    const id = await launchCompletedFake(domain, { sampleUrls: [`https://${domain}/products/alpha`] });
+    const versionsBefore = listVersions(domain).length;
+    const forged = await postJson(`/api/domains/${domain}/investigations/${id}/apply`, {
+      actor: 'operator-1',
+      validation: { status: 'passed', holdouts: { required: 1, passed: 1, sampleIds: [] } },
+    });
+    expect(forged.status).toBe(400);
+    expect(String(forged.json.code ?? forged.json.error)).toMatch(/validation_untrusted/);
+    expect(listVersions(domain).length).toBe(versionsBefore);
+  });
+
   it('apply publishes an inactive draft with blockers and no active-pointer touch', async () => {
     const domain = `apply-${Date.now()}.example.com`;
     const id = await launchCompletedFake(domain, {
@@ -109,9 +122,22 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
     expect(proposal.status).toBe(200);
     expect(proposal.json.outcome.status).toBe('proposal');
 
+    // Server-authoritative apply (#234): the client sends ONLY the actor. The
+    // blockers carried into the draft come from the persisted, server-generated
+    // validation record — here a non-passing run (the fake domain has no
+    // reachable pages), bound by proposal/policy/validation hash.
+    const validated = await postJson(`/api/domains/${domain}/investigations/${id}/validate`, {
+      samples: [
+        { url: `https://${domain}/products/alpha`, role: 'representative', expected: { name: 'Alpha' } },
+        { url: `https://${domain}/products/holdout`, role: 'holdout', expected: { name: 'Holdout' } },
+      ],
+    });
+    expect(validated.status).toBe(200);
+    const validationStatus = validated.json.validation.status as string;
+    expect(validationStatus).not.toBe('passed');
+
     const applied = await postJson(`/api/domains/${domain}/investigations/${id}/apply`, {
       actor: 'operator-1',
-      validation: { status: 'failed', blockers: ['representative price mismatch'] },
     });
     expect(applied.status).toBe(201);
     const version = applied.json.version;
@@ -125,8 +151,10 @@ describe('browser investigation policy drafts over SQLite (T2)', () => {
     expect(version.validationSummary.investigationId).toBe(id);
     expect(version.validationSummary.proposalHash).toBe(applied.json.applied.proposalHash);
     expect(version.validationSummary.policyHash).toBe(applied.json.applied.policyHash);
-    expect(version.validationSummary.blockers).toContain('representative price mismatch');
-    expect(version.validationSummary.blockers).toContain('validation:failed');
+    expect(version.validationSummary.blockers).toContain(`validation:${validationStatus}`);
+    expect(version.validationSummary.validationStatus).toBe(validationStatus);
+    expect(version.validationSummary.validationRef).toBe(validated.json.validation.validationId);
+    expect(version.validationSummary.validationHash).toBe(validated.json.validation.validationHash);
     // Sanitized: workspace-private prompt and raw observations never leak.
     const stored = getVersionById(version.id);
     const serialized = JSON.stringify(stored);

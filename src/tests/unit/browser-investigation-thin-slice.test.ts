@@ -1,5 +1,11 @@
-// T6 (#230) — thin-slice demonstration, recorded as a deterministic test
-// (Vitest, pure memory stores).
+// Contract test (deterministic fake provider) — NOT the acceptance proof.
+// The acceptance proof is the opt-in real thin-slice pilot against a live
+// Shopify domain (docs/plans/browser-investigation-pilot.md, #239), which runs
+// the real containerized harness through the production worker with a truly
+// blind holdout. This suite retains fast deterministic coverage of the
+// thin-slice contract (request → investigation → compile → validate →
+// governed draft) via explicit fake-provider injection only (never reachable
+// from production launches since #235).
 //
 // Explicit operator request → bounded investigation (deterministic fake
 // stand-in for the isolated local harness) → Shopify policy compilation →
@@ -72,7 +78,7 @@ function passingRunner(): PolicyWorkerRunner {
   };
 }
 
-describe('thin slice: request → investigation → Shopify policy → validation → governed draft (T6)', () => {
+describe('thin slice contract (fake provider; NOT the acceptance pilot — see browser-investigation-pilot.md) (T6)', () => {
   it('delivers a visible governed draft with zero non-explicit provider calls', async () => {
     const investigations = createMemoryInvestigationStore();
     const proposals = createMemoryProposalStore();

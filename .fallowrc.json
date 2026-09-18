@@ -238,6 +238,12 @@
       ]
     },
     {
+      "file": "src/onboarding/browser-investigation/pilot.ts",
+      "exports": [
+        "*"
+      ]
+    },
+    {
       "file": "src/onboarding/browser-investigation/live-smoke.ts",
       "exports": [
         "*"

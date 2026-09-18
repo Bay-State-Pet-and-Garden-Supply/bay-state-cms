@@ -32,7 +32,10 @@
 // - container posture asserted before any read, image verified at start;
 // - deterministic teardown on success, failure, timeout, and cancellation.
 
-import { INVESTIGATION_RESULT_VERSION } from '../../shared/schemas/browser-investigation';
+import {
+  INVESTIGATION_RESULT_VERSION,
+  MAX_RESULT_OBSERVATION_DETAIL_CHARS,
+} from '../../shared/schemas/browser-investigation';
 import {
   InvestigationProviderError,
   type InvestigationProvider,
@@ -527,7 +530,9 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     const result = {
       version: INVESTIGATION_RESULT_VERSION,
       summary: `Local harness investigation of ${request.domain} (${request.mode}): ${mergedObservations.length} observations from ${pages.length} pages via static broker-mediated reads${verdict.rendered ? ' plus Tier 1 rendered reads through the validating proxy' : ''} (Tier 0 deterministic${tier1.modelCalls > 0 ? ' + one bounded Tier 1 model call' : ''}). Untrusted proposal evidence only.`,
-      observations: mergedObservations.map(({ artifactRef: _ref, ...rest }) => rest),
+      observations: mergedObservations
+        .map(({ artifactRef: _ref, ...rest }) => rest)
+        .map(boundObservationDetail),
       evidenceRefs,
       gaps,
       renderedBrowserRequired: verdict.required,
@@ -546,13 +551,18 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
         // Tier 1 is advisory-only: field recommendations stay Tier 0
         // deterministic (static + rendered observations), so model output
         // can never select executables through this path.
-        ...this.fieldRecommendations(mergedObservations, evidenceRefs),
+        ...this.fieldRecommendations(mergedObservations, evidenceRefs, platform),
         // Tier 0 (#233): identifier fields backed by in-container identity
         // evidence. Every entry carries the retained-artifact ref its
-        // signals came from; sources list only representations observed.
+        // signals came from. On a proven Shopify platform the supported
+        // Shopify adapter leads (adapter-first, as the deterministic fake
+        // contract does): validation executes the adapter through the
+        // production worker and fails closed when it cannot bind, so the
+        // proposal never claims more than validation verifies.
         ...identity.fields.map((entry) => ({
           field: entry.field,
-          sources: [...entry.sources],
+          sources:
+            platform === 'shopify' ? adapterFirstSources(entry.sources) : [...entry.sources],
           structureId: 'harness-static-read',
           evidenceRef: entry.evidenceRef,
         })),
@@ -634,28 +644,70 @@ export class LocalBrowserHarnessProvider implements InvestigationProvider {
     return { captures, evidenceRefs, gaps };
   }
 
+  /**
+   * Field recommendations for the observed DOM surfaces. Only sources the
+   * harness can actually back are listed: the read plan reads text through
+   * fixed internal selectors, so it never claims a `selector` exception it
+   * could not supply (the compiler would drop such a field). On a proven
+   * Shopify platform the coded adapter leads — validation executes it through
+   * the production worker and fails closed when it cannot bind.
+   */
   private fieldRecommendations(
     observations: Array<{ kind: string; incomplete: boolean }>,
     evidenceRefs: string[],
+    platform: string | undefined,
   ): Array<{ field: string; sources: string[]; structureId: string; evidenceRef?: string }> {
-    const has = (kind: string): { kind: string; incomplete: boolean } | undefined =>
-      observations.find((o) => o.kind === kind && !o.incomplete);
+    const has = (kind: string): boolean => observations.some((o) => o.kind === kind && !o.incomplete);
     const ref = evidenceRefs[0];
+    const sourcesFor = (sources: string[]): string[] => (platform === 'shopify' ? adapterFirstSources(sources) : sources);
+    const recommendation = (field: string, sources: string[]): { field: string; sources: string[]; structureId: string; evidenceRef?: string } => ({
+      field,
+      sources: sourcesFor(sources),
+      structureId: 'harness-static-read',
+      ...(ref ? { evidenceRef: ref } : {}),
+    });
     const out: Array<{ field: string; sources: string[]; structureId: string; evidenceRef?: string }> = [];
-    if (has('page_title')) {
-      out.push({ field: 'title', sources: ['meta', 'selector'], structureId: 'harness-static-read', ...(ref ? { evidenceRef: ref } : {}) });
-    }
-    if (has('page_meta')) {
-      out.push({ field: 'description', sources: ['meta'], structureId: 'harness-static-read', ...(ref ? { evidenceRef: ref } : {}) });
-    }
-    if (has('page_images')) {
-      out.push({ field: 'images', sources: ['selector'], structureId: 'harness-static-read', ...(ref ? { evidenceRef: ref } : {}) });
-    }
-    if (has('page_json_ld')) {
-      out.push({ field: 'brand', sources: ['json_ld', 'meta'], structureId: 'harness-static-read', ...(ref ? { evidenceRef: ref } : {}) });
-    }
+    if (has('page_title')) out.push(recommendation('title', ['meta']));
+    if (has('page_meta')) out.push(recommendation('description', ['meta']));
+    // DOM image presence proves the surface exists but carries no selector
+    // exception: only a proven platform adapter can bind it here.
+    if (has('page_images') && platform === 'shopify') out.push(recommendation('images', []));
+    if (has('page_json_ld')) out.push(recommendation('brand', ['json_ld', 'meta']));
     return out;
   }
+}
+
+/**
+ * Clamp one observation to the result schema's detail cap, marking it
+ * incomplete when anything was dropped. The in-container analyzer caps at the
+ * run's per-operation budget (up to 32 KiB), so a rich page would otherwise
+ * produce a result the service rejects as malformed; clipping is honest
+ * (incomplete) and never silently truncates.
+ */
+function boundObservationDetail<T extends { detail?: string; incomplete: boolean }>(observation: T): T {
+  const detail = observation.detail;
+  if (!detail || detail.length <= MAX_RESULT_OBSERVATION_DETAIL_CHARS) return observation;
+  return {
+    ...observation,
+    detail: detail.slice(0, MAX_RESULT_OBSERVATION_DETAIL_CHARS),
+    incomplete: true,
+  };
+}
+
+/**
+ * Adapter-first source order for a proven Shopify platform (#239 pilot):
+ * the supported Shopify adapter leads so the production worker binds
+ * identifier and merchandising fields through the coded runtime it
+ * verifies; observed representations follow as fallbacks. Order only —
+ * no source is claimed that the compiler does not support, and validation
+ * fails closed when the adapter cannot bind.
+ */
+function adapterFirstSources(sources: readonly string[]): string[] {
+  const out = ['shopify_product_json'];
+  for (const s of sources) {
+    if (s !== 'shopify_product_json' && !out.includes(s)) out.push(s);
+  }
+  return out;
 }
 
 /**

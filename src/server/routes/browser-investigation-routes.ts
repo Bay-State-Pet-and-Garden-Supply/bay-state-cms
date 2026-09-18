@@ -46,8 +46,6 @@ import { applyProposalToDraft, compileProposalForInvestigation, type ApplyPropos
 import {
   getProposalValidation,
   validateProposal,
-  type PolicyWorkerResult,
-  type PolicyWorkerRunner,
 } from '../../onboarding/browser-investigation/validate';
 import {
   attachDriftRepairContext,
@@ -58,7 +56,7 @@ import {
 import { getRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
 import { getActiveVersion } from '../../db/repositories/profile-version-repo';
 import { getMatrixResult } from '../../onboarding/profile-test-matrix';
-import { runProfileExtraction } from '../../onboarding/profile-runner-client';
+import { productionPolicyRunner } from '../../onboarding/browser-investigation/policy-worker-runner';
 import { createVersion, getVersionById } from '../../db/repositories/profile-version-repo';
 import { compileInvestigationResult } from '../../onboarding/browser-investigation/compiler';
 import { proposeDriftRepair } from '../../onboarding/browser-investigation/drift';
@@ -505,106 +503,6 @@ const ValidateBodySchema = z.object({
     .min(1)
     .max(10),
 });
-
-/** Production worker seam for validation: compiled draft profile through the profile runner. */
-function buildRunnerExpected(expected: {
-  name: string;
-  brandHint?: string | null;
-  price?: string | null;
-  upc?: string;
-  sku?: string;
-  platformVariantId?: string;
-}): { name: string; brandHint: string | null; price: string | null; upc?: string; sku?: string; platformVariantId?: string } {
-  return {
-    name: expected.name,
-    brandHint: expected.brandHint ?? null,
-    price: expected.price ?? null,
-    ...(expected.upc ? { upc: expected.upc } : {}),
-    ...(expected.sku ? { sku: expected.sku } : {}),
-    ...(expected.platformVariantId ? { platformVariantId: expected.platformVariantId } : {}),
-  };
-}
-
-type PolicyRunnerFailure = {
-  ok: false;
-  error: string;
-  failureCode: string | null;
-  matrixDecision: { status: string; selectedVariantKey: string | null; matchedBy?: string; reasonCodes?: string[] } | null;
-  selectedReceipt: { selectedVariantKey?: string } | null;
-};
-
-function mapRunnerFailure(res: {
-  error: string;
-  failureCode?: string | null;
-  matrixDecision?: unknown;
-  selectedReceipt?: unknown;
-}): PolicyRunnerFailure {
-  return {
-    ok: false,
-    error: res.error,
-    failureCode: res.failureCode ?? null,
-    matrixDecision: (res.matrixDecision ?? null) as PolicyRunnerFailure['matrixDecision'],
-    selectedReceipt: (res.selectedReceipt ?? null) as PolicyRunnerFailure['selectedReceipt'],
-  };
-}
-
-function runnerImagesOf(data: Record<string, unknown>): string[] {
-  if (Array.isArray((data as { images?: unknown }).images)) {
-    return (data as { images: unknown[] }).images.filter((u): u is string => typeof u === 'string');
-  }
-  const primary = (data as { primaryImage?: unknown }).primaryImage;
-  const additional = ((data as { additionalImages?: unknown }).additionalImages as unknown[] | undefined) ?? [];
-  return [primary, ...additional].filter((u): u is string => typeof u === 'string');
-}
-
-function runnerDataOf(
-  data: Record<string, unknown>,
-  images: string[],
-  fieldProvenance: Record<string, string>,
-): NonNullable<Extract<PolicyWorkerResult, { ok: true }>['data']> {
-  return {
-    title: (data.title as string | null) ?? null,
-    brand: (data.brand as string | null) ?? null,
-    description: (data.description as string | null) ?? null,
-    price: (data.price as string | null) ?? null,
-    primaryImage: images[0] ?? null,
-    additionalImages: images.slice(1),
-    customFields: ((data.customFields as Record<string, string> | undefined) ?? {}) as Record<string, string>,
-    fieldProvenance,
-  } as never;
-}
-
-function mapRunnerSuccess(
-  res: Record<string, unknown> & {
-    data: Record<string, unknown>;
-    fieldProvenance?: Record<string, string>;
-    matrixDecision?: unknown;
-    selectedReceipt?: unknown;
-    sourceContentHash?: string | null;
-  },
-): PolicyWorkerResult {
-  const data = res.data;
-  const images = runnerImagesOf(data);
-  return {
-    ok: true,
-    data: runnerDataOf(data, images, (res.fieldProvenance ?? {}) as Record<string, string>),
-    matrixDecision: (res.matrixDecision ?? null) as never,
-    selectedReceipt: (res.selectedReceipt ?? null) as never,
-    parentProductId: ((res as { parentProductId?: unknown }).parentProductId as string | undefined) ?? null,
-    sourceContentHash: res.sourceContentHash ?? null,
-  };
-}
-
-const productionPolicyRunner: PolicyWorkerRunner = {
-  run: async ({ profile, sampleUrl, expected }) => {
-    const res = await runProfileExtraction({ sourceUrl: sampleUrl, profile, expected: buildRunnerExpected(expected) });
-    if (!res.ok) return mapRunnerFailure(res);
-    return mapRunnerSuccess({
-      ...(res as unknown as Record<string, unknown>),
-      data: res.data as unknown as Record<string, unknown>,
-    });
-  },
-};
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/:id/validate', async (c) => {
   const raw = await c.req.json().catch(() => ({}));

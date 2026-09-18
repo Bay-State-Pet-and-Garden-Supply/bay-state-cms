@@ -298,8 +298,6 @@ export class DockerTier0ContainerRunner implements Tier0ContainerRunner {
     });
   }
 
-  // fallow-ignore-next-line unused-class-member — Tier0ContainerRunner seam
-  // (invoked via the isolated-run teardown contract, not by static name)
   async teardown(runId: string): Promise<void> {
     await removeContainer(runId);
   }
@@ -370,19 +368,32 @@ function isTier0IdentityResult(value: unknown): value is Tier0IdentityResult {
   );
 }
 
+/** Array-of-anything check (observation/gap/signal lists). */
+function isArrayField(value: unknown): boolean {
+  return Array.isArray(value);
+}
+
+/** Object-shaped check (domSignals carrier). */
+function isObjectField(value: unknown): boolean {
+  return !!value && typeof value === 'object';
+}
+
+/** Envelope-result field shape table: every field the runner consumes. */
+const ENVELOPE_RESULT_SHAPES: ReadonlyArray<readonly [keyof Tier0AnalysisResult, (value: unknown) => boolean]> = [
+  ['observations', isArrayField],
+  ['gaps', isArrayField],
+  ['platformSignals', isArrayField],
+  ['domSignals', isObjectField],
+  ['readsPerformed', (value) => typeof value === 'number'],
+  ['identity', (value) => isTier0IdentityResult(value)],
+];
+
 function coerceEnvelopeResult(raw: unknown): Tier0AnalysisResult {
   const result = raw as Tier0AnalysisResult | null;
-  const wellFormed =
-    !!result &&
-    typeof result === 'object' &&
-    Array.isArray(result.observations) &&
-    Array.isArray(result.gaps) &&
-    Array.isArray(result.platformSignals) &&
-    !!result.domSignals &&
-    typeof result.domSignals === 'object' &&
-    typeof result.readsPerformed === 'number' &&
-    isTier0IdentityResult((result as { identity?: unknown }).identity);
-  if (!wellFormed) {
+  const malformed = !result || typeof result !== 'object'
+    ? ['observations'] // non-object payload: report the first required shape
+    : ENVELOPE_RESULT_SHAPES.filter(([key, check]) => !check(result[key])).map(([key]) => key);
+  if (malformed.length > 0) {
     throw new ContainerRunnerError('provider_error', 'provider_error: container returned a malformed result');
   }
   return result as Tier0AnalysisResult;

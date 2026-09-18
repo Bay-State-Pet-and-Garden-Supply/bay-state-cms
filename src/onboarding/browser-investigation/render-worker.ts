@@ -150,21 +150,35 @@ function guardFor(approvedHosts: string[]): (url: string) => Promise<boolean> {
   };
 }
 
+const nonEmptyString = (value: unknown): boolean => typeof value === 'string' && value.length > 0;
+const isNumber = (value: unknown): boolean => typeof value === 'number';
+const nonEmptyArray = (value: unknown): boolean => Array.isArray(value) && value.length > 0;
+const boundedPages = (value: unknown): boolean =>
+  Array.isArray(value) && value.length > 0 && value.length <= MAX_PAGES_PER_TASK;
+
+/** Task-level field shapes (investigation id, hosts, pages, budgets). */
+const RENDER_TASK_FIELDS: ReadonlyArray<readonly [string, (value: unknown) => boolean]> = [
+  ['investigationId', nonEmptyString],
+  ['approvedHosts', nonEmptyArray],
+  ['pages', boundedPages],
+  ['maxReads', isNumber],
+  ['maxObservationBytesPerOperation', isNumber],
+];
+
+/** One render page descriptor: non-empty url + artifact ref and a numeric index. */
+function validPage(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false;
+  const page = raw as Record<string, unknown>;
+  return (
+    nonEmptyString(page.url) && nonEmptyString(page.artifactRef) && typeof page.pageIndex === 'number'
+  );
+}
+
 function validTask(raw: unknown): raw is RenderTask {
   if (!raw || typeof raw !== 'object') return false;
   const task = raw as Record<string, unknown>;
-  if (typeof task.investigationId !== 'string' || !task.investigationId) return false;
-  if (!Array.isArray(task.approvedHosts) || task.approvedHosts.length === 0) return false;
-  if (!Array.isArray(task.pages) || task.pages.length === 0 || task.pages.length > MAX_PAGES_PER_TASK) return false;
-  if (typeof task.maxReads !== 'number' || typeof task.maxObservationBytesPerOperation !== 'number') return false;
-  return (task.pages as unknown[]).every(
-    (p) =>
-      !!p &&
-      typeof p === 'object' &&
-      typeof (p as { url?: unknown }).url === 'string' &&
-      typeof (p as { artifactRef?: unknown }).artifactRef === 'string' &&
-      typeof (p as { pageIndex?: unknown }).pageIndex === 'number',
-  );
+  if (RENDER_TASK_FIELDS.some(([key, check]) => !check(task[key]))) return false;
+  return (task.pages as unknown[]).every(validPage);
 }
 
 async function extractSnapshot(url: string, guard: (url: string) => Promise<boolean>, budgetMs: number) {

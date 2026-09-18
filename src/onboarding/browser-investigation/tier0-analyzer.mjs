@@ -288,6 +288,13 @@ function scanHtml(html) {
 const MAX_SCRIPT_BLOCKS = 20;
 const MAX_IMAGE_MATCHES = 20;
 const MAX_META_ENTRIES = 100;
+/**
+ * Reads one further page needs at minimum (capture inspection, title, meta,
+ * one script block, the image query, and one attribute read). Later pages
+ * reserve this much so an image-heavy early page cannot starve them out of
+ * the run budget.
+ */
+const MIN_READS_PER_PAGE = 6;
 
 function truncateUrl(url) {
   return url.length > 120 ? `${url.slice(0, 120)}…` : url;
@@ -325,18 +332,22 @@ function detectPlatformSignals(html, signals) {
  * @throws Tier0AnalyzerError with code budget_exhausted (whole run fails) or
  *   invalid_input (malformed request envelope).
  */
-export function analyzeTier0Captures(request) {
+/** Required analysis budget caps (all must be positive integers). */
+const REQUIRED_BUDGET_CAPS = [
+  'maxSelectorLength',
+  'maxSelectorMatches',
+  'maxObservationBytesPerOperation',
+  'maxJsonNodesVisited',
+  'maxJsonPointerDepth',
+  'maxResponseBytesPerResponse',
+  'maxReads',
+];
+
+/** Validate the analysis request envelope (fail closed on any deviation). */
+function assertAnalysisEnvelope(request) {
   const { investigationId, budget, captures } = request ?? {};
   assertRefId(investigationId);
-  for (const key of [
-    'maxSelectorLength',
-    'maxSelectorMatches',
-    'maxObservationBytesPerOperation',
-    'maxJsonNodesVisited',
-    'maxJsonPointerDepth',
-    'maxResponseBytesPerResponse',
-    'maxReads',
-  ]) {
+  for (const key of REQUIRED_BUDGET_CAPS) {
     if (!Number.isSafeInteger(budget?.[key]) || budget[key] <= 0) {
       throw new Tier0AnalyzerError('invalid_input', `budget cap ${key} must be a positive integer`);
     }
@@ -344,8 +355,12 @@ export function analyzeTier0Captures(request) {
   if (!Array.isArray(captures)) {
     throw new Tier0AnalyzerError('invalid_input', 'captures must be an array');
   }
+  return { investigationId, budget, captures };
+}
 
-  const state = {
+/** Fresh per-run analysis state (nothing carried between runs). */
+function createAnalysisState(investigationId, budget, pageCount) {
+  return {
     investigationId,
     budget,
     observations: [],
@@ -353,25 +368,56 @@ export function analyzeTier0Captures(request) {
     platformSignals: new Set(),
     domSignals: { title: false, meta: false, jsonLd: false, images: false },
     readsPerformed: 0,
+    pagesRemaining: pageCount,
+    pageStartReads: 0,
+    reservePerPage: MIN_READS_PER_PAGE,
   };
-  for (const capture of captures) {
-    try {
-      readCapture(state, capture);
-    } catch (err) {
-      // Read-budget exhaustion fails the whole run; any other page failure
-      // is a visible gap and analysis continues with the next capture.
-      if (err instanceof Tier0AnalyzerError && err.code === 'budget_exhausted') throw err;
-      state.gaps.push(
-        `page ${capture?.pageIndex + 1} (${truncateUrl(String(capture?.pageUrl ?? ''))}): read failed (${failureReason(err)})`,
-      );
-    }
+}
+
+/** True when the remaining budget cannot cover one more fixed read plan. */
+function mustSkipForBudget(state) {
+  return state.budget.maxReads - state.readsPerformed < state.reservePerPage;
+}
+
+/**
+ * Analyze one capture in sequence. A page whose fixed plan cannot fit the
+ * remaining read budget is skipped with an explicit gap (never a silent
+ * omission and never a whole-run failure caused by an earlier page's image
+ * surface). Read-budget exhaustion inside a page still fails the run closed;
+ * any other page failure is a visible gap.
+ */
+function analyzeCaptureAt(state, capture, index, pageCount) {
+  state.pagesRemaining = pageCount - index;
+  state.pageStartReads = state.readsPerformed;
+  if (index > 0 && mustSkipForBudget(state)) {
+    state.gaps.push(
+      `page ${index + 1} (${truncateUrl(String(capture?.pageUrl ?? ''))}): skipped — ` +
+        `read budget cannot cover the fixed read plan (${state.reservePerPage} reads reserved)`,
+    );
+    return;
   }
-  // Tier 0 identity (#233): deterministic parsers over the same
-  // broker-approved captures into product/variant identity and option
-  // axes. No new reads, no network, no model — pure derivation the host
-  // plumbs into identityRequirements (or omits when absent).
-  const identity = extractTier0Identity(captures, investigationId, budget);
-  if (identity.shopifyObserved) state.platformSignals.add('shopify');
+  readCaptureGuarded(state, capture);
+}
+
+/**
+ * Run one capture's read plan, converting page-level failures into visible
+ * gaps. Read-budget exhaustion is the one failure that stops the whole run:
+ * the run exceeded a hard gate, so it must not continue as if it had not.
+ */
+function readCaptureGuarded(state, capture) {
+  try {
+    readCapture(state, capture);
+  } catch (err) {
+    const exhausted = err instanceof Tier0AnalyzerError && err.code === 'budget_exhausted';
+    if (exhausted) throw err;
+    state.gaps.push(
+      `page ${capture?.pageIndex + 1} (${truncateUrl(String(capture?.pageUrl ?? ''))}): read failed (${failureReason(err)})`,
+    );
+  }
+}
+
+/** Assemble the analyzer result envelope from run state + identity signals. */
+function assembleAnalysisResult(state, identity) {
   return {
     observations: state.observations,
     gaps: state.gaps,
@@ -387,6 +433,25 @@ export function analyzeTier0Captures(request) {
       contributingArtifacts: identity.contributingArtifacts,
     },
   };
+}
+
+/**
+ * Tier 0 analysis over broker-approved captures: fixed read plan first (typed
+ * observations), then deterministic identity derivation over the same bytes.
+ */
+export function analyzeTier0Captures(request) {
+  const { investigationId, budget, captures } = assertAnalysisEnvelope(request);
+  const state = createAnalysisState(investigationId, budget, captures.length);
+  for (let index = 0; index < captures.length; index += 1) {
+    analyzeCaptureAt(state, captures[index], index, captures.length);
+  }
+  // Tier 0 identity (#233): deterministic parsers over the same
+  // broker-approved captures into product/variant identity and option
+  // axes. No new reads, no network, no model — pure derivation the host
+  // plumbs into identityRequirements (or omits when absent).
+  const identity = extractTier0Identity(captures, investigationId, budget);
+  if (identity.shopifyObserved) state.platformSignals.add('shopify');
+  return assembleAnalysisResult(state, identity);
 }
 
 /** Charge one grammar-op read against the run budget (fail closed past the cap). */
@@ -573,23 +638,55 @@ function readImageSurface(state, capture, elements) {
   if (scopedRefKind(capture.artifactRef, state.investigationId) !== 'artifact') {
     throw new Tier0AnalyzerError('invalid_input', 'foreign page reference');
   }
-  const bounded = boundSelector('img[src]', MAX_IMAGE_MATCHES, state.budget);
-  void bounded;
-  const refs = elements
-    .filter((el) => el.tag === 'img' && 'src' in el.attrs)
-    .slice(0, Math.min(MAX_IMAGE_MATCHES, state.budget.maxSelectorMatches));
+  const allRefs = boundedImageRefs(elements, state.budget);
+  // Image-heavy real pages (headers/footers/galleries) can carry more
+  // <img> than the run's remaining read budget. Clip to what remains and
+  // record an honest gap instead of failing the run: examined images prove
+  // presence only (membership stays uncertified either way), and unexamined
+  // images are a visible coverage gap, never silent absence.
+  // Reserve the measured fixed-plan cost for every page still to be analyzed:
+  // the read budget is shared across captures, so an image-heavy first page
+  // must not consume it all and starve the pages behind it.
+  state.reservePerPage = Math.max(state.reservePerPage, state.readsPerformed - state.pageStartReads);
+  const reserveForLaterPages = Math.max(0, (state.pagesRemaining - 1) * state.reservePerPage);
+  const imageAllowance = Math.max(0, state.budget.maxReads - state.readsPerformed - reserveForLaterPages);
+  const refs = allRefs.slice(0, imageAllowance);
+  const clippedCount = allRefs.length - refs.length;
   let withSrc = 0;
   for (const el of refs) {
     // read_attribute returns the URL as text only.
     chargeRead(state);
     if ((el.attrs.src ?? '').trim()) withSrc += 1;
   }
+  if (clippedCount > 0) {
+    state.gaps.push(
+      `image surface clipped: ${clippedCount} image element(s) unexamined within budget; membership uncertified`,
+    );
+  }
   if (refs.length > 0) state.domSignals.images = true;
-  pushObservation(
-    state,
-    capture,
-    'page_images',
-    `image elements observed: ${refs.length} (${withSrc} with sources; URLs untrusted; membership uncertified from this read)`,
+  pushObservation(state, capture, 'page_images', imageSurfaceText(refs.length, withSrc, clippedCount));
+  if (clippedCount > 0 && refs.length === 0) {
+    // Nothing was examined within budget: presence is unproven, so the
+    // observation must not certify absence.
+    state.observations[state.observations.length - 1].incomplete = true;
+  }
+}
+
+/** Bounded `img[src]` element set (selector length and match caps enforced). */
+function boundedImageRefs(elements, budget) {
+  const bounded = boundSelector('img[src]', MAX_IMAGE_MATCHES, budget);
+  void bounded;
+  return elements
+    .filter((el) => el.tag === 'img' && 'src' in el.attrs)
+    .slice(0, Math.min(MAX_IMAGE_MATCHES, budget.maxSelectorMatches));
+}
+
+/** One-line image-surface observation text (clipping stays visible). */
+function imageSurfaceText(examined, withSrc, clipped) {
+  const clipNote = clipped > 0 ? `; ${clipped} unexamined within budget` : '';
+  return (
+    `image elements observed: ${examined} (${withSrc} with sources; ` +
+    `URLs untrusted; membership uncertified from this read)${clipNote}`
   );
 }
 
@@ -753,17 +850,24 @@ function shopifyCandidateOf(v, optionNames) {
   return { platformId, gtins: gtin ? [gtin] : [], skus: sku ? [sku] : [], mpns: [], axes: shopifyAxesOf(v, optionNames) };
 }
 
+/** Declared option name at one position, when the payload declares one. */
+function declaredOptionName(optionNames, index) {
+  if (!Array.isArray(optionNames)) return null;
+  const entry = optionNames[index];
+  if (!isPlainJsonObject(entry)) return null;
+  return normalizeAxis(entry.name) || null;
+}
+
+/** One Shopify option position → its axis name, or null when unset. */
+function shopifyAxisOf(v, optionNames, index) {
+  const key = `option${index + 1}`;
+  if (!String(v[key] ?? '').trim()) return null;
+  return declaredOptionName(optionNames, index) ?? `option${index + 1}`;
+}
+
 /** Normalized option axes for one Shopify variant (at most three). */
 function shopifyAxesOf(v, optionNames) {
-  const axes = [];
-  for (let oi = 0; oi < 3; oi += 1) {
-    const value = v[`option${oi + 1}`];
-    if (value === null || value === undefined || !String(value).trim()) continue;
-    const named = Array.isArray(optionNames) && isPlainJsonObject(optionNames[oi]) ? optionNames[oi].name : null;
-    const axis = normalizeAxis(typeof named === 'string' && named.trim() ? named : `option${oi + 1}`);
-    if (axis) axes.push(axis);
-  }
-  return axes;
+  return [0, 1, 2].map((index) => shopifyAxisOf(v, optionNames, index)).filter(Boolean);
 }
 
 /** Shopify variant array walk (endpoint payloads and embedded productJSON). */
@@ -797,24 +901,29 @@ function absorbShopifyPayload(acc, payload, artifactRef) {
   }
 }
 
+/** Non-empty trimmed id text, or null (never coerces absent/blank ids). */
+function nonEmptyIdText(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
 function shopifyProductIdOf(payload) {
   const obj = Array.isArray(payload) ? payload[0] : payload;
   if (!isPlainJsonObject(obj)) return null;
-  if (obj.id !== null && obj.id !== undefined && String(obj.id).trim()) return String(obj.id).trim();
-  if (
-    isPlainJsonObject(obj.product) &&
-    obj.product.id !== null &&
-    obj.product.id !== undefined &&
-    String(obj.product.id).trim()
-  ) {
-    return String(obj.product.id).trim();
-  }
-  return null;
+  const nested = isPlainJsonObject(obj.product) ? obj.product : null;
+  return nonEmptyIdText(obj.id) ?? (nested ? nonEmptyIdText(nested.id) : null);
 }
 
 function isProductType(obj) {
   const t = obj['@type'];
   return t === 'Product' || (Array.isArray(t) && t.includes('Product'));
+}
+
+/** ProductGroup variant groups (schema.org): hasVariant carriers only —
+ * the group-level sku is a group token, never a product identifier. */
+function isProductGroupType(obj) {
+  const t = obj['@type'];
+  return t === 'ProductGroup' || (Array.isArray(t) && t.includes('ProductGroup'));
 }
 
 /**
@@ -862,23 +971,53 @@ function jsonLdVariantCandidate(v) {
   };
 }
 
-/** JSON-LD walk: variant groups plus single products (no hasVariant). */
+/** JSON-LD nodes: a @graph array when present, otherwise the block itself. */
+function jsonLdItemsOf(blockValue) {
+  if (isPlainJsonObject(blockValue) && Array.isArray(blockValue['@graph'])) return blockValue['@graph'];
+  return [blockValue];
+}
+
+/** Non-empty hasVariant array, or null when the node carries no variants. */
+function hasVariantList(item) {
+  return Array.isArray(item.hasVariant) && item.hasVariant.length > 0 ? item.hasVariant : null;
+}
+
+/** Variant signals from one hasVariant list (candidates only, never singles). */
+function jsonLdVariantSignalsOf(variants) {
+  const out = [];
+  for (const v of variants) {
+    const candidate = jsonLdVariantCandidate(v);
+    if (candidate) out.push(candidate);
+  }
+  return out;
+}
+
+/** Single-product identifiers a node contributes, or null when it carries none. */
+function jsonLdSingleOf(item) {
+  if (isProductGroupType(item) || !isProductType(item)) return null;
+  const found = singleIdentifiersOf(item);
+  const hasSignal = found.gtin || found.sku || found.mpn;
+  return hasSignal ? found : null;
+}
+
+/**
+ * JSON-LD items → variant candidates + single-product identifiers.
+ * ProductGroup (e.g. Shopify colorways) carries variant identity only through
+ * hasVariant — never through the group-level sku — so group nodes never
+ * contribute a single-product identity.
+ */
 function jsonLdSignalsOf(blockValue) {
   const candidates = [];
   const singles = [];
-  const items =
-    isPlainJsonObject(blockValue) && Array.isArray(blockValue['@graph']) ? blockValue['@graph'] : [blockValue];
-  for (const item of items) {
-    if (!isPlainJsonObject(item) || !isProductType(item)) continue;
-    if (Array.isArray(item.hasVariant) && item.hasVariant.length > 0) {
-      for (const v of item.hasVariant) {
-        const candidate = jsonLdVariantCandidate(v);
-        if (candidate) candidates.push(candidate);
-      }
+  for (const item of jsonLdItemsOf(blockValue)) {
+    if (!isPlainJsonObject(item)) continue;
+    const variants = hasVariantList(item);
+    if (variants) {
+      candidates.push(...jsonLdVariantSignalsOf(variants));
       continue;
     }
-    const found = singleIdentifiersOf(item);
-    if (found.gtin || found.sku || found.mpn) singles.push(found);
+    const single = jsonLdSingleOf(item);
+    if (single) singles.push(single);
   }
   return { candidates, singles };
 }
@@ -898,22 +1037,24 @@ function eachBlockMatches(re, html, limit) {
   return out;
 }
 
-/** JSON capture path: Shopify endpoint payloads first, bare product objects otherwise. */
+/** Bare product-object keys that earn single-identity absorption. */
+const SINGLE_IDENTITY_KEYS = ['sku', 'gtin', 'gtin13', 'gtin12', 'mpn'];
+
+/**
+ * JSON capture path: Shopify endpoint payloads first, bare product objects
+ * otherwise. A bare id without a variant array is not Shopify-shaped — only a
+ * real product payload earns the platform mark and product id.
+ */
 function readIdentityJson(text, artifactRef, acc) {
   const payload = tryJsonParse(text);
   if (!payload) return;
   const obj = Array.isArray(payload) ? payload[0] : payload;
-  // A bare id without a variant array is not Shopify-shaped: only a real
-  // product payload earns the platform mark and product id.
-  if (isPlainJsonObject(obj) && Array.isArray(obj.variants)) {
+  if (!isPlainJsonObject(obj)) return;
+  if (Array.isArray(obj.variants)) {
     absorbShopifyPayload(acc, payload, artifactRef);
     return;
   }
-  if (
-    isPlainJsonObject(obj) &&
-    !Array.isArray(obj.variants) &&
-    ('sku' in obj || 'gtin' in obj || 'gtin13' in obj || 'gtin12' in obj || 'mpn' in obj)
-  ) {
+  if (SINGLE_IDENTITY_KEYS.some((key) => key in obj)) {
     absorbSingleIdentity(acc, singleIdentifiersOf(obj), 'embedded_state', artifactRef);
   }
 }
@@ -938,27 +1079,37 @@ function readIdentityHtml(html, artifactRef, acc) {
   }
 }
 
+/** True when one platform variant carries more than one value for any identifier kind. */
+function platformGroupConflicts(group) {
+  return group.skus.size > 1 || group.gtins.size > 1 || group.mpns.size > 1;
+}
+
+function platformGroupConflictNote(group) {
+  return (
+    `conflicting identifiers for one platform variant across ${group.artifacts.size} captured artifact(s); ` +
+    'leaving variant identity ambiguous for downstream resolution'
+  );
+}
+
+/** True when one SKU was seen on more than one platform variant. */
+function skuSpansPlatforms(platformIds) {
+  return platformIds.size > 1;
+}
+
 /** Conflicting identifiers stay ambiguous: report, never resolve. */
 function detectIdentityConflicts(acc) {
   const gaps = [];
   for (const group of acc.platformGroups.values()) {
-    if (gaps.length >= MAX_IDENTITY_CONFLICTS) break;
-    if (group.skus.size <= 1 && group.gtins.size <= 1 && group.mpns.size <= 1) continue;
+    if (gaps.length >= MAX_IDENTITY_CONFLICTS) return gaps;
+    if (platformGroupConflicts(group)) gaps.push(platformGroupConflictNote(group));
+  }
+  for (const [sku, platformIds] of acc.skuPlatforms) {
+    if (gaps.length >= MAX_IDENTITY_CONFLICTS) return gaps;
+    if (!skuSpansPlatforms(platformIds)) continue;
     gaps.push(
-      `conflicting identifiers for one platform variant across ${group.artifacts.size} captured artifact(s); ` +
+      `one SKU (${sku}) maps to multiple platform variants across captured artifacts; ` +
         'leaving variant identity ambiguous for downstream resolution',
     );
-  }
-  if (gaps.length < MAX_IDENTITY_CONFLICTS) {
-    for (const ids of acc.skuPlatforms.values()) {
-      if (gaps.length >= MAX_IDENTITY_CONFLICTS) break;
-      if (ids.size <= 1) continue;
-      gaps.push(
-        'one SKU maps to multiple platform variants across captured artifacts; ' +
-          'leaving variant identity ambiguous for downstream resolution',
-      );
-      break;
-    }
   }
   return gaps;
 }
@@ -1025,17 +1176,26 @@ function productIdentityOf(acc, kinds) {
   return productIdentity;
 }
 
+/** Requirement string per observed identifier kind, in resolver precedence order. */
+const IDENTITY_KIND_REQUIREMENTS = [
+  ['gtin', 'gtin_exact'],
+  ['sku', 'sku_exact'],
+  ['mpn', 'mpn_exact'],
+];
+
+/** Observed kind requirements, in precedence order (empty when none observed). */
+function kindRequirements(kinds) {
+  return IDENTITY_KIND_REQUIREMENTS.filter(([kind]) => kinds[kind]).map(([, requirement]) => requirement);
+}
+
 function variantIdentityOf(acc, kinds, axes) {
-  const variantIdentity = [];
-  if (kinds.gtin) variantIdentity.push('gtin_exact');
-  if (kinds.sku) variantIdentity.push('sku_exact');
-  if (kinds.mpn) variantIdentity.push('mpn_exact');
-  if (acc.platformGroups.size > 0) variantIdentity.push('platform_variant_id_exact');
-  if (axes.length > 0) variantIdentity.push('options_exact_tuple');
-  if (kinds.gtin || kinds.sku || kinds.mpn || acc.platformGroups.size > 0 || axes.length > 0) {
-    variantIdentity.push('operator_selection');
-  }
-  return variantIdentity;
+  const requirements = kindRequirements(kinds);
+  if (acc.platformGroups.size > 0) requirements.push('platform_variant_id_exact');
+  if (axes.length > 0) requirements.push('options_exact_tuple');
+  // Operator selection is the human fallback whenever any variant signal
+  // exists — it is never the only way to identify a variant.
+  if (requirements.length > 0) requirements.push('operator_selection');
+  return requirements;
 }
 
 /** Per-field provenance: only observed sources, first contributing artifact. */

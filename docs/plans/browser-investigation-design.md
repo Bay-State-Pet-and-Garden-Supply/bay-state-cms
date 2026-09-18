@@ -311,3 +311,15 @@ docker build -t baystate/investigation-render:1 \
   -f docker/investigation-render/Dockerfile .
 docker network create --internal binv-render-only
 ```
+
+## Pilot record (#239)
+
+The real thin-slice pilot — opt-in, against a live Shopify domain, through the
+real containerized harness and the real production worker, with a truly blind
+holdout and a governed inactive draft — is recorded in
+`docs/plans/browser-investigation-pilot.md`, including the defects the pilot
+exposed (transport binding under Bun, result-size clamping, selector-source
+honesty, endpoint image binding, per-page read-budget reservation, parent
+product id passthrough) and the explicit non-claims (no activation, release, or
+attestation; no model reasoning; one holdout is an independent check, not
+statistical coverage).

@@ -180,6 +180,21 @@ describe('Tier 0 static identity extractors (#233)', () => {
     expect(identity.fields.map((f) => f.field)).toContain('variants');
   });
 
+  it('extracts variant identity from ProductGroup hasVariant (group sku never leaks as product identity)', () => {
+    const groupHtml = `<!doctype html><html><head><title>Runner</title>
+<script type="application/ld+json">{"@context":"https://schema.org/","@type":"ProductGroup","productGroupID":"RUNNERS","name":"Runner","brand":{"@type":"Brand","name":"Acme"},"sku":"RUNNERS-GROUP","hasVariant":[{"@type":"Product","sku":"RUN-050","size":"5"},{"@type":"Product","sku":"RUN-060","size":"6"}]}</script>
+</head><body><h1>Runner</h1></body></html>`;
+    const result = analyze([{ body: groupHtml, artifactRef: 'artifact:binv_t0_3g:p0' }], 'binv_t0_3g');
+    const { identity } = result;
+    expect(identity.productIdentity).toContain('sku_exact');
+    expect(identity.variantIdentity).toContain('sku_exact');
+    expect(identity.variantIdentity).toContain('platform_variant_id_exact');
+    expect(identity.contributingArtifacts).toEqual(['artifact:binv_t0_3g:p0']);
+    for (const field of identity.fields) {
+      expect(field.evidenceRef).toBe('artifact:binv_t0_3g:p0');
+    }
+  });
+
   it('defers conflicting identifiers to downstream ambiguity instead of resolving', () => {
     const variant = (id: number, sku: string): string =>
       JSON.stringify({

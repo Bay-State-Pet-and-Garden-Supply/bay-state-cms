@@ -343,6 +343,9 @@ export const ExtractResponseSchema = z.object({
   identityMatrixHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
   /** Bounded candidates subset (max 250) for evidence preservation. */
   candidates: z.array(NormalizedVariantCandidateSchema).max(250).nullable().optional(),
+  /** Parent product ID for Shopify policy extractions (T4 browser investigation
+   * product-identity verification). Absent for legacy paths. */
+  parentProductId: z.string().min(1).nullable().optional(),
 });
 
 export type ExtractResponse = z.infer<typeof ExtractResponseSchema>;

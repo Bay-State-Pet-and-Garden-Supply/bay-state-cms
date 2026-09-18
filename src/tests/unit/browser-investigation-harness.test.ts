@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
+  InvestigationResultSchema,
   resolveInvestigationBudget,
   type InvestigationBudget,
 } from '../../shared/schemas/browser-investigation';
@@ -188,6 +189,41 @@ describe('local harness bounded read', () => {
 
     // Deterministic teardown ran for the run.
     expect(tornDown).toEqual(['binvrun_harness1']);
+  });
+
+  it('leads Shopify recommendations with the supported adapter (adapter-first, validation-verified)', async () => {
+    const { provider } = harness({}, htmlTransport(PAGE_HTML));
+    const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha']));
+    const result = completion.result as unknown as {
+      platform?: string;
+      fieldRecommendations: Array<{ field: string; sources: string[] }>;
+    };
+    expect(result.platform).toBe('shopify');
+    expect(result.fieldRecommendations.length).toBeGreaterThan(0);
+    for (const rec of result.fieldRecommendations) {
+      expect(rec.sources[0]).toBe('shopify_product_json');
+    }
+  });
+
+  it('clamps oversized observation detail to the result cap and marks it incomplete', async () => {
+    // A rich JSON-LD block (common on real storefronts) exceeds the stored
+    // result's per-observation cap; the harness must clip and mark it
+    // incomplete rather than emit a result the service rejects as malformed.
+    const bigLd = `<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Acme","extra":"${'x'.repeat(9000)}"}</script>`;
+    const rich = PAGE_HTML.replace('</head>', `${bigLd}</head>`);
+    const { provider } = harness({}, htmlTransport(rich));
+    const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha']));
+    const result = completion.result as unknown as {
+      observations: Array<{ kind: string; detail?: string; incomplete: boolean }>;
+    };
+    const jsonLd = result.observations.filter((o) => o.kind === 'page_json_ld');
+    expect(jsonLd.length).toBeGreaterThan(0);
+    // Every observation respects the stored-result cap, and the one whose
+    // 9 KB JSON-LD block was clipped says so instead of truncating silently.
+    expect(result.observations.every((o) => (o.detail ?? '').length <= 4000)).toBe(true);
+    expect(jsonLd.some((o) => o.incomplete)).toBe(true);
+    // The result the harness emits must satisfy the service schema it feeds.
+    expect(InvestigationResultSchema.safeParse(completion.result).success).toBe(true);
   });
 
   it('reports a rendering need when static reads yield no DOM evidence', async () => {

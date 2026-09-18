@@ -36,7 +36,7 @@ import type { InvestigationRecord } from '../../shared/schemas/browser-investiga
 import { hashCanonicalJson } from '../../shared/stable-id';
 import type { CreateVersionInput } from '../../db/repositories/profile-version-repo';
 import { compileInvestigationResult } from './compiler';
-import type { ProposalValidation, ValidationStore } from './validate';
+import type { ProposalValidation, StoredValidation, ValidationStore } from './validate';
 import {
   InvestigationServiceError,
   requireScopedInvestigation,
@@ -123,9 +123,9 @@ export interface DraftVersionCreator {
  * server-generated validation record and bound by investigation, proposal,
  * policy, and validation hashes before anything is copied into the version.
  */
-export type TrustedApplyValidationStatus = 'passed' | 'failed' | 'incomplete' | 'not_run';
+type TrustedApplyValidationStatus = 'passed' | 'failed' | 'incomplete' | 'not_run';
 
-export interface TrustedApplyValidation {
+interface TrustedApplyValidation {
   status: TrustedApplyValidationStatus;
   blockers: string[];
   holdouts?: { passed: number; required: number; sampleIds: string[] };
@@ -205,18 +205,14 @@ function parsePersistedValidation(storedJson: string): ProposalValidation {
  * proposal/policy drift fails as `stale_proposal` (never silently
  * inherited).
  */
-function loadTrustedValidation(args: {
-  validations: ValidationStore;
-  workspaceId: string;
-  record: InvestigationRecord;
-  proposalHash: string;
-  policyHash: string;
-}): TrustedApplyValidation {
-  const { validations, workspaceId, record, proposalHash, policyHash } = args;
-  const stored = validations.getValidation(workspaceId, record.id);
-  if (!stored?.validationJson) return notRunValidation();
-  const parsed = parsePersistedValidation(stored.validationJson);
-  if (!stored.validationHash || parsed.validationHash !== stored.validationHash) {
+/**
+ * Integrity bindings: the stored reference and its embedded content must
+ * agree, and the record must be the one this investigation produced. A
+ * mismatch here is tamper, not drift.
+ */
+function assertValidationIntegrity(stored: StoredValidation, parsed: ProposalValidation): void {
+  const hashMatches = !!stored.validationHash && parsed.validationHash === stored.validationHash;
+  if (!hashMatches) {
     fail('validation_untrusted', 'persisted validation hash does not match the stored validation reference');
   }
   if (!stored.policyHash || parsed.policyHash !== stored.policyHash) {
@@ -225,16 +221,34 @@ function loadTrustedValidation(args: {
   if (hashPersistedValidationBody(parsed) !== stored.validationHash) {
     fail('validation_untrusted', 'persisted validation content does not match its validation hash');
   }
-  const expectedValidationId = `vval_${stored.validationHash.slice(0, 16)}`;
-  if (parsed.validationId !== expectedValidationId) {
+  if (parsed.validationId !== `vval_${stored.validationHash.slice(0, 16)}`) {
     fail('validation_untrusted', 'persisted validation id does not match its validation hash');
   }
+}
+
+/** The validation must describe THIS investigation and domain. */
+function assertValidationSubject(parsed: ProposalValidation, record: InvestigationRecord): void {
   if (parsed.investigationId !== record.id) {
     fail('validation_untrusted', 'persisted validation belongs to a different investigation');
   }
   if (parsed.domain !== record.domain) {
     fail('validation_untrusted', 'persisted validation belongs to a different domain');
   }
+}
+
+/**
+ * Drift bindings: proposal or policy content changed after validation, so the
+ * stale result is rejected rather than silently inherited.
+ */
+/** Validation status that may authorize a draft (`unappliable` never can). */
+type AppliableValidationStatus = Exclude<TrustedApplyValidationStatus, 'not_run'>;
+
+function assertValidationCurrent(
+  stored: StoredValidation,
+  parsed: ProposalValidation,
+  proposalHash: string,
+  policyHash: string,
+): AppliableValidationStatus {
   if (parsed.proposalHash !== proposalHash) {
     fail('stale_proposal', 'persisted validation was computed against a different proposal');
   }
@@ -244,8 +258,13 @@ function loadTrustedValidation(args: {
   if (parsed.status === 'unappliable') {
     fail('stale_proposal', 'persisted validation is unappliable and cannot authorize a draft');
   }
+  return parsed.status;
+}
+
+/** Trusted validation carried into the draft (server-derived, hash-bound). */
+function trustedValidationOf(parsed: ProposalValidation, status: TrustedApplyValidationStatus): TrustedApplyValidation {
   return {
-    status: parsed.status,
+    status,
     blockers: Array.isArray(parsed.blockers) ? parsed.blockers : [],
     ...(parsed.holdouts
       ? {
@@ -259,6 +278,23 @@ function loadTrustedValidation(args: {
     validationId: parsed.validationId,
     validationHash: parsed.validationHash,
   };
+}
+
+function loadTrustedValidation(args: {
+  validations: ValidationStore;
+  workspaceId: string;
+  record: InvestigationRecord;
+  proposalHash: string;
+  policyHash: string;
+}): TrustedApplyValidation {
+  const { validations, workspaceId, record, proposalHash, policyHash } = args;
+  const stored = validations.getValidation(workspaceId, record.id);
+  if (!stored?.validationJson) return notRunValidation();
+  const parsed = parsePersistedValidation(stored.validationJson);
+  assertValidationIntegrity(stored, parsed);
+  assertValidationSubject(parsed, record);
+  const status = assertValidationCurrent(stored, parsed, proposalHash, policyHash);
+  return trustedValidationOf(parsed, status);
 }
 
 function scopedRecord(

@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { resolveInvestigationBudget } from '../../shared/schemas/browser-investigation';
 import type { Tier0AnalysisRequest } from '../../onboarding/browser-investigation/container-runner';
+import { DockerTier0ContainerRunner } from '../../onboarding/browser-investigation/container-runner';
 import {
   INVESTIGATION_NETWORK_SHAPE,
   TIER1_RENDER_CONTAINER_STATUS,
@@ -116,6 +117,40 @@ describe('Tier 0 analyzer: captures in, typed observations out (no fetch of its 
     }
   });
 
+  it('clips image-heavy pages to the remaining read budget with an honest gap (never fails the run)', async () => {
+    const { analyzeTier0Captures } = await import(
+      '../../onboarding/browser-investigation/tier0-analyzer.mjs'
+    );
+    const imgs = Array.from({ length: 30 }, (_, i) => `<img src="https://brand.example/images/p${i}.jpg" alt="p${i}" />`).join('\n');
+    const heavy = PAGE_HTML.replace('</body>', `${imgs}</body>`);
+    const out = analyzeTier0Captures(requestFor([captureOf({ html: heavy })], { maxReads: 20 }));
+    expect(out.readsPerformed).toBeLessThanOrEqual(20);
+    const images = out.observations.find((o: { kind: string }) => o.kind === 'page_images');
+    expect(images).toBeDefined();
+    expect(out.gaps.join('\n')).toMatch(/image surface clipped/);
+  });
+
+  it('reserves read budget for later pages instead of failing the whole run', async () => {
+    const { analyzeTier0Captures } = await import(
+      '../../onboarding/browser-investigation/tier0-analyzer.mjs'
+    );
+    // Two image-heavy pages under the 20-read run budget: the first page's
+    // image attributes are clipped so the second page still gets analyzed
+    // (clipping is recorded as a gap, never a silent omission).
+    const imgs = Array.from({ length: 30 }, (_, i) => `<img src="https://brand.example/images/p${i}.jpg" alt="p${i}" />`).join('\n');
+    const heavy = PAGE_HTML.replace('</body>', `${imgs}</body>`);
+    const out = analyzeTier0Captures(
+      requestFor([
+        captureOf({ pageIndex: 0, html: heavy, pageUrl: 'https://brand.example/products/alpha' }),
+        captureOf({ pageIndex: 1, html: heavy, pageUrl: 'https://brand.example/products/beta' }),
+      ]),
+    );
+    expect(out.readsPerformed).toBeLessThanOrEqual(20);
+    const pages = new Set(out.observations.map((o: { sourceUrl: string }) => o.sourceUrl));
+    expect(pages.size).toBe(2);
+    expect(out.gaps.join('\n')).toMatch(/image surface clipped/);
+  });
+
   it('reports no DOM evidence honestly on bare pages', async () => {
     const { analyzeTier0Captures } = await import(
       '../../onboarding/browser-investigation/tier0-analyzer.mjs'
@@ -220,6 +255,16 @@ describe('Tier 0 analyzer: captures in, typed observations out (no fetch of its 
     ]) {
       expect(code, String(pattern)).not.toMatch(pattern);
     }
+  });
+});
+
+describe('Tier 0 container runner: deterministic teardown', () => {
+  it('removes the run container idempotently and never throws', async () => {
+    const runner = new DockerTier0ContainerRunner();
+    // Missing names are fine: teardown is best-effort and must never mask a
+    // run outcome (the isolated-run contract tears down on every exit path).
+    await expect(runner.teardown('binv-nonexistent-239')).resolves.toBeUndefined();
+    await expect(runner.teardown('binv-nonexistent-239')).resolves.toBeUndefined();
   });
 });
 

@@ -28,6 +28,8 @@
 
 import * as http from 'node:http';
 import * as https from 'node:https';
+import * as net from 'node:net';
+import * as tls from 'node:tls';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { sha256 } from '../../shared/hash';
 import { classifyIp } from '../../shared/ssrf';
@@ -457,10 +459,11 @@ function assertAllowedContentType(contentType: string): void {
 
 /**
  * Default Node transport: binds the connection to a broker-validated address
- * via the `lookup` override (no second unchecked DNS lookup), verifies
- * upstream TLS (rejectUnauthorized, TLS ≥ 1.2), sends only broker-controlled
- * headers, and streams the body with ledger-independent size sanity (the
- * broker charges the ledger; this layer additionally aborts absurd bodies).
+ * by dialing it directly (`createConnection`; no second unchecked DNS lookup),
+ * verifies upstream TLS (rejectUnauthorized, TLS ≥ 1.2, SNI against the
+ * request host), sends only broker-controlled headers, and streams the body
+ * with ledger-independent size sanity (the broker charges the ledger; this
+ * layer additionally aborts absurd bodies).
  *
  * Exported so the TLS-validation suite can exercise a live handshake
  * directly; production callers go through `InvestigationBroker`.
@@ -471,20 +474,22 @@ function assertAllowedContentType(contentType: string): void {
 // fallow-ignore-next-line unused-export — TLS suite + broker default
 export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<BrokerTransportResponse> {
   const url = new URL(req.url);
-  const lib = url.protocol === 'https:' ? https : http;
-  const familyFor = (addr: string): number => (addr.includes(':') ? 6 : 4);
+  const secure = url.protocol === 'https:';
+  const lib = secure ? https : http;
+  const port = url.port ? Number(url.port) : secure ? 443 : 80;
   // Deterministic binding: connect to the first validated address. The
   // broker validated ALL candidates, so any choice is policy-equal.
   const bound = req.validatedAddresses[0]!;
+  // The socket is dialed directly at the validated address and the actual
+  // peer is the evidence of where the bytes came from (falling back to the
+  // bound address when the runtime does not expose remoteAddress, e.g. Bun).
+  let connectedIp: string | null = bound;
   return new Promise((resolve, reject) => {
-    // Single bound destination: no address racing, no second lookup.
-    // (autoSelectFamily is runtime-supported by net.connect; the lib
-    // RequestOptions type does not declare it, hence the local extension.)
-    type BoundRequestOptions = https.RequestOptions & { autoSelectFamily?: boolean };
-    const requestOptions: BoundRequestOptions = {
-        autoSelectFamily: false,
-        family: familyFor(bound),
+    const requestOptions: https.RequestOptions = {
         method: 'GET',
+        // `createConnection` is honored only when no pooling agent is used:
+        // every broker request gets its own bound socket.
+        agent: false,
         headers: {
           'User-Agent': BROKER_USER_AGENT,
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.9,*/*;q=0.1',
@@ -492,23 +497,16 @@ export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<
           'Accept-Encoding': 'identity',
           'Cache-Control': 'no-cache',
         },
-        // Bind DNS validation to the connection destination: the socket may
-        // only connect to the broker-validated address. The `all` form is
-        // still answered for runtimes that request it.
-        lookup: (hostname: string, opts: unknown, cb: (...args: never[]) => void) => {
-          const done = cb as unknown as (
-            err: Error | null,
-            address: string | Array<{ address: string; family: number }>,
-            family?: number,
-          ) => void;
-          if (hostname.toLowerCase().replace(/\.$/, '') !== url.hostname.toLowerCase().replace(/\.$/, '')) {
-            done(new Error('lookup host mismatch'), '', 0);
-            return;
-          }
-          const family = familyFor(bound);
-          const wantsAll = typeof opts === 'object' && opts !== null && (opts as { all?: boolean }).all === true;
-          if (wantsAll) done(null, [{ address: bound, family }]);
-          else done(null, bound, family);
+        // Bind DNS validation to the connection destination: this socket
+        // may only reach the broker-validated address (no second lookup, so
+        // no rebinding between validation and connect). TLS SNI and
+        // hostname verification stay bound to the request host, never the IP.
+        createConnection: () => {
+          const socket = createBoundSocket(secure, bound, url.hostname, port, req.timeoutMs);
+          socket.once('connect', () => {
+            connectedIp = (socket.remoteAddress as string | undefined) ?? bound;
+          });
+          return socket;
         },
         rejectUnauthorized: true,
         minVersion: 'TLSv1.2',
@@ -520,12 +518,6 @@ export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<
       (res) => {
         const chunks: Buffer[] = [];
         let received = 0;
-        let connectedIp: string | null = null;
-        try {
-          connectedIp = (request.socket?.remoteAddress as string | undefined) ?? null;
-        } catch {
-          connectedIp = null;
-        }
         // Streaming enforcement: abort past the broker's ceiling instead of
         // buffering unbounded (Content-Length is never trusted). The broker
         // charges the same bytes to the ledger post-hoc for accounting.
@@ -564,6 +556,38 @@ export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<
     });
     request.end();
   });
+}
+
+/**
+ * Dial the broker-validated address directly.
+ *
+ * `createConnection` (with `agent: false`) is used instead of a per-request
+ * `lookup` override because Bun's `node:https` does not implement the
+ * `lookup` callback contract — it assumes the `all: true` array form and
+ * fails the connect — and the Bun API server is the production runtime.
+ * Both runtimes honor `createConnection`, which is the stronger binding in
+ * any case: the socket can only reach this literal validated address, and
+ * TLS verification (SNI + hostname) stays bound to the request host rather
+ * than the IP.
+ */
+function createBoundSocket(
+  secure: boolean,
+  bound: string,
+  hostname: string,
+  port: number,
+  timeoutMs: number,
+): net.Socket | tls.TLSSocket {
+  const socket = secure
+    ? tls.connect({
+        host: bound,
+        port,
+        servername: hostname,
+        rejectUnauthorized: true,
+        minVersion: 'TLSv1.2',
+      })
+    : net.connect({ host: bound, port, family: bound.includes(':') ? 6 : 4 });
+  socket.setTimeout(timeoutMs);
+  return socket;
 }
 
 /** Node TLS failure codes that prove upstream verification fired (never bypassed). */

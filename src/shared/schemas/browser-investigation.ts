@@ -432,6 +432,14 @@ export const InvestigationUsageSchema = z.object({
 });
 export type InvestigationUsage = z.infer<typeof InvestigationUsageSchema>;
 
+/**
+ * Cap on one observation's detail text in a stored result. The in-container
+ * analyzer caps observations at the run's per-operation budget (up to 32 KiB);
+ * the harness clamps to this result cap and marks the observation incomplete,
+ * so a rich page cannot produce a result the service rejects as malformed.
+ */
+export const MAX_RESULT_OBSERVATION_DETAIL_CHARS = 4000;
+
 /** One untrusted, source-attributed observation. Evidence, not proof. */
 export const InvestigationObservationSchema = z.object({
   kind: z.string().min(1).max(120),
@@ -439,7 +447,7 @@ export const InvestigationObservationSchema = z.object({
   /** Hash of the captured artifact bytes (hex). Prefix hashes must not
    * masquerade as full-content hashes — producers record full hashes only. */
   artifactHash: z.string().min(8).max(128),
-  detail: z.string().max(4000).optional(),
+  detail: z.string().max(MAX_RESULT_OBSERVATION_DETAIL_CHARS).optional(),
   incomplete: z.boolean().default(false),
 });
 // Forward-looking T2 API: observation type for the deterministic compiler.

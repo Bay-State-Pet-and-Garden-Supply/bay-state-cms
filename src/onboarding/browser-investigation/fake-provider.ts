@@ -24,7 +24,7 @@ import { InvestigationProviderError } from './provider';
 import { INVESTIGATION_RESULT_VERSION } from '../../shared/schemas/browser-investigation';
 import { POLICY_FIELDS } from '../../shared/schemas/browser-investigation-policy';
 
-export const FakeInvestigationScenarioSchema = z.enum([
+const FakeInvestigationScenarioSchema = z.enum([
   'valid',
   'malformed',
   'evidence_missing',

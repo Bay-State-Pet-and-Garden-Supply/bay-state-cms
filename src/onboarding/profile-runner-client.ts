@@ -46,7 +46,7 @@ export interface ProfileRunnerOptions {
 }
 
 export type ProfileRunnerResult =
-  | { ok: true; data: ExtractionData; warnings: string[]; fieldProvenance: Record<string, string>; fieldProvenanceDetails?: Record<string, { method: string; sourcePath: string }>; sourceContentHash?: string | null; sourceArtifactId?: string | null; selectedReceipt?: unknown; matrixDecision?: unknown; variantMatrix?: unknown; identityMatrixHash?: string | null; candidates?: unknown[] }
+  | { ok: true; data: ExtractionData; warnings: string[]; fieldProvenance: Record<string, string>; fieldProvenanceDetails?: Record<string, { method: string; sourcePath: string }>; sourceContentHash?: string | null; sourceArtifactId?: string | null; selectedReceipt?: unknown; matrixDecision?: unknown; variantMatrix?: unknown; identityMatrixHash?: string | null; candidates?: unknown[]; parentProductId?: string | null }
   | { ok: false; error: string; warnings: string[]; failureCode?: string | null; matrixDecision?: unknown; selectedReceipt?: unknown; variantMatrix?: unknown; identityMatrixHash?: string | null; candidates?: unknown[] };
 
 /**
@@ -200,5 +200,6 @@ function successfulExtractionResult(
     variantMatrix: variantMatrixOf(response),
     identityMatrixHash: identityMatrixHashOf(response),
     candidates: candidatesOf(response) as unknown[] | undefined,
+    parentProductId: (response.parentProductId as string | null | undefined) ?? null,
   };
 }

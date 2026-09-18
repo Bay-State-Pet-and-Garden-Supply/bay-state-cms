@@ -120,25 +120,45 @@ function contextStrings(ctx: {
  * URL forms, artifact ref). First match fails closed — exposure asks the
  * operator for a replacement holdout, never a quiet scrub.
  */
+/** Every literal form of one reserved holdout that must never appear in context. */
+function holdoutProbes(holdout: Tier1ExcludedHoldout): Array<{ needle: string; message: string }> {
+  const url = holdout.url.trim();
+  const canonical = normalizeUrl(holdout.url);
+  const artifactRaw = holdout.artifactRef?.trim();
+  const probes: Array<{ needle: string; message: string }> = [];
+  if (url) {
+    probes.push({ needle: url, message: `model context contains reserved holdout URL ${truncate(url)}` });
+    if (canonical !== url) {
+      probes.push({ needle: canonical, message: `model context contains reserved holdout URL ${truncate(url)}` });
+    }
+  }
+  if (artifactRaw) {
+    probes.push({
+      needle: artifactRaw.toLowerCase(),
+      message: 'model context contains a reserved holdout artifact',
+    });
+  }
+  return probes;
+}
+
+/** First context string carrying a probe needle (case-insensitive), or null. */
+function firstHoldoutExposure(
+  contextStrings: string[],
+  probes: Array<{ needle: string; message: string }>,
+): { message: string } | null {
+  for (const text of contextStrings) {
+    const haystack = text.toLowerCase();
+    for (const probe of probes) {
+      if (haystack.includes(probe.needle.toLowerCase())) return { message: probe.message };
+    }
+  }
+  return null;
+}
+
 function assertHoldoutBlind(contextStrings: string[], excluded: Tier1ExcludedHoldout[]): void {
   for (const holdout of excluded) {
-    const url = holdout.url.trim();
-    const canonical = normalizeUrl(holdout.url);
-    const artifact = holdout.artifactRef?.trim() ? holdout.artifactRef.trim().toLowerCase() : null;
-    for (const text of contextStrings) {
-      if (url && (text.includes(url) || (canonical !== url && text.includes(canonical)))) {
-        throw new ModelContextError(
-          'holdout_exposed',
-          `holdout_exposed: model context contains reserved holdout URL ${truncate(url)}`,
-        );
-      }
-      if (artifact && text.toLowerCase().includes(artifact)) {
-        throw new ModelContextError(
-          'holdout_exposed',
-          'holdout_exposed: model context contains a reserved holdout artifact',
-        );
-      }
-    }
+    const exposure = firstHoldoutExposure(contextStrings, holdoutProbes(holdout));
+    if (exposure) throw new ModelContextError('holdout_exposed', `holdout_exposed: ${exposure.message}`);
   }
 }
 
@@ -291,28 +311,51 @@ export async function reasonWithBudget(
   return { ...validated, model: reasoning.model };
 }
 
+/** Non-empty string, or null (model metadata fields are optional). */
+function trimmedOrNull(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text || null;
+}
+
+/** Reject a reasoning result that hides its acting model identity. */
+function assertReasoningModel(model: { provider?: unknown; model?: unknown } | undefined): void {
+  const identified = !!model && typeof model.provider === 'string' && !!model.provider && typeof model.model === 'string' && !!model.model;
+  if (!identified) {
+    throw new ReasonCallError('provider_error', 'provider_error: model reasoning hides its identity');
+  }
+}
+
+/** Output-token count must be a non-negative safe integer (never coerced). */
+function assertOutputTokens(outputTokens: unknown): number {
+  if (!Number.isSafeInteger(outputTokens) || (outputTokens as number) < 0) {
+    throw new ReasonCallError('provider_error', 'provider_error: model reported an invalid output-token count');
+  }
+  return outputTokens as number;
+}
+
+/** Bounded advisory gap list (trimmed, dedupe-free, hard-capped). */
+function boundedGaps(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((gap): gap is string => typeof gap === 'string' && gap.trim().length > 0)
+    .slice(0, MAX_REASONING_GAPS)
+    .map((gap) => gap.trim().slice(0, 1000));
+}
+
 function validateReasoning(
   reasoning: Tier1ModelReasoning,
 ): { strategy: string | null; gaps: string[]; outputTokens: number } {
   if (!reasoning || typeof reasoning !== 'object') {
     throw new ReasonCallError('provider_error', 'provider_error: model returned a malformed reasoning result');
   }
-  const model = (reasoning as { model?: unknown }).model as { provider?: unknown; model?: unknown } | undefined;
-  if (!model || typeof model.provider !== 'string' || !model.provider || typeof model.model !== 'string' || !model.model) {
-    throw new ReasonCallError('provider_error', 'provider_error: model reasoning hides its identity');
-  }
-  const outputTokens = (reasoning as { outputTokens?: unknown }).outputTokens;
-  if (!Number.isSafeInteger(outputTokens) || (outputTokens as number) < 0) {
-    throw new ReasonCallError('provider_error', 'provider_error: model reported an invalid output-token count');
-  }
-  const strategyRaw = typeof reasoning.strategy === 'string' ? reasoning.strategy.trim() : '';
-  const strategy = strategyRaw ? strategyRaw.slice(0, MAX_STRATEGY_CHARS) : null;
-  const gapsRaw = Array.isArray(reasoning.gaps) ? reasoning.gaps : [];
-  const gaps = gapsRaw
-    .filter((g): g is string => typeof g === 'string' && g.trim().length > 0)
-    .slice(0, MAX_REASONING_GAPS)
-    .map((g) => g.trim().slice(0, 1000));
-  return { strategy, gaps, outputTokens: outputTokens as number };
+  assertReasoningModel((reasoning as { model?: { provider?: unknown; model?: unknown } }).model);
+  const outputTokens = assertOutputTokens((reasoning as { outputTokens?: unknown }).outputTokens);
+  const strategy = trimmedOrNull(reasoning.strategy);
+  return {
+    strategy: strategy ? strategy.slice(0, MAX_STRATEGY_CHARS) : null,
+    gaps: boundedGaps(reasoning.gaps),
+    outputTokens,
+  };
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

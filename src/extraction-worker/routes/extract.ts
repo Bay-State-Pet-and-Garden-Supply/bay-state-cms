@@ -2033,6 +2033,7 @@ export function handleExtract(req: IncomingMessage, res: ServerResponse): void {
         variantMatrix: extAny.variantMatrix ?? extAny.matrix ?? null,
         identityMatrixHash: extAny.identityMatrixHash ?? null,
         candidates: extAny.candidates ? extAny.candidates.slice(0, 250) : null,
+        parentProductId: typeof extAny.parentProductId === 'string' && extAny.parentProductId ? extAny.parentProductId : null,
       };
 
       // Validate through ExtractResponseSchema

@@ -213,9 +213,16 @@ function evidenceFromEndpointText(
   };
 }
 
+/**
+ * Image URLs from the endpoint payload. The public Shopify product endpoint
+ * returns a plain string array; richer payloads (embedded productJSON) carry
+ * `{ src }` objects — accept both, never invent an entry.
+ */
 function endpointImageUrls(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
-  return (raw as Array<{ src?: unknown }>).map((i) => i?.src).filter((s): s is string => typeof s === 'string');
+  return raw
+    .map((entry: unknown) => (typeof entry === 'string' ? entry : (entry as { src?: unknown } | null)?.src))
+    .filter((src): src is string => typeof src === 'string' && src.trim().length > 0);
 }
 
 /** Same-platform embedded evidence already on the page (fallback with a warning). */

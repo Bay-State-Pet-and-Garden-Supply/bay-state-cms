@@ -446,6 +446,10 @@ export default defineConfig({
       // T5 (#229) workspace operator flow routes — bun:sqlite via the
       // repository layer; run under bun test via test:db.
       'src/tests/unit/browser-investigation-workspace-routes.test.ts',
+      // #239 broker transport binding — asserts Bun's node:https binding
+      // behavior (the production runtime), which Node-run Vitest cannot
+      // exercise; run under bun test via test:db.
+      'src/tests/unit/browser-investigation-transport-bun.test.ts',
     ],
   },
 });
