@@ -21,7 +21,7 @@
 //   must match the stored investigation, or the apply is rejected as stale.
 //
 // Pure except for its injected dependencies (investigation store, proposal
-// store, version creator), so governance is Vitest-exercisable with memory
+// store, validation store, version creator), so governance is Vitest-exercisable with memory
 // doubles. The SQLite adapters live in `store.ts` / the investigation repo.
 
 import {
@@ -33,8 +33,10 @@ import {
   type ExtractionPolicyProposal,
 } from '../../shared/schemas/browser-investigation-policy';
 import type { InvestigationRecord } from '../../shared/schemas/browser-investigation';
+import { hashCanonicalJson } from '../../shared/stable-id';
 import type { CreateVersionInput } from '../../db/repositories/profile-version-repo';
 import { compileInvestigationResult } from './compiler';
+import type { ProposalValidation, ValidationStore } from './validate';
 import {
   InvestigationServiceError,
   requireScopedInvestigation,
@@ -44,7 +46,15 @@ import {
 export { InvestigationServiceError };
 
 function fail(
-  code: 'invalid_input' | 'invalid_transition' | 'not_found' | 'workspace_mismatch' | 'unappliable_proposal' | 'already_applied' | 'stale_proposal',
+  code:
+    | 'invalid_input'
+    | 'invalid_transition'
+    | 'not_found'
+    | 'workspace_mismatch'
+    | 'unappliable_proposal'
+    | 'already_applied'
+    | 'stale_proposal'
+    | 'validation_untrusted',
   message: string,
 ): never {
   throw new InvestigationServiceError(code, `${code}: ${message}`);
@@ -102,81 +112,152 @@ export interface DraftVersionCreator {
   createVersion(input: CreateVersionInput): { id: string; domain: string; version: number };
 }
 
-export interface ApplyValidationInput {
-  status: 'passed' | 'failed' | 'incomplete' | 'not_run';
-  /** Operator-supplied blockers (bounded strings, preserved verbatim). */
-  blockers?: string[];
-  validationRef?: string;
-  /**
-   * T4: policy hash the validation was computed against. When supplied it
-   * must equal the current proposal's policy hash, or the apply is
-   * rejected as stale — validation can never be replayed onto edited
-   * policy content.
-   */
-  policyHash?: string;
-  /**
-   * T4: blind-holdout evidence bound to the validation (preserved into
-   * the draft validation summary for the non-waivable health bar).
-   */
+/**
+ * #234 server-authoritative apply: the client-submitted validation/holdout
+ * shape was removed from the apply contract. Any `validation` value — and
+ * any smuggled top-level `status` / `holdouts` / holdout-identity /
+ * `policyHash` / `validationRef` / `validationHash` credential — is rejected
+ * as `validation_untrusted` rather than trusted, so blind-holdout
+ * independence stays something neither the operator nor the model can
+ * self-attest. The trusted validation below is loaded from the persisted
+ * server-generated validation record and bound by investigation, proposal,
+ * policy, and validation hashes before anything is copied into the version.
+ */
+export type TrustedApplyValidationStatus = 'passed' | 'failed' | 'incomplete' | 'not_run';
+
+export interface TrustedApplyValidation {
+  status: TrustedApplyValidationStatus;
+  blockers: string[];
   holdouts?: { passed: number; required: number; sampleIds: string[] };
+  validationId?: string;
+  validationHash?: string;
 }
 
-const ApplyValidationInputStatuses = ['passed', 'failed', 'incomplete', 'not_run'] as const;
+const CLIENT_VALIDATION_CREDENTIAL_KEYS = [
+  'validation',
+  'status',
+  'validationStatus',
+  'holdouts',
+  'holdoutPassedCount',
+  'holdoutSampleIds',
+  'sampleIds',
+  'policyHash',
+  'validationRef',
+  'validationHash',
+  'validationId',
+] as const;
 
-type ApplyValidationStatus = ApplyValidationInput['status'];
-
-function parseValidationStatus(raw: unknown): ApplyValidationStatus {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return 'not_run';
-  const status = (raw as Record<string, unknown>).status;
-  return ApplyValidationInputStatuses.includes(status as never)
-    ? (status as ApplyValidationStatus)
-    : 'not_run';
+/**
+ * Reject client-submitted validation credentials. The apply options contract
+ * is `{ workspaceId, investigationId, actor, now? }` — any validation-like
+ * key present with a non-undefined value is a self-attestation attempt.
+ */
+function rejectClientValidationCredentials(options: Record<string, unknown>): void {
+  if (options.validation !== undefined) {
+    fail(
+      'validation_untrusted',
+      'client-submitted validation is not trusted: apply resolves the persisted server-generated validation record',
+    );
+  }
+  for (const key of CLIENT_VALIDATION_CREDENTIAL_KEYS) {
+    if (key === 'validation') continue;
+    if (options[key] !== undefined) {
+      fail(
+        'validation_untrusted',
+        `client-submitted ${key} is not trusted: apply resolves the persisted server-generated validation record`,
+      );
+    }
+  }
 }
 
-function parseBlockerList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((b): b is string => typeof b === 'string' && b.trim().length > 0)
-    .map((b) => b.trim().slice(0, 500))
-    .slice(0, 50);
+function notRunValidation(): TrustedApplyValidation {
+  return { status: 'not_run', blockers: [] };
 }
 
-function parsePolicyHashRef(raw: unknown): string | undefined {
-  if (typeof raw !== 'string' || !/^[a-f0-9]{64}$/.test(raw.trim())) return undefined;
-  return raw.trim();
+function hashPersistedValidationBody(parsed: ProposalValidation): string {
+  return hashCanonicalJson({
+    investigationId: parsed.investigationId,
+    domain: parsed.domain,
+    status: parsed.status,
+    proposalHash: parsed.proposalHash,
+    policyHash: parsed.policyHash,
+    baselineVersionId: parsed.baselineVersionId,
+    samples: parsed.samples,
+    holdouts: parsed.holdouts,
+    blockers: parsed.blockers,
+  });
 }
 
-function parseHoldoutInput(raw: unknown): ApplyValidationInput['holdouts'] {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  const input = raw as { passed?: unknown; required?: unknown; sampleIds?: unknown };
-  const integerOrZero = (value: unknown): number =>
-    typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
-  const sampleIds = Array.isArray(input.sampleIds)
-    ? input.sampleIds
-        .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
-        .map((u) => u.trim().slice(0, 2048))
-        .slice(0, 10)
-    : [];
-  return { passed: integerOrZero(input.passed), required: integerOrZero(input.required), sampleIds };
+function parsePersistedValidation(storedJson: string): ProposalValidation {
+  try {
+    return JSON.parse(storedJson) as ProposalValidation;
+  } catch {
+    fail('validation_untrusted', 'persisted validation record is not parseable');
+  }
 }
 
-function parseValidationInput(raw: unknown): ApplyValidationInput {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { status: 'not_run' };
-  const input = raw as Record<string, unknown>;
-  const status = parseValidationStatus(raw);
-  const blockers = parseBlockerList(input.blockers);
-  const validationRef =
-    typeof input.validationRef === 'string' && input.validationRef.trim()
-      ? input.validationRef.trim().slice(0, 500)
-      : undefined;
-  const policyHash = parsePolicyHashRef(input.policyHash);
-  const holdouts = parseHoldoutInput(input.holdouts);
+/**
+ * Load the persisted server-generated validation record and bind it by
+ * investigation, proposal, policy, and validation hashes. Returns a
+ * `not_run` validation when no record exists (blocked draft, never a
+ * success claim). Tamper or binding failures reject before any version is
+ * created: integrity mismatches fail as `validation_untrusted`,
+ * proposal/policy drift fails as `stale_proposal` (never silently
+ * inherited).
+ */
+function loadTrustedValidation(args: {
+  validations: ValidationStore;
+  workspaceId: string;
+  record: InvestigationRecord;
+  proposalHash: string;
+  policyHash: string;
+}): TrustedApplyValidation {
+  const { validations, workspaceId, record, proposalHash, policyHash } = args;
+  const stored = validations.getValidation(workspaceId, record.id);
+  if (!stored?.validationJson) return notRunValidation();
+  const parsed = parsePersistedValidation(stored.validationJson);
+  if (!stored.validationHash || parsed.validationHash !== stored.validationHash) {
+    fail('validation_untrusted', 'persisted validation hash does not match the stored validation reference');
+  }
+  if (!stored.policyHash || parsed.policyHash !== stored.policyHash) {
+    fail('validation_untrusted', 'persisted validation policy binding does not match the stored validation reference');
+  }
+  if (hashPersistedValidationBody(parsed) !== stored.validationHash) {
+    fail('validation_untrusted', 'persisted validation content does not match its validation hash');
+  }
+  const expectedValidationId = `vval_${stored.validationHash.slice(0, 16)}`;
+  if (parsed.validationId !== expectedValidationId) {
+    fail('validation_untrusted', 'persisted validation id does not match its validation hash');
+  }
+  if (parsed.investigationId !== record.id) {
+    fail('validation_untrusted', 'persisted validation belongs to a different investigation');
+  }
+  if (parsed.domain !== record.domain) {
+    fail('validation_untrusted', 'persisted validation belongs to a different domain');
+  }
+  if (parsed.proposalHash !== proposalHash) {
+    fail('stale_proposal', 'persisted validation was computed against a different proposal');
+  }
+  if (parsed.policyHash !== policyHash || stored.policyHash !== policyHash) {
+    fail('stale_proposal', 'validation was computed against different policy content');
+  }
+  if (parsed.status === 'unappliable') {
+    fail('stale_proposal', 'persisted validation is unappliable and cannot authorize a draft');
+  }
   return {
-    status,
-    blockers,
-    ...(validationRef ? { validationRef } : {}),
-    ...(policyHash ? { policyHash } : {}),
-    ...(holdouts ? { holdouts } : {}),
+    status: parsed.status,
+    blockers: Array.isArray(parsed.blockers) ? parsed.blockers : [],
+    ...(parsed.holdouts
+      ? {
+          holdouts: {
+            required: parsed.holdouts.required,
+            passed: parsed.holdouts.passed,
+            sampleIds: parsed.holdouts.sampleIds,
+          },
+        }
+      : {}),
+    validationId: parsed.validationId,
+    validationHash: parsed.validationHash,
   };
 }
 
@@ -349,31 +430,32 @@ function checkProposalBinding(record: InvestigationRecord, proposal: ProposalOut
   }
 }
 
-/** Coverage gaps plus validation state become preserved draft blockers — never waived. */
-function buildDraftBlockers(gaps: ProposalOutcome['gaps'], validation: ApplyValidationInput): string[] {
+/** Coverage gaps plus trusted validation state become preserved draft blockers — never waived. */
+function buildDraftBlockers(gaps: ProposalOutcome['gaps'], validation: TrustedApplyValidation): string[] {
   return [
     ...gaps.map((g) => `gap:${g.kind}:${g.field ?? 'general'}`),
-    ...(validation.blockers ?? []),
+    ...validation.blockers,
     ...(validation.status === 'passed' ? [] : [`validation:${validation.status}`]),
   ];
 }
 
-/** Blocked-draft validation summary: binding hashes plus preserved blockers, never an image grant. */
+/**
+ * Blocked-draft validation summary: binding hashes plus preserved blockers,
+ * never an image grant. Every field here is server-derived: the trusted
+ * validation was loaded from the persisted record and bound by
+ * investigation/proposal/policy/validation hashes before this ran, so the
+ * version preserves the trusted result instead of a client claim.
+ */
 function draftValidationSummary(args: {
   record: InvestigationRecord;
   proposalHash: string;
   policyHash: string;
   blockers: string[];
-  validation: ApplyValidationInput;
+  validation: TrustedApplyValidation;
   actor: string;
   appliedAt: string;
 }): Record<string, unknown> {
   const { record, proposalHash, policyHash, blockers, validation, actor, appliedAt } = args;
-  // T4: a validation bound to different policy content is stale — edits
-  // invalidate prior validation instead of silently inheriting it.
-  if (validation.policyHash && validation.policyHash !== policyHash) {
-    fail('stale_proposal', 'validation was computed against different policy content');
-  }
   return {
     imageRuleOk: false,
     investigationDerived: true,
@@ -382,8 +464,9 @@ function draftValidationSummary(args: {
     policyHash,
     validationStatus: validation.status,
     blockers,
-    ...(validation.validationRef ? { validationRef: validation.validationRef } : {}),
-    // T4: blind-holdout evidence for the non-waivable health bar.
+    ...(validation.validationId ? { validationRef: validation.validationId } : {}),
+    ...(validation.validationHash ? { validationHash: validation.validationHash } : {}),
+    // Blind-holdout evidence for the non-waivable health bar (server-bound).
     holdoutPassedCount: validation.holdouts?.passed ?? 0,
     ...(validation.holdouts
       ? { holdouts: { required: validation.holdouts.required, passed: validation.holdouts.passed, sampleIds: validation.holdouts.sampleIds } }
@@ -410,7 +493,7 @@ function buildDraftVersionInput(args: {
   proposalHash: string;
   policyHash: string;
   blockers: string[];
-  validation: ApplyValidationInput;
+  validation: TrustedApplyValidation;
   actor: string;
   appliedAt: string;
 }): Parameters<DraftVersionCreator['createVersion']>[0] {
@@ -433,14 +516,39 @@ function buildDraftVersionInput(args: {
 }
 
 /**
- * Apply a compilable proposal as an inactive blocked draft. Accepts failed or
- * incomplete validation — blockers are preserved, never waived — and rejects
- * unappliable outcomes without creating a version.
+ * Apply a compilable proposal as an inactive blocked draft (#234
+ * server-authoritative).
+ *
+ * The persisted server-generated validation record is loaded and bound by
+ * investigation, proposal, policy, and validation hashes before anything is
+ * copied into the version. Client-submitted validation status and holdout
+ * counts/identities are rejected as `validation_untrusted` rather than
+ * trusted. Failed or incomplete trusted validation still applies — blockers
+ * are preserved, never waived — and unappliable outcomes are rejected
+ * without creating a version. No active pointer, no image grant.
  */
 export async function applyProposalToDraft(
-  deps: { investigations: InvestigationStore; proposals: ProposalStore; createVersion: DraftVersionCreator['createVersion'] },
-  options: { workspaceId: string; investigationId: string; actor: string; validation?: unknown; now?: Date },
+  deps: {
+    investigations: InvestigationStore;
+    proposals: ProposalStore;
+    validations: ValidationStore;
+    createVersion: DraftVersionCreator['createVersion'];
+  },
+  options: {
+    workspaceId: string;
+    investigationId: string;
+    actor: string;
+    now?: Date;
+    /**
+     * Removed (#234): client-submitted validation credentials are rejected
+     * as `validation_untrusted`. Retained in the type surface only so old
+     * callers fail closed at runtime instead of silently downgrading to
+     * `not_run`. Honest callers omit it entirely.
+     */
+    validation?: unknown;
+  },
 ): Promise<ApplyProposalResult> {
+  rejectClientValidationCredentials(options as Record<string, unknown>);
   const actor = options.actor?.trim();
   if (!actor) fail('invalid_input', 'apply actor required');
   const { record, proposal, gaps, stored } = resolveAppliableProposal(
@@ -449,8 +557,6 @@ export async function applyProposalToDraft(
     options.investigationId,
     options.now,
   );
-  const validation = parseValidationInput(options.validation);
-  const blockers = buildDraftBlockers(gaps, validation);
   const proposalHash = hashProposal(proposal);
   const policyHash = hashPolicyContent({
     platform: proposal.platform,
@@ -459,6 +565,14 @@ export async function applyProposalToDraft(
     identity: proposal.identity,
     renderedBrowserRequired: proposal.renderedBrowserRequired,
   });
+  const validation = loadTrustedValidation({
+    validations: deps.validations,
+    workspaceId: options.workspaceId,
+    record,
+    proposalHash,
+    policyHash,
+  });
+  const blockers = buildDraftBlockers(gaps, validation);
   const appliedAt = (options.now ?? new Date()).toISOString();
   const created = deps.createVersion(
     buildDraftVersionInput({ record, proposal, proposalHash, policyHash, blockers, validation, actor, appliedAt }),

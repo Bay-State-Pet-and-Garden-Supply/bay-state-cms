@@ -42,7 +42,7 @@ import {
   type InvestigationStore,
 } from '../../onboarding/browser-investigation/service';
 import { createSqliteInvestigationStore, createSqliteProposalStore, createSqliteValidationStore } from '../../onboarding/browser-investigation/store';
-import { applyProposalToDraft, compileProposalForInvestigation, type ApplyProposalResult, type ApplyValidationInput } from '../../onboarding/browser-investigation/apply';
+import { applyProposalToDraft, compileProposalForInvestigation, type ApplyProposalResult } from '../../onboarding/browser-investigation/apply';
 import {
   getProposalValidation,
   validateProposal,
@@ -111,6 +111,7 @@ const INVESTIGATION_HTTP_STATUS: Readonly<Record<string, InvestigationHttpStatus
   stale_completion: 409,
   replay_rejected: 409,
   cancelled: 409,
+  validation_untrusted: 400,
   holdout_exposed: 422,
   reserved_holdout_dropped: 422,
   unappliable_proposal: 422,
@@ -392,25 +393,37 @@ const DiscardBodySchema = z.object({
 //      (requires_code_adapter / unresolved) are rejected with 422 and
 //      create no version.
 
+// #234 server-authoritative apply: the contract is `{ actor }` only.
+// Client-submitted validation status and holdout counts/identities are
+// rejected as `validation_untrusted` credentials rather than trusted — the
+// service loads the persisted server-generated validation record and binds
+// it by investigation/proposal/policy/validation hashes.
 const ApplyBodySchema = z.object({
   actor: z.string().min(1),
-  validation: z
-    .object({
-      status: z.enum(['passed', 'failed', 'incomplete', 'not_run']),
-      blockers: z.array(z.string().min(1).max(500)).max(50).optional(),
-      validationRef: z.string().min(1).max(500).optional(),
-      // T4: validation-to-proposal binding plus blind-holdout evidence.
-      policyHash: z.string().length(64).optional(),
-      holdouts: z
-        .object({
-          passed: z.number().int().min(0),
-          required: z.number().int().min(0),
-          sampleIds: z.array(z.string().min(1).max(2048)).max(10).default([]),
-        })
-        .optional(),
-    })
-    .optional(),
-});
+}).strict();
+
+const APPLY_CLIENT_CREDENTIAL_KEYS = [
+  'validation',
+  'status',
+  'validationStatus',
+  'holdouts',
+  'holdoutPassedCount',
+  'holdoutSampleIds',
+  'sampleIds',
+  'policyHash',
+  'validationRef',
+  'validationHash',
+  'validationId',
+] as const;
+
+function applyClientCredentialOf(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const body = raw as Record<string, unknown>;
+  for (const key of APPLY_CLIENT_CREDENTIAL_KEYS) {
+    if (body[key] !== undefined) return key;
+  }
+  return null;
+}
 
 browserInvestigationRoutes.get('/domains/:domain/investigations/:id/proposal', (c) => {
   const ctx = c as never as RouteContext;
@@ -426,23 +439,32 @@ browserInvestigationRoutes.get('/domains/:domain/investigations/:id/proposal', (
 
 browserInvestigationRoutes.post('/domains/:domain/investigations/:id/apply', async (c) => {
   const raw = await c.req.json().catch(() => ({}));
+  const credential = applyClientCredentialOf(raw);
+  if (credential) {
+    return c.json(
+      {
+        error: `validation_untrusted: client-submitted ${credential} is not trusted`,
+        code: 'validation_untrusted',
+      },
+      400,
+    );
+  }
   const parsed = ApplyBodySchema.safeParse(raw);
   if (!parsed.success) {
     return c.json({ error: 'Apply actor required', details: parsed.error.format() }, 400);
   }
   return withInvestigationScope(c as never, 201, async (workspaceId, store) => {
-    const validation: ApplyValidationInput | undefined = parsed.data.validation;
     const applied: ApplyProposalResult = await applyProposalToDraft(
       {
         investigations: store,
         proposals: createSqliteProposalStore(),
+        validations: createSqliteValidationStore(),
         createVersion: (input) => createVersion({ ...input, runtime: input.runtime as 'static' | 'rendered' }),
       },
       {
         workspaceId,
         investigationId: (c as never as RouteContext).req.param('id') ?? '',
         actor: parsed.data.actor,
-        validation,
       },
     );
     return {

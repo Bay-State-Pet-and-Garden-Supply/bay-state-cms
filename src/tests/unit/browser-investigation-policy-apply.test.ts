@@ -16,6 +16,7 @@ import {
   type InvestigationRecord,
 } from '../../shared/schemas/browser-investigation';
 import { isPolicyBindingIntact, POLICY_FIELDS } from '../../shared/schemas/browser-investigation-policy';
+import { hashCanonicalJson } from '../../shared/stable-id';
 import {
   applyProposalToDraft,
   compileProposalForInvestigation,
@@ -25,6 +26,7 @@ import {
   type DraftVersionCreator,
   type ProposalStore,
 } from '../../onboarding/browser-investigation/apply';
+import { createMemoryValidationStore } from '../../onboarding/browser-investigation/validate';
 import { memoryInvestigationsFor } from './helpers/browser-investigation-memory-store';
 
 const WS = 'ws-apply-governance';
@@ -123,7 +125,7 @@ function capturingCreator() {
 interface ApplyHarness {
   record: InvestigationRecord;
   created: Array<Record<string, unknown>>;
-  invoke: (opts?: { actor?: string; validation?: unknown; workspaceId?: string }) => Promise<ApplyProposalResult>;
+  invoke: (opts?: { actor?: string; workspaceId?: string }) => Promise<ApplyProposalResult>;
   deps: Parameters<typeof applyProposalToDraft>[0];
 }
 
@@ -134,6 +136,7 @@ function setupApply(recordOverrides: Partial<InvestigationRecord> = {}): ApplyHa
   const deps: Parameters<typeof applyProposalToDraft>[0] = {
     investigations: memoryInvestigationsFor(record),
     proposals: createMemoryProposalStore(),
+    validations: createMemoryValidationStore(),
     createVersion: creator.createVersion,
   };
   return {
@@ -145,21 +148,73 @@ function setupApply(recordOverrides: Partial<InvestigationRecord> = {}): ApplyHa
         workspaceId: opts.workspaceId ?? WS,
         investigationId: record.id,
         actor: opts.actor ?? 'operator-1',
-        ...(opts.validation !== undefined ? { validation: opts.validation } : {}),
       }),
   };
 }
 
-describe('browser investigation apply governance (T2)', () => {
+/**
+ * Seed a persisted server-generated failed validation so the blocked-draft
+ * path can prove blocker preservation without trusting client input (#234).
+ */
+async function seedFailedValidation(
+  deps: ApplyHarness['deps'],
+  record: InvestigationRecord,
+  blockers: string[],
+): Promise<void> {
+  const outcome = await compileProposalForInvestigation(
+    { investigations: deps.investigations, proposals: deps.proposals },
+    WS,
+    record.id,
+  );
+  if (outcome.status !== 'proposal') throw new Error('fixture must compile');
+  const { hashPolicyContent, hashProposal } = await import(
+    '../../shared/schemas/browser-investigation-policy'
+  );
+  const proposalHash = hashProposal(outcome.proposal);
+  const policyHash = hashPolicyContent({
+    platform: outcome.proposal.platform,
+    structures: outcome.proposal.structures,
+    fields: outcome.proposal.fields,
+    identity: outcome.proposal.identity,
+    renderedBrowserRequired: outcome.proposal.renderedBrowserRequired,
+  });
+  const body = {
+    investigationId: record.id,
+    domain: record.domain,
+    status: 'failed',
+    proposalHash,
+    policyHash,
+    baselineVersionId: null,
+    samples: [],
+    holdouts: { required: 1, passed: 0, sampleIds: [] },
+    blockers,
+  } as const;
+  const validationHash = hashCanonicalJson(body);
+  deps.validations.saveValidation(
+    WS,
+    record.id,
+    JSON.stringify({
+      ...body,
+      validationId: `vval_${validationHash.slice(0, 16)}`,
+      validatedAt: new Date().toISOString(),
+      validationHash,
+    }),
+    validationHash,
+    policyHash,
+    new Date().toISOString(),
+  );
+}
+
+describe('browser investigation apply governance (T2; server-authoritative since #234)', () => {
   it('publishes a sanitized inactive draft with blockers preserved and image review ungranted', async () => {
     const { record, created, deps } = setupApply();
     // Inactive by construction: the apply path has no active-pointer writer.
     expect('setActiveVersion' in deps).toBe(false);
+    await seedFailedValidation(deps, record, ['representative price mismatch']);
     const out = await applyProposalToDraft(deps, {
       workspaceId: WS,
       investigationId: record.id,
       actor: 'operator-1',
-      validation: { status: 'failed', blockers: ['representative price mismatch'] },
     });
     expect(created).toHaveLength(1);
     const input = created[0]!;
@@ -178,6 +233,19 @@ describe('browser investigation apply governance (T2)', () => {
     expect(provenance.provider).toBe('browser-investigation');
     expect(String(input.reason)).toContain(record.id);
     expect(out.appliedVersionId).toBe('ver_blocked_1');
+  });
+
+  it('rejects client-submitted validation credentials instead of trusting them (#234)', async () => {
+    const { record, created, deps } = setupApply();
+    await expect(
+      applyProposalToDraft(deps, {
+        workspaceId: WS,
+        investigationId: record.id,
+        actor: 'operator-1',
+        validation: { status: 'passed' },
+      }),
+    ).rejects.toMatchObject({ code: 'validation_untrusted' });
+    expect(created).toHaveLength(0);
   });
 
   it('applies compilable proposals with incomplete validation without implying success', async () => {
