@@ -13,11 +13,11 @@
  *   approved items park inside the boundary, terminal generations never
  *   replay.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -53,12 +53,16 @@ const WS = 'ws-collection-read';
 // File DB path owned by the first suite's beforeAll. Bun runs
 // describe-level afterAll (closeDb + rm) before later describes, so the
 // follow-up suites below re-open + re-migrate the same file first.
+// eslint-disable-next-line prefer-const
+let tempDir = '';
 let followupDbPath = '';
 
 function ensureFollowupDb(): void {
   if (!followupDbPath) throw new Error('collection-read file DB path not set');
-  initDb(followupDbPath);
-  runMigrations();
+  if (!isDbInitialized()) {
+    initDb(followupDbPath);
+    runMigrations();
+  }
 }
 
 function currentRevision(brand: string): number {
@@ -118,7 +122,6 @@ describe('stage-one collection read', () => {
 
   afterAll(() => {
     closeDb();
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -403,7 +406,7 @@ describe('stage-one collection read', () => {
     await (worker as unknown as { processSourcing: (item: unknown) => Promise<void> }).processSourcing(findItemById(item.id));
     const after = findItemById(item.id);
     expect(after?.stageStatus).toBe('needs_input');
-    expect(['sourcing', 'route_sources']).toContain(after?.stage);
+    expect(['sourcing', 'route_sources']).toContain(after?.stage ?? '');
   });
 
   it('zero-identifier approved items park inside the boundary; terminal generations never replay', async () => {
@@ -419,7 +422,7 @@ describe('stage-one collection read', () => {
     const parked = findItemById(noId.id);
     // Parked inside the approved boundary — never fallback_to_discovery.
     expect(parked?.stageStatus).toBe('needs_input');
-    expect(['sourcing', 'route_sources']).toContain(parked?.stage);
+    expect(['sourcing', 'route_sources']).toContain(parked?.stage ?? '');
     // Terminal generation: no replay, no new attempts.
     const done = makeItem(batch.id, { upc: '012345678912', brandHint: 'Acana' });
     const gen = startSourcingGeneration(done.id);
@@ -494,6 +497,7 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -613,7 +617,7 @@ describe('stage-one activation follow-ups (isolated workspace)', () => {
       // Sourcing completed inside the boundary and the item continued
       // toward preparation (the worker chains extraction inline, so the
       // recorded stage may already be extraction — never a fallback).
-      expect(['collect_details', 'extraction']).toContain(after?.stage);
+      expect(['collect_details', 'extraction']).toContain(after?.stage ?? '');
     } finally {
       resetSourcingFlagsOverride();
     }
@@ -700,6 +704,7 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -757,6 +762,11 @@ function ws3Read(batchId: string) {
 describe('stage-one activation follow-ups II (isolated workspace)', () => {
   beforeAll(() => {
     ensureFollowupDb();
+  });
+
+  afterAll(() => {
+    closeDb();
+    if (tempDir && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('connection repair flips setup_attention to ready with zero new collection work (F5)', () => {
@@ -928,7 +938,7 @@ describe('stage-one activation follow-ups II (isolated workspace)', () => {
       const after = findItemById(item.id);
       expect((after?.sourcingDecision as { route?: string } | null)?.route).toBe('needs_input_conflict');
       expect(after?.stageStatus).toBe('needs_input');
-      expect(['sourcing', 'route_sources']).toContain(after?.stage);
+      expect(['sourcing', 'route_sources']).toContain(after?.stage ?? '');
     } finally {
       resetSourcingFlagsOverride();
     }

@@ -23,7 +23,14 @@
  * bundle, the llm-client mock). pr8–pr11 acceptance suites stay green as the
  * frozen regression for the gate semantics PR12 refines.
  */
-import { describe, it, expect, beforeAll, afterAll, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, afterEach, mock, spyOn } from 'bun:test';
+import * as dnsPromises from 'node:dns/promises';
+
+beforeAll(() => {
+  spyOn(dnsPromises, 'lookup').mockImplementation((async () => [
+    { address: '93.184.215.14', family: 4 },
+  ]) as any);
+});
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
