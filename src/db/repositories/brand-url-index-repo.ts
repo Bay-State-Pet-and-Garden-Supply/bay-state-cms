@@ -1,6 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { canonicalGtinMatch, normalizeGtinDigits } from '../../shared/gtin';
+import { canonicalGtinMatch, normalizeGtin, normalizeGtinDigits } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -261,20 +261,20 @@ export function findUrlsByDomain(
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
   const db = getDb();
   const normDomain = normalizeDomain(domain);
-  const cleanUpc = normalizeGtinDigits(upc);
-  if (!cleanUpc) return null;
+  const normUpc = normalizeGtin(upc);
+  if (!normUpc) return null;
 
   const candidateGtins = new Set<string>();
-  candidateGtins.add(cleanUpc);
-  if (cleanUpc.length === 12) {
-    candidateGtins.add(`0${cleanUpc}`);
-    candidateGtins.add(`00${cleanUpc}`);
-  } else if (cleanUpc.length === 13) {
-    candidateGtins.add(`0${cleanUpc}`);
-    if (cleanUpc.startsWith('0')) candidateGtins.add(cleanUpc.slice(1));
-  } else if (cleanUpc.length === 14) {
-    if (cleanUpc.startsWith('00')) candidateGtins.add(cleanUpc.slice(2));
-    if (cleanUpc.startsWith('0')) candidateGtins.add(cleanUpc.slice(1));
+  candidateGtins.add(normUpc);
+  if (normUpc.length === 12) {
+    candidateGtins.add(`0${normUpc}`);
+    candidateGtins.add(`00${normUpc}`);
+  } else if (normUpc.length === 13) {
+    candidateGtins.add(`0${normUpc}`);
+    if (normUpc.startsWith('0')) candidateGtins.add(normUpc.slice(1));
+  } else if (normUpc.length === 14) {
+    if (normUpc.startsWith('00')) candidateGtins.add(normUpc.slice(2));
+    if (normUpc.startsWith('0')) candidateGtins.add(normUpc.slice(1));
   }
 
   // 1. Direct indexed match on enriched upc column
@@ -638,7 +638,7 @@ export function indexVariantUrls(domain: string, variants: VariantUrlInput[]): n
       const u = v.url.trim();
       if (!u || !u.startsWith('http')) continue;
 
-      const cleanUpc = v.upc ? v.upc.replace(/\D/g, '').trim() : null;
+      const cleanUpc = v.upc ? normalizeGtin(v.upc) ?? normalizeGtinDigits(v.upc) : null;
       const cleanSku = v.sku ? v.sku.trim() : null;
       const cleanMpn = v.mpn ? v.mpn.trim() : null;
       const variantJson = v.variantTokens && v.variantTokens.length > 0 ? JSON.stringify(v.variantTokens) : null;

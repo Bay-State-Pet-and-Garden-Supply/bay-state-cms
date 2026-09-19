@@ -157,6 +157,19 @@ describe('Sitemap Matcher', () => {
       expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
     });
 
+    test('non-GTIN codes (e.g. 4-digit or 6-digit BCI item numbers) do not match as UPC exact', async () => {
+      const urls = [
+        'https://mywoof.com/products/item-1234',
+        'https://mywoof.com/products/item-001135',
+      ];
+
+      const res1234 = await matchSitemapUrls(urls, 'Test Product', null, '1234', 'mywoof.com');
+      expect(res1234.some(r => r.matchType === 'upc_exact')).toBe(false);
+
+      const res001135 = await matchSitemapUrls(urls, 'Test Product', null, '001135', 'mywoof.com');
+      expect(res001135.some(r => r.matchType === 'upc_exact')).toBe(false);
+    });
+
   // ── Pass 2: product URL filter ────────────────────────────────────────
 
   test('generic filter keeps /products/, /p/, /shop/, /item/, /dp/ paths only', async () => {
