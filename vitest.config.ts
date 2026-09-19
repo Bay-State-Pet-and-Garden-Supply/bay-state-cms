@@ -63,6 +63,7 @@ export default defineConfig({
       'src/tests/integration/drift-existing-hunks.test.ts',
       'src/tests/integration/drift-canonical-baseline.test.ts',
       'src/tests/integration/drift-bulk-resolution.test.ts',
+      'src/tests/integration/drift-trust-remote.test.ts',
       'src/tests/integration/drift-retention.test.ts',
       'src/tests/integration/drift-canonical-backfill.test.ts',
       'src/tests/unit/onboarding-repos.test.ts',

@@ -1,7 +1,8 @@
 /**
- * Filter-scoped bulk resolution through the reviewed change path (issue #254).
+ * Filter-scoped bulk resolution through the reviewed change path (issue #254),
+ * plus explicit trust-remote scope "*" (issue #270).
  *
- * Bulk resolution is scoped to an explicit field filter, freezes the reviewed
+ * Bulk resolution is scoped to an explicit filter, freezes the reviewed
  * selection before approval (explicit filter + hunk versions + baseline
  * reference + count + confirmation), and commits through one bounded reviewed
  * change set mapping to one commit — never as a side channel.
@@ -72,6 +73,16 @@ import type { Product } from '../shared/types';
 export const DRIFT_BULK_MAX_HUNKS = 50;
 /** Processing batch size: merges + filename checks run per batch so cross-batch collisions are caught. */
 export const DRIFT_BULK_BATCH_SIZE = 10;
+/**
+ * Explicit trust-remote scope (#270): accept all eligible fields in one
+ * reviewable action. Still explicit — bare/omitted scope continues to fail
+ * rather than defaulting here.
+ */
+export const TRUST_REMOTE_SCOPE = '*';
+
+export function isTrustRemoteScope(field: string): boolean {
+  return field === TRUST_REMOTE_SCOPE;
+}
 
 export interface FrozenBulkHunk {
   driftId: string;
@@ -129,11 +140,12 @@ function fail(status: number, message: string): never {
 
 function requireFieldScope(field: unknown): string {
   if (typeof field !== 'string' || field.trim() === '') {
-    fail(400, 'Bulk resolution requires an explicit filter scope: supply a non-empty "field" (e.g. "core.price"). Unscoped accept-everything is not offered.');
+    fail(400, 'Bulk resolution requires an explicit filter scope: supply a non-empty "field" (e.g. "core.price") or "*" for all eligible fields. Bare accept-everything is not offered.');
   }
   const trimmed = (field as string).trim();
+  if (isTrustRemoteScope(trimmed)) return trimmed;
   if (!isSupportedHunkField(trimmed)) {
-    fail(400, `Unsupported bulk field "${trimmed}". Bulk acceptance applies one supported comparison field per run.`);
+    fail(400, `Unsupported bulk field "${trimmed}". Bulk acceptance applies one supported comparison field per run, or "*" for trust-remote.`);
   }
   return trimmed;
 }
@@ -150,6 +162,7 @@ export function freezeBulkSelection(
   fieldInput: string,
 ): BulkFreezeResult {
   const field = requireFieldScope(fieldInput);
+  const trustAll = isTrustRemoteScope(field);
 
   let baselineCommit: string | null = null;
   try {
@@ -170,7 +183,9 @@ export function freezeBulkSelection(
     // Read the blocking queue (open + in_reconcile): per-hunk held checks
     // below skip frozen-linked fields, so unrelated hunks on
     // reconcile-linked rows stay bulk-eligible (#257 field isolation).
-    const page = listDrift(workspaceId, 'blocking', DRIFT_BULK_PAGE_SIZE, offset, field);
+    // Trust-remote reads unfiltered and fans out per hunk; single-field
+    // keeps the DB prefilter.
+    const page = listDrift(workspaceId, 'blocking', DRIFT_BULK_PAGE_SIZE, offset, trustAll ? undefined : field);
     if (page.length === 0) {
       queueExhausted = true;
       break;
@@ -183,7 +198,7 @@ export function freezeBulkSelection(
         continue;
       }
       for (const h of hunks) {
-        if (h.field !== field) continue;
+        if (!trustAll && h.field !== field) continue;
         if (h.heldReason) {
           heldSkipped += 1;
           continue;
@@ -225,6 +240,7 @@ export function freezeBulkSelection(
 
   frozen.sort((a, b) => {
     if (a.sku !== b.sku) return a.sku < b.sku ? -1 : 1;
+    if (a.field !== b.field) return a.field < b.field ? -1 : 1;
     if ((a.remoteValue ?? '') !== (b.remoteValue ?? '')) return (a.remoteValue ?? '') < (b.remoteValue ?? '') ? -1 : 1;
     if ((a.baselineValue ?? '') !== (b.baselineValue ?? '')) return (a.baselineValue ?? '') < (b.baselineValue ?? '') ? -1 : 1;
     return a.driftId < b.driftId ? -1 : 1;
@@ -243,8 +259,18 @@ export function freezeBulkSelection(
   };
 }
 
-interface ValidatedMerge {
+interface PerHunkValidated {
   frozen: FrozenBulkHunk;
+  driftId: string;
+  sku: string;
+  baseline: Product;
+  remote: Product;
+  remoteHash: string;
+  parsedBaselineCommit: string | null;
+}
+
+interface ValidatedMerge {
+  frozenHunks: FrozenBulkHunk[];
   driftId: string;
   sku: string;
   merged: Product;
@@ -300,6 +326,7 @@ export function approveBulkSelection(
   hooks?: BulkTestHooks,
 ): BulkApproveResult {
   const field = requireFieldScope(input.field);
+  const trustAll = isTrustRemoteScope(field);
 
   if (!Array.isArray(input.hunks) || input.hunks.length === 0) {
     fail(400, 'Bulk approval requires a non-empty frozen hunk selection. Freeze first, then confirm.');
@@ -311,8 +338,14 @@ export function approveBulkSelection(
     fail(400, `Bulk selection exceeds the whole-path bound of ${DRIFT_BULK_MAX_HUNKS} hunks (${input.hunks.length} supplied). Narrow the filter or approve in batches.`);
   }
   for (const h of input.hunks) {
-    if (!h.driftId || !h.sku || h.field !== field) {
+    if (!h.driftId || !h.sku || !h.field) {
+      fail(400, `Frozen selection mismatch: every hunk must carry driftId, sku, and field. Newly arriving matches are excluded — re-freeze to include them.`);
+    }
+    if (!trustAll && h.field !== field) {
       fail(400, `Frozen selection mismatch: every hunk must carry driftId, sku, and field "${field}". Newly arriving matches are excluded — re-freeze to include them.`);
+    }
+    if (trustAll && !isSupportedHunkField(h.field)) {
+      fail(400, `Frozen selection mismatch: trust-remote hunk field "${h.field}" is not supported. Re-freeze to exclude it.`);
     }
   }
 
@@ -332,7 +365,6 @@ export function approveBulkSelection(
   const skippedStale: BulkApproveResult['skippedStale'] = [];
   const skippedHeld: BulkApproveResult['skippedHeld'] = [];
   const failed: BulkApproveResult['failed'] = [];
-  const candidates: ValidatedMerge[] = [];
 
   // Current comparison context for staleness checks.
   const currentPageHash: string | null = (() => {
@@ -344,10 +376,13 @@ export function approveBulkSelection(
   })();
   const currentCtx = buildComparisonContext(currentPageHash);
 
-  // Per-hunk revalidation in bounded batches.
+  // Per-hunk revalidation in bounded batches, then grouped per product so
+  // trust-remote merges every eligible field for one SKU into one draft.
+  const perHunk: PerHunkValidated[] = [];
   for (let batchStart = 0; batchStart < input.hunks.length; batchStart += DRIFT_BULK_BATCH_SIZE) {
     const batch = input.hunks.slice(batchStart, batchStart + DRIFT_BULK_BATCH_SIZE);
     for (const frozen of batch) {
+      const hunkField = trustAll ? frozen.field : field;
       const drift = findDriftById(frozen.driftId);
       if (!drift || drift.workspaceId !== workspaceId) {
         skippedStale.push({ driftId: frozen.driftId, sku: frozen.sku, reason: 'already-resolved-or-foreign' });
@@ -370,7 +405,7 @@ export function approveBulkSelection(
         failed.push({ driftId: frozen.driftId, sku: frozen.sku, reason: 'unreadable-diff' });
         continue;
       }
-      const held = heldReasonForHunk(drift, parsed, field, {
+      const held = heldReasonForHunk(drift, parsed, hunkField, {
         reconciledFields: getReconciledFieldsForDrift(drift),
         hunk: { baselineValue: frozen.baselineValue, remoteValue: frozen.remoteValue },
       });
@@ -378,7 +413,7 @@ export function approveBulkSelection(
         skippedHeld.push({ driftId: frozen.driftId, sku: frozen.sku, reason: held });
         continue;
       }
-      if (!isSupportedHunkField(field)) {
+      if (!isSupportedHunkField(hunkField)) {
         skippedHeld.push({ driftId: frozen.driftId, sku: frozen.sku, reason: 'unsupported-field' });
         continue;
       }
@@ -393,7 +428,7 @@ export function approveBulkSelection(
       }
       const norm = (v: string | null | undefined): string => v ?? '';
       const match = parsed.hunks.find(
-        (h) => h.field === field && norm(h.baselineValue) === norm(frozen.baselineValue) && norm(h.remoteValue) === norm(frozen.remoteValue),
+        (h) => h.field === hunkField && norm(h.baselineValue) === norm(frozen.baselineValue) && norm(h.remoteValue) === norm(frozen.remoteValue),
       );
       if (!match) {
         skippedStale.push({ driftId: frozen.driftId, sku: frozen.sku, reason: 'hunk-superseded' });
@@ -454,23 +489,107 @@ export function approveBulkSelection(
         failed.push({ driftId: frozen.driftId, sku: frozen.sku, reason: 'injected-merge-failure' });
         continue;
       }
-      let merged: Product;
-      try {
-        merged = applySingleFieldHunk(baselineProduct, remoteProduct, field);
-      } catch (e) {
-        failed.push({ driftId: frozen.driftId, sku: frozen.sku, reason: e instanceof Error ? e.message : String(e) });
-        continue;
-      }
-      candidates.push({
+      perHunk.push({
         frozen,
         driftId: drift.id,
         sku: drift.sku,
-        merged,
         baseline: baselineProduct,
         remote: remoteProduct,
         remoteHash: drift.remoteHash,
         parsedBaselineCommit: parsed.baselineCommit,
       });
+    }
+  }
+
+  // Group validated hunks per product and merge every eligible field with
+  // field isolation (one draft per SKU, never wholesale overwrite).
+  const candidates: ValidatedMerge[] = [];
+  {
+    const byDrift = new Map<string, PerHunkValidated[]>();
+    for (const p of perHunk) {
+      const list = byDrift.get(p.driftId) ?? [];
+      list.push(p);
+      byDrift.set(p.driftId, list);
+    }
+    const orderedDriftIds = [...byDrift.keys()].sort((a, b) => {
+      const sa = byDrift.get(a)![0].sku;
+      const sb = byDrift.get(b)![0].sku;
+      if (sa !== sb) return sa < sb ? -1 : 1;
+      return a < b ? -1 : 1;
+    });
+    for (const driftId of orderedDriftIds) {
+      let group = byDrift.get(driftId)!;
+      group.sort((a, b) => (a.frozen.field < b.frozen.field ? -1 : a.frozen.field > b.frozen.field ? 1 : 0));
+      // Fail closed for page assignments: the productOnPages merge copies the
+      // whole remote list, so a held unverified page would ship silently even
+      // though its hunk was excluded from the freeze. Hold the page fields
+      // when the row carries any held page hunk; non-page fields still merge.
+      if (group.some((g) => g.frozen.field === 'core.productOnPages')) {
+        try {
+          const liveDrift = findDriftById(driftId);
+          if (liveDrift) {
+            const liveParsed = parseDriftDiff(liveDrift);
+            const reconciled = getReconciledFieldsForDrift(liveDrift);
+            const anyHeldPage = liveParsed.hunks.some(
+              (ph) =>
+                ph.field === 'core.productOnPages' &&
+                heldReasonForHunk(liveDrift, liveParsed, ph.field, {
+                  reconciledFields: reconciled,
+                  hunk: { baselineValue: ph.baselineValue, remoteValue: ph.remoteValue },
+                }),
+            );
+            if (anyHeldPage) {
+              const kept: PerHunkValidated[] = [];
+              for (const g of group) {
+                if (g.frozen.field === 'core.productOnPages') {
+                  skippedHeld.push({ driftId: g.driftId, sku: g.sku, reason: 'unavailable_assignment' });
+                } else {
+                  kept.push(g);
+                }
+              }
+              if (kept.length === 0) continue;
+              group = kept;
+            }
+          }
+        } catch {
+          // Parse failure: hold page hunks rather than risk silent overwrite.
+          const kept: PerHunkValidated[] = [];
+          for (const g of group) {
+            if (g.frozen.field === 'core.productOnPages') {
+              skippedHeld.push({ driftId: g.driftId, sku: g.sku, reason: 'unavailable_assignment' });
+            } else {
+              kept.push(g);
+            }
+          }
+          if (kept.length === 0) continue;
+          group = kept;
+        }
+      }
+      const first = group[0];
+      if (hooks?.failOnSku === first.sku) {
+        for (const g of group) failed.push({ driftId: g.driftId, sku: g.sku, reason: 'injected-merge-failure' });
+        continue;
+      }
+      try {
+        let merged: Product = first.baseline;
+        for (const g of group) {
+          merged = applySingleFieldHunk(merged, first.remote, g.frozen.field);
+        }
+        // Baselines/remotes agree within one drift row; keep the first copy.
+        candidates.push({
+          frozenHunks: group.map((g) => g.frozen),
+          driftId: first.driftId,
+          sku: first.sku,
+          merged,
+          baseline: first.baseline,
+          remote: first.remote,
+          remoteHash: first.remoteHash,
+          parsedBaselineCommit: first.parsedBaselineCommit,
+        });
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        for (const g of group) failed.push({ driftId: g.driftId, sku: g.sku, reason });
+      }
     }
   }
 
@@ -545,7 +664,7 @@ export function approveBulkSelection(
       // Cross-batch reservation: later batches see this claim.
       if (!bulkClaimed.has(key)) bulkClaimed.set(key, c.sku);
       // Filename-field merges get the strict reimport disposition too.
-      if (isFilenameField(field)) {
+      if (c.frozenHunks.some((fh) => isFilenameField(fh.field))) {
         const disposition = resolveReimportFilename(effective, c.sku, owners);
         if (disposition.action === 'hold_collision') {
           failed.push({ driftId: c.driftId, sku: c.sku, reason: `IMPORT_FILENAME_COLLISION: "${disposition.name}" owned by ${disposition.ownerSku}` });
@@ -574,10 +693,16 @@ export function approveBulkSelection(
 
   // One bounded reviewed change set for the whole bulk.
   const baseCommit = currentHead ?? frozenHead ?? 'unknown';
+  const collisionHunkCount = collisionFree.reduce((n, c) => n + c.frozenHunks.length, 0);
+  const bulkTitle = trustAll
+    ? `Drift bulk accept * (${collisionHunkCount} hunk(s) across ${collisionFree.length} product(s))`
+    : `Drift bulk accept ${field} (${collisionFree.length} hunk(s))`;
   const changeSet = createChangeSet({
     workspaceId,
-    title: `Drift bulk accept ${field} (${collisionFree.length} hunk(s))`,
-    description: `Filter-scoped bulk resolution through the reviewed change path. Field: ${field}. Frozen baseline: ${frozenHead ?? 'unknown'}.`,
+    title: bulkTitle,
+    description: trustAll
+      ? `Trust-remote bulk resolution through the reviewed change path. Scope: all eligible fields. Frozen baseline: ${frozenHead ?? 'unknown'}.`
+      : `Filter-scoped bulk resolution through the reviewed change path. Field: ${field}. Frozen baseline: ${frozenHead ?? 'unknown'}.`,
     baseCommit,
   });
 
@@ -609,7 +734,9 @@ export function approveBulkSelection(
         .flatMap((i) => i.results.filter((r) => r.severity === 'blocker').map((r) => `${i.sku}: ${r.message}`))
         .slice(0, DRIFT_BULK_MAX_HUNKS);
       for (const c of collisionFree) {
-        failed.push({ driftId: c.driftId, sku: c.sku, reason: 'change-set-validation-blocked' });
+        for (let hi = 0; hi < c.frozenHunks.length; hi++) {
+          failed.push({ driftId: c.driftId, sku: c.sku, reason: 'change-set-validation-blocked' });
+        }
       }
       return {
         field,
@@ -635,7 +762,7 @@ export function approveBulkSelection(
         throw new Error(`Injected write failure for ${c.sku}.`);
       }
       writeProductFile(workspacePath, c.merged);
-      if (field === 'core.productOnPages') {
+      if (c.frozenHunks.some((fh) => fh.field === 'core.productOnPages')) {
         try {
           indexProductPageAssignments(c.merged);
         } catch {
@@ -690,7 +817,7 @@ export function approveBulkSelection(
         status = git.status();
       }
       if (status) {
-        commitOnlyFiles(workspacePath, uniqueFiles, `Drift bulk accept ${field} (${collisionFree.length} hunk(s))`, hooks);
+        commitOnlyFiles(workspacePath, uniqueFiles, bulkTitle, hooks);
         commitHash = git.getHeadHash() || null;
       } else {
         commitHash = git.getHeadHash() || baseCommit;
@@ -716,8 +843,10 @@ export function approveBulkSelection(
         const newBaselineProjection = buildComparisonProjection(c.merged);
         const remoteProjection = buildComparisonProjection(c.remote);
         const newHunks = diffComparisonProjections(newBaselineProjection, remoteProjection);
-        const acceptedStillDiffers = newHunks.some(
-          (h) => h.field === field && (h.baselineValue ?? '') === (c.frozen.baselineValue ?? '') && (h.remoteValue ?? '') === (c.frozen.remoteValue ?? ''),
+        const acceptedStillDiffers = newHunks.some((h) =>
+          c.frozenHunks.some(
+            (fh) => h.field === fh.field && (h.baselineValue ?? '') === (fh.baselineValue ?? '') && (h.remoteValue ?? '') === (fh.remoteValue ?? ''),
+          ),
         );
         if (acceptedStillDiffers) {
           failed.push({ driftId: c.driftId, sku: c.sku, reason: 'acceptance-did-not-converge' });
@@ -747,29 +876,38 @@ export function approveBulkSelection(
     }
 
     // Bounded audit trail: one event per accepted hunk + one bulk summary.
-    const auditCap = Math.min(resolvedSkus.length, DRIFT_BULK_MAX_HUNKS);
     const acceptedBySku = new Map(collisionFree.map((c) => [c.sku, c]));
-    for (let i = 0; i < auditCap; i++) {
-      const sku = resolvedSkus[i];
+    const acceptedHunks: Array<{ sku: string; driftId: string; hunk: FrozenBulkHunk; product: ValidatedMerge }> = [];
+    for (const sku of resolvedSkus) {
       const c = acceptedBySku.get(sku);
       if (!c) continue;
+      for (const fh of c.frozenHunks) {
+        if (acceptedHunks.length >= DRIFT_BULK_MAX_HUNKS) break;
+        acceptedHunks.push({ sku, driftId: c.driftId, hunk: fh, product: c });
+      }
+      if (acceptedHunks.length >= DRIFT_BULK_MAX_HUNKS) break;
+    }
+    for (const entry of acceptedHunks) {
+      const c = entry.product;
+      const fh = entry.hunk;
       try {
         addAuditLog({
           workspaceId,
           entityType: 'drift_hunk',
           entityId: c.driftId,
           action: 'drift_hunk_accepted',
-          message: `Bulk accepted remote ${field} for SKU "${sku}" (${c.frozen.baselineValue ?? 'null'} → ${c.frozen.remoteValue ?? 'null'})`,
+          message: `Bulk accepted remote ${fh.field} for SKU "${entry.sku}" (${fh.baselineValue ?? 'null'} → ${fh.remoteValue ?? 'null'})`,
           detailsJson: JSON.stringify({
-            sku,
-            field,
-            baselineValue: c.frozen.baselineValue,
-            remoteValue: c.frozen.remoteValue,
+            sku: entry.sku,
+            field: fh.field,
+            baselineValue: fh.baselineValue,
+            remoteValue: fh.remoteValue,
             remoteHash: c.remoteHash,
             baselineCommit: c.parsedBaselineCommit,
             resultingCommit: commitHash,
             changeSetId: changeSet.id,
             bulk: true,
+            trustRemote: trustAll,
             decision: 'accepted',
             actor,
             at: nowIso,
@@ -779,18 +917,22 @@ export function approveBulkSelection(
         // Audit best-effort after honest state; never rewrites the outcome.
       }
     }
+    const summaryMessage = trustAll
+      ? `Bulk accepted trust-remote (*) for ${acceptedHunks.length} hunk(s) across ${resolvedSkus.length} product(s) via change set ${changeSet.id}`
+      : `Bulk accepted remote ${field} for ${resolvedSkus.length} product(s) via change set ${changeSet.id}`;
     try {
       addAuditLog({
         workspaceId,
         entityType: 'drift',
         entityId: changeSet.id,
         action: 'drift_bulk_accepted',
-        message: `Bulk accepted remote ${field} for ${resolvedSkus.length} product(s) via change set ${changeSet.id}`,
+        message: summaryMessage,
         detailsJson: JSON.stringify({
           field,
           changeSetId: changeSet.id,
           commitHash,
           resolvedSkus: resolvedSkus.slice(0, DRIFT_BULK_MAX_HUNKS),
+          acceptedHunks: acceptedHunks.length,
           frozenCount: input.hunks.length,
           staleSkipped: skippedStale.length,
           heldSkipped: skippedHeld.length,
@@ -808,13 +950,15 @@ export function approveBulkSelection(
       field,
       changeSetId: changeSet.id,
       commitHash,
-      acceptedCount: resolvedSkus.length,
+      acceptedCount: trustAll ? acceptedHunks.length : resolvedSkus.length,
       totalFrozen: input.hunks.length,
       resolvedSkus: resolvedSkus.slice(0, DRIFT_BULK_MAX_HUNKS),
       skippedStale: skippedStale.slice(0, DRIFT_BULK_MAX_HUNKS),
       skippedHeld: skippedHeld.slice(0, DRIFT_BULK_MAX_HUNKS),
       failed: failed.slice(0, DRIFT_BULK_MAX_HUNKS),
-      truncatedResponse: resolvedSkus.length > DRIFT_BULK_MAX_HUNKS,
+      truncatedResponse: trustAll
+        ? acceptedHunks.length > DRIFT_BULK_MAX_HUNKS || resolvedSkus.length > DRIFT_BULK_MAX_HUNKS
+        : resolvedSkus.length > DRIFT_BULK_MAX_HUNKS,
     };
   } catch (e) {
     // Fail closed: no false resolved/synced. Best-effort cleanup of the
