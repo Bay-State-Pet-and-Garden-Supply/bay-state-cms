@@ -1055,6 +1055,7 @@ export function evaluateGateArithmetic(
   // - Otherwise GO: at least 1 scope evaluated, every combined verdict GO,
   //   and every holdout verdict GO.
   const scopeVerdictValues = Object.values(verdictsByScope);
+  const tuningVerdictValues = Object.values(tuningVerdictsByScope);
   const holdoutVerdictValues = Object.values(holdoutVerdictsByScope);
   const scopesMissingHoldout = Object.keys(verdictsByScope).filter(
     sk => !(sk in holdoutVerdictsByScope),
@@ -1065,17 +1066,20 @@ export function evaluateGateArithmetic(
     overallContractVerdict = 'NEEDS_REVIEW';
   } else if (
     scopeVerdictValues.some(v => v.verdict === 'NO_GO') ||
+    tuningVerdictValues.some(v => v.verdict === 'NO_GO') ||
     holdoutVerdictValues.some(v => v.verdict === 'NO_GO')
   ) {
     overallContractVerdict = 'NO_GO';
   } else if (
     scopeVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
+    tuningVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
     holdoutVerdictValues.some(v => v.verdict === 'NEEDS_REVIEW') ||
     scopesMissingHoldout.length > 0
   ) {
     overallContractVerdict = 'NEEDS_REVIEW';
   } else if (
     scopeVerdictValues.every(v => v.verdict === 'GO') &&
+    tuningVerdictValues.every(v => v.verdict === 'GO') &&
     holdoutVerdictValues.every(v => v.verdict === 'GO')
   ) {
     overallContractVerdict = 'GO';

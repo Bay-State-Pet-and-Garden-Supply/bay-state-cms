@@ -368,6 +368,41 @@ describe('Profile Audit Holdout Gating (Issue #196)', () => {
     expect(result.overallContractVerdict).toBe('NO_GO');
   });
 
+  it('a tuning NO_GO or NEEDS_REVIEW also gates the overall contract verdict', () => {
+    // 3 tuning samples with image precision regression (tuning NO_GO), 6 holdout samples (holdout GO)
+    const tuning = [
+      createSample('t1', 'standard_pdp', false),
+      createSample('t2', 'standard_pdp', false),
+      createSample('t3', 'standard_pdp', false),
+    ];
+    const holdout = [
+      createSample('h1', 'standard_pdp', true),
+      createSample('h2', 'standard_pdp', true),
+      createSample('h3', 'standard_pdp', true),
+      createSample('h4', 'standard_pdp', true),
+      createSample('h5', 'standard_pdp', true),
+      createSample('h6', 'standard_pdp', true),
+    ];
+    const samples = [...tuning, ...holdout];
+
+    const rows = [
+      ...createRowsForSample(tuning[0], { baselinePrecision: 0.8, hybridPrecision: 0.4 }),
+      ...createRowsForSample(tuning[1], { baselinePrecision: 0.8, hybridPrecision: 0.4 }),
+      ...createRowsForSample(tuning[2], { baselinePrecision: 0.8, hybridPrecision: 0.4 }),
+      ...tuningRows(holdout[0], false),
+      ...tuningRows(holdout[1], true),
+      ...tuningRows(holdout[2], true),
+      ...tuningRows(holdout[3], true),
+      ...tuningRows(holdout[4], true),
+      ...tuningRows(holdout[5], true),
+    ];
+
+    const result = evaluateGateArithmetic(samples, rows, { minSamplesForPromote: 3 });
+
+    expect(result.tuningVerdictsByScope['standard_pdp'].verdict).toBe('NO_GO');
+    expect(result.overallContractVerdict).toBe('NO_GO');
+  });
+
   it('tuning GO plus holdout GO still promotes: the gate does not over-block', () => {
     const tuning = [
       createSample('t1', 'standard_pdp', false),
