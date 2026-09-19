@@ -11,10 +11,11 @@ export function DriftView() {
   const [reconcileCount, setReconcileCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [hunkTotal, setHunkTotal] = useState(0);
-  const [fieldFilter, setFieldFilter] = useState('');
+  const [fieldFilter, setFieldFilter] = useState('*');
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPasteOverride, setShowPasteOverride] = useState(false);
   const [driftXml, setDriftXml] = useState('');
 
   const fetchDrift = async (field?: string) => {
@@ -36,18 +37,16 @@ export function DriftView() {
     }
   };
 
-  useEffect(() => { fetchDrift(''); }, []);
+  useEffect(() => { fetchDrift('*'); }, []);
 
   const handleCheckDrift = async () => {
-    if (!driftXml.trim()) {
-      setError('Paste remote ShopSite product XML to check for drift.');
-      return;
-    }
     setLoading(true);
     setError('');
     setResult('');
     try {
-      const res = await checkDrift(driftXml);
+      // Live pull by default via the saved ShopSite connection; pasted XML
+      // is only an advanced override for diagnostics.
+      const res = await checkDrift(driftXml.trim() || undefined);
       setResult(`Drift check complete: ${res.driftCount} product(s) differ from remote.`);
       await fetchDrift();
     } catch (err) {
@@ -125,14 +124,11 @@ export function DriftView() {
   };
 
   const handleBulkAccept = async () => {
-    if (!fieldFilter) {
-      setError('Bulk resolution requires an explicit scope: pick a field filter (e.g. core.price) or "All eligible fields (*)". Bare accept-everything is not offered.');
-      return;
-    }
-    const isTrust = fieldFilter === '*';
+    const scope = fieldFilter || '*';
+    const isTrust = scope === '*';
     const confirmMsg = isTrust
       ? `Trust remote for all ${hunkTotal} eligible hunk(s) through one reviewed change set? Only eligible fields change; new products, unverified pages, and reconcile-linked fields stay outstanding.`
-      : `Accept all ${hunkTotal} "${fieldFilter}" hunk(s) through one reviewed change set? Only "${fieldFilter}" changes; other fields stay outstanding.`;
+      : `Accept all ${hunkTotal} "${scope}" hunk(s) through one reviewed change set? Only "${scope}" changes; other fields stay outstanding.`;
     if (!confirm(confirmMsg)) {
       return;
     }
@@ -140,7 +136,7 @@ export function DriftView() {
     setError('');
     setResult('');
     try {
-      const res = await bulkResolveDrift(fieldFilter, 'accept_remote');
+      const res = await bulkResolveDrift(scope, 'accept_remote');
       setResult(res.message);
       await fetchDrift();
     } catch (err) {
@@ -203,21 +199,40 @@ export function DriftView() {
       {result && <div style={styles.result}>{result}</div>}
 
       <div style={styles.section}>
-        <div style={styles.label}>Check for Drift</div>
+        <div style={styles.label}>Incoming changes from the live store</div>
         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-          Paste the raw ShopSite product XML from your store (db_xml.cgi output) to detect remote changes.
+          Pull the latest ShopSite data via your saved connection, then accept what you want.
         </div>
-        <textarea
-          style={styles.textarea}
-          value={driftXml}
-          onChange={(e) => setDriftXml(e.target.value)}
-          placeholder="Paste ShopSite products XML here..."
-        />
-        <div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button style={{ ...styles.btn, background: colors.uniformGreen, color: colors.feedBagCream }} onClick={handleCheckDrift} disabled={loading}>
-            {loading ? 'Checking...' : 'Check Drift'}
+            {loading ? 'Pulling...' : 'Pull live changes'}
+          </button>
+          {hunkTotal > 0 && (
+            <button style={{ ...styles.btn, background: '#10b981', color: '#fff' }} onClick={handleBulkAccept} disabled={loading}
+              title="Accept all eligible incoming changes via one reviewed change set (held items stay outstanding)">
+              {loading ? 'Accepting...' : `Accept all incoming (${hunkTotal})`}
+            </button>
+          )}
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280', padding: 0 }}
+            onClick={() => setShowPasteOverride((v) => !v)}>
+            {showPasteOverride ? '▾ Hide XML paste override' : '▸ Advanced: paste ShopSite XML instead'}
           </button>
         </div>
+        {showPasteOverride && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+              Diagnostics only — pasted XML overrides the live pull. You should never need this in normal use.
+            </div>
+            <textarea
+              style={styles.textarea}
+              value={driftXml}
+              onChange={(e) => setDriftXml(e.target.value)}
+              placeholder="Paste ShopSite products XML here (optional override)..."
+            />
+          </div>
+        )}
       </div>
 
       <div style={styles.section}>
@@ -248,7 +263,7 @@ export function DriftView() {
         </div>
 
         {hunks.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: 13 }}>No field hunks outstanding{fieldFilter ? ` for ${fieldFilter}` : ''}. Run a drift check to detect remote changes.</p>
+          <p style={{ color: '#9ca3af', fontSize: 13 }}>No incoming changes{fieldFilter && fieldFilter !== '*' ? ` for ${fieldFilter}` : ''}. Pull live changes to check.</p>
         ) : (
           <table style={styles.table}>
             <thead>
@@ -356,7 +371,7 @@ export function DriftView() {
         </div>
 
         {drifts.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: 13 }}>No drift items yet. Run a drift check to detect remote changes.</p>
+          <p style={{ color: '#9ca3af', fontSize: 13 }}>No drift items yet. Pull live changes to detect remote updates.</p>
         ) : (
           <table style={styles.table}>
             <thead>
