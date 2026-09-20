@@ -36,6 +36,7 @@ import {
   DISTRIBUTOR_MATERIALIZATION_ERROR_CODES,
   canonicalMaterializedWeight,
   payloadsEquivalentAfterWeightNormalization,
+  payloadsEquivalentForDistributorRecord,
 } from '../../onboarding/sourcing/distributor-record-materializer';
 import type { SourcingDecisionV2 } from '../../shared/schemas/onboarding';
 import type { EvidenceAttempt } from '../../shared/schemas/distributor-evidence';
@@ -1244,4 +1245,37 @@ describe('Distributor-record materializer v1/v2 authority dispatch (Amendment B,
   });
 });
 
+});
+describe('distributor payload equivalence with OCR execution metadata (#272)', () => {
+  const basePayload = (): Record<string, unknown> => ({
+    title: 'Brand Product 5 LB',
+    brand: 'Brand',
+    description: 'Copy.',
+    sourceType: 'distributor_record',
+    distributorRecordProvenance: { sourcingGenerationId: 'gen-1', evidenceHash: 'h', acceptedEvidenceAttemptIds: [] },
+  });
+
+  test('OCR bookkeeping added post-materialization does not break equivalence', () => {
+    const stored = basePayload();
+    const enriched = {
+      ...basePayload(),
+      ocrOutcome: { status: 'no_image', imageCount: 0 },
+      ocrInputHash: 'a'.repeat(64),
+      ocrExecutionDigest: 'b'.repeat(64),
+    };
+    expect(payloadsEquivalentForDistributorRecord(stored, enriched)).toBe(true);
+    expect(payloadsEquivalentForDistributorRecord(enriched, stored)).toBe(true);
+  });
+
+  test('real content tamper still breaks equivalence even with OCR metadata present', () => {
+    const stored = basePayload();
+    const tampered = {
+      ...basePayload(),
+      description: 'Tampered copy.',
+      ocrOutcome: { status: 'no_image', imageCount: 0 },
+      ocrInputHash: 'a'.repeat(64),
+      ocrExecutionDigest: 'b'.repeat(64),
+    };
+    expect(payloadsEquivalentForDistributorRecord(stored, tampered)).toBe(false);
+  });
 });

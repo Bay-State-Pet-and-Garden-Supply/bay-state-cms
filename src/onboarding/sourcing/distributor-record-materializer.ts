@@ -102,11 +102,41 @@ export function payloadsEquivalentForDistributorRecord(
   stored: Record<string, unknown>,
   expected: Record<string, unknown>,
 ): boolean {
-  const normalizedStored = normalizeHistoricalDistributorRecordV2Payload(stored, expected);
-  return (
-    JSON.stringify(normalizedStored) === JSON.stringify(expected) ||
-    payloadsEquivalentAfterWeightNormalization(normalizedStored, expected)
+  const normalizedStored = normalizeHistoricalDistributorRecordV2Payload(
+    stripOcrExecutionMetadata(stored),
+    stripOcrExecutionMetadata(expected),
   );
+  const normalizedExpected = stripOcrExecutionMetadata(expected);
+  return (
+    JSON.stringify(normalizedStored) === JSON.stringify(normalizedExpected) ||
+    payloadsEquivalentAfterWeightNormalization(normalizedStored, normalizedExpected)
+  );
+}
+
+/**
+ * Strip packaging-OCR execution metadata before distributor payload
+ * comparison. The curation freeze records `ocrOutcome` / `ocrInputHash` /
+ * `ocrExecutionDigest` into the item payload as OCR provenance AFTER
+ * materialization (the durable extraction row is never OCR-updated), so a
+ * byte comparison would fail every OCR-processed item at promotion even
+ * though no merchandising content changed. These three keys are execution
+ * provenance only — the OCR-extracted product facts (`packagingOcrData`,
+ * `packagingTitle`) and every merchandising field stay compared.
+ */
+function stripOcrExecutionMetadata(payload: Record<string, unknown>): Record<string, unknown> {
+  if (
+    !Object.prototype.hasOwnProperty.call(payload, 'ocrOutcome') &&
+    !Object.prototype.hasOwnProperty.call(payload, 'ocrInputHash') &&
+    !Object.prototype.hasOwnProperty.call(payload, 'ocrExecutionDigest')
+  ) {
+    return payload;
+  }
+  const stripped: Record<string, unknown> = {};
+  for (const key of Object.keys(payload)) {
+    if (key === 'ocrOutcome' || key === 'ocrInputHash' || key === 'ocrExecutionDigest') continue;
+    stripped[key] = payload[key];
+  }
+  return stripped;
 }
 import { normalizeGtin } from './contracts';
 import { SourcingDecisionV2Schema } from '../../shared/schemas/onboarding';
