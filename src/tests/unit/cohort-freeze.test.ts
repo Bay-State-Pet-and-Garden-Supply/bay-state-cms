@@ -489,6 +489,25 @@ describe('execution-evidence projection builder (PR3 M2)', () => {
     expect(ExecutionEvidenceProjectionV2Schema.safeParse(projection).success).toBe(true);
   });
 
+  it('accepts null-valued fieldProvenance from distributor materializations', () => {
+    // Strategy-collection/distributor extractions record null attribution
+    // for unattributed fields; the freeze must not crash the cohort run.
+    const { workspaceId } = newWorkspace();
+    const { items, cohorts } = createReadyCohort(workspaceId, {
+      '100000000001': settledExtraction({
+        _name: 'Dist Brand Dist Product 5 LB',
+        fieldProvenance: { title: 'phillips', description: 'imported_evidence', brand: 'phillips', weight: null, distributorSku: 'phillips' },
+      }),
+    });
+    const cohort = cohorts[0];
+    const members = getCohortMembers(cohort.id);
+    const sources = new Map(items.map(item => [item.id, { sourceUrl: null, sourceType: 'distributor_record' as const, extractionMethod: 'strategy_collection_v1', sourcingGenerationId: 'gen-1', acceptedEvidenceAttemptIds: [], evidenceHash: 'a'.repeat(64) }]));
+    const projection = buildExecutionEvidenceProjection(workspaceId, cohort, members, items, sources);
+    expect(projection.members).toHaveLength(1);
+    expect(projection.members[0].extraction.fieldProvenance).toEqual({ title: 'phillips', description: 'imported_evidence', brand: 'phillips', weight: null, distributorSku: 'phillips' });
+    expect(ExecutionEvidenceProjectionV2Schema.safeParse(projection).success).toBe(true);
+  });
+
   it('ocrInputHash is stable for the same input set and changes when the image set changes', () => {
     const { workspaceId } = newWorkspace();
     const { items, cohorts } = createReadyCohort(workspaceId, {

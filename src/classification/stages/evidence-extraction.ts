@@ -34,7 +34,12 @@ export interface ManualEvidenceEntryInput {
   primaryImage?: string | null;
   additionalImages?: string[] | null;
   attestationId: string;
-  fieldProvenance: Record<string, string>;
+  /**
+   * Caller-supplied per-field attribution (may carry nulls for unattributed
+   * distributor fields). Accepted but currently unused: emitted entries carry
+   * a constant operator-manual provenance marker instead.
+   */
+  fieldProvenance: Record<string, string | null>;
   manualReferenceUrl: string | null;
 }
 
