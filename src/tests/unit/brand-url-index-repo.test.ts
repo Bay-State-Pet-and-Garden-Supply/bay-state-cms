@@ -133,6 +133,19 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(match?.url).toBe('https://kongcompany.com/products/classic-kong');
     });
 
+    it('should return null for non-GTIN identifiers in lookupByUpc', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [
+          { url: 'https://kongcompany.com/products/item-1234' },
+        ],
+        'https://kongcompany.com/sitemap.xml',
+      );
+
+      const match = lookupByUpc('kongcompany.com', '1234');
+      expect(match).toBeNull();
+    });
+
     it('should find candidate by enriched UPC column after enrichment', () => {
       reconcileSitemapUrls(
         'kongcompany.com',

@@ -146,6 +146,14 @@ describe('Sitemap Matcher', () => {
     expect(result[0].matchType).toBe('upc_exact');
   });
 
+    test('rejects non-GTIN codes in findUpcExactHit', async () => {
+      const sitemaps = [
+        'https://example.com/products/item-1234',
+      ];
+      const res = await matchSitemapUrls(sitemaps, 'Item 1234', null, '1234', 'example.com');
+      expect(res.some(r => r.matchType === 'upc_exact')).toBe(false);
+    });
+
     test('findUpcExactHit matches canonical GTIN zero-padding variations in sitemap URLs', async () => {
       const sitemaps = [
         'https://example.com/products/850067859598-dog-chew',
