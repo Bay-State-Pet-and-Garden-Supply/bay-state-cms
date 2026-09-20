@@ -639,6 +639,10 @@ route.post('/drift/bulk-resolve', async (c) => {
         commitHash: null,
         changeSetId: null,
         field: frozen.field,
+        resolvedSkus: [],
+        skippedStale: [],
+        skippedHeld: [],
+        failed: [],
         message: isTrust ? 'No outstanding eligible hunks to resolve.' : `No outstanding "${frozen.field}" hunks to resolve.`,
       });
     }

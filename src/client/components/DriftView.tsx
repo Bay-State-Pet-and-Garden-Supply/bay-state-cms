@@ -11,7 +11,7 @@ export function DriftView() {
   const [reconcileCount, setReconcileCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [hunkTotal, setHunkTotal] = useState(0);
-  const [fieldFilter, setFieldFilter] = useState('*');
+  const [fieldFilter, setFieldFilter] = useState('');
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export function DriftView() {
     }
   };
 
-  useEffect(() => { fetchDrift('*'); }, []);
+  useEffect(() => { fetchDrift(''); }, []);
 
   const handleCheckDrift = async () => {
     setLoading(true);
@@ -124,11 +124,14 @@ export function DriftView() {
   };
 
   const handleBulkAccept = async () => {
-    const scope = fieldFilter || '*';
-    const isTrust = scope === '*';
+    if (!fieldFilter) {
+      setError('Bulk resolution requires an explicit scope: pick a field filter (e.g. core.price) or "All eligible fields (*)". Bare accept-everything is not offered.');
+      return;
+    }
+    const isTrust = fieldFilter === '*';
     const confirmMsg = isTrust
       ? `Trust remote for all ${hunkTotal} eligible hunk(s) through one reviewed change set? Only eligible fields change; new products, unverified pages, and reconcile-linked fields stay outstanding.`
-      : `Accept all ${hunkTotal} "${scope}" hunk(s) through one reviewed change set? Only "${scope}" changes; other fields stay outstanding.`;
+      : `Accept all ${hunkTotal} "${fieldFilter}" hunk(s) through one reviewed change set? Only "${fieldFilter}" changes; other fields stay outstanding.`;
     if (!confirm(confirmMsg)) {
       return;
     }
@@ -136,7 +139,7 @@ export function DriftView() {
     setError('');
     setResult('');
     try {
-      const res = await bulkResolveDrift(scope, 'accept_remote');
+      const res = await bulkResolveDrift(fieldFilter, 'accept_remote');
       setResult(res.message);
       await fetchDrift();
     } catch (err) {
@@ -207,12 +210,6 @@ export function DriftView() {
           <button style={{ ...styles.btn, background: colors.uniformGreen, color: colors.feedBagCream }} onClick={handleCheckDrift} disabled={loading}>
             {loading ? 'Pulling...' : 'Pull live changes'}
           </button>
-          {hunkTotal > 0 && (
-            <button style={{ ...styles.btn, background: '#10b981', color: '#fff' }} onClick={handleBulkAccept} disabled={loading}
-              title="Accept all eligible incoming changes via one reviewed change set (held items stay outstanding)">
-              {loading ? 'Accepting...' : `Accept all incoming (${hunkTotal})`}
-            </button>
-          )}
         </div>
         <div style={{ marginTop: 8 }}>
           <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280', padding: 0 }}
@@ -248,7 +245,7 @@ export function DriftView() {
               value={fieldFilter}
               onChange={(e) => { setFieldFilter(e.target.value); fetchDrift(e.target.value); }}
             >
-              <option value="">All fields</option>
+              <option value="">Pick a scope...</option>
               <option value="*">All eligible fields (*) — trust remote</option>
               {fieldOptions.map(f => (
                 <option key={f} value={f}>{f} ({fieldCounts[f]})</option>
@@ -259,6 +256,14 @@ export function DriftView() {
                 Clear
               </button>
             )}
+            <button
+              style={{ ...styles.btn, background: fieldFilter ? '#10b981' : '#9ca3af', color: '#fff', fontSize: 11 }}
+              onClick={handleBulkAccept}
+              disabled={loading || !fieldFilter}
+              title={fieldFilter === '*' ? 'Trust remote for all eligible hunks via one reviewed change set (held items stay outstanding)' : fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter or All eligible fields (*) — bulk requires an explicit scope'}
+            >
+              {fieldFilter === '*' ? 'Trust Remote (*)' : fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a scope)'}
+            </button>
           </div>
         </div>
 
@@ -357,8 +362,8 @@ export function DriftView() {
             {drifts.length > 0 && (
               <button
                 style={{ ...styles.btn, background: fieldFilter ? '#10b981' : '#9ca3af', color: '#fff', fontSize: 11 }}
-                onClick={handleBulkAccept}
-                disabled={loading}
+                onClick={() => handleBulkAccept()}
+                disabled={loading || !fieldFilter}
                 title={fieldFilter === '*' ? 'Trust remote for all eligible hunks via one reviewed change set (held items stay outstanding)' : fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter or All eligible fields (*) — bulk requires an explicit scope'}
               >
                 {fieldFilter === '*' ? 'Trust Remote (*)' : fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a scope)'}

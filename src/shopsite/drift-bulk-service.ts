@@ -706,6 +706,7 @@ export function approveBulkSelection(
     baseCommit,
   });
 
+  const bulkFiles: string[] = [];
   try {
     for (const c of collisionFree) {
       const draftHash = hashJson(c.merged);
@@ -752,9 +753,9 @@ export function approveBulkSelection(
       };
     }
 
-    // Bounded approval: write files + index, then one --only commit over the
-    // bulk file set. Unrelated staged changes are never swept in.
-    const bulkFiles: string[] = [];
+    // Bounded approval: write files, then one --only commit over the
+    // bulk file set. Indexing and drift clearing happen only after the commit
+    // succeeds. Unrelated staged changes are never swept in.
     const stagedBefore = new Set(listStagedFiles(workspacePath));
     void stagedBefore;
     for (const c of collisionFree) {
@@ -762,44 +763,7 @@ export function approveBulkSelection(
         throw new Error(`Injected write failure for ${c.sku}.`);
       }
       writeProductFile(workspacePath, c.merged);
-      if (c.frozenHunks.some((fh) => fh.field === 'core.productOnPages')) {
-        try {
-          indexProductPageAssignments(c.merged);
-        } catch {
-          // Page indexing never blocks the bulk path itself.
-        }
-      }
       bulkFiles.push(skuToProductFilePath(c.sku));
-    }
-
-    const mergedBySku = new Map<string, ValidatedMerge>();
-    for (const c of collisionFree) mergedBySku.set(c.sku, c);
-
-    for (const c of collisionFree) {
-      const mergedProjection = buildComparisonProjection(c.merged);
-      const mergedHash = hashComparisonProjection(mergedProjection);
-      const remoteProjection = buildComparisonProjection(c.remote);
-      const nowMatchesRemote = mergedHash === hashComparisonProjection(remoteProjection);
-      const existing = findProductBySku(c.sku);
-      if (existing) {
-        updateProductIndex({
-          sku: c.sku,
-          title: c.merged.core.name,
-          status: c.merged.status,
-          price: c.merged.core.price,
-          inventoryQuantity: c.merged.core.inventory.quantityOnHand,
-          primaryImage: c.merged.core.media.primary,
-          productHash: mergedHash,
-          lastPulledRemoteHash: c.remoteHash,
-          lastSyncedRemoteHash: nowMatchesRemote ? c.remoteHash : existing.lastSyncedRemoteHash,
-          lastSyncedAt: nowMatchesRemote ? nowIso : existing.lastSyncedAt,
-          syncStatus: nowMatchesRemote ? 'synced' : 'drifted',
-          hasAdvancedBlocks: Object.keys(c.merged.shopsite.preserved.advancedBlocks).length > 0 ? 1 : 0,
-          description: c.merged.core.description,
-          searchKeywords: c.merged.core.seo.searchKeywords,
-          customFields: c.merged.customFields,
-        });
-      }
     }
 
     let commitHash: string | null = null;
@@ -825,11 +789,42 @@ export function approveBulkSelection(
     }
 
     updateChangeSetStatus(changeSet.id, 'approved', commitHash ?? undefined);
+
     for (const c of collisionFree) {
-      try {
-        updateProductIndex({ sku: c.sku, lastApprovedCommit: commitHash });
-      } catch {
-        // Index best-effort; commit already landed.
+      if (c.frozenHunks.some((fh) => fh.field === 'core.productOnPages')) {
+        try {
+          indexProductPageAssignments(c.merged);
+        } catch {
+          // Page indexing never blocks the bulk path itself.
+        }
+      }
+    }
+
+    for (const c of collisionFree) {
+      const mergedProjection = buildComparisonProjection(c.merged);
+      const mergedHash = hashComparisonProjection(mergedProjection);
+      const remoteProjection = buildComparisonProjection(c.remote);
+      const nowMatchesRemote = mergedHash === hashComparisonProjection(remoteProjection);
+      const existing = findProductBySku(c.sku);
+      if (existing) {
+        updateProductIndex({
+          sku: c.sku,
+          title: c.merged.core.name,
+          status: c.merged.status,
+          price: c.merged.core.price,
+          inventoryQuantity: c.merged.core.inventory.quantityOnHand,
+          primaryImage: c.merged.core.media.primary,
+          productHash: mergedHash,
+          lastPulledRemoteHash: c.remoteHash,
+          lastSyncedRemoteHash: nowMatchesRemote ? c.remoteHash : existing.lastSyncedRemoteHash,
+          lastSyncedAt: nowMatchesRemote ? nowIso : existing.lastSyncedAt,
+          syncStatus: nowMatchesRemote ? 'synced' : 'drifted',
+          hasAdvancedBlocks: Object.keys(c.merged.shopsite.preserved.advancedBlocks).length > 0 ? 1 : 0,
+          description: c.merged.core.description,
+          searchKeywords: c.merged.core.seo.searchKeywords,
+          customFields: c.merged.customFields,
+          lastApprovedCommit: commitHash,
+        });
       }
     }
 
@@ -839,13 +834,13 @@ export function approveBulkSelection(
     for (const c of collisionFree) {
       try {
         const fresh = findDriftById(c.driftId);
-        if (!fresh || fresh.status !== 'open') continue;
+        if (!fresh || (fresh.status !== 'open' && (fresh.status as string) !== 'in_reconcile')) continue;
         const newBaselineProjection = buildComparisonProjection(c.merged);
         const remoteProjection = buildComparisonProjection(c.remote);
         const newHunks = diffComparisonProjections(newBaselineProjection, remoteProjection);
         const acceptedStillDiffers = newHunks.some((h) =>
           c.frozenHunks.some(
-            (fh) => h.field === fh.field && (h.baselineValue ?? '') === (fh.baselineValue ?? '') && (h.remoteValue ?? '') === (fh.remoteValue ?? ''),
+            (fh) => h.field === fh.field && (h.remoteValue ?? '') === (fh.remoteValue ?? ''),
           ),
         );
         if (acceptedStillDiffers) {
@@ -967,6 +962,16 @@ export function approveBulkSelection(
       deleteChangeSet(changeSet.id);
     } catch {
       // Cleanup best-effort.
+    }
+    if (bulkFiles.length > 0) {
+      try {
+        execFileSync('git', ['checkout', 'HEAD', '--', ...bulkFiles], {
+          cwd: workspacePath,
+          stdio: 'pipe',
+        });
+      } catch {
+        // Best effort file restoration.
+      }
     }
     throw e;
   }
