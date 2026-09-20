@@ -260,13 +260,25 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
     }
   }
 
+  if (candidateGtins.size === 0) return null;
+
+  let minCandLen = Infinity;
+  for (const cand of candidateGtins) {
+    if (cand.length < minCandLen) minCandLen = cand.length;
+  }
+
   for (const url of sitemapUrls) {
     if (!url) continue;
     for (const cand of candidateGtins) {
       if (url.includes(cand)) return url;
     }
-    const urlDigits = url.replace(/\D+/g, '');
-    if (urlDigits) {
+    let digitCount = 0;
+    for (let i = 0; i < url.length; i++) {
+      const code = url.charCodeAt(i);
+      if (code >= 48 && code <= 57) digitCount++;
+    }
+    if (digitCount >= minCandLen) {
+      const urlDigits = url.replace(/\D+/g, '');
       for (const cand of candidateGtins) {
         if (urlDigits.includes(cand)) return url;
       }
