@@ -66,6 +66,7 @@ export default defineConfig({
       'src/tests/integration/drift-trust-remote.test.ts',
       'src/tests/integration/drift-retention.test.ts',
       'src/tests/integration/drift-canonical-backfill.test.ts',
+      'src/tests/integration/drift-new-reconcile-lifecycle.test.ts',
       'src/tests/unit/onboarding-repos.test.ts',
       'src/tests/unit/onboarding-approval-gates.test.ts',
       // e10s01 review-completeness gate — bun:sqlite/bun:test, run under bun test (test:db)
