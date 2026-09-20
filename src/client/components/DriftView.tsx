@@ -15,17 +15,20 @@ export function DriftView() {
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPasteOverride, setShowPasteOverride] = useState(false);
   const [driftXml, setDriftXml] = useState('');
 
   const fetchDrift = async (field?: string) => {
     try {
       const activeField = field !== undefined ? field : fieldFilter;
-      const res = await listDrift('open', undefined, undefined, activeField || undefined);
+      // Trust-remote scope ("*") lists unfiltered but bulks all eligible.
+      const listField = activeField === '*' ? undefined : (activeField || undefined);
+      const res = await listDrift('open', undefined, undefined, listField);
       setDrifts(res.drifts);
       setOpenCount(res.openCount);
       setReconcileCount(res.reconcileCount ?? 0);
       setTotal(res.total ?? res.drifts.length);
-      const hunkRes = await listDriftHunks({ status: 'open', field: activeField || undefined, limit: 100 });
+      const hunkRes = await listDriftHunks({ status: 'open', field: listField, limit: 100 });
       setHunks(hunkRes.hunks);
       setHunkTotal(hunkRes.total);
       setFieldCounts(hunkRes.fieldCounts ?? {});
@@ -37,15 +40,13 @@ export function DriftView() {
   useEffect(() => { fetchDrift(''); }, []);
 
   const handleCheckDrift = async () => {
-    if (!driftXml.trim()) {
-      setError('Paste remote ShopSite product XML to check for drift.');
-      return;
-    }
     setLoading(true);
     setError('');
     setResult('');
     try {
-      const res = await checkDrift(driftXml);
+      // Live pull by default via the saved ShopSite connection; pasted XML
+      // is only an advanced override for diagnostics.
+      const res = await checkDrift(driftXml.trim() || undefined);
       setResult(`Drift check complete: ${res.driftCount} product(s) differ from remote.`);
       await fetchDrift();
     } catch (err) {
@@ -124,10 +125,14 @@ export function DriftView() {
 
   const handleBulkAccept = async () => {
     if (!fieldFilter) {
-      setError('Bulk resolution requires an explicit filter scope: pick a field filter first (e.g. core.price). Unscoped accept-everything is not offered.');
+      setError('Bulk resolution requires an explicit scope: pick a field filter (e.g. core.price) or "All eligible fields (*)". Bare accept-everything is not offered.');
       return;
     }
-    if (!confirm(`Accept all ${hunkTotal} "${fieldFilter}" hunk(s) through one reviewed change set? Only "${fieldFilter}" changes; other fields stay outstanding.`)) {
+    const isTrust = fieldFilter === '*';
+    const confirmMsg = isTrust
+      ? `Trust remote for all ${hunkTotal} eligible hunk(s) through one reviewed change set? Only eligible fields change; new products, unverified pages, and reconcile-linked fields stay outstanding.`
+      : `Accept all ${hunkTotal} "${fieldFilter}" hunk(s) through one reviewed change set? Only "${fieldFilter}" changes; other fields stay outstanding.`;
+    if (!confirm(confirmMsg)) {
       return;
     }
     setLoading(true);
@@ -197,28 +202,42 @@ export function DriftView() {
       {result && <div style={styles.result}>{result}</div>}
 
       <div style={styles.section}>
-        <div style={styles.label}>Check for Drift</div>
+        <div style={styles.label}>Incoming changes from the live store</div>
         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-          Paste the raw ShopSite product XML from your store (db_xml.cgi output) to detect remote changes.
+          Pull the latest ShopSite data via your saved connection, then accept what you want.
         </div>
-        <textarea
-          style={styles.textarea}
-          value={driftXml}
-          onChange={(e) => setDriftXml(e.target.value)}
-          placeholder="Paste ShopSite products XML here..."
-        />
-        <div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button style={{ ...styles.btn, background: colors.uniformGreen, color: colors.feedBagCream }} onClick={handleCheckDrift} disabled={loading}>
-            {loading ? 'Checking...' : 'Check Drift'}
+            {loading ? 'Pulling...' : 'Pull live changes'}
           </button>
         </div>
+        <div style={{ marginTop: 8 }}>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6b7280', padding: 0 }}
+            onClick={() => setShowPasteOverride((v) => !v)}>
+            {showPasteOverride ? '▾ Hide XML paste override' : '▸ Advanced: paste ShopSite XML instead'}
+          </button>
+        </div>
+        {showPasteOverride && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+              Diagnostics only — pasted XML overrides the live pull. You should never need this in normal use.
+            </div>
+            <textarea
+              style={styles.textarea}
+              value={driftXml}
+              onChange={(e) => setDriftXml(e.target.value)}
+              placeholder="Paste ShopSite products XML here (optional override)..."
+            />
+          </div>
+        )}
       </div>
 
       <div style={styles.section}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <div style={styles.label}>
             Field Hunks ({hunkTotal})
-            {fieldFilter && <span style={{ marginLeft: 8, fontWeight: 'normal' }}>filtered to {fieldFilter}</span>}
+            {fieldFilter && fieldFilter !== '*' && <span style={{ marginLeft: 8, fontWeight: 'normal' }}>filtered to {fieldFilter}</span>}
+            {fieldFilter === '*' && <span style={{ marginLeft: 8, fontWeight: 'normal' }}>trust-remote: all eligible fields</span>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <select
@@ -226,7 +245,8 @@ export function DriftView() {
               value={fieldFilter}
               onChange={(e) => { setFieldFilter(e.target.value); fetchDrift(e.target.value); }}
             >
-              <option value="">All fields</option>
+              <option value="">Pick a scope...</option>
+              <option value="*">All eligible fields (*) — trust remote</option>
               {fieldOptions.map(f => (
                 <option key={f} value={f}>{f} ({fieldCounts[f]})</option>
               ))}
@@ -236,11 +256,19 @@ export function DriftView() {
                 Clear
               </button>
             )}
+            <button
+              style={{ ...styles.btn, background: fieldFilter ? '#10b981' : '#9ca3af', color: '#fff', fontSize: 11 }}
+              onClick={handleBulkAccept}
+              disabled={loading || !fieldFilter}
+              title={fieldFilter === '*' ? 'Trust remote for all eligible hunks via one reviewed change set (held items stay outstanding)' : fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter or All eligible fields (*) — bulk requires an explicit scope'}
+            >
+              {fieldFilter === '*' ? 'Trust Remote (*)' : fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a scope)'}
+            </button>
           </div>
         </div>
 
         {hunks.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: 13 }}>No field hunks outstanding{fieldFilter ? ` for ${fieldFilter}` : ''}. Run a drift check to detect remote changes.</p>
+          <p style={{ color: '#9ca3af', fontSize: 13 }}>No incoming changes{fieldFilter && fieldFilter !== '*' ? ` for ${fieldFilter}` : ''}. Pull live changes to check.</p>
         ) : (
           <table style={styles.table}>
             <thead>
@@ -334,11 +362,11 @@ export function DriftView() {
             {drifts.length > 0 && (
               <button
                 style={{ ...styles.btn, background: fieldFilter ? '#10b981' : '#9ca3af', color: '#fff', fontSize: 11 }}
-                onClick={handleBulkAccept}
-                disabled={loading}
-                title={fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter first — bulk requires an explicit scope'}
+                onClick={() => handleBulkAccept()}
+                disabled={loading || !fieldFilter}
+                title={fieldFilter === '*' ? 'Trust remote for all eligible hunks via one reviewed change set (held items stay outstanding)' : fieldFilter ? `Bulk accept all "${fieldFilter}" hunks via one reviewed change set` : 'Pick a field filter or All eligible fields (*) — bulk requires an explicit scope'}
               >
-                {fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a field)'}
+                {fieldFilter === '*' ? 'Trust Remote (*)' : fieldFilter ? `Bulk Accept ${fieldFilter}` : 'Bulk Accept (pick a scope)'}
               </button>
             )}
             <button style={{ ...styles.btn, background: '#6b7280', color: '#fff', fontSize: 11 }} onClick={handleReconcile} disabled={loading}>
@@ -348,7 +376,7 @@ export function DriftView() {
         </div>
 
         {drifts.length === 0 ? (
-          <p style={{ color: '#9ca3af', fontSize: 13 }}>No drift items yet. Run a drift check to detect remote changes.</p>
+          <p style={{ color: '#9ca3af', fontSize: 13 }}>No drift items yet. Pull live changes to detect remote updates.</p>
         ) : (
           <table style={styles.table}>
             <thead>

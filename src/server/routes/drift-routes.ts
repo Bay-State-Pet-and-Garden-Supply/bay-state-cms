@@ -535,10 +535,11 @@ route.post('/drift/:id/reopen', async (c) => {
  * POST /api/drift/bulk/preview - Freeze a filter-scoped bulk selection.
  * Body: { field }
  *
- * Drift 5/6 (#254): bulk requires an explicit filter scope; unscoped
- * accept-everything is not offered. Returns the frozen selection (explicit
- * filter, hunk versions, baseline reference, count) for operator review.
- * Hunks arriving after the freeze are excluded by construction.
+ * Drift 5/6 (#254) + trust-remote (#270): bulk requires an explicit scope —
+ * one supported field or "*" for all eligible fields. Bare scope still fails.
+ * Returns the frozen selection (explicit scope, hunk versions, baseline
+ * reference, count) for operator review. Hunks arriving after the freeze are
+ * excluded by construction.
  */
 route.post('/drift/bulk/preview', async (c) => {
   const workspace = getCurrentWorkspace();
@@ -603,10 +604,11 @@ route.post('/drift/bulk/approve', async (c) => {
  * POST /api/drift/bulk-resolve - Filter-scoped bulk accept (single-step).
  * Body: { field, action?: 'accept_remote' }
  *
- * Drift 5/6 (#254): unscoped accept-everything is not offered — a non-empty
- * `field` filter is required. Freezes the matching selection then approves
- * it through the same reviewed change path as /bulk/approve (one bounded
- * change set -> one commit, field-isolated merges). For a reviewable
+ * Drift 5/6 (#254) + trust-remote (#270): a non-empty `field` scope is
+ * required — one supported field or "*" for all eligible fields. Bare
+ * accept-everything is not offered. Freezes the matching selection then
+ * approves it through the same reviewed change path as /bulk/approve (one
+ * bounded change set -> one commit, field-isolated merges). For a reviewable
  * freeze-then-confirm flow, use /bulk/preview + /bulk/approve instead.
  */
 route.post('/drift/bulk-resolve', async (c) => {
@@ -621,13 +623,14 @@ route.post('/drift/bulk-resolve', async (c) => {
   }
   if (!body.field || typeof body.field !== 'string' || body.field.trim() === '') {
     return c.json(
-      { error: 'Bulk resolution requires an explicit filter scope: supply a non-empty "field" (e.g. "core.price"). Unscoped accept-everything is not offered.' },
+      { error: 'Bulk resolution requires an explicit filter scope: supply a non-empty "field" (e.g. "core.price") or "*" for all eligible fields. Bare accept-everything is not offered.' },
       400,
     );
   }
 
   try {
     const frozen = freezeBulkSelection(workspace.id, workspace.workspacePath, body.field);
+    const isTrust = frozen.field === '*';
     if (frozen.count === 0) {
       return c.json({
         success: true,
@@ -636,7 +639,11 @@ route.post('/drift/bulk-resolve', async (c) => {
         commitHash: null,
         changeSetId: null,
         field: frozen.field,
-        message: `No outstanding "${frozen.field}" hunks to resolve.`,
+        resolvedSkus: [],
+        skippedStale: [],
+        skippedHeld: [],
+        failed: [],
+        message: isTrust ? 'No outstanding eligible hunks to resolve.' : `No outstanding "${frozen.field}" hunks to resolve.`,
       });
     }
     const result = approveBulkSelection(workspace.id, workspace.workspacePath, {
@@ -657,7 +664,9 @@ route.post('/drift/bulk-resolve', async (c) => {
       skippedStale: result.skippedStale,
       skippedHeld: result.skippedHeld,
       failed: result.failed,
-      message: `Bulk accepted remote ${result.field} for ${result.acceptedCount} product(s) via change set ${result.changeSetId}.`,
+      message: result.field === '*'
+        ? `Bulk accepted trust-remote (*) for ${result.acceptedCount} hunk(s) across ${result.resolvedSkus.length} product(s) via change set ${result.changeSetId}.`
+        : `Bulk accepted remote ${result.field} for ${result.acceptedCount} product(s) via change set ${result.changeSetId}.`,
     });
   } catch (err) {
     const status = (err as { status?: number }).status ?? 500;
