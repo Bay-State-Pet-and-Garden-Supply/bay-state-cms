@@ -40,6 +40,7 @@ import {
   getCurrentSourcingGeneration,
 } from '../db/repositories/onboarding-evidence-repo';
 import { findDistributorRecordExtraction } from '../db/repositories/onboarding-extraction-repo';
+import { getStrategyCollectionResult } from '../db/repositories/strategy-collection-result-repo';
 import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
 
 /** Slice 5b native: canonical promotion-stage check (dual read). */
@@ -54,6 +55,7 @@ import { listResolvedConflictResolutions } from '../db/repositories/onboarding-c
 import { buildDistributorRecordProjection, buildDistributorRecordProjectionV1 } from './sourcing/distributor-record-projection';
 import {
   reconstructDistributorExtractionPayload,
+  reconstructStrategyCollectionExtractionPayload,
   payloadsEquivalentForDistributorRecord,
 } from './sourcing/distributor-record-materializer';
 import { verifyDistributorImageryForItem } from './distributor-imagery';
@@ -494,9 +496,17 @@ function checkDistributorPromotionProvenance(
     return { ok: true };
   }
 
-  // The item's decision must be the V2 distributor route.
+  // The item's decision must be a distributor route: either the V2
+  // distributor route or the strategy-collection route (both carry
+  // distributor provenance with no official page; strategy collections
+  // materialize as `strategy_collection_v1` with the same generation/hash/
+  // attempt binding). Anything else → fail closed.
   const decision = item.sourcingDecision;
-  if (!decision || (decision as { route?: string }).route !== 'distributor_record_to_extraction') {
+  const decisionRoute = (decision as { route?: string } | null)?.route;
+  if (decisionRoute === 'completed_strategy_collection') {
+    return checkStrategyCollectionPromotionProvenance(item, workspaceId);
+  }
+  if (!decision || decisionRoute !== 'distributor_record_to_extraction') {
     return { ok: false, reason: 'Distributor promotion blocked: missing or invalid distributor routing decision' };
   }
   const decisionParse = SourcingDecisionV2Schema.safeParse(decision);
@@ -610,6 +620,120 @@ function checkDistributorPromotionProvenance(
   }
   if (item.extractionData == null || !payloadsEquivalentForDistributorRecord(item.extractionData, expectedPayload)) {
     return { ok: false, reason: 'Distributor promotion blocked: materialization payload diverged (item payload tampered)' };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Promotion provenance gate for `completed_strategy_collection` decisions.
+ * Mirrors the materializer's authority rechecks (`materializeStrategyCollectionExtraction`):
+ * the validated envelope hash must still match the decision (contributions
+ * unchanged), and both the durable `strategy_collection_v1` row and the
+ * item's live payload must equal the canonical reconstruction from the
+ * envelope + decision binding (no post-materialization tamper, even when
+ * both copies were changed identically). Read-only, fail-closed with stable
+ * reasons.
+ */
+function checkStrategyCollectionPromotionProvenance(
+  item: OnboardingItem,
+  workspaceId: string,
+): { ok: true } | { ok: false; reason: string } {
+  const decision = item.sourcingDecision;
+  if (!decision || (decision as { route?: string }).route !== 'completed_strategy_collection') {
+    return { ok: false, reason: 'Distributor promotion blocked: missing or invalid distributor routing decision' };
+  }
+  const decisionParse = SourcingDecisionV2Schema.safeParse(decision);
+  if (!decisionParse.success) {
+    return { ok: false, reason: 'Distributor promotion blocked: malformed distributor routing decision' };
+  }
+  const parsedDecision = decisionParse.data;
+  if (parsedDecision.route !== 'completed_strategy_collection') {
+    return { ok: false, reason: 'Distributor promotion blocked: wrong routing decision' };
+  }
+
+  const batch = findBatchById(item.batchId);
+  if (!batch || batch.workspaceId !== workspaceId) {
+    return { ok: false, reason: 'Distributor promotion blocked: item workspace mismatch' };
+  }
+
+  const generation = getCurrentSourcingGeneration(item.id);
+  if (!generation || generation.id !== parsedDecision.sourcingGenerationId) {
+    return { ok: false, reason: 'Distributor promotion blocked: stale sourcing generation' };
+  }
+  if (generation.status === 'superseded') {
+    return { ok: false, reason: 'Distributor promotion blocked: superseded sourcing generation' };
+  }
+
+  const acceptedIds = getCurrentGenerationAcceptedAttemptIds(item.id);
+  if (!sameStringSet(acceptedIds, parsedDecision.acceptedEvidenceAttemptIds)) {
+    return { ok: false, reason: 'Distributor promotion blocked: accepted evidence mismatch' };
+  }
+
+  const extraction = findDistributorRecordExtraction(item.id);
+  if (!extraction) {
+    return { ok: false, reason: 'Distributor promotion blocked: missing distributor extraction' };
+  }
+  if (extraction.source_type !== 'distributor_record') {
+    return { ok: false, reason: 'Distributor promotion blocked: extraction source type mismatch' };
+  }
+  if (extraction.source_url !== null) {
+    return { ok: false, reason: 'Distributor promotion blocked: distributor extraction must have a null URL' };
+  }
+  // Strategy decisions materialize ONLY as `strategy_collection_v1` — a v1/v2
+  // row for the same generation is a foreign/tampered row.
+  if (extraction.extraction_method !== 'strategy_collection_v1') {
+    return { ok: false, reason: 'Distributor promotion blocked: extraction method mismatch (materialization tampered)' };
+  }
+  if (extraction.sourcing_generation_id !== generation.id) {
+    return { ok: false, reason: 'Distributor promotion blocked: extraction generation mismatch' };
+  }
+  const extractionAcceptedIds = parseJsonStringArray(extraction.accepted_evidence_attempt_ids_json);
+  if (!sameStringSet(extractionAcceptedIds, parsedDecision.acceptedEvidenceAttemptIds)) {
+    return { ok: false, reason: 'Distributor promotion blocked: extraction accepted-evidence mismatch' };
+  }
+  if (extraction.evidence_hash !== parsedDecision.evidenceHash) {
+    return { ok: false, reason: 'Distributor promotion blocked: extraction hash mismatch (materialization tampered)' };
+  }
+
+  // Envelope authority: the validated collection result must still hash to
+  // the decision's evidence hash (contributions unchanged since review).
+  // Reconstruct the canonical payload from the envelope plus the decision
+  // binding — both the durable row and the live item payload must equal the
+  // reconstruction. Two matching-but-wrong copies still fail because neither
+  // equals the authoritative rebuild.
+  let envelope: { envelope: import('./sourcing/strategy-collection-result').StrategyCollectionResult; hash: string };
+  try {
+    envelope = getStrategyCollectionResult(generation.id);
+  } catch {
+    return { ok: false, reason: 'Distributor promotion blocked: evidence hash mismatch (evidence changed since review)' };
+  }
+  if (envelope.hash !== parsedDecision.evidenceHash) {
+    return { ok: false, reason: 'Distributor promotion blocked: evidence hash mismatch (evidence changed since review)' };
+  }
+  const expectedPayload = reconstructStrategyCollectionExtractionPayload({
+    itemName: item.name ?? null,
+    brandHint: item.brandHint ?? null,
+    generationId: generation.id,
+    acceptedAttemptIds: parsedDecision.acceptedEvidenceAttemptIds,
+    envelope: envelope.envelope,
+    evidenceHash: parsedDecision.evidenceHash,
+  });
+
+  // Payload binding: the durable row and the live item payload must each
+  // equal the reconstruction (the materializer writes both identically;
+  // distributor payload edits are blocked at the API) and carry the
+  // decision's provenance.
+  const rowPayload = parseStoredExtractionData(extraction.extraction_data_json);
+  if (!payloadsEquivalentForDistributorRecord(rowPayload, expectedPayload)) {
+    return { ok: false, reason: 'Distributor promotion blocked: materialization payload diverged (row tampered)' };
+  }
+  if (item.extractionData == null || !payloadsEquivalentForDistributorRecord(item.extractionData as Record<string, unknown>, expectedPayload)) {
+    return { ok: false, reason: 'Distributor promotion blocked: materialization payload diverged (item payload tampered)' };
+  }
+  const rowProv = (rowPayload as { distributorRecordProvenance?: { evidenceHash?: string } } | null)?.distributorRecordProvenance;
+  if (!rowProv || rowProv.evidenceHash !== parsedDecision.evidenceHash) {
+    return { ok: false, reason: 'Distributor promotion blocked: materialization payload diverged (row tampered)' };
   }
 
   return { ok: true };

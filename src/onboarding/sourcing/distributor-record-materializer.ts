@@ -14,6 +14,7 @@ import { getStrategyCollectionResult } from '../../db/repositories/strategy-coll
 import {
   usableContributions,
   type CollectionContribution,
+  type StrategyCollectionResult,
 } from './strategy-collection-result';
 import { listResolvedConflictResolutions } from '../../db/repositories/onboarding-conflict-repo';
 import {
@@ -833,6 +834,92 @@ function consolidateStrategyFields(usable: CollectionContribution[]): {
 }
 
 /**
+ * Reconstruct the canonical strategy-collection extraction payload from its
+ * authoritative inputs (validated envelope + item name/brand fallback +
+ * decision binding). PURE and DETERMINISTIC — the materializer and the
+ * promotion provenance gate share this builder so a payload is trusted only
+ * when it deep-equals a freshly recomputed one. Two matching-but-wrong
+ * copies (durable row + live item payload tampered identically) still fail
+ * because neither equals the reconstruction.
+ */
+export function reconstructStrategyCollectionExtractionPayload(input: {
+  itemName: string | null;
+  brandHint: string | null;
+  generationId: string;
+  acceptedAttemptIds: string[];
+  envelope: StrategyCollectionResult;
+  evidenceHash: string;
+}): Record<string, unknown> {
+  const usable = usableContributions(input.envelope);
+  const { merged, attribution } = consolidateStrategyFields(usable);
+  const importedEvidence: Record<string, boolean> = {};
+  const title = merged.name ?? input.itemName ?? null;
+  if (!merged.name) importedEvidence.title = true;
+  const brand = merged.brand ?? input.brandHint ?? null;
+  if (!merged.brand) importedEvidence.brand = true;
+  const description = merged.description ?? null;
+  if (!merged.description) importedEvidence.description = true;
+  const fieldProvenance: Record<string, string | null> = {};
+  for (const key of STRATEGY_MERGE_KEYS) {
+    const outKey = key === 'name' ? 'title' : key;
+    fieldProvenance[outKey] = attribution[key] ?? (importedEvidence[outKey] ? 'imported_evidence' : null);
+  }
+  const providerIds = Array.from(new Set(input.envelope.contributions.map((c) => c.providerId))).sort();
+  const outcome: 'completed' | 'exhausted' = usable.length > 0 ? 'completed' : 'exhausted';
+
+  return {
+    title,
+    brand,
+    description,
+    bulletPoints: [],
+    primaryImage: null,
+    additionalImages: [],
+    price: null,
+    weight: merged.weight ? canonicalMaterializedWeight(merged.weight) : null,
+    dimensions: null,
+    seoFileName: null,
+    searchKeywords: null,
+    sourceType: 'distributor_record',
+    distributorProviderId: usable.find((c) => c.kind === 'distributor_record')?.providerId ?? null,
+    distributorEvidenceAttemptIds: input.acceptedAttemptIds,
+    distributorProviderIds: providerIds,
+    distributorSku: merged.distributorSku ?? null,
+    manufacturerPartNumber: null,
+    variantAttributes: {},
+    distributorRecordProvenance: {
+      sourcingGenerationId: input.generationId,
+      evidenceHash: input.evidenceHash,
+      acceptedEvidenceAttemptIds: input.acceptedAttemptIds,
+      providerIds,
+    },
+    strategyCollectionProvenance: {
+      sourcingGenerationId: input.generationId,
+      strategyRevision: input.envelope.strategyRevision,
+      strategyBrand: input.envelope.strategyBrand,
+      strategyCollectionHash: input.evidenceHash,
+      outcome,
+      acceptedEvidenceAttemptIds: input.acceptedAttemptIds,
+      providerIds,
+      contributionOutcomes: input.envelope.contributions.map((c) => ({
+        providerId: c.providerId,
+        kind: c.kind,
+        outcome: c.outcome,
+        reasonCode: c.reasonCode ?? null,
+        sourceUrl: c.sourceUrl ?? null,
+      })),
+    },
+    importedEvidence,
+    sourceUrl: null,
+    confidence: 0,
+    fieldProvenance,
+    packagingTitle: null,
+    packagingOcrData: null,
+    ocrOutcome: null,
+    customFields: {},
+  };
+}
+
+/**
  * Materialize a `completed_strategy_collection` decision from its validated
  * envelope. All rechecks and all writes happen inside ONE transaction; any
  * integrity failure returns `{ ok: false, code }` before any write.
@@ -895,7 +982,7 @@ export function materializeStrategyCollectionExtraction(
     // Validated envelope authority (fails closed; legacy rows without an
     // envelope never reach this function — the caller dispatches those to
     // the legacy materializer).
-    let envelope: { envelope: import('./strategy-collection-result').StrategyCollectionResult; hash: string };
+    let envelope: { envelope: StrategyCollectionResult; hash: string };
     try {
       envelope = getStrategyCollectionResult(generation.id);
     } catch (err) {
@@ -911,77 +998,14 @@ export function materializeStrategyCollectionExtraction(
       return { ok: false as const, code: STRATEGY_COLLECTION_MATERIALIZATION_ERROR_CODES.hash_mismatch };
     }
 
-    const usable = usableContributions(envelope.envelope);
-    const { merged, attribution } = consolidateStrategyFields(usable);
-    // Safe imported evidence fills what no source supplied — attributed as
-    // imported, never presented as a source extraction.
-    const importedEvidence: Record<string, boolean> = {};
-    const title = merged.name ?? item.name ?? null;
-    if (!merged.name) importedEvidence.title = true;
-    const brand = merged.brand ?? item.brandHint ?? null;
-    if (!merged.brand) importedEvidence.brand = true;
-    const description = merged.description ?? null;
-    if (!merged.description) importedEvidence.description = true;
-    const fieldProvenance: Record<string, string | null> = {};
-    for (const key of STRATEGY_MERGE_KEYS) {
-      const outKey = key === 'name' ? 'title' : key;
-      fieldProvenance[outKey] = attribution[key] ?? (importedEvidence[outKey] ? 'imported_evidence' : null);
-    }
-    const providerIds = Array.from(new Set(envelope.envelope.contributions.map((c) => c.providerId))).sort();
-    const outcome: 'completed' | 'exhausted' = usable.length > 0 ? 'completed' : 'exhausted';
-
-    const extractionData: Record<string, unknown> = {
-      title,
-      brand,
-      description,
-      bulletPoints: [],
-      primaryImage: null,
-      additionalImages: [],
-      price: null,
-      weight: merged.weight ? canonicalMaterializedWeight(merged.weight) : null,
-      dimensions: null,
-      seoFileName: null,
-      searchKeywords: null,
-      sourceType: 'distributor_record',
-      // First usable DISTRIBUTOR provider (official-only envelopes leave
-      // this null rather than mislabeling an official domain as one).
-      distributorProviderId: usable.find((c) => c.kind === 'distributor_record')?.providerId ?? null,
-      distributorEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
-      distributorProviderIds: providerIds,
-      distributorSku: merged.distributorSku ?? null,
-      manufacturerPartNumber: null,
-      variantAttributes: {},
-      distributorRecordProvenance: {
-        sourcingGenerationId: generation.id,
-        evidenceHash: envelope.hash,
-        acceptedEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
-        providerIds,
-      },
-      strategyCollectionProvenance: {
-        sourcingGenerationId: generation.id,
-        strategyRevision: envelope.envelope.strategyRevision,
-        strategyBrand: envelope.envelope.strategyBrand,
-        strategyCollectionHash: envelope.hash,
-        outcome,
-        acceptedEvidenceAttemptIds: decision.acceptedEvidenceAttemptIds,
-        providerIds,
-        contributionOutcomes: envelope.envelope.contributions.map((c) => ({
-          providerId: c.providerId,
-          kind: c.kind,
-          outcome: c.outcome,
-          reasonCode: c.reasonCode ?? null,
-          sourceUrl: c.sourceUrl ?? null,
-        })),
-      },
-      importedEvidence,
-      sourceUrl: null,
-      confidence: 0,
-      fieldProvenance,
-      packagingTitle: null,
-      packagingOcrData: null,
-      ocrOutcome: null,
-      customFields: {},
-    };
+    const extractionData = reconstructStrategyCollectionExtractionPayload({
+      itemName: item.name ?? null,
+      brandHint: item.brandHint ?? null,
+      generationId: generation.id,
+      acceptedAttemptIds: decision.acceptedEvidenceAttemptIds,
+      envelope: envelope.envelope,
+      evidenceHash: envelope.hash,
+    });
     const extractionDataJson = JSON.stringify(extractionData);
     const now = new Date().toISOString();
 

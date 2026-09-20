@@ -230,6 +230,8 @@ export default defineConfig({
       'src/tests/unit/sourcing-default-on-e2e.test.ts',
       'src/tests/unit/sourcing-observe-mode.test.ts',
       'src/tests/unit/distributor-record-materializer.test.ts',
+      // Strategy promotion reconstruction (#275) — bun:sqlite via db connection; run under bun test (test:db)
+      'src/tests/unit/strategy-promotion-reconstruction.test.ts',
       // DB-backed suites committed without vitest registration (bun:sqlite /
       // bun:test imports — vitest cannot collect them; run under test:db)
       'src/tests/unit/attribute-editor.test.ts',
