@@ -6,7 +6,8 @@
     "src/extraction-worker/server.ts",
     "src/onboarding/job-queue.ts",
     "src/db/migrations.ts",
-    "scripts/apply-brand-strategies-199.ts"
+    "scripts/apply-brand-strategies-199.ts",
+    "src/benchmarks/performance-baseline.ts"
   ],
   "ignorePatterns": [
     "scratch/**",
