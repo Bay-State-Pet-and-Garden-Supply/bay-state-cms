@@ -199,15 +199,18 @@ function safeParseJsonArray(raw: string | null | undefined): string[] {
  *   `discovery/completed`); an arbitrary non-null historical sourcing
  *   decision is NOT enough;
  * - distributor source: a VALID distributor extraction binding (source type
- *   `distributor_record`, null URL, distributor_record_v1 OR v2 method,
- *   generation, and evidence hash all present and consistent).
+ *   `distributor_record`, null URL, distributor_record_v1 OR v2 OR
+ *   strategy_collection_v1 method, generation, and evidence hash all
+ *   present and consistent). Strategy-collection materializations carry the
+ *   same distributor provenance shape (generation/hash/accepted ids) with no
+ *   official page — they finalize exactly like distributor records.
  */
 function isSourceFinalized(item: OnboardingItem, binding: ExtractionBinding | undefined): boolean {
   if (item.sourceType === 'distributor_record') {
     if (!binding) return false;
     if (binding.sourceType !== 'distributor_record') return false;
     if (binding.sourceUrl !== null || item.sourceUrl !== null) return false;
-    if (binding.extractionMethod !== 'distributor_record_v1' && binding.extractionMethod !== 'distributor_record_v2') return false;
+    if (binding.extractionMethod !== 'distributor_record_v1' && binding.extractionMethod !== 'distributor_record_v2' && binding.extractionMethod !== 'strategy_collection_v1') return false;
     if (!binding.sourcingGenerationId || !binding.evidenceHash) return false;
     const prov =
       (item.extractionData as { distributorRecordProvenance?: { sourcingGenerationId?: string; evidenceHash?: string; acceptedEvidenceAttemptIds?: string[] } | null } | null)
@@ -275,9 +278,10 @@ const SOURCE_CHANGED_BLOCKED_REASON = 'Selected source changed since extraction 
  *   '/' trimmed);
  * - distributor source: the binding must exist with source type
  *   `distributor_record`, both URLs null, extraction method
- *   `distributor_record_v1` or `distributor_record_v2` (Amendment B
- *   merchandising-depth materialization), and matching generation / accepted
- *   attempt ids / evidence hash against the item's
+ *   `distributor_record_v1`, `distributor_record_v2`, or
+ *   `strategy_collection_v1` (strategy collections carry the same
+ *   distributor provenance with no official page), and matching
+ *   generation / accepted attempt ids / evidence hash against the item's
  *   `distributorRecordProvenance`;
  * - a MISSING or malformed binding BLOCKS readiness (absence cannot prove a
  *   match).
@@ -295,7 +299,7 @@ export function sourceProvenanceConsistent(
     if (!binding) return false;
     if (binding.sourceType !== 'distributor_record') return false;
     if (binding.sourceUrl !== null || item.sourceUrl !== null) return false;
-    if (binding.extractionMethod !== 'distributor_record_v1' && binding.extractionMethod !== 'distributor_record_v2') return false;
+    if (binding.extractionMethod !== 'distributor_record_v1' && binding.extractionMethod !== 'distributor_record_v2' && binding.extractionMethod !== 'strategy_collection_v1') return false;
     if (!prov) return false;
     if (binding.sourcingGenerationId !== prov.sourcingGenerationId) return false;
     if (binding.evidenceHash !== prov.evidenceHash) return false;
