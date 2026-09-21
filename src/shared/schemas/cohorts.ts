@@ -183,7 +183,14 @@ export const ExecutionEvidenceProjectionMemberSchema = z.object({
     primaryImage: z.string().nullable(),
     additionalImages: z.array(z.string()),
     customFields: z.record(z.string(), z.string()),
-    fieldProvenance: z.record(z.string(), z.string()),
+    /**
+     * Per-field attribution. Values are null when the materializer recorded
+     * no attribution for the field (e.g. distributor strategy-collection
+     * payloads carry null for unattributed keys) — null is meaningful
+     * (unattributed), never a placeholder, and consumers must treat it with
+     * the same fallback they apply to absent keys.
+     */
+    fieldProvenance: z.record(z.string(), z.string().nullable()),
     /**
      * Parent #101 (manual-evidence route): attestation link + reference-only
      * family URL for operator manual-evidence members. Null for automated
