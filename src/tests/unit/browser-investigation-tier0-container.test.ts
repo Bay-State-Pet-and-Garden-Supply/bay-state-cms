@@ -276,6 +276,7 @@ describe('Tier 0 container runner: real container per run, teardown on every exi
       const { execFile } = await import('node:child_process');
       const { promisify } = await import('node:util');
       await promisify(execFile)('docker', ['info'], { timeout: 15_000 });
+      await promisify(execFile)('docker', ['run', '--rm', 'node:22-bookworm', 'node', '-e', ''], { timeout: 15_000 });
       return true;
     } catch {
       return false;
