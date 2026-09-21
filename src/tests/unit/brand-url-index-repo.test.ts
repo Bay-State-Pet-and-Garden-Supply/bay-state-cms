@@ -133,6 +133,13 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(match?.url).toBe('https://kongcompany.com/products/classic-kong');
     });
 
+    it('should return null when lookupByUpc is called with unnormalizable non-GTIN codes', () => {
+      reconcileSitemapUrls('kongcompany.com', [{ url: 'https://kongcompany.com/products/item-12345' }], 'sitemap.xml');
+      // 5-digit code "12345" is not a valid GS1 length
+      const match = lookupByUpc('kongcompany.com', '12345');
+      expect(match).toBeNull();
+    });
+
     it('should find candidate by enriched UPC column after enrichment', () => {
       reconcileSitemapUrls(
         'kongcompany.com',
