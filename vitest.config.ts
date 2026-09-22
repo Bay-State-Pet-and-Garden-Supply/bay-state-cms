@@ -109,6 +109,7 @@ export default defineConfig({
       'src/tests/unit/sitemap-cache-repo.test.ts',
       'src/tests/unit/sitemap-fetcher.test.ts',
       'src/tests/unit/sitemap-matcher.test.ts',
+      'src/tests/unit/sitemap-matcher-benchmark.test.ts',
       'src/tests/unit/sitemap-sync-service.test.ts',
       'src/tests/unit/profile-generation-revision-repo.test.ts',
       'src/tests/unit/profile-generation-field-decision-repo.test.ts',
