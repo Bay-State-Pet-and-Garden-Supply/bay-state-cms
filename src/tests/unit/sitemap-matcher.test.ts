@@ -661,6 +661,7 @@ describe('Sitemap Matcher', () => {
 
   describe('findUpcExactHit Edge-Case Parity Suite', () => {
     // Reference implementation reproducing the original logic exactly
+    // fallow-ignore-next-line complexity
     function referenceFindUpcExactHit(sitemapUrls: string[], upc: string): string | null {
       const needle = upc.trim();
       if (!needle) return null;
