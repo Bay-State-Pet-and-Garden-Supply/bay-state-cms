@@ -239,39 +239,78 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
-function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+function hasAtLeastNDigits(s: string, n: number): boolean {
+  let count = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 48 && code <= 57) {
+      count++;
+      if (count >= n) return true;
+    }
+  }
+  return false;
+}
+
+export function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   const needle = upc.trim();
   if (!needle) return null;
   const stripped = needle.replace(/\D+/g, '');
 
-  const candidateGtins = new Set<string>();
-  if (needle) candidateGtins.add(needle);
+  const candidateGtins: string[] = [];
+  const candidateSet = new Set<string>();
+  const addCandidate = (cand: string) => {
+    if (cand && !candidateSet.has(cand)) {
+      candidateSet.add(cand);
+      candidateGtins.push(cand);
+    }
+  };
+
+  addCandidate(needle);
   if (stripped) {
-    candidateGtins.add(stripped);
+    addCandidate(stripped);
     if (stripped.length === 12) {
-      candidateGtins.add(`0${stripped}`);
-      candidateGtins.add(`00${stripped}`);
+      addCandidate(`0${stripped}`);
+      addCandidate(`00${stripped}`);
     } else if (stripped.length === 13) {
-      candidateGtins.add(`0${stripped}`);
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+      addCandidate(`0${stripped}`);
+      if (stripped.startsWith('0')) addCandidate(stripped.slice(1));
     } else if (stripped.length === 14) {
-      if (stripped.startsWith('00')) candidateGtins.add(stripped.slice(2));
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+      addCandidate(stripped.slice(2));
+      addCandidate(stripped.slice(1));
     }
   }
 
-  for (const url of sitemapUrls) {
-    if (!url) continue;
-    for (const cand of candidateGtins) {
-      if (url.includes(cand)) return url;
+  let minCandLen = Infinity;
+  for (let i = 0; i < candidateGtins.length; i++) {
+    if (candidateGtins[i].length < minCandLen) {
+      minCandLen = candidateGtins[i].length;
     }
-    const urlDigits = url.replace(/\D+/g, '');
-    if (urlDigits) {
-      for (const cand of candidateGtins) {
-        if (urlDigits.includes(cand)) return url;
+  }
+
+  for (let i = 0; i < sitemapUrls.length; i++) {
+    const url = sitemapUrls[i];
+    if (!url) continue;
+
+    // Direct substring check
+    for (let j = 0; j < candidateGtins.length; j++) {
+      if (url.includes(candidateGtins[j])) {
+        return url;
+      }
+    }
+
+    // Digit-extracted fallback (only run if url has at least minCandLen digits)
+    if (hasAtLeastNDigits(url, minCandLen)) {
+      const urlDigits = url.replace(/\D+/g, '');
+      if (urlDigits) {
+        for (let j = 0; j < candidateGtins.length; j++) {
+          if (urlDigits.includes(candidateGtins[j])) {
+            return url;
+          }
+        }
       }
     }
   }
+
   return null;
 }
 

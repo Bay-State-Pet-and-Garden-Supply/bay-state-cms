@@ -658,4 +658,98 @@ describe('Sitemap Matcher', () => {
       expect(result.some(r => r.url === urls[0])).toBe(true);
     });
   });
+
+  describe('findUpcExactHit Edge-Case Parity Suite', () => {
+    // Reference implementation reproducing the original logic exactly
+    function referenceFindUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+      const needle = upc.trim();
+      if (!needle) return null;
+      const stripped = needle.replace(/\D+/g, '');
+
+      const candidateGtins = new Set<string>();
+      if (needle) candidateGtins.add(needle);
+      if (stripped) {
+        candidateGtins.add(stripped);
+        if (stripped.length === 12) {
+          candidateGtins.add(`0${stripped}`);
+          candidateGtins.add(`00${stripped}`);
+        } else if (stripped.length === 13) {
+          candidateGtins.add(`0${stripped}`);
+          if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+        } else if (stripped.length === 14) {
+          if (stripped.startsWith('00')) candidateGtins.add(stripped.slice(2));
+          if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+        }
+      }
+
+      for (const url of sitemapUrls) {
+        if (!url) continue;
+        for (const cand of candidateGtins) {
+          if (url.includes(cand)) return url;
+        }
+        const urlDigits = url.replace(/\D+/g, '');
+        if (urlDigits) {
+          for (const cand of candidateGtins) {
+            if (urlDigits.includes(cand)) return url;
+          }
+        }
+      }
+      return null;
+    }
+
+    test('exact parity across multiple test cases', () => {
+      const testCases: Array<{ urls: string[]; upc: string }> = [
+        {
+          urls: ['https://example.com/p/123456789012', 'https://example.com/p/999999999999'],
+          upc: '123456789012',
+        },
+        {
+          urls: ['https://example.com/pup/8500-6785-9598/item.html', 'https://example.com/other'],
+          upc: '850067859598',
+        },
+        {
+          urls: ['https://example.com/p/0850067859598.html'],
+          upc: '850067859598',
+        },
+        {
+          urls: ['https://example.com/p/850067859598.html'],
+          upc: '0850067859598',
+        },
+        {
+          urls: ['https://example.com/item/1234'],
+          upc: '1234',
+        },
+        {
+          urls: ['https://example.com/item/12-34'],
+          upc: '1234',
+        },
+        {
+          // Precedence test: URL 0 has a delimited match, URL 1 has a direct match
+          urls: ['https://example.com/item/8500-6785-9598', 'https://example.com/item/850067859598'],
+          upc: '850067859598',
+        },
+        {
+          urls: ['https://example.com/about', 'https://example.com/contact'],
+          upc: '850067859598',
+        },
+        {
+          urls: [],
+          upc: '850067859598',
+        },
+        {
+          urls: ['https://example.com/p/123'],
+          upc: '   ',
+        },
+      ];
+
+      for (const tc of testCases) {
+        const expected = referenceFindUpcExactHit(tc.urls, tc.upc);
+        const actual = import_findUpcExactHit(tc.urls, tc.upc);
+        expect(actual).toBe(expected);
+      }
+    });
+  });
 });
+
+// Helper alias so we can call the optimized import inside the test block
+import { findUpcExactHit as import_findUpcExactHit } from '../../onboarding/sitemap-matcher';
