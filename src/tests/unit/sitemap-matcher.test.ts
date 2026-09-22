@@ -23,7 +23,7 @@ import {
   upsertLlmTaskConfig,
 } from '../../db/repositories/llm-task-config-repo';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
-import { matchSitemapUrls, extractSlug } from '../../onboarding/sitemap-matcher';
+import { matchSitemapUrls, extractSlug, findUpcExactHit as import_findUpcExactHit } from '../../onboarding/sitemap-matcher';
 import * as llmClient from '../../onboarding/llm-client';
 
 describe('Sitemap Matcher', () => {
@@ -651,10 +651,10 @@ describe('Sitemap Matcher', () => {
     });
 
     test('findUpcExactHit fast path does not change semantics: stripped includes still hits', async () => {
-      const upc = '850067859598';
+      const upcWithDashes = '850-0678-59598';
       // UPC with dashes should match stripped digits via includes fast path
       const urls = ['https://mywoof.com/p/850067859598.html', 'https://mywoof.com/products/other'];
-      const result = await matchSitemapUrls(urls, 'Other Product', null, '850-0678-59598', 'mywoof.com');
+      const result = await matchSitemapUrls(urls, 'Other Product', null, upcWithDashes, 'mywoof.com');
       expect(result.some(r => r.url === urls[0])).toBe(true);
     });
   });
@@ -751,6 +751,3 @@ describe('Sitemap Matcher', () => {
     });
   });
 });
-
-// Helper alias so we can call the optimized import inside the test block
-import { findUpcExactHit as import_findUpcExactHit } from '../../onboarding/sitemap-matcher';
