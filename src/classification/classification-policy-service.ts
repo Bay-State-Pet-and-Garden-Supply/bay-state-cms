@@ -69,8 +69,8 @@ export const CLASSIFICATION_POLICY_STAGES: readonly StageDefinition[] = [
     label: 'Primary Product Type',
     description: 'Selects the primary product type from the configured taxonomy.',
     operation: 'product_type_ranking',
-    adapterStatus: 'unwired', // Jev adapter arrives in #297
-    supportedTransports: ['openai-compatible', 'ollama-native'],
+    adapterStatus: 'supported',
+    supportedTransports: ['openai-compatible', 'ollama-native', 'systemone'],
   },
   {
     id: 'product_attribute_proposals',
@@ -261,10 +261,14 @@ export function getClassificationPolicySettings(
 
     for (const stage of CLASSIFICATION_POLICY_STAGES) {
       if (conn.transport === 'systemone') {
-        stageSupport[stage.id] = {
-          supported: false,
-          reason: `TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`,
-        };
+        if (stage.id === 'primary_product_type_proposal') {
+          stageSupport[stage.id] = { supported: true };
+        } else {
+          stageSupport[stage.id] = {
+            supported: false,
+            reason: `TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`,
+          };
+        }
       } else if (stage.supportedTransports.includes(conn.transport as any)) {
         stageSupport[stage.id] = { supported: true };
       } else {
@@ -456,7 +460,9 @@ export function previewClassificationPolicy(
 
       // Check stage adapter compatibility
       if (resolved.transport === 'systemone') {
-        validationErrors.push(`TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`);
+        if (stage.id !== 'primary_product_type_proposal') {
+          validationErrors.push(`TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`);
+        }
       } else if (!stage.supportedTransports.includes(resolved.transport as any)) {
         validationErrors.push(`Provider transport "${resolved.transport}" is not supported for stage "${stage.label}".`);
       }

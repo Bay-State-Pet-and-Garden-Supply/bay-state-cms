@@ -639,6 +639,22 @@ export async function executeSystemOne(
   }
 }
 
+/**
+ * Structured dispatch helper taking a request envelope with { model, state, questions }.
+ */
+export async function dispatchSystemOne(
+  conn: ProviderConnection,
+  request: {
+    model: string;
+    state: unknown;
+    questions: Record<string, { type: 'choice' | 'noul'; instructions: unknown; criteria?: unknown }>;
+  },
+  options: SystemOneDispatchOptions = {},
+): Promise<SystemOneDispatchResult> {
+  return executeSystemOne(conn, request.model, request.questions, request.state, options);
+}
+
+
 async function readErrorDetail(response: Response): Promise<string> {
   try {
     const text = await response.text();

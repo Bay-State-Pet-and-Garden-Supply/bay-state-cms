@@ -45,7 +45,13 @@ const conn: ProviderConnection = {
   inferenceTimeoutMs: 30_000,
 };
 
-const state = 'The customer writes: "My dog loves the new chicken kibble." This is synthetic fixture text.';
+const state = {
+  sku: 'SYNTH-DOG-FOOD-1',
+  name: 'Organic Chicken Canine Kibble',
+  description: 'Wholesome nutrition kibble formulated for adult dogs. Chicken recipe.',
+  snippets: ['Wholesome nutrition kibble formulated for adult dogs.'],
+  notes: 'The customer writes: "My dog loves the new chicken kibble." Synthetic fixture text.',
+};
 const questions = {
   mentions_dog_food: {
     type: 'noul' as const,
@@ -57,6 +63,18 @@ const questions = {
     criteria: {
       pet_food: 'Food, kibble, or treats for pets',
       shipping: 'Delivery status, delays, or lost packages',
+    },
+  },
+  primary_product_type: {
+    type: 'choice' as const,
+    instructions:
+      'Select the single primary product type that best classifies the product described in the state.',
+    criteria: {
+      opt_0: 'Dog Food',
+      opt_1: 'Cat Food',
+      no_match: 'None of the configured product types apply to this item',
+      insufficient_evidence:
+        'The product information is insufficient to determine a product type with confidence',
     },
   },
 };

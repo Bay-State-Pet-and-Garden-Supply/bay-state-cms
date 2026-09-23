@@ -103,6 +103,8 @@ export default defineConfig({
       'src/tests/unit/taxonomy-release-v4.test.ts',
       'src/tests/unit/taxonomy-release-v5.test.ts',
       'src/tests/unit/classification-model-call-repo.test.ts',
+      'src/tests/unit/product-type-decision.test.ts',
+      'src/tests/unit/typesafe-product-type-seam.test.ts',
       'src/tests/unit/classification-run-routes.test.ts',
       'src/tests/unit/profile-generation-repo.test.ts',
       'src/tests/unit/profile-promoter.test.ts',

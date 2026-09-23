@@ -58,7 +58,15 @@ export interface PreReviewEntryProvenance {
   sourceProductHash: string | null;
   evidenceCount: number;
   evidenceHash: string | null;
-  modelCalls: Array<{ id: string; operation: string; provider: string | null; model: string | null; status: string }>;
+  modelCalls: Array<{
+    id: string;
+    operation: string;
+    provider: string | null;
+    model: string | null;
+    requestedModel?: string | null;
+    resolvedModel?: string | null;
+    status: string;
+  }>;
   primaryModelProvider: string | null;
   primaryModel: string | null;
   capturedAt: string;
@@ -388,6 +396,8 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
       operation: c.operation,
       provider: c.provider,
       model: c.model,
+      requestedModel: c.requested_model ?? null,
+      resolvedModel: c.resolved_model ?? null,
       status: c.status,
     })),
     primaryModelProvider: primaryCall?.provider ?? null,

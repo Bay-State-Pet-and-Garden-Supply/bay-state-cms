@@ -93,6 +93,7 @@ import { resolveTargetsFromSnapshot } from '../../classification/curation-target
 import { getReviewedTypeFromSnapshot } from '../../classification/effective-curation-type';
 import { buildEvidenceTargetPacket } from '../../classification/evidence-targeting';
 import { llmRankOptions } from '../../classification/curation-target-ranker';
+import { resolveProductTypeDecision } from '../../classification/product-type-decision';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import { CohortLeaseKeeper } from './execution-lease';
 import { getVlmConfig } from '../vlm-client';
@@ -286,7 +287,7 @@ export interface CohortShadowObservationMember {
    *  'keyword' when the deterministic matcher produced the match, 'llm' when
    *  the run-bound ranker did, 'none' for an abstention (shadow never invokes
    *  the LLM ranker — DECISION-E). */
-  source: 'reviewed' | 'keyword' | 'llm' | 'none';
+  source: 'reviewed' | 'keyword' | 'llm' | 'jev' | 'none';
 }
 
 /** One ready cohort's deterministic-only Execution Product Type observation. */
@@ -1091,62 +1092,50 @@ export async function freezeCohortForExecution(
           selectionMode: 'single',
         });
         if (typePacket.promptText.trim().length >= 8) {
-          // PR4 re-review fix (P1-1): the freeze-time `product_type_ranking`
-          // fallback runs under a scoped CohortLeaseKeeper EXACTLY like the
-          // OCR pull-forward above — the parent lease is renewed while the
-          // ranking transport is in flight, and the continuation asserts
-          // ownership before any further work. A sibling reclaim mid-call
-          // aborts the freeze with NO post-loss side effect. The keeper is
-          // always cleared in `finally`.
+          // The freeze-time Product Type resolution fallback runs under a scoped
+          // CohortLeaseKeeper EXACTLY like the OCR pull-forward above — the parent
+          // lease is renewed while the ranking/judgment transport is in flight,
+          // and the continuation asserts ownership before any further work.
+          // A sibling reclaim mid-call aborts the freeze with NO post-loss side effect.
           const rankerKeeper = new CohortLeaseKeeper(run.id, workerId, COHORT_LEASE_TTL_MS).start();
           try {
-            const rankedPromise = llmRankOptions({
-              targetLabel: resolvedTypeTarget.config.label,
-              options: typeOptions,
-              selectionMode: 'single',
-              evidenceText: typePacket.promptText,
-              task: 'product_type_classification',
+            const decisionPromise = resolveProductTypeDecision({
+              target: resolvedTypeTarget,
+              evidence: typeEvidence,
+              sku: member.productSku ?? '',
+              runId: memberRun.id,
+              snapshot,
               modelPolicy: snapshot.modelPolicy
                 ? modelPolicyViewFromConfig(snapshot.modelPolicy as never, snapshot.snapshotHash)
                 : null,
-              protectedOperation: 'product_type_ranking',
-              modelCall: buildModelCallContext(snapshot, memberRun.id, 'product_type_ranking', 1),
-              snapshot,
-              // The ranker asserts ownership immediately before every
-              // terminal-preflight row and around every awaited transport
-              // call — a rejected assertion throws `HeartbeatLostError`.
+              deterministicMatch: deterministicTypeMatch.productTypeId
+                ? {
+                    productTypeId: deterministicTypeMatch.productTypeId,
+                    confidence: deterministicTypeMatch.confidence ?? 0,
+                    source: 'keyword',
+                  }
+                : null,
+              confidenceFloor: cohortProductTypeConfidenceFloor(),
               assertHeld: () => rankerKeeper.assertHeld(),
             });
             await hooks?.onTypeRankerInFlight?.();
-            const ranked = await rankedPromise;
-            // No write after ownership loss: the post-await assertion IS the guard.
+            const decision = await decisionPromise;
             rankerKeeper.assertHeld();
-            if (ranked && ranked.values.length > 0) {
-              // PR4 review fix (BLOCKER): `llmRankOptions` prompts and
-              // normalizes exclusively against option LABELS; the persisted
-              // `execution_product_type_id` must be the option's canonical
-              // VALUE (pt.id). Map the returned label back through this
-              // member's FROZEN typeOptions; if no exact label maps the
-              // member abstains (fail closed — never an id guessed from a
-              // display label). `resolveCohortProductType` applies the same
-              // defensive mapping to its `memberLlmResults` input.
-              const llmLabel = ranked.values[0];
-              // PR4 review fix (SHOULD-FIX): duplicate Product Type display
-              // labels are permitted by config validation, so a label matching
-              // TWO frozen options is ambiguous — the member must abstain
-              // (fail closed), never silently pick the first match. Exactly
-              // one matching option maps the label to its canonical VALUE.
-              const mappedId = mapRankedLabelToOptionExactlyOne(llmLabel, typeOptions);
-              memberTypeLlmResult = mappedId !== null
-                ? { productTypeId: mappedId, confidence: ranked.confidence }
-                : null;
+
+            if (decision.status === 'resolved' && decision.productTypeId) {
+              memberTypeLlmResult = {
+                productTypeId: decision.productTypeId,
+                confidence: decision.confidence,
+                source: decision.source === 'jev' ? 'jev' : 'llm',
+                selectedProbability: decision.selectedProbability,
+                vendorConfidence: decision.vendorConfidence,
+              };
+            } else {
+              memberTypeLlmResult = null;
             }
-            // No valid LLM values / no LLM config / no frozen policy → the
-            // member abstains (fail-closed).
           } catch (err) {
-            // Ownership-loss exceptions are NEVER converted into an 'LLM
-            // unavailable → abstain' outcome: the stale owner must abort the
-            // freeze deterministically with no further side effects.
+            // Ownership-loss exceptions are NEVER converted into an abstain outcome:
+            // the stale owner must abort the freeze deterministically with no side effects.
             if (err instanceof HeartbeatLostError) throw err;
             // Policy denial / transport failure → abstain, never a silent type.
             memberTypeLlmResult = null;

@@ -97,31 +97,63 @@ export interface TargetProcessResult {
  * Uses keyword matching against evidence first, then falls back to
  * the LLM ranker if no confident match is found.
  */
-export function processProductTypeTarget(
+export async function processProductTypeTarget(
   target: ResolvedTarget,
   input: StageInput,
   context: StageContext,
 ): Promise<TargetProcessResult> {
-  return processTargetInternal(target, input, context, {
-    kind: 'product_type',
-    buildProposal: (value, confidence, evidence, modelCallIds) =>
-      buildProductTypeProposal({
-        runId: context.runId,
-        sku: input.sku,
-        productTypeId: value,
-        confidence,
-        evidenceIds: evidence.evidenceIds,
-        ...(evidence.supportingEvidenceIds?.length
-          ? { supportingEvidenceIds: evidence.supportingEvidenceIds }
-          : {}),
-        ...(evidence.contradictingEvidenceIds?.length
-          ? { contradictingEvidenceIds: evidence.contradictingEvidenceIds }
-          : {}),
-        snapshotHash: context.snapshot?.snapshotHash ?? null,
-        ...(modelCallIds?.length ? { modelCallIds } : {}),
-      }),
-    task: 'product_type_classification',
+  const modelPolicy = context.snapshot
+    ? modelPolicyViewFromConfig(
+        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+        context.snapshot.snapshotHash,
+      )
+    : null;
+
+  const { resolveProductTypeDecision } = await import('./product-type-decision');
+  const decision = await resolveProductTypeDecision({
+    target,
+    evidence: input.evidence,
+    sku: input.sku,
+    runId: context.runId,
+    snapshot: context.snapshot,
+    modelPolicy,
+    assertHeld: context.assertHeld,
   });
+
+  if (decision.status === 'abstained' || !decision.productTypeId) {
+    return {
+      proposals: [],
+      message:
+        decision.abstentionReason ??
+        `Abstained from proposing product type (${decision.abstentionCode ?? 'unresolved'}).`,
+    };
+  }
+
+  const proposal = buildProductTypeProposal({
+    runId: context.runId,
+    sku: input.sku,
+    productTypeId: decision.productTypeId,
+    confidence: decision.confidence,
+    evidenceIds: decision.evidenceIds,
+    ...(decision.supportingEvidenceIds.length
+      ? { supportingEvidenceIds: decision.supportingEvidenceIds }
+      : {}),
+    ...(decision.contradictingEvidenceIds.length
+      ? { contradictingEvidenceIds: decision.contradictingEvidenceIds }
+      : {}),
+    snapshotHash: context.snapshot?.snapshotHash ?? null,
+    ...(decision.modelCallIds.length ? { modelCallIds: decision.modelCallIds } : {}),
+    derivation: decision.derivation,
+  });
+
+  const sourceLabel =
+    decision.source === 'jev' ? 'TypeSafe Jev' : decision.source === 'llm' ? 'llm' : 'keyword';
+  const label =
+    target.options.find(o => o.value === decision.productTypeId)?.label ?? decision.productTypeId;
+  return {
+    proposals: [proposal],
+    message: `${label} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`,
+  };
 }
 
 // ─── Product Field Processing ─────────────────────────────────────────────────

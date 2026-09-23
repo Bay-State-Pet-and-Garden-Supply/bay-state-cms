@@ -26,6 +26,8 @@ export interface ProductTypeProposalParams {
   /** Target-specific contradicting evidence ids (issue #17 H). */
   contradictingEvidenceIds?: string[];
   matchedWords?: string[];
+  /** First-class proposal derivation provenance (e.g. type invariant vs evidence match vs LLM vs Jev). */
+  derivation?: ProposalDerivation;
   /** Explicit override for bulk acceptance (Issue #10) */
   isBulkAcceptable?: boolean;
   /** Immutable runtime snapshot hash this proposal was built under. */
@@ -39,6 +41,8 @@ export interface ProductTypeProposalParams {
  * Preserves the existing proposal shape for Review/Promotion compatibility.
  */
 export function buildProductTypeProposal(params: ProductTypeProposalParams): ClassificationProposal {
+  // Jev System One proposals require human decisions and remain non-bulk-acceptable
+  const isBulk = params.derivation?.kind === 'systemone_judgment' ? false : (params.isBulkAcceptable ?? false);
   return {
     id: randomUUID(),
     runId: params.runId,
@@ -57,8 +61,9 @@ export function buildProductTypeProposal(params: ProductTypeProposalParams): Cla
     ...(params.contradictingEvidenceIds?.length
       ? { contradictingEvidenceIds: params.contradictingEvidenceIds }
       : {}),
+    ...(params.derivation ? { derivation: params.derivation } : {}),
     status: 'pending',
-    isBulkAcceptable: params.isBulkAcceptable ?? false,
+    isBulkAcceptable: isBulk,
     isStale: false,
     stalenessReason: null,
     snapshotHash: params.snapshotHash ?? null,

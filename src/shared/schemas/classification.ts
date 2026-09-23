@@ -855,6 +855,15 @@ export const ProposalDerivationSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('llm'),
   }).strict(),
+  z.object({
+    kind: z.literal('systemone_judgment'),
+    primitive: z.enum(['choice', 'noul']),
+    questionId: z.string(),
+    selectedProbability: z.number().min(0).max(1).nullable().optional(),
+    vendorConfidence: z.number().min(0).max(1).nullable().optional(),
+    probabilityBasis: z.string().optional(),
+    abstentionCode: z.string().optional(),
+  }).strict(),
 ]);
 export type ProposalDerivation = z.infer<typeof ProposalDerivationSchema>;
 

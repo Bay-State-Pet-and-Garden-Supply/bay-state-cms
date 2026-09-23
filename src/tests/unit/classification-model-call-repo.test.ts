@@ -189,4 +189,40 @@ describe('classification model-call repo (issue #17 E)', () => {
     recordTerminalPreflight(null, '', 'unavailable', 'nope');
     expect(getModelCallsByRun(run.id)).toHaveLength(2);
   });
+
+  it('stores and updates requested_model, resolved_model, and typed_result_json (#297)', () => {
+    const run = createRun(workspaceId, 'SKU-9', null, HASH, { sourceKind: 'catalog_product', sourceProductHash: 'p9' });
+    const callId = insertModelCallStart({
+      ...makeStart(run.id),
+      provider: 'typesafe',
+      model: 'jev-1.13.0',
+      requestedModel: 'jev-1.13.0',
+    });
+
+    const startRow = getModelCallById(callId)!;
+    expect(startRow.requested_model).toBe('jev-1.13.0');
+    expect(startRow.resolved_model).toBeNull();
+    expect(startRow.typed_result_json).toBeNull();
+
+    const typedMetadata = {
+      questionId: 'primary_product_type',
+      choice: 'opt_1',
+      selectedProbability: 0.88,
+      vendorConfidence: 0.94,
+      basis: 'choice_probability',
+    };
+
+    const completed = completeModelCall(callId, {
+      status: MODEL_CALL_STATUS.success,
+      durationMs: 45,
+      resolvedModel: 'jev-1.13.0',
+      typedResultMetadata: typedMetadata,
+    });
+    expect(completed).toBe(true);
+
+    const completedRow = getModelCallById(callId)!;
+    expect(completedRow.requested_model).toBe('jev-1.13.0');
+    expect(completedRow.resolved_model).toBe('jev-1.13.0');
+    expect(completedRow.typed_result_json).toBe(JSON.stringify(typedMetadata));
+  });
 });
