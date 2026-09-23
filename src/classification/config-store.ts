@@ -18,10 +18,18 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import lockfile from 'proper-lockfile';
 import {
+  ClassificationBundleOriginV2Schema,
   ClassificationFocusedFileNames,
   ClassificationManifestV2Schema,
+  DataSharingConfigV2Schema,
+  DataSharingFileV2Schema,
+  ModelPolicyConfigV2Schema,
+  ModelPolicyFileV2Schema,
+  type ClassificationBundleOriginV2,
   type ClassificationConfigBundleV2,
   type ClassificationManifestV2,
+  type DataSharingConfigV2,
+  type ModelPolicyConfigV2,
 } from '../shared/schemas/classification';
 import { canonicalJsonFileString, sha256Hex } from '../shared/stable-id';
 import {
@@ -41,6 +49,7 @@ import {
   captureConfigCacheState,
   restoreConfigCacheState,
   syncConfigToCache,
+  syncPolicyToCache,
   upsertConfigSnapshot,
   type ConfigCacheState,
 } from '../db/repositories/classification-config-repo';
@@ -586,3 +595,202 @@ export function activateBundle(
   assertTaxonomyMutable('bundle activation');
   return enqueueActivation(() => performActivation(stagingHash, expectedActiveHash, options));
 }
+
+// ─── Scoped Policy Writer (Issue #296 / ADR 0033) ──────────────────────────────
+
+export interface UpdateClassificationPolicyOptions {
+  workspacePath: string;
+  workspaceId: string;
+  expectedBaseBundleHash: string;
+  modelPolicy: ModelPolicyConfigV2;
+  dataSharing: DataSharingConfigV2;
+  gitMessage?: string;
+  gitEnabled?: boolean;
+}
+
+export interface UpdateClassificationPolicyResult {
+  bundleHash: string;
+  commitHash: string | null;
+  updatedAt: string;
+}
+
+const POLICY_ALLOWLIST = [
+  'store/classification/model-policies.json',
+  'store/classification/data-sharing.json',
+  'store/classification/manifest.json',
+] as const;
+
+/**
+ * Narrowly scoped writer for classification model-policy and data-sharing documents.
+ * Operates under the cross-process advisory lock and CAS validation.
+ * Commits ONLY the allowlisted files to the scoped catalog Git workflow.
+ * Fails closed and rolls back on any error.
+ */
+export async function updateClassificationPolicy(
+  options: UpdateClassificationPolicyOptions,
+): Promise<UpdateClassificationPolicyResult> {
+  const { workspacePath, workspaceId, expectedBaseBundleHash, modelPolicy, dataSharing } = options;
+
+  const store = verifiedStoreDirectory(workspacePath);
+  const activeDir = path.join(store.path, 'classification');
+
+  if (!fs.existsSync(activeDir)) {
+    throw new ConfigStoreError('Classification configuration directory does not exist or has not been initialized.', 'classification_not_configured');
+  }
+
+  const releaseLock = await acquireConfigLock(workspacePath);
+
+  try {
+    const currentManifest = readStrictManifestFromDirectory(activeDir);
+    if (currentManifest.schemaVersion !== 2 || currentManifest.compatibilityVersion !== 2) {
+      throw new ConfigStoreError('Model policy updates require a v2 classification workspace. Migration required.', 'v1_migration_required');
+    }
+
+    if (currentManifest.bundleHash !== expectedBaseBundleHash) {
+      throw new ConfigStoreConflictError(
+        `Configuration has changed since preview (expected ${expectedBaseBundleHash}, found ${currentManifest.bundleHash}). Please refresh.`,
+      );
+    }
+
+    // Preserve existing bundleOrigin from model-policies.json or default
+    let origin: ClassificationBundleOriginV2 = { kind: 'reviewed_generation' };
+    const policyPath = path.join(activeDir, 'model-policies.json');
+    if (fs.existsSync(policyPath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(policyPath, 'utf-8'));
+        const parsedOrigin = ClassificationBundleOriginV2Schema.safeParse(raw.bundleOrigin);
+        if (parsedOrigin.success) origin = parsedOrigin.data;
+      } catch {
+        // fallback
+      }
+    }
+
+    // Validate inputs against schemas
+    const parsedModelPolicy = ModelPolicyConfigV2Schema.parse(modelPolicy);
+    const parsedDataSharing = DataSharingConfigV2Schema.parse(dataSharing);
+
+    const modelPolicyFile = ModelPolicyFileV2Schema.parse({
+      schemaVersion: 2,
+      bundleOrigin: origin,
+      policy: parsedModelPolicy,
+    });
+    const dataSharingFile = DataSharingFileV2Schema.parse({
+      schemaVersion: 2,
+      bundleOrigin: origin,
+      policy: parsedDataSharing,
+    });
+
+    const modelPolicyContent = canonicalJsonFileString(modelPolicyFile);
+    const dataSharingContent = canonicalJsonFileString(dataSharingFile);
+
+    const modelPolicyHash = sha256Hex(modelPolicyContent);
+    const dataSharingHash = sha256Hex(dataSharingContent);
+
+    const updatedFileVersions = {
+      ...currentManifest.fileVersions,
+      'model-policies.json': modelPolicyHash,
+      'data-sharing.json': dataSharingHash,
+    };
+
+    const updatedAt = new Date().toISOString();
+    const manifestWithoutHash = {
+      schemaVersion: 2 as const,
+      compatibilityVersion: 2 as const,
+      createdAt: currentManifest.createdAt,
+      updatedAt,
+      activeRevision: currentManifest.activeRevision,
+      lifecycle: currentManifest.lifecycle,
+      hasUnresolvedSafetyFindings: currentManifest.hasUnresolvedSafetyFindings,
+      migrationProvenance: currentManifest.migrationProvenance,
+      sourceCatalogCommit: currentManifest.sourceCatalogCommit,
+      catalogEvidenceHash: currentManifest.catalogEvidenceHash,
+      fileVersions: updatedFileVersions,
+    };
+    const newBundleHash = computeClassificationBundleHash(manifestWithoutHash);
+    const updatedManifest = ClassificationManifestV2Schema.parse({
+      ...manifestWithoutHash,
+      bundleHash: newBundleHash,
+    });
+    const manifestContent = canonicalJsonFileString(updatedManifest);
+
+    // Read previous disk contents for transactional rollback
+    const prevModelPolicy = fs.existsSync(policyPath) ? fs.readFileSync(policyPath, 'utf-8') : null;
+    const prevDataSharing = fs.existsSync(path.join(activeDir, 'data-sharing.json'))
+      ? fs.readFileSync(path.join(activeDir, 'data-sharing.json'), 'utf-8')
+      : null;
+    const prevManifest = fs.readFileSync(path.join(activeDir, 'manifest.json'), 'utf-8');
+
+    // Pre-flight git index check: ensure NO files outside POLICY_ALLOWLIST are already staged
+    if (options.gitEnabled !== false) {
+      const prestagedResult = runGit(workspacePath, ['diff', '--cached', '--name-only']);
+      if (prestagedResult.status !== 0) {
+        throw new ConfigStoreError(`Unable to inspect repository index: ${prestagedResult.stdout}`, 'git_inspection_failed');
+      }
+      const prestagedPaths = prestagedResult.stdout.split('\n').filter(Boolean);
+      const prestagedOutOfScope = prestagedPaths.filter(p => !POLICY_ALLOWLIST.includes(p as any));
+      if (prestagedOutOfScope.length > 0) {
+        throw new ConfigStoreError(
+          `Refusing to commit policy: repository index already contains unrelated staged files:\n${prestagedOutOfScope.join('\n')}`,
+          'pre_staged_paths',
+        );
+      }
+    }
+
+    // Write the files to disk
+    fs.writeFileSync(policyPath, modelPolicyContent, 'utf-8');
+    fs.writeFileSync(path.join(activeDir, 'data-sharing.json'), dataSharingContent, 'utf-8');
+    fs.writeFileSync(path.join(activeDir, 'manifest.json'), manifestContent, 'utf-8');
+
+    let commitHash: string | null = null;
+    if (options.gitEnabled !== false) {
+      try {
+        const addResult = runGit(workspacePath, ['add', '--', ...POLICY_ALLOWLIST]);
+        if (addResult.status !== 0) {
+          throw new ConfigStoreError(`git add failed: ${addResult.stdout}`, 'git_add_failed');
+        }
+
+        const stagedResult = runGit(workspacePath, ['diff', '--cached', '--name-only']);
+        const stagedPaths = stagedResult.stdout.split('\n').filter(Boolean);
+        const outOfScope = stagedPaths.filter(p => !POLICY_ALLOWLIST.includes(p as any));
+        if (outOfScope.length > 0) {
+          runGit(workspacePath, ['reset', '--', ...stagedPaths]);
+          throw new ConfigStoreError(`git staged paths outside policy allowlist:\n${outOfScope.join('\n')}`, 'git_out_of_scope');
+        }
+
+        const msg = options.gitMessage ?? `Update classification model policy and data sharing (${newBundleHash.slice(0, 8)})`;
+        const commitResult = runGit(workspacePath, ['commit', '-m', msg, '--', ...POLICY_ALLOWLIST]);
+        if (commitResult.status !== 0) {
+          runGit(workspacePath, ['reset', '--', ...POLICY_ALLOWLIST]);
+          throw new ConfigStoreError(`git commit failed: ${commitResult.stdout}`, 'git_commit_failed');
+        }
+        commitHash = readGitHead(workspacePath);
+      } catch (err) {
+        // Rollback disk files to exact previous contents
+        if (prevModelPolicy !== null) fs.writeFileSync(policyPath, prevModelPolicy, 'utf-8');
+        else fs.rmSync(policyPath, { force: true });
+
+        if (prevDataSharing !== null) fs.writeFileSync(path.join(activeDir, 'data-sharing.json'), prevDataSharing, 'utf-8');
+        else fs.rmSync(path.join(activeDir, 'data-sharing.json'), { force: true });
+
+        fs.writeFileSync(path.join(activeDir, 'manifest.json'), prevManifest, 'utf-8');
+        throw err;
+      }
+    }
+
+    // Update SQLite cache
+    try {
+      syncPolicyToCache(workspaceId, parsedModelPolicy, parsedDataSharing);
+    } catch {
+      // Best-effort cache update
+    }
+
+    return {
+      bundleHash: newBundleHash,
+      commitHash,
+      updatedAt,
+    };
+  } finally {
+    await releaseLock();
+  }
+}
+

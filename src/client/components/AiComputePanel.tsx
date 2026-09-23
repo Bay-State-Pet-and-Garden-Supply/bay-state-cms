@@ -29,6 +29,7 @@ import type { ConnectionHealthReport, DiscoveredModel } from '../../ai/connectio
 import { TYPESAFE_KNOWN_MODELS } from '../../ai/systemone-transport';
 import { DEFAULT_LOCAL_VISION_MODEL } from '../../shared/vision-model-defaults';
 import { colors, fonts, rounded } from '../theme';
+import { ClassificationProviderSettings } from './settings/ClassificationProviderSettings';
 
 /**
  * Versioned TypeSafe pins that stay selectable on System One routes even when
@@ -693,7 +694,7 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
             {/* Individual Workloads */}
             {[
               { id: 'discovery', label: 'Discovery (Brand Inference & Sitemaps)', hint: 'Inherits Catalog Default. Falls back to deterministic heuristics when offline.' },
-              { id: 'curation', label: 'Curation (Title Consolidation & Classification)', hint: 'Inherits Catalog Default. Governed by frozen run policy.' },
+              { id: 'curation', label: 'Curation (General Workload)', hint: 'General curation tasks. Product type, attribute, and page classification are governed exclusively by Classification Stage Providers below.' },
               { id: 'visionOcr', label: 'Packaging OCR / Vision', hint: 'Primary VLM for high-res package OCR. Respects Image Sharing policy.' },
               { id: 'profileBuilder', label: 'Profile Builder (AI Selector Proposal)', hint: 'Fails closed when primary and fallback fail.' },
               { id: 'storeManager', label: 'Store Manager Assistant', hint: 'Agentic assistant with native tool-calling.' },
@@ -804,6 +805,16 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
             })}
           </div>
         )}
+      </section>
+
+      {/* ── 4. Classification Stage Providers (Issue #296 / Model Policy Authority) ── */}
+      <section style={{
+        background: colors.whiteSurface,
+        borderRadius: rounded.lg,
+        border: `1px solid ${colors.cardBorder}`,
+        padding: '1.5rem',
+      }}>
+        <ClassificationProviderSettings />
       </section>
 
       {/* ── Modal: Add / Edit Connection ───────────────────────────────── */}
