@@ -496,6 +496,10 @@ export interface EvaluatorBaselineComparison {
   eligible: number;
   candidateCorrect: number;
   baselineCorrect: number;
+  candidateCoverage: number;
+  baselineCoverage: number;
+  /** candidateCoverage - baselineCoverage (overlap-only deltas cannot conceal coverage shifts). */
+  coverageShift: number;
   /** Mean(candidateCorrect - baselineCorrect) over the fixed eligible population. */
   fixedDeltaMean: number;
   /** Baseline abstained, candidate correct. */
@@ -630,6 +634,8 @@ export function computeEvaluatorAttribution(
 
   let candidateCorrect = 0;
   let baselineCorrect = 0;
+  let candidateCoveredCount = 0;
+  let baselineCoveredCount = 0;
   let deltaSum = 0;
   let comparisonEligible = 0;
   let recoveredBaselineAbstentions = 0;
@@ -733,6 +739,10 @@ export function computeEvaluatorAttribution(
       });
       const candidateScore = verdict === 'correct' ? 1 : 0;
       const baselineScore = baseVerdict === 'correct' ? 1 : 0;
+      const candCovered = verdict === 'correct' || verdict === 'incorrect' || verdict === 'abstained';
+      const baseCovered = baseVerdict === 'correct' || baseVerdict === 'incorrect' || baseVerdict === 'abstained';
+      if (candCovered) candidateCoveredCount++;
+      if (baseCovered) baselineCoveredCount++;
       comparisonEligible++;
       candidateCorrect += candidateScore;
       baselineCorrect += baselineScore;
@@ -770,11 +780,16 @@ export function computeEvaluatorAttribution(
     conditionalAccuracy: covered > 0 ? correct / covered : 0,
   };
 
+  const candidateCoverage = comparisonEligible > 0 ? candidateCoveredCount / comparisonEligible : 0;
+  const baselineCoverage = comparisonEligible > 0 ? baselineCoveredCount / comparisonEligible : 0;
   const baselineComparison: EvaluatorBaselineComparison | null = hasBaseline
     ? {
         eligible: comparisonEligible,
         candidateCorrect,
         baselineCorrect,
+        candidateCoverage,
+        baselineCoverage,
+        coverageShift: candidateCoverage - baselineCoverage,
         fixedDeltaMean: comparisonEligible > 0 ? deltaSum / comparisonEligible : 0,
         recoveredBaselineAbstentions,
         recoveredExampleIds: recoveredExampleIds.sort(),

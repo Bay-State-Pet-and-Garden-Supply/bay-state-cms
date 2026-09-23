@@ -27,6 +27,7 @@ import {
 } from '../../classification/benchmark-prediction';
 import { getRun } from '../../db/repositories/classification-run-repo';
 import { calibrateThresholds, devPairsFromBundle } from '../../classification/confidence-calibrator';
+import { evaluateBenchmark } from '../../classification/benchmark-evaluator';
 import type { BenchmarkPredictionEntry } from '../../shared/schemas/classification';
 import prereviewGoldset from '../fixtures/benchmark-prereview-goldset.json';
 
@@ -317,7 +318,7 @@ describe('Benchmark pre-review predictions (#294)', () => {
     return datasetId;
   }
 
-  it('freezes a labeled fixture dataset → captures raw outputs → evaluates the immutable bundle; reviewer corrections do not change reported accuracy', () => {
+  it('freezes a labeled fixture dataset → captures raw outputs → evaluates the immutable bundle; reviewer corrections do not change reported accuracy', async () => {
     // Freeze: representative fixture entries with adjudicated gold + retained inputs (no answers in inputs).
     const entries = (prereviewGoldset.entries as Array<{ sku: string; familyId: string; split: string; gold: unknown; evidence: unknown[] }>).slice(0, 4);
     const datasetId = benchmarkRepo.createDataset(workspaceId, 'Demo Freeze', 'product_family', 42).id;
@@ -355,6 +356,12 @@ describe('Benchmark pre-review predictions (#294)', () => {
     const beforeHash = before.bundleHash;
     const beforeTypes = before.predictions.map(p => p.productType).join('|');
 
+    const evalBefore = await evaluateBenchmark(datasetId, {
+      runLabel: 'Eval Before Corrections',
+      splitGroup: 'holdout',
+      predictionBundleId: bundle.id,
+    }, workspaceId);
+
     // Review: corrections land as decisions on the live runs — answers, not predictions.
     const db = getDb();
     const now = new Date().toISOString();
@@ -371,6 +378,19 @@ describe('Benchmark pre-review predictions (#294)', () => {
     expect(after.bundleHash).toBe(beforeHash);
     expect(after.predictions.map(p => p.productType).join('|')).toBe(beforeTypes);
     expect(after.predictions.some(p => p.productType === 'reviewer-corrected-type')).toBe(false);
+
+    const evalAfter = await evaluateBenchmark(datasetId, {
+      runLabel: 'Eval After Corrections',
+      splitGroup: 'holdout',
+      predictionBundleId: bundle.id,
+    }, workspaceId);
+
+    expect(evalAfter.metrics.productType.top1Accuracy).toBe(evalBefore.metrics.productType.top1Accuracy);
+    expect(evalAfter.metrics.productType.coverage).toBe(evalBefore.metrics.productType.coverage);
+    expect(evalAfter.attribution.fixedPopulation.correctness).toBe(evalBefore.attribution.fixedPopulation.correctness);
+    expect(evalAfter.attribution.fixedPopulation.correct).toBe(evalBefore.attribution.fixedPopulation.correct);
+    expect(evalAfter.bundleProvenance.eligibleForRawAccuracyQualification).toBe(true);
+    expect(evalAfter.bundleProvenance.source).toBe(PRE_REVIEW_PREDICTION_SOURCE);
   });
 
   it('captures exact canonical IDs, run/config/evidence/model provenance, and per-example outcomes', () => {

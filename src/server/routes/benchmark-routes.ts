@@ -16,7 +16,19 @@ import { getCurrentWorkspace } from '../services/workspace-service';
 import * as benchmarkRepo from '../../db/repositories/benchmark-repo';
 import { exportBenchmark } from '../../classification/benchmark-exporter';
 import { evaluateBenchmark } from '../../classification/benchmark-evaluator';
-import { buildPredictionBundle } from '../../classification/benchmark-prediction';
+import {
+  buildPredictionBundle,
+  buildPreReviewPredictionBundle,
+  describeStoredBundleSource,
+  PRE_REVIEW_PREDICTION_SOURCE,
+  REVIEWED_OUTCOME_PREDICTION_SOURCE,
+  PRE_REVIEW_BUNDLE_VERSION,
+  LEGACY_BUNDLE_VERSION,
+} from '../../classification/benchmark-prediction';
+import {
+  assessPredictionSourceEligibility,
+  reportRawAccuracyQualification,
+} from '../../classification/benchmark-qualification';
 
 const route = new Hono();
 
@@ -86,7 +98,29 @@ route.get('/benchmark/datasets/:id', (c) => {
     dataset,
     splitDistribution: { train: trainCount, test: testCount, holdout: holdoutCount },
     evalRuns,
-    predictionBundles: predictionBundles.map(b => ({ id: b.id, runLabel: b.run_label, splitGroup: b.split_group, bundleHash: b.bundle_hash, createdAt: b.created_at })),
+    predictionBundles: predictionBundles.map(b => {
+      let source: string = REVIEWED_OUTCOME_PREDICTION_SOURCE;
+      let bundleVersion: number = LEGACY_BUNDLE_VERSION;
+      try {
+        const parsed = JSON.parse(b.predictions_json);
+        const desc = describeStoredBundleSource(parsed);
+        source = desc.source;
+        bundleVersion = desc.bundleVersion;
+      } catch {
+        /* best-effort fallback to legacy reviewed-outcome */
+      }
+      const eligibility = assessPredictionSourceEligibility(source, bundleVersion);
+      return {
+        id: b.id,
+        runLabel: b.run_label,
+        splitGroup: b.split_group,
+        bundleHash: b.bundle_hash,
+        source,
+        bundleVersion,
+        eligibleForRawAccuracyQualification: eligibility.eligible,
+        createdAt: b.created_at,
+      };
+    }),
     qualificationReceipts: receipts.map(r => ({
       id: r.id,
       digest: r.digest,
@@ -164,14 +198,28 @@ route.post('/benchmark/datasets/:id/predict', async (c) => {
     : `Predictions ${new Date().toISOString().slice(0, 19)}`;
   const splitGroup = body.splitGroup === 'test' ? 'test' : 'holdout';
 
+  const isPreReview = body.source === PRE_REVIEW_PREDICTION_SOURCE;
+
   try {
-    const bundle = buildPredictionBundle(workspace.id, datasetId, { runLabel, splitGroup });
+    const bundle = isPreReview
+      ? buildPreReviewPredictionBundle(workspace.id, datasetId, {
+          runLabel,
+          splitGroup,
+          claimTargets: Array.isArray(body.claimTargets) ? body.claimTargets : undefined,
+        })
+      : buildPredictionBundle(workspace.id, datasetId, {
+          runLabel,
+          splitGroup,
+          claimTargets: Array.isArray(body.claimTargets) ? body.claimTargets : undefined,
+        });
     return c.json({
       bundleId: bundle.id,
       datasetId: bundle.datasetId,
       splitGroup: bundle.splitGroup,
       predictionCount: bundle.predictions.length,
       bundleHash: bundle.bundleHash,
+      source: isPreReview ? PRE_REVIEW_PREDICTION_SOURCE : REVIEWED_OUTCOME_PREDICTION_SOURCE,
+      bundleVersion: isPreReview ? PRE_REVIEW_BUNDLE_VERSION : LEGACY_BUNDLE_VERSION,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -209,6 +257,17 @@ route.post('/benchmark/datasets/:id/eval', async (c) => {
       predictionBundleId,
       baselineBundleId,
     }, workspace.id);
+    const rawAccuracyReport = reportRawAccuracyQualification({
+      datasetId,
+      datasetHash: dataset.dataset_hash ?? '',
+      predictionBundleId: result.predictionBundleId,
+      bundleHash: result.bundleHash,
+      holdoutSize: result.holdoutSize,
+      metrics: result.metrics,
+      qualification: result.qualification,
+      source: result.bundleProvenance.source,
+      bundleVersion: result.bundleProvenance.bundleVersion,
+    });
     return c.json({
       evalRunId: result.evalRunId,
       metrics: result.metrics,
@@ -217,6 +276,10 @@ route.post('/benchmark/datasets/:id/eval', async (c) => {
       predictionBundleId: result.predictionBundleId,
       bundleHash: result.bundleHash,
       receiptDigest: result.receiptDigest,
+      bundleProvenance: result.bundleProvenance,
+      baselineBundleProvenance: result.baselineBundleProvenance,
+      attribution: result.attribution,
+      rawAccuracyReport,
       insufficientSample: result.qualification.reasons.some(r => r.startsWith('insufficient_sample')),
       pageGoldBlocked: result.metrics.pages.blocked,
     });
@@ -238,7 +301,31 @@ route.get('/benchmark/datasets/:id/results', (c) => {
   const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
   if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
 
-  const evalRuns = benchmarkRepo.getEvalRuns(datasetId);
+  const evalRuns = benchmarkRepo.getEvalRuns(datasetId).map(run => {
+    let source: string | null = null;
+    let bundleVersion: number | null = null;
+    let eligibleForRawAccuracyQualification = false;
+    if (run.prediction_bundle_id) {
+      const bundle = benchmarkRepo.getPredictionBundle(run.prediction_bundle_id);
+      if (bundle) {
+        try {
+          const parsed = JSON.parse(bundle.predictions_json);
+          const desc = describeStoredBundleSource(parsed);
+          source = desc.source;
+          bundleVersion = desc.bundleVersion;
+          eligibleForRawAccuracyQualification = assessPredictionSourceEligibility(source as any, bundleVersion).eligible;
+        } catch {
+          /* best-effort fallback when bundle is not parseable */
+        }
+      }
+    }
+    return {
+      ...run,
+      source,
+      bundleVersion,
+      eligibleForRawAccuracyQualification,
+    };
+  });
   return c.json({ evalRuns });
 });
 

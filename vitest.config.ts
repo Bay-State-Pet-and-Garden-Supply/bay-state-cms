@@ -180,6 +180,7 @@ export default defineConfig({
       'src/tests/unit/benchmark-dataset-lifecycle.test.ts',
       'src/tests/unit/benchmark-prediction.test.ts',
       'src/tests/unit/benchmark-qualification.test.ts',
+      'src/tests/unit/benchmark-routes.test.ts',
       'src/tests/unit/embedding-maintenance.test.ts',
       'src/tests/unit/embedding-routes.test.ts',
       'src/tests/unit/classification-page-snapshot.test.ts',

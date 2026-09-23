@@ -261,6 +261,8 @@ export interface RawAccuracyQualificationReportInput {
   labeledSupport?: number | null;
   metrics: EvalMetrics;
   qualification: QualificationResult;
+  source?: string | null;
+  bundleVersion?: number | null;
   generatedBy?: string | null;
 }
 export interface RawAccuracyQualificationReport {
@@ -279,8 +281,8 @@ export interface RawAccuracyQualificationReport {
 export function reportRawAccuracyQualification(
   input: RawAccuracyQualificationReportInput,
 ): RawAccuracyQualificationReport {
-  const source = input.qualification.gate.predictionSource;
-  const bundleVersion = input.qualification.gate.bundleVersion;
+  const source = input.source ?? input.qualification.gate.predictionSource;
+  const bundleVersion = input.bundleVersion ?? input.qualification.gate.bundleVersion;
   const eligibility = assessPredictionSourceEligibility(source, bundleVersion);
   const qualified = input.qualification.qualified && eligibility.eligible;
   const status = !eligibility.eligible ? 'ineligible_source' : qualified ? 'qualified' : 'unqualified';
