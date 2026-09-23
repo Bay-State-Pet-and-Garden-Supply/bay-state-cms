@@ -7,6 +7,7 @@
 
 import type { ProviderConnection } from './provider-connections';
 import { validateConnectionTrustZone } from './provider-connections';
+import { checkSystemOneModelPin } from './systemone-transport';
 
 export interface DiscoveredModel {
   id: string;
@@ -107,6 +108,8 @@ export async function probeConnectionHealth(
     return report;
   }
 
+  // Typed-judgment (System One) connections probe GET /models on the same
+  // base URL; the parser below accepts the documented models[].name shape.
   const startTime = Date.now();
   const timeoutMs = conn.connectTimeoutMs ?? 2000;
   const controller = new AbortController();
@@ -114,7 +117,6 @@ export async function probeConnectionHealth(
 
   const cleanBase = conn.baseUrl.replace(/\/+$/, '');
   const url = `${cleanBase}/models`;
-
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'User-Agent': 'BaystateCMS-HealthProbe/1.0',
@@ -173,21 +175,29 @@ export async function probeConnectionHealth(
       return report;
     }
 
-    const data = (await response.json()) as any;
-    const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.models) ? data.models : []);
-    const models: DiscoveredModel[] = rawList
-      .map((item: any) => {
-        const id = item?.id || item?.name;
-        if (!id || typeof id !== 'string') return null;
+    const data: unknown = await response.json();
+    const rawList: unknown[] = Array.isArray(data) ? data
+      : (data !== null && typeof data === 'object' && 'data' in data && Array.isArray(data.data) ? data.data
+      : (data !== null && typeof data === 'object' && 'models' in data && Array.isArray(data.models) ? data.models : []));
+    const parsedModels: Array<DiscoveredModel | null> = rawList
+      .map((item: unknown): DiscoveredModel | null => {
+        if (item === null || typeof item !== 'object') return null;
+        const record = item as Record<string, unknown>;
+        const rawId = typeof record.id === 'string' ? record.id
+          : (typeof record.name === 'string' ? record.name : null);
+        if (!rawId) return null;
+        const id: string = rawId;
         const caps = inferModelCapabilities(id);
-        return {
+        const ownedBy = typeof record.owned_by === 'string' ? record.owned_by : undefined;
+        const model: DiscoveredModel = {
           id,
           label: id,
-          ownedBy: item?.owned_by,
+          ownedBy,
           ...caps,
         };
-      })
-      .filter((m: DiscoveredModel | null): m is DiscoveredModel => m !== null);
+        return model;
+      });
+    const models: DiscoveredModel[] = parsedModels.filter((m): m is DiscoveredModel => m !== null);
 
     const report: ConnectionHealthReport = {
       connectionId: conn.id,
@@ -220,6 +230,14 @@ export async function probeConnectionHealth(
 /**
  * Checks if a specific model is present on a connection.
  * Distinguishes between connection unavailability and model misconfiguration.
+ *
+ * Pinned-model semantics (TypeSafe contract): versioned pins are accepted by
+ * the API whether or not discovery lists them, and discovery currently lists
+ * aliases only. So for System One connections an exact discovered match OR
+ * the evaluated known pin passes, and anything else is an actionable
+ * unknown-pin error (never an alias substitution). Documented aliases pass
+ * only via an exact discovered match — never as known pins. Chat transports
+ * keep the existing substring behavior.
  */
 export async function checkModelAvailability(
   conn: ProviderConnection,
@@ -232,6 +250,24 @@ export async function checkModelAvailability(
       connectionStatus: health.status,
       isModelPresent: false,
       warning: `Connection "${conn.label}" is ${health.status}: ${health.errorMessage ?? 'Unavailable'}`,
+    };
+  }
+
+  if (conn.transport === 'systemone') {
+    const target = modelId.trim();
+    const exactMatch = health.models.some(m => m.id === target);
+    if (exactMatch) {
+      return { available: true, connectionStatus: 'online', isModelPresent: true };
+    }
+    const pin = checkSystemOneModelPin(target);
+    if (pin.ok && pin.kind === 'known_pin') {
+      return { available: true, connectionStatus: 'online', isModelPresent: true };
+    }
+    return {
+      available: false,
+      connectionStatus: 'online',
+      isModelPresent: false,
+      warning: pin.message,
     };
   }
 

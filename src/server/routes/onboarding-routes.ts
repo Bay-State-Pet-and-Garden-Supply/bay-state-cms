@@ -167,6 +167,7 @@ import { probeConnectionHealth } from '../../ai/connection-health-monitor';
 import {
   validateConnectionTrustZone,
   toClientProviderConnection,
+  isSystemOneConnection,
   type ProviderConnection,
   type WorkloadRoute,
 } from '../../ai/provider-connections';
@@ -4373,12 +4374,26 @@ route.put('/onboarding/settings/ai/connections/:id', async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
 
+  const validTransports = ['openai-compatible', 'ollama-native', 'systemone'] as const;
+  const transport = body.transport ?? 'openai-compatible';
+  if (!validTransports.includes(transport)) {
+    return c.json({ error: `Unsupported transport "${transport}". Supported: openai-compatible, ollama-native, systemone.` }, 400);
+  }
+
+  // Redacted-credential preservation: the client sends hasCredential-only
+  // views, so a redacted/blank credential keeps the stored secret.
+  let credential: string | undefined = body.credential ?? undefined;
+  if (credential === '[REDACTED]' || credential === '••••••••••••' || credential === '') {
+    const existing = getProviderConnection(id);
+    credential = existing?.credential ?? undefined;
+  }
+
   const conn: ProviderConnection = {
     id,
     label: body.label || id,
-    transport: body.transport || 'openai-compatible',
+    transport,
     baseUrl: body.baseUrl,
-    credential: body.credential ?? undefined,
+    credential,
     trustZone: body.trustZone || 'this_device',
     approvedHost: body.approvedHost,
     approvedPort: body.approvedPort,
@@ -4391,6 +4406,12 @@ route.put('/onboarding/settings/ai/connections/:id', async (c) => {
     validateConnectionTrustZone(conn);
   } catch (err: any) {
     return c.json({ error: `Trust zone validation failed: ${err.message}`, code: err.code }, 400);
+  }
+
+  // System One connections require a credential (cloud typed judgments are
+  // never anonymous) — fail closed with an actionable message.
+  if (isSystemOneConnection(conn) && !conn.credential) {
+    return c.json({ error: 'TypeSafe (System One) connections require an API key credential.' }, 400);
   }
 
   upsertProviderConnection(conn);
@@ -4408,6 +4429,20 @@ route.post('/onboarding/settings/ai/connections/test-ephemeral', async (c) => {
     body = await c.req.json();
   } catch {
     return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const ephemeralTransports = ['openai-compatible', 'ollama-native', 'systemone'] as const;
+  if (body.transport !== undefined && !ephemeralTransports.includes(body.transport)) {
+    return c.json({
+      health: {
+        connectionId: body.id || 'test-ephemeral',
+        status: 'misconfigured',
+        latencyMs: 0,
+        models: [],
+        lastChecked: new Date().toISOString(),
+        errorMessage: `Unsupported transport "${body.transport}". Supported: openai-compatible, ollama-native, systemone.`,
+      },
+    });
   }
 
   let effectiveCredential = body.credential;
@@ -4478,10 +4513,6 @@ route.post('/onboarding/settings/ai/connections/:id/probe', async (c) => {
   return c.json({ success: true, health });
 });
 
-/**
- * PUT /api/onboarding/settings/ai/workload-routes/:workload
- * Upsert a WorkloadRoute.
- */
 route.put('/onboarding/settings/ai/workload-routes/:workload', async (c) => {
   const workload = c.req.param('workload');
   let body: any;
@@ -4498,6 +4529,23 @@ route.put('/onboarding/settings/ai/workload-routes/:workload', async (c) => {
     imageDataSharing: body.imageDataSharing,
     terminalBehavior: body.terminalBehavior || 'fail_closed',
   };
+
+  // Chat/naming/tool/vision workloads require chat-capable connections:
+  // a System One (typed-judgment) connection is rejected here with an
+  // actionable error — never resolved or dispatched later.
+  const targets = [routeConfig.primary, routeConfig.fallback].filter(
+    (target): target is { connectionId: string; modelId: string } =>
+      typeof target === 'object' && target !== null && 'connectionId' in target,
+  );
+  for (const target of targets) {
+    const conn = getProviderConnection(target.connectionId);
+    if (conn && isSystemOneConnection(conn)) {
+      return c.json({
+        error: `Connection "${conn.label}" is a typed-judgment (System One) connection and cannot serve the "${workload}" workload, which requires chat completion.`,
+        code: 'systemone_chat_unsupported',
+      }, 400);
+    }
+  }
 
   upsertWorkloadRoute(workload, routeConfig);
   return c.json({ success: true, route: routeConfig });

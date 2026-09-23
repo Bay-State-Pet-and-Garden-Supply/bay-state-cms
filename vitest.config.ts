@@ -121,6 +121,9 @@ export default defineConfig({
       'src/tests/unit/packaging-ocr-shadow.test.ts',
       'src/tests/unit/packaging-ocr-consumer-wiring.test.ts',
       'src/tests/unit/provider-connection-routing.test.ts',
+      // typesafe-systemone: no direct bun:sqlite import; transitive via
+      // db/connection + ai-model-call-repo (Bun-side until Vitest collection is proven)
+      'src/tests/unit/typesafe-systemone.test.ts',
       'src/tests/unit/vlm-client.test.ts',
       'src/tests/unit/profile-governance-service.test.ts',
       'src/tests/unit/domain-diagnostics-service.test.ts',

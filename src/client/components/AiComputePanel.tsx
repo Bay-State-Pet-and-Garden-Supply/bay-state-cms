@@ -26,8 +26,17 @@ import type {
   DataSharingPolicy,
 } from '../../ai/provider-connections';
 import type { ConnectionHealthReport, DiscoveredModel } from '../../ai/connection-health-monitor';
+import { TYPESAFE_KNOWN_MODELS } from '../../ai/systemone-transport';
 import { DEFAULT_LOCAL_VISION_MODEL } from '../../shared/vision-model-defaults';
 import { colors, fonts, rounded } from '../theme';
+
+/**
+ * Versioned TypeSafe pins that stay selectable on System One routes even when
+ * discovery lists aliases only. Shared with the transport's known-pin list so
+ * the panel never drifts from pin semantics (aliases are discovered models,
+ * never known pins).
+ */
+const TYPESAFE_PINNED_MODELS: readonly string[] = TYPESAFE_KNOWN_MODELS;
 
 /** Derive the operator-approved host/port pin from a base URL, mirroring the
  *  server-side derivation in validateConnectionTrustZone (default port per
@@ -54,6 +63,7 @@ function defaultModelForConnection(connId: string, healthMap: Record<string, Con
   const curated: Record<string, string> = {
     'deepseek-cloud': 'deepseek-v4-flash',
     'openai-cloud': 'gpt-4o-mini',
+    'typesafe-jev': 'jev-1.13.0',
     'local-ollama': DEFAULT_LOCAL_VISION_MODEL,
   };
   return curated[connId] ?? '';
@@ -64,6 +74,11 @@ function defaultModelForConnection(connId: string, healthMap: Record<string, Con
  * probe-discovered models when available (with a "Custom…" escape hatch for
  * arbitrary model IDs), and falls back to a plain text field when the
  * connection has never been probed or is offline so configuration still works.
+ *
+ * Pinned-model semantics (TypeSafe contract): discovery may list aliases
+ * only (e.g. jev-latest), while the operator pins a versioned ID
+ * (jev-1.13.0). The pinned value always stays selectable — offered as an
+ * explicit "Pinned: …" option — and is never silently replaced by an alias.
  */
 function ModelSelectField({
   connId,
@@ -72,6 +87,7 @@ function ModelSelectField({
   healthMap,
   placeholder,
   flexStyle,
+  pinnedOptions,
 }: {
   connId: string;
   value: string;
@@ -79,9 +95,12 @@ function ModelSelectField({
   healthMap: Record<string, ConnectionHealthReport>;
   placeholder?: string;
   flexStyle: React.CSSProperties;
+  /** Versioned pins that stay selectable even when discovery omits them. */
+  pinnedOptions?: string[];
 }) {
   const models = healthMap[connId]?.models ?? [];
-  if (models.length === 0) {
+  const pinned: string[] = (pinnedOptions ?? []).filter((p: string) => p && !models.some(m => m.id === p));
+  if (models.length === 0 && pinned.length === 0) {
     return (
       <input
         type="text"
@@ -92,19 +111,21 @@ function ModelSelectField({
       />
     );
   }
-  const known = new Set(models.map(m => m.id));
-  const isCustom = !known.has(value);
+  const known = new Set([...models.map(m => m.id), ...pinned]);
+  const isCustom = value !== '' && !known.has(value);
   return (
     <>
       <select
-        value={isCustom ? '__custom__' : value}
+        value={value === '' ? '' : (isCustom ? '__custom__' : value)}
         onChange={(e) => {
           const next = e.target.value;
           if (next !== '__custom__') onChange(next);
         }}
         style={flexStyle}
       >
+        <option value="" disabled>Select model…</option>
         {models.map(m => <option key={m.id} value={m.id}>{m.id}</option>)}
+        {pinned.map((p: string) => <option key={`pinned:${p}`} value={p}>Pinned: {p}</option>)}
         <option value="__custom__">Custom…</option>
       </select>
       {isCustom && (
@@ -414,6 +435,18 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                       }}>
                         {conn.trustZone.replace('_', ' ').toUpperCase()}
                       </span>
+                      {conn.transport === 'systemone' && (
+                        <span style={{
+                          fontSize: '0.6875rem',
+                          padding: '0.125rem 0.375rem',
+                          borderRadius: rounded.sm,
+                          background: '#EDE9FE',
+                          color: '#5B21B6',
+                          fontWeight: 600,
+                        }} title="Judgment-only: Choice/Noul typed questions. Never used for chat, naming, tools, or vision.">
+                          TYPED JUDGMENT
+                        </span>
+                      )}
                       {(conn as any).hasCredential && (
                         <span style={{ fontSize: '0.6875rem', color: colors.mulchBrown }}>
                           🔒 Auth Configured
@@ -600,12 +633,13 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                       }}
                       style={{ flex: 1, padding: '0.375rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                     >
-                      {connections.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
                     <ModelSelectField
                       connId={config.defaults.catalogTarget.connectionId}
                       value={config.defaults.catalogTarget.modelId}
                       healthMap={healthMap}
+                      pinnedOptions={config.defaults.catalogTarget.connectionId === 'typesafe-jev' ? [...TYPESAFE_PINNED_MODELS] : undefined}
                       onChange={(modelId) => handleDefaultsChange({
                         ...config.defaults,
                         catalogTarget: { ...config.defaults.catalogTarget, modelId },
@@ -632,13 +666,14 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                       style={{ flex: 1, padding: '0.375rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                     >
                       <option value="">None (Heuristic / Fail)</option>
-                      {connections.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
                     {config.defaults.catalogFallback && (
                       <ModelSelectField
                         connId={config.defaults.catalogFallback.connectionId}
                         value={config.defaults.catalogFallback.modelId}
                         healthMap={healthMap}
+                        pinnedOptions={config.defaults.catalogFallback.connectionId === 'typesafe-jev' ? [...TYPESAFE_PINNED_MODELS] : undefined}
                         onChange={(modelId) => handleDefaultsChange({
                           ...config.defaults,
                           catalogFallback: {
@@ -706,13 +741,14 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                           style={{ flex: 1, padding: '0.375rem', fontSize: '0.8125rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                         >
                           <option value="inherit">Inherit Catalog Default</option>
-                          {connections.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                         </select>
                         {!isPrimaryInherit && (
                           <ModelSelectField
                             connId={(route.primary as ModelTarget).connectionId}
                             value={(route.primary as ModelTarget).modelId}
                             healthMap={healthMap}
+                            pinnedOptions={(route.primary as ModelTarget).connectionId === 'typesafe-jev' ? [...TYPESAFE_PINNED_MODELS] : undefined}
                             onChange={(modelId) => handleWorkloadChange(w.id, 'primary', {
                               ...(route.primary as ModelTarget),
                               modelId,
@@ -744,13 +780,14 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                         >
                           <option value="inherit">Inherit Catalog Fallback</option>
                           <option value="">None (Heuristic / Fail)</option>
-                          {connections.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                         </select>
                         {!isFallbackInherit && route.fallback && (
                           <ModelSelectField
                             connId={(route.fallback as ModelTarget).connectionId}
                             value={(route.fallback as ModelTarget).modelId}
                             healthMap={healthMap}
+                            pinnedOptions={(route.fallback as ModelTarget).connectionId === 'typesafe-jev' ? [...TYPESAFE_PINNED_MODELS] : undefined}
                             onChange={(modelId) => handleWorkloadChange(w.id, 'fallback', {
                               ...(route.fallback as ModelTarget),
                               modelId,
@@ -846,6 +883,40 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                 </div>
               </div>
 
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: colors.ledgerCharcoal, marginBottom: '0.25rem' }}>
+                  Transport
+                </label>
+                <select
+                  value={editingConnection.transport}
+                  onChange={(e) => {
+                    const transport = e.target.value as ProviderConnection['transport'];
+                    setEditingConnection(prev => prev ? {
+                      ...prev,
+                      transport,
+                      // Switching to System One presets the TypeSafe endpoint
+                      // and trust zone; the operator still supplies the key.
+                      ...(transport === 'systemone' ? {
+                        baseUrl: 'https://api.typesafe.ai/v1',
+                        trustZone: 'cloud' as AiTrustZone,
+                        approvedHost: 'api.typesafe.ai',
+                        approvedPort: 443,
+                      } : {}),
+                    } : prev);
+                  }}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
+                >
+                  <option value="openai-compatible">OpenAI-compatible (chat)</option>
+                  <option value="ollama-native">Ollama-native (chat)</option>
+                  <option value="systemone">System One (typed judgment — TypeSafe Jev)</option>
+                </select>
+                {editingConnection.transport === 'systemone' && (
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.6875rem', color: colors.mulchBrown }}>
+                    Judgment-only: answers typed Choice/Noul questions for classification stages. Never offered for chat, naming, tool, or vision routes.
+                  </p>
+                )}
+              </div>
+
               <div style={{ padding: '0.75rem', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: rounded.md }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: colors.ledgerCharcoal, marginBottom: '0.25rem' }}>
                   Security Pin (Approved Host / Port)
@@ -873,15 +944,29 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: colors.ledgerCharcoal, marginBottom: '0.25rem' }}>
-                  API Key / Bearer Token {(editingConnection as any).hasCredential ? '(Configured — leave blank to keep existing)' : '(Optional)'}
+                  API Key / Bearer Token {(editingConnection as any).hasCredential ? '(Configured — leave blank to keep existing)' : (editingConnection.transport === 'systemone' ? '(Required for TypeSafe)' : '(Optional)')}
                 </label>
                 <input
                   type="password"
                   value={editingConnection.credential ?? ''}
                   onChange={(e) => setEditingConnection({ ...editingConnection, credential: e.target.value })}
-                  placeholder={(editingConnection as any).hasCredential ? '••••••••••••' : 'Enter API key or leave blank'}
+                  placeholder={(editingConnection as any).hasCredential ? '••••••••••••' : (editingConnection.transport === 'systemone' ? 'Enter TypeSafe API key' : 'Enter API key or leave blank')}
                   style={{ width: '100%', padding: '0.5rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: colors.ledgerCharcoal, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingConnection.enabled !== false}
+                    onChange={(e) => setEditingConnection({ ...editingConnection, enabled: e.target.checked })}
+                  />
+                  Enabled
+                </label>
+                <p style={{ margin: '0.25rem 0 0 1.5rem', fontSize: '0.6875rem', color: colors.mulchBrown }}>
+                  Disabled connections are never dispatched or retried. The TypeSafe connection stays inert until enabled and a stage adapter lands.
+                </p>
               </div>
 
               {testResult && (

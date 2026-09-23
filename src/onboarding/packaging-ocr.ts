@@ -15,7 +15,7 @@ import { getVlmConfig, callVlm, callVlmWithDispatcher, type VlmConfig } from './
 import * as nodePath from 'node:path';
 import { isLoopbackBaseUrl, redactImageUrl, redactTransportText } from '../classification/model-policy-gateway';
 import { getOcrStageFlags } from '../classification/ocr-stage-flags';
-import { isPrivateLanHost } from '../ai/provider-connections';
+import { isPrivateLanHost, isSystemOneConnection } from '../ai/provider-connections';
 import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import {
   OCR_FAILURE_REASON_MESSAGES,
@@ -835,18 +835,24 @@ export async function runPackagingOcrAttempt(
         : null;
 
     let transport: 'openai-compatible' | 'ollama-native' =
-      matchingConfig?.transport ??
-      (frozen.baseUrl.includes('/v1') || frozen.baseUrl.includes('api.openai.com') ? 'openai-compatible' : 'ollama-native');
+      (matchingConfig?.transport === 'openai-compatible' || matchingConfig?.transport === 'ollama-native'
+        ? matchingConfig.transport
+        : (frozen.baseUrl.includes('/v1') || frozen.baseUrl.includes('api.openai.com') ? 'openai-compatible' : 'ollama-native'));
     let credential = matchingConfig?.credential;
 
     if (!credential) {
       try {
         const fullRouting = getFullAiRoutingConfig();
         for (const conn of Object.values(fullRouting.connections)) {
+          // Typed-judgment connections never serve vision: skip them so a
+          // TypeSafe base URL can never leak into a VLM transport.
+          if (isSystemOneConnection(conn)) continue;
           if (normalizeUrl(conn.baseUrl) === normalizeUrl(frozen.baseUrl) && conn.credential) {
-            credential = conn.credential;
-            if (conn.transport) transport = conn.transport;
-            break;
+            if (conn.transport === 'openai-compatible' || conn.transport === 'ollama-native') {
+              credential = conn.credential;
+              transport = conn.transport;
+              break;
+            }
           }
         }
       } catch {

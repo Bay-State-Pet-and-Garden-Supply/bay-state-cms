@@ -3,6 +3,7 @@ import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-r
 import { getApiKey } from '../db/repositories/api-key-repo';
 import { dispatchWorkloadChat } from '../ai/inference-dispatcher';
 import { resolveWorkloadRoute, isConnectionUsable } from '../ai/provider-connections';
+import type { AiTransport } from '../ai/provider-connections';
 import {
   DEFAULT_LOCAL_VISION_MODEL,
   LEGACY_ROUTE_FALLBACK_VISION_MODEL,
@@ -37,7 +38,7 @@ export interface VlmConfig {
   baseUrl: string;
   model: string;
   enabled: boolean;
-  transport?: 'openai-compatible' | 'ollama-native';
+  transport?: AiTransport;
   credential?: string;
   /**
    * Optional sampling options (packaging-OCR overhaul P3-T2, hallucination
