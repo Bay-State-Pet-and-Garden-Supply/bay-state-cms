@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "description": "Representative synthetic/adjudicated pre-review fixtures for issue #294: food/treats, toys, animal-care, garden/pest-control, confusing neighbors, unknown types, incomplete evidence. Catalog assignments are NOT auto-gold — every gold label is adjudicated here. Families stay together across dev/holdout splits; replay inputs carry retained facts only (no target answers).",
+  "goldKinds": ["known-type", "no-fit", "insufficient-evidence", "unlabeled"],
+  "entries": [
+    {
+      "sku": "FIX-DOG-KIBBLE-01",
+      "familyId": "fam-dog-kibble-acme",
+      "split": "dev",
+      "assortment": "food",
+      "gold": { "kind": "known-type", "typeId": "dog_food_dry" },
+      "rawProposal": { "productTypeId": "dog_food_dry" },
+      "confidence": 0.92,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Acme Chicken Kibble 5 lb", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-DOG-KIBBLE-02",
+      "familyId": "fam-dog-kibble-acme",
+      "split": "dev",
+      "assortment": "food",
+      "gold": { "kind": "known-type", "typeId": "dog_food_dry" },
+      "rawProposal": { "productTypeId": "dog_food_wet" },
+      "confidence": 0.61,
+      "reviewedCorrection": "dog_food_dry",
+      "evidence": [{ "source": "spreadsheet", "snippet": "Acme Chicken Kibble 15 lb", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-CAT-TREAT-01",
+      "familyId": "fam-cat-treat Harbor",
+      "split": "dev",
+      "assortment": "treats",
+      "gold": { "kind": "known-type", "typeId": "cat_treat" },
+      "rawProposal": { "productTypeId": "cat_treat" },
+      "confidence": 0.88,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Beacon Crunchy Salmon Treats", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-DOG-CHEW-01",
+      "familyId": "fam-dog-chew-cowyard",
+      "split": "dev",
+      "assortment": "toys",
+      "gold": { "kind": "known-type", "typeId": "dog_toy" },
+      "rawProposal": { "productTypeId": "dog_treat" },
+      "confidence": 0.74,
+      "reviewedCorrection": "dog_toy",
+      "evidence": [{ "source": "spreadsheet", "snippet": "Cowyard Beef Tendon Chew Toy", "reliability": "medium", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-FLEA-01",
+      "familyId": "fam-flea-beacon",
+      "split": "dev",
+      "assortment": "animal-care",
+      "gold": { "kind": "known-type", "typeId": "flea_tick_control" },
+      "rawProposal": { "productTypeId": "flea_tick_control" },
+      "confidence": 0.9,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Beacon Topical Flea Prevention", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-PEST-01",
+      "familyId": "fam-pest-gardenpro",
+      "split": "dev",
+      "assortment": "garden/pest-control",
+      "gold": { "kind": "known-type", "typeId": "insect_pest_control" },
+      "rawProposal": { "productTypeId": "insect_pest_control" },
+      "confidence": 0.83,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "GardenPro Yard Insect Spray", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-SOIL-01",
+      "familyId": "fam-soil-gardenpro",
+      "split": "dev",
+      "assortment": "garden/pest-control",
+      "gold": { "kind": "known-type", "typeId": "potting_soil" },
+      "rawProposal": { "productTypeId": "plant_food_fertilizer" },
+      "confidence": 0.66,
+      "reviewedCorrection": "potting_soil",
+      "evidence": [{ "source": "spreadsheet", "snippet": "GardenPro Organic Potting Mix", "reliability": "medium", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-NEIGHBOR-01",
+      "familyId": "fam-neighbor-suet",
+      "split": "dev",
+      "assortment": "confusing-neighbor",
+      "gold": { "kind": "known-type", "typeId": "suet_cakes" },
+      "rawProposal": { "productTypeId": "bird_seed_food" },
+      "confidence": 0.71,
+      "reviewedCorrection": "suet_cakes",
+      "evidence": [{ "source": "spreadsheet", "snippet": "Berry Suet Cake 11 oz", "reliability": "medium", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-UNKNOWN-01",
+      "familyId": "fam-unknown-novelty",
+      "split": "dev",
+      "assortment": "unknown-type",
+      "gold": { "kind": "no-fit", "note": "No configured type fits a reptile terrarium fogger" },
+      "rawAbstention": { "reason": "no-fit: no configured product type matches" },
+      "confidence": 0,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "MisterFog Reptile Terrarium Fogger", "reliability": "low", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-THIN-01",
+      "familyId": "fam-thin-label",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": { "kind": "insufficient-evidence", "note": "Label photo missing; cannot adjudicate" },
+      "rawAbstention": { "reason": "insufficient-evidence: missing label photo" },
+      "confidence": 0,
+      "reviewedCorrection": null,
+      "evidence": []
+    },
+    {
+      "sku": "FIX-DOG-KIBBLE-03",
+      "familyId": "fam-dog-kibble-acme-holdout",
+      "split": "holdout",
+      "assortment": "food",
+      "gold": { "kind": "known-type", "typeId": "dog_food_dry" },
+      "rawProposal": { "productTypeId": "dog_food_dry" },
+      "confidence": 0.95,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Acme Chicken Kibble 30 lb", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-PEST-02",
+      "familyId": "fam-pest-gardenpro-holdout",
+      "split": "holdout",
+      "assortment": "garden/pest-control",
+      "gold": { "kind": "known-type", "typeId": "insect_pest_control" },
+      "rawProposal": { "productTypeId": "weed_control" },
+      "confidence": 0.58,
+      "reviewedCorrection": "insect_pest_control",
+      "evidence": [{ "source": "spreadsheet", "snippet": "GardenPro Ant & Roach Killer", "reliability": "medium", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-NEIGHBOR-02",
+      "familyId": "fam-neighbor-suet-holdout",
+      "split": "holdout",
+      "assortment": "confusing-neighbor",
+      "gold": { "kind": "known-type", "typeId": "bird_seed_food" },
+      "rawProposal": { "productTypeId": "bird_seed_food" },
+      "confidence": 0.86,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Wild Bird Seed Blend 20 lb", "reliability": "high", "attributeId": null }]
+    },
+    {
+      "sku": "FIX-PENDING-01",
+      "familyId": "fam-pending-review",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": { "kind": "unlabeled", "note": "Never adjudicated — excluded from raw accuracy" },
+      "rawProposal": { "productTypeId": "dog_toy" },
+      "confidence": 0.5,
+      "reviewedCorrection": null,
+      "evidence": [{ "source": "spreadsheet", "snippet": "Rope Tug Toy", "reliability": "low", "attributeId": null }]
+    }
+  ]
+}

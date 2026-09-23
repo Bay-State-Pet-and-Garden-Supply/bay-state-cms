@@ -32,6 +32,198 @@ export interface GoldExampleForEvaluation {
   goldLabels: BenchmarkGoldLabels;
   /** Lowercased concatenated evidence text (for species heuristics). */
   evidenceText: string;
+  /**
+   * Adjudicated gold state (`productTypeState` in goldLabelsJson).
+   * Null = legacy gold without a marker; label presence decides scoring.
+   */
+  goldState?: EvaluatorGoldState | null;
+  /** Product family id (split-leakage detection). */
+  familyId?: string | null;
+  /** Split the example belongs to. */
+  splitGroup?: string | null;
+  /** Frozen source provenance (snapshot-mismatch attribution only). */
+  sourceRunId?: string | null;
+  sourceConfigHash?: string | null;
+  sourceProductHash?: string | null;
+}
+
+// ─── Gold-state contract (issue #294) ───────────────────────────────────────
+// Mirrors the adjudicated fixture states persisted by benchmark-exporter.ts
+// (`goldLabelsJson[productTypeState]`) without importing that module — the
+// evaluator reads the marker defensively so legacy gold keeps working.
+export const EVALUATOR_GOLD_STATE_KNOWN = 'known' as const;
+export const EVALUATOR_GOLD_STATE_NO_FIT = 'no-fit' as const;
+export const EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+export const EVALUATOR_GOLD_STATE_UNLABELED = 'unlabeled' as const;
+export const EVALUATOR_GOLD_STATES = [
+  EVALUATOR_GOLD_STATE_KNOWN,
+  EVALUATOR_GOLD_STATE_NO_FIT,
+  EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  EVALUATOR_GOLD_STATE_UNLABELED,
+] as const;
+export type EvaluatorGoldState = (typeof EVALUATOR_GOLD_STATES)[number];
+/** Gold-labels JSON field carrying the adjudicated gold state. */
+export const EVALUATOR_GOLD_STATE_FIELD = 'productTypeState' as const;
+
+/**
+ * Normalize adjudicated state spellings. Accepts the canonical exporter
+ * spellings (`known`, `no-fit`, `insufficient-evidence`, `unlabeled`) plus
+ * the ticket aliases (`known-type`, `no-fitting-type`); unknown values and
+ * non-strings yield null (legacy handling).
+ */
+export function normalizeEvaluatorGoldState(value: unknown): EvaluatorGoldState | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase().replace(/_/g, '-');
+  if (v === 'known' || v === 'known-type') return EVALUATOR_GOLD_STATE_KNOWN;
+  if (v === 'no-fit' || v === 'no-fitting-type' || v === 'no-fit-type' || v === 'nofit') return EVALUATOR_GOLD_STATE_NO_FIT;
+  if (v === 'insufficient-evidence' || v === 'insufficientevidence') return EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE;
+  if (v === 'unlabeled' || v === 'unlabelled') return EVALUATOR_GOLD_STATE_UNLABELED;
+  return null;
+}
+
+/** Read the adjudicated gold state; null for legacy gold without a marker. */
+export function readEvaluatorGoldState(goldLabelsJson: string): EvaluatorGoldState | null {
+  try {
+    const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return normalizeEvaluatorGoldState(parsed[EVALUATOR_GOLD_STATE_FIELD]);
+  } catch {
+    return null;
+  }
+}
+
+// ─── Prediction-outcome contract (issue #294) ───────────────────────────────
+// Explicit semantic abstention is tracked separately from service/validation
+// failure: failures earn no abstention credit. Classification is structural so
+// both legacy bundles (abstained flag only) and pre-review bundles
+// (`outcome` + `failureCode`) are handled.
+export const EVALUATOR_OUTCOME_PREDICTED = 'predicted' as const;
+export const EVALUATOR_OUTCOME_ABSTAINED = 'abstained-semantic' as const;
+export const EVALUATOR_OUTCOME_FAILED = 'failed' as const;
+export const EVALUATOR_OUTCOME_MISSING = 'missing' as const;
+export type EvaluatorPredictionOutcome =
+  | typeof EVALUATOR_OUTCOME_PREDICTED
+  | typeof EVALUATOR_OUTCOME_ABSTAINED
+  | typeof EVALUATOR_OUTCOME_FAILED
+  | typeof EVALUATOR_OUTCOME_MISSING;
+
+
+/** Classify one bundle entry; undefined (no entry for the gold id) is missing. */
+export function classifyEvaluatorPredictionOutcome(
+  entry: BenchmarkPredictionEntry | undefined | null,
+): EvaluatorPredictionOutcome {
+  if (!entry) return EVALUATOR_OUTCOME_MISSING;
+  const raw = entry as unknown as Record<string, unknown>;
+  // A failure marker always wins: a failed call earns no abstention credit,
+  // even when the entry also carries an abstention flag or outcome.
+  const failureCode = raw.failureCode;
+  if (typeof failureCode === 'string' && failureCode.trim() !== '') {
+    return EVALUATOR_OUTCOME_FAILED;
+  }
+  const outcome = typeof raw.outcome === 'string' ? raw.outcome : null;
+  // Explicit pre-review outcomes are authoritative when present.
+  if (outcome === 'failed') return EVALUATOR_OUTCOME_FAILED;
+  if (outcome === 'abstained') return EVALUATOR_OUTCOME_ABSTAINED;
+  if (outcome === 'predicted') return EVALUATOR_OUTCOME_PREDICTED;
+  if (entry.abstained === true) return EVALUATOR_OUTCOME_ABSTAINED;
+  // Legacy parity: a null type with no abstention flag is "no answer", not an
+  // error — legacy metrics count exactly this shape as abstained.
+  if (entry.productType === null || entry.productType === undefined) return EVALUATOR_OUTCOME_ABSTAINED;
+  return EVALUATOR_OUTCOME_PREDICTED;
+}
+
+// ─── Bundle source/version contract (issue #294) ────────────────────────────
+// New raw bundles carry `source: 'prereview_raw'` + version 1; legacy
+// reviewed-outcome bundles are plain arrays (version 0). Values mirror
+// benchmark-prediction.ts without importing it (parallel ownership).
+export const EVALUATOR_PRE_REVIEW_SOURCE = 'prereview_raw' as const;
+export const EVALUATOR_REVIEWED_OUTCOME_SOURCE = 'reviewed_outcome' as const;
+export const EVALUATOR_PRE_REVIEW_BUNDLE_VERSION = 1 as const;
+export const EVALUATOR_LEGACY_BUNDLE_VERSION = 0 as const;
+export type EvaluatorPredictionSource =
+  | typeof EVALUATOR_PRE_REVIEW_SOURCE
+  | typeof EVALUATOR_REVIEWED_OUTCOME_SOURCE
+  | 'unknown';
+
+export interface EvaluatorBundleProvenance {
+  source: EvaluatorPredictionSource;
+  bundleVersion: number;
+  /** False for legacy reviewed-outcome artifacts (reviewer-corrected answers). */
+  eligibleForRawAccuracyQualification: boolean;
+  eligibilityReason: string;
+}
+
+function evaluatorProvenanceFor(
+  source: EvaluatorPredictionSource,
+  bundleVersion: number,
+): EvaluatorBundleProvenance {
+  if (source === EVALUATOR_PRE_REVIEW_SOURCE) {
+    return {
+      source,
+      bundleVersion,
+      eligibleForRawAccuracyQualification: true,
+      eligibilityReason: 'pre-review raw outputs: uncorrected model predictions eligible for raw-accuracy qualification (subject to gates).',
+    };
+  }
+  if (source === EVALUATOR_REVIEWED_OUTCOME_SOURCE) {
+    return {
+      source,
+      bundleVersion,
+      eligibleForRawAccuracyQualification: false,
+      eligibilityReason: 'legacy reviewed-outcome artifact: incorporates accepted reviewer revisions; readable for history but ineligible to qualify raw model accuracy.',
+    };
+  }
+  return {
+    source: 'unknown',
+    bundleVersion,
+    eligibleForRawAccuracyQualification: false,
+    eligibilityReason: 'unknown bundle source/version envelope: fail closed, ineligible for raw-accuracy qualification.',
+  };
+}
+
+/**
+ * Resolve per-bundle source provenance. Prefers the loader-provided
+ * source/version hint (new `loadPredictionBundle` shape) and falls back to
+ * structural detection of the persisted JSON (array = legacy
+ * reviewed-outcome; `{ source: 'prereview_raw', version: 1, predictions }`
+ * = pre-review). Anything else resolves to `unknown` (fail closed downstream).
+ */
+export function describeEvaluatorBundleProvenance(
+  persistedJson: unknown,
+  loaderHint?: { source?: unknown; bundleVersion?: unknown },
+): EvaluatorBundleProvenance {
+  const hintSource = loaderHint?.source;
+  const hintVersion = loaderHint?.bundleVersion;
+  if (hintSource === EVALUATOR_PRE_REVIEW_SOURCE || hintSource === EVALUATOR_REVIEWED_OUTCOME_SOURCE) {
+    const version = typeof hintVersion === 'number' && Number.isFinite(hintVersion)
+      ? hintVersion
+      : hintSource === EVALUATOR_PRE_REVIEW_SOURCE
+        ? EVALUATOR_PRE_REVIEW_BUNDLE_VERSION
+        : EVALUATOR_LEGACY_BUNDLE_VERSION;
+    return evaluatorProvenanceFor(hintSource, version);
+  }
+  let parsed = persistedJson;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed) as unknown;
+    } catch {
+      return evaluatorProvenanceFor('unknown', -1);
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return evaluatorProvenanceFor(EVALUATOR_REVIEWED_OUTCOME_SOURCE, EVALUATOR_LEGACY_BUNDLE_VERSION);
+  }
+  if (parsed && typeof parsed === 'object') {
+    const envelope = parsed as Record<string, unknown>;
+    if (
+      envelope.source === EVALUATOR_PRE_REVIEW_SOURCE &&
+      envelope.version === EVALUATOR_PRE_REVIEW_BUNDLE_VERSION &&
+      Array.isArray(envelope.predictions)
+    ) {
+      return evaluatorProvenanceFor(EVALUATOR_PRE_REVIEW_SOURCE, EVALUATOR_PRE_REVIEW_BUNDLE_VERSION);
+    }
+  }
+  return evaluatorProvenanceFor('unknown', -1);
 }
 
 export interface ControlledValues {
@@ -208,6 +400,465 @@ function computeEce(
       return { bin: bins.indexOf(b), count: b.count, accuracy, avgConfidence };
     });
   return { ece, bins: outBins };
+}
+
+// ─── Attribution detail (issue #294) ─────────────────────────────────────────
+// Additive, pure reporting over the same frozen gold + immutable bundle that
+// feeds `computeMetrics`. Legacy `EvalMetrics` values are untouched; this
+// layer adds honest fixed-population attribution:
+// - adjudicated gold states (known / no-fit / insufficient-evidence /
+//   unlabeled; legacy gold without a marker scores by label presence),
+// - semantic abstention tracked separately from service/validation failure
+//   (failures earn no abstention credit) and from missing bundle entries
+//   (legacy metrics count both shapes as abstained; this layer splits failures
+//   and missing entries out so coverage stays honest),
+// - fixed-population correctness/errors/coverage plus conditional accuracy
+//   (the overlap-only paired bootstrap in `metrics.pairedDelta` stays as the
+//   legacy interval; `baselineComparison.fixedDeltaMean` is its fixed-pop
+//   companion and never drops dual-abstained examples),
+// - family leakage across splits, snapshot-mismatch and duplicate/missing
+//   entry attribution, and per-class labeled-support status.
+
+export type EvaluatorExampleVerdict = 'correct' | 'incorrect' | 'abstained' | 'failed' | 'missing' | 'excluded';
+
+/**
+ * Score one example under its adjudicated gold state. `known` covers both the
+ * explicit marker and legacy gold carrying a type; legacy gold without a type
+ * scores as `unlabeled` (excluded, matching legacy metrics which skip it).
+ * No-fit / insufficient-evidence gold expects semantic abstention: abstaining
+ * is correct, any concrete prediction is a forced-guess error, and failures
+ * or missing entries earn no abstention credit. A `known` marker with no
+ * label is contradictory fixture data and scores as excluded.
+ */
+export function scoreEvaluatorExample(args: {
+  goldState: EvaluatorGoldState | null;
+  goldType: string | null;
+  outcome: EvaluatorPredictionOutcome;
+  predictedType: string | null | undefined;
+}): EvaluatorExampleVerdict {
+  const goldType = typeof args.goldType === 'string' ? args.goldType : null;
+  if (args.goldState === EVALUATOR_GOLD_STATE_UNLABELED) return 'excluded';
+  if (args.goldState === null && goldType === null) return 'excluded';
+  if (
+    args.goldState === EVALUATOR_GOLD_STATE_NO_FIT ||
+    args.goldState === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  ) {
+    if (args.outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'correct';
+    if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
+    if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
+    return 'incorrect';
+  }
+  if (goldType === null) return 'excluded';
+  if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
+  if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
+  if (args.outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'abstained';
+  return args.predictedType === goldType ? 'correct' : 'incorrect';
+}
+
+export interface EvaluatorFailedPrediction {
+  exampleId: string;
+  productSku: string;
+  /** Trimmed failure code, or null when the entry failed without a code. */
+  failureCode: string | null;
+}
+
+export interface EvaluatorSnapshotMismatch {
+  exampleId: string;
+  productSku: string;
+  field: 'sourceProductHash' | 'configSnapshotHash';
+  goldValue: string;
+  predictionValue: string;
+}
+
+export interface EvaluatorFixedPopulation {
+  /** Eligible examples: known + no-fit + insufficient-evidence (unlabeled excluded). */
+  eligible: number;
+  correct: number;
+  /** Correct abstentions on no-fit / insufficient-evidence gold (subset of correct). */
+  correctAbstentions: number;
+  incorrect: number;
+  /** Honest abstentions on known-type gold (neither correct nor error). */
+  abstainedSemantic: number;
+  failed: number;
+  missing: number;
+  /** correct / eligible. Failures lower correctness via the fixed denominator. */
+  correctness: number;
+  /** incorrect / eligible (failures lower correctness/coverage instead). */
+  errorRate: number;
+  abstentionRate: number;
+  /** Share of eligible with a semantic answer (correct, incorrect, or abstained). */
+  coverage: number;
+  /** correct / (correct + incorrect + abstainedSemantic). */
+  conditionalAccuracy: number;
+}
+
+export interface EvaluatorBaselineComparison {
+  eligible: number;
+  candidateCorrect: number;
+  baselineCorrect: number;
+  /** Mean(candidateCorrect - baselineCorrect) over the fixed eligible population. */
+  fixedDeltaMean: number;
+  /** Baseline abstained, candidate correct. */
+  recoveredBaselineAbstentions: number;
+  recoveredExampleIds: string[];
+  /** Baseline correct, candidate not correct. */
+  harmedBaselineSuccesses: number;
+  harmedExampleIds: string[];
+  retainedSuccesses: number;
+  /** Both sides abstained (kept visible; overlap-only deltas drop these). */
+  dualAbstentions: number;
+  dualAbstainedExampleIds: string[];
+}
+
+export interface EvaluatorSupportStatus {
+  eligibleExamples: number;
+  labeledClasses: number;
+  /** Standard gold-class counts over eligible known-type examples. */
+  perClassGoldSupport: Record<string, number>;
+  minClassSupport: number;
+  requiredClassSupport: number;
+  sufficient: boolean;
+  reasons: string[];
+}
+
+export interface EvaluatorFamilyLeakageFinding {
+  familyId: string;
+  splits: string[];
+}
+
+export interface EvaluatorFamilyLeakage {
+  leaked: boolean;
+  findings: EvaluatorFamilyLeakageFinding[];
+  /** Examples without a family id (ungrouped; cannot leak by construction). */
+  ungroupedExamples: number;
+}
+
+export interface EvaluatorAttributionReport {
+  evaluatedSplit: 'test' | 'holdout';
+  goldTotal: number;
+  goldStates: {
+    known: number;
+    noFit: number;
+    insufficientEvidence: number;
+    unlabeled: number;
+    /** Legacy gold without a state marker (scores by label presence). */
+    legacy: number;
+  };
+  /** Candidate outcomes over the eligible fixed population. */
+  predictionOutcomes: {
+    predicted: number;
+    abstainedSemantic: number;
+    failed: number;
+    missing: number;
+  };
+  failedPredictions: EvaluatorFailedPrediction[];
+  missingExampleIds: string[];
+  duplicateExampleIds: string[];
+  unknownExampleIds: string[];
+  snapshotMismatches: EvaluatorSnapshotMismatch[];
+  fixedPopulation: EvaluatorFixedPopulation;
+  /** Null when no baseline bundle was provided. */
+  baselineComparison: EvaluatorBaselineComparison | null;
+  support: EvaluatorSupportStatus;
+  familyLeakage: EvaluatorFamilyLeakage;
+}
+
+export interface ComputeAttributionOptions {
+  splitGroup?: 'test' | 'holdout';
+  /** Baseline predictions for the fixed-population comparison (null = none). */
+  baselinePredictions?: BenchmarkPredictionEntry[] | null;
+  /** Per-class labeled-support threshold (default 20, mirrors the gate default). */
+  requiredClassSupport?: number;
+  /**
+   * Dataset-wide examples for leakage detection. Without it no leakage is
+   * reported: a single split cannot show cross-split family sharing.
+   */
+  allSplitExamples?: Array<{ familyId: string | null; splitGroup: string | null }>;
+}
+
+/**
+ * Pure fixed-population attribution. No database, no runs, no decisions:
+ * everything needed rides in `gold` (frozen examples incl. state/family/
+ * provenance) plus the immutable candidate/baseline bundles, so re-evaluating
+ * an identical bundle after later review revisions yields identical output.
+ */
+export function computeEvaluatorAttribution(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  options: ComputeAttributionOptions = {},
+): EvaluatorAttributionReport {
+  const splitGroup = options.splitGroup ?? 'test';
+  const goldIds = new Set(gold.map(example => example.id));
+  const entriesById = new Map<string, BenchmarkPredictionEntry[]>();
+  for (const entry of predictions) {
+    const existing = entriesById.get(entry.exampleId);
+    if (existing) existing.push(entry);
+    else entriesById.set(entry.exampleId, [entry]);
+  }
+  const baselineById = new Map<string, BenchmarkPredictionEntry[]>();
+  for (const entry of options.baselinePredictions ?? []) {
+    const existing = baselineById.get(entry.exampleId);
+    if (existing) existing.push(entry);
+    else baselineById.set(entry.exampleId, [entry]);
+  }
+
+  const duplicateExampleIds = [...entriesById.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([id]) => id)
+    .sort();
+  const unknownExampleIds = [...entriesById.keys()].filter(id => !goldIds.has(id)).sort();
+
+  let known = 0;
+  let noFit = 0;
+  let insufficientEvidence = 0;
+  let unlabeled = 0;
+  let legacy = 0;
+  let predicted = 0;
+  let abstainedSemantic = 0;
+  let failed = 0;
+  let missing = 0;
+  let correct = 0;
+  let correctAbstentions = 0;
+  let incorrect = 0;
+  let abstainedCount = 0;
+  let failedCount = 0;
+  let missingCount = 0;
+  const failedPredictions: EvaluatorFailedPrediction[] = [];
+  const missingExampleIds: string[] = [];
+  const snapshotMismatches: EvaluatorSnapshotMismatch[] = [];
+  const perClassGoldSupport: Record<string, number> = {};
+
+  let candidateCorrect = 0;
+  let baselineCorrect = 0;
+  let deltaSum = 0;
+  let comparisonEligible = 0;
+  let recoveredBaselineAbstentions = 0;
+  const recoveredExampleIds: string[] = [];
+  let harmedBaselineSuccesses = 0;
+  const harmedExampleIds: string[] = [];
+  let retainedSuccesses = 0;
+  let dualAbstentions = 0;
+  const dualAbstainedExampleIds: string[] = [];
+  const hasBaseline = options.baselinePredictions !== null && options.baselinePredictions !== undefined;
+
+  for (const example of gold) {
+    const state = example.goldState ?? null;
+    if (state === null) legacy++;
+    else if (state === EVALUATOR_GOLD_STATE_KNOWN) known++;
+    else if (state === EVALUATOR_GOLD_STATE_NO_FIT) noFit++;
+    else if (state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE) insufficientEvidence++;
+    else unlabeled++;
+
+    const goldType = typeof example.goldLabels.productType === 'string' ? example.goldLabels.productType : null;
+    const list = entriesById.get(example.id) ?? [];
+    const entry = list.length > 0 ? list[0] : undefined;
+    const outcome = classifyEvaluatorPredictionOutcome(entry);
+    const verdict = scoreEvaluatorExample({ goldState: state, goldType, outcome, predictedType: entry?.productType });
+    if (verdict === 'excluded') continue;
+
+    if (outcome === EVALUATOR_OUTCOME_PREDICTED) predicted++;
+    else if (outcome === EVALUATOR_OUTCOME_ABSTAINED) abstainedSemantic++;
+    else if (outcome === EVALUATOR_OUTCOME_FAILED) failed++;
+    else missing++;
+
+    if (verdict === 'correct') {
+      correct++;
+      if (state === EVALUATOR_GOLD_STATE_NO_FIT || state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
+        correctAbstentions++;
+      }
+    } else if (verdict === 'incorrect') {
+      incorrect++;
+    } else if (verdict === 'abstained') {
+      abstainedCount++;
+    } else if (verdict === 'failed') {
+      failedCount++;
+      let failureCode: string | null = null;
+      const rawFailure = (entry as unknown as Record<string, unknown> | undefined)?.failureCode;
+      if (typeof rawFailure === 'string' && rawFailure.trim() !== '') failureCode = rawFailure.trim();
+      failedPredictions.push({ exampleId: example.id, productSku: example.productSku, failureCode });
+    } else {
+      missingCount++;
+      missingExampleIds.push(example.id);
+    }
+
+    if (entry) {
+      const rawProvenance = (entry as unknown as Record<string, unknown>).provenance;
+      const provenanceRecord = rawProvenance !== null && typeof rawProvenance === 'object' && !Array.isArray(rawProvenance)
+        ? (rawProvenance as Record<string, unknown>)
+        : null;
+      const provenanceSourceProductHash = provenanceRecord !== null ? provenanceRecord.sourceProductHash : null;
+      if (
+        typeof provenanceSourceProductHash === 'string' && provenanceSourceProductHash !== '' &&
+        typeof example.sourceProductHash === 'string' && example.sourceProductHash !== '' &&
+        provenanceSourceProductHash !== example.sourceProductHash
+      ) {
+        snapshotMismatches.push({
+          exampleId: example.id,
+          productSku: example.productSku,
+          field: 'sourceProductHash',
+          goldValue: example.sourceProductHash,
+          predictionValue: provenanceSourceProductHash,
+        });
+      }
+      const provenanceConfigHash = provenanceRecord !== null ? provenanceRecord.configSnapshotHash : null;
+      if (
+        typeof provenanceConfigHash === 'string' && provenanceConfigHash !== '' &&
+        typeof example.sourceConfigHash === 'string' && example.sourceConfigHash !== '' &&
+        provenanceConfigHash !== example.sourceConfigHash
+      ) {
+        snapshotMismatches.push({
+          exampleId: example.id,
+          productSku: example.productSku,
+          field: 'configSnapshotHash',
+          goldValue: example.sourceConfigHash,
+          predictionValue: provenanceConfigHash,
+        });
+      }
+    }
+
+    const isKnown = state === EVALUATOR_GOLD_STATE_KNOWN || (state === null && goldType !== null);
+    if (isKnown && goldType !== null) {
+      perClassGoldSupport[goldType] = (perClassGoldSupport[goldType] ?? 0) + 1;
+    }
+
+    if (hasBaseline) {
+      const baseList = baselineById.get(example.id) ?? [];
+      const baseEntry = baseList.length > 0 ? baseList[0] : undefined;
+      const baseOutcome = classifyEvaluatorPredictionOutcome(baseEntry);
+      const baseVerdict = scoreEvaluatorExample({
+        goldState: state,
+        goldType,
+        outcome: baseOutcome,
+        predictedType: baseEntry?.productType,
+      });
+      const candidateScore = verdict === 'correct' ? 1 : 0;
+      const baselineScore = baseVerdict === 'correct' ? 1 : 0;
+      comparisonEligible++;
+      candidateCorrect += candidateScore;
+      baselineCorrect += baselineScore;
+      deltaSum += candidateScore - baselineScore;
+      if (baseVerdict === 'abstained' && verdict === 'correct') {
+        recoveredBaselineAbstentions++;
+        recoveredExampleIds.push(example.id);
+      }
+      if (baseVerdict === 'correct' && verdict !== 'correct') {
+        harmedBaselineSuccesses++;
+        harmedExampleIds.push(example.id);
+      }
+      if (baseVerdict === 'correct' && verdict === 'correct') retainedSuccesses++;
+      if (baseVerdict === 'abstained' && verdict === 'abstained') {
+        dualAbstentions++;
+        dualAbstainedExampleIds.push(example.id);
+      }
+    }
+  }
+
+  const eligible = correct + incorrect + abstainedCount + failedCount + missingCount;
+  const covered = correct + incorrect + abstainedCount;
+  const fixedPopulation: EvaluatorFixedPopulation = {
+    eligible,
+    correct,
+    correctAbstentions,
+    incorrect,
+    abstainedSemantic: abstainedCount,
+    failed: failedCount,
+    missing: missingCount,
+    correctness: eligible > 0 ? correct / eligible : 0,
+    errorRate: eligible > 0 ? incorrect / eligible : 0,
+    abstentionRate: eligible > 0 ? abstainedCount / eligible : 0,
+    coverage: eligible > 0 ? covered / eligible : 0,
+    conditionalAccuracy: covered > 0 ? correct / covered : 0,
+  };
+
+  const baselineComparison: EvaluatorBaselineComparison | null = hasBaseline
+    ? {
+        eligible: comparisonEligible,
+        candidateCorrect,
+        baselineCorrect,
+        fixedDeltaMean: comparisonEligible > 0 ? deltaSum / comparisonEligible : 0,
+        recoveredBaselineAbstentions,
+        recoveredExampleIds: recoveredExampleIds.sort(),
+        harmedBaselineSuccesses,
+        harmedExampleIds: harmedExampleIds.sort(),
+        retainedSuccesses,
+        dualAbstentions,
+        dualAbstainedExampleIds: dualAbstainedExampleIds.sort(),
+      }
+    : null;
+
+  const labeledClasses = Object.keys(perClassGoldSupport).sort();
+  const orderedPerClassGoldSupport: Record<string, number> = {};
+  for (const className of labeledClasses) {
+    orderedPerClassGoldSupport[className] = perClassGoldSupport[className] ?? 0;
+  }
+  const minClassSupport = labeledClasses.length > 0
+    ? Math.min(...labeledClasses.map(className => orderedPerClassGoldSupport[className] ?? 0))
+    : 0;
+  const requiredClassSupport = options.requiredClassSupport ?? 20;
+  const supportReasons: string[] = [];
+  if (eligible === 0) {
+    supportReasons.push('no_eligible_examples: no labeled gold in the evaluated split');
+  } else if (labeledClasses.length === 0) {
+    supportReasons.push('no_labeled_classes: eligible examples carry no known-type labels');
+  } else if (minClassSupport < requiredClassSupport) {
+    supportReasons.push(
+      `insufficient_class_support: min support ${minClassSupport} < ${requiredClassSupport} over ${labeledClasses.length} class(es)`,
+    );
+  }
+  const support: EvaluatorSupportStatus = {
+    eligibleExamples: eligible,
+    labeledClasses: labeledClasses.length,
+    perClassGoldSupport: orderedPerClassGoldSupport,
+    minClassSupport,
+    requiredClassSupport,
+    sufficient: supportReasons.length === 0,
+    reasons: supportReasons,
+  };
+
+  const familySplits = new Map<string, Set<string>>();
+  let ungroupedExamples = 0;
+  for (const splitExample of options.allSplitExamples ?? []) {
+    const familyId = typeof splitExample.familyId === 'string' && splitExample.familyId.trim() !== ''
+      ? splitExample.familyId
+      : null;
+    if (familyId === null) {
+      ungroupedExamples++;
+      continue;
+    }
+    const splitName = typeof splitExample.splitGroup === 'string' && splitExample.splitGroup !== ''
+      ? splitExample.splitGroup
+      : 'unknown';
+    const splits = familySplits.get(familyId);
+    if (splits) splits.add(splitName);
+    else familySplits.set(familyId, new Set([splitName]));
+  }
+  const leakageFindings: EvaluatorFamilyLeakageFinding[] = [...familySplits.entries()]
+    .filter(([, splits]) => splits.size > 1)
+    .map(([familyId, splits]) => ({ familyId, splits: [...splits].sort() }))
+    .sort((a, b) => (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));
+  const familyLeakage: EvaluatorFamilyLeakage = {
+    leaked: leakageFindings.length > 0,
+    findings: leakageFindings,
+    ungroupedExamples,
+  };
+
+  return {
+    evaluatedSplit: splitGroup,
+    goldTotal: gold.length,
+    goldStates: { known, noFit, insufficientEvidence, unlabeled, legacy },
+    predictionOutcomes: { predicted, abstainedSemantic, failed, missing },
+    failedPredictions: failedPredictions.sort((a, b) => (a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : 0)),
+    missingExampleIds: missingExampleIds.sort(),
+    duplicateExampleIds,
+    unknownExampleIds,
+    snapshotMismatches: snapshotMismatches.sort((a, b) => (
+      a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : a.field < b.field ? -1 : 1
+    )),
+    fixedPopulation,
+    baselineComparison,
+    support,
+    familyLeakage,
+  };
 }
 
 /**
@@ -430,6 +1081,26 @@ export interface EvaluateBenchmarkResult {
   bundleHash: string;
   receiptDigest: string;
   receiptId: string;
+  /**
+   * Per-bundle source provenance (additive, issue #294). Candidate bundle
+   * provenance; legacy reviewed-outcome artifacts resolve as
+   * `reviewed_outcome`/0 and are labeled ineligible for raw-accuracy
+   * qualification via `eligibleForRawAccuracyQualification`.
+   */
+  bundleProvenance: EvaluatorBundleProvenance;
+  /** Baseline bundle provenance; null when no baseline bundle was provided. */
+  baselineBundleProvenance: EvaluatorBundleProvenance | null;
+  /** Fixed-population attribution over the same frozen gold + bundle. */
+  attribution: EvaluatorAttributionReport;
+}
+
+/** Structural shape of a loaded bundle incl. in-flight additive source fields. */
+interface LoadedBundleShape {
+  bundleId: string;
+  predictions: BenchmarkPredictionEntry[];
+  bundleHash: string;
+  source?: unknown;
+  bundleVersion?: unknown;
 }
 
 export async function evaluateBenchmark(
@@ -450,7 +1121,10 @@ export async function evaluateBenchmark(
   }
   const effectiveWorkspaceId = dataset.workspace_id;
 
-  // Frozen gold + persisted bundle only — no current-run access.
+  // Frozen gold + persisted bundle only — no current-run access. Later review
+  // revisions cannot alter this evaluation: labels come from the frozen
+  // examples and predictions from the immutable bundle, so re-evaluating an
+  // identical bundle yields identical metrics and attribution.
   const goldExamples = benchmarkRepo.getExamples(datasetId, splitGroup);
   const gold: GoldExampleForEvaluation[] = goldExamples.map(example => {
     const goldLabels = JSON.parse(example.gold_labels_json) as BenchmarkGoldLabels;
@@ -464,14 +1138,36 @@ export async function evaluateBenchmark(
       productSku: example.product_sku,
       goldLabels,
       evidenceText,
+      goldState: readEvaluatorGoldState(example.gold_labels_json),
+      familyId: example.product_family_id ?? null,
+      splitGroup: example.split_group ?? null,
+      sourceRunId: example.source_run_id ?? null,
+      sourceConfigHash: example.source_config_hash ?? null,
+      sourceProductHash: example.source_product_hash ?? null,
     };
   });
 
-  const { bundleId, predictions, bundleHash } = loadPredictionBundle(effectiveWorkspaceId, datasetId, options.predictionBundleId, splitGroup);
+  const loaded = loadPredictionBundle(effectiveWorkspaceId, datasetId, options.predictionBundleId, splitGroup) as LoadedBundleShape;
+  const bundleId = loaded.bundleId;
+  const predictions = loaded.predictions;
+  const bundleHash = loaded.bundleHash;
+  // Structural fallback: the persisted JSON distinguishes legacy arrays
+  // (reviewed_outcome) from pre-review envelopes without trusting callers.
+  const bundleProvenance = describeEvaluatorBundleProvenance(
+    benchmarkRepo.getPredictionBundle(bundleId)?.predictions_json,
+    { source: loaded.source, bundleVersion: loaded.bundleVersion },
+  );
+
 
   let baselinePredictions: BenchmarkPredictionEntry[] | undefined;
+  let baselineBundleProvenance: EvaluatorBundleProvenance | null = null;
   if (options.baselineBundleId) {
-    baselinePredictions = loadPredictionBundle(effectiveWorkspaceId, datasetId, options.baselineBundleId, splitGroup).predictions;
+    const baselineLoaded = loadPredictionBundle(effectiveWorkspaceId, datasetId, options.baselineBundleId, splitGroup) as LoadedBundleShape;
+    baselinePredictions = baselineLoaded.predictions;
+    baselineBundleProvenance = describeEvaluatorBundleProvenance(
+      benchmarkRepo.getPredictionBundle(baselineLoaded.bundleId)?.predictions_json,
+      { source: baselineLoaded.source, bundleVersion: baselineLoaded.bundleVersion },
+    );
   }
 
   const metrics = computeMetrics(gold, predictions, {
@@ -530,6 +1226,18 @@ export async function evaluateBenchmark(
     bundleId,
   );
 
+  // Attribution reads the same frozen rows, so family leakage sees every
+  // split while scoring stays scoped to the evaluated split.
+  const allSplitExamples = benchmarkRepo.getExamples(datasetId).map(row => ({
+    familyId: row.product_family_id ?? null,
+    splitGroup: row.split_group ?? null,
+  }));
+  const attribution = computeEvaluatorAttribution(gold, predictions, {
+    splitGroup,
+    baselinePredictions: baselinePredictions ?? null,
+    allSplitExamples,
+  });
+
   return {
     evalRunId,
     metrics,
@@ -539,5 +1247,8 @@ export async function evaluateBenchmark(
     bundleHash,
     receiptDigest,
     receiptId,
+    bundleProvenance,
+    baselineBundleProvenance,
+    attribution,
   };
 }
