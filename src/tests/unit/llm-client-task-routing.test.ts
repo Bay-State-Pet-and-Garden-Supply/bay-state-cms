@@ -51,10 +51,13 @@ import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classif
 // per test file, so later suites are unaffected.
 mock.module('node:dns/promises', () => ({
   lookup: (async (hostname: string, options?: { all?: boolean }) => {
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-    const address = isLocal ? '127.0.0.1' : '93.184.216.34';
-    const recs = [{ address, family: 4 }];
-    return options?.all ? recs : recs[0];
+    if (hostname === 'example.com' || hostname.endsWith('.example.com')) {
+      const recs = [{ address: '93.184.216.34', family: 4 }];
+      return options?.all ? recs : recs[0];
+    }
+    const recs = await Bun.dns.lookup(hostname);
+    const mapped = recs.map((r) => ({ address: r.address, family: r.family }));
+    return options?.all ? mapped : mapped[0];
   }) as typeof import('node:dns/promises').lookup,
 }));
 
