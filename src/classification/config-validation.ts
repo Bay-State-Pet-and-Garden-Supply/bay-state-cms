@@ -1400,6 +1400,7 @@ export interface ClassificationReadinessCapability {
   targetCount: number;
   runnable: boolean;
   reason?: string;
+  multiValueSupported?: boolean;
 }
 
 export interface ClassificationReadinessReport {
@@ -1470,7 +1471,7 @@ export function evaluateClassificationReadiness(
       ? `Product Type classification is runnable (${productTypeTargets.length} target(s) enabled).`
       : `Product Type classification is disabled (${productTypeTargets.length} target(s) enabled).`,
     productFieldsRunnable
-      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled).`
+      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled, single- and multi-value supported).`
       : `Product Attribute classification is disabled (${fieldTargets.length} target(s) enabled).`,
     categoryPagesRunnable
       ? `Category Page classification is runnable (${pageTargets.length} target(s) enabled).`
@@ -1499,6 +1500,7 @@ export function evaluateClassificationReadiness(
         targetCount: fieldTargets.length,
         runnable: productFieldsRunnable,
         reason: productFieldsRunnable ? undefined : (fieldTargets.length === 0 ? 'No enabled Product Field targets' : 'Configuration errors present'),
+        multiValueSupported: true,
       },
       categoryPages: {
         kind: 'page',

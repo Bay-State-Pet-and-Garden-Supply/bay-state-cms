@@ -514,19 +514,81 @@ export function scoreEvaluatorExample(args: {
  * - `inapplicable` / `unlabeled`: excluded from the eligible denominator.
  *   Legacy gold with null value and no state marker also scores as excluded.
  */
-export function scoreEvaluatorFieldExample(args: {
+export interface ScoreEvaluatorFieldExampleArgs {
   goldState: EvaluatorFieldGoldState | null;
-  goldValue: string | null | undefined;
-  predictedValue: string | null | undefined;
+  goldValue?: string | null | undefined;
+  goldValues?: string[] | null | undefined;
+  predictedValue?: string | null | undefined;
+  predictedValues?: string[] | null | undefined;
   outcome?: EvaluatorPredictionOutcome;
-}): EvaluatorExampleVerdict {
+}
+
+export function parseValueSet(val: string | string[] | null | undefined): Set<string> {
+  if (!val) return new Set();
+  if (Array.isArray(val)) {
+    return new Set(val.map(s => String(s).trim()).filter(Boolean));
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return new Set();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return new Set(parsed.map(s => String(s).trim()).filter(Boolean));
+      } catch {}
+    }
+    return new Set(trimmed.split(',').map(s => s.trim()).filter(Boolean));
+  }
+  return new Set();
+}
+
+export function computeSetMetrics(
+  goldSet: Set<string>,
+  predictedSet: Set<string>,
+): { precision: number; recall: number; f1: number; exactMatch: boolean } {
+  if (goldSet.size === 0 && predictedSet.size === 0) {
+    return { precision: 1, recall: 1, f1: 1, exactMatch: true };
+  }
+  if (predictedSet.size === 0) {
+    return { precision: 0, recall: 0, f1: 0, exactMatch: false };
+  }
+  if (goldSet.size === 0) {
+    return { precision: 0, recall: 0, f1: 0, exactMatch: false };
+  }
+  let intersection = 0;
+  for (const item of predictedSet) {
+    if (goldSet.has(item)) intersection++;
+  }
+  const precision = intersection / predictedSet.size;
+  const recall = intersection / goldSet.size;
+  const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+  const exactMatch = intersection === goldSet.size && intersection === predictedSet.size;
+  return { precision, recall, f1, exactMatch };
+}
+
+/**
+ * Score one field target under its adjudicated gold state (issue #298 / #300).
+ *
+ * Supports both single-value exact matching and multi-value set-based matching.
+ *
+ * States:
+ * - `known`: expected to predict the gold value / set. Match -> correct,
+ *   mismatch -> incorrect, abstained -> abstained.
+ * - `no-fit` / `insufficient-evidence`: expected to abstain. Abstained -> correct,
+ *   any concrete prediction -> incorrect (forced-guess error).
+ * - `inapplicable` / `unlabeled`: excluded from the eligible denominator.
+ *   Legacy gold with null value and no state marker also scores as excluded.
+ */
+export function scoreEvaluatorFieldExample(args: ScoreEvaluatorFieldExampleArgs): EvaluatorExampleVerdict {
+  const goldSet = parseValueSet(args.goldValues ?? args.goldValue);
+  const predSet = parseValueSet(args.predictedValues ?? args.predictedValue);
   const goldValue = typeof args.goldValue === 'string' && args.goldValue.trim() !== '' ? args.goldValue.trim() : null;
   const predValue = typeof args.predictedValue === 'string' && args.predictedValue.trim() !== '' ? args.predictedValue.trim() : null;
 
   if (args.goldState === EVALUATOR_FIELD_GOLD_STATE_UNLABELED || args.goldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) {
     return 'excluded';
   }
-  if (args.goldState === null && goldValue === null) {
+  if (args.goldState === null && goldValue === null && goldSet.size === 0) {
     return 'excluded';
   }
   if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
@@ -536,16 +598,23 @@ export function scoreEvaluatorFieldExample(args: {
     args.goldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT ||
     args.goldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE
   ) {
-    if (predValue === null || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
+    if ((predValue === null && predSet.size === 0) || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
       return 'correct';
     }
     return 'incorrect';
   }
 
   // goldState === known or legacy gold with non-null goldValue
-  if (predValue === null || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
+  if ((predValue === null && predSet.size === 0) || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
     return 'abstained';
   }
+
+  // Set-based comparison if multiple values exist in gold or predicted
+  if (args.goldValues !== undefined || args.predictedValues !== undefined || goldSet.size > 1 || predSet.size > 1) {
+    const isMatch = goldSet.size === predSet.size && [...goldSet].every(v => predSet.has(v));
+    return isMatch ? 'correct' : 'incorrect';
+  }
+
   return predValue === goldValue ? 'correct' : 'incorrect';
 }
 
@@ -631,6 +700,14 @@ export interface EvaluatorFamilyLeakage {
   ungroupedExamples: number;
 }
 
+export interface EvaluatorFieldSetMetrics {
+  evaluatedCount: number;
+  exactMatchAccuracy: number;
+  meanPrecision: number;
+  meanRecall: number;
+  meanF1: number;
+}
+
 export interface EvaluatorFieldAttributionReport {
   targetId: string;
   goldStates: {
@@ -643,6 +720,7 @@ export interface EvaluatorFieldAttributionReport {
   };
   fixedPopulation: EvaluatorFixedPopulation;
   baselineComparison: EvaluatorBaselineComparison | null;
+  setMetrics?: EvaluatorFieldSetMetrics | null;
 }
 
 export interface EvaluatorAttributionReport {
@@ -1021,10 +1099,17 @@ export function computeEvaluatorAttribution(
     let fDualAbstentions = 0;
     const fDualAbstainedExampleIds: string[] = [];
 
+    let setPrecisionSum = 0;
+    let setRecallSum = 0;
+    let setF1Sum = 0;
+    let setExactMatchCount = 0;
+    let setEvaluatedCount = 0;
+
     for (const example of gold) {
       const fieldState = example.fieldGoldStates?.[targetId] ?? null;
       const goldField = example.goldLabels.fieldAssignments?.find(f => f.targetId === targetId);
       const goldVal = goldField ? goldField.value : null;
+      const goldVals = (goldField as any)?.values ?? (goldVal ? goldVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
 
       if (fieldState === null) {
         if (goldVal !== null && goldVal !== undefined) fLegacy++;
@@ -1039,6 +1124,7 @@ export function computeEvaluatorAttribution(
       const predEntry = predList.length > 0 ? predList[0] : undefined;
       const predField = predEntry?.fieldAssignments?.find(f => f.targetId === targetId);
       const predVal = predField ? predField.value : null;
+      const predVals = (predField as any)?.values ?? (predVal ? predVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
 
       let outcome: EvaluatorPredictionOutcome;
       if (!predEntry) {
@@ -1049,7 +1135,7 @@ export function computeEvaluatorAttribution(
           outcome = EVALUATOR_OUTCOME_FAILED;
         } else if (raw.outcome === 'failed') {
           outcome = EVALUATOR_OUTCOME_FAILED;
-        } else if (predVal === null) {
+        } else if (predVal === null && (!predVals || predVals.length === 0)) {
           outcome = EVALUATOR_OUTCOME_ABSTAINED;
         } else {
           outcome = EVALUATOR_OUTCOME_PREDICTED;
@@ -1059,11 +1145,26 @@ export function computeEvaluatorAttribution(
       const verdict = scoreEvaluatorFieldExample({
         goldState: fieldState,
         goldValue: goldVal,
+        goldValues: goldVals,
         predictedValue: predVal,
+        predictedValues: predVals,
         outcome,
       });
 
       if (verdict === 'excluded') continue;
+
+      if (fieldState !== EVALUATOR_FIELD_GOLD_STATE_NO_FIT && fieldState !== EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
+        const gSet = parseValueSet(goldVals ?? goldVal);
+        const pSet = parseValueSet(predVals ?? predVal);
+        if (gSet.size > 0 || pSet.size > 0) {
+          const sMet = computeSetMetrics(gSet, pSet);
+          setPrecisionSum += sMet.precision;
+          setRecallSum += sMet.recall;
+          setF1Sum += sMet.f1;
+          if (sMet.exactMatch) setExactMatchCount++;
+          setEvaluatedCount++;
+        }
+      }
 
       if (verdict === 'correct') {
         fCorrect++;
@@ -1085,6 +1186,7 @@ export function computeEvaluatorAttribution(
         const baseEntry = baseList.length > 0 ? baseList[0] : undefined;
         const baseField = baseEntry?.fieldAssignments?.find(f => f.targetId === targetId);
         const baseVal = baseField ? baseField.value : null;
+        const baseVals = (baseField as any)?.values ?? (baseVal ? baseVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
 
         let baseOutcome: EvaluatorPredictionOutcome;
         if (!baseEntry) {
@@ -1095,7 +1197,7 @@ export function computeEvaluatorAttribution(
             baseOutcome = EVALUATOR_OUTCOME_FAILED;
           } else if (rawBase.outcome === 'failed') {
             baseOutcome = EVALUATOR_OUTCOME_FAILED;
-          } else if (baseVal === null) {
+          } else if (baseVal === null && (!baseVals || baseVals.length === 0)) {
             baseOutcome = EVALUATOR_OUTCOME_ABSTAINED;
           } else {
             baseOutcome = EVALUATOR_OUTCOME_PREDICTED;
@@ -1105,7 +1207,9 @@ export function computeEvaluatorAttribution(
         const baseVerdict = scoreEvaluatorFieldExample({
           goldState: fieldState,
           goldValue: goldVal,
+          goldValues: goldVals,
           predictedValue: baseVal,
+          predictedValues: baseVals,
           outcome: baseOutcome,
         });
 
@@ -1185,6 +1289,15 @@ export function computeEvaluatorAttribution(
       },
       fixedPopulation,
       baselineComparison,
+      setMetrics: setEvaluatedCount > 0
+        ? {
+            evaluatedCount: setEvaluatedCount,
+            exactMatchAccuracy: setExactMatchCount / setEvaluatedCount,
+            meanPrecision: setPrecisionSum / setEvaluatedCount,
+            meanRecall: setRecallSum / setEvaluatedCount,
+            meanF1: setF1Sum / setEvaluatedCount,
+          }
+        : null,
     };
   }
 

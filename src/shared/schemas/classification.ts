@@ -863,6 +863,7 @@ export const ProposalDerivationSchema = z.discriminatedUnion('kind', [
     vendorConfidence: z.number().min(0).max(1).nullable().optional(),
     probabilityBasis: z.string().optional(),
     abstentionCode: z.string().optional(),
+    candidateProbabilities: z.record(z.string(), z.number()).optional(),
   }).strict(),
 ]);
 export type ProposalDerivation = z.infer<typeof ProposalDerivationSchema>;
@@ -1146,6 +1147,7 @@ export const BenchmarkGoldLabelsSchema = z.object({
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
+    values: z.array(z.string()).optional(),
   })).default([]),
 });
 export type BenchmarkGoldLabels = z.infer<typeof BenchmarkGoldLabelsSchema>;
@@ -1217,6 +1219,7 @@ export const BenchmarkPredictionEntrySchema = z.object({
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
+    values: z.array(z.string()).optional(),
   })).default([]),
   abstained: z.boolean().default(false),
   confidence: z.number().min(0).max(1).nullable().default(null),
@@ -1406,6 +1409,7 @@ export const ClassificationReadinessCapabilitySchema = z.object({
   targetCount: z.number().int().nonnegative(),
   runnable: z.boolean(),
   reason: z.string().nullable(),
+  multiValueSupported: z.boolean().optional(),
 }).strict();
 export type ClassificationReadinessCapability = z.infer<typeof ClassificationReadinessCapabilitySchema>;
 

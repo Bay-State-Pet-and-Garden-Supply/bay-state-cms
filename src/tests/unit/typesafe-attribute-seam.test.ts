@@ -259,7 +259,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(calls[0].status).toBe('success');
   });
 
-  it('2. multi-value unsupported: explicitly abstains (multi_value_unsupported) without silent single-choice conversion', async () => {
+  it('2. multi-value resolution: resolves multi-value via deterministic alias or Jev Noul without silent single-choice conversion', async () => {
     const run = createRun(workspaceId, 'SKU-MULTI-1', null, 'hash-multi');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
@@ -279,13 +279,13 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     });
 
     expect(fetchCalled).toBe(false);
-    expect(decision.status).toBe('abstained');
-    expect(decision.abstentionCode).toBe('multi_value_unsupported');
-    expect(decision.value).toBeNull();
+    expect(decision.status).toBe('resolved');
+    expect(decision.values).toEqual(['Chicken']);
+    expect(decision.value).toBe('Chicken');
 
     const proposal = buildProposalFromAttributeDecision(decision, 'SKU-MULTI-1', run.id, 'hash-multi');
-    expect(proposal.proposalType).toBe('reviewable_abstention');
-    expect(proposal.isBulkAcceptable).toBe(false);
+    expect(proposal.proposalType).toBe('field_assignment');
+    expect(proposal.proposedValue).toEqual(['Chicken']);
   });
 
   it('3. candidate limit exceeded: candidate options > 253 produces candidate_limit_exceeded (no clipping)', async () => {
@@ -726,7 +726,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(prediction.outcome).toBe('predicted');
     expect(prediction.productType).toBe('dog-food');
     expect(prediction.fieldAssignments).toEqual([
-      { targetId: 'flavor', value: 'Chicken' },
+      { targetId: 'flavor', value: 'Chicken', values: ['Chicken'] },
       { targetId: 'size', value: null },
     ]);
   });

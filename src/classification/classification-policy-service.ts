@@ -75,7 +75,7 @@ export const CLASSIFICATION_POLICY_STAGES: readonly StageDefinition[] = [
   {
     id: 'product_attribute_proposals',
     label: 'Controlled Product Attributes',
-    description: 'Proposes applicable controlled attribute values from the active attribute profile.',
+    description: 'Proposes applicable controlled attribute values (single- and multi-valued) from the active attribute profile.',
     operation: 'attribute_ranking',
     adapterStatus: 'supported',
     supportedTransports: ['openai-compatible', 'ollama-native', 'systemone'],
@@ -114,7 +114,7 @@ export interface ConnectionOption {
   enabled: boolean;
   status: string;
   models: Array<{ id: string; name: string }>;
-  stageSupport: Record<string, { supported: boolean; reason?: string }>;
+  stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean }>;
 }
 
 export interface ClassificationPolicySettingsResponse {
@@ -257,12 +257,14 @@ export function getClassificationPolicySettings(
   // Map available connections with stage support
   const availableConnections: ConnectionOption[] = connections.map(conn => {
     const locality = trustZoneToLocality(conn.trustZone);
-    const stageSupport: Record<string, { supported: boolean; reason?: string }> = {};
+    const stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean }> = {};
 
     for (const stage of CLASSIFICATION_POLICY_STAGES) {
       if (conn.transport === 'systemone') {
-        if (stage.id === 'primary_product_type_proposal' || stage.id === 'product_attribute_proposals') {
+        if (stage.id === 'primary_product_type_proposal') {
           stageSupport[stage.id] = { supported: true };
+        } else if (stage.id === 'product_attribute_proposals') {
+          stageSupport[stage.id] = { supported: true, multiValueSupported: true };
         } else {
           stageSupport[stage.id] = {
             supported: false,
@@ -270,7 +272,10 @@ export function getClassificationPolicySettings(
           };
         }
       } else if (stage.supportedTransports.includes(conn.transport as any)) {
-        stageSupport[stage.id] = { supported: true };
+        stageSupport[stage.id] = {
+          supported: true,
+          ...(stage.id === 'product_attribute_proposals' ? { multiValueSupported: true } : {}),
+        };
       } else {
         stageSupport[stage.id] = {
           supported: false,

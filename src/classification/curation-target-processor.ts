@@ -712,10 +712,11 @@ export async function processProductFieldTargetsBatch(
       );
       allProposals.push(proposal);
 
-      if (decision.status === 'resolved' && decision.value !== null) {
+      if (decision.status === 'resolved' && (decision.value !== null || (decision.values && decision.values.length > 0))) {
         const sourceLabel =
           decision.source === 'jev' ? 'TypeSafe Jev' : decision.source === 'brand_resolved' ? 'resolved' : 'keyword';
-        messages.push(`"${targetLabel}": ${decision.value} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`);
+        const displayVal = decision.values && decision.values.length > 0 ? decision.values.join(', ') : decision.value;
+        messages.push(`"${targetLabel}": ${displayVal} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`);
       } else {
         messages.push(decision.abstentionReason ?? `Abstained from proposing "${targetLabel}".`);
       }

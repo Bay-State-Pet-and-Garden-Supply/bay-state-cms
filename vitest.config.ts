@@ -106,6 +106,7 @@ export default defineConfig({
       'src/tests/unit/product-type-decision.test.ts',
       'src/tests/unit/typesafe-product-type-seam.test.ts',
       'src/tests/unit/typesafe-attribute-seam.test.ts',
+      'src/tests/unit/typesafe-attribute-multi-value.test.ts',
       'src/tests/unit/classification-run-routes.test.ts',
       'src/tests/unit/profile-generation-repo.test.ts',
       'src/tests/unit/profile-promoter.test.ts',

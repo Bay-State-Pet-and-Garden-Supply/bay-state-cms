@@ -415,19 +415,24 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
 
   const proposals = classRunRepo.getProposalsByRun(run.id).filter(p => !p.isStale);
 
-  const fieldProposalsByTarget = new Map<string, { value: string | null; confidence: number; proposalType: string }>();
+  const fieldProposalsByTarget = new Map<string, { value: string | null; values?: string[]; confidence: number; proposalType: string }>();
   for (const p of proposals) {
     if (p.proposalType === 'field_assignment' && p.targetId) {
-      const val = typeof p.proposedValue === 'string'
-        ? p.proposedValue
-        : Array.isArray(p.proposedValue)
-          ? (typeof p.proposedValue[0] === 'string' ? p.proposedValue[0] : (p.proposedValue[0] != null ? String(p.proposedValue[0]) : null))
-          : p.proposedValue != null
-            ? String(p.proposedValue)
-            : null;
+      let val: string | null = null;
+      let values: string[] | undefined = undefined;
+      if (Array.isArray(p.proposedValue)) {
+        values = p.proposedValue.map(v => typeof v === 'string' ? v : (v != null ? String(v) : '')).filter(Boolean);
+        val = values.join(', ');
+      } else if (typeof p.proposedValue === 'string') {
+        val = p.proposedValue;
+        values = [p.proposedValue];
+      } else if (p.proposedValue != null) {
+        val = String(p.proposedValue);
+        values = [val];
+      }
       const existing = fieldProposalsByTarget.get(p.targetId);
       if (!existing || existing.proposalType !== 'field_assignment' || (p.confidence ?? 0) > existing.confidence) {
-        fieldProposalsByTarget.set(p.targetId, { value: val, confidence: p.confidence ?? 0, proposalType: 'field_assignment' });
+        fieldProposalsByTarget.set(p.targetId, { value: val, values, confidence: p.confidence ?? 0, proposalType: 'field_assignment' });
       }
     } else if (p.proposalType === 'reviewable_abstention' && p.targetId) {
       const isTypeOrPage =
@@ -445,7 +450,7 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
 
   base.fieldAssignments = [...fieldProposalsByTarget.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([targetId, { value }]) => ({ targetId, value }));
+    .map(([targetId, { value, values }]) => ({ targetId, value, ...(values ? { values } : {}) }));
 
   const typeProposals = proposals
     .filter(p => p.proposalType === 'primary_product_type')
