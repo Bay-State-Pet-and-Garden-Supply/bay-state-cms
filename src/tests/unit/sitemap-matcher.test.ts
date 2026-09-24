@@ -657,5 +657,24 @@ describe('Sitemap Matcher', () => {
       const result = await matchSitemapUrls(urls, 'Other Product', null, '850-0678-59598', 'mywoof.com');
       expect(result.some(r => r.url === urls[0])).toBe(true);
     });
+
+    test('findUpcExactHit digit pre-filtering parity for edge cases', async () => {
+      // 1. URLs with no digits at all (digitCount = 0 < minLen) -> correctly skipped, no match
+      const noDigitUrls = ['https://example.com/products/brand-super-widget.html'];
+      const res1 = await matchSitemapUrls(noDigitUrls, 'Widget', null, '850067859598', 'example.com');
+      expect(res1.filter(r => r.matchType === 'upc_exact')).toHaveLength(0);
+
+      // 2. URLs with fewer digits than minCandidateLen (e.g. 5 digits vs 12-digit candidate)
+      const fewDigitUrls = ['https://example.com/products/model-12345-sku.html'];
+      const res2 = await matchSitemapUrls(fewDigitUrls, 'Widget', null, '850067859598', 'example.com');
+      expect(res2.filter(r => r.matchType === 'upc_exact')).toHaveLength(0);
+
+      // 3. URLs where digits are separated by non-digit characters (e.g., 850-0678-59598) -> digitCount = 12 >= minLen -> matched via urlDigits
+      const formattedUrls = ['https://example.com/products/item-850-0678-59598-pdp.html'];
+      const res3 = await matchSitemapUrls(formattedUrls, 'Widget', null, '850067859598', 'example.com');
+      expect(res3).toHaveLength(1);
+      expect(res3[0].matchType).toBe('upc_exact');
+      expect(res3[0].url).toBe(formattedUrls[0]);
+    });
   });
 });
