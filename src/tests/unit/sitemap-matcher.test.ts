@@ -13,7 +13,7 @@
  *   - stubs `globalThis.fetch` to capture LLM requests.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { initDb, closeDb, resetDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
@@ -155,6 +155,19 @@ describe('Sitemap Matcher', () => {
       expect(res).toHaveLength(1);
       expect(res[0].matchType).toBe('upc_exact');
       expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
+    });
+
+    test('findUpcExactHit returns null for non-GTIN UPC inputs', async () => {
+      const sitemaps = [
+        'https://example.com/products/item-123',
+        'https://example.com/products/widget-456',
+      ];
+      // Non-GTIN inputs (e.g. short internal SKU '123' or alphanumeric 'SKU123') must not trigger upc_exact matches
+      const res1 = await matchSitemapUrls(sitemaps, 'Item 123', null, '123', 'example.com');
+      expect(res1.some(r => r.matchType === 'upc_exact')).toBe(false);
+
+      const res2 = await matchSitemapUrls(sitemaps, 'Widget 456', null, 'SKU123', 'example.com');
+      expect(res2.some(r => r.matchType === 'upc_exact')).toBe(false);
     });
 
   // ── Pass 2: product URL filter ────────────────────────────────────────
@@ -504,9 +517,9 @@ describe('Sitemap Matcher', () => {
     ];
 
     // Force "no LLM" by making getLlmConfigForTask return null for
-    // this call. We use vi.spyOn so the rest of the LLM client stays
+    // this call. We use spyOn so the rest of the LLM client stays
     // functional for the other tests in this file.
-    const spy = vi.spyOn(llmClient, 'getLlmConfigForTask').mockReturnValue(null);
+    const spy = spyOn(llmClient, 'getLlmConfigForTask').mockReturnValue(null as any);
 
     const result = await matchSitemapUrls(
       urls,
