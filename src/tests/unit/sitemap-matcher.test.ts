@@ -13,7 +13,7 @@
  *   - stubs `globalThis.fetch` to capture LLM requests.
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, spyOn } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { initDb, closeDb, resetDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
@@ -517,9 +517,9 @@ describe('Sitemap Matcher', () => {
     ];
 
     // Force "no LLM" by making getLlmConfigForTask return null for
-    // this call. We use vi.spyOn so the rest of the LLM client stays
+    // this call. We use spyOn so the rest of the LLM client stays
     // functional for the other tests in this file.
-    const spy = vi.spyOn(llmClient, 'getLlmConfigForTask').mockReturnValue(null);
+    const spy = spyOn(llmClient, 'getLlmConfigForTask').mockReturnValue(null as any);
 
     const result = await matchSitemapUrls(
       urls,
