@@ -30,6 +30,7 @@
  */
 
 import { callLlmForTask, getLlmConfigForTask } from './llm-client';
+import { normalizeGtin } from '../shared/gtin';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -240,24 +241,20 @@ export async function matchSitemapUrls(
  * without executing regex replacements or allocating string objects.
  */
 function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
-  const needle = upc.trim();
-  if (!needle) return null;
-  const stripped = needle.replace(/\D+/g, '');
+  const normUpc = normalizeGtin(upc);
+  if (!normUpc) return null;
 
   const candidateGtins = new Set<string>();
-  if (needle) candidateGtins.add(needle);
-  if (stripped) {
-    candidateGtins.add(stripped);
-    if (stripped.length === 12) {
-      candidateGtins.add(`0${stripped}`);
-      candidateGtins.add(`00${stripped}`);
-    } else if (stripped.length === 13) {
-      candidateGtins.add(`0${stripped}`);
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
-    } else if (stripped.length === 14) {
-      if (stripped.startsWith('00')) candidateGtins.add(stripped.slice(2));
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
-    }
+  candidateGtins.add(normUpc);
+  if (normUpc.length === 12) {
+    candidateGtins.add(`0${normUpc}`);
+    candidateGtins.add(`00${normUpc}`);
+  } else if (normUpc.length === 13) {
+    candidateGtins.add(`0${normUpc}`);
+    if (normUpc.startsWith('0')) candidateGtins.add(normUpc.slice(1));
+  } else if (normUpc.length === 14) {
+    if (normUpc.startsWith('00')) candidateGtins.add(normUpc.slice(2));
+    if (normUpc.startsWith('0')) candidateGtins.add(normUpc.slice(1));
   }
 
   for (const url of sitemapUrls) {
