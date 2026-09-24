@@ -239,28 +239,42 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
-function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+function countDigits(str: string): number {
+  let count = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code >= 48 && code <= 57) count++;
+  }
+  return count;
+}
+
+function buildCandidateGtins(upc: string): string[] {
   const needle = upc.trim();
-  if (!needle) return null;
+  if (!needle) return [];
   const stripped = needle.replace(/\D+/g, '');
 
-  const candidateGtins = new Set<string>();
-  if (needle) candidateGtins.add(needle);
+  const candidates = new Set<string>();
+  if (needle) candidates.add(needle);
   if (stripped) {
-    candidateGtins.add(stripped);
+    candidates.add(stripped);
     if (stripped.length === 12) {
-      candidateGtins.add(`0${stripped}`);
-      candidateGtins.add(`00${stripped}`);
+      candidates.add(`0${stripped}`);
+      candidates.add(`00${stripped}`);
     } else if (stripped.length === 13) {
-      candidateGtins.add(`0${stripped}`);
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+      candidates.add(`0${stripped}`);
+      if (stripped.startsWith('0')) candidates.add(stripped.slice(1));
     } else if (stripped.length === 14) {
-      if (stripped.startsWith('00')) candidateGtins.add(stripped.slice(2));
-      if (stripped.startsWith('0')) candidateGtins.add(stripped.slice(1));
+      if (stripped.startsWith('00')) candidates.add(stripped.slice(2));
+      if (stripped.startsWith('0')) candidates.add(stripped.slice(1));
     }
   }
+  return Array.from(candidates);
+}
 
-  const candidateList = Array.from(candidateGtins);
+function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+  const candidateList = buildCandidateGtins(upc);
+  if (candidateList.length === 0) return null;
+
   let minCandidateLen = Infinity;
   for (let i = 0; i < candidateList.length; i++) {
     if (candidateList[i].length < minCandidateLen) {
@@ -276,16 +290,7 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
       if (url.includes(candidateList[j])) return url;
     }
 
-    // Fast digit count check before executing regex string replacement
-    let digitCount = 0;
-    for (let k = 0; k < url.length; k++) {
-      const code = url.charCodeAt(k);
-      if (code >= 48 && code <= 57) {
-        digitCount++;
-      }
-    }
-
-    if (digitCount >= minCandidateLen) {
+    if (countDigits(url) >= minCandidateLen) {
       const urlDigits = url.replace(/\D+/g, '');
       for (let j = 0; j < candidateList.length; j++) {
         if (urlDigits.includes(candidateList[j])) return url;
