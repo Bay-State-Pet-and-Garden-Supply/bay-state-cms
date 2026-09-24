@@ -77,8 +77,8 @@ export const CLASSIFICATION_POLICY_STAGES: readonly StageDefinition[] = [
     label: 'Controlled Product Attributes',
     description: 'Proposes applicable controlled attribute values from the active attribute profile.',
     operation: 'attribute_ranking',
-    adapterStatus: 'unwired', // Jev adapter arrives in #298 / #300
-    supportedTransports: ['openai-compatible', 'ollama-native'],
+    adapterStatus: 'supported',
+    supportedTransports: ['openai-compatible', 'ollama-native', 'systemone'],
   },
   {
     id: 'category_page_proposals',
@@ -261,7 +261,7 @@ export function getClassificationPolicySettings(
 
     for (const stage of CLASSIFICATION_POLICY_STAGES) {
       if (conn.transport === 'systemone') {
-        if (stage.id === 'primary_product_type_proposal') {
+        if (stage.id === 'primary_product_type_proposal' || stage.id === 'product_attribute_proposals') {
           stageSupport[stage.id] = { supported: true };
         } else {
           stageSupport[stage.id] = {
@@ -460,7 +460,7 @@ export function previewClassificationPolicy(
 
       // Check stage adapter compatibility
       if (resolved.transport === 'systemone') {
-        if (stage.id !== 'primary_product_type_proposal') {
+        if (stage.id !== 'primary_product_type_proposal' && stage.id !== 'product_attribute_proposals') {
           validationErrors.push(`TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`);
         }
       } else if (!stage.supportedTransports.includes(resolved.transport as any)) {

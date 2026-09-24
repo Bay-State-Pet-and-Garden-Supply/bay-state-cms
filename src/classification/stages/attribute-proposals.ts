@@ -32,7 +32,7 @@ import type { ClassificationProposal } from '../../shared/schemas/classification
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { loadClassificationConfig } from '../config-loader';
 import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
-import { processProductFieldTarget } from '../curation-target-processor';
+import { processProductFieldTarget, processProductFieldTargetsBatch } from '../curation-target-processor';
 import { getEffectiveCurationProductType, resolveEffectiveTypeProfile } from '../effective-curation-type';
 import { getUniversalTierFlags } from '../flags';
 import { getCachedAttributeProfiles, getCachedProductTypes } from '../../db/repositories/classification-config-repo';
@@ -170,12 +170,10 @@ export const productAttributeProposalsStage: StageDefinition = {
     const allProposals: ClassificationProposal[] = [...invariantProposals];
     const messages: string[] = [];
 
-    // Process remaining variable targets through the shared engine
-    for (const { target, cardinality } of remainingGatedTargets) {
-      const result = await processProductFieldTarget(target, input, context, { cardinality });
-      allProposals.push(...result.proposals);
-      if (result.message) messages.push(result.message);
-    }
+    // Process remaining variable targets through the shared batch engine
+    const batchResult = await processProductFieldTargetsBatch(remainingGatedTargets, input, context);
+    allProposals.push(...batchResult.proposals);
+    if (batchResult.messages.length > 0) messages.push(...batchResult.messages);
 
     if (allProposals.length === 0) {
       return {

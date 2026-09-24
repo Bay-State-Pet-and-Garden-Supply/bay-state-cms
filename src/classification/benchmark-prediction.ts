@@ -414,6 +414,39 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
   if (callFailed) return { ...fail(PRE_REVIEW_FAILURE_CALL_FAILED), provenance };
 
   const proposals = classRunRepo.getProposalsByRun(run.id).filter(p => !p.isStale);
+
+  const fieldProposalsByTarget = new Map<string, { value: string | null; confidence: number; proposalType: string }>();
+  for (const p of proposals) {
+    if (p.proposalType === 'field_assignment' && p.targetId) {
+      const val = typeof p.proposedValue === 'string'
+        ? p.proposedValue
+        : Array.isArray(p.proposedValue)
+          ? (typeof p.proposedValue[0] === 'string' ? p.proposedValue[0] : (p.proposedValue[0] != null ? String(p.proposedValue[0]) : null))
+          : p.proposedValue != null
+            ? String(p.proposedValue)
+            : null;
+      const existing = fieldProposalsByTarget.get(p.targetId);
+      if (!existing || existing.proposalType !== 'field_assignment' || (p.confidence ?? 0) > existing.confidence) {
+        fieldProposalsByTarget.set(p.targetId, { value: val, confidence: p.confidence ?? 0, proposalType: 'field_assignment' });
+      }
+    } else if (p.proposalType === 'reviewable_abstention' && p.targetId) {
+      const isTypeOrPage =
+        p.targetId === 'primary_product_type_proposal' ||
+        p.targetId === 'primary_product_type' ||
+        p.targetId === 'product_type_ranking' ||
+        p.targetId === 'category_page_assignment';
+      if (!isTypeOrPage) {
+        if (!fieldProposalsByTarget.has(p.targetId)) {
+          fieldProposalsByTarget.set(p.targetId, { value: null, confidence: 0, proposalType: 'reviewable_abstention' });
+        }
+      }
+    }
+  }
+
+  base.fieldAssignments = [...fieldProposalsByTarget.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([targetId, { value }]) => ({ targetId, value }));
+
   const typeProposals = proposals
     .filter(p => p.proposalType === 'primary_product_type')
     .sort((a, b) =>

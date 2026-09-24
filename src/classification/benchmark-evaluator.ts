@@ -37,6 +37,10 @@ export interface GoldExampleForEvaluation {
    * Null = legacy gold without a marker; label presence decides scoring.
    */
   goldState?: EvaluatorGoldState | null;
+  /**
+   * Adjudicated gold states for product field targets (`fieldStates` in goldLabelsJson).
+   */
+  fieldGoldStates?: Record<string, EvaluatorFieldGoldState> | null;
   /** Product family id (split-leakage detection). */
   familyId?: string | null;
   /** Split the example belongs to. */
@@ -87,6 +91,50 @@ export function readEvaluatorGoldState(goldLabelsJson: string): EvaluatorGoldSta
     const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     return normalizeEvaluatorGoldState(parsed[EVALUATOR_GOLD_STATE_FIELD]);
+  } catch {
+    return null;
+  }
+}
+
+// ─── Field Gold-state contract (issue #298 / AC 8) ───────────────────────────
+export const EVALUATOR_FIELD_GOLD_STATE_KNOWN = 'known' as const;
+export const EVALUATOR_FIELD_GOLD_STATE_NO_FIT = 'no-fit' as const;
+export const EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+export const EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE = 'inapplicable' as const;
+export const EVALUATOR_FIELD_GOLD_STATE_UNLABELED = 'unlabeled' as const;
+export const EVALUATOR_FIELD_GOLD_STATES = [
+  EVALUATOR_FIELD_GOLD_STATE_KNOWN,
+  EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
+  EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
+] as const;
+export type EvaluatorFieldGoldState = (typeof EVALUATOR_FIELD_GOLD_STATES)[number];
+export const EVALUATOR_FIELD_GOLD_STATES_FIELD = 'fieldStates' as const;
+
+export function normalizeEvaluatorFieldGoldState(value: unknown): EvaluatorFieldGoldState | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase().replace(/_/g, '-');
+  if (v === 'known' || v === 'known-type' || v === 'known-value') return EVALUATOR_FIELD_GOLD_STATE_KNOWN;
+  if (v === 'no-fit' || v === 'no-fitting-type' || v === 'no-fit-type' || v === 'nofit' || v === 'no-fitting') return EVALUATOR_FIELD_GOLD_STATE_NO_FIT;
+  if (v === 'insufficient-evidence' || v === 'insufficientevidence') return EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE;
+  if (v === 'inapplicable' || v === 'not-applicable' || v === 'na') return EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE;
+  if (v === 'unlabeled' || v === 'unlabelled') return EVALUATOR_FIELD_GOLD_STATE_UNLABELED;
+  return null;
+}
+
+export function readEvaluatorFieldStates(goldLabelsJson: string): Record<string, EvaluatorFieldGoldState> | null {
+  try {
+    const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const raw = (parsed[EVALUATOR_FIELD_GOLD_STATES_FIELD] ?? (parsed as any).fieldGoldStates) as Record<string, unknown> | undefined;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const result: Record<string, EvaluatorFieldGoldState> = {};
+    for (const [key, val] of Object.entries(raw)) {
+      const normalized = normalizeEvaluatorFieldGoldState(val);
+      if (normalized) result[key] = normalized;
+    }
+    return Object.keys(result).length > 0 ? result : null;
   } catch {
     return null;
   }
@@ -455,6 +503,52 @@ export function scoreEvaluatorExample(args: {
   return args.predictedType === goldType ? 'correct' : 'incorrect';
 }
 
+/**
+ * Score one field target under its adjudicated gold state (issue #298 / AC 8).
+ *
+ * States:
+ * - `known`: expected to predict the gold value. Concrete match -> correct,
+ *   different concrete value -> incorrect, abstained -> abstained.
+ * - `no-fit` / `insufficient-evidence`: expected to abstain. Abstained -> correct,
+ *   any concrete prediction -> incorrect (forced-guess error).
+ * - `inapplicable` / `unlabeled`: excluded from the eligible denominator.
+ *   Legacy gold with null value and no state marker also scores as excluded.
+ */
+export function scoreEvaluatorFieldExample(args: {
+  goldState: EvaluatorFieldGoldState | null;
+  goldValue: string | null | undefined;
+  predictedValue: string | null | undefined;
+  outcome?: EvaluatorPredictionOutcome;
+}): EvaluatorExampleVerdict {
+  const goldValue = typeof args.goldValue === 'string' && args.goldValue.trim() !== '' ? args.goldValue.trim() : null;
+  const predValue = typeof args.predictedValue === 'string' && args.predictedValue.trim() !== '' ? args.predictedValue.trim() : null;
+
+  if (args.goldState === EVALUATOR_FIELD_GOLD_STATE_UNLABELED || args.goldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) {
+    return 'excluded';
+  }
+  if (args.goldState === null && goldValue === null) {
+    return 'excluded';
+  }
+  if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
+  if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
+
+  if (
+    args.goldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT ||
+    args.goldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  ) {
+    if (predValue === null || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
+      return 'correct';
+    }
+    return 'incorrect';
+  }
+
+  // goldState === known or legacy gold with non-null goldValue
+  if (predValue === null || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
+    return 'abstained';
+  }
+  return predValue === goldValue ? 'correct' : 'incorrect';
+}
+
 export interface EvaluatorFailedPrediction {
   exampleId: string;
   productSku: string;
@@ -537,6 +631,20 @@ export interface EvaluatorFamilyLeakage {
   ungroupedExamples: number;
 }
 
+export interface EvaluatorFieldAttributionReport {
+  targetId: string;
+  goldStates: {
+    known: number;
+    noFit: number;
+    insufficientEvidence: number;
+    inapplicable: number;
+    unlabeled: number;
+    legacy: number;
+  };
+  fixedPopulation: EvaluatorFixedPopulation;
+  baselineComparison: EvaluatorBaselineComparison | null;
+}
+
 export interface EvaluatorAttributionReport {
   evaluatedSplit: 'test' | 'holdout';
   goldTotal: number;
@@ -565,6 +673,8 @@ export interface EvaluatorAttributionReport {
   baselineComparison: EvaluatorBaselineComparison | null;
   support: EvaluatorSupportStatus;
   familyLeakage: EvaluatorFamilyLeakage;
+  /** Field attribution reports keyed by field targetId (issue #298 / AC 8). */
+  fieldReports?: Record<string, EvaluatorFieldAttributionReport>;
 }
 
 export interface ComputeAttributionOptions {
@@ -857,6 +967,227 @@ export function computeEvaluatorAttribution(
     ungroupedExamples,
   };
 
+  // ── Field fixed-population attribution & baseline comparison (issue #298 / AC 8)
+  const allFieldTargetIds = new Set<string>();
+  for (const example of gold) {
+    for (const f of example.goldLabels.fieldAssignments ?? []) {
+      if (f.targetId) allFieldTargetIds.add(f.targetId);
+    }
+    if (example.fieldGoldStates) {
+      for (const tid of Object.keys(example.fieldGoldStates)) {
+        allFieldTargetIds.add(tid);
+      }
+    }
+  }
+  for (const p of predictions) {
+    for (const f of p.fieldAssignments ?? []) {
+      if (f.targetId) allFieldTargetIds.add(f.targetId);
+    }
+  }
+  for (const b of options.baselinePredictions ?? []) {
+    for (const f of b.fieldAssignments ?? []) {
+      if (f.targetId) allFieldTargetIds.add(f.targetId);
+    }
+  }
+
+  const fieldReports: Record<string, EvaluatorFieldAttributionReport> = {};
+
+  for (const targetId of [...allFieldTargetIds].sort()) {
+    let fKnown = 0;
+    let fNoFit = 0;
+    let fInsufficientEvidence = 0;
+    let fInapplicable = 0;
+    let fUnlabeled = 0;
+    let fLegacy = 0;
+
+    let fCorrect = 0;
+    let fCorrectAbstentions = 0;
+    let fIncorrect = 0;
+    let fAbstainedCount = 0;
+    let fFailedCount = 0;
+    let fMissingCount = 0;
+
+    let fComparisonEligible = 0;
+    let fCandidateCorrect = 0;
+    let fBaselineCorrect = 0;
+    let fCandidateCoveredCount = 0;
+    let fBaselineCoveredCount = 0;
+    let fDeltaSum = 0;
+    let fRecoveredBaselineAbstentions = 0;
+    const fRecoveredExampleIds: string[] = [];
+    let fHarmedBaselineSuccesses = 0;
+    const fHarmedExampleIds: string[] = [];
+    let fRetainedSuccesses = 0;
+    let fDualAbstentions = 0;
+    const fDualAbstainedExampleIds: string[] = [];
+
+    for (const example of gold) {
+      const fieldState = example.fieldGoldStates?.[targetId] ?? null;
+      const goldField = example.goldLabels.fieldAssignments?.find(f => f.targetId === targetId);
+      const goldVal = goldField ? goldField.value : null;
+
+      if (fieldState === null) {
+        if (goldVal !== null && goldVal !== undefined) fLegacy++;
+        else fUnlabeled++;
+      } else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_KNOWN) fKnown++;
+      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT) fNoFit++;
+      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) fInsufficientEvidence++;
+      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) fInapplicable++;
+      else fUnlabeled++;
+
+      const predList = entriesById.get(example.id) ?? [];
+      const predEntry = predList.length > 0 ? predList[0] : undefined;
+      const predField = predEntry?.fieldAssignments?.find(f => f.targetId === targetId);
+      const predVal = predField ? predField.value : null;
+
+      let outcome: EvaluatorPredictionOutcome;
+      if (!predEntry) {
+        outcome = EVALUATOR_OUTCOME_MISSING;
+      } else {
+        const raw = predEntry as unknown as Record<string, unknown>;
+        if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') {
+          outcome = EVALUATOR_OUTCOME_FAILED;
+        } else if (raw.outcome === 'failed') {
+          outcome = EVALUATOR_OUTCOME_FAILED;
+        } else if (predVal === null) {
+          outcome = EVALUATOR_OUTCOME_ABSTAINED;
+        } else {
+          outcome = EVALUATOR_OUTCOME_PREDICTED;
+        }
+      }
+
+      const verdict = scoreEvaluatorFieldExample({
+        goldState: fieldState,
+        goldValue: goldVal,
+        predictedValue: predVal,
+        outcome,
+      });
+
+      if (verdict === 'excluded') continue;
+
+      if (verdict === 'correct') {
+        fCorrect++;
+        if (fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT || fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
+          fCorrectAbstentions++;
+        }
+      } else if (verdict === 'incorrect') {
+        fIncorrect++;
+      } else if (verdict === 'abstained') {
+        fAbstainedCount++;
+      } else if (verdict === 'failed') {
+        fFailedCount++;
+      } else if (verdict === 'missing') {
+        fMissingCount++;
+      }
+
+      if (hasBaseline) {
+        const baseList = baselineById.get(example.id) ?? [];
+        const baseEntry = baseList.length > 0 ? baseList[0] : undefined;
+        const baseField = baseEntry?.fieldAssignments?.find(f => f.targetId === targetId);
+        const baseVal = baseField ? baseField.value : null;
+
+        let baseOutcome: EvaluatorPredictionOutcome;
+        if (!baseEntry) {
+          baseOutcome = EVALUATOR_OUTCOME_MISSING;
+        } else {
+          const rawBase = baseEntry as unknown as Record<string, unknown>;
+          if (typeof rawBase.failureCode === 'string' && rawBase.failureCode.trim() !== '') {
+            baseOutcome = EVALUATOR_OUTCOME_FAILED;
+          } else if (rawBase.outcome === 'failed') {
+            baseOutcome = EVALUATOR_OUTCOME_FAILED;
+          } else if (baseVal === null) {
+            baseOutcome = EVALUATOR_OUTCOME_ABSTAINED;
+          } else {
+            baseOutcome = EVALUATOR_OUTCOME_PREDICTED;
+          }
+        }
+
+        const baseVerdict = scoreEvaluatorFieldExample({
+          goldState: fieldState,
+          goldValue: goldVal,
+          predictedValue: baseVal,
+          outcome: baseOutcome,
+        });
+
+        const candidateScore = verdict === 'correct' ? 1 : 0;
+        const baselineScore = baseVerdict === 'correct' ? 1 : 0;
+        const candCovered = verdict === 'correct' || verdict === 'incorrect' || verdict === 'abstained';
+        const baseCovered = baseVerdict === 'correct' || baseVerdict === 'incorrect' || baseVerdict === 'abstained';
+        if (candCovered) fCandidateCoveredCount++;
+        if (baseCovered) fBaselineCoveredCount++;
+        fComparisonEligible++;
+        fCandidateCorrect += candidateScore;
+        fBaselineCorrect += baselineScore;
+        fDeltaSum += candidateScore - baselineScore;
+        if (baseVerdict === 'abstained' && verdict === 'correct') {
+          fRecoveredBaselineAbstentions++;
+          fRecoveredExampleIds.push(example.id);
+        }
+        if (baseVerdict === 'correct' && verdict !== 'correct') {
+          fHarmedBaselineSuccesses++;
+          fHarmedExampleIds.push(example.id);
+        }
+        if (baseVerdict === 'correct' && verdict === 'correct') fRetainedSuccesses++;
+        if (baseVerdict === 'abstained' && verdict === 'abstained') {
+          fDualAbstentions++;
+          fDualAbstainedExampleIds.push(example.id);
+        }
+      }
+    }
+
+    const fEligible = fCorrect + fIncorrect + fAbstainedCount + fFailedCount + fMissingCount;
+    const fCovered = fCorrect + fIncorrect + fAbstainedCount;
+    const fixedPopulation: EvaluatorFixedPopulation = {
+      eligible: fEligible,
+      correct: fCorrect,
+      correctAbstentions: fCorrectAbstentions,
+      incorrect: fIncorrect,
+      abstainedSemantic: fAbstainedCount,
+      failed: fFailedCount,
+      missing: fMissingCount,
+      correctness: fEligible > 0 ? fCorrect / fEligible : 0,
+      errorRate: fEligible > 0 ? fIncorrect / fEligible : 0,
+      abstentionRate: fEligible > 0 ? fAbstainedCount / fEligible : 0,
+      coverage: fEligible > 0 ? fCovered / fEligible : 0,
+      conditionalAccuracy: fCovered > 0 ? fCorrect / fCovered : 0,
+    };
+
+    const candidateCoverage = fComparisonEligible > 0 ? fCandidateCoveredCount / fComparisonEligible : 0;
+    const baselineCoverage = fComparisonEligible > 0 ? fBaselineCoveredCount / fComparisonEligible : 0;
+    const baselineComparison: EvaluatorBaselineComparison | null = hasBaseline
+      ? {
+          eligible: fComparisonEligible,
+          candidateCorrect: fCandidateCorrect,
+          baselineCorrect: fBaselineCorrect,
+          candidateCoverage,
+          baselineCoverage,
+          coverageShift: candidateCoverage - baselineCoverage,
+          fixedDeltaMean: fComparisonEligible > 0 ? fDeltaSum / fComparisonEligible : 0,
+          recoveredBaselineAbstentions: fRecoveredBaselineAbstentions,
+          recoveredExampleIds: fRecoveredExampleIds.sort(),
+          harmedBaselineSuccesses: fHarmedBaselineSuccesses,
+          harmedExampleIds: fHarmedExampleIds.sort(),
+          retainedSuccesses: fRetainedSuccesses,
+          dualAbstentions: fDualAbstentions,
+          dualAbstainedExampleIds: fDualAbstainedExampleIds.sort(),
+        }
+      : null;
+
+    fieldReports[targetId] = {
+      targetId,
+      goldStates: {
+        known: fKnown,
+        noFit: fNoFit,
+        insufficientEvidence: fInsufficientEvidence,
+        inapplicable: fInapplicable,
+        unlabeled: fUnlabeled,
+        legacy: fLegacy,
+      },
+      fixedPopulation,
+      baselineComparison,
+    };
+  }
+
   return {
     evaluatedSplit: splitGroup,
     goldTotal: gold.length,
@@ -873,6 +1204,7 @@ export function computeEvaluatorAttribution(
     baselineComparison,
     support,
     familyLeakage,
+    fieldReports,
   };
 }
 

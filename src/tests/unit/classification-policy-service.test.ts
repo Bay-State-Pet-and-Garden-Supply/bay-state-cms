@@ -189,11 +189,10 @@ describe('classification policy service (issue #296)', () => {
     expect(connectionIds).toContain('conn-openai');
     expect(connectionIds).toContain('conn-typesafe');
 
-    // TypeSafe SystemOne is supported for primary_product_type_proposal (#297), and unwired for other 2 stages
+    // TypeSafe SystemOne is supported for primary_product_type_proposal (#297) and product_attribute_proposals (#298), and unwired for category_page_proposals (#299)
     const typeSafe = settings.availableConnections.find(c => c.id === 'conn-typesafe')!;
     expect(typeSafe.stageSupport.primary_product_type_proposal.supported).toBe(true);
-    expect(typeSafe.stageSupport.product_attribute_proposals.supported).toBe(false);
-    expect(typeSafe.stageSupport.product_attribute_proposals.reason).toContain('not yet available');
+    expect(typeSafe.stageSupport.product_attribute_proposals.supported).toBe(true);
     expect(typeSafe.stageSupport.category_page_proposals.supported).toBe(false);
     expect(typeSafe.stageSupport.category_page_proposals.reason).toContain('not yet available');
   });
@@ -254,8 +253,8 @@ describe('classification policy service (issue #296)', () => {
     expect(validJevPreview.valid).toBe(true);
     expect(validJevPreview.previewToken).toBeDefined();
 
-    // Rejects unwired stage (product_attribute_proposals)
-    const unwiredPreview = previewClassificationPolicy(root, {
+    // Valid preview for product_attribute_proposals with Jev (#298)
+    const validAttrJevPreview = previewClassificationPolicy(root, {
       expectedBaseBundleHash: baseBundleHash,
       stageOverrides: {
         product_attribute_proposals: {
@@ -268,9 +267,26 @@ describe('classification policy service (issue #296)', () => {
       textDataSharing: 'cloud_allowed',
     });
 
+    expect(validAttrJevPreview.valid).toBe(true);
+    expect(validAttrJevPreview.previewToken).toBeDefined();
+
+    // Rejects unwired stage (category_page_proposals)
+    const unwiredPreview = previewClassificationPolicy(root, {
+      expectedBaseBundleHash: baseBundleHash,
+      stageOverrides: {
+        category_page_proposals: {
+          connectionId: 'conn-typesafe',
+          model: 'jev-1.13.0',
+          fallbackConnectionId: null,
+          fallbackModel: null,
+        },
+      },
+      textDataSharing: 'cloud_allowed',
+    });
+
     expect(unwiredPreview.valid).toBe(false);
     expect(unwiredPreview.validationErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('TypeSafe Jev typed-judgment adapter is not yet available for stage "Controlled Product Attributes"'),
+      expect.stringContaining('TypeSafe Jev typed-judgment adapter is not yet available for stage "Category Pages"'),
     ]));
   });
 

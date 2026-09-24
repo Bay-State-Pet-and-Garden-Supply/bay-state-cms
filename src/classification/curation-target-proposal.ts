@@ -106,6 +106,9 @@ export function buildFieldAssignmentProposal(params: FieldAssignmentProposalPara
       ? params.value[0] ?? params.value
       : params.value;
 
+  // Jev System One proposals require human decisions and remain non-bulk-acceptable (AC 6)
+  const isBulk = params.derivation?.kind === 'systemone_judgment' ? false : (params.isBulkAcceptable ?? false);
+
   return {
     id: randomUUID(),
     runId: params.runId,
@@ -123,7 +126,7 @@ export function buildFieldAssignmentProposal(params: FieldAssignmentProposalPara
       : {}),
     ...(params.derivation ? { derivation: params.derivation } : {}),
     status: 'pending',
-    isBulkAcceptable: params.isBulkAcceptable ?? false,
+    isBulkAcceptable: isBulk,
     isStale: false,
     stalenessReason: null,
     snapshotHash: params.snapshotHash ?? null,
