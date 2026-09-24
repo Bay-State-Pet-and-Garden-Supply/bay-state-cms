@@ -187,6 +187,13 @@ describe('container posture denies egress (live daemon when available)', () => {
       return;
     }
 
+    try {
+      await execFileAsync('docker', ['run', '--rm', image, 'node', '-e', ''], { timeout: 15_000 });
+    } catch {
+      console.warn('SKIP: Docker runtime unable to run containers — live container egress probe skipped (argv posture still asserted)');
+      return;
+    }
+
     const runId = `probe${Date.now().toString(36)}`.replace(/[^A-Za-z0-9_-]/g, '');
     const spec = buildInvestigationContainerSpec(runId, { cpus: 1, memory: '512m', pidsLimit: 64 });
     assertContainerPosture(spec);

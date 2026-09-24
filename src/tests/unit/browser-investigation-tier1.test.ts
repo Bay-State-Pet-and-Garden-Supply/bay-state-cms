@@ -948,6 +948,18 @@ describe('Tier 1 container-level egress denial (live, daemon-gated)', () => {
   async function dockerAvailable(): Promise<boolean> {
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      const override = process.env.BAYSTATE_INVESTIGATION_TEST_IMAGE;
+      let image = override ?? '';
+      if (!image) {
+        try {
+          const { stdout } = await execFileAsync('docker', ['images', '-q', 'node:22-bookworm'], { timeout: 15_000 });
+          if (stdout.trim()) image = 'node:22-bookworm';
+        } catch {
+          image = '';
+        }
+      }
+      if (!image) return false;
+      await execFileAsync('docker', ['run', '--rm', image, 'node', '-e', ''], { timeout: 15_000 });
       return true;
     } catch {
       return false;
