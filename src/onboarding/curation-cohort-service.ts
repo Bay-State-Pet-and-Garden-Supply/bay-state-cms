@@ -402,17 +402,24 @@ export interface CohortReadinessEvaluation {
   memberCount: number;
 }
 
+function resolveCohortReadinessInputs(
+  items: OnboardingItem[],
+  extractionSourcesByItemId?: Map<string, ExtractionBinding>,
+  prebuiltItemsById?: Map<string, OnboardingItem>,
+): { itemsById: Map<string, OnboardingItem>; extractionSources: Map<string, ExtractionBinding> } {
+  const itemsById = prebuiltItemsById ?? new Map(items.map(item => [item.id, item]));
+  const extractionSources = extractionSourcesByItemId ?? getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  return { itemsById, extractionSources };
+}
+
 export function evaluateCohortReadiness(
   _cohort: CurationCohort,
   members: CurationCohortMember[],
   items: OnboardingItem[],
   extractionSourcesByItemId?: Map<string, ExtractionBinding>,
+  prebuiltItemsById?: Map<string, OnboardingItem>,
 ): CohortReadinessEvaluation {
-  const itemsById = new Map(items.map(item => [item.id, item]));
-  // Single batched load of the latest extraction source per item (round-3 R4)
-  // — one query per evaluation, passed through to every member so no per-item
-  // provenance lookup runs.
-  const extractionSources = extractionSourcesByItemId ?? getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  const { itemsById, extractionSources } = resolveCohortReadinessInputs(items, extractionSourcesByItemId, prebuiltItemsById);
   const readinessByMember = new Map<string, ItemExtractionReadiness>();
   const notReady = members.filter(member => {
     const item = itemsById.get(member.onboardingItemId);
@@ -591,12 +598,11 @@ export function buildCohortView(
   membersByCohortId?: Map<string, CurationCohortMember[]>,
   extractionSourcesByItemId?: Map<string, ExtractionBinding>,
   currentRunsByCohortId?: Map<string, CohortRun>,
+  prebuiltItemsById?: Map<string, OnboardingItem>,
 ): CurationCohortView {
   const members = membersByCohortId?.get(cohort.id) ?? getCohortMembers(cohort.id);
-  const itemsById = new Map(items.map(item => [item.id, item]));
-  // Single batched extraction-source load shared by cohort + member readiness.
-  const extractionSources = extractionSourcesByItemId ?? getLatestExtractionBindingsByItemIds(items.map(item => item.id));
-  const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources);
+  const { itemsById, extractionSources } = resolveCohortReadinessInputs(items, extractionSourcesByItemId, prebuiltItemsById);
+  const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources, itemsById);
 
   const memberViews = members.map(member => {
     const item = itemsById.get(member.onboardingItemId);
