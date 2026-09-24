@@ -161,17 +161,6 @@ describe('container posture denies egress (live daemon when available)', () => {
   // is unavailable the test skips loudly (warn) WITHOUT passing silently:
   // the static argv assertions above still run.
   it('proves no DNS / HTTPS / TCP egress and no non-loopback interfaces', { timeout: 120_000 }, async () => {
-    let daemon: boolean;
-    try {
-      await execFileAsync('docker', ['info'], { timeout: 15_000 });
-      daemon = true;
-    } catch {
-      daemon = false;
-    }
-    if (!daemon) {
-      console.warn('SKIP: no Docker daemon — live container egress probe skipped (argv posture still asserted)');
-      return;
-    }
     const override = process.env.BAYSTATE_INVESTIGATION_TEST_IMAGE;
     let image = override ?? '';
     if (!image) {
@@ -184,6 +173,19 @@ describe('container posture denies egress (live daemon when available)', () => {
     }
     if (!image) {
       console.warn('SKIP: no probe image — live container egress probe skipped (argv posture still asserted)');
+      return;
+    }
+
+    let daemon: boolean;
+    try {
+      await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      await execFileAsync('docker', ['run', '--rm', image, 'node', '-e', 'void 0'], { timeout: 30_000 });
+      daemon = true;
+    } catch {
+      daemon = false;
+    }
+    if (!daemon) {
+      console.warn('SKIP: Docker daemon or container execution unavailable — live container egress probe skipped (argv posture still asserted)');
       return;
     }
 

@@ -494,6 +494,7 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +701,7 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
