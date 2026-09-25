@@ -57,3 +57,15 @@ We will **not** build a new agent-focused onboarding architecture. The determini
 1. Instrumentation spec: operator-correction capture (schema via repository pattern) for type/category fields in the review drawer.
 2. Eval specification + initial golden set derived from the first instrumented batches.
 3. Authority-threshold config design (one-constant flip, mirroring the packaging-ocr rollout runbook pattern).
+
+## Qualification & Release Framework (2026-09-25, Issue #302)
+
+The qualification and release framework for TypeSafe Jev across Primary Product Type, Controlled Attributes (Single- & Multi-Value), and Category Pages/Cohorts is complete:
+
+1. **Family-Separated Adjudicated Benchmark (`benchmark-jev-qualification-goldset.json`):** 16 representative, adjudicated entries covering food, treats, toys, animal care, pest control, lawn & garden, confusing neighbors, unknown types (`no-fit`), and incomplete evidence (`insufficient-evidence`, `unlabeled`). Strict family separation between `dev` and `holdout` splits with verified zero split leakage.
+2. **Offline Comparison Engine (`src/classification/jev-qualification-service.ts`):** Evaluates candidate vs. current-provider baseline across raw correctness, coverage, incorrect proposals, regressions, multi-value attribute set metrics (precision, recall, F1), category page set metrics, latency (p50, p95), cost, and end-to-end cohort pipeline effects. Disclaims operator review-time gains until empirical time-tracking in the review drawer confirms them.
+3. **Qualification CLI Runner (`scripts/typesafe-curation-qualification.ts`):** Executable evaluation runner evaluating offline comparison and assessing all 10 qualification criteria.
+4. **Automated Verification Suite (`src/tests/unit/typesafe-curation-qualification.test.ts`):** Comprehensive test suite validating all 10 criteria end-to-end.
+5. **Truthful Live & Canary Gates:** In accordance with Gates 2 & 5, absence of errors or mocks never passes live contract checks or canary stages. In environments without live credentials (`TYPESAFE_API_KEY`) or completed store manager canary reviews, the system explicitly reports blockers and maintains `PROVISIONALLY_QUALIFIED` status.
+6. **Operator Runbook (`docs/runbooks/typesafe-jev-curation-rollout.md`):** Complete operational authority for setup, troubleshooting, confidence concepts (probability vs concentration confidence), canary sequencing, and zero-retry fail-closed rollback.
+

@@ -1,0 +1,586 @@
+{
+  "version": 1,
+  "description": "Representative family-separated gold evaluation dataset for Jev Curation qualification (Issue #302). Adjudicated gold across Product Types, controlled attributes, and verified Category Pages. Covers food/treats, toys, animal-care, garden/pest-control, ambiguous neighbors, unknown/no-fit types, incomplete evidence, and mixed cohorts.",
+  "adjudicatedBy": "store-manager-adjudication-panel",
+  "verifiedPageImport": {
+    "importId": "import-active-2026",
+    "importHash": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890",
+    "provenance": "prov-active-import-001"
+  },
+  "entries": [
+    {
+      "sku": "QUAL-DOG-KIBBLE-01",
+      "familyId": "fam-acme-kibble-dev",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 5 lb bag", "reliability": "high", "attributeId": null },
+        { "source": "official_page", "snippet": "Formulated for adult canines with real chicken and wholesome grains.", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Chicken" }, { "targetId": "life_stage", "value": "Adult" }],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.82
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken" },
+          { "targetId": "life_stage", "value": "Adult" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.94
+      }
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-02",
+      "familyId": "fam-acme-kibble-dev",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 15 lb bag", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_food_wet",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Chicken" }],
+        "pageIds": ["page-wet-dog-food"],
+        "confidence": 0.65
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken" },
+          { "targetId": "life_stage", "value": "Adult" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.91
+      }
+    },
+    {
+      "sku": "QUAL-CAT-TREAT-01",
+      "familyId": "fam-beacon-treats-dev",
+      "split": "dev",
+      "assortment": "treats",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "cat_treat" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Salmon", "state": "known" },
+          { "targetId": "animal_type", "values": ["cat"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-cat-treats"],
+          "pageAssignments": [{ "pageId": "page-cat-treats", "pageName": "Cat Treats" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Beacon Crunchy Salmon Treats for Cats 3 oz", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "cat_treat",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Salmon" }],
+        "pageIds": ["page-cat-treats"],
+        "confidence": 0.79
+      },
+      "candidate": {
+        "productType": "cat_treat",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Salmon" },
+          { "targetId": "animal_type", "values": ["cat"] }
+        ],
+        "pageIds": ["page-cat-treats"],
+        "confidence": 0.93
+      }
+    },
+    {
+      "sku": "QUAL-DOG-CHEW-TOY-01",
+      "familyId": "fam-cowyard-chew-dev",
+      "split": "dev",
+      "assortment": "toys",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_toy" },
+        "fieldAssignments": [
+          { "targetId": "material", "value": "Rubber", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dog-toys"],
+          "pageAssignments": [{ "pageId": "page-dog-toys", "pageName": "Dog Toys" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Cowyard Durable Rubber Chew Toy for Aggressive Chewers", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_treat",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Beef" }],
+        "pageIds": ["page-dog-treats"],
+        "confidence": 0.62
+      },
+      "candidate": {
+        "productType": "dog_toy",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "material", "value": "Rubber" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dog-toys"],
+        "confidence": 0.89
+      }
+    },
+    {
+      "sku": "QUAL-FLEA-01",
+      "familyId": "fam-beacon-flea-dev",
+      "split": "dev",
+      "assortment": "animal-care",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "flea_tick_control" },
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-flea-tick"],
+          "pageAssignments": [{ "pageId": "page-flea-tick", "pageName": "Flea & Tick Prevention" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Beacon Topical Flea and Tick Treatment for Adult Dogs over 40 lbs", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "flea_tick_control",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "animal_type", "values": ["dog"] }],
+        "pageIds": ["page-flea-tick"],
+        "confidence": 0.85
+      },
+      "candidate": {
+        "productType": "flea_tick_control",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["dog"] },
+          { "targetId": "life_stage", "value": "Adult" }
+        ],
+        "pageIds": ["page-flea-tick"],
+        "confidence": 0.96
+      }
+    },
+    {
+      "sku": "QUAL-PEST-01",
+      "familyId": "fam-gardenpro-pest-dev",
+      "split": "dev",
+      "assortment": "pest-control",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "insect_pest_control" },
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["ant", "roach", "spider"], "state": "known" },
+          { "targetId": "application_method", "value": "Spray", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-pest-control"],
+          "pageAssignments": [{ "pageId": "page-pest-control", "pageName": "Insect & Pest Control" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Yard Insect Spray kills ants, roaches, and spiders on contact 32 oz", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "insect_pest_control",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "target_pest", "values": ["ant"] }],
+        "pageIds": ["page-pest-control"],
+        "confidence": 0.78
+      },
+      "candidate": {
+        "productType": "insect_pest_control",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["ant", "roach", "spider"] },
+          { "targetId": "application_method", "value": "Spray" }
+        ],
+        "pageIds": ["page-pest-control"],
+        "confidence": 0.92
+      }
+    },
+    {
+      "sku": "QUAL-SOIL-01",
+      "familyId": "fam-gardenpro-soil-dev",
+      "split": "dev",
+      "assortment": "garden",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "potting_soil" },
+        "fieldAssignments": [
+          { "targetId": "organic", "value": "Yes", "state": "known" },
+          { "targetId": "volume", "value": "1 cu ft", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-lawn-garden"],
+          "pageAssignments": [{ "pageId": "page-lawn-garden", "pageName": "Lawn & Garden Soil" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Organic Potting Soil Mix for Indoor and Outdoor Planters 1 cu ft", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "plant_food_fertilizer",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "organic", "value": "Yes" }],
+        "pageIds": ["page-lawn-garden"],
+        "confidence": 0.60
+      },
+      "candidate": {
+        "productType": "potting_soil",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "organic", "value": "Yes" },
+          { "targetId": "volume", "value": "1 cu ft" }
+        ],
+        "pageIds": ["page-lawn-garden"],
+        "confidence": 0.88
+      }
+    },
+    {
+      "sku": "QUAL-NEIGHBOR-SUET-01",
+      "familyId": "fam-suet-neighbor-dev",
+      "split": "dev",
+      "assortment": "confusing-neighbor",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "suet_cakes" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Berry", "state": "known" },
+          { "targetId": "animal_type", "values": ["bird"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-wild-bird-feed"],
+          "pageAssignments": [{ "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "High-Energy Berry Suet Cake for Wild Birds 11 oz rendered beef suet", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "bird_seed_food",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "animal_type", "values": ["bird"] }],
+        "pageIds": ["page-wild-bird-feed"],
+        "confidence": 0.68
+      },
+      "candidate": {
+        "productType": "suet_cakes",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Berry" },
+          { "targetId": "animal_type", "values": ["bird"] }
+        ],
+        "pageIds": ["page-wild-bird-feed"],
+        "confidence": 0.90
+      }
+    },
+    {
+      "sku": "QUAL-UNKNOWN-FOGGER-01",
+      "familyId": "fam-reptile-fogger-dev",
+      "split": "dev",
+      "assortment": "unknown-type",
+      "gold": {
+        "productType": { "kind": "no-fit", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "MisterFog Ultrasonic Reptile Terrarium Humidifier and Fogger System", "reliability": "medium", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_toy",
+        "abstained": false,
+        "fieldAssignments": [],
+        "pageIds": ["page-dog-toys"],
+        "confidence": 0.51
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0
+      }
+    },
+    {
+      "sku": "QUAL-THIN-EVIDENCE-01",
+      "familyId": "fam-thin-evidence-dev",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": {
+        "productType": { "kind": "insufficient-evidence", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": [],
+      "baseline": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0
+      }
+    },
+    {
+      "sku": "QUAL-UNLABELED-PENDING-01",
+      "familyId": "fam-pending-dev",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": {
+        "productType": { "kind": "unlabeled", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": [
+        { "source": "spreadsheet", "snippet": "Unconfirmed mystery SKU 9942", "reliability": "low", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_toy",
+        "abstained": false,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0.5
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0
+      }
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-HOLDOUT-01",
+      "familyId": "fam-acme-kibble-holdout",
+      "split": "holdout",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 30 lb bag giant breed", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Chicken" }],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.81
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken" },
+          { "targetId": "life_stage", "value": "Adult" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.95
+      }
+    },
+    {
+      "sku": "QUAL-PEST-HOLDOUT-01",
+      "familyId": "fam-gardenpro-pest-holdout",
+      "split": "holdout",
+      "assortment": "pest-control",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "insect_pest_control" },
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["wasp", "hornet"], "state": "known" },
+          { "targetId": "application_method", "value": "Spray", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-pest-control"],
+          "pageAssignments": [{ "pageId": "page-pest-control", "pageName": "Insect & Pest Control" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Wasp and Hornet Jet Spray kills nests up to 20 feet away 16 oz", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "weed_control",
+        "abstained": false,
+        "fieldAssignments": [],
+        "pageIds": ["page-lawn-garden"],
+        "confidence": 0.59
+      },
+      "candidate": {
+        "productType": "insect_pest_control",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["wasp", "hornet"] },
+          { "targetId": "application_method", "value": "Spray" }
+        ],
+        "pageIds": ["page-pest-control"],
+        "confidence": 0.93
+      }
+    },
+    {
+      "sku": "QUAL-NEIGHBOR-SEED-HOLDOUT-01",
+      "familyId": "fam-seed-neighbor-holdout",
+      "split": "holdout",
+      "assortment": "confusing-neighbor",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "bird_seed_food" },
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["bird"], "state": "known" },
+          { "targetId": "package_type", "value": "Bag", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-wild-bird-feed"],
+          "pageAssignments": [{ "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Northland Blend Premium Wild Bird Seed 20 lb bag with sunflower kernels and millet", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "bird_seed_food",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "animal_type", "values": ["bird"] }],
+        "pageIds": ["page-wild-bird-feed"],
+        "confidence": 0.84
+      },
+      "candidate": {
+        "productType": "bird_seed_food",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["bird"] },
+          { "targetId": "package_type", "value": "Bag" }
+        ],
+        "pageIds": ["page-wild-bird-feed"],
+        "confidence": 0.92
+      }
+    },
+    {
+      "sku": "QUAL-COHORT-FROMM-ADULT-01",
+      "familyId": "fam-fromm-mixed-cohort-holdout",
+      "split": "holdout",
+      "assortment": "mixed-cohort",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Fromm Gold Adult Dog Food Duck & Sweet Potato 15 lb", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Duck" }],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.88
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck" },
+          { "targetId": "life_stage", "value": "Adult" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.96
+      }
+    },
+    {
+      "sku": "QUAL-COHORT-FROMM-PUPPY-02",
+      "familyId": "fam-fromm-mixed-cohort-holdout",
+      "split": "holdout",
+      "assortment": "mixed-cohort",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck", "state": "known" },
+          { "targetId": "life_stage", "value": "Puppy", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Fromm Gold Puppy Formula Dry Dog Food 15 lb", "reliability": "high", "attributeId": null }
+      ],
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [{ "targetId": "flavor", "value": "Duck" }],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.86
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck" },
+          { "targetId": "life_stage", "value": "Puppy" },
+          { "targetId": "animal_type", "values": ["dog"] }
+        ],
+        "pageIds": ["page-dry-dog-food"],
+        "confidence": 0.95
+      }
+    }
+  ]
+}
