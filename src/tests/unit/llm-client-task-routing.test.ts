@@ -65,8 +65,26 @@ mock.module('node:dns/promises', () => ({
 // native globalThis.fetch (e.g. local HTTP-server OCR stage tests).
 const PRISTINE_FETCH = globalThis.fetch;
 
+const sharedTestDbPath = 'src/tests/unit/llm-client-routing-shared-test.db';
+
+beforeAll(() => {
+  try { resetDb(); } catch { /* ok */ }
+  initDb(sharedTestDbPath);
+  runMigrations();
+});
+
+afterAll(() => {
+  closeDb();
+  try { unlinkSync(sharedTestDbPath); } catch { /* ok */ }
+});
+
+function reseedStandardApiKeys() {
+  upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+  upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
+  upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+}
+
 describe('LLM Client — task-specific routing', () => {
-  const testDbPath = 'src/tests/unit/llm-client-routing-test.db';
   let originalFetch: typeof fetch;
 
   function stubFetch(responseBody: unknown = {
@@ -88,20 +106,8 @@ describe('LLM Client — task-specific routing', () => {
   }
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    // Seed credentials for all three providers.
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
-    // Clear seeded AI compute routes so legacy task routing is active
+    reseedStandardApiKeys();
     getDb().run('DELETE FROM ai_workload_routes');
-  });
-
-  afterAll(() => {
-    closeDb();
-    try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
   beforeEach(() => {
@@ -375,8 +381,6 @@ describe('LLM Client — task-specific routing', () => {
 });
 
 describe('Protected classification operations — model-policy gateway (issue #17 item A)', () => {
-  const testDbPath = 'src/tests/unit/llm-client-policy-test.db';
-
   function stubFetch(responseBody: unknown = {
     choices: [{ message: { content: 'mock response' } }],
   }): { calls: Array<{ url: string; body: { model: string; temperature?: number } }> } {
@@ -416,16 +420,8 @@ describe('Protected classification operations — model-policy gateway (issue #1
   let originalFetch: typeof fetch;
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
+    reseedStandardApiKeys();
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-  });
-
-  afterAll(() => {
-    closeDb();
-    try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
   beforeEach(() => { originalFetch = globalThis.fetch; });
@@ -1052,8 +1048,6 @@ describe('Protected classification operations — model-policy gateway (issue #1
 });
 
 describe('Model-call provenance wrapper (issue #17 E)', () => {
-  const testDbPath = 'src/tests/unit/llm-client-provenance-test.db';
-
   function localView(snapshotHash: string) {
     return buildModelPolicyView(
       {
@@ -1095,15 +1089,8 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   }
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
+    reseedStandardApiKeys();
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
-  });
-
-  afterAll(() => {
-    closeDb();
-    try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
   test('audited success returns the full result and persists a durable success row with tokens and honest local cost', async () => {
@@ -1670,7 +1657,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
 });
 
 describe('AI Compute authority — configured routing never consults the legacy chain', () => {
-  const testDbPath = 'src/tests/unit/llm-client-authority-test.db';
   let originalFetch: typeof fetch;
 
   function stubFetch(responseBody: unknown = {
@@ -1688,16 +1674,7 @@ describe('AI Compute authority — configured routing never consults the legacy 
   }
 
   beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
-  });
-
-  afterAll(() => {
-    closeDb();
-    try { unlinkSync(testDbPath); } catch { /* ok */ }
+    reseedStandardApiKeys();
   });
 
   beforeEach(() => { originalFetch = globalThis.fetch; });
