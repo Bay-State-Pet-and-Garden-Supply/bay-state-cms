@@ -1144,6 +1144,8 @@ export const BenchmarkGoldLabelsSchema = z.object({
     pageName: z.string(),
     pageId: z.string().nullable().default(null),
   })).default([]),
+  categoryPageIds: z.array(z.string()).optional(),
+  verifiedImportProvenance: z.string().nullable().optional(),
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
@@ -1216,6 +1218,7 @@ export const BenchmarkPredictionEntrySchema = z.object({
   productSku: z.string(),
   productType: z.string().nullable(),
   pageAssignments: z.array(z.string()).default([]),
+  pageIds: z.array(z.string()).optional(),
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
@@ -1225,6 +1228,7 @@ export const BenchmarkPredictionEntrySchema = z.object({
   confidence: z.number().min(0).max(1).nullable().default(null),
   /** Target IDs whose attributes are claim-sensitive in the active config. */
   claimTargets: z.array(z.string()).default([]),
+  verifiedImportProvenance: z.string().nullable().optional(),
 });
 export type BenchmarkPredictionEntry = z.infer<typeof BenchmarkPredictionEntrySchema>;
 
@@ -1263,6 +1267,9 @@ export const EvalMetricsSchema = z.object({
     /** True when Page gold exists but verified Page identity is unavailable. */
     blocked: z.boolean().default(false),
     blockedReason: z.string().nullable().default(null),
+    evaluatedByIdentity: z.boolean().optional(),
+    eligibleToQualifyJev: z.boolean().optional(),
+    verifiedImportProvenance: z.string().nullable().optional(),
   }),
   fields: z.object({
     targetAccuracy: z.record(z.string(), z.number()).default({}),
@@ -1410,6 +1417,7 @@ export const ClassificationReadinessCapabilitySchema = z.object({
   runnable: z.boolean(),
   reason: z.string().nullable(),
   multiValueSupported: z.boolean().optional(),
+  cohortSupported: z.boolean().optional(),
 }).strict();
 export type ClassificationReadinessCapability = z.infer<typeof ClassificationReadinessCapabilitySchema>;
 

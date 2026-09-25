@@ -723,6 +723,63 @@ export interface EvaluatorFieldAttributionReport {
   setMetrics?: EvaluatorFieldSetMetrics | null;
 }
 
+export interface EvaluatorPageAttributionReport {
+  evaluatedByIdentity: boolean;
+  eligibleToQualifyJev: boolean;
+  verifiedImportProvenance: string | null;
+  blocked: boolean;
+  blockedReason: string | null;
+  goldStates: {
+    known: number;
+    noFit: number;
+    insufficientEvidence: number;
+    unlabeled: number;
+    legacy: number;
+  };
+  fixedPopulation: EvaluatorFixedPopulation;
+  baselineComparison: EvaluatorBaselineComparison | null;
+  setMetrics?: {
+    evaluatedCount: number;
+    exactMatchAccuracy: number;
+    meanPrecision: number;
+    meanRecall: number;
+    meanF1: number;
+  } | null;
+}
+
+export interface SingletonPageComparisonReport {
+  eligibleCount: number;
+  evaluatedCount: number;
+  unlabeledCount: number;
+  unavailableCount: number;
+  candidateExactMatches: number;
+  baselineExactMatches: number;
+  candidatePrecision: number;
+  candidateRecall: number;
+  baselinePrecision: number;
+  baselineRecall: number;
+  exactSetDeltaMean: number;
+  recoveredBaselineAbstentions: number;
+  harmedBaselineSuccesses: number;
+  coverageShift: number;
+  evaluatedByIdentity: boolean;
+  eligibleToQualifyJev: boolean;
+  examples: Array<{
+    exampleId: string;
+    productSku: string;
+    goldPageIds: string[];
+    goldPageNames: string[];
+    baselinePageIds: string[];
+    baselinePageNames: string[];
+    challengerPageIds: string[];
+    challengerPageNames: string[];
+    baselineStatus: 'predicted' | 'abstained' | 'failed' | 'unavailable';
+    challengerStatus: 'predicted' | 'abstained' | 'failed' | 'unavailable';
+    isExactMatchBaseline: boolean;
+    isExactMatchChallenger: boolean;
+  }>;
+}
+
 export interface EvaluatorAttributionReport {
   evaluatedSplit: 'test' | 'holdout';
   goldTotal: number;
@@ -753,6 +810,8 @@ export interface EvaluatorAttributionReport {
   familyLeakage: EvaluatorFamilyLeakage;
   /** Field attribution reports keyed by field targetId (issue #298 / AC 8). */
   fieldReports?: Record<string, EvaluatorFieldAttributionReport>;
+  /** Page attribution report (issue #299 / AC 7 & 8). */
+  pageReport?: EvaluatorPageAttributionReport;
 }
 
 export interface ComputeAttributionOptions {
@@ -1301,6 +1360,238 @@ export function computeEvaluatorAttribution(
     };
   }
 
+  // ── Category Page fixed-population attribution & baseline comparison (issue #299 / AC 7 & 8)
+  let pageReport: EvaluatorPageAttributionReport | undefined = undefined;
+  const goldPagesExistForAttr = gold.some(example =>
+    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
+    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
+  );
+
+  if (goldPagesExistForAttr) {
+    const allGoldPagesHaveVerifiedIds = gold.every(example => {
+      const assignments = example.goldLabels.pageAssignments ?? [];
+      const catPageIds = example.goldLabels.categoryPageIds ?? [];
+      if (assignments.length === 0 && catPageIds.length === 0) return true;
+      if (catPageIds.length > 0) return true;
+      return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
+    });
+
+    const hasVerifiedImportProvenance =
+      gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
+      predictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
+
+    const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
+
+    let pKnown = 0;
+    let pNoFit = 0;
+    let pInsufficientEvidence = 0;
+    let pUnlabeled = 0;
+    let pLegacy = 0;
+
+    let pCorrect = 0;
+    let pCorrectAbstentions = 0;
+    let pIncorrect = 0;
+    let pAbstainedCount = 0;
+    let pFailedCount = 0;
+    let pMissingCount = 0;
+
+    let pComparisonEligible = 0;
+    let pCandidateCorrect = 0;
+    let pBaselineCorrect = 0;
+    let pCandidateCoveredCount = 0;
+    let pBaselineCoveredCount = 0;
+    let pDeltaSum = 0;
+    let pRecoveredBaselineAbstentions = 0;
+    const pRecoveredExampleIds: string[] = [];
+    let pHarmedBaselineSuccesses = 0;
+    const pHarmedExampleIds: string[] = [];
+
+    let pPrecisionSum = 0;
+    let pRecallSum = 0;
+    let pF1Sum = 0;
+    let pExactMatchCount = 0;
+    let pSetEvaluatedCount = 0;
+
+    for (const example of gold) {
+      const gAssignments = example.goldLabels.pageAssignments ?? [];
+      const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
+      const goldPageIds = gCatPageIds.length > 0 ? gCatPageIds : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
+      const goldPageNames = gAssignments.map(p => p.pageName);
+
+      const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
+
+      const predList = entriesById.get(example.id) ?? [];
+      const pred = predList[0] ?? null;
+
+      let predSet = new Set<string>();
+      let predStatus: 'predicted' | 'abstained' | 'failed' | 'missing' = 'missing';
+
+      const predRaw = pred as unknown as Record<string, unknown> | undefined;
+      if (!pred) {
+        pMissingCount++;
+      } else if (predRaw?.outcome === 'failed') {
+        pFailedCount++;
+        predStatus = 'failed';
+      } else if (pred.abstained || (pred.pageAssignments.length === 0 && (!pred.pageIds || pred.pageIds.length === 0))) {
+        pAbstainedCount++;
+        predStatus = 'abstained';
+      } else {
+        predStatus = 'predicted';
+        const candItems = canEvaluateByIdentity
+          ? (pred.pageIds ?? [])
+          : (pred.pageAssignments ?? []);
+        predSet = new Set(candItems.filter(Boolean));
+      }
+
+      const hasGoldLabels = targetGoldSet.size > 0;
+      if (hasGoldLabels) {
+        pKnown++;
+      } else {
+        pUnlabeled++;
+      }
+
+      let isExactMatch = false;
+      if (hasGoldLabels && predStatus === 'predicted') {
+        pSetEvaluatedCount++;
+        let hits = 0;
+        for (const item of predSet) {
+          if (targetGoldSet.has(item)) hits++;
+        }
+        const prec = predSet.size > 0 ? hits / predSet.size : 0;
+        const rec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
+        const f1 = (prec + rec) > 0 ? (2 * prec * rec) / (prec + rec) : 0;
+        isExactMatch = targetGoldSet.size === predSet.size && hits === targetGoldSet.size;
+
+        pPrecisionSum += prec;
+        pRecallSum += rec;
+        pF1Sum += f1;
+        if (isExactMatch) {
+          pExactMatchCount++;
+          pCorrect++;
+        } else {
+          pIncorrect++;
+        }
+      }
+
+      // Baseline comparison
+      if (hasBaseline && hasGoldLabels) {
+        pComparisonEligible++;
+        const baseList = baselineById.get(example.id) ?? [];
+        const base = baseList[0] ?? null;
+        const baseRaw = base as unknown as Record<string, unknown> | null;
+
+        let baseSet = new Set<string>();
+        let baseStatus: 'predicted' | 'abstained' | 'failed' | 'missing' = 'missing';
+
+        if (!base) {
+          // missing
+        } else if (baseRaw?.outcome === 'failed') {
+          baseStatus = 'failed';
+        } else if (base.abstained || (base.pageAssignments.length === 0 && (!base.pageIds || base.pageIds.length === 0))) {
+          baseStatus = 'abstained';
+        } else {
+          baseStatus = 'predicted';
+          const bItems = canEvaluateByIdentity ? (base.pageIds ?? []) : (base.pageAssignments ?? []);
+          baseSet = new Set(bItems.filter(Boolean));
+        }
+
+        let isBaseExactMatch = false;
+        if (baseStatus === 'predicted') {
+          pBaselineCoveredCount++;
+          let bHits = 0;
+          for (const item of baseSet) {
+            if (targetGoldSet.has(item)) bHits++;
+          }
+          isBaseExactMatch = targetGoldSet.size === baseSet.size && bHits === targetGoldSet.size;
+          if (isBaseExactMatch) pBaselineCorrect++;
+        }
+
+        if (predStatus === 'predicted' || predStatus === 'abstained') {
+          pCandidateCoveredCount++;
+        }
+
+        const candidateScore = isExactMatch ? 1 : 0;
+        const baselineScore = isBaseExactMatch ? 1 : 0;
+        pCandidateCorrect += candidateScore;
+        pDeltaSum += candidateScore - baselineScore;
+
+        if (baseStatus === 'abstained' && isExactMatch) {
+          pRecoveredBaselineAbstentions++;
+          pRecoveredExampleIds.push(example.id);
+        }
+        if (isBaseExactMatch && !isExactMatch) {
+          pHarmedBaselineSuccesses++;
+          pHarmedExampleIds.push(example.id);
+        }
+      }
+    }
+
+    const pEligible = pCorrect + pIncorrect + pAbstainedCount + pFailedCount + pMissingCount;
+    const pCovered = pCorrect + pIncorrect + pAbstainedCount;
+    const pFixedPop: EvaluatorFixedPopulation = {
+      eligible: pEligible,
+      correct: pCorrect,
+      correctAbstentions: pCorrectAbstentions,
+      incorrect: pIncorrect,
+      abstainedSemantic: pAbstainedCount,
+      failed: pFailedCount,
+      missing: pMissingCount,
+      correctness: pEligible > 0 ? pCorrect / pEligible : 0,
+      errorRate: pEligible > 0 ? pIncorrect / pEligible : 0,
+      abstentionRate: pEligible > 0 ? pAbstainedCount / pEligible : 0,
+      coverage: pEligible > 0 ? pCovered / pEligible : 0,
+      conditionalAccuracy: pCovered > 0 ? pCorrect / pCovered : 0,
+    };
+
+    let pBaseComp: EvaluatorBaselineComparison | null = null;
+    if (hasBaseline && pComparisonEligible > 0) {
+      const cCov = pCandidateCoveredCount / pComparisonEligible;
+      const bCov = pBaselineCoveredCount / pComparisonEligible;
+      pBaseComp = {
+        eligible: pComparisonEligible,
+        candidateCorrect: pCandidateCorrect,
+        baselineCorrect: pBaselineCorrect,
+        candidateCoverage: cCov,
+        baselineCoverage: bCov,
+        coverageShift: cCov - bCov,
+        fixedDeltaMean: pDeltaSum / pComparisonEligible,
+        recoveredBaselineAbstentions: pRecoveredBaselineAbstentions,
+        recoveredExampleIds: pRecoveredExampleIds,
+        harmedBaselineSuccesses: pHarmedBaselineSuccesses,
+        harmedExampleIds: pHarmedExampleIds,
+        retainedSuccesses: 0,
+        dualAbstentions: 0,
+        dualAbstainedExampleIds: [],
+      };
+    }
+
+    pageReport = {
+      evaluatedByIdentity: canEvaluateByIdentity,
+      eligibleToQualifyJev: canEvaluateByIdentity,
+      verifiedImportProvenance: canEvaluateByIdentity
+        ? (predictions.find(p => p.verifiedImportProvenance)?.verifiedImportProvenance ?? gold.find(g => g.goldLabels.verifiedImportProvenance)?.goldLabels.verifiedImportProvenance ?? null)
+        : null,
+      blocked: !canEvaluateByIdentity,
+      blockedReason: !canEvaluateByIdentity ? 'blocked_missing_verified_page_gold' : null,
+      goldStates: {
+        known: pKnown,
+        noFit: pNoFit,
+        insufficientEvidence: pInsufficientEvidence,
+        unlabeled: pUnlabeled,
+        legacy: pLegacy,
+      },
+      fixedPopulation: pFixedPop,
+      baselineComparison: pBaseComp,
+      setMetrics: pSetEvaluatedCount > 0 ? {
+        evaluatedCount: pSetEvaluatedCount,
+        exactMatchAccuracy: pExactMatchCount / pSetEvaluatedCount,
+        meanPrecision: pPrecisionSum / pSetEvaluatedCount,
+        meanRecall: pRecallSum / pSetEvaluatedCount,
+        meanF1: pF1Sum / pSetEvaluatedCount,
+      } : null,
+    };
+  }
+
   return {
     evaluatedSplit: splitGroup,
     goldTotal: gold.length,
@@ -1318,13 +1609,14 @@ export function computeEvaluatorAttribution(
     support,
     familyLeakage,
     fieldReports,
+    pageReport,
   };
 }
 
 /**
  * Pure metrics computation. No database, no runs, no decisions.
  */
-function computeMetrics(
+export function computeMetrics(
   gold: GoldExampleForEvaluation[],
   predictions: BenchmarkPredictionEntry[],
   options: ComputeMetricsOptions = {},
@@ -1409,7 +1701,25 @@ function computeMetrics(
   metrics.abstention.accuracyOfNonAbstained = nonAbstained > 0 ? correct / nonAbstained : 0;
 
   // ── Pages ──────────────────────────────────────────────────────────────────
-  const goldPagesExist = gold.some(example => example.goldLabels.pageAssignments.length > 0);
+  const goldPagesExist = gold.some(example =>
+    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
+    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
+  );
+
+  const allGoldPagesHaveVerifiedIds = goldPagesExist && gold.every(example => {
+    const assignments = example.goldLabels.pageAssignments ?? [];
+    const catPageIds = example.goldLabels.categoryPageIds ?? [];
+    if (assignments.length === 0 && catPageIds.length === 0) return true;
+    if (catPageIds.length > 0) return true;
+    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
+  });
+
+  const hasVerifiedImportProvenance =
+    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
+    predictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
+
+  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
+
   let pagePrecisionSum = 0;
   let pageRecallSum = 0;
   let exactMatches = 0;
@@ -1417,8 +1727,20 @@ function computeMetrics(
 
   for (const example of gold) {
     const pred = predictionForExample(predictions, example.id);
-    const goldPages = new Set(example.goldLabels.pageAssignments.map(p => p.pageName));
-    const predPages = new Set((pred?.pageAssignments ?? []).filter((v): v is string => Boolean(v)));
+    let goldPages: Set<string>;
+    let predPages: Set<string>;
+
+    if (canEvaluateByIdentity) {
+      const gIds = (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0)
+        ? example.goldLabels.categoryPageIds
+        : (example.goldLabels.pageAssignments ?? []).map(p => p.pageId!).filter(Boolean);
+      goldPages = new Set(gIds);
+      predPages = new Set((pred?.pageIds ?? []).filter((v): v is string => Boolean(v)));
+    } else {
+      goldPages = new Set((example.goldLabels.pageAssignments ?? []).map(p => p.pageName));
+      predPages = new Set((pred?.pageAssignments ?? []).filter((v): v is string => Boolean(v)));
+    }
+
     if (goldPages.size === 0 && predPages.size === 0) continue;
     pageEvaluated++;
     let hits = 0;
@@ -1431,8 +1753,13 @@ function computeMetrics(
   metrics.pages.precisionAtK = pageEvaluated > 0 ? pagePrecisionSum / pageEvaluated : 0;
   metrics.pages.recallAtK = pageEvaluated > 0 ? pageRecallSum / pageEvaluated : 0;
   metrics.pages.exactSetAccuracy = pageEvaluated > 0 ? exactMatches / pageEvaluated : 0;
-  metrics.pages.blocked = goldPagesExist;
-  metrics.pages.blockedReason = goldPagesExist ? 'blocked_missing_verified_page_gold' : null;
+  metrics.pages.blocked = goldPagesExist && !canEvaluateByIdentity;
+  metrics.pages.blockedReason = (goldPagesExist && !canEvaluateByIdentity) ? 'blocked_missing_verified_page_gold' : null;
+  metrics.pages.evaluatedByIdentity = canEvaluateByIdentity;
+  metrics.pages.eligibleToQualifyJev = canEvaluateByIdentity;
+  metrics.pages.verifiedImportProvenance = canEvaluateByIdentity
+    ? (predictions.find(p => p.verifiedImportProvenance)?.verifiedImportProvenance ?? gold.find(g => g.goldLabels.verifiedImportProvenance)?.goldLabels.verifiedImportProvenance ?? null)
+    : null;
 
   // ── Fields ─────────────────────────────────────────────────────────────────
   const fieldStats: Record<string, { support: number; correct: number }> = {};
@@ -1710,5 +2037,212 @@ export async function evaluateBenchmark(
     bundleProvenance,
     baselineBundleProvenance,
     attribution,
+  };
+}
+
+export interface CompareSingletonPagePredictionsOptions {
+  /** If true, skip or mark unavailable examples without a reviewed product type in gold. Default true. */
+  requireReviewedProductType?: boolean;
+}
+
+/**
+ * Stage-isolated comparison helper between uncorrected current/baseline and Jev challenger
+ * singleton page outputs over the same frozen state with common reviewed product type (issue #299 / AC 8).
+ * Honestly reports unavailable and unlabeled cases.
+ */
+export function compareSingletonPagePredictions(
+  gold: GoldExampleForEvaluation[],
+  candidatePredictions: BenchmarkPredictionEntry[],
+  baselinePredictions: BenchmarkPredictionEntry[],
+  options: CompareSingletonPagePredictionsOptions = {},
+): SingletonPageComparisonReport {
+  const requirePt = options.requireReviewedProductType ?? true;
+
+  const candidateById = new Map<string, BenchmarkPredictionEntry>();
+  for (const entry of candidatePredictions) {
+    if (!candidateById.has(entry.exampleId)) candidateById.set(entry.exampleId, entry);
+  }
+  const baselineById = new Map<string, BenchmarkPredictionEntry>();
+  for (const entry of baselinePredictions) {
+    if (!baselineById.has(entry.exampleId)) baselineById.set(entry.exampleId, entry);
+  }
+
+  const allGoldPagesHaveVerifiedIds = gold.length > 0 && gold.every(example => {
+    const assignments = example.goldLabels.pageAssignments ?? [];
+    const catPageIds = example.goldLabels.categoryPageIds ?? [];
+    if (assignments.length === 0 && catPageIds.length === 0) return true;
+    if (catPageIds.length > 0) return true;
+    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
+  });
+
+  const hasVerifiedImportProvenance =
+    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
+    candidatePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0)) ||
+    baselinePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
+
+  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
+
+  let eligibleCount = 0;
+  let evaluatedCount = 0;
+  let unlabeledCount = 0;
+  let unavailableCount = 0;
+  let candidateExactMatches = 0;
+  let baselineExactMatches = 0;
+  let candidatePrecisionSum = 0;
+  let candidateRecallSum = 0;
+  let baselinePrecisionSum = 0;
+  let baselineRecallSum = 0;
+  let recoveredBaselineAbstentions = 0;
+  let harmedBaselineSuccesses = 0;
+  let deltaSum = 0;
+  let candidateCoveredCount = 0;
+  let baselineCoveredCount = 0;
+
+  const exampleReports: SingletonPageComparisonReport['examples'] = [];
+
+  for (const example of gold) {
+    const gAssignments = example.goldLabels.pageAssignments ?? [];
+    const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
+    const goldPageIds = gCatPageIds.length > 0
+      ? gCatPageIds
+      : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
+    const goldPageNames = gAssignments.map(p => p.pageName).filter(Boolean);
+
+    const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
+
+    if (requirePt && !example.goldLabels.productType) {
+      unavailableCount++;
+      continue;
+    }
+
+    if (targetGoldSet.size === 0) {
+      unlabeledCount++;
+      continue;
+    }
+
+    eligibleCount++;
+
+    const cand = candidateById.get(example.id);
+    const base = baselineById.get(example.id);
+
+    const resolveStatus = (entry: BenchmarkPredictionEntry | undefined): 'predicted' | 'abstained' | 'failed' | 'unavailable' => {
+      if (!entry) return 'unavailable';
+      const raw = entry as unknown as Record<string, unknown>;
+      if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') return 'failed';
+      if (raw.outcome === 'failed') return 'failed';
+      if (entry.abstained || (entry.pageAssignments.length === 0 && (!entry.pageIds || entry.pageIds.length === 0))) {
+        return 'abstained';
+      }
+      return 'predicted';
+    };
+
+    const candStatus = resolveStatus(cand);
+    const baseStatus = resolveStatus(base);
+
+    if (candStatus === 'unavailable' || baseStatus === 'unavailable') {
+      unavailableCount++;
+    }
+
+    const candIds = (cand?.pageIds ?? []).filter(Boolean);
+    const candNames = (cand?.pageAssignments ?? []).filter(Boolean);
+    const baseIds = (base?.pageIds ?? []).filter(Boolean);
+    const baseNames = (base?.pageAssignments ?? []).filter(Boolean);
+
+    const candTargetItems = canEvaluateByIdentity ? candIds : candNames;
+    const baseTargetItems = canEvaluateByIdentity ? baseIds : baseNames;
+
+    const candSet = new Set(candStatus === 'predicted' ? candTargetItems : []);
+    const baseSet = new Set(baseStatus === 'predicted' ? baseTargetItems : []);
+
+    let isExactMatchChallenger = false;
+    let candPrec = 0;
+    let candRec = 0;
+    if (candStatus === 'predicted') {
+      candidateCoveredCount++;
+      let hits = 0;
+      for (const item of candSet) {
+        if (targetGoldSet.has(item)) hits++;
+      }
+      candPrec = candSet.size > 0 ? hits / candSet.size : 0;
+      candRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
+      isExactMatchChallenger = targetGoldSet.size === candSet.size && hits === targetGoldSet.size;
+      if (isExactMatchChallenger) candidateExactMatches++;
+      candidatePrecisionSum += candPrec;
+      candidateRecallSum += candRec;
+    } else if (candStatus === 'abstained') {
+      candidateCoveredCount++;
+    }
+
+    let isExactMatchBaseline = false;
+    let basePrec = 0;
+    let baseRec = 0;
+    if (baseStatus === 'predicted') {
+      baselineCoveredCount++;
+      let hits = 0;
+      for (const item of baseSet) {
+        if (targetGoldSet.has(item)) hits++;
+      }
+      basePrec = baseSet.size > 0 ? hits / baseSet.size : 0;
+      baseRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
+      isExactMatchBaseline = targetGoldSet.size === baseSet.size && hits === targetGoldSet.size;
+      if (isExactMatchBaseline) baselineExactMatches++;
+      baselinePrecisionSum += basePrec;
+      baselineRecallSum += baseRec;
+    } else if (baseStatus === 'abstained') {
+      baselineCoveredCount++;
+    }
+
+    if (candStatus !== 'unavailable' || baseStatus !== 'unavailable') {
+      evaluatedCount++;
+    }
+
+    const candScore = isExactMatchChallenger ? 1 : 0;
+    const baseScore = isExactMatchBaseline ? 1 : 0;
+    deltaSum += candScore - baseScore;
+
+    if (baseStatus === 'abstained' && isExactMatchChallenger) {
+      recoveredBaselineAbstentions++;
+    }
+    if (isExactMatchBaseline && !isExactMatchChallenger) {
+      harmedBaselineSuccesses++;
+    }
+
+    exampleReports.push({
+      exampleId: example.id,
+      productSku: example.productSku,
+      goldPageIds,
+      goldPageNames,
+      baselinePageIds: baseIds,
+      baselinePageNames: baseNames,
+      challengerPageIds: candIds,
+      challengerPageNames: candNames,
+      baselineStatus: baseStatus,
+      challengerStatus: candStatus,
+      isExactMatchBaseline,
+      isExactMatchChallenger,
+    });
+  }
+
+  const candCov = eligibleCount > 0 ? candidateCoveredCount / eligibleCount : 0;
+  const baseCov = eligibleCount > 0 ? baselineCoveredCount / eligibleCount : 0;
+
+  return {
+    eligibleCount,
+    evaluatedCount,
+    unlabeledCount,
+    unavailableCount,
+    candidateExactMatches,
+    baselineExactMatches,
+    candidatePrecision: evaluatedCount > 0 ? candidatePrecisionSum / evaluatedCount : 0,
+    candidateRecall: evaluatedCount > 0 ? candidateRecallSum / evaluatedCount : 0,
+    baselinePrecision: evaluatedCount > 0 ? baselinePrecisionSum / evaluatedCount : 0,
+    baselineRecall: evaluatedCount > 0 ? baselineRecallSum / evaluatedCount : 0,
+    exactSetDeltaMean: eligibleCount > 0 ? deltaSum / eligibleCount : 0,
+    recoveredBaselineAbstentions,
+    harmedBaselineSuccesses,
+    coverageShift: candCov - baseCov,
+    evaluatedByIdentity: canEvaluateByIdentity,
+    eligibleToQualifyJev: canEvaluateByIdentity,
+    examples: exampleReports,
   };
 }

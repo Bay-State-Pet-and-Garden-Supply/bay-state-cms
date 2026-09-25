@@ -152,6 +152,8 @@ export interface CategoryPageProposalParams {
   /** Explicit override for bulk acceptance */
   isBulkAcceptable?: boolean;
   /** Immutable runtime snapshot hash this proposal was built under. */
+  /** First-class proposal derivation provenance (e.g. typesafe_systemone). */
+  derivation?: ProposalDerivation;
   snapshotHash?: string | null;
   /** Durable model-call IDs that produced this proposal (issue #17 E). */
   modelCallIds?: string[];
@@ -185,6 +187,7 @@ export function buildCategoryPageProposal(params: CategoryPageProposalParams): C
     ...(params.contradictingEvidenceIds?.length
       ? { contradictingEvidenceIds: params.contradictingEvidenceIds }
       : {}),
+    derivation: params.derivation,
     status: 'pending',
     isBulkAcceptable: params.isBulkAcceptable ?? false,
     isStale: false,

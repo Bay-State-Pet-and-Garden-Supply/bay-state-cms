@@ -85,8 +85,8 @@ export const CLASSIFICATION_POLICY_STAGES: readonly StageDefinition[] = [
     label: 'Category Pages',
     description: 'Proposes verified ShopSite category pages based on taxonomy, species, and hierarchy rules.',
     operation: 'page_assignment',
-    adapterStatus: 'unwired', // Jev adapter arrives in #299 / #301
-    supportedTransports: ['openai-compatible', 'ollama-native'],
+    adapterStatus: 'supported',
+    supportedTransports: ['openai-compatible', 'ollama-native', 'systemone'],
   },
 ] as const;
 
@@ -114,7 +114,7 @@ export interface ConnectionOption {
   enabled: boolean;
   status: string;
   models: Array<{ id: string; name: string }>;
-  stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean }>;
+  stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean; cohortSupported?: boolean }>;
 }
 
 export interface ClassificationPolicySettingsResponse {
@@ -257,7 +257,7 @@ export function getClassificationPolicySettings(
   // Map available connections with stage support
   const availableConnections: ConnectionOption[] = connections.map(conn => {
     const locality = trustZoneToLocality(conn.trustZone);
-    const stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean }> = {};
+    const stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean; cohortSupported?: boolean }> = {};
 
     for (const stage of CLASSIFICATION_POLICY_STAGES) {
       if (conn.transport === 'systemone') {
@@ -265,6 +265,8 @@ export function getClassificationPolicySettings(
           stageSupport[stage.id] = { supported: true };
         } else if (stage.id === 'product_attribute_proposals') {
           stageSupport[stage.id] = { supported: true, multiValueSupported: true };
+        } else if (stage.id === 'category_page_proposals') {
+          stageSupport[stage.id] = { supported: true, cohortSupported: false };
         } else {
           stageSupport[stage.id] = {
             supported: false,
@@ -275,6 +277,7 @@ export function getClassificationPolicySettings(
         stageSupport[stage.id] = {
           supported: true,
           ...(stage.id === 'product_attribute_proposals' ? { multiValueSupported: true } : {}),
+          ...(stage.id === 'category_page_proposals' ? { cohortSupported: true } : {}),
         };
       } else {
         stageSupport[stage.id] = {
@@ -465,7 +468,11 @@ export function previewClassificationPolicy(
 
       // Check stage adapter compatibility
       if (resolved.transport === 'systemone') {
-        if (stage.id !== 'primary_product_type_proposal' && stage.id !== 'product_attribute_proposals') {
+        if (
+          stage.id !== 'primary_product_type_proposal' &&
+          stage.id !== 'product_attribute_proposals' &&
+          stage.id !== 'category_page_proposals'
+        ) {
           validationErrors.push(`TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`);
         }
       } else if (!stage.supportedTransports.includes(resolved.transport as any)) {

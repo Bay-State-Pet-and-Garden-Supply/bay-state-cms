@@ -64,10 +64,12 @@ const PAGE_CONTEXT_SOURCE_FIELDS = [
   'species',
   'productForm',
   'productType',
+  'brand',
+  'resolved_brand',
 ];
 
 /** Reviewed page-context attribute ids (records with explicit attributeId). */
-const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species'];
+const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
 
 /**
  * Reviewed species value for cross-species page-context detection. Uses a
@@ -789,6 +791,90 @@ export async function processPageTarget(
 
   const groupedSkus = context.productLineContext?.siblingSkus ?? [];
   const isMultiItemGroup = groupedSkus.length >= 2;
+
+  const modelPolicy = context.snapshot
+    ? modelPolicyViewFromConfig(
+        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+        context.snapshot.snapshotHash,
+      )
+    : null;
+
+  let isSystemOne = false;
+  if (modelPolicy) {
+    const stageOverride = modelPolicy.stageOverrides?.category_page_proposals ?? modelPolicy.stageOverrides?.page_assignment;
+    const provider = stageOverride?.provider ?? modelPolicy.defaultProvider;
+    if (provider === 'typesafe') {
+      isSystemOne = true;
+    } else {
+      try {
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[provider] ||
+          Object.values(aiConfig.connections).find(
+            (c) => c.id === provider || (c.transport === 'systemone'),
+          );
+        isSystemOne = conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+  }
+
+  if (isSystemOne) {
+    if (isMultiItemGroup) {
+      return {
+        proposals: [],
+        message: 'Cohort page execution with TypeSafe Jev is unsupported until the cohort adapter lands.',
+      };
+    }
+
+    const { resolvePageDecision, buildProposalsFromPageDecision } = await import('./page-decision');
+    const decision = await resolvePageDecision({
+      target,
+      evidence: input.evidence,
+      sku: input.sku,
+      runId: context.runId,
+      snapshot: context.snapshot,
+      modelPolicy,
+      assertHeld: context.assertHeld,
+      selectionMode,
+      maxPages,
+      productContext: {
+        productName: productContext.productName,
+        productDescription: productContext.productDescription,
+        productType: productContext.productType,
+        ocrSummary: productContext.ocrSummary,
+      },
+      reviewedProductTypeId: productContext.productType,
+    });
+
+    if (decision.status === 'abstained' || decision.status === 'failed' || decision.pages.length === 0) {
+      const abstentionProposals = buildProposalsFromPageDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      return {
+        proposals: abstentionProposals,
+        message: decision.abstentionReason ?? `Abstained from proposing category pages (${decision.abstentionCode ?? 'unresolved'}).`,
+      };
+    }
+
+    const proposals = buildProposalsFromPageDecision(
+      decision,
+      input.sku,
+      context.runId,
+      snapshotHash,
+    );
+    const pageNames = decision.pages.map(p => p.pageName);
+    return {
+      proposals,
+      message: `${pageNames.join(', ')} (TypeSafe Jev, ${((decision.selectedProbability ?? decision.pages[0].confidence) * 100).toFixed(0)}%)`,
+    };
+  }
+
   let llmResult: PageAssignmentResult | null;
   let assignmentSource = 'LLM';
 

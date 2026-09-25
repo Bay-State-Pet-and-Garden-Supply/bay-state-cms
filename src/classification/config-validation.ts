@@ -1401,6 +1401,7 @@ export interface ClassificationReadinessCapability {
   runnable: boolean;
   reason?: string;
   multiValueSupported?: boolean;
+  cohortSupported?: boolean;
 }
 
 export interface ClassificationReadinessReport {
@@ -1432,12 +1433,12 @@ export function evaluateClassificationReadiness(
   const findings = [...validationReport.findings];
 
   const parsed = ClassificationConfigBundleV2Schema.safeParse(input);
-  const config = parsed.success ? parsed.data : null;
+  const config = parsed.success ? parsed.data : (typeof input === 'object' && input !== null ? (input as any) : null);
 
-  const targets = config?.curationTargets ?? [];
-  const productTypeTargets = targets.filter(t => t.kind === 'product_type' && (t.enabled || t.mandatory));
-  const fieldTargets = targets.filter(t => t.kind === 'product_field' && (t.enabled || t.mandatory));
-  const pageTargets = targets.filter(t => t.kind === 'page' && (t.enabled || t.mandatory));
+  const targets = (config?.curationTargets ?? []) as any[];
+  const productTypeTargets = targets.filter((t: any) => t.kind === 'product_type' && (t.enabled || t.mandatory));
+  const fieldTargets = targets.filter((t: any) => t.kind === 'product_field' && (t.enabled || t.mandatory));
+  const pageTargets = targets.filter((t: any) => t.kind === 'page' && (t.enabled || t.mandatory));
 
   // Check mandatory options or target readiness gaps
   if (productTypeTargets.length > 0 && (config?.productTypes?.length ?? 0) === 0) {
@@ -1508,6 +1509,7 @@ export function evaluateClassificationReadiness(
         targetCount: pageTargets.length,
         runnable: categoryPagesRunnable,
         reason: categoryPagesRunnable ? undefined : (pageTargets.length === 0 ? 'No enabled Category Page targets' : 'Configuration errors present'),
+        cohortSupported: (config?.modelPolicy?.stageOverrides?.category_page_proposals?.provider ?? config?.modelPolicy?.defaultProvider) === 'typesafe' ? false : true,
       },
     },
     findings,

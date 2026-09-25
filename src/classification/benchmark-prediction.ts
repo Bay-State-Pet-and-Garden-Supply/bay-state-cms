@@ -69,6 +69,7 @@ export interface PreReviewEntryProvenance {
   }>;
   primaryModelProvider: string | null;
   primaryModel: string | null;
+  verifiedPageImportHash?: string | null;
   capturedAt: string;
 }
 
@@ -347,7 +348,9 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
     exampleId: '',
     productSku: input.productSku,
     pageAssignments: [] as string[],
-    fieldAssignments: [] as Array<{ targetId: string; value: string | null }>,
+    pageIds: [] as string[],
+    verifiedImportProvenance: null as string | null,
+    fieldAssignments: [] as Array<{ targetId: string; value: string | null; values?: string[] }>,
     abstained: false,
     confidence: null as number | null,
     claimTargets,
@@ -402,6 +405,7 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
     })),
     primaryModelProvider: primaryCall?.provider ?? null,
     primaryModel: primaryCall?.model ?? null,
+    verifiedPageImportHash: run.configSnapshotHash ?? null,
     capturedAt,
   };
 
@@ -451,6 +455,20 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
   base.fieldAssignments = [...fieldProposalsByTarget.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([targetId, { value, values }]) => ({ targetId, value, ...(values ? { values } : {}) }));
+
+  const pageProposals = proposals.filter(p => p.proposalType === 'category_page');
+  const pageNames: string[] = [];
+  const pageIds: string[] = [];
+  for (const p of pageProposals) {
+    const val = p.proposedValue as any;
+    const name = val?.pageName ?? (typeof val === 'string' ? val : null) ?? (typeof p.targetId === 'string' ? p.targetId : null);
+    const id = val?.pageId ?? (typeof p.targetId === 'string' && p.targetId.length > 0 ? p.targetId : null);
+    if (name && !pageNames.includes(name)) pageNames.push(name);
+    if (id && !pageIds.includes(id)) pageIds.push(id);
+  }
+  base.pageAssignments = pageNames;
+  base.pageIds = pageIds;
+  base.verifiedImportProvenance = run.configSnapshotHash ?? null;
 
   const typeProposals = proposals
     .filter(p => p.proposalType === 'primary_product_type')
