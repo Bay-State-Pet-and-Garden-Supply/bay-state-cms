@@ -157,6 +157,22 @@ describe('Sitemap Matcher', () => {
       expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
     });
 
+    test('findUpcExactHit rejects non-GTIN strings and does not trigger false positive upc_exact matches', async () => {
+      const sitemaps = [
+        'https://example.com/products/abc-dog-chew',
+        'https://example.com/products/12345-cat-toy',
+        'https://example.com/products/na-pet-bed',
+      ];
+      const res1 = await matchSitemapUrls(sitemaps, 'Foo Bar', null, 'ABC', 'example.com');
+      expect(res1.some(r => r.matchType === 'upc_exact')).toBe(false);
+
+      const res2 = await matchSitemapUrls(sitemaps, 'Foo Bar', null, '12345', 'example.com');
+      expect(res2.some(r => r.matchType === 'upc_exact')).toBe(false);
+
+      const res3 = await matchSitemapUrls(sitemaps, 'Foo Bar', null, 'N/A', 'example.com');
+      expect(res3.some(r => r.matchType === 'upc_exact')).toBe(false);
+    });
+
   // ── Pass 2: product URL filter ────────────────────────────────────────
 
   test('generic filter keeps /products/, /p/, /shop/, /item/, /dp/ paths only', async () => {

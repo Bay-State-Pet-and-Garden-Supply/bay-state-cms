@@ -155,6 +155,21 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(skuMatch).not.toBeNull();
       expect(skuMatch?.url).toBe('https://www.kongcompany.com/products/classic-red-medium');
     });
+
+    it('should return null for non-GTIN identifiers during lookupByUpc', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [
+          { url: 'https://www.kongcompany.com/products/abc-dog-chew' },
+          { url: 'https://www.kongcompany.com/products/12345-cat-toy' },
+        ],
+        'https://www.kongcompany.com/sitemap.xml',
+      );
+
+      expect(lookupByUpc('kongcompany.com', 'ABC')).toBeNull();
+      expect(lookupByUpc('kongcompany.com', '12345')).toBeNull();
+      expect(lookupByUpc('kongcompany.com', 'N/A')).toBeNull();
+    });
   });
 
   describe('searchUrlsLexical with FTS5', () => {

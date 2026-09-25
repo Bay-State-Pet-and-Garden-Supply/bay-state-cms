@@ -30,6 +30,7 @@
  */
 
 import { callLlmForTask, getLlmConfigForTask } from './llm-client';
+import { normalizeGtin } from '../shared/gtin';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -240,9 +241,11 @@ export async function matchSitemapUrls(
  * without executing regex replacements or allocating string objects.
  */
 function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+  const normGtin = normalizeGtin(upc);
+  if (!normGtin) return null;
   const needle = upc.trim();
   if (!needle) return null;
-  const stripped = needle.replace(/\D+/g, '');
+  const stripped = normGtin;
 
   const candidateGtins = new Set<string>();
   if (needle) candidateGtins.add(needle);
