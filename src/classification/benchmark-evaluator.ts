@@ -2246,3 +2246,460 @@ export function compareSingletonPagePredictions(
     examples: exampleReports,
   };
 }
+
+// ─── Cohort Category Page Replay & Comparison ─────────────────────────────────
+
+export type CohortPageOutcomeCategory =
+  | 'successful_assignment'
+  | 'semantic_abstention'
+  | 'correctness_rejection'
+  | 'model_failure'
+  | 'unlabeled'
+  | 'unavailable';
+
+export interface CohortOutcomeBreakdown {
+  successfulAssignments: number;
+  semanticAbstentions: number;
+  correctnessRejections: number;
+  modelFailures: number;
+  unlabeled: number;
+  unavailable: number;
+}
+
+export interface CohortPageExampleReport {
+  exampleId: string;
+  productSku: string;
+  goldPageIds: string[];
+  goldPageNames: string[];
+  baselinePageIds: string[];
+  baselinePageNames: string[];
+  challengerPageIds: string[];
+  challengerPageNames: string[];
+  baselineCategory: CohortPageOutcomeCategory;
+  challengerCategory: CohortPageOutcomeCategory;
+  isExactMatchBaseline: boolean;
+  isExactMatchChallenger: boolean;
+  baselinePrecision: number;
+  baselineRecall: number;
+  challengerPrecision: number;
+  challengerRecall: number;
+}
+
+export interface CohortPageComparisonReport {
+  eligibleCount: number;
+  evaluatedCount: number;
+  unlabeledCount: number;
+  unavailableCount: number;
+  candidateExactMatches: number;
+  baselineExactMatches: number;
+  candidatePrecision: number;
+  candidateRecall: number;
+  baselinePrecision: number;
+  baselineRecall: number;
+  exactSetDeltaMean: number;
+  recoveredBaselineAbstentions: number;
+  harmedBaselineSuccesses: number;
+  coverageShift: number;
+  evaluatedByIdentity: boolean;
+  eligibleToQualifyJev: boolean;
+  candidateBreakdown: CohortOutcomeBreakdown;
+  baselineBreakdown: CohortOutcomeBreakdown;
+  examples: CohortPageExampleReport[];
+}
+
+export function classifyCohortPageOutcome(entry: BenchmarkPredictionEntry | undefined): CohortPageOutcomeCategory {
+  if (!entry) return 'unavailable';
+  const raw = entry as unknown as Record<string, unknown>;
+  const failureCode = typeof raw.failureCode === 'string' ? raw.failureCode.trim() : null;
+  const outcome = raw.outcome;
+  const abstentionCode = typeof raw.abstentionCode === 'string' ? raw.abstentionCode.trim() : null;
+  const abstentionReason = typeof raw.abstentionReason === 'string' ? String(raw.abstentionReason) : '';
+
+  if (failureCode === 'service_failure' || outcome === 'failed' || failureCode === 'dispatch_failed') {
+    return 'model_failure';
+  }
+
+  const hasPages = (entry.pageAssignments && entry.pageAssignments.length > 0) || (entry.pageIds && entry.pageIds.length > 0);
+  if (entry.abstained || !hasPages) {
+    if (
+      abstentionCode === 'species_conflict' ||
+      abstentionCode === 'validation_blocked' ||
+      abstentionCode === 'cardinality_limit_exceeded' ||
+      abstentionCode === 'candidate_limit_exceeded' ||
+      abstentionCode === 'unknown_option_key' ||
+      /cross-species|species conflict|validation|limit|exceeded|unknown choice/i.test(abstentionReason)
+    ) {
+      return 'correctness_rejection';
+    }
+    return 'semantic_abstention';
+  }
+
+  return 'successful_assignment';
+}
+
+export function compareCohortPagePredictions(
+  gold: GoldExampleForEvaluation[],
+  candidatePredictions: BenchmarkPredictionEntry[],
+  baselinePredictions: BenchmarkPredictionEntry[],
+  options: CompareSingletonPagePredictionsOptions = {},
+): CohortPageComparisonReport {
+  const requirePt = options.requireReviewedProductType ?? true;
+
+  const candidateById = new Map<string, BenchmarkPredictionEntry>();
+  for (const entry of candidatePredictions) {
+    if (!candidateById.has(entry.exampleId)) candidateById.set(entry.exampleId, entry);
+  }
+  const baselineById = new Map<string, BenchmarkPredictionEntry>();
+  for (const entry of baselinePredictions) {
+    if (!baselineById.has(entry.exampleId)) baselineById.set(entry.exampleId, entry);
+  }
+
+  const allGoldPagesHaveVerifiedIds = gold.length > 0 && gold.every(example => {
+    const assignments = example.goldLabels.pageAssignments ?? [];
+    const catPageIds = example.goldLabels.categoryPageIds ?? [];
+    if (assignments.length === 0 && catPageIds.length === 0) return true;
+    if (catPageIds.length > 0) return true;
+    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
+  });
+
+  const hasVerifiedImportProvenance =
+    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
+    candidatePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0)) ||
+    baselinePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
+
+  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
+
+  let eligibleCount = 0;
+  let evaluatedCount = 0;
+  let unlabeledCount = 0;
+  let unavailableCount = 0;
+  let candidateExactMatches = 0;
+  let baselineExactMatches = 0;
+  let candidatePrecisionSum = 0;
+  let candidateRecallSum = 0;
+  let baselinePrecisionSum = 0;
+  let baselineRecallSum = 0;
+  let recoveredBaselineAbstentions = 0;
+  let harmedBaselineSuccesses = 0;
+  let deltaSum = 0;
+  let candidateCoveredCount = 0;
+  let baselineCoveredCount = 0;
+
+  const candidateBreakdown: CohortOutcomeBreakdown = {
+    successfulAssignments: 0,
+    semanticAbstentions: 0,
+    correctnessRejections: 0,
+    modelFailures: 0,
+    unlabeled: 0,
+    unavailable: 0,
+  };
+
+  const baselineBreakdown: CohortOutcomeBreakdown = {
+    successfulAssignments: 0,
+    semanticAbstentions: 0,
+    correctnessRejections: 0,
+    modelFailures: 0,
+    unlabeled: 0,
+    unavailable: 0,
+  };
+
+  const exampleReports: CohortPageExampleReport[] = [];
+
+  for (const example of gold) {
+    const gAssignments = example.goldLabels.pageAssignments ?? [];
+    const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
+    const goldPageIds = gCatPageIds.length > 0
+      ? gCatPageIds
+      : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
+    const goldPageNames = gAssignments.map(p => p.pageName).filter(Boolean);
+
+    const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
+
+    if (requirePt && !example.goldLabels.productType) {
+      unavailableCount++;
+      candidateBreakdown.unavailable++;
+      baselineBreakdown.unavailable++;
+      continue;
+    }
+
+    if (targetGoldSet.size === 0) {
+      unlabeledCount++;
+      candidateBreakdown.unlabeled++;
+      baselineBreakdown.unlabeled++;
+      continue;
+    }
+
+    eligibleCount++;
+
+    const cand = candidateById.get(example.id);
+    const base = baselineById.get(example.id);
+
+    const candCat = classifyCohortPageOutcome(cand);
+    const baseCat = classifyCohortPageOutcome(base);
+
+    switch (candCat) {
+      case 'successful_assignment': candidateBreakdown.successfulAssignments++; break;
+      case 'semantic_abstention': candidateBreakdown.semanticAbstentions++; break;
+      case 'correctness_rejection': candidateBreakdown.correctnessRejections++; break;
+      case 'model_failure': candidateBreakdown.modelFailures++; break;
+      case 'unavailable': candidateBreakdown.unavailable++; break;
+      default: break;
+    }
+
+    switch (baseCat) {
+      case 'successful_assignment': baselineBreakdown.successfulAssignments++; break;
+      case 'semantic_abstention': baselineBreakdown.semanticAbstentions++; break;
+      case 'correctness_rejection': baselineBreakdown.correctnessRejections++; break;
+      case 'model_failure': baselineBreakdown.modelFailures++; break;
+      case 'unavailable': baselineBreakdown.unavailable++; break;
+      default: break;
+    }
+
+    if (candCat === 'unavailable' || baseCat === 'unavailable') {
+      unavailableCount++;
+    }
+
+    const candIds = (cand?.pageIds ?? []).filter(Boolean);
+    const candNames = (cand?.pageAssignments ?? []).filter(Boolean);
+    const baseIds = (base?.pageIds ?? []).filter(Boolean);
+    const baseNames = (base?.pageAssignments ?? []).filter(Boolean);
+
+    const candTargetItems = canEvaluateByIdentity ? candIds : candNames;
+    const baseTargetItems = canEvaluateByIdentity ? baseIds : baseNames;
+
+    const candSet = new Set(candCat === 'successful_assignment' ? candTargetItems : []);
+    const baseSet = new Set(baseCat === 'successful_assignment' ? baseTargetItems : []);
+
+    let isExactMatchChallenger = false;
+    let candPrec = 0;
+    let candRec = 0;
+    if (candCat === 'successful_assignment') {
+      candidateCoveredCount++;
+      let hits = 0;
+      for (const item of candSet) {
+        if (targetGoldSet.has(item)) hits++;
+      }
+      candPrec = candSet.size > 0 ? hits / candSet.size : 0;
+      candRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
+      isExactMatchChallenger = targetGoldSet.size === candSet.size && hits === targetGoldSet.size;
+      if (isExactMatchChallenger) candidateExactMatches++;
+      candidatePrecisionSum += candPrec;
+      candidateRecallSum += candRec;
+    } else if (candCat === 'semantic_abstention' || candCat === 'correctness_rejection') {
+      candidateCoveredCount++;
+    }
+
+    let isExactMatchBaseline = false;
+    let basePrec = 0;
+    let baseRec = 0;
+    if (baseCat === 'successful_assignment') {
+      baselineCoveredCount++;
+      let hits = 0;
+      for (const item of baseSet) {
+        if (targetGoldSet.has(item)) hits++;
+      }
+      basePrec = baseSet.size > 0 ? hits / baseSet.size : 0;
+      baseRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
+      isExactMatchBaseline = targetGoldSet.size === baseSet.size && hits === targetGoldSet.size;
+      if (isExactMatchBaseline) baselineExactMatches++;
+      baselinePrecisionSum += basePrec;
+      baselineRecallSum += baseRec;
+    } else if (baseCat === 'semantic_abstention' || baseCat === 'correctness_rejection') {
+      baselineCoveredCount++;
+    }
+
+    if (candCat !== 'unavailable' || baseCat !== 'unavailable') {
+      evaluatedCount++;
+    }
+
+    const candScore = isExactMatchChallenger ? 1 : 0;
+    const baseScore = isExactMatchBaseline ? 1 : 0;
+    deltaSum += candScore - baseScore;
+
+    if (baseCat !== 'successful_assignment' && isExactMatchChallenger) {
+      recoveredBaselineAbstentions++;
+    }
+    if (isExactMatchBaseline && !isExactMatchChallenger) {
+      harmedBaselineSuccesses++;
+    }
+
+    exampleReports.push({
+      exampleId: example.id,
+      productSku: example.productSku,
+      goldPageIds,
+      goldPageNames,
+      baselinePageIds: baseIds,
+      baselinePageNames: baseNames,
+      challengerPageIds: candIds,
+      challengerPageNames: candNames,
+      baselineCategory: baseCat,
+      challengerCategory: candCat,
+      isExactMatchBaseline,
+      isExactMatchChallenger,
+      baselinePrecision: basePrec,
+      baselineRecall: baseRec,
+      challengerPrecision: candPrec,
+      challengerRecall: candRec,
+    });
+  }
+
+  const candCov = eligibleCount > 0 ? candidateCoveredCount / eligibleCount : 0;
+  const baseCov = eligibleCount > 0 ? baselineCoveredCount / eligibleCount : 0;
+
+  return {
+    eligibleCount,
+    evaluatedCount,
+    unlabeledCount,
+    unavailableCount,
+    candidateExactMatches,
+    baselineExactMatches,
+    candidatePrecision: evaluatedCount > 0 ? candidatePrecisionSum / evaluatedCount : 0,
+    candidateRecall: evaluatedCount > 0 ? candidateRecallSum / evaluatedCount : 0,
+    baselinePrecision: evaluatedCount > 0 ? baselinePrecisionSum / evaluatedCount : 0,
+    baselineRecall: evaluatedCount > 0 ? baselineRecallSum / evaluatedCount : 0,
+    exactSetDeltaMean: eligibleCount > 0 ? deltaSum / eligibleCount : 0,
+    recoveredBaselineAbstentions,
+    harmedBaselineSuccesses,
+    coverageShift: candCov - baseCov,
+    evaluatedByIdentity: canEvaluateByIdentity,
+    eligibleToQualifyJev: canEvaluateByIdentity,
+    candidateBreakdown,
+    baselineBreakdown,
+    examples: exampleReports,
+  };
+}
+
+export interface CohortPipelineEffectsReport {
+  totalMembers: number;
+  typeResolution: {
+    correct: number;
+    abstained: number;
+    incorrect: number;
+  };
+  attributeEffects: {
+    totalEvaluated: number;
+    correctWhenTypeCorrect: number;
+    abstainedWhenTypeAbstained: number;
+  };
+  pageEffects: {
+    totalEvaluated: number;
+    exactMatchWhenTypeCorrect: number;
+    abstainedWhenTypeAbstained: number;
+  };
+  endToEndCorrectAllStages: number;
+}
+
+export function evaluateCohortPipelineEffects(
+  gold: GoldExampleForEvaluation[],
+  typePredictions: BenchmarkPredictionEntry[],
+  attributePredictions: BenchmarkPredictionEntry[],
+  pagePredictions: BenchmarkPredictionEntry[],
+): CohortPipelineEffectsReport {
+  const typeBySku = new Map<string, BenchmarkPredictionEntry>();
+  for (const p of typePredictions) typeBySku.set(p.productSku, p);
+
+  const attrBySku = new Map<string, BenchmarkPredictionEntry[]>();
+  for (const p of attributePredictions) {
+    const list = attrBySku.get(p.productSku) ?? [];
+    list.push(p);
+    attrBySku.set(p.productSku, list);
+  }
+
+  const pageBySku = new Map<string, BenchmarkPredictionEntry>();
+  for (const p of pagePredictions) pageBySku.set(p.productSku, p);
+
+  let typeCorrect = 0;
+  let typeAbstained = 0;
+  let typeIncorrect = 0;
+
+  let attrCorrectWhenTypeCorrect = 0;
+  let attrAbstainedWhenTypeAbstained = 0;
+  let totalAttrEvaluated = 0;
+
+  let pageExactMatchWhenTypeCorrect = 0;
+  let pageAbstainedWhenTypeAbstained = 0;
+  let totalPageEvaluated = 0;
+
+  let endToEndCorrect = 0;
+
+  for (const example of gold) {
+    const sku = example.productSku;
+    const typePred = typeBySku.get(sku);
+    const goldType = example.goldLabels.productType;
+
+    const predType = typePred?.productType ?? (typePred as any)?.predictedProductTypeId;
+    const isTypeCorrect = Boolean(goldType && predType === goldType);
+    const isTypeAbstained = Boolean(typePred?.abstained || !predType);
+
+    if (isTypeCorrect) typeCorrect++;
+    else if (isTypeAbstained) typeAbstained++;
+    else typeIncorrect++;
+
+    const attrs = attrBySku.get(sku) ?? [];
+    let allAttrsCorrectForSku = attrs.length > 0;
+    const goldFieldMap = new Map(
+      example.goldLabels.fieldAssignments?.map(f => [f.targetId, f.value ?? f.values?.[0] ?? null]) ?? [],
+    );
+    for (const a of attrs) {
+      const predFieldAssignments =
+        a.fieldAssignments && a.fieldAssignments.length > 0
+          ? a.fieldAssignments
+          : (a as any).targetId
+            ? [{ targetId: (a as any).targetId, value: (a as any).predictedValue ?? (a as any).predictedValues?.[0] ?? null }]
+            : [];
+
+      for (const field of predFieldAssignments) {
+        totalAttrEvaluated++;
+        const goldAttrVal = goldFieldMap.get(field.targetId) ?? (example.goldLabels as any).attributes?.[field.targetId];
+        const predVal = field.value ?? (field as any).values?.[0] ?? null;
+        const isAttrCorrect = Boolean(goldAttrVal && predVal === goldAttrVal);
+        const isAttrAbstained = Boolean(a.abstained || !predVal);
+
+        if (isTypeCorrect && isAttrCorrect) attrCorrectWhenTypeCorrect++;
+        if (isTypeAbstained && isAttrAbstained) attrAbstainedWhenTypeAbstained++;
+        if (!isAttrCorrect) allAttrsCorrectForSku = false;
+      }
+    }
+
+    const pagePred = pageBySku.get(sku);
+    const goldPages = new Set(
+      (example.goldLabels.categoryPageIds ??
+        example.goldLabels.pageAssignments?.map(p => p.pageId).filter(Boolean) ??
+        []) as string[],
+    );
+    const predPages = new Set(
+      (pagePred?.pageIds ?? pagePred?.pageAssignments ?? []).filter(Boolean) as string[],
+    );
+
+    totalPageEvaluated++;
+    const isPageExactMatch = goldPages.size > 0 && goldPages.size === predPages.size && [...goldPages].every(p => predPages.has(p));
+    const isPageAbstained = Boolean(pagePred?.abstained || predPages.size === 0);
+
+    if (isTypeCorrect && isPageExactMatch) pageExactMatchWhenTypeCorrect++;
+    if (isTypeAbstained && isPageAbstained) pageAbstainedWhenTypeAbstained++;
+
+    if (isTypeCorrect && allAttrsCorrectForSku && isPageExactMatch) {
+      endToEndCorrect++;
+    }
+  }
+
+  return {
+    totalMembers: gold.length,
+    typeResolution: {
+      correct: typeCorrect,
+      abstained: typeAbstained,
+      incorrect: typeIncorrect,
+    },
+    attributeEffects: {
+      totalEvaluated: totalAttrEvaluated,
+      correctWhenTypeCorrect: attrCorrectWhenTypeCorrect,
+      abstainedWhenTypeAbstained: attrAbstainedWhenTypeAbstained,
+    },
+    pageEffects: {
+      totalEvaluated: totalPageEvaluated,
+      exactMatchWhenTypeCorrect: pageExactMatchWhenTypeCorrect,
+      abstainedWhenTypeAbstained: pageAbstainedWhenTypeAbstained,
+    },
+    endToEndCorrectAllStages: endToEndCorrect,
+  };
+}

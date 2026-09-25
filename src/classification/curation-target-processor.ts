@@ -821,14 +821,7 @@ export async function processPageTarget(
     }
   }
 
-  if (isSystemOne) {
-    if (isMultiItemGroup) {
-      return {
-        proposals: [],
-        message: 'Cohort page execution with TypeSafe Jev is unsupported until the cohort adapter lands.',
-      };
-    }
-
+  if (isSystemOne && !isMultiItemGroup) {
     const { resolvePageDecision, buildProposalsFromPageDecision } = await import('./page-decision');
     const decision = await resolvePageDecision({
       target,
@@ -914,7 +907,7 @@ export async function processPageTarget(
       };
     }
     llmResult = { pages: member.pages, modelCallIds: member.modelCallIds };
-    assignmentSource = 'cohort LLM';
+    assignmentSource = isSystemOne ? 'TypeSafe Jev' : 'cohort LLM';
   } else {
     llmResult = await llmAssignCategoryPages({
       productName: productContext.productName,
@@ -966,7 +959,7 @@ export async function processPageTarget(
         ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
         : {}),
       verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
-      isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -')) ? false : undefined,
+      isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -') || isSystemOne) ? false : undefined,
       snapshotHash,
       ...(llmResult.modelCallIds?.length ? { modelCallIds: llmResult.modelCallIds } : {}),
     }),
@@ -1081,6 +1074,7 @@ export async function materializeCoordinatedPages(
       : [],
   );
   const modelCallIds = stored.modelCallId ? [stored.modelCallId] : undefined;
+  const isJev = output.source === 'typesafe';
   const proposals = output.pages.map(page =>
     buildCategoryPageProposal({
       runId: context.runId,
@@ -1095,13 +1089,15 @@ export async function materializeCoordinatedPages(
       verifiedPageIdentity: verifiedPageIdSet.has(page.pageId),
       snapshotHash,
       ...(modelCallIds?.length ? { modelCallIds } : {}),
+      ...(isJev ? { isBulkAcceptable: false } : {}),
     }),
   );
 
   const pageNames = output.pages.map(page => page.pageName);
+  const sourceLabel = isJev ? 'TypeSafe Jev' : 'cohort LLM';
   return {
     proposals,
-    message: `${pageNames.join(', ')} (Cohort page assignment materialized from parent coordination (cohort LLM), ${(output.pages[0].confidence * 100).toFixed(0)}%)`,
+    message: `${pageNames.join(', ')} (Cohort page assignment materialized from parent coordination (${sourceLabel}), ${(output.pages[0].confidence * 100).toFixed(0)}%)`,
   };
 }
 

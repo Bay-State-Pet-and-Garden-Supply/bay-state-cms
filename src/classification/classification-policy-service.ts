@@ -266,7 +266,7 @@ export function getClassificationPolicySettings(
         } else if (stage.id === 'product_attribute_proposals') {
           stageSupport[stage.id] = { supported: true, multiValueSupported: true };
         } else if (stage.id === 'category_page_proposals') {
-          stageSupport[stage.id] = { supported: true, cohortSupported: false };
+          stageSupport[stage.id] = { supported: true, cohortSupported: true };
         } else {
           stageSupport[stage.id] = {
             supported: false,

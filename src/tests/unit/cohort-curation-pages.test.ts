@@ -821,7 +821,8 @@ describe('title-vs-page asymmetries (plan §1.4)', () => {
 function countPageTerminalRows(cohortRunId: string, status: string): number {
   const row = getDb().query(
     `SELECT COUNT(*) AS cnt FROM classification_model_calls
-     WHERE status = ? AND run_id IN (SELECT id FROM classification_runs WHERE cohort_run_id = ?)`,
+     WHERE operation IN ('cohort_page_assignment', 'page_assignment', 'cohort_page_assignment_parent')
+       AND status = ? AND run_id IN (SELECT id FROM classification_runs WHERE cohort_run_id = ?)`,
   ).get(status, cohortRunId) as { cnt: number };
   return Number(row.cnt);
 }

@@ -247,7 +247,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
       expect(stage?.adapterStatus).toBe('supported');
     });
 
-    it('reports cohortSupported: false in evaluateClassificationReadiness for Jev category pages', () => {
+    it('reports cohortSupported: true in evaluateClassificationReadiness for Jev category pages', () => {
       const config = {
         modelPolicy: cloudJevPolicy,
         curationTargets: [
@@ -263,10 +263,10 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
       };
 
       const report = evaluateClassificationReadiness(config, {});
-      expect(report.capabilities.categoryPages.cohortSupported).toBe(false);
+      expect(report.capabilities.categoryPages.cohortSupported).toBe(true);
     });
 
-    it('abstains in processPageTarget when routed to SystemOne with multiple items in a cohort', async () => {
+    it('abstains in processPageTarget when the frozen product-line snapshot is incomplete', async () => {
       const run = createRun(workspaceId, 'SKU-1', null, 'hash-page-test-catalog');
 
       const result = await processPageTarget(
@@ -288,7 +288,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
       );
 
       expect(result.proposals).toEqual([]);
-      expect(result.message).toContain('Cohort page execution with TypeSafe Jev is unsupported until the cohort adapter lands');
+      expect(result.message).toContain('Cohort page coordination abstained: the frozen product-line snapshot is incomplete');
     });
   });
 

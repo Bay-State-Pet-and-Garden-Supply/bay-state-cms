@@ -1509,7 +1509,7 @@ export function evaluateClassificationReadiness(
         targetCount: pageTargets.length,
         runnable: categoryPagesRunnable,
         reason: categoryPagesRunnable ? undefined : (pageTargets.length === 0 ? 'No enabled Category Page targets' : 'Configuration errors present'),
-        cohortSupported: (config?.modelPolicy?.stageOverrides?.category_page_proposals?.provider ?? config?.modelPolicy?.defaultProvider) === 'typesafe' ? false : true,
+        cohortSupported: true,
       },
     },
     findings,

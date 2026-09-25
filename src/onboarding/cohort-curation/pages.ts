@@ -83,6 +83,8 @@ import {
   insertDecisionSetOnce,
   withOwnedDecisionScope,
 } from './decisions';
+import { PAGE_QUESTION_VERSION, PAGE_JUDGMENT_VERSION } from '../../classification/page-decision';
+import { SYSTEMONE_MAX_QUESTIONS } from '../../ai/systemone-transport';
 
 // ─── Error identity (moved verbatim; re-exported by the transitional adapter) ─
 
@@ -108,7 +110,7 @@ function toMemberValue(result: CohortPageMemberResult): CoordinatedPageMemberVal
           pageName: page.pageName,
           confidence: page.confidence,
         })),
-        source: 'llm_cohort',
+        source: result.source ?? 'llm_cohort',
       },
       modelCallId: result.modelCallIds?.[0] ?? null,
     };
@@ -961,6 +963,7 @@ export function pageAuthorityFromProjectionMember(
  */
 
 export function computeCohortPageInputHash(bundle: CohortPageAuthorityBundle): string {
+  const isTypesafe = bundle.modelExecutionAuthority?.provider === 'typesafe';
   return hashCanonicalJson({
     version: 1,
     kind: 'coordinated_page',
@@ -971,5 +974,16 @@ export function computeCohortPageInputHash(bundle: CohortPageAuthorityBundle): s
     selection: bundle.selection,
     modelExecutionAuthority: bundle.modelExecutionAuthority ?? null,
     categoryPageCorrectnessVersion: CATEGORY_PAGE_CORRECTNESS_VERSION,
+    ...(isTypesafe
+      ? {
+          protocol: 'systemone',
+          questionVersion: PAGE_QUESTION_VERSION,
+          thresholdVersion: PAGE_JUDGMENT_VERSION,
+          chunkPartitioning: {
+            maxQuestionsPerRequest: SYSTEMONE_MAX_QUESTIONS,
+            groupingVersion: 'product_line_v1',
+          },
+        }
+      : {}),
   });
 }
