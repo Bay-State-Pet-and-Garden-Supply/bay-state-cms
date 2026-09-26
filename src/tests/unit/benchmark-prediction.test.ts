@@ -9,13 +9,27 @@ import { createRun } from '../../db/repositories/classification-run-repo';
 import * as benchmarkRepo from '../../db/repositories/benchmark-repo';
 import {
   buildPredictionBundle,
+  buildPreReviewPredictionBundle,
+  capturePreReviewPrediction,
+  canonicalPreReviewTypeId,
+  adjudicateGoldProductType,
+  isPreReviewBundleEnvelope,
+  describeStoredBundleSource,
+  assessPredictionSourceEligibility,
   computePredictionBundleHash,
   validatePredictionBundle,
   extractPredictionsForSku,
   loadPredictionBundle,
+  PRE_REVIEW_PREDICTION_SOURCE,
+  REVIEWED_OUTCOME_PREDICTION_SOURCE,
+  PRE_REVIEW_BUNDLE_VERSION,
+  LEGACY_BUNDLE_VERSION,
 } from '../../classification/benchmark-prediction';
+import { getRun } from '../../db/repositories/classification-run-repo';
 import { calibrateThresholds, devPairsFromBundle } from '../../classification/confidence-calibrator';
+import { evaluateBenchmark } from '../../classification/benchmark-evaluator';
 import type { BenchmarkPredictionEntry } from '../../shared/schemas/classification';
+import prereviewGoldset from '../fixtures/benchmark-prereview-goldset.json';
 
 const workspaceId = 'ws-prediction-test';
 const CONFIG_HASH = 'c'.repeat(64);
@@ -228,5 +242,274 @@ describe('Benchmark prediction bundles', () => {
     const contaminated = calibrateThresholds([...devPairs, ...holdoutPairs]);
     expect(devOnly).toEqual(calibrateThresholds(devPairs));
     expect(JSON.stringify(contaminated)).not.toBe(JSON.stringify(devOnly));
+  });
+});
+
+describe('Benchmark pre-review predictions (#294)', () => {
+  let wsPath: string;
+
+  beforeEach(() => {
+    wsPath = path.join(os.tmpdir(), `prereview-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    fs.mkdirSync(path.join(wsPath, '.baystate-cms'), { recursive: true });
+    initDb(path.join(wsPath, '.baystate-cms', 'app.db'));
+    runMigrations();
+    getDb().run(
+      `INSERT INTO workspace (id, name, workspace_path, git_path, created_at, updated_at, bootstrap_status)
+       VALUES (?, 'Test WS', ?, '', ?, ?, 'complete')`,
+      [workspaceId, wsPath, new Date().toISOString(), new Date().toISOString()]
+    );
+    getDb().run(
+      `INSERT INTO classification_config_snapshots (id, workspace_id, snapshot_hash, config_json, created_at)
+       VALUES (?, ?, ?, '{}', ?)`,
+      [CONFIG_SNAPSHOT_ID, workspaceId, CONFIG_HASH, new Date().toISOString()]
+    );
+  });
+
+  afterEach(() => {
+    closeDb();
+    try { fs.rmSync(wsPath, { recursive: true, force: true }); } catch { /* already removed */ }
+  });
+
+  function seedRaw(sku: string, rawType: string | null, opts: { confidence?: number; abstainReason?: string; revisedType?: string } = {}) {
+    const db = getDb();
+    const run = createRun(workspaceId, sku, CONFIG_SNAPSHOT_ID, CONFIG_HASH, { sourceKind: 'catalog_product' });
+    const now = new Date().toISOString();
+    if (opts.abstainReason) {
+      db.run(
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, 'reviewable_abstention', 'primary_product_type_proposal', ?, 0, 'pending', ?)`,
+        [randomUUID(), run.id, sku, JSON.stringify({ reason: opts.abstainReason }), now]
+      );
+    } else if (rawType) {
+      const pid = randomUUID();
+      db.run(
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, 'primary_product_type', ?, ?, ?, 'pending', ?)`,
+        [pid, run.id, sku, rawType, JSON.stringify({ productTypeId: rawType }), opts.confidence ?? 0.85, now]
+      );
+      if (opts.revisedType) {
+        db.run(
+          `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
+           VALUES (?, ?, 'accepted', ?, 0, ?)`,
+          [randomUUID(), pid, JSON.stringify({ productTypeId: opts.revisedType }), now]
+        );
+      }
+    }
+    db.run(`UPDATE classification_runs SET status = 'completed' WHERE id = ?`, [run.id]);
+    return run;
+  }
+
+  function frozenHoldout(skus: string[]): string {
+    const datasetId = benchmarkRepo.createDataset(workspaceId, 'Pre-review', 'product_family', 42).id;
+    skus.forEach((sku, i) => {
+      benchmarkRepo.insertExample(
+        datasetId,
+        sku,
+        `fam-${i}`,
+        'holdout',
+        JSON.stringify({ sku, retainedFacts: [], evidence: [] }),
+        JSON.stringify({ productType: sku, pageAssignments: [], fieldAssignments: [] }),
+        { sourceConfigHash: CONFIG_HASH },
+      );
+    });
+    benchmarkRepo.updateDatasetExampleCount(datasetId);
+    benchmarkRepo.markFamilyReviewComplete(datasetId, 'reviewer');
+    benchmarkRepo.freezeDataset(datasetId, 'reviewer');
+    return datasetId;
+  }
+
+  it('freezes a labeled fixture dataset → captures raw outputs → evaluates the immutable bundle; reviewer corrections do not change reported accuracy', async () => {
+    // Freeze: representative fixture entries with adjudicated gold + retained inputs (no answers in inputs).
+    const entries = (prereviewGoldset.entries as Array<{ sku: string; familyId: string; split: string; gold: unknown; evidence: unknown[] }>).slice(0, 4);
+    const datasetId = benchmarkRepo.createDataset(workspaceId, 'Demo Freeze', 'product_family', 42).id;
+    for (const entry of entries) {
+      const gold = (entry.gold as { kind: string; typeId?: string }).kind === 'known-type'
+        ? { productType: (entry.gold as { typeId: string }).typeId, pageAssignments: [], fieldAssignments: [] }
+        : entry.gold;
+      benchmarkRepo.insertExample(
+        datasetId,
+        entry.sku,
+        entry.familyId,
+        'holdout',
+        JSON.stringify({ sku: entry.sku, retainedFacts: [], evidence: entry.evidence }),
+        JSON.stringify(gold),
+        { sourceConfigHash: CONFIG_HASH },
+      );
+    }
+    benchmarkRepo.updateDatasetExampleCount(datasetId);
+    benchmarkRepo.markFamilyReviewComplete(datasetId, 'reviewer');
+    benchmarkRepo.freezeDataset(datasetId, 'reviewer');
+
+    // Capture: current-provider raw outputs become the immutable bundle.
+    for (const entry of entries) {
+      const raw = entry as unknown as { sku: string; rawProposal?: { productTypeId: string }; rawAbstention?: { reason: string }; confidence: number };
+      if (raw.rawAbstention) seedRaw(entry.sku, null, { abstainReason: raw.rawAbstention.reason });
+      else seedRaw(entry.sku, raw.rawProposal!.productTypeId, { confidence: raw.confidence });
+    }
+    const bundle = buildPreReviewPredictionBundle(workspaceId, datasetId, { runLabel: 'Current Provider', splitGroup: 'holdout' });
+    expect(bundle.bundleHash).toBe(computePredictionBundleHash(bundle.predictions));
+
+    // Evaluate: snapshot + digest before the reviewer corrects anything.
+    const before = loadPredictionBundle(workspaceId, datasetId, bundle.id, 'holdout');
+    expect(before.source).toBe(PRE_REVIEW_PREDICTION_SOURCE);
+    expect(before.bundleVersion).toBe(PRE_REVIEW_BUNDLE_VERSION);
+    const beforeHash = before.bundleHash;
+    const beforeTypes = before.predictions.map(p => p.productType).join('|');
+
+    const evalBefore = await evaluateBenchmark(datasetId, {
+      runLabel: 'Eval Before Corrections',
+      splitGroup: 'holdout',
+      predictionBundleId: bundle.id,
+    }, workspaceId);
+
+    // Review: corrections land as decisions on the live runs — answers, not predictions.
+    const db = getDb();
+    const now = new Date().toISOString();
+    for (const row of db.query(`SELECT id FROM classification_proposals WHERE proposal_type = 'primary_product_type'`).all() as Array<{ id: string }>) {
+      db.run(
+        `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
+         VALUES (?, ?, 'accepted', ?, 0, ?)`,
+        [randomUUID(), row.id, JSON.stringify({ productTypeId: 'reviewer-corrected-type' }), now]
+      );
+    }
+
+    // Replay: the immutable bundle is unchanged — corrections earn zero model accuracy.
+    const after = loadPredictionBundle(workspaceId, datasetId, bundle.id, 'holdout');
+    expect(after.bundleHash).toBe(beforeHash);
+    expect(after.predictions.map(p => p.productType).join('|')).toBe(beforeTypes);
+    expect(after.predictions.some(p => p.productType === 'reviewer-corrected-type')).toBe(false);
+
+    const evalAfter = await evaluateBenchmark(datasetId, {
+      runLabel: 'Eval After Corrections',
+      splitGroup: 'holdout',
+      predictionBundleId: bundle.id,
+    }, workspaceId);
+
+    expect(evalAfter.metrics.productType.top1Accuracy).toBe(evalBefore.metrics.productType.top1Accuracy);
+    expect(evalAfter.metrics.productType.coverage).toBe(evalBefore.metrics.productType.coverage);
+    expect(evalAfter.attribution.fixedPopulation.correctness).toBe(evalBefore.attribution.fixedPopulation.correctness);
+    expect(evalAfter.attribution.fixedPopulation.correct).toBe(evalBefore.attribution.fixedPopulation.correct);
+    expect(evalAfter.bundleProvenance.eligibleForRawAccuracyQualification).toBe(true);
+    expect(evalAfter.bundleProvenance.source).toBe(PRE_REVIEW_PREDICTION_SOURCE);
+  });
+
+  it('captures exact canonical IDs, run/config/evidence/model provenance, and per-example outcomes', () => {
+    const run = seedRaw('SKU-P', 'dog_food_dry', { confidence: 0.9 });
+    const entry = capturePreReviewPrediction({ runId: run.id, workspaceId, productSku: 'SKU-P' });
+    expect(entry.productType).toBe('dog_food_dry');
+    expect(entry.outcome).toBe('predicted');
+    expect(entry.source).toBe(PRE_REVIEW_PREDICTION_SOURCE);
+    expect(entry.bundleVersion).toBe(PRE_REVIEW_BUNDLE_VERSION);
+    expect(entry.provenance?.runId).toBe(run.id);
+    expect(entry.provenance?.configSnapshotHash).toBe(CONFIG_HASH);
+    expect(entry.provenance?.evidenceCount).toBe(0);
+    expect(canonicalPreReviewTypeId({ proposedValue: { productTypeId: 'dog_food_dry' }, targetId: 'legacy-id' })).toBe('dog_food_dry');
+    expect(canonicalPreReviewTypeId({ proposedValue: 'cat_treat', targetId: null })).toBe('cat_treat');
+  });
+
+  it('candidate/baseline captures never read accepted revised values; later review edits cannot alter a captured bundle', () => {
+    const run = seedRaw('SKU-R', 'dog_food_wet', { revisedType: 'dog_food_dry' });
+    const captured = capturePreReviewPrediction({ runId: run.id, workspaceId, productSku: 'SKU-R' });
+    // The reviewer-corrected answer is ignored: the raw output stands.
+    expect(captured.productType).toBe('dog_food_wet');
+    expect(captured.outcome).toBe('predicted');
+
+    const stored = getRun(run.id)!;
+    expect(stored.id).toBe(run.id);
+    const datasetId = frozenHoldout(['SKU-R']);
+    const bundle = buildPreReviewPredictionBundle(workspaceId, datasetId, { runLabel: 'P', splitGroup: 'holdout' });
+    const hashBefore = bundle.bundleHash;
+
+    // A second review revision lands after capture.
+    const db = getDb();
+    const pid = (db.query(`SELECT id FROM classification_proposals WHERE run_id = ?`).get(run.id) as { id: string }).id;
+    db.run(
+      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
+       VALUES (?, ?, 'accepted', ?, 0, ?)`,
+      [randomUUID(), pid, JSON.stringify({ productTypeId: 'cat_treat' }), new Date().toISOString()]
+    );
+    const reloaded = loadPredictionBundle(workspaceId, datasetId, bundle.id, 'holdout');
+    expect(reloaded.bundleHash).toBe(hashBefore);
+    expect(reloaded.predictions[0].productType).toBe('dog_food_wet');
+  });
+
+  it('keeps legacy reviewed-outcome bundles readable/labeled but ineligible to qualify raw accuracy', () => {
+    const parsed: unknown = [{ exampleId: 'e1' }];
+    expect(describeStoredBundleSource(parsed).source).toBe(REVIEWED_OUTCOME_PREDICTION_SOURCE);
+    expect(describeStoredBundleSource(parsed).bundleVersion).toBe(LEGACY_BUNDLE_VERSION);
+    expect(assessPredictionSourceEligibility(REVIEWED_OUTCOME_PREDICTION_SOURCE).eligible).toBe(false);
+    expect(assessPredictionSourceEligibility(PRE_REVIEW_PREDICTION_SOURCE).eligible).toBe(true);
+
+    // Legacy byte-for-byte hash semantics preserved: a reviewed-outcome array
+    // hashes without any source marker, so historical digests still verify.
+    const legacyPayload: BenchmarkPredictionEntry[] = [
+      { exampleId: 'e1', productSku: 'SKU-L', productType: 'dog_food_dry', pageAssignments: [], fieldAssignments: [], abstained: false, confidence: 0.9, claimTargets: [] },
+    ];
+    expect(computePredictionBundleHash(legacyPayload)).toBe(computePredictionBundleHash([...legacyPayload]));
+    expect(isPreReviewBundleEnvelope(legacyPayload)).toBe(false);
+  });
+  it('supports gold states: known-type, no-fit, insufficient-evidence, unlabeled', () => {
+    expect(adjudicateGoldProductType('dog_food_dry')).toEqual({ kind: 'known-type', typeId: 'dog_food_dry' });
+    expect(adjudicateGoldProductType({ kind: 'no-fit' })).toEqual({ kind: 'no-fit', typeId: null });
+    expect(adjudicateGoldProductType({ kind: 'insufficient-evidence' })).toEqual({ kind: 'insufficient-evidence', typeId: null });
+    expect(adjudicateGoldProductType(null)).toEqual({ kind: 'unlabeled', typeId: null });
+    expect(adjudicateGoldProductType({ kind: 'known-type', typeId: 'cat_treat' })).toEqual({ kind: 'known-type', typeId: 'cat_treat' });
+  });
+
+  it('treats service/validation failures as failed (no abstention credit) and semantic abstention as abstained', () => {
+    const abstainRun = seedRaw('SKU-A', null, { abstainReason: 'no-fit: no configured product type matches' });
+    const abstained = capturePreReviewPrediction({ runId: abstainRun.id, workspaceId, productSku: 'SKU-A' });
+    expect(abstained.outcome).toBe('abstained');
+    expect(abstained.abstained).toBe(true);
+    expect(abstained.abstentionReason).toBe('no-fit: no configured product type matches');
+    expect(abstained.failureCode).toBeNull();
+
+    const failedRun = createRun(workspaceId, 'SKU-F', CONFIG_SNAPSHOT_ID, CONFIG_HASH, { sourceKind: 'catalog_product' });
+    getDb().run(`UPDATE classification_runs SET status = 'failed', error_message = 'boom' WHERE id = ?`, [failedRun.id]);
+    const failed = capturePreReviewPrediction({ runId: failedRun.id, workspaceId, productSku: 'SKU-F' });
+    expect(failed.outcome).toBe('failed');
+    expect(failed.abstained).toBe(false);
+    expect(typeof failed.failureCode).toBe('string');
+  });
+
+  it('covers replay: snapshot mismatches, dup/missing predictions, no-fit labels, dual abstentions, family leakage, legacy compatibility', () => {
+    // Snapshot mismatch fails closed.
+    seedRaw('SKU-S', 'dog_food_dry');
+    const driftedId = benchmarkRepo.createDataset(workspaceId, 'Drift', 'product_family', 42).id;
+    benchmarkRepo.insertExample(driftedId, 'SKU-S', 'fam-s', 'holdout', '{}', JSON.stringify({ productType: 'dog_food_dry', pageAssignments: [], fieldAssignments: [] }), { sourceConfigHash: 'd'.repeat(64) });
+    benchmarkRepo.updateDatasetExampleCount(driftedId);
+    benchmarkRepo.markFamilyReviewComplete(driftedId, 'reviewer');
+    benchmarkRepo.freezeDataset(driftedId, 'reviewer');
+    expect(() => buildPreReviewPredictionBundle(workspaceId, driftedId, { runLabel: 'P', splitGroup: 'holdout' })).toThrow(/Snapshot mismatch/);
+    // Duplicate + missing predictions fail closed.
+    const dup: BenchmarkPredictionEntry[] = [
+      { exampleId: 'e1', productSku: 'S1', productType: 'a', pageAssignments: [], fieldAssignments: [], abstained: false, confidence: 0.9, claimTargets: [] },
+      { exampleId: 'e1', productSku: 'S1', productType: 'a', pageAssignments: [], fieldAssignments: [], abstained: false, confidence: 0.9, claimTargets: [] },
+    ];
+    expect(() => validatePredictionBundle(dup, [{ id: 'e1', productSku: 'S1' }, { id: 'e2', productSku: 'S2' }], computePredictionBundleHash(dup))).toThrow(/duplicate example id/);
+    expect(() => validatePredictionBundle(dup.slice(0, 1), [{ id: 'e1', productSku: 'S1' }, { id: 'e2', productSku: 'S2' }], computePredictionBundleHash(dup.slice(0, 1)))).toThrow(/incomplete/);
+
+    // No-fit gold normalizes (evaluator sibling scores abstention-correct; here: contract holds).
+    expect(adjudicateGoldProductType({ kind: 'no-fit' }).kind).toBe('no-fit');
+
+    // Dual abstentions: both candidate and baseline runs abstain explicitly.
+    const a1 = seedRaw('SKU-D1', null, { abstainReason: 'insufficient-evidence: missing label photo' });
+    const a2 = seedRaw('SKU-D2', null, { abstainReason: 'insufficient-evidence: missing label photo' });
+    expect(capturePreReviewPrediction({ runId: a1.id, workspaceId, productSku: 'SKU-D1' }).outcome).toBe('abstained');
+    expect(capturePreReviewPrediction({ runId: a2.id, workspaceId, productSku: 'SKU-D2' }).outcome).toBe('abstained');
+
+    // Family leakage: fixtures keep families together across dev/holdout.
+    const splitsByFamily: Record<string, Record<string, true>> = {};
+    for (const e of prereviewGoldset.entries as Array<{ familyId: string; split: string }>) {
+      splitsByFamily[e.familyId] = splitsByFamily[e.familyId] ?? {};
+      splitsByFamily[e.familyId][e.split] = true;
+    }
+    for (const family of Object.keys(splitsByFamily)) {
+      expect(Object.keys(splitsByFamily[family]).length, `family ${family} leaks across splits`).toBe(1);
+    }
+
+    // Legacy compatibility: array payloads load as reviewed_outcome/0; unknown envelopes throw.
+    expect(isPreReviewBundleEnvelope([{}])).toBe(false);
+    expect(() => describeStoredBundleSource({ source: 'other', version: 9 })).toThrow(/unknown source\/version/);
   });
 });

@@ -194,7 +194,7 @@ export function matchAttributeOptions(
 
   // 2. Alias matching (also word-boundary)
   if (selectionMode === 'multiple' || found.length === 0) {
-    for (const alias of attribute.valueAliases) {
+    for (const alias of attribute.valueAliases ?? []) {
       if (seen.has(alias.mapsTo)) continue;
       if (new RegExp('\\b' + escapeRegex(alias.alias.toLowerCase()) + '\\b', 'i').test(textLower)) {
         // Fail closed: the alias target must be one of the exact allowed

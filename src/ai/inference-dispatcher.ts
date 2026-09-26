@@ -14,6 +14,7 @@ import type {
 import {
   resolveWorkloadRoute,
   isTargetPermittedByPolicy,
+  isSystemOneConnection,
 } from './provider-connections';
 import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import {
@@ -110,6 +111,18 @@ export async function dispatchWorkloadChat(
     );
   }
 
+  // 1b. Capability gate: chat/naming/tool/vision workloads require a
+  // chat-capable connection. System One (typed-judgment) connections are
+  // rejected here — never dispatched to /chat/completions.
+  if (isSystemOneConnection(primaryConn)) {
+    recordPolicyDenied(primaryConn, primary);
+    throw new AiPolicyDeniedError(
+      `Primary connection "${primaryConn.label}" is a typed-judgment (System One) connection and cannot serve ` +
+        `the "${workload}" workload, which requires chat completion.`,
+      primary.connectionId,
+      primary.modelId,
+    );
+  }
   // 2. Validate Data Sharing Policy for Primary
   const textAllowed = isTargetPermittedByPolicy(primaryConn.trustZone, textDataSharing);
   if (!textAllowed) {
@@ -254,6 +267,7 @@ export async function dispatchWorkloadChat(
       if (terminalBehavior === 'fail_closed') {
         throw new Error(
           `Workload "${workload}" failed closed: primary target failed and no fallback is configured (${err.message}).`,
+          { cause: err },
         );
       }
       throw err;
@@ -263,6 +277,15 @@ export async function dispatchWorkloadChat(
     if (!fallbackConn || !fallbackConn.enabled) {
       throw new Error(
         `Fallback connection "${fallback.connectionId}" for workload "${workload}" is not configured or disabled.`,
+        { cause: err },
+      );
+    }
+    if (isSystemOneConnection(fallbackConn)) {
+      throw new AiPolicyDeniedError(
+        `Cannot fallback to "${fallbackConn.label}": typed-judgment (System One) connections cannot serve ` +
+          `the "${workload}" workload, which requires chat completion.`,
+        fallback.connectionId,
+        fallback.modelId,
       );
     }
 

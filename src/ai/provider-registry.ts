@@ -6,7 +6,7 @@
  */
 
 export type AiProviderLocality = 'local' | 'cloud';
-export type AiProviderTransport = 'openai-compatible' | 'ollama-native';
+export type AiProviderTransport = 'openai-compatible' | 'ollama-native' | 'systemone';
 
 export interface AiProviderDefinition {
   id: string;
@@ -43,6 +43,15 @@ const PROVIDERS: Record<string, AiProviderDefinition> = {
     locality: 'cloud',
     transport: 'openai-compatible',
     defaultBaseUrl: 'https://api.openai.com/v1',
+    supportsModelsEndpoint: true,
+    requiresCredential: true,
+  },
+  typesafe: {
+    id: 'typesafe',
+    label: 'TypeSafe Jev (Cloud)',
+    locality: 'cloud',
+    transport: 'systemone',
+    defaultBaseUrl: 'https://api.typesafe.ai/v1',
     supportsModelsEndpoint: true,
     requiresCredential: true,
   },

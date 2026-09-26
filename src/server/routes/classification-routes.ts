@@ -17,6 +17,12 @@ import { evaluateClassificationReadiness } from '../../classification/config-val
 import { normalizeClassificationReadinessReport } from '../../classification/readiness';
 import { QUALITY_REPORT_MAX_RANGE_DAYS } from '../../shared/schemas/classification-metrics';
 import { buildQualityReport } from '../../db/repositories/classification-metrics-repo';
+import {
+  getClassificationPolicySettings,
+  previewClassificationPolicy,
+  applyClassificationPolicy,
+  ClassificationPolicyServiceError,
+} from '../../classification/classification-policy-service';
 
 const router = new Hono();
 
@@ -468,6 +474,79 @@ router.post('/classification/process-refresh-queue', async (c) => {
     return c.json({ success: true, processed: count });
   } catch (err) {
     console.error('[ClassificationRoutes] Refresh queue failed:', err);
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+/**
+ * GET /api/classification/settings/policy
+ * Returns classification provider settings, effective routes, and available connections.
+ */
+router.get('/classification/settings/policy', (c) => {
+  const ws = getCurrentWorkspace();
+  if (!ws) {
+    return c.json({ error: 'No active workspace' }, 400);
+  }
+
+  try {
+    const settings = getClassificationPolicySettings(ws.workspacePath, ws.id);
+    return c.json({ settings });
+  } catch (err) {
+    if (err instanceof ClassificationPolicyServiceError) {
+      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
+    }
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+/**
+ * POST /api/classification/settings/policy/preview
+ * Previews classification provider policy changes and computes deterministic previewToken and diff.
+ */
+router.post('/classification/settings/policy/preview', async (c) => {
+  const ws = getCurrentWorkspace();
+  if (!ws) {
+    return c.json({ error: 'No active workspace' }, 400);
+  }
+
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || !body.expectedBaseBundleHash || !body.stageOverrides) {
+      return c.json({ error: 'Invalid preview payload: expectedBaseBundleHash and stageOverrides are required.' }, 400);
+    }
+
+    const preview = previewClassificationPolicy(ws.workspacePath, body, ws.id);
+    return c.json({ preview });
+  } catch (err) {
+    if (err instanceof ClassificationPolicyServiceError) {
+      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
+    }
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+/**
+ * POST /api/classification/settings/policy/apply
+ * Applies a previewed classification provider policy under CAS and configuration locking.
+ */
+router.post('/classification/settings/policy/apply', async (c) => {
+  const ws = getCurrentWorkspace();
+  if (!ws) {
+    return c.json({ error: 'No active workspace' }, 400);
+  }
+
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || !body.previewToken || !body.expectedBaseBundleHash || !body.stageOverrides) {
+      return c.json({ error: 'Invalid apply payload: previewToken, expectedBaseBundleHash, and stageOverrides are required.' }, 400);
+    }
+
+    const result = await applyClassificationPolicy(ws.workspacePath, ws.id, body);
+    return c.json({ result });
+  } catch (err) {
+    if (err instanceof ClassificationPolicyServiceError) {
+      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
+    }
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
 });

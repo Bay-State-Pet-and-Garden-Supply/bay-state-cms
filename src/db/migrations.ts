@@ -6187,6 +6187,27 @@ export function runMigrations(): void {
     console.error('[Migrations] drift audit history index migration failed:', e);
   }
 
+  // ── Classification Model Calls Typed Metadata Migration (Issue #297) ───────
+  try {
+    const tableInfo = db.query('PRAGMA table_info(classification_model_calls)').all() as Array<{ name: string }>;
+    if (tableInfo.length > 0) {
+      const colNames = new Set(tableInfo.map(c => c.name));
+      if (!colNames.has('requested_model')) {
+        db.exec('ALTER TABLE classification_model_calls ADD COLUMN requested_model TEXT;');
+        db.exec('UPDATE classification_model_calls SET requested_model = model WHERE requested_model IS NULL AND model IS NOT NULL;');
+      }
+      if (!colNames.has('resolved_model')) {
+        db.exec('ALTER TABLE classification_model_calls ADD COLUMN resolved_model TEXT;');
+        db.exec('UPDATE classification_model_calls SET resolved_model = model WHERE resolved_model IS NULL AND model IS NOT NULL;');
+      }
+      if (!colNames.has('typed_result_json')) {
+        db.exec('ALTER TABLE classification_model_calls ADD COLUMN typed_result_json TEXT;');
+      }
+    }
+  } catch (e) {
+    console.error('[Migrations] classification model calls typed metadata migration failed:', e);
+  }
+
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as
     | { value: string }
     | undefined;

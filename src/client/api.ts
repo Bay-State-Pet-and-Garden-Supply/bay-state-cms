@@ -5,9 +5,18 @@ import type { CatalogProposal } from '../shared/schemas/catalog-health-proposal'
 const API_BASE = '/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined'
+    ? (window as any).__BAYSTATE_TOKEN__ || localStorage.getItem('baystate_cms_api_token')
+    : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...(options?.headers || {}),
+    },
   });
   const data = await res.json();
   if (!res.ok) {
@@ -964,5 +973,117 @@ export function updateFieldMappings(edits: FieldMappingEditPayload[]) {
 
 export function getCatalogSchemaHealth() {
   return request<CatalogSchemaHealthReport>('/catalog/schema-health');
+}
+
+export interface EffectiveStageRouteView {
+  id: 'primary_product_type_proposal' | 'product_attribute_proposals' | 'category_page_proposals';
+  label: string;
+  description: string;
+  isInherited: boolean;
+  effectiveProvider: string;
+  effectiveModel: string;
+  effectiveFallbackProvider: string | null;
+  effectiveFallbackModel: string | null;
+  connectionId: string | null;
+  connectionLabel: string;
+  connectionStatus: string;
+  connectionLocality: 'local' | 'lan' | 'cloud';
+}
+
+export interface ConnectionOptionView {
+  id: string;
+  label: string;
+  transport: string;
+  trustZone: string;
+  locality: 'local' | 'lan' | 'cloud';
+  enabled: boolean;
+  status: string;
+  models: Array<{ id: string; name?: string }>;
+  stageSupport: Record<string, { supported: boolean; reason?: string }>;
+}
+
+export interface ClassificationPolicySettingsResponse {
+  migrationRequired: boolean;
+  bundleHash: string;
+  activeRevision: string;
+  defaultProvider: string;
+  defaultModel: string;
+  textDataSharing: 'local_only' | 'cloud_allowed';
+  imageDataSharing: 'local_only' | 'cloud_allowed';
+  stages: EffectiveStageRouteView[];
+  availableConnections: ConnectionOptionView[];
+}
+
+export interface PreviewPolicyInputPayload {
+  expectedBaseBundleHash: string;
+  stageOverrides: Record<string, {
+    connectionId?: string | null;
+    model?: string | null;
+    fallbackConnectionId?: string | null;
+    fallbackModel?: string | null;
+  }>;
+  defaultProvider?: string;
+  defaultModel?: string;
+  textDataSharing?: 'local_only' | 'cloud_allowed';
+  imageDataSharing?: 'local_only' | 'cloud_allowed';
+}
+
+export interface PreviewPolicyResultResponse {
+  valid: boolean;
+  previewToken: string | null;
+  baseBundleHash: string;
+  dataSharingEffects: string[];
+  validationErrors: string[];
+  diff: {
+    stages: Record<string, {
+      from: { provider: string; model: string };
+      to: { provider: string; model: string };
+    }>;
+    dataSharing: {
+      text: { from: string; to: string };
+      image: { from: string; to: string };
+    };
+  };
+}
+
+export interface ApplyPolicyInputPayload {
+  previewToken: string;
+  expectedBaseBundleHash: string;
+  stageOverrides: Record<string, {
+    connectionId?: string | null;
+    model?: string | null;
+    fallbackConnectionId?: string | null;
+    fallbackModel?: string | null;
+  }>;
+  defaultProvider?: string;
+  defaultModel?: string;
+  textDataSharing?: 'local_only' | 'cloud_allowed';
+  imageDataSharing?: 'local_only' | 'cloud_allowed';
+}
+
+export interface ApplyPolicyResultResponse {
+  success: boolean;
+  bundleHash: string;
+  commitHash: string | null;
+  updatedAt: string;
+  effectiveRoutes: Record<string, { provider: string; model: string }>;
+}
+
+export function getClassificationPolicySettings() {
+  return request<{ settings: ClassificationPolicySettingsResponse }>('/classification/settings/policy');
+}
+
+export function previewClassificationPolicy(payload: PreviewPolicyInputPayload) {
+  return request<{ preview: PreviewPolicyResultResponse }>('/classification/settings/policy/preview', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function applyClassificationPolicy(payload: ApplyPolicyInputPayload) {
+  return request<{ result: ApplyPolicyResultResponse }>('/classification/settings/policy/apply', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 

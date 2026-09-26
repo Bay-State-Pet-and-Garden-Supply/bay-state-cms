@@ -64,10 +64,12 @@ const PAGE_CONTEXT_SOURCE_FIELDS = [
   'species',
   'productForm',
   'productType',
+  'brand',
+  'resolved_brand',
 ];
 
 /** Reviewed page-context attribute ids (records with explicit attributeId). */
-const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species'];
+const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
 
 /**
  * Reviewed species value for cross-species page-context detection. Uses a
@@ -97,31 +99,63 @@ export interface TargetProcessResult {
  * Uses keyword matching against evidence first, then falls back to
  * the LLM ranker if no confident match is found.
  */
-export function processProductTypeTarget(
+export async function processProductTypeTarget(
   target: ResolvedTarget,
   input: StageInput,
   context: StageContext,
 ): Promise<TargetProcessResult> {
-  return processTargetInternal(target, input, context, {
-    kind: 'product_type',
-    buildProposal: (value, confidence, evidence, modelCallIds) =>
-      buildProductTypeProposal({
-        runId: context.runId,
-        sku: input.sku,
-        productTypeId: value,
-        confidence,
-        evidenceIds: evidence.evidenceIds,
-        ...(evidence.supportingEvidenceIds?.length
-          ? { supportingEvidenceIds: evidence.supportingEvidenceIds }
-          : {}),
-        ...(evidence.contradictingEvidenceIds?.length
-          ? { contradictingEvidenceIds: evidence.contradictingEvidenceIds }
-          : {}),
-        snapshotHash: context.snapshot?.snapshotHash ?? null,
-        ...(modelCallIds?.length ? { modelCallIds } : {}),
-      }),
-    task: 'product_type_classification',
+  const modelPolicy = context.snapshot
+    ? modelPolicyViewFromConfig(
+        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+        context.snapshot.snapshotHash,
+      )
+    : null;
+
+  const { resolveProductTypeDecision } = await import('./product-type-decision');
+  const decision = await resolveProductTypeDecision({
+    target,
+    evidence: input.evidence,
+    sku: input.sku,
+    runId: context.runId,
+    snapshot: context.snapshot,
+    modelPolicy,
+    assertHeld: context.assertHeld,
   });
+
+  if (decision.status === 'abstained' || !decision.productTypeId) {
+    return {
+      proposals: [],
+      message:
+        decision.abstentionReason ??
+        `Abstained from proposing product type (${decision.abstentionCode ?? 'unresolved'}).`,
+    };
+  }
+
+  const proposal = buildProductTypeProposal({
+    runId: context.runId,
+    sku: input.sku,
+    productTypeId: decision.productTypeId,
+    confidence: decision.confidence,
+    evidenceIds: decision.evidenceIds,
+    ...(decision.supportingEvidenceIds.length
+      ? { supportingEvidenceIds: decision.supportingEvidenceIds }
+      : {}),
+    ...(decision.contradictingEvidenceIds.length
+      ? { contradictingEvidenceIds: decision.contradictingEvidenceIds }
+      : {}),
+    snapshotHash: context.snapshot?.snapshotHash ?? null,
+    ...(decision.modelCallIds.length ? { modelCallIds: decision.modelCallIds } : {}),
+    derivation: decision.derivation,
+  });
+
+  const sourceLabel =
+    decision.source === 'jev' ? 'TypeSafe Jev' : decision.source === 'llm' ? 'llm' : 'keyword';
+  const label =
+    target.options.find(o => o.value === decision.productTypeId)?.label ?? decision.productTypeId;
+  return {
+    proposals: [proposal],
+    message: `${label} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`,
+  };
 }
 
 // ─── Product Field Processing ─────────────────────────────────────────────────
@@ -374,20 +408,101 @@ export async function processProductFieldTarget(
     }
   }
 
-  // Fall back to LLM ranker if no deterministic match
+  // Fall back to LLM ranker or TypeSafe Jev if no deterministic match
   if (values.length === 0) {
+    const modelPolicy = context.snapshot
+      ? modelPolicyViewFromConfig(
+          context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+          context.snapshot.snapshotHash,
+        )
+      : null;
+
+    let isSystemOne = false;
+    if (modelPolicy) {
+      try {
+        const { resolveModelRoute, assertModelPolicyIntact } = await import('./model-policy-gateway');
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        assertModelPolicyIntact(modelPolicy);
+        const resolvedRoute = resolveModelRoute(modelPolicy, 'attribute_ranking', {
+          getCredential: (p: string) => {
+            try {
+              const aiConfig = getFullAiRoutingConfig();
+              const conn =
+                aiConfig.connections[p] ||
+                Object.values(aiConfig.connections).find(
+                  (c) => c.id === p || (p === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+                );
+              if (conn && conn.credential) return { provider: p, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
+            } catch {}
+            return null;
+          },
+          defaultBaseUrls: {
+            typesafe: 'https://api.typesafe.ai/v1',
+            ollama: 'http://127.0.0.1:11434/v1',
+            openai: 'https://api.openai.com/v1',
+            deepseek: 'https://api.deepseek.com',
+          },
+        });
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[resolvedRoute.provider] ||
+          Object.values(aiConfig.connections).find(
+            (c) => c.id === resolvedRoute.provider || (resolvedRoute.provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+          );
+        isSystemOne = resolvedRoute.provider === 'typesafe' || conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+
+    if (isSystemOne) {
+      const { resolveAttributeDecision, buildProposalFromAttributeDecision } = await import('./attribute-decision');
+      const decision = await resolveAttributeDecision({
+        target,
+        cardinality: selectionMode,
+        evidence: input.evidence,
+        sku: input.sku,
+        runId: context.runId,
+        snapshot: context.snapshot,
+        modelPolicy,
+        assertHeld: context.assertHeld,
+        productContext: {
+          productType: context.cohortExecutionType?.id ?? null,
+        },
+      });
+
+      if (decision.status === 'abstained' || decision.status === 'failed' || !decision.value) {
+        const abstentionProposal = buildProposalFromAttributeDecision(
+          decision,
+          input.sku,
+          context.runId,
+          snapshotHash,
+        );
+        return {
+          proposals: [abstentionProposal],
+          message: decision.abstentionReason ?? `Abstained from proposing attribute value (${decision.abstentionCode ?? 'unresolved'}).`,
+        };
+      }
+
+      const proposal = buildProposalFromAttributeDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      return {
+        proposals: [proposal],
+        message: `"${targetConfig.label}": ${decision.value} (TypeSafe Jev, ${(decision.confidence * 100).toFixed(0)}%)`,
+      };
+    }
+
     const llmResult = await llmRankOptions({
       targetLabel: targetConfig.label,
       options: options2,
       selectionMode,
       evidenceText: text,
       task: 'attribute_value_classification',
-      modelPolicy: context.snapshot
-        ? modelPolicyViewFromConfig(
-            context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
-            context.snapshot.snapshotHash,
-          )
-        : null,
+      modelPolicy,
       protectedOperation: 'attribute_ranking',
       ...(context.snapshot
         ? {
@@ -465,6 +580,154 @@ export async function processProductFieldTarget(
   return { proposals: [proposal], message: `"${targetConfig.label}": ${values.join(', ')} (${(confidence * 100).toFixed(0)}%)${hasConflict ? ' [conflicting evidence]' : ''}` };
 }
 
+export interface ProcessProductFieldTargetsBatchResult {
+  proposals: ClassificationProposal[];
+  messages: string[];
+}
+
+/**
+ * Process a batch of product field (attribute) curation targets.
+ *
+ * Dispatches via TypeSafe Jev System One Choice when System One is active,
+ * batching independent questions whose permitted evidence state is identical (AC 7).
+ * When System One is not active, processes each target sequentially through
+ * processProductFieldTarget.
+ */
+export async function processProductFieldTargetsBatch(
+  items: Array<{ target: ResolvedTarget; cardinality?: 'single' | 'multiple' }>,
+  input: StageInput,
+  context: StageContext,
+  options: { calibratedThresholds?: CalibratedThresholds | null } = {},
+): Promise<ProcessProductFieldTargetsBatchResult> {
+  if (items.length === 0) {
+    return { proposals: [], messages: [] };
+  }
+
+  const modelPolicy = context.snapshot
+    ? modelPolicyViewFromConfig(
+        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+        context.snapshot.snapshotHash,
+      )
+    : null;
+
+  let isSystemOne = false;
+  if (modelPolicy) {
+    try {
+      const { resolveModelRoute, assertModelPolicyIntact } = await import('./model-policy-gateway');
+      const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+      assertModelPolicyIntact(modelPolicy);
+      const resolvedRoute = resolveModelRoute(modelPolicy, 'attribute_ranking', {
+        getCredential: (p: string) => {
+          try {
+            const aiConfig = getFullAiRoutingConfig();
+            const conn =
+              aiConfig.connections[p] ||
+              Object.values(aiConfig.connections).find(
+                (c) => c.id === p || (p === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+              );
+            if (conn && conn.credential) return { provider: p, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
+          } catch {}
+          return null;
+        },
+        defaultBaseUrls: {
+          typesafe: 'https://api.typesafe.ai/v1',
+          ollama: 'http://127.0.0.1:11434/v1',
+          openai: 'https://api.openai.com/v1',
+          deepseek: 'https://api.deepseek.com',
+        },
+      });
+      const aiConfig = getFullAiRoutingConfig();
+      const conn =
+        aiConfig.connections[resolvedRoute.provider] ||
+        Object.values(aiConfig.connections).find(
+          (c) => c.id === resolvedRoute.provider || (resolvedRoute.provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+        );
+      isSystemOne = resolvedRoute.provider === 'typesafe' || conn?.transport === 'systemone';
+    } catch {
+      isSystemOne = false;
+    }
+  }
+
+  if (!isSystemOne) {
+    const allProposals: ClassificationProposal[] = [];
+    const messages: string[] = [];
+    for (const item of items) {
+      const res = await processProductFieldTarget(item.target, input, context, {
+        cardinality: item.cardinality,
+        calibratedThresholds: options.calibratedThresholds,
+      });
+      allProposals.push(...res.proposals);
+      if (res.message) messages.push(res.message);
+    }
+    return { proposals: allProposals, messages };
+  }
+
+  // System One is active:
+  const allProposals: ClassificationProposal[] = [];
+  const messages: string[] = [];
+  const controlledItems: Array<{ target: ResolvedTarget; cardinality: 'single' | 'multiple' }> = [];
+
+  for (const item of items) {
+    const valMode = item.target.attribute?.valueMode;
+    if (valMode === 'freeText' || valMode === 'measured') {
+      const res = await processProductFieldTarget(item.target, input, context, {
+        cardinality: item.cardinality,
+        calibratedThresholds: options.calibratedThresholds,
+      });
+      allProposals.push(...res.proposals);
+      if (res.message) messages.push(res.message);
+    } else {
+      controlledItems.push({
+        target: item.target,
+        cardinality: item.cardinality ?? (item.target.config.selectionMode as 'single' | 'multiple') ?? 'single',
+      });
+    }
+  }
+
+  if (controlledItems.length > 0) {
+    const { batchResolveAttributeDecisions, buildProposalFromAttributeDecision } = await import('./attribute-decision');
+    const decisions = await batchResolveAttributeDecisions({
+      items: controlledItems,
+      evidence: input.evidence,
+      sku: input.sku,
+      runId: context.runId,
+      snapshot: context.snapshot,
+      modelPolicy,
+      assertHeld: context.assertHeld,
+      productContext: {
+        productType: context.cohortExecutionType?.id ?? null,
+      },
+    });
+
+    const snapshotHash = context.snapshot?.snapshotHash ?? null;
+    for (const decision of decisions) {
+      const targetItem = controlledItems.find(
+        (ci) => (ci.target.config.attributeId ?? ci.target.config.id) === decision.targetId,
+      );
+      const targetLabel = targetItem?.target.config.label ?? decision.targetId;
+
+      const proposal = buildProposalFromAttributeDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      allProposals.push(proposal);
+
+      if (decision.status === 'resolved' && (decision.value !== null || (decision.values && decision.values.length > 0))) {
+        const sourceLabel =
+          decision.source === 'jev' ? 'TypeSafe Jev' : decision.source === 'brand_resolved' ? 'resolved' : 'keyword';
+        const displayVal = decision.values && decision.values.length > 0 ? decision.values.join(', ') : decision.value;
+        messages.push(`"${targetLabel}": ${displayVal} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`);
+      } else {
+        messages.push(decision.abstentionReason ?? `Abstained from proposing "${targetLabel}".`);
+      }
+    }
+  }
+
+  return { proposals: allProposals, messages };
+}
+
 // ─── Page Processing ──────────────────────────────────────────────────────────
 
 /**
@@ -528,6 +791,83 @@ export async function processPageTarget(
 
   const groupedSkus = context.productLineContext?.siblingSkus ?? [];
   const isMultiItemGroup = groupedSkus.length >= 2;
+
+  const modelPolicy = context.snapshot
+    ? modelPolicyViewFromConfig(
+        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+        context.snapshot.snapshotHash,
+      )
+    : null;
+
+  let isSystemOne = false;
+  if (modelPolicy) {
+    const stageOverride = modelPolicy.stageOverrides?.category_page_proposals ?? modelPolicy.stageOverrides?.page_assignment;
+    const provider = stageOverride?.provider ?? modelPolicy.defaultProvider;
+    if (provider === 'typesafe') {
+      isSystemOne = true;
+    } else {
+      try {
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[provider] ||
+          Object.values(aiConfig.connections).find(
+            (c) => c.id === provider || (c.transport === 'systemone'),
+          );
+        isSystemOne = conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+  }
+
+  if (isSystemOne && !isMultiItemGroup) {
+    const { resolvePageDecision, buildProposalsFromPageDecision } = await import('./page-decision');
+    const decision = await resolvePageDecision({
+      target,
+      evidence: input.evidence,
+      sku: input.sku,
+      runId: context.runId,
+      snapshot: context.snapshot,
+      modelPolicy,
+      assertHeld: context.assertHeld,
+      selectionMode,
+      maxPages,
+      productContext: {
+        productName: productContext.productName,
+        productDescription: productContext.productDescription,
+        productType: productContext.productType,
+        ocrSummary: productContext.ocrSummary,
+      },
+      reviewedProductTypeId: productContext.productType,
+    });
+
+    if (decision.status === 'abstained' || decision.status === 'failed' || decision.pages.length === 0) {
+      const abstentionProposals = buildProposalsFromPageDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      return {
+        proposals: abstentionProposals,
+        message: decision.abstentionReason ?? `Abstained from proposing category pages (${decision.abstentionCode ?? 'unresolved'}).`,
+      };
+    }
+
+    const proposals = buildProposalsFromPageDecision(
+      decision,
+      input.sku,
+      context.runId,
+      snapshotHash,
+    );
+    const pageNames = decision.pages.map(p => p.pageName);
+    return {
+      proposals,
+      message: `${pageNames.join(', ')} (TypeSafe Jev, ${((decision.selectedProbability ?? decision.pages[0].confidence) * 100).toFixed(0)}%)`,
+    };
+  }
+
   let llmResult: PageAssignmentResult | null;
   let assignmentSource = 'LLM';
 
@@ -567,7 +907,7 @@ export async function processPageTarget(
       };
     }
     llmResult = { pages: member.pages, modelCallIds: member.modelCallIds };
-    assignmentSource = 'cohort LLM';
+    assignmentSource = isSystemOne ? 'TypeSafe Jev' : 'cohort LLM';
   } else {
     llmResult = await llmAssignCategoryPages({
       productName: productContext.productName,
@@ -619,7 +959,7 @@ export async function processPageTarget(
         ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
         : {}),
       verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
-      isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -')) ? false : undefined,
+      isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -') || isSystemOne) ? false : undefined,
       snapshotHash,
       ...(llmResult.modelCallIds?.length ? { modelCallIds: llmResult.modelCallIds } : {}),
     }),
@@ -734,6 +1074,7 @@ export async function materializeCoordinatedPages(
       : [],
   );
   const modelCallIds = stored.modelCallId ? [stored.modelCallId] : undefined;
+  const isJev = output.source === 'typesafe';
   const proposals = output.pages.map(page =>
     buildCategoryPageProposal({
       runId: context.runId,
@@ -748,13 +1089,15 @@ export async function materializeCoordinatedPages(
       verifiedPageIdentity: verifiedPageIdSet.has(page.pageId),
       snapshotHash,
       ...(modelCallIds?.length ? { modelCallIds } : {}),
+      ...(isJev ? { isBulkAcceptable: false } : {}),
     }),
   );
 
   const pageNames = output.pages.map(page => page.pageName);
+  const sourceLabel = isJev ? 'TypeSafe Jev' : 'cohort LLM';
   return {
     proposals,
-    message: `${pageNames.join(', ')} (Cohort page assignment materialized from parent coordination (cohort LLM), ${(output.pages[0].confidence * 100).toFixed(0)}%)`,
+    message: `${pageNames.join(', ')} (Cohort page assignment materialized from parent coordination (${sourceLabel}), ${(output.pages[0].confidence * 100).toFixed(0)}%)`,
   };
 }
 

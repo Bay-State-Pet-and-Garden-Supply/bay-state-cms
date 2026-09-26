@@ -1400,6 +1400,8 @@ export interface ClassificationReadinessCapability {
   targetCount: number;
   runnable: boolean;
   reason?: string;
+  multiValueSupported?: boolean;
+  cohortSupported?: boolean;
 }
 
 export interface ClassificationReadinessReport {
@@ -1431,12 +1433,12 @@ export function evaluateClassificationReadiness(
   const findings = [...validationReport.findings];
 
   const parsed = ClassificationConfigBundleV2Schema.safeParse(input);
-  const config = parsed.success ? parsed.data : null;
+  const config = parsed.success ? parsed.data : (typeof input === 'object' && input !== null ? (input as any) : null);
 
-  const targets = config?.curationTargets ?? [];
-  const productTypeTargets = targets.filter(t => t.kind === 'product_type' && (t.enabled || t.mandatory));
-  const fieldTargets = targets.filter(t => t.kind === 'product_field' && (t.enabled || t.mandatory));
-  const pageTargets = targets.filter(t => t.kind === 'page' && (t.enabled || t.mandatory));
+  const targets = (config?.curationTargets ?? []) as any[];
+  const productTypeTargets = targets.filter((t: any) => t.kind === 'product_type' && (t.enabled || t.mandatory));
+  const fieldTargets = targets.filter((t: any) => t.kind === 'product_field' && (t.enabled || t.mandatory));
+  const pageTargets = targets.filter((t: any) => t.kind === 'page' && (t.enabled || t.mandatory));
 
   // Check mandatory options or target readiness gaps
   if (productTypeTargets.length > 0 && (config?.productTypes?.length ?? 0) === 0) {
@@ -1470,7 +1472,7 @@ export function evaluateClassificationReadiness(
       ? `Product Type classification is runnable (${productTypeTargets.length} target(s) enabled).`
       : `Product Type classification is disabled (${productTypeTargets.length} target(s) enabled).`,
     productFieldsRunnable
-      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled).`
+      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled, single- and multi-value supported).`
       : `Product Attribute classification is disabled (${fieldTargets.length} target(s) enabled).`,
     categoryPagesRunnable
       ? `Category Page classification is runnable (${pageTargets.length} target(s) enabled).`
@@ -1499,6 +1501,7 @@ export function evaluateClassificationReadiness(
         targetCount: fieldTargets.length,
         runnable: productFieldsRunnable,
         reason: productFieldsRunnable ? undefined : (fieldTargets.length === 0 ? 'No enabled Product Field targets' : 'Configuration errors present'),
+        multiValueSupported: true,
       },
       categoryPages: {
         kind: 'page',
@@ -1506,6 +1509,7 @@ export function evaluateClassificationReadiness(
         targetCount: pageTargets.length,
         runnable: categoryPagesRunnable,
         reason: categoryPagesRunnable ? undefined : (pageTargets.length === 0 ? 'No enabled Category Page targets' : 'Configuration errors present'),
+        cohortSupported: true,
       },
     },
     findings,

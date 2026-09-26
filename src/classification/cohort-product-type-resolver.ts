@@ -412,10 +412,16 @@ export interface CohortMemberInput {
  * (fail-closed — no silent type from a failed model path).
  */
 export interface MemberLlmRankResult {
-  /** The LLM-chosen product type id (one of the member's resolved options). */
+  /** The LLM/Jev-chosen product type id (one of the member's resolved options). */
   productTypeId: string;
-  /** The LLM ranker confidence (0..1). */
+  /** The ranker confidence (0..1) or selected probability. */
   confidence: number;
+  /** Result source: 'llm' or 'jev' */
+  source?: 'llm' | 'jev';
+  /** Selected probability when from Jev */
+  selectedProbability?: number | null;
+  /** Vendor confidence when from Jev */
+  vendorConfidence?: number | null;
 }
 
 export interface ResolveCohortProductTypeInput {
@@ -470,7 +476,11 @@ export interface PerMemberProductTypeResult {
    * the freeze-time run-bound ranker did, 'none' when the member has no
    * contribution at all (no match and no reviewed type).
    */
-  source: 'reviewed' | 'keyword' | 'llm' | 'none';
+  source: 'reviewed' | 'keyword' | 'llm' | 'jev' | 'none';
+  /** Selected probability when Jev produced the match */
+  selectedProbability?: number | null;
+  /** Vendor confidence when Jev produced the match */
+  vendorConfidence?: number | null;
   /**
    * PR5 hardening (P1-2): the member's compatible reviewed Primary Product
    * Type id from the snapshot's provenance-compatible reviewed facts, or
@@ -505,7 +515,7 @@ export interface PerMemberProductTypeResult {
 export type ConfidentMemberProductTypeResult = PerMemberProductTypeResult & {
   productTypeId: string;
   confidence: number;
-  source: 'reviewed' | 'keyword' | 'llm';
+  source: 'reviewed' | 'keyword' | 'llm' | 'jev';
 };
 
 /** Member support for the resolved type: confident members vs total members. */
@@ -571,10 +581,14 @@ interface MemberResolution {
   inferredTypeId: string | null;
   /** Raw inferred confidence, or null when no match at all. */
   inferredConfidence: number | null;
-  /** Raw inferred source — 'keyword'/'llm', 'none' when no match at all. */
-  inferredSource: 'keyword' | 'llm' | 'none';
+  /** Raw inferred source — 'keyword'/'llm'/'jev', 'none' when no match at all. */
+  inferredSource: 'keyword' | 'llm' | 'jev' | 'none';
   /** True when the raw inference contributes no confident id (no match, or confidence < floor). */
   inferredAbstention: boolean;
+  /** Selected probability when Jev produced the match */
+  selectedProbability?: number | null;
+  /** Vendor confidence when Jev produced the match */
+  vendorConfidence?: number | null;
   /** Evidence packet ids behind the raw match ([] when no confident match). */
   supportingEvidenceIds: string[];
 }
@@ -773,11 +787,13 @@ function resolveMemberResolution(
     : match;
   // A null effective result (unmappable LLM label) is an abstention; a
   // below-floor match/LLM confidence also counts as an abstention (the raw
-  // values stay visible for diagnostics).
+  // values stay visible for diagnostics). Jev member eligibility uses evaluated
+  // frozen policy (already gated at JEV_PRODUCT_TYPE_MIN_PROBABILITY 0.50); no artificial
+  // clamps or probability boosts to pass cohort floor.
   const isAbstention = effective === null
     || effective.productTypeId === null
     || effective.confidence === null
-    || effective.confidence < confidenceFloor;
+    || (effective.source === 'jev' ? false : effective.confidence < confidenceFloor);
 
   // PR5 hardening (P1-2): the member's compatible reviewed Primary Product
   // Type. The freeze passes it explicitly (extracted from the snapshot's
@@ -796,6 +812,8 @@ function resolveMemberResolution(
     inferredConfidence: effective?.confidence ?? null,
     inferredSource: effective?.source ?? 'none',
     inferredAbstention: isAbstention,
+    selectedProbability: (effective as any)?.selectedProbability ?? null,
+    vendorConfidence: (effective as any)?.vendorConfidence ?? null,
     supportingEvidenceIds: isAbstention ? [] : packet.evidenceIds,
   };
 }
@@ -815,10 +833,22 @@ function resolveMemberResolution(
 function mapLlmRankResultToMemberOption(
   llmResult: MemberLlmRankResult,
   options: ResolvedTargetOption[],
-): { productTypeId: string; confidence: number; source: 'llm' } | null {
+): {
+  productTypeId: string;
+  confidence: number;
+  source: 'llm' | 'jev';
+  selectedProbability?: number | null;
+  vendorConfidence?: number | null;
+} | null {
   const productTypeId = mapRankedLabelToOptionExactlyOne(llmResult.productTypeId, options);
   if (productTypeId === null) return null;
-  return { productTypeId, confidence: llmResult.confidence, source: 'llm' as const };
+  return {
+    productTypeId,
+    confidence: llmResult.confidence,
+    source: llmResult.source === 'jev' ? 'jev' : 'llm',
+    selectedProbability: llmResult.selectedProbability,
+    vendorConfidence: llmResult.vendorConfidence,
+  };
 }
 
 /**

@@ -31,6 +31,9 @@ const PUBLISHED_PRICING: Record<string, ModelPricing> = {
   'deepseek-v4-flash': { inputPerMillion: 0.14, outputPerMillion: 0.28, effectiveAt: '2026-01-01' },
   'deepseek-v4-pro': { inputPerMillion: 0.435, outputPerMillion: 0.87, effectiveAt: '2026-01-01' },
   'gpt-4o-mini': { inputPerMillion: 0.15, outputPerMillion: 0.60, effectiveAt: '2026-01-01' },
+  // TypeSafe Jev 1.13: $0.042/Mtok input, output tokens free (documented
+  // $42/Btok). Output records null so cost is input-only, never zero-filled.
+  'jev-1.13.0': { inputPerMillion: 0.042, outputPerMillion: null, effectiveAt: '2026-09-22' },
 };
 
 /**
@@ -69,14 +72,16 @@ export function computeApiCost(
   }
 
   const pricing = getModelPricing(model);
-  if (!pricing || pricing.inputPerMillion === null || pricing.outputPerMillion === null) {
+  if (!pricing || pricing.inputPerMillion === null) {
     return { estimatedApiCostUsd: null, costBasis: 'unknown' };
   }
 
   const pTokens = promptTokens ?? 0;
-  const cTokens = completionTokens ?? 0;
   const inputCost = (pTokens / 1_000_000) * pricing.inputPerMillion;
-  const outputCost = (cTokens / 1_000_000) * pricing.outputPerMillion;
+  // Output-free pricing (TypeSafe Jev: output tokens are free) records
+  // input-only cost; unknown completion tokens stay unknown on that leg.
+  const outputCost = pricing.outputPerMillion === null ? 0
+    : ((completionTokens ?? 0) / 1_000_000) * pricing.outputPerMillion;
   const totalCost = Number((inputCost + outputCost).toFixed(6));
 
   return {

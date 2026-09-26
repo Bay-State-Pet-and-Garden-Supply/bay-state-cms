@@ -57,7 +57,7 @@ function legacySignedDecimalHash(value: string): string {
   return String(hash);
 }
 
-function upsertConfigFile(workspaceId: string, fileName: string, schemaVersion: number, content: unknown): void {
+export function upsertConfigFile(workspaceId: string, fileName: string, schemaVersion: number, content: unknown): void {
   const json = canonicalJsonStringify(content);
   const hash = hashCanonicalJson(content);
   getDb().run(
@@ -257,6 +257,34 @@ export function syncConfigToCache(workspaceId: string, config: ClassificationCon
     );
     upsertConfigFile(workspaceId, 'data-sharing.json', schemaVersion, config.dataSharing);
   })();
+}
+
+/**
+ * Update classification model policy and data sharing tables and files in SQLite cache.
+ */
+export function syncPolicyToCache(workspaceId: string, modelPolicy: unknown, dataSharing: unknown): void {
+  const db = getDb();
+  db.run(
+    `INSERT INTO classification_model_policies (workspace_id, policy_json, config_hash, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(workspace_id) DO UPDATE SET
+       policy_json = EXCLUDED.policy_json,
+       config_hash = EXCLUDED.config_hash,
+       updated_at = EXCLUDED.updated_at`,
+    [workspaceId, canonicalJsonStringify(modelPolicy), hashCanonicalJson(modelPolicy), now()],
+  );
+  upsertConfigFile(workspaceId, 'model-policies.json', 2, modelPolicy);
+
+  db.run(
+    `INSERT INTO classification_data_sharing_policies (workspace_id, policy_json, config_hash, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(workspace_id) DO UPDATE SET
+       policy_json = EXCLUDED.policy_json,
+       config_hash = EXCLUDED.config_hash,
+       updated_at = EXCLUDED.updated_at`,
+    [workspaceId, canonicalJsonStringify(dataSharing), hashCanonicalJson(dataSharing), now()],
+  );
+  upsertConfigFile(workspaceId, 'data-sharing.json', 2, dataSharing);
 }
 
 // ─── Config Snapshot (for reproducible runs) ────────────────────────────────────

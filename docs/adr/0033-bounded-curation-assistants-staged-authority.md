@@ -1,9 +1,9 @@
 # ADR 0033: Bounded Curation Assistants with Staged Authority
 
 - **Status:** Proposed (2026-08) — drafted during structured design grilling; implementation is gated on the acceptance milestones below and does **not** proceed on this document alone.
+- **Reconciliation (2026-09-22, spec #293):** the owner-approved scope is the TypeSafe-Jev product-type-first Curation program: Curation decisions (Product Types, controlled Product Attributes, Category Pages), selectable providers (TypeSafe alongside existing chat providers), reviewed-only proposal authority, deterministic/cohort architecture preserved, and truthful evaluation. This ADR's first-slice wording (catalog-adjudication hardening, 1,500-LOC cap) does **not** describe that larger program — the cap and slice plan below bind only the original adjudication slice. The #293 program carries **separate bounded budgets per delivery ticket** (#295 connect, #296 settings routes, #297+ stage adapters, benchmark/evaluation tickets), each sized in its ticket. Nothing here authorizes automatic approval, reduced human review, or an agent architecture; those remain explicit non-goals. Policy-only editing boundary: Settings writers may change workspace model-policy and data-sharing documents (plus manifest metadata) under configuration locking/CAS with an exact changed-file allowlist; taxonomy content, origins, catalog attestations, and freeze guards are untouched and fail closed when violated.
 - **Basis:** Three-angle research pass (external evidence, repo scout, practical tradeoffs) plus independent oracle advisory, 2026-08-25. Key external anchors: Anthropic *Building Effective Agents* (workflows-vs-agents criterion), Amazon catalog generator–evaluator consensus pattern, Skyvern selector-first/AI-fallback, Brain.co agent→pipeline rollback post-mortem.
 - **Numbering note:** ADR number 0032 was used by an untracked cohort-cutover record that was removed after its cutover completed (the single-path lesson it documented still binds — see Constraints). This document takes 0033 to avoid collision with that history.
-
 ## Decision
 
 We will **not** build a new agent-focused onboarding architecture. The deterministic pipeline remains the execution spine. LLM intelligence is reintroduced only as **bounded capabilities called Assistants**, productized inside existing seams:
@@ -57,3 +57,15 @@ We will **not** build a new agent-focused onboarding architecture. The determini
 1. Instrumentation spec: operator-correction capture (schema via repository pattern) for type/category fields in the review drawer.
 2. Eval specification + initial golden set derived from the first instrumented batches.
 3. Authority-threshold config design (one-constant flip, mirroring the packaging-ocr rollout runbook pattern).
+
+## Qualification & Release Framework (2026-09-25, Issue #302)
+
+The qualification and release framework for TypeSafe Jev across Primary Product Type, Controlled Attributes (Single- & Multi-Value), and Category Pages/Cohorts is complete:
+
+1. **Family-Separated Adjudicated Benchmark (`benchmark-jev-qualification-goldset.json`):** 16 representative, adjudicated entries covering food, treats, toys, animal care, pest control, lawn & garden, confusing neighbors, unknown types (`no-fit`), and incomplete evidence (`insufficient-evidence`, `unlabeled`). Strict family separation between `dev` and `holdout` splits with verified zero split leakage.
+2. **Offline Comparison Engine (`src/classification/jev-qualification-service.ts`):** Evaluates candidate vs. current-provider baseline across raw correctness, coverage, incorrect proposals, regressions, multi-value attribute set metrics (precision, recall, F1), category page set metrics, latency (p50, p95), cost, and end-to-end cohort pipeline effects. Disclaims operator review-time gains until empirical time-tracking in the review drawer confirms them.
+3. **Qualification CLI Runner (`scripts/typesafe-curation-qualification.ts`):** Executable evaluation runner evaluating offline comparison and assessing all 10 qualification criteria.
+4. **Automated Verification Suite (`src/tests/unit/typesafe-curation-qualification.test.ts`):** Comprehensive test suite validating all 10 criteria end-to-end.
+5. **Truthful Live & Canary Gates:** In accordance with Gates 2 & 5, absence of errors or mocks never passes live contract checks or canary stages. In environments without live credentials (`TYPESAFE_API_KEY`) or completed store manager canary reviews, the system explicitly reports blockers and maintains `PROVISIONALLY_QUALIFIED` status.
+6. **Operator Runbook (`docs/runbooks/typesafe-jev-curation-rollout.md`):** Complete operational authority for setup, troubleshooting, confidence concepts (probability vs concentration confidence), canary sequencing, and zero-retry fail-closed rollback.
+
