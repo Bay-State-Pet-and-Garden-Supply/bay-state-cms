@@ -539,10 +539,6 @@ describe('stage-one activation follow-ups (isolated workspace)', () => {
     ensureFollowupDb();
   });
 
-  beforeEach(() => {
-    ensureFollowupDb();
-  });
-
   it('gate-to-worker: unhealthy official + usable distributors proceed through the #125 path (F2)', async () => {
     ensureWs2();
     overrideSourcingFlags({ sourcingEngineEnabled: true, mode: 'automatic' });
@@ -760,10 +756,6 @@ function ws3Read(batchId: string) {
 
 describe('stage-one activation follow-ups II (isolated workspace)', () => {
   beforeAll(() => {
-    ensureFollowupDb();
-  });
-
-  beforeEach(() => {
     ensureFollowupDb();
   });
 
