@@ -15,19 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn(),
   extractProductContext: vi.fn(),
-}));
-
-vi.mock('@/db/repositories/provider-connection-repo', () => ({
-  getFullAiRoutingConfig: vi.fn(() => ({ connections: {} })),
-}));
-vi.mock('@/db/repositories/api-key-repo', () => ({
-  getApiKey: vi.fn(() => null),
-}));
-vi.mock('@/db/repositories/classification-model-call-repo', () => ({
-  insertModelCallStart: vi.fn(),
-  completeModelCall: vi.fn(),
-  insertTerminalModelCall: vi.fn(),
-  recordTerminalPreflight: vi.fn(),
+  llmAssignCategoryPages: vi.fn(),
 }));
 
 vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
@@ -52,6 +40,9 @@ vi.mock('@/classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
 }));
 
+vi.mock('@/classification/curation-target-ranker', () => ({
+  llmRankOptions: vi.fn(),
+}));
 
 vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: vi.fn(),
@@ -61,30 +52,17 @@ vi.mock('@/classification/product-type-decision', () => ({
   resolveProductTypeDecision: vi.fn(),
 }));
 
-vi.mock('@/classification/page-decision', () => ({
-  resolvePageDecision: vi.fn(),
-  buildProposalsFromPageDecision: vi.fn((decision, _sku, _runId, _snapshotHash) => {
-    if (decision.status === 'abstained' || decision.status === 'failed') return [];
-    return decision.pages.map((p: any) => ({
-      id: `prop-${p.pageId}`,
-      proposalType: 'category_page',
-      targetId: p.pageId,
-      proposedValue: { pageId: p.pageId, pageName: p.pageName },
-      confidence: p.confidence,
-    }));
-  }),
-}));
-
 // Import after mocks
 import { processPageTarget, processProductFieldTarget } from '../../classification/curation-target-processor';
 import {
   buildPageHierarchy,
   extractProductContext,
+  llmAssignCategoryPages,
 } from '../../classification/page-assignment-llm';
-import { resolvePageDecision } from '../../classification/page-decision';
 import type { StageInput, StageContext } from '../../classification/types';
 import type { ClassificationEvidence } from '../../shared/types';
 import type { ResolvedTarget } from '../../classification/curation-target-resolver';
+import { llmRankOptions } from '../../classification/curation-target-ranker';
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -143,7 +121,7 @@ describe('processPageTarget (LLM-first)', () => {
 
     expect(result.proposals).toEqual([]);
     expect(result.message).toContain('No options available');
-    expect(resolvePageDecision).not.toHaveBeenCalled();
+    expect(llmAssignCategoryPages).not.toHaveBeenCalled();
   });
 
   it('calls LLM (not keyword matcher) when page options exist and returns proposals', async () => {
@@ -165,18 +143,11 @@ describe('processPageTarget (LLM-first)', () => {
       },
       productType: 'Dry Dog Food',
     });
-    vi.mocked(resolvePageDecision).mockResolvedValue({
-      status: 'succeeded',
-      outcome: 'predicted',
-      source: 'jev',
+    vi.mocked(llmAssignCategoryPages).mockResolvedValue({
       pages: [
         { pageId: 'dog-food-dry', pageName: 'Dog Food Dry', confidence: 0.85 },
         { pageId: 'dog-food-wet', pageName: 'Dog Food Wet', confidence: 0.65 },
       ],
-      modelCallIds: [],
-      evidenceIds: [],
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: [],
     });
 
     const context = makeContext();
@@ -206,15 +177,13 @@ describe('processPageTarget (LLM-first)', () => {
       context,
     );
 
-    expect(resolvePageDecision).toHaveBeenCalledTimes(1);
+    expect(llmAssignCategoryPages).toHaveBeenCalledTimes(1);
     expect(buildPageHierarchy).toHaveBeenCalledTimes(1);
     expect(extractProductContext).toHaveBeenCalledTimes(1);
-    expect(resolvePageDecision).toHaveBeenCalledWith(
+    expect(llmAssignCategoryPages).toHaveBeenCalledWith(
       expect.objectContaining({
-        productContext: expect.objectContaining({
-          productName: 'Test Product',
-          productType: 'Dry Dog Food',
-        }),
+        productName: 'Test Product',
+        productType: 'Dry Dog Food',
       }),
     );
 
@@ -239,17 +208,7 @@ describe('processPageTarget (LLM-first)', () => {
       },
       productType: null,
     });
-    vi.mocked(resolvePageDecision).mockResolvedValue({
-      status: 'abstained',
-      outcome: 'abstained',
-      source: 'jev',
-      pages: [],
-      abstentionReason: 'No page assignment from LLM',
-      modelCallIds: [],
-      evidenceIds: [],
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: [],
-    });
+    vi.mocked(llmAssignCategoryPages).mockResolvedValue(null);
 
     const context = makeContext();
     const input = makeInput();
@@ -292,15 +251,8 @@ describe('processPageTarget (LLM-first)', () => {
       },
       productType: null,
     });
-    vi.mocked(resolvePageDecision).mockResolvedValue({
-      status: 'succeeded',
-      outcome: 'predicted',
-      source: 'jev',
+    vi.mocked(llmAssignCategoryPages).mockResolvedValue({
       pages: [{ pageId: 'dog-food-dry', pageName: 'Dog Food Dry', confidence: 0.8 }],
-      modelCallIds: [],
-      evidenceIds: [],
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: [],
     });
 
     const context = makeContext();
@@ -349,15 +301,8 @@ describe('processPageTarget (LLM-first)', () => {
       },
       productType: null,
     });
-    vi.mocked(resolvePageDecision).mockResolvedValue({
-      status: 'succeeded',
-      outcome: 'predicted',
-      source: 'jev',
+    vi.mocked(llmAssignCategoryPages).mockResolvedValue({
       pages: [{ pageId: 'dog-food-dry', pageName: 'Dog Food Dry', confidence: 0.8 }],
-      modelCallIds: [],
-      evidenceIds: [],
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: [],
     });
 
     const context = makeContext();
@@ -469,6 +414,11 @@ const brandEvidence = (id: string, overrides: Partial<ClassificationEvidence>): 
 describe('brand shortcut (issue #17 pass 5b)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(llmRankOptions).mockResolvedValue({
+      values: ['Blue Buffalo'],
+      confidence: 0.9,
+      modelCallIds: [],
+    });
   });
 
   it('shortcuts only when EVERY reviewed brand assertion (incl. ordinary scalar brand records) agrees on the exact canonical identity', async () => {
@@ -481,6 +431,7 @@ describe('brand shortcut (issue #17 pass 5b)', () => {
     expect(result.proposals).toHaveLength(1);
     expect(result.proposals[0].proposedValue).toBe('Blue Buffalo');
     expect(result.proposals[0].supportingEvidenceIds?.sort()).toEqual(['ev-resolved', 'ev-scalar'].sort());
+    expect(llmRankOptions).not.toHaveBeenCalled();
   });
 
   it('does NOT shortcut when a scalar official-page brand disagrees with the resolved brand — conflict is visible, never first-wins', async () => {

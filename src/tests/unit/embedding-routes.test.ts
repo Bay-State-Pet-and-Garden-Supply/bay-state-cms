@@ -37,56 +37,84 @@ afterEach(() => {
   closeDb();
 });
 
-describe('embedding routes — retired per ADR 0033 (410 Gone)', () => {
-  it('stats endpoint returns 410 Gone', async () => {
+describe('embedding routes — workspace scoping', () => {
+  it('stats are workspace-scoped and return 200', async () => {
     const app = makeApp();
     const res = await app.request('/api/embeddings/stats?model=nomic-embed-text');
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.code).toBe('feature_retired');
+    expect(body.totalEmbedded).toBe(0);
+    expect(body.namespace).toBe('production');
   });
 
-  it('feature-policy endpoint returns 410 Gone', async () => {
+  it('feature-policy reports fail-closed empty decisions without a policy', async () => {
     const app = makeApp();
     const res = await app.request('/api/embeddings/feature-policy');
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.code).toBe('feature_retired');
+    expect(body.features).toEqual({});
+    expect(body.note).toContain('fails closed');
   });
+});
 
-  it('production rebuild returns 410 Gone', async () => {
+describe('embedding routes — production is policy-disabled (fail closed)', () => {
+  it('production rebuild returns a policy-disabled response without a policy', async () => {
     const app = makeApp();
     const res = await app.request('/api/embeddings/rebuild-prod', {
       method: 'POST',
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.code).toBe('feature_retired');
+    expect(body.policyDisabled).toBe(true);
   });
 
-  it('production search returns 410 Gone', async () => {
+  it('production search returns a policy-disabled response without a policy', async () => {
     const app = makeApp();
     const res = await app.request('/api/embeddings/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: 'dog food' }),
     });
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.code).toBe('feature_retired');
+    expect(body.policyDisabled).toBe(true);
   });
 
-  it('rebuild returns 410 Gone', async () => {
+  it('requires a query for search', async () => {
+    const app = makeApp();
+    const res = await app.request('/api/embeddings/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('embedding routes — evaluation maintenance gated by token + policy', () => {
+  it('denies evaluation maintenance without an explicit token', async () => {
     const app = makeApp();
     const res = await app.request('/api/embeddings/rebuild', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.code).toBe('feature_retired');
+    expect(body.code).toBe('evaluation_request_token_required');
+  });
+
+  it('denies evaluation maintenance even with a token when no policy permits it', async () => {
+    const app = makeApp();
+    const res = await app.request('/api/embeddings/rebuild', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluationRequestToken: 'token' }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.policyDisabled).toBe(true);
   });
 });
 

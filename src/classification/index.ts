@@ -143,4 +143,35 @@ export type { FeatureRequest, FeatureRequestScope, FeaturePolicyOptions } from '
 
 export type { GoldExampleForEvaluation, ControlledValues, ComputeMetricsOptions, EvaluateBenchmarkOptions, EvaluateBenchmarkResult } from './benchmark-evaluator';
 
+// ─── Retrieval Index (M10) ─────────────────────────────────────────────────────
+export { InMemoryRetrievalIndex, VectorValidationError, assertFiniteVector, embeddingDocumentId, benchmarkEmbeddingDocumentId, buildBenchmarkRetrievalIndex } from './retrieval-index';
+export type {
+  VectorEntry,
+  RetrievalIndex,
+  RetrievalHit,
+  RetrievalSearchOptions,
+  EmbeddingNamespace,
+  BenchmarkIndexExample,
+  BuildBenchmarkIndexOptions,
+  BenchmarkIndexBuildResult,
+} from './retrieval-index';
 
+// ─── Embedding Maintenance (M10) ───────────────────────────────────────────────
+export { runEmbeddingMaintenance, computeDesiredEmbeddings, planEmbeddingMaintenance, loadCurrentIndex, EmbeddingMaintenanceLockedError, EmbeddingPolicyDeniedError, EMBEDDING_MODEL, EMBEDDING_PROVIDER } from './embedding-maintenance';
+export type {
+  DesiredEmbedding,
+  MaintenancePlan,
+  MaintenanceReport,
+  MaintenanceOptions,
+} from './embedding-maintenance';
+
+// ─── Retrieval / Rerank (M10) ──────────────────────────────────────────────────
+export { findSimilarApprovedProducts, RetrievalPolicyDisabledError, assertProductionRetrievalAllowed } from './product-retrieval';
+export type { SimilarProduct, RetrievalOptions } from './product-retrieval';
+export {
+  rerankPageProposals,
+  rerankPageProposalsVerified,
+  assertVerifiedPageRerankContext,
+  PageRerankBlockedError,
+} from './page-reranker';
+export type { PageProposal, RankedPageProposal, RerankVerifiedOptions } from './page-reranker';

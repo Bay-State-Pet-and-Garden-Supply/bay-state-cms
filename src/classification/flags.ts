@@ -229,6 +229,9 @@ export interface TypeFirstCurationFlags {
   typeChangeRefreshWorkerEnabled: boolean;
   typeDependentRecomputeEnabled: boolean;
   productTypeDeterministicVerifierMode: 'off' | 'shadow' | 'enforce';
+  productTypeSecondModelShadowEnabled: boolean;
+  productTypeShadowEnabled: boolean;
+  productTypeVerifierEnabled: boolean;
 }
 
 export const DEFAULT_TYPE_FIRST_CURATION_FLAGS: TypeFirstCurationFlags = {
@@ -236,6 +239,9 @@ export const DEFAULT_TYPE_FIRST_CURATION_FLAGS: TypeFirstCurationFlags = {
   typeChangeRefreshWorkerEnabled: false,
   typeDependentRecomputeEnabled: false,
   productTypeDeterministicVerifierMode: 'off',
+  productTypeSecondModelShadowEnabled: false,
+  productTypeShadowEnabled: false,
+  productTypeVerifierEnabled: false,
 };
 
 let typeFirstRuntimeOverride: Partial<TypeFirstCurationFlags> | null = null;
@@ -248,6 +254,9 @@ export function loadTypeFirstCurationFlags(
     typeChangeRefreshWorkerEnabled: parseBooleanEnv(env['BAYSTATE_CMS_TYPE_CHANGE_REFRESH_WORKER'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.typeChangeRefreshWorkerEnabled),
     typeDependentRecomputeEnabled: parseBooleanEnv(env['BAYSTATE_CMS_TYPE_DEPENDENT_RECOMPUTE'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.typeDependentRecomputeEnabled),
     productTypeDeterministicVerifierMode: (env['BAYSTATE_CMS_PRODUCT_TYPE_VERIFIER_MODE'] as any) ?? DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeDeterministicVerifierMode,
+    productTypeSecondModelShadowEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_SECOND_MODEL_SHADOW'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeSecondModelShadowEnabled),
+    productTypeShadowEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_SHADOW'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeShadowEnabled),
+    productTypeVerifierEnabled: parseBooleanEnv(env['BAYSTATE_CMS_PRODUCT_TYPE_VERIFIER'], DEFAULT_TYPE_FIRST_CURATION_FLAGS.productTypeVerifierEnabled),
   };
 }
 

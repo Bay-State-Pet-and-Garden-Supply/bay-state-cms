@@ -4,13 +4,46 @@
  * Runs under vitest. Mocks the LLM client and page repo so no
  * real API calls or database connections are made.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import type { ClassificationEvidence, ClassificationProposal } from '../../shared/schemas/classification';
+
+// Helper: cast a mock-spy value to its Mock type so TS sees .mockResolvedValue etc.
+function asMock(fn: any): Mock {
+  return fn as unknown as Mock;
+}
+
+// ── Mocks (hoisted) ──────────────────────────────────────────────────────────
+
+vi.mock('@/onboarding/llm-client', () => {
+  const callLlmForTask = vi.fn();
+  return {
+    callLlmForTask,
+    // The audited wrapper is used by production call sites; forward it to the
+    // same transport mock so existing assertions on callLlmForTask keep
+    // working while the provenance wrapper returns the enriched result shape.
+    callLlmForTaskWithProvenance: vi.fn(async (task: string, prompt: string, system: string) => {
+      const content = await callLlmForTask(task, prompt, system);
+      return content == null
+        ? null
+        : { content, callId: 'call-1', provider: 'openai', model: 'test-model', usage: { promptTokens: null, completionTokens: null, totalTokens: null } };
+    }),
+  };
+});
+
+vi.mock('@/db/repositories/page-repo', () => ({
+  listPages: vi.fn(),
+}));
+
+// Import after mocks are set up
+import { callLlmForTask } from '../../onboarding/llm-client';
+import { listPages } from '../../db/repositories/page-repo';
 import {
   buildPageHierarchy,
   extractProductContext,
+  llmAssignCategoryPages,
   normalizePageAssignments,
   validatePageResponseEntries,
+  type PageAssignmentParams,
 } from '../../classification/page-assignment-llm';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -77,6 +110,10 @@ const BASIC_PAGE_INDEX = makePageIndex([
 // ─── buildPageHierarchy ──────────────────────────────────────────────────────
 
 describe('buildPageHierarchy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('resolves parent names from frozen verified Page records (pure, no DB)', () => {
     const records = [
       { pageId: 'parent-1', pageName: 'Dog Food Shop All', verified: true, parentPageId: null, parentPageName: null },
@@ -117,6 +154,10 @@ describe('buildPageHierarchy', () => {
 // ─── extractProductContext ───────────────────────────────────────────────────
 
 describe('extractProductContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('extracts product name from spreadsheet expected_name', () => {
     const evidence = [
       makeEvidence({ source: 'spreadsheet', sourceField: 'name', value: 'RAW PRODUCT NAME' }),
@@ -729,3 +770,232 @@ describe('validatePageResponseEntries', () => {
   });
 });
 
+// ─── llmAssignCategoryPages ──────────────────────────────────────────────────
+
+describe('llmAssignCategoryPages', () => {
+  const mockPages = [
+    { id: 'dog-food-dry', name: 'Dog Food Dry', parentName: 'Dog Food Shop All' },
+    { id: 'dog-food-wet', name: 'Dog Food Wet', parentName: 'Dog Food Shop All' },
+    { id: 'dog-treats', name: 'Dog Treats Shop All', parentName: null },
+    { id: 'dog-toys', name: 'Dog Toys', parentName: null },
+    { id: 'cat-food', name: 'Cat Food Shop All', parentName: null },
+  ];
+
+  const defaultParams: PageAssignmentParams = {
+    productName: 'Honest Kitchen Beef Recipe',
+    productDescription: 'A premium grain-free dog food.',
+    ocrSummary: {
+      species: ['Dog'],
+      flavor: 'Beef',
+      lifeStage: 'Adult',
+      productForm: 'Dry Kibble',
+      healthConcern: ['Joint Health'],
+      productName: 'Honest Kitchen Beef',
+      brand: 'The Honest Kitchen',
+    },
+    productType: 'Dry Dog Food',
+    pages: mockPages,
+    selectionMode: 'multiple',
+    maxPages: 5,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns null when pages list is empty', async () => {
+    const result = await llmAssignCategoryPages({ ...defaultParams, pages: [] });
+    expect(result).toBeNull();
+    expect(callLlmForTask).not.toHaveBeenCalled();
+  });
+
+  it('returns null when LLM returns null (no config/fallback)', async () => {
+    asMock(callLlmForTask).mockResolvedValue(null);
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when LLM returns unparseable response', async () => {
+    asMock(callLlmForTask).mockResolvedValue('not valid json at all');
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).toBeNull();
+  });
+
+  it('returns validated pages when LLM returns valid JSON with pages array', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({
+        pages: [
+          { pageName: 'Dog Food Dry', confidence: 0.85 },
+          { pageName: 'Dog Food Wet', confidence: 0.65 },
+        ],
+      }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages).toHaveLength(2);
+    expect(result!.pages[0]).toEqual({
+      pageId: 'dog-food-dry',
+      pageName: 'Dog Food Dry',
+      confidence: 0.85,
+    });
+    expect(result!.pages[1]).toEqual({
+      pageId: 'dog-food-wet',
+      pageName: 'Dog Food Wet',
+      confidence: 0.65,
+    });
+  });
+
+  it('rejects page names not in the provided list', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({
+        pages: [
+          { pageName: 'Dog Food Dry', confidence: 0.85 },
+          { pageName: 'Non Existent Page', confidence: 0.7 },
+          { pageName: 'Dog Food Wet', confidence: 0.6 },
+        ],
+      }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages).toHaveLength(2);
+    expect(result!.pages.map(p => p.pageName)).toEqual(['Dog Food Dry', 'Dog Food Wet']);
+  });
+
+  it('returns null when no returned pages match the provided list', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({
+        pages: [
+          { pageName: 'Completely Made Up Page', confidence: 0.9 },
+          { pageName: 'Another Fake Page', confidence: 0.8 },
+        ],
+      }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).toBeNull();
+  });
+
+  it('handles {values: [...]} response shape from LLM', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({ values: ['Dog Food Dry', 'Dog Food Wet'], confidence: 0.8 }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages).toHaveLength(2);
+    expect(result!.pages[0].pageName).toBe('Dog Food Dry');
+    expect(result!.pages[1].pageName).toBe('Dog Food Wet');
+  });
+
+  it('strips markdown code fences from LLM response', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      '```json\n{"pages":[{"pageName":"Dog Food Dry","confidence":0.8}]}\n```',
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages).toHaveLength(1);
+    expect(result!.pages[0].pageName).toBe('Dog Food Dry');
+  });
+
+  it('matches page names case-insensitively', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({ pages: [{ pageName: 'dog food dry', confidence: 0.8 }] }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages[0].pageName).toBe('Dog Food Dry');
+    expect(result!.pages[0].pageId).toBe('dog-food-dry');
+  });
+
+  it('caps confidence between 0.35 and 0.95', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({
+        pages: [
+          { pageName: 'Dog Food Dry', confidence: 0.99 },
+          { pageName: 'Dog Food Wet', confidence: 0.1 },
+        ],
+      }),
+    );
+
+    const result = await llmAssignCategoryPages(defaultParams);
+    expect(result).not.toBeNull();
+    expect(result!.pages[0].confidence).toBe(0.95);
+    expect(result!.pages[1].confidence).toBe(0.35);
+  });
+
+  it('limits results to maxPages', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({
+        pages: [
+          { pageName: 'Dog Food Dry', confidence: 0.9 },
+          { pageName: 'Dog Food Wet', confidence: 0.8 },
+          { pageName: 'Dog Treats Shop All', confidence: 0.7 },
+          { pageName: 'Dog Toys', confidence: 0.6 },
+        ],
+      }),
+    );
+
+    const result = await llmAssignCategoryPages({ ...defaultParams, maxPages: 2 });
+    expect(result).not.toBeNull();
+    expect(result!.pages).toHaveLength(2);
+  });
+
+  // ── Prompt inspection tests ────────────────────────────────────────────
+
+  it('sibling prompt does not contain "assigned to"', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
+    );
+
+    const paramsWithSiblings: PageAssignmentParams = {
+      ...defaultParams,
+      siblingProducts: [
+        { sku: 'SKU002', name: 'Honest Kitchen Beef Recipe Chicken' },
+        { sku: 'SKU003', name: 'Honest Kitchen Beef Recipe Lamb' },
+      ],
+    };
+
+    await llmAssignCategoryPages(paramsWithSiblings);
+
+    expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
+    // callLlmForTask signature: (taskName, prompt, systemPrompt, options)
+    const prompt = asMock(callLlmForTask).mock.calls[0][1] as string;
+    expect(prompt).not.toContain('assigned to');
+    expect(prompt).not.toContain('assigned to []');
+    expect(prompt).toContain('SKU002');
+    expect(prompt).toContain('Honest Kitchen Beef Recipe Chicken');
+    expect(prompt).toContain('SIBLING PRODUCTS');
+  });
+
+  it('includes page IDs ([ID:...]) in the prompt listing', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
+    );
+
+    await llmAssignCategoryPages(defaultParams);
+
+    expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
+    const prompt = asMock(callLlmForTask).mock.calls[0][1] as string;
+    expect(prompt).toContain('[ID:dog-food-dry]');
+    expect(prompt).toContain('[ID:dog-food-wet]');
+  });
+
+  it('prompt instructs LLM to return pageId and pageName', async () => {
+    asMock(callLlmForTask).mockResolvedValue(
+      JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
+    );
+
+    await llmAssignCategoryPages(defaultParams);
+
+    expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
+    const prompt = asMock(callLlmForTask).mock.calls[0][1] as string;
+    expect(prompt).toContain('"pageId"');
+    expect(prompt).toContain('"pageName"');
+  });
+});

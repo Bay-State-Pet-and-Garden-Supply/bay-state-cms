@@ -7,7 +7,7 @@
  * of matching, ranking, or proposal construction logic.
  */
 import type { StageContext, StageInput, CoordinatedPageMemberValue } from './types';
-import type { ClassificationProposal } from '../shared/schemas/classification';
+import { type ClassificationProposal, CanonicalBrandEvidenceValueSchema } from '../shared/schemas/classification';
 import { CohortPageOutputSchema } from '../shared/schemas/cohorts';
 import { loadClassificationConfig } from './config-loader';
 import {
@@ -15,11 +15,20 @@ import {
   type ResolvedTarget,
 } from './curation-target-resolver';
 import {
+  matchKeywordOptions,
+  matchAttributeOptions,
+} from './curation-target-matcher';
+import {
   buildEvidenceTargetPacket,
   buildPageEvidencePacket,
   evidenceMatchesTarget,
+  resolveCanonicalAssertion,
   tokenGroundingSupport,
+  type EvidenceTargetPacket,
 } from './evidence-targeting';
+import { enrichProductDetails } from './detail-enrichment';
+import { llmRankOptions } from './curation-target-ranker';
+import { isCalibratedBulkAcceptable } from './proposal-safety';
 import type { CalibratedThresholds } from './confidence-calibrator';
 import { buildModelCallContext } from './runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
@@ -32,19 +41,14 @@ import {
 import {
   buildPageHierarchy,
   extractProductContext,
+  llmAssignCategoryPages,
+  type PageAssignmentResult,
 } from './page-assignment-llm';
 import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
-import {
-  resolveAttributeDecision,
-  batchResolveAttributeDecisions,
-  buildProposalFromAttributeDecision,
-} from './attribute-decision';
-import {
-  resolvePageDecision,
-  buildProposalsFromPageDecision,
-} from './page-decision';
 
 // ─── Shared Target Constants ──────────────────────────────────────────────────
+
+const KEYWORD_MATCH_MIN_CONFIDENCE = 0.7;
 
 /**
  * Reviewed page-context source fields (issue #17 H): the Page stage uses only
@@ -176,6 +180,7 @@ export async function processProductFieldTarget(
   options: { cardinality?: 'single' | 'multiple'; calibratedThresholds?: CalibratedThresholds | null } = {},
 ): Promise<TargetProcessResult> {
   const { config: targetConfig, options: targetOptions, attribute } = target;
+  const options2 = targetOptions;
   const selectionMode = options.cardinality ?? (targetConfig.selectionMode ?? 'single') as 'single' | 'multiple';
   const snapshotHash = context.snapshot?.snapshotHash ?? null;
 
@@ -201,6 +206,12 @@ export async function processProductFieldTarget(
       return { proposals: [], message: `No evidence text for "${targetConfig.label}".` };
     }
 
+    // PR (epic #46 review round): a freeText/measured value is ONLY
+    // acceptable when grounded in the target's OWN evidence (its attribute
+    // id or catalog field). Unrelated general text (title/description) must
+    // never become an attribute value — the previous `?? text` fallback let
+    // the whole description be proposed as "Brand" / "Product Type".
+    // Abstain (no proposals) when the field has no evidence.
     const grounded = input.evidence.find(
       e =>
         evidenceMatchesTarget(e, { attributeId: attrId, sourceField: null, sourceFields: targetSourceFields }) &&
@@ -251,58 +262,322 @@ export async function processProductFieldTarget(
   }
 
   // ── Controlled attributes path (requires options list)
-  if (!targetOptions || targetOptions.length === 0) {
+  if (!options2 || options2.length === 0) {
     return { proposals: [], message: `No options available for "${targetConfig.label}".` };
   }
 
-  const modelPolicy = context.snapshot
-    ? modelPolicyViewFromConfig(
-        context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
-        context.snapshot.snapshotHash,
-      )
-    : null;
+  // Brand assertions that disagreed in the shortcut pre-pass (visible conflict).
+  let brandConflictEvidenceIds: string[] = [];
 
-  const decision = await resolveAttributeDecision({
-    target,
-    cardinality: selectionMode,
-    evidence: input.evidence,
-    sku: input.sku,
-    runId: context.runId,
-    snapshot: context.snapshot,
-    modelPolicy,
-    assertHeld: context.assertHeld,
-    productContext: {
-      productType: context.cohortExecutionType?.id ?? null,
-    },
-  });
+  // ── Brand shortcut: if this target looks like a brand field AND resolved
+  // brand evidence exists, use it directly instead of keyword/LLM matching.
+  const targetLabel = targetConfig.label.toLowerCase();
+  const targetId = (targetConfig.attributeId ?? targetConfig.id).toLowerCase();
+  const isBrandField = targetLabel.includes('brand') || targetId.includes('brand');
 
-  const proposal = buildProposalFromAttributeDecision(
-    decision,
-    input.sku,
-    context.runId,
-    snapshotHash,
-  );
-
-  if (decision.status === 'abstained' || decision.status === 'failed' || (!decision.value && (!decision.values || decision.values.length === 0))) {
-    return {
-      proposals: [proposal],
-      message: decision.abstentionReason ?? `Abstained from proposing attribute value (${decision.abstentionCode ?? 'unresolved'}).`,
-    };
+  if (isBrandField) {
+    // Evaluate EVERY reviewed brand assertion, never `.find()` first: a
+    // disagreement between brand statements is a visible conflict that must
+    // force individual review, not a silent first-wins shortcut. This covers
+    // resolved-brand evidence, ordinary `sourceField='brand'` scalar
+    // assertions, and any record with the brand attribute id. Agreement uses
+    // EXACT canonical/alias identity — never case folding ('Blue Buffalo'
+    // and 'BLUE BUFFALO' are distinct identities).
+    const brandAttributeId = targetConfig.attributeId ?? targetConfig.id;
+    const brandEvidence = input.evidence.filter(
+      e =>
+        e.sourceField === 'resolved_brand'
+        || e.sourceField === 'brand'
+        || e.attributeId === brandAttributeId
+        || e.attributeId === 'brand',
+    );
+    if (brandEvidence.length > 0) {
+      const parsedBrands: Array<{ id: string; brandName: string }> = [];
+      for (const record of brandEvidence) {
+        const parsed = CanonicalBrandEvidenceValueSchema.safeParse(record.value);
+        let name: unknown = parsed.success
+          ? parsed.data.brandName
+          : ((record.value as any)?.brandName ?? (record.value as any)?.name);
+        // Scalar brand assertions: a plain string value IS the brand name.
+        if (typeof name !== 'string' && typeof record.value === 'string') {
+          name = record.value;
+        }
+        const canonicalName = resolveCanonicalAssertion(name, attribute?.valueAliases ?? []);
+        if (canonicalName !== null) {
+          parsedBrands.push({ id: record.id, brandName: canonicalName });
+        }
+      }
+      if (parsedBrands.length > 0) {
+        const uniqueBrands = [...new Set(parsedBrands.map(p => p.brandName))];
+        const allBrandIds = parsedBrands.map(p => p.id).filter(Boolean);
+        if (uniqueBrands.length === 1) {
+          // All assertions agree on the exact canonical identity: shortcut is
+          // safe, and every assertion is supporting (not just the first one).
+          const brandName = uniqueBrands[0];
+          const matchedOption = options2.find(o =>
+            resolveCanonicalAssertion(o.label, attribute?.valueAliases ?? []) === brandName,
+          );
+          const value = matchedOption?.label ?? brandName;
+          const proposal = buildFieldAssignmentProposal({
+            runId: context.runId,
+            sku: input.sku,
+            attributeId: brandAttributeId,
+            value,
+            confidence: 0.9,
+            evidenceIds: allBrandIds,
+            supportingEvidenceIds: allBrandIds,
+            isMultiple: false,
+            isBulkAcceptable: false, // Guardrail: requires manual review until Issue #10 lands
+            snapshotHash,
+          });
+          return {
+            proposals: [proposal],
+            message: `Brand: "${brandName}" (resolved, 90%)`,
+          };
+        }
+        // Disagreement between brand assertions: fall through to the normal
+        // matching path and mark the conflict so the resulting proposal is
+        // never bulk-acceptable and the disagreeing assertions are visible as
+        // contradicting evidence.
+        brandConflictEvidenceIds = allBrandIds;
+      }
+    }
   }
 
-  const sourceLabel =
-    decision.source === 'jev'
-      ? 'TypeSafe Jev'
-      : decision.source === 'brand_resolved'
-        ? 'resolved'
-        : decision.source === 'keyword'
-          ? 'keyword'
-          : 'resolved';
-  const displayVal = decision.values && decision.values.length > 0 ? decision.values.join(', ') : decision.value;
-  return {
-    proposals: [proposal],
-    message: `"${targetConfig.label}": ${displayVal} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`,
-  };
+  // Bounded target-specific packet: the LLM prompt and proposal evidence are
+  // selected by attributeId + the reviewed catalog-field mapping, never a
+  // run-wide union and never the attribute id used as a source field. Brand
+  // targets additionally accept the reviewed `brand`/`resolved_brand` source
+  // fields so ordinary brand assertions remain target-relevant.
+  const attrId = targetConfig.attributeId ?? targetConfig.id;
+  const catalogField = targetConfig.catalogField ?? null;
+  const brandSourceFields = isBrandField ? ['brand', 'resolved_brand'] : [];
+  const packetSourceFields = catalogField
+    ? [...new Set([catalogField, ...brandSourceFields])]
+    : brandSourceFields.length
+      ? brandSourceFields
+      : null;
+  const fieldPacket = buildEvidenceTargetPacket(input.evidence, {
+    attributeId: attrId,
+    sourceField: catalogField,
+    sourceFields: packetSourceFields,
+    selectionMode,
+    aliases: attribute?.valueAliases ?? [],
+    isGroundingSupport: tokenGroundingSupport,
+  });
+  const text = fieldPacket.promptText;
+  if (!text) {
+    return { proposals: [], message: `No evidence text for "${targetConfig.label}".` };
+  }
+
+  const optionStrings = options2.map(o => o.label);
+
+  // Try deterministic alias/exact matching first
+  const aliasMatches = attribute
+    ? matchAttributeOptions(attribute, text, optionStrings, selectionMode)
+    : [];
+
+  let values: string[] = [];
+  let confidence = 0;
+  let llmModelCallIds: string[] | undefined;
+
+  if (aliasMatches.length > 0) {
+    values = aliasMatches.map(m => m.value);
+    confidence = Math.max(...aliasMatches.map(m => m.confidence));
+  }
+
+  // Fall back to deterministic detail enrichment
+  if (values.length === 0 && attribute) {
+    const attrId = targetConfig.attributeId ?? targetConfig.id;
+    const enrichmentParams = {
+      evidenceText: text,
+      packagingOcrData: null as any,
+      curatedTitle: null,
+      allowedValues: optionStrings,
+      aliases: attribute.valueAliases ?? [],
+    };
+    const enrichmentCandidates = enrichProductDetails(enrichmentParams);
+    const matching = enrichmentCandidates.filter(
+      c => c.attributeId === attrId || c.attributeId === 'all',
+    );
+    if (matching.length > 0) {
+      values = [...new Set(matching.map(m => m.value))].slice(
+        0, selectionMode === 'multiple' ? 10 : 1,
+      );
+      confidence = Math.max(...matching.map(m => m.confidence));
+    }
+  }
+
+  // Fall back to LLM ranker or TypeSafe Jev if no deterministic match
+  if (values.length === 0) {
+    const modelPolicy = context.snapshot
+      ? modelPolicyViewFromConfig(
+          context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+          context.snapshot.snapshotHash,
+        )
+      : null;
+
+    let isSystemOne = false;
+    if (modelPolicy) {
+      try {
+        const { resolveModelRoute, assertModelPolicyIntact } = await import('./model-policy-gateway');
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        assertModelPolicyIntact(modelPolicy);
+        const resolvedRoute = resolveModelRoute(modelPolicy, 'attribute_ranking', {
+          getCredential: (p: string) => {
+            try {
+              const aiConfig = getFullAiRoutingConfig();
+              const conn =
+                aiConfig.connections[p] ||
+                Object.values(aiConfig.connections).find(
+                  (c) => c.id === p || (p === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+                );
+              if (conn && conn.credential) return { provider: p, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
+            } catch {}
+            return null;
+          },
+          defaultBaseUrls: {
+            typesafe: 'https://api.typesafe.ai/v1',
+            ollama: 'http://127.0.0.1:11434/v1',
+            openai: 'https://api.openai.com/v1',
+            deepseek: 'https://api.deepseek.com',
+          },
+        });
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[resolvedRoute.provider] ||
+          Object.values(aiConfig.connections).find(
+            (c) => c.id === resolvedRoute.provider || (resolvedRoute.provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+          );
+        isSystemOne = resolvedRoute.provider === 'typesafe' || conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+
+    if (isSystemOne) {
+      const { resolveAttributeDecision, buildProposalFromAttributeDecision } = await import('./attribute-decision');
+      const decision = await resolveAttributeDecision({
+        target,
+        cardinality: selectionMode,
+        evidence: input.evidence,
+        sku: input.sku,
+        runId: context.runId,
+        snapshot: context.snapshot,
+        modelPolicy,
+        assertHeld: context.assertHeld,
+        productContext: {
+          productType: context.cohortExecutionType?.id ?? null,
+        },
+      });
+
+      if (decision.status === 'abstained' || decision.status === 'failed' || !decision.value) {
+        const abstentionProposal = buildProposalFromAttributeDecision(
+          decision,
+          input.sku,
+          context.runId,
+          snapshotHash,
+        );
+        return {
+          proposals: [abstentionProposal],
+          message: decision.abstentionReason ?? `Abstained from proposing attribute value (${decision.abstentionCode ?? 'unresolved'}).`,
+        };
+      }
+
+      const proposal = buildProposalFromAttributeDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      return {
+        proposals: [proposal],
+        message: `"${targetConfig.label}": ${decision.value} (TypeSafe Jev, ${(decision.confidence * 100).toFixed(0)}%)`,
+      };
+    }
+
+    const llmResult = await llmRankOptions({
+      targetLabel: targetConfig.label,
+      options: options2,
+      selectionMode,
+      evidenceText: text,
+      task: 'attribute_value_classification',
+      modelPolicy,
+      protectedOperation: 'attribute_ranking',
+      ...(context.snapshot
+        ? {
+            modelCall: buildModelCallContext(context.snapshot, context.runId, 'attribute_ranking', 1),
+            snapshot: context.snapshot,
+          }
+        : {}),
+    });
+
+    if (llmResult && llmResult.values.length > 0) {
+      values = llmResult.values;
+      confidence = llmResult.confidence;
+      llmModelCallIds = llmResult.modelCallIds;
+    }
+  }
+
+  if (values.length === 0) {
+    return { proposals: [], message: `No value match found for "${targetConfig.label}".` };
+  }
+
+  // Rebuild the packet with the SELECTED value so target-matching evidence is
+  // grounded into supporting/contradicting roles and single-cardinality
+  // assertion conflicts are detected (never resolved by source order).
+  const rolePacket = buildEvidenceTargetPacket(input.evidence, {
+    attributeId: attrId,
+    sourceField: catalogField,
+    sourceFields: packetSourceFields,
+    selectionMode,
+    proposedValue: selectionMode === 'multiple' ? values : values[0],
+    aliases: attribute?.valueAliases ?? [],
+    isGroundingSupport: tokenGroundingSupport,
+  });
+  let contradictingEvidenceIds = rolePacket.contradictingEvidenceIds;
+  let supportingEvidenceIds = rolePacket.supportingEvidenceIds;
+  let hasConflict = rolePacket.hasConflict;
+  if (brandConflictEvidenceIds.length > 0) {
+    // Disagreeing brand assertions are visible contradicting evidence and the
+    // proposal is forced to individual review. The role sets MUST remain
+    // pairwise disjoint: any assertion participating in the brand conflict is
+    // removed from supporting (it cannot be both supporting and
+    // contradicting), and the visible conflict shows ONLY contradicting ids.
+    const conflictSet = new Set(brandConflictEvidenceIds);
+    supportingEvidenceIds = supportingEvidenceIds.filter(id => !conflictSet.has(id));
+    contradictingEvidenceIds = [...new Set([...contradictingEvidenceIds, ...brandConflictEvidenceIds])];
+    hasConflict = true;
+  }
+
+  // P3 calibrated bulk acceptance (plan B.P3.4): with calibrated thresholds
+  // present AND no conflicting evidence, a high-confidence plain field
+  // assignment may be marked bulk-acceptable through the Issue #10 machinery;
+  // the uncalibrated fallback reproduces legacy byte-identically (false).
+  // Claims/composition and conflicts can never pass — enforced inside
+  // isCalibratedBulkAcceptable AND by validateProposalSafety.
+  const proposal = buildFieldAssignmentProposal({
+    runId: context.runId,
+    sku: input.sku,
+    attributeId: targetConfig.attributeId ?? targetConfig.id,
+    value: selectionMode === 'multiple' ? values : values[0],
+    confidence,
+    evidenceIds: [...new Set([...supportingEvidenceIds, ...contradictingEvidenceIds, ...rolePacket.context.map(r => r.id).filter(Boolean)])],
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+    isMultiple: selectionMode === 'multiple',
+    isBulkAcceptable: hasConflict
+      ? false
+      : isCalibratedBulkAcceptable(
+          { proposalType: 'field_assignment', confidence, contradictingEvidenceIds },
+          target.attribute ?? null,
+          options.calibratedThresholds ?? null,
+        ),
+    snapshotHash,
+    ...(llmModelCallIds?.length ? { modelCallIds: llmModelCallIds } : {}),
+  });
+
+  return { proposals: [proposal], message: `"${targetConfig.label}": ${values.join(', ')} (${(confidence * 100).toFixed(0)}%)${hasConflict ? ' [conflicting evidence]' : ''}` };
 }
 
 export interface ProcessProductFieldTargetsBatchResult {
@@ -313,9 +588,10 @@ export interface ProcessProductFieldTargetsBatchResult {
 /**
  * Process a batch of product field (attribute) curation targets.
  *
- * Dispatches via TypeSafe Jev System One when System One is active,
- * batching independent questions whose permitted evidence state is identical.
- * FreeText and measured attributes are handled directly.
+ * Dispatches via TypeSafe Jev System One Choice when System One is active,
+ * batching independent questions whose permitted evidence state is identical (AC 7).
+ * When System One is not active, processes each target sequentially through
+ * processProductFieldTarget.
  */
 export async function processProductFieldTargetsBatch(
   items: Array<{ target: ResolvedTarget; cardinality?: 'single' | 'multiple' }>,
@@ -334,6 +610,59 @@ export async function processProductFieldTargetsBatch(
       )
     : null;
 
+  let isSystemOne = false;
+  if (modelPolicy) {
+    try {
+      const { resolveModelRoute, assertModelPolicyIntact } = await import('./model-policy-gateway');
+      const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+      assertModelPolicyIntact(modelPolicy);
+      const resolvedRoute = resolveModelRoute(modelPolicy, 'attribute_ranking', {
+        getCredential: (p: string) => {
+          try {
+            const aiConfig = getFullAiRoutingConfig();
+            const conn =
+              aiConfig.connections[p] ||
+              Object.values(aiConfig.connections).find(
+                (c) => c.id === p || (p === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+              );
+            if (conn && conn.credential) return { provider: p, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
+          } catch {}
+          return null;
+        },
+        defaultBaseUrls: {
+          typesafe: 'https://api.typesafe.ai/v1',
+          ollama: 'http://127.0.0.1:11434/v1',
+          openai: 'https://api.openai.com/v1',
+          deepseek: 'https://api.deepseek.com',
+        },
+      });
+      const aiConfig = getFullAiRoutingConfig();
+      const conn =
+        aiConfig.connections[resolvedRoute.provider] ||
+        Object.values(aiConfig.connections).find(
+          (c) => c.id === resolvedRoute.provider || (resolvedRoute.provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
+        );
+      isSystemOne = resolvedRoute.provider === 'typesafe' || conn?.transport === 'systemone';
+    } catch {
+      isSystemOne = false;
+    }
+  }
+
+  if (!isSystemOne) {
+    const allProposals: ClassificationProposal[] = [];
+    const messages: string[] = [];
+    for (const item of items) {
+      const res = await processProductFieldTarget(item.target, input, context, {
+        cardinality: item.cardinality,
+        calibratedThresholds: options.calibratedThresholds,
+      });
+      allProposals.push(...res.proposals);
+      if (res.message) messages.push(res.message);
+    }
+    return { proposals: allProposals, messages };
+  }
+
+  // System One is active:
   const allProposals: ClassificationProposal[] = [];
   const messages: string[] = [];
   const controlledItems: Array<{ target: ResolvedTarget; cardinality: 'single' | 'multiple' }> = [];
@@ -356,6 +685,7 @@ export async function processProductFieldTargetsBatch(
   }
 
   if (controlledItems.length > 0) {
+    const { batchResolveAttributeDecisions, buildProposalFromAttributeDecision } = await import('./attribute-decision');
     const decisions = await batchResolveAttributeDecisions({
       items: controlledItems,
       evidence: input.evidence,
@@ -469,6 +799,78 @@ export async function processPageTarget(
       )
     : null;
 
+  let isSystemOne = false;
+  if (modelPolicy) {
+    const stageOverride = modelPolicy.stageOverrides?.category_page_proposals ?? modelPolicy.stageOverrides?.page_assignment;
+    const provider = stageOverride?.provider ?? modelPolicy.defaultProvider;
+    if (provider === 'typesafe') {
+      isSystemOne = true;
+    } else {
+      try {
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[provider] ||
+          Object.values(aiConfig.connections).find(
+            (c) => c.id === provider || (c.transport === 'systemone'),
+          );
+        isSystemOne = conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+  }
+
+  if (isSystemOne && !isMultiItemGroup) {
+    const { resolvePageDecision, buildProposalsFromPageDecision } = await import('./page-decision');
+    const decision = await resolvePageDecision({
+      target,
+      evidence: input.evidence,
+      sku: input.sku,
+      runId: context.runId,
+      snapshot: context.snapshot,
+      modelPolicy,
+      assertHeld: context.assertHeld,
+      selectionMode,
+      maxPages,
+      productContext: {
+        productName: productContext.productName,
+        productDescription: productContext.productDescription,
+        productType: productContext.productType,
+        ocrSummary: productContext.ocrSummary,
+      },
+      reviewedProductTypeId: productContext.productType,
+    });
+
+    if (decision.status === 'abstained' || decision.status === 'failed' || decision.pages.length === 0) {
+      const abstentionProposals = buildProposalsFromPageDecision(
+        decision,
+        input.sku,
+        context.runId,
+        snapshotHash,
+      );
+      return {
+        proposals: abstentionProposals,
+        message: decision.abstentionReason ?? `Abstained from proposing category pages (${decision.abstentionCode ?? 'unresolved'}).`,
+      };
+    }
+
+    const proposals = buildProposalsFromPageDecision(
+      decision,
+      input.sku,
+      context.runId,
+      snapshotHash,
+    );
+    const pageNames = decision.pages.map(p => p.pageName);
+    return {
+      proposals,
+      message: `${pageNames.join(', ')} (TypeSafe Jev, ${((decision.selectedProbability ?? decision.pages[0].confidence) * 100).toFixed(0)}%)`,
+    };
+  }
+
+  let llmResult: PageAssignmentResult | null;
+  let assignmentSource = 'LLM';
+
   if (isMultiItemGroup) {
     const products = context.productLineItems ?? [];
     const productSkus = new Set(products.map(product => product.sku));
@@ -484,7 +886,12 @@ export async function processPageTarget(
       pages: pageHierarchy,
       selectionMode,
       maxPages,
-      modelPolicy,
+      modelPolicy: context.snapshot
+        ? modelPolicyViewFromConfig(
+            context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+            context.snapshot.snapshotHash,
+          )
+        : null,
       ...(context.snapshot
         ? {
             modelCall: buildModelCallContext(context.snapshot, context.runId, 'cohort_page_assignment', 1),
@@ -499,77 +906,69 @@ export async function processPageTarget(
         message: `Cohort page coordination abstained: ${member?.reason ?? `missing result for SKU ${input.sku}`}`,
       };
     }
-    const verifiedPageIdSet = new Set(
-      context.snapshot?.pages.state === 'verified'
-        ? context.snapshot.pages.records.map(r => r.pageId)
-        : [],
-    );
-    const proposals = member.pages.map((p: any) =>
-      buildCategoryPageProposal({
-        runId: context.runId,
-        sku: input.sku,
-        pageId: p.pageId,
-        pageName: p.pageName,
-        confidence: p.confidence,
-        evidenceIds: pagePacket.evidenceIds,
-        ...(pagePacket.contradictingEvidenceIds.length
-          ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
-          : {}),
-        verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
-        isBulkAcceptable: false,
-        snapshotHash,
-        ...(member.modelCallIds?.length ? { modelCallIds: member.modelCallIds } : {}),
-      }),
-    );
-    const pageNames = member.pages.map(p => p.pageName);
-    return {
-      proposals,
-      message: `${pageNames.join(', ')} (TypeSafe Jev, ${(member.pages[0].confidence * 100).toFixed(0)}%)`,
-    };
-  }
-
-  const decision = await resolvePageDecision({
-    target,
-    evidence: input.evidence,
-    sku: input.sku,
-    runId: context.runId,
-    snapshot: context.snapshot,
-    modelPolicy,
-    assertHeld: context.assertHeld,
-    selectionMode,
-    maxPages,
-    productContext: {
+    llmResult = { pages: member.pages, modelCallIds: member.modelCallIds };
+    assignmentSource = isSystemOne ? 'TypeSafe Jev' : 'cohort LLM';
+  } else {
+    llmResult = await llmAssignCategoryPages({
       productName: productContext.productName,
       productDescription: productContext.productDescription,
-      productType: productContext.productType,
       ocrSummary: productContext.ocrSummary,
-    },
-    reviewedProductTypeId: productContext.productType,
-  });
+      productType: productContext.productType,
+      pages: pageHierarchy,
+      selectionMode,
+      maxPages,
+      modelPolicy: context.snapshot
+        ? modelPolicyViewFromConfig(
+            context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+            context.snapshot.snapshotHash,
+          )
+        : null,
+      ...(context.snapshot
+        ? {
+            modelCall: buildModelCallContext(context.snapshot, context.runId, 'page_assignment', 1),
+            snapshot: context.snapshot,
+          }
+        : {}),
+    });
+  }
 
-  if (decision.status === 'abstained' || decision.status === 'failed' || decision.pages.length === 0) {
-    const abstentionProposals = buildProposalsFromPageDecision(
-      decision,
-      input.sku,
-      context.runId,
-      snapshotHash,
-    );
+  if (!llmResult || llmResult.pages.length === 0) {
     return {
-      proposals: abstentionProposals,
-      message: decision.abstentionReason ?? `Abstained from proposing category pages (${decision.abstentionCode ?? 'unresolved'}).`,
+      proposals: [],
+      message: `No page assignment from ${assignmentSource}. Evidence length: ${input.evidence.length} records, ${pagePacket.evidenceIds.length} linked.`,
     };
   }
 
-  const proposals = buildProposalsFromPageDecision(
-    decision,
-    input.sku,
-    context.runId,
-    snapshotHash,
+  // ── Build proposals from LLM results ───────────────────────────────────
+  // Verified identity is stamped only for pageIds present in the frozen
+  // verified snapshot (never inferred from a name or a mutable DB read).
+  const verifiedPageIdSet = new Set(
+    context.snapshot?.pages.state === 'verified'
+      ? context.snapshot.pages.records.map(r => r.pageId)
+      : [],
   );
-  const pageNames = decision.pages.map(p => p.pageName);
+  const proposals = llmResult.pages.map((p: any) =>
+    buildCategoryPageProposal({
+      runId: context.runId,
+      sku: input.sku,
+      pageId: p.pageId,
+      pageName: p.pageName,
+      confidence: p.confidence,
+      evidenceIds: pagePacket.evidenceIds,
+      ...(pagePacket.contradictingEvidenceIds.length
+        ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
+        : {}),
+      verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
+      isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -') || isSystemOne) ? false : undefined,
+      snapshotHash,
+      ...(llmResult.modelCallIds?.length ? { modelCallIds: llmResult.modelCallIds } : {}),
+    }),
+  );
+
+  const pageNames = llmResult.pages.map(p => p.pageName);
   return {
     proposals,
-    message: `${pageNames.join(', ')} (TypeSafe Jev, ${((decision.selectedProbability ?? decision.pages[0].confidence) * 100).toFixed(0)}%)`,
+    message: `${pageNames.join(', ')} (${assignmentSource}, ${(llmResult.pages[0].confidence * 100).toFixed(0)}%)`,
   };
 }
 
@@ -699,6 +1098,132 @@ export async function materializeCoordinatedPages(
   return {
     proposals,
     message: `${pageNames.join(', ')} (Cohort page assignment materialized from parent coordination (${sourceLabel}), ${(output.pages[0].confidence * 100).toFixed(0)}%)`,
+  };
+}
+
+// ─── Internal Generic Processor ───────────────────────────────────────────────
+
+interface TargetProposalBuilder {
+  kind: string;
+  buildProposal: (
+    value: string,
+    confidence: number,
+    evidence: {
+      evidenceIds: string[];
+      supportingEvidenceIds?: string[];
+      contradictingEvidenceIds?: string[];
+    },
+    modelCallIds?: string[],
+  ) => ClassificationProposal;
+  /** LLM task name for routing, or undefined to use 'category_classification' fallback */
+  task?: string;
+}
+
+/**
+ * Generic target processing pipeline shared by product type and page targets.
+ * Product field targets use a separate path because they need alias matching.
+ */
+async function processTargetInternal(
+  target: ResolvedTarget,
+  input: StageInput,
+  context: StageContext,
+  builder: TargetProposalBuilder,
+): Promise<TargetProcessResult> {
+  const { config: targetConfig, options } = target;
+
+  if (!options || options.length === 0) {
+    return { proposals: [], message: `No options available for "${targetConfig.label}".` };
+  }
+
+  const selectionMode = (targetConfig.selectionMode ?? 'single') as 'single' | 'multiple';
+
+  // Bounded target packet. General title/description evidence is context
+  // unless the deterministic grounding rule links it to the selected value.
+  const buildPacket = (proposedValue?: unknown): EvidenceTargetPacket =>
+    buildEvidenceTargetPacket(input.evidence, {
+      attributeId: targetConfig.attributeId ?? null,
+      sourceField: targetConfig.catalogField ?? null,
+      selectionMode,
+      proposedValue,
+      isGroundingSupport: tokenGroundingSupport,
+      includeProductTypeContext: builder.kind === 'product_type',
+    });
+  const matchingPacket = buildPacket();
+  const text = matchingPacket.promptText;
+  if (!text || text.length < 3) {
+    return { proposals: [], message: `Insufficient evidence text for "${targetConfig.label}".` };
+  }
+
+  // Try deterministic keyword/token matching first
+  const keywordMatches = matchKeywordOptions({
+    options,
+    text,
+    selectionMode,
+  });
+
+  if (keywordMatches.length > 0 && keywordMatches[0].confidence >= KEYWORD_MATCH_MIN_CONFIDENCE) {
+    const proposals = keywordMatches.map(m => {
+      const singlePacket = buildPacket(m.value);
+      return builder.buildProposal(m.value, m.confidence, {
+        evidenceIds: singlePacket.evidenceIds,
+        supportingEvidenceIds: singlePacket.supportingEvidenceIds,
+        contradictingEvidenceIds: singlePacket.contradictingEvidenceIds,
+      });
+    });
+    const values = keywordMatches.map(m => m.label);
+    return {
+      proposals,
+      message: `${values.join(', ')} (keyword, ${(keywordMatches[0].confidence * 100).toFixed(0)}%)`,
+    };
+  }
+
+  // Fall back to LLM ranker
+  const llmResult = await llmRankOptions({
+    targetLabel: targetConfig.label,
+    options,
+    selectionMode,
+    evidenceText: text,
+    task: builder.task,
+    modelPolicy: context.snapshot
+      ? modelPolicyViewFromConfig(
+          context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
+          context.snapshot.snapshotHash,
+        )
+      : null,
+    protectedOperation: builder.task === 'category_page_assignment' ? 'page_assignment' : 'product_type_ranking',
+    ...(context.snapshot
+      ? {
+          modelCall: buildModelCallContext(
+            context.snapshot,
+            context.runId,
+            builder.task === 'category_page_assignment' ? 'page_assignment' : 'product_type_ranking',
+            1,
+          ),
+          snapshot: context.snapshot,
+        }
+      : {}),
+  });
+
+  if (!llmResult || llmResult.values.length === 0) {
+    return { proposals: [], message: `No match found for "${targetConfig.label}".` };
+  }
+
+  const proposals = llmResult.values.map(v => {
+    const opt = options.find(
+      o => o.label.toLowerCase() === v.toLowerCase() || o.value.toLowerCase() === v.toLowerCase(),
+    );
+    const proposalValue = targetConfig.kind === 'product_type' ? (opt?.value ?? v) : v;
+    const singlePacket = buildPacket(proposalValue);
+    return builder.buildProposal(proposalValue, llmResult.confidence, {
+      evidenceIds: singlePacket.evidenceIds,
+      supportingEvidenceIds: singlePacket.supportingEvidenceIds,
+      contradictingEvidenceIds: singlePacket.contradictingEvidenceIds,
+    }, llmResult.modelCallIds);
+  });
+
+  return {
+    proposals,
+    message: `${llmResult.values.join(', ')} (LLM, ${(llmResult.confidence * 100).toFixed(0)}%)`,
   };
 }
 

@@ -1,31 +1,71 @@
 /**
- * Category Page Assignment Domain Rules
+ * LLM-First Category Page Assignment
  *
- * Provides deterministic helpers for page hierarchy construction, structured
- * product context extraction from evidence, response validation, and cross-species
- * page normalization.
+ * Replaces the broken keyword-matcher-first page assignment with a dedicated
+ * LLM call that receives rich product context (VLM OCR data, product type,
+ * web description, store page hierarchy) and returns validated page matches.
  *
  * @module page-assignment-llm
  */
 
 import { type ClassificationEvidence, type ClassificationProposal, CanonicalBrandEvidenceValueSchema } from '../shared/schemas/classification';
+import { callLlmForTaskWithProvenance } from '../onboarding/llm-client';
+import { redactTransportText } from './model-policy-gateway';
+import type { ProtectedOperation } from './model-operation-registry';
 import type { PageSnapshotRecord } from './runtime-snapshot';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface ProductOcrSummary {
-  species: string[];
-  flavor: string | null;
-  lifeStage: string | null;
-  productForm: string | null;
-  healthConcern: string[];
-  productName: string | null;
-  brand: string | null;
+export interface PageAssignmentParams {
+  /** Best available product name from evidence */
+  productName: string;
+  /** Web description (truncated to 2000 chars) */
+  productDescription: string;
+  /** Structured VLM OCR summary from packaging image */
+  ocrSummary: {
+    species: string[];
+    flavor: string | null;
+    lifeStage: string | null;
+    productForm: string | null;
+    healthConcern: string[];
+    productName: string | null;
+    /** Best-available resolved brand name (see extractProductContext priority) */
+    brand: string | null;
+  };
+  /** Upstream product type proposal (e.g. "Dry Dog Food") */
+  productType: string | null;
+  /** Store category pages with hierarchy info */
+  pages: Array<{ id: string; name: string; parentName: string | null }>;
+  /** Single or multiple selection mode */
+  selectionMode: 'single' | 'multiple';
+  /** Maximum pages to return (default 5, max 10) */
+  maxPages: number;
+  /** Sibling products in the same family — read-only identity hints */
+  siblingProducts?: Array<{ sku: string; name: string }>;
+  /** Frozen classification model-policy view (issue #17 item A). */
+  modelPolicy?: import('./model-policy-gateway').ModelPolicyView | null;
+  /** Durable model-call audit context (issue #17 work item E). */
+  modelCall?: import('./model-operation-registry').ModelCallContext | null;
+  /** Runtime snapshot the call is bound to (plan compatibility). */
+  snapshot?: import('./runtime-snapshot').RuntimeClassificationSnapshot | null;
 }
 
 export interface PageAssignmentResult {
   pages: Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut?: boolean }>;
+  /** Durable model-call IDs that produced this assignment (issue #17 E). */
   modelCallIds?: string[];
+}
+
+/**
+ * PR7 review R1 (B3): parent-path-only operation override for the single-item
+ * Page transport. The parent-owned singleton path pins `protectedOperation` to
+ * 'cohort_page_assignment' so the resolved `{provider, model}` equals the
+ * operation-specific model authority the P-hash claims (DECISION-B) — never
+ * the legacy 'page_assignment' route. Legacy callers omit the options object
+ * → byte-identical behavior ('page_assignment').
+ */
+export interface LlmAssignCategoryPagesOptions {
+  protectedOperation?: ProtectedOperation;
 }
 
 // ─── Page Hierarchy Builder ──────────────────────────────────────────────────
@@ -80,7 +120,7 @@ export function extractProductContext(
 ): {
   productName: string;
   productDescription: string;
-  ocrSummary: ProductOcrSummary;
+  ocrSummary: PageAssignmentParams['ocrSummary'];
   productType: string | null;
 } {
   // ── Safe value extraction helper ──────────────────────────────────────
@@ -232,7 +272,7 @@ export function extractProductContext(
     resolvedBrand = getFirst('brand');
   }
 
-  const ocrSummary: ProductOcrSummary = {
+  const ocrSummary = {
     species: getAll('species'),
     flavor: getFirst('flavor'),
     lifeStage: getFirst('lifeStage'),
@@ -249,6 +289,55 @@ export function extractProductContext(
   const productType = typeProposal?.targetId ?? null;
 
   return { productName, productDescription, ocrSummary, productType };
+}
+
+// ─── Response Parser ─────────────────────────────────────────────────────────
+
+interface RawPageAssignmentResponse {
+  pages?: unknown[];
+}
+
+/**
+ * Parse the LLM's JSON response for page assignment.
+ *
+ * Handles markdown code fences, extracts the JSON object, and normalizes
+ * various response shapes into a standard `{ pages: [...] }` format.
+ */
+function parsePageAssignmentResponse(raw: string): RawPageAssignmentResponse | null {
+  let cleaned = raw.trim();
+  // Remove markdown code fences
+  cleaned = cleaned.replace(/^```(?:json)?\s*|```\s*$/gi, '').trim();
+
+  // Locate JSON boundaries
+  const jsonStart = cleaned.indexOf('{');
+  const jsonEnd = cleaned.lastIndexOf('}');
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) return null;
+
+  cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+
+  try {
+    const parsed = JSON.parse(cleaned) as RawPageAssignmentResponse;
+
+    // Accept both { pages: [...] } and { values: [...] } shapes
+    if (Array.isArray(parsed.pages)) {
+      return parsed;
+    }
+
+    // If the LLM returns { values: [...pageNames...] }, convert
+    const anyParsed = parsed as any;
+    if (Array.isArray(anyParsed.values)) {
+      return {
+        pages: anyParsed.values.map((v: unknown) => ({
+          pageName: String(v),
+          confidence: typeof anyParsed.confidence === 'number' ? anyParsed.confidence : 0.55,
+        })),
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Response Validator ───────────────────────────────────────────────────────
@@ -531,4 +620,157 @@ export function normalizePageAssignments(
   return result;
 }
 
+// ─── Core LLM Function ───────────────────────────────────────────────────────
 
+/**
+ * Call the LLM to assign category pages to a product.
+ *
+ * Builds a rich prompt with product identity, VLM OCR summary, store context,
+ * and the full page hierarchy. The LLM is constrained to return exact page
+ * IDs or names from the provided list only.
+ *
+ * Returns `null` when:
+ * - No pages are provided
+ * - No LLM config is available for 'category_page_assignment'
+ * - The LLM returns invalid/unparseable JSON
+ * - No returned page names match the provided list
+ */
+export async function llmAssignCategoryPages(
+  params: PageAssignmentParams,
+  options?: LlmAssignCategoryPagesOptions,
+): Promise<PageAssignmentResult | null> {
+  const { productName, productDescription, ocrSummary, productType, pages, maxPages, selectionMode, siblingProducts } = params;
+
+  if (pages.length === 0) return null;
+
+  const maxResults = Math.min(maxPages ?? 5, 10);
+  const selectionDesc =
+    (selectionMode ?? 'multiple') === 'multiple' ? `up to ${maxResults}` : 'one';
+
+  // Build page index maps for validation
+  const nameToPage = new Map<string, { id: string; name: string }>();
+  const idToPage = new Map<string, { id: string; name: string }>();
+  for (const p of pages) {
+    // Preserve duplicate display names so name-only responses can be rejected
+    // as ambiguous instead of silently resolving to the last inserted page.
+    const nameKey = nameToPage.has(p.name) ? `${p.name}\u0000${p.id}` : p.name;
+    nameToPage.set(nameKey, { id: p.id, name: p.name });
+    idToPage.set(p.id, { id: p.id, name: p.name });
+  }
+
+  // Format pages with hierarchy info AND page ID for the prompt
+  const pageListStr = pages
+    .map(p =>
+      p.parentName
+        ? `  - [ID:${p.id}] ${p.name} (subcategory of: ${p.parentName})`
+        : `  - [ID:${p.id}] ${p.name}`,
+    )
+    .join('\n');
+
+  const speciesStr =
+    ocrSummary.species.length > 0 ? ocrSummary.species.join(', ') : 'none detected';
+  const flavorStr = ocrSummary.flavor ?? 'n/a';
+  const lifeStageStr = ocrSummary.lifeStage ?? 'n/a';
+  const productFormStr = ocrSummary.productForm ?? 'n/a';
+  const healthStr =
+    ocrSummary.healthConcern.length > 0 ? ocrSummary.healthConcern.join(', ') : 'n/a';
+  const brandStr = ocrSummary.brand ?? 'unknown';
+  const productTypeStr = productType ?? 'unspecified';
+
+  const systemPrompt =
+    'You are a catalog classifier for a pet and garden supply store. ' +
+    'You assign products to the most specific relevant store category pages. ' +
+    'You must only choose from the provided page list. Never invent pages.';
+
+  const siblingBlock = siblingProducts && siblingProducts.length > 0
+    ? `\nSIBLING PRODUCTS IN THIS FAMILY (same brand and product line, ${
+        siblingProducts.length + 1
+      } total variants):\n${siblingProducts.map((s, i) => `  ${i + 1}. SKU: ${s.sku}, Name: ${s.name}`).join('\n')}\n`
+    : '';
+
+  const prompt = `STORE CONTEXT: This is a pet and garden supply store.
+
+PRODUCT IDENTITY:
+- Name: ${productName}
+- Brand: ${brandStr}
+- Product Type: ${productTypeStr}
+
+PACKAGING OCR DATA (from product packaging image):
+- Species: ${speciesStr}
+- Flavor: ${flavorStr}
+- Life Stage: ${lifeStageStr}
+- Product Form: ${productFormStr}
+- Health Concern: ${healthStr}
+- Packaging Name: ${ocrSummary.productName ?? 'n/a'}
+
+PRODUCT DESCRIPTION:
+${productDescription || 'No description available.'}${siblingBlock}
+AVAILABLE STORE PAGES (choose from these only):
+${pageListStr}
+
+TASK: Select ${selectionDesc} most specific category page(s) this product belongs on.
+
+Rules:
+1. Choose only from the pages listed above. Never invent a page name or ID.
+2. Species-matching: If the product species is "dog" or "dogs", do NOT assign to Cat, Fish, Bird, Small Animal, Reptile, or similar non-dog pages.
+3. If the product species is "cat" or "cats", do NOT assign to Dog, Fish, Bird, Small Animal, Reptile, or similar non-cat pages.
+4. Prefer the most specific child page over a general parent page (e.g. "Dog Food Dry" over "Dog Food Shop All").
+5. Return 1-${maxResults} pages, ranked by relevance from most to least specific.
+6. If no pages are a good fit, return an empty array.
+7. "Shop All" pages are catch-all pages — only use them as a last resort if no more specific page fits.
+8. If the store has an exact brand page named "Brand - ${brandStr}", include it as a secondary assignment if it makes sense.
+9. Do not infer species or animal type without explicit evidence in the product data provided above.
+
+Return ONLY valid JSON with this exact shape:
+{"pages":[{"pageId":"the ID from the page listing above","pageName":"the exact page name","confidence":0.0}]}
+
+Use the page's ID for the "pageId" field and its exact name for "pageName".`;
+
+  try {
+    const auditedCall = params.modelCall
+      ? { modelCall: params.modelCall, snapshot: params.snapshot }
+      : {};
+    const response = await callLlmForTaskWithProvenance(
+      'category_page_assignment',
+      prompt,
+      systemPrompt,
+      {
+        allowFallback: true,
+        modelPolicy: params.modelPolicy,
+        // PR7 review R1 (B3): the parent singleton path pins the protected
+        // operation to 'cohort_page_assignment' (the P-hash authority); all
+        // legacy callers omit the options → 'page_assignment' unchanged.
+        protectedOperation: options?.protectedOperation ?? 'page_assignment',
+        ...auditedCall,
+      },
+    );
+
+    if (!response) return null;
+
+    // Parse the response
+    const parsed = parsePageAssignmentResponse(response.content);
+    if (!parsed || !parsed.pages || parsed.pages.length === 0) return null;
+
+    // Validate entries against known pages
+    const validated = validatePageResponseEntries(parsed.pages, nameToPage, idToPage);
+    if (validated.length === 0) return null;
+
+    // Normalize with deterministic rules
+    const species = ocrSummary.species;
+    const normalized = normalizePageAssignments(
+      validated,
+      nameToPage,
+      ocrSummary.brand,
+      species,
+      maxResults,
+      selectionMode,
+    );
+
+    if (normalized.length === 0) return null;
+
+    return { pages: normalized, modelCallIds: [response.callId] };
+  } catch (err: any) {
+    console.warn(`[PageAssignmentLLM] LLM call failed: ${redactTransportText(err.message)}`);
+    return null;
+  }
+}

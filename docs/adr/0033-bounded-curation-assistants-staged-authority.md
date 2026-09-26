@@ -69,14 +69,3 @@ The qualification and release framework for TypeSafe Jev across Primary Product 
 5. **Truthful Live & Canary Gates:** In accordance with Gates 2 & 5, absence of errors or mocks never passes live contract checks or canary stages. In environments without live credentials (`TYPESAFE_API_KEY`) or completed store manager canary reviews, the system explicitly reports blockers and maintains `PROVISIONALLY_QUALIFIED` status.
 6. **Operator Runbook (`docs/runbooks/typesafe-jev-curation-rollout.md`):** Complete operational authority for setup, troubleshooting, confidence concepts (probability vs concentration confidence), canary sequencing, and zero-retry fail-closed rollback.
 
-## Post-Qualification Engine Retirement (2026-09-25, Issue #312)
-
-Following the successful qualification of TypeSafe Jev across all Curation capabilities (#302), the owner explicitly authorized consolidation on TypeSafe Jev as the sole model-backed Curation decision provider, retiring superseded classification engines:
-
-1. **Canonical Jev Decision Spine:** Primary Product Type, Controlled Attributes (Single & Multi), and Category Pages (Single SKU & Cohort) execute through their canonical TypeSafe Jev System One Choice boundaries (`product-type-decision.ts`, `attribute-decision.ts`, `page-decision.ts`).
-2. **Retirement of Chat Classifiers & JSON Repair:** General-purpose LLM option ranking (`curation-target-ranker.ts`), prompt string templating, chat transport for classification, markdown fence stripping, JSON repair retries, response shape normalizers, and self-reported confidence clamps are retired.
-3. **Kill-to-Abstain & Fail-Closed Integrity:** An unavailable or disabled Jev connection produces an attributable, audited reviewable abstention in `classification_model_calls` and human review queues; it never silently falls back to an alternate classifier or generic provider chain.
-4. **Retirement of Dormant Scaffolding & Experiments:** Deleted unreferenced scaffolding: unused generic target processor (`processTargetInternal`), dormant hierarchical page reranker (`page-reranker.ts`), legacy shadow verification recorder (`product-type-shadow-verifier.ts`), old taxonomy mutation helpers (`curation-target-editor.ts`, `field-mapping-editor.ts`, `attribute-profile-editor.ts`, `attribute-editor.ts`, `seed-sync.ts`), weak-label/silver corpus tooling (`silver-builder.ts`, `weak-label-rules.ts`), and classification embeddings/retrieval stack (`product-retrieval.ts`, `retrieval-index.ts`, `embedding-maintenance.ts`, `embedding-client.ts`).
-5. **Governed Settings Migration & Workload Separation:** Classification settings enforce `systemone` transport for Curation stages and reject retired transports with explicit remediation guidance. Shared AI Compute connections remain fully active for their supported non-classification workloads (VLM packaging OCR, naming consolidation, Discovery, and Store Manager tools).
-
-

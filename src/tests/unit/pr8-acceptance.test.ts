@@ -90,7 +90,7 @@ import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot'
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import * as cohortNameCoordinator from '../../onboarding/cohort-name-coordinator';
 import * as cohortPageCoordinator from '../../classification/cohort-page-proposal-engine';
-import * as pageDecision from '../../classification/page-decision';
+import * as pageAssignmentLlm from '../../classification/page-assignment-llm';
 import {
   overrideCohortCurationFlags,
   resetCohortCurationFlagsOverride,
@@ -535,7 +535,7 @@ async function freezeActiveCohort(
 
 function loadFrozenProjection(workspaceId: string, run: CohortRun): ExecutionEvidenceProjectionV2 {
   const snap = getCohortSnapshotByHash(workspaceId, run.evidenceSnapshotHash!)!;
-// @ts-expect-error -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
+// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
   return parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
 }
 
@@ -731,7 +731,7 @@ function installCoordinationSpies() {
     coordinateCohortItemsOnce: vi.spyOn(cohortNameCoordinator, 'coordinateCohortItemsOnce'),
     coordinateCohortPagesOnce: vi.spyOn(cohortPageCoordinator, 'coordinateCohortPagesOnce'),
     coordinateCohortPagesCore: vi.spyOn(cohortPageCoordinator, 'coordinateCohortPagesCore'),
-    resolvePageDecision: vi.spyOn(pageDecision, 'resolvePageDecision'),
+    llmAssignCategoryPages: vi.spyOn(pageAssignmentLlm, 'llmAssignCategoryPages'),
   };
 }
 
@@ -751,7 +751,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
       itemsOnce: spies.coordinateCohortItemsOnce.mock.calls.length,
       pagesOnce: spies.coordinateCohortPagesOnce.mock.calls.length,
       pagesCore: spies.coordinateCohortPagesCore.mock.calls.length,
-      pageDecision: spies.resolvePageDecision.mock.calls.length,
+      llmAssign: spies.llmAssignCategoryPages.mock.calls.length,
     });
 
     // ── processCohort #1: member 1 COMMITS; crash after member 2's pipeline.
@@ -781,13 +781,15 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     // the durable parent outputs).
     expect(countsAfterFirst.itemsOnce).toBe(0);
     expect(countsAfterFirst.pagesOnce).toBe(0);
-    expect(countsAfterFirst.pageDecision).toBe(0);
-    // The parent ops coordinated once: title group call executed; page coordination
-    // preflights terminalized as unavailable per ADR 0033 (chat page transport retired).
-    expect(countsAfterFirst.groupPages).toBe(0);
-    expect(countsAfterFirst.singletonPages).toBe(0);
+    expect(countsAfterFirst.llmAssign).toBe(0);
+    // The parent ops coordinated once (one group page call + one singleton
+    // page call + one title group call).
+    expect(countsAfterFirst.groupPages).toBe(1);
+    expect(countsAfterFirst.singletonPages).toBe(1);
     expect(countsAfterFirst.title).toBe(1);
-    expect(countsAfterFirst.audited).toBe(1);
+    // One audited started+success pair per parent invocation (title + group +
+    // singleton) — the mock manufactures audit rows per PRODUCTION semantics.
+    expect(countsAfterFirst.audited).toBe(3);
 
     // PR8 review R1 (SHOULD-FIX): the audit rows carry the CONTEXT-DERIVED
     // stage and attempt — title rows stage 'name_consolidation', page rows
@@ -805,12 +807,11 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     const pageAuditRows = getDb().query(
       "SELECT * FROM classification_model_calls WHERE operation = 'cohort_page_assignment_parent'",
     ).all() as Array<Record<string, any>>;
-    expect(pageAuditRows.length).toBe(2); // group + singleton, terminal preflight each
+    expect(pageAuditRows.length).toBe(4); // group + singleton, started + success each
     for (const row of pageAuditRows) {
       expect(row.stage_name).toBe('category_page_proposals');
       expect(row.attempt).toBe(1);
       expect(row.operation).toBe('cohort_page_assignment_parent');
-      expect(row.status).toBe('unavailable');
     }
 
     // ── crash/reclaim: expire the lease, reclaim with a NEW worker id →
@@ -837,7 +838,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     spies.coordinateCohortItemsOnce.mockRestore();
     spies.coordinateCohortPagesOnce.mockRestore();
     spies.coordinateCohortPagesCore.mockRestore();
-    spies.resolvePageDecision.mockRestore();
+    spies.llmAssignCategoryPages.mockRestore();
     const retrySpies = installCoordinationSpies();
     const titleCallsBeforeRetry = titleCallCount;
     const groupPageCallsBeforeRetry = groupPageCallCount;
@@ -852,7 +853,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     expect(retrySpies.coordinateCohortItemsOnce.mock.calls.length).toBe(0);
     expect(retrySpies.coordinateCohortPagesOnce.mock.calls.length).toBe(0);
     expect(retrySpies.coordinateCohortPagesCore.mock.calls.length).toBe(0);
-    expect(retrySpies.resolvePageDecision.mock.calls.length).toBe(0);
+    expect(retrySpies.llmAssignCategoryPages.mock.calls.length).toBe(0);
     expect(titleCallCount).toBe(titleCallsBeforeRetry);
     expect(groupPageCallCount).toBe(groupPageCallsBeforeRetry);
     expect(singletonPageCallCount).toBe(singletonPageCallsBeforeRetry);
@@ -860,7 +861,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     retrySpies.coordinateCohortItemsOnce.mockRestore();
     retrySpies.coordinateCohortPagesOnce.mockRestore();
     retrySpies.coordinateCohortPagesCore.mockRestore();
-    retrySpies.resolvePageDecision.mockRestore();
+    retrySpies.llmAssignCategoryPages.mockRestore();
 
     // ── member 1's re-executed draft is BYTE-IDENTICAL on the listed fields.
     const memberOneRetried = findItemById(items[0].id)!;
@@ -1045,7 +1046,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     expect(reentrySpies.coordinateCohortItemsOnce.mock.calls.length).toBe(0);
     expect(reentrySpies.coordinateCohortPagesOnce.mock.calls.length).toBe(0);
     expect(reentrySpies.coordinateCohortPagesCore.mock.calls.length).toBe(0);
-    expect(reentrySpies.resolvePageDecision.mock.calls.length).toBe(0);
+    expect(reentrySpies.llmAssignCategoryPages.mock.calls.length).toBe(0);
 
     // The claim slot REOPENED: a NEW parent revision is immediately claimable,
     // freezes, and executes — a FRESH complete set under the new run id.
@@ -1076,7 +1077,7 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     reentrySpies.coordinateCohortItemsOnce.mockRestore();
     reentrySpies.coordinateCohortPagesOnce.mockRestore();
     reentrySpies.coordinateCohortPagesCore.mockRestore();
-    reentrySpies.resolvePageDecision.mockRestore();
+    reentrySpies.llmAssignCategoryPages.mockRestore();
   });
 
   it('review-R2-2 (P1): an EMPTY persisted curated_title row (pre-tightening) SUPERSEDES the parent — no fallback title is ever invented', async () => {

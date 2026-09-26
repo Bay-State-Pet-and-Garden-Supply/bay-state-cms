@@ -53,6 +53,16 @@
       "area": "type-first curation workstream"
     },
     {
+      "file": "src/tests/unit/curation-target-product-type-normalization.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "type-first curation workstream"
+    },
+    {
+      "file": "src/tests/unit/curation-target-ranker-behavior.test.ts",
+      "code": "unclassified-bun-mention",
+      "area": "type-first curation workstream"
+    },
+    {
       "file": "src/tests/unit/draft-projection.test.ts",
       "code": "missing-test-db",
       "area": "cohort curation workstream"

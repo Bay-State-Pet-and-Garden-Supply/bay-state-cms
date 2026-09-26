@@ -71,7 +71,8 @@ import {
 } from './evidence-targeting';
 import { matchAttributeOptions } from './curation-target-matcher';
 import { enrichProductDetails } from './detail-enrichment';
-import type { ResolvedTarget } from './curation-target-resolver';
+import { llmRankOptions } from './curation-target-ranker';
+import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import {
   CanonicalBrandEvidenceValueSchema,
   type ClassificationEvidence,
@@ -584,19 +585,10 @@ export async function resolveAttributeDecision(
   // Filter permitted evidence based on visualEvidenceEligibility
   const permittedEvidence = filterPermittedEvidence(evidence, attribute);
 
-  const isBrandField = attrId === 'brand' || catalogField === 'ProductField16';
-  const brandSourceFields = isBrandField ? ['brand', 'resolved_brand'] : [];
-  const packetSourceFields = catalogField
-    ? [...new Set([catalogField, ...brandSourceFields])]
-    : brandSourceFields.length
-      ? brandSourceFields
-      : null;
-
   // 1. Build bounded target-specific evidence packet
   const packet: EvidenceTargetPacket = buildEvidenceTargetPacket(permittedEvidence, {
     attributeId: attrId,
     sourceField: catalogField,
-    sourceFields: packetSourceFields,
     selectionMode: cardinality,
     aliases: attribute?.valueAliases ?? [],
     isGroundingSupport: tokenGroundingSupport,
@@ -640,7 +632,9 @@ export async function resolveAttributeDecision(
   }
 
   // 3. Precedence: Brand shortcut
-  let brandConflictEvidenceIds: string[] = [];
+  const targetLabel = target.config.label.toLowerCase();
+  const isBrandField = targetLabel.includes('brand') || attrId.toLowerCase().includes('brand');
+
   if (isBrandField) {
     const brandEvidence = permittedEvidence.filter(
       e =>
@@ -690,9 +684,6 @@ export async function resolveAttributeDecision(
             contradictingEvidenceIds: [],
           };
         }
-        // Disagreement between brand assertions: mark conflict so resulting
-        // proposal shows disagreeing assertions as contradicting evidence.
-        brandConflictEvidenceIds = allBrandIds;
       }
     }
   }
@@ -704,27 +695,6 @@ export async function resolveAttributeDecision(
     : [];
 
   if (aliasMatches.length > 0) {
-    const matchedVal = cardinality === 'multiple' ? aliasMatches.map(m => m.value) : aliasMatches[0].value;
-    const rolePacket = buildEvidenceTargetPacket(permittedEvidence, {
-      attributeId: attrId,
-      sourceField: catalogField,
-      sourceFields: packetSourceFields,
-      selectionMode: cardinality,
-      proposedValue: matchedVal,
-      aliases: attribute?.valueAliases ?? [],
-      isGroundingSupport: tokenGroundingSupport,
-    });
-    let contradicting = rolePacket.contradictingEvidenceIds;
-    let supporting = rolePacket.supportingEvidenceIds;
-    let hasConflict = rolePacket.hasConflict;
-    if (brandConflictEvidenceIds.length > 0) {
-      const conflictSet = new Set(brandConflictEvidenceIds);
-      supporting = supporting.filter(id => !conflictSet.has(id));
-      contradicting = [...new Set([...contradicting, ...brandConflictEvidenceIds])];
-      hasConflict = true;
-    }
-    const finalEvidenceIds = [...new Set([...supporting, ...contradicting, ...rolePacket.context.map(r => r.id).filter(Boolean)])];
-
     if (cardinality === 'multiple') {
       const matchedVals = aliasMatches.map(m => m.value);
       return {
@@ -739,10 +709,9 @@ export async function resolveAttributeDecision(
         source: 'keyword',
         derivation: { kind: 'evidence_match' },
         modelCallIds: [],
-        evidenceIds: finalEvidenceIds,
-        supportingEvidenceIds: supporting,
-        contradictingEvidenceIds: contradicting,
-        hasConflict,
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
       };
     }
     const top = aliasMatches[0];
@@ -757,10 +726,9 @@ export async function resolveAttributeDecision(
       source: 'keyword',
       derivation: { kind: 'evidence_match' },
       modelCallIds: [],
-      evidenceIds: finalEvidenceIds,
-      supportingEvidenceIds: supporting,
-      contradictingEvidenceIds: contradicting,
-      hasConflict,
+      evidenceIds,
+      supportingEvidenceIds,
+      contradictingEvidenceIds,
     };
   }
 
@@ -912,41 +880,104 @@ export async function resolveAttributeDecision(
     }
   }
 
-  // 7. Post-qualification: Curation requires TypeSafe Jev (systemone transport).
-  // Chat fallbacks are retired (Issue #312 / ADR 0033).
+  // 7. Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek)
   if (!isSystemOne) {
-    assertHeld?.();
-    insertTerminalModelCall({
-      runId,
-      stageName: 'product_attribute_proposals',
-      operation: 'attribute_ranking',
-      attempt: 1,
-      provider: route?.provider ?? null,
-      model: route?.model ?? null,
-      locality: route?.locality ?? null,
-      snapshotHash: snapshot?.snapshotHash ?? '',
-      modelPolicyDigest: effectivePolicy?.policyDigest ?? '',
-      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.attribute_ranking,
-      ruleVersion: RULE_VERSIONS.attribute_ranking,
-      systemPromptHash: '',
-      userPromptHash: '',
-      status: MODEL_CALL_STATUS.unavailable,
-      errorMessage: 'Classification chat fallback retired per issue #312 / ADR 0033. Route requires TypeSafe Jev (systemone transport).',
-      costBasis: COST_BASIS.unknown,
+    if (!text || text.trim().length === 0) {
+      return {
+        status: 'abstained',
+        targetId: attrId,
+        value: null,
+        confidence: 0,
+        selectedProbability: null,
+        vendorConfidence: null,
+        probabilityBasis: null,
+        source: 'llm',
+        abstentionCode: 'insufficient_evidence',
+        abstentionReason: `No evidence text available for "${target.config.label}".`,
+        derivation: { kind: 'llm' },
+        modelCallIds: [],
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
+      };
+    }
+
+    const llmResult = await llmRankOptions({
+      targetLabel: target.config.label,
+      options,
+      selectionMode: cardinality,
+      evidenceText: text,
+      task: 'attribute_value_classification',
+      modelPolicy: effectivePolicy,
+      protectedOperation: 'attribute_ranking',
+      ...(snapshot
+        ? {
+            modelCall: {
+              runId,
+              snapshotHash: snapshot.snapshotHash,
+              stage: 'product_attribute_proposals',
+              operation: 'attribute_ranking',
+              attempt: 1,
+              promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.attribute_ranking,
+              ruleVersion: RULE_VERSIONS.attribute_ranking,
+            },
+            snapshot,
+          }
+        : {}),
+      assertHeld,
     });
+
+    if (!llmResult || llmResult.values.length === 0) {
+      return {
+        status: 'abstained',
+        targetId: attrId,
+        value: null,
+        confidence: 0,
+        selectedProbability: null,
+        vendorConfidence: null,
+        probabilityBasis: null,
+        source: 'llm',
+        abstentionCode: 'no_confident_match',
+        abstentionReason: `No confident LLM match found for "${target.config.label}".`,
+        derivation: { kind: 'llm' },
+        modelCallIds: llmResult?.modelCallIds ?? [],
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
+      };
+    }
+
+    if (cardinality === 'multiple') {
+      return {
+        status: 'resolved',
+        targetId: attrId,
+        value: llmResult.values.join(', '),
+        values: llmResult.values,
+        confidence: llmResult.confidence,
+        selectedProbability: null,
+        vendorConfidence: null,
+        probabilityBasis: 'llm_score',
+        source: 'llm',
+        derivation: { kind: 'llm' },
+        modelCallIds: llmResult.modelCallIds ?? [],
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
+      };
+    }
+
+    const chosenVal = llmResult.values[0];
     return {
-      status: 'abstained',
+      status: 'resolved',
       targetId: attrId,
-      value: null,
-      confidence: 0,
+      value: chosenVal,
+      confidence: llmResult.confidence,
       selectedProbability: null,
       vendorConfidence: null,
-      probabilityBasis: null,
-      source: 'jev',
-      abstentionCode: 'service_failure',
-      abstentionReason: 'Model-backed attribute ranking requires TypeSafe Jev. Superseded chat classifiers are retired per ADR 0033.',
-      derivation: { kind: 'model_choice' },
-      modelCallIds: [],
+      probabilityBasis: 'llm_score',
+      source: 'llm',
+      derivation: { kind: 'llm' },
+      modelCallIds: llmResult.modelCallIds ?? [],
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,

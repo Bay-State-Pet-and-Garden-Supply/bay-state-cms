@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb } from '../../db/connection';
+import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { verifyProductTypeCandidate } from '../../classification/product-type-verifier';
+import { recordProductTypeShadowVerification } from '../../classification/product-type-shadow-verifier';
+import { overrideTypeFirstCurationFlags, resetTypeFirstCurationFlagsOverride } from '../../classification/flags';
 
-describe('product-type-verifier (deterministic verification)', () => {
+describe('product-type-verifier & shadow calibration (P2)', () => {
   const dbPath = `/tmp/test-verif-${randomUUID()}.db`;
 
   beforeAll(() => {
@@ -14,6 +16,7 @@ describe('product-type-verifier (deterministic verification)', () => {
   });
 
   afterAll(() => {
+    resetTypeFirstCurationFlagsOverride();
     closeDb();
     try {
       unlinkSync(dbPath);
@@ -108,5 +111,44 @@ describe('product-type-verifier (deterministic verification)', () => {
     expect(result.checks.leafConfidenceAcceptable).toBe(false);
   });
 
-});
+  it('shadow verifier writes telemetry when shadow mode is enabled and swallows cleanly when disabled', () => {
+    const runId = randomUUID();
+    const db = getDb();
+    db.run(
+      `INSERT INTO classification_runs (id, workspace_id, product_sku, status, started_at, completed_at)
+       VALUES (?, 'ws-shadow', 'SKU-SHADOW-1', 'completed', datetime('now'), datetime('now'))`,
+      [runId],
+    );
 
+    // Disabled by default -> returns null
+    overrideTypeFirstCurationFlags({ productTypeShadowEnabled: false, productTypeVerifierEnabled: false });
+    const offResult = recordProductTypeShadowVerification({
+      runId,
+      candidateProductTypeId: 'dog_food',
+      candidateConfidence: 0.95,
+      productTitle: 'Purina Dog Food',
+      evidence: [{ snippet: 'Dog food' }],
+      snapshot: mockSnapshot,
+    });
+    expect(offResult).toBeNull();
+
+    // Enable shadow mode -> records observation
+    overrideTypeFirstCurationFlags({ productTypeShadowEnabled: true });
+    const onResult = recordProductTypeShadowVerification({
+      runId,
+      candidateProductTypeId: 'dog_food',
+      candidateConfidence: 0.95,
+      productTitle: 'Purina Dog Food',
+      evidence: [{ snippet: 'Dog food' }],
+      snapshot: mockSnapshot,
+    });
+    expect(onResult).not.toBeNull();
+    expect(onResult?.verdict).toBe('pass_candidate');
+
+    const logged = db.query(
+      `SELECT * FROM classification_product_type_shadow WHERE run_id = ?`,
+    ).get(runId) as any;
+    expect(logged).toBeDefined();
+    expect(logged.payload_json).toContain('"verdict":"pass_candidate"');
+  });
+});

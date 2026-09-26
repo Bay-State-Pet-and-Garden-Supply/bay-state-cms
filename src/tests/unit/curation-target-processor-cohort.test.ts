@@ -18,12 +18,9 @@ vi.mock('@/classification/curation-target-resolver', () => ({
   })),
 }));
 vi.mock('@/classification/detail-enrichment', () => ({ enrichProductDetails: vi.fn(() => []) }));
+vi.mock('@/classification/curation-target-ranker', () => ({ llmRankOptions: vi.fn() }));
 vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: mocks.coordinate,
-}));
-vi.mock('@/classification/page-decision', () => ({
-  resolvePageDecision: mocks.perItem,
-  buildProposalsFromPageDecision: vi.fn(),
 }));
 vi.mock('@/classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn((options: Array<{ value: string; label: string }>) =>
@@ -34,19 +31,7 @@ vi.mock('@/classification/page-assignment-llm', () => ({
     ocrSummary: { species: ['Cat'], flavor: null, lifeStage: null, productForm: 'Pate', healthConcern: [], productName: null, brand: 'Acme' },
     productType: null,
   })),
-}));
-
-vi.mock('@/db/repositories/provider-connection-repo', () => ({
-  getFullAiRoutingConfig: vi.fn(() => ({ connections: {}, defaultProvider: 'openai', defaultModel: 'gpt-4o' })),
-}));
-vi.mock('@/db/repositories/api-key-repo', () => ({
-  getApiKey: vi.fn(() => null),
-}));
-vi.mock('@/db/repositories/classification-model-call-repo', () => ({
-  insertModelCallStart: vi.fn(() => 'call-1'),
-  completeModelCall: vi.fn(),
-  insertTerminalModelCall: vi.fn(),
-  recordTerminalPreflight: vi.fn(),
+  llmAssignCategoryPages: mocks.perItem,
 }));
 
 vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
