@@ -155,6 +155,17 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(skuMatch).not.toBeNull();
       expect(skuMatch?.url).toBe('https://www.kongcompany.com/products/classic-red-medium');
     });
+
+    it('should refuse non-GTIN codes (e.g. 5-digit numbers)', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [{ url: 'https://www.kongcompany.com/products/12345-item' }],
+        'https://www.kongcompany.com/sitemap.xml',
+      );
+
+      const match = lookupByUpc('kongcompany.com', '12345');
+      expect(match).toBeNull();
+    });
   });
 
   describe('searchUrlsLexical with FTS5', () => {

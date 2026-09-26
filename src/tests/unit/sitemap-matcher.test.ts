@@ -157,6 +157,14 @@ describe('Sitemap Matcher', () => {
       expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
     });
 
+    test('findUpcExactHit refuses non-GTIN identifiers (e.g. 5-digit codes)', async () => {
+      const sitemaps = [
+        'https://example.com/products/12345-dog-chew',
+      ];
+      const res = await matchSitemapUrls(sitemaps, 'Foo', null, '12345', 'example.com');
+      expect(res.some(r => r.matchType === 'upc_exact')).toBe(false);
+    });
+
   // ── Pass 2: product URL filter ────────────────────────────────────────
 
   test('generic filter keeps /products/, /p/, /shop/, /item/, /dp/ paths only', async () => {
