@@ -92,10 +92,14 @@ describe('LLM Client — task-specific routing', () => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+    activeTestDbPath = testDbPath;
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM ai_routing_defaults');
+    getDb().run("DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')");
+    getDb().run("UPDATE provider_connections SET credential = NULL, enabled = CASE WHEN id = 'local-ollama' THEN 0 ELSE 1 END");
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
     upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
-    getDb().run('DELETE FROM ai_workload_routes');
   }
 
   beforeAll(() => {
