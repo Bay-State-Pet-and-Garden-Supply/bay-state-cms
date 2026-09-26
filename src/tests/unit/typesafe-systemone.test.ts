@@ -594,7 +594,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
         label: 'TypeSafe Jev (Cloud)',
         transport: 'systemone',
         baseUrl: 'https://api.typesafe.ai/v1',
-        credential: 'ts-live-secret',
+        credential: 'ts-test-fake-credential',
         trustZone: 'cloud',
         approvedHost: 'api.typesafe.ai',
         approvedPort: 443,
@@ -627,6 +627,6 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     const { getProviderConnection } = await import(
       '../../db/repositories/provider-connection-repo'
     );
-    expect(getProviderConnection('typesafe-jev')?.credential).toBe('ts-live-secret');
+    expect(getProviderConnection('typesafe-jev')?.credential).toBe('ts-test-fake-credential');
   });
 });

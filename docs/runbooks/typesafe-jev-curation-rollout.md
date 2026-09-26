@@ -38,7 +38,7 @@ A central architectural requirement of ADR 0033 and Issue #302 is the distinctio
 Set the TypeSafe API credential in your environment:
 
 ```bash
-export TYPESAFE_API_KEY="ts-live-your-key-here"
+export TYPESAFE_API_KEY="<your-typesafe-api-key>"
 ```
 
 The server automatically maps `process.env.TYPESAFE_API_KEY` to the `typesafe` provider connection credential during startup.
@@ -99,7 +99,7 @@ The script reports:
 To run an opt-in live check against the TypeSafe API:
 
 ```bash
-TYPESAFE_API_KEY="ts-live-your-key-here" bun scripts/typesafe-curation-qualification.ts --live-check
+TYPESAFE_API_KEY="<your-typesafe-api-key>" bun scripts/typesafe-curation-qualification.ts --live-check
 ```
 
 *Note: Without `--live-check` and a valid `TYPESAFE_API_KEY`, the script will intentionally mark live contract checks and canary stages as blocked, keeping production status at `PROVISIONALLY_QUALIFIED`.*
