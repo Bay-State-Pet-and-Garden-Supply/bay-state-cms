@@ -20,8 +20,6 @@ describe('type-dependent-refresh (P1.4)', () => {
     overrideTypeFirstCurationFlags({
       typeDependentRecomputeEnabled: true,
       typeChangeRefreshWorkerEnabled: true,
-      productTypeVerifierEnabled: false,
-      productTypeShadowEnabled: false,
     });
   });
 

@@ -910,23 +910,6 @@ describe('Protected classification operations — model-policy gateway (issue #1
     expect(calls.length).toBe(1);
   });
 
-  test('llmRankOptions with no modelPolicy never calls the LLM (deterministic abstain)', async () => {
-    const { llmRankOptions } = await import('../../classification/curation-target-ranker');
-    let fetchCalls = 0;
-    globalThis.fetch = (async () => {
-      fetchCalls += 1;
-      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as unknown as typeof fetch;
-    const result = await llmRankOptions({
-      targetLabel: 'Flavor',
-      options: [{ value: 'Chicken', label: 'Chicken' }],
-      selectionMode: 'single',
-      evidenceText: 'Product evidence for ranking test product here.',
-    });
-    expect(result).toBeNull();
-    expect(fetchCalls).toBe(0);
-  });
-
   // ── Pass 1c: image policy at the VLM boundary ──────────────────────────
 
   test('cloud VLM under imageDataSharing local_only is denied before ANY image fetch', async () => {

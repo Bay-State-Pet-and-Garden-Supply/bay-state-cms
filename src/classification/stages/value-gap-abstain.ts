@@ -42,12 +42,7 @@
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import type { ClassificationProposal } from '../../shared/schemas/classification';
-import { buildFieldAssignmentProposal } from '../curation-target-proposal';
-import { llmRankOptions } from '../curation-target-ranker';
 import { buildEvidenceTargetPacket, tokenGroundingSupport } from '../evidence-targeting';
-import { buildModelCallContext } from '../runtime-snapshot';
-import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
-import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
 import { loadClassificationConfig } from '../config-loader';
 import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { getUniversalTierFlags } from '../flags';
@@ -172,23 +167,11 @@ export const valueGapAbstainStage: StageDefinition = {
       };
     }
 
-    const modelPolicyView = context.snapshot
-      ? modelPolicyViewFromConfig(
-          context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
-          context.snapshot.snapshotHash,
-        )
-      : null;
-    const snapshotHash = context.snapshot?.snapshotHash ?? null;
-    const allowedSetByAttribute = new Map(gaps.map(gap => [gap.attributeId, new Set(gap.allowedValues)]));
-
-    const proposals: ReturnType<typeof buildFieldAssignmentProposal>[] = [];
-    let proposedCount = 0;
+    const proposals: ClassificationProposal[] = [];
+    const proposedCount = 0;
     let abstainedCount = 0;
 
     for (const gap of gaps) {
-      // Target-relevant deterministic evidence packet (same builder the
-      // proposals stage uses): empty packet ⇒ nothing to ground a pick on ⇒
-      // recorded skip, no LLM call.
       // Target-relevant deterministic evidence packet (same builder the
       // proposals stage uses). Unrelated general text NEVER enters the prompt
       // (epic #46 grounding rule): an empty packet means nothing to ground a
@@ -213,70 +196,13 @@ export const valueGapAbstainStage: StageDefinition = {
         continue;
       }
 
-      const llmResult = await llmRankOptions({
-        targetLabel: gap.label,
-        options: gap.allowedValues.map(value => ({ value, label: value })),
-        selectionMode: 'single',
-        evidenceText: promptText.slice(0, 3000),
-        task: 'attribute_value_classification',
-        protectedOperation: 'value_gap_resolution',
-        modelPolicy: modelPolicyView,
-        ...(context.snapshot
-          ? {
-              modelCall: buildModelCallContext(context.snapshot, context.runId, 'value_gap_resolution', 1),
-              snapshot: context.snapshot,
-            }
-          : {}),
-      });
-
-      // Ranker-level abstention (policy denied / unavailable / parse failure /
-      // empty values / below propose gates): deterministic abstain.
-      if (!llmResult || llmResult.values.length === 0) {
-        resolutions.push({
-          attributeId: gap.attributeId,
-          catalogField: gap.catalogField,
-          outcome: 'value_gap_abstained',
-          reason: 'Constrained LLM resolution abstained (no admissible in-constraint value).',
-        });
-        abstainedCount++;
-        continue;
-      }
-
-      // Layered constraint re-validation: EVERY returned value must be a
-      // member of the attribute's frozen allowedValues. A single
-      // out-of-constraint value fails the whole attribute closed.
-      const allowedSet = allowedSetByAttribute.get(gap.attributeId)!;
-      const inConstraint = llmResult.values.filter(value => allowedSet.has(value));
-      if (inConstraint.length === 0 || inConstraint.length !== llmResult.values.length) {
-        resolutions.push({
-          attributeId: gap.attributeId,
-          catalogField: gap.catalogField,
-          outcome: 'out_of_constraint_abstained',
-          reason: 'Model returned at least one value outside the frozen allowedValues — attribute abstains.',
-        });
-        abstainedCount++;
-        continue;
-      }
-
-      const value = inConstraint[0];
-      proposals.push(buildFieldAssignmentProposal({
-        runId: context.runId,
-        sku: input.sku,
-        attributeId: gap.attributeId,
-        value,
-        confidence: llmResult.confidence,
-        evidenceIds: [...new Set(packet.evidenceIds)],
-        isMultiple: false,
-        snapshotHash,
-        ...(llmResult.modelCallIds?.length ? { modelCallIds: llmResult.modelCallIds } : {}),
-      }));
       resolutions.push({
         attributeId: gap.attributeId,
         catalogField: gap.catalogField,
-        outcome: 'proposed',
-        value,
+        outcome: 'value_gap_abstained',
+        reason: 'Attribute curation abstained without resolving a value; residual gap abstained.',
       });
-      proposedCount++;
+      abstainedCount++;
     }
 
     return {

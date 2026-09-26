@@ -1,7 +1,22 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { serializeEmbedding, deserializeEmbedding as deserializeEmbeddingVector } from '../../classification/embedding-client';
-import type { EmbeddingNamespace } from '../../classification/embedding-client';
+
+export type EmbeddingNamespace = 'production' | 'evaluation';
+
+export function serializeEmbedding(vec: Float32Array): Buffer {
+  return Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
+}
+
+export function deserializeEmbedding(buf: Buffer): Float32Array {
+  if (buf.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+    throw new Error('Invalid embedding buffer length: must be multiple of 4');
+  }
+  if (buf.byteOffset % Float32Array.BYTES_PER_ELEMENT === 0) {
+    return new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / Float32Array.BYTES_PER_ELEMENT);
+  }
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  return new Float32Array(ab);
+}
 
 export interface ProductEmbeddingRow {
   id: string;
@@ -192,10 +207,7 @@ export function markEmbeddingFailure(rowId: string, status: string, at?: string)
   ).run({ $status: status, $at: at ?? new Date().toISOString(), $id: rowId });
 }
 
-/** Row-vector deserialization passthrough (maintenance callers). */
-export function deserializeEmbedding(buf: Buffer): Float32Array {
-  return deserializeRowVector({ embedding_blob: buf } as ProductEmbeddingRow);
-}
+
 
 /** Stable model/provider fingerprint used for wrong-model detection. */
 function fingerprintFor(model: string, provider: string): string {
@@ -257,8 +269,4 @@ function deleteEmbeddingById(id: string): boolean {
   const db = getDb();
   const result = db.query('DELETE FROM product_embeddings WHERE id = $id').run({ $id: id });
   return Number(result.changes) > 0;
-}
-
-function deserializeRowVector(row: ProductEmbeddingRow): Float32Array {
-  return deserializeEmbeddingVector(row.embedding_blob);
 }

@@ -18,7 +18,6 @@
  * - Fallback to existing chat LLM ranker when provider is openai-compatible/ollama-native.
  */
 
-import { randomUUID } from 'node:crypto';
 import {
   dispatchSystemOne,
   SYSTEMONE_MAX_CHOICE_OPTIONS,
@@ -28,7 +27,6 @@ import {
 } from '../ai/systemone-transport';
 import {
   assertConnectionEnabledForDispatch,
-  isConnectionUsable,
 } from '../ai/provider-connections';
 import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import { getApiKey } from '../db/repositories/api-key-repo';
@@ -61,8 +59,6 @@ import {
   type EvidenceTargetPacket,
 } from './evidence-targeting';
 import { matchKeywordOptions } from './curation-target-matcher';
-import { llmRankOptions } from './curation-target-ranker';
-import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import type { ClassificationEvidence, ProposalDerivation } from '../shared/schemas/classification';
 import { hashCanonicalJson } from '../shared/stable-id';
@@ -192,7 +188,7 @@ export function buildProductTypeState(
   };
 
   // Ensure state serialization fits within SYSTEMONE_MAX_STATE_BYTES (32,768)
-  let serialized = JSON.stringify(baseState);
+  const serialized = JSON.stringify(baseState);
   if (Buffer.byteLength(serialized, 'utf-8') > SYSTEMONE_MAX_STATE_BYTES) {
     baseState.snippets = baseState.snippets.slice(0, 5);
     if (baseState.description) {
@@ -438,79 +434,39 @@ export async function resolveProductTypeDecision(
   }
 
   if (!isSystemOne) {
-    // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
-    const llmResult = await llmRankOptions({
-      targetLabel: target.config.label,
-      options,
-      selectionMode: 'single',
-      evidenceText: text,
-      task: 'product_type_classification',
-      modelPolicy: effectivePolicy,
-      protectedOperation: 'product_type_ranking',
-      modelCall: snapshot ? {
-        runId,
-        snapshotHash: snapshot.snapshotHash,
-        stage: 'primary_product_type_proposal',
-        operation: 'product_type_ranking',
-        attempt: 1,
-        promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
-        ruleVersion: RULE_VERSIONS.product_type_ranking,
-      } : null,
-      snapshot,
-      assertHeld,
+    // Post-qualification: Curation requires TypeSafe Jev (systemone transport).
+    // Chat fallbacks are retired (Issue #312 / ADR 0033).
+    assertHeld?.();
+    insertTerminalModelCall({
+      runId,
+      stageName: 'primary_product_type_proposal',
+      operation: 'product_type_ranking',
+      attempt: 1,
+      provider: route?.provider ?? null,
+      model: route?.model ?? null,
+      locality: route?.locality ?? null,
+      snapshotHash: snapshot?.snapshotHash ?? '',
+      modelPolicyDigest: effectivePolicy?.policyDigest ?? '',
+      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
+      ruleVersion: RULE_VERSIONS.product_type_ranking,
+      systemPromptHash: '',
+      userPromptHash: '',
+      status: MODEL_CALL_STATUS.unavailable,
+      errorMessage: 'Classification chat fallback retired per issue #312 / ADR 0033. Route requires TypeSafe Jev (systemone transport).',
+      costBasis: COST_BASIS.unknown,
     });
-
-    if (!llmResult || llmResult.values.length === 0) {
-      return {
-        status: 'abstained',
-        productTypeId: null,
-        confidence: 0,
-        selectedProbability: null,
-        vendorConfidence: null,
-        probabilityBasis: null,
-        source: 'llm',
-        abstentionCode: 'no_confident_match',
-        abstentionReason: 'No confident LLM match found for product type.',
-        derivation: { kind: 'llm' },
-        modelCallIds: llmResult?.modelCallIds ?? [],
-        evidenceIds,
-        supportingEvidenceIds,
-        contradictingEvidenceIds,
-      };
-    }
-
-    const rawLabel = llmResult.values[0];
-    const mappedId = mapRankedLabelToOptionExactlyOne(rawLabel, options);
-    const resolvedId = mappedId ?? (effectivePolicy ? null : rawLabel);
-    if (!resolvedId) {
-      return {
-        status: 'abstained',
-        productTypeId: null,
-        confidence: 0,
-        selectedProbability: null,
-        vendorConfidence: null,
-        probabilityBasis: null,
-        source: 'llm',
-        abstentionCode: 'no_confident_match',
-        abstentionReason: `LLM label "${rawLabel}" could not be unambiguously mapped to a configured product type ID.`,
-        derivation: { kind: 'llm' },
-        modelCallIds: llmResult.modelCallIds ?? [],
-        evidenceIds,
-        supportingEvidenceIds,
-        contradictingEvidenceIds,
-      };
-    }
-
     return {
-      status: 'resolved',
-      productTypeId: resolvedId,
-      confidence: llmResult.confidence,
+      status: 'abstained',
+      productTypeId: null,
+      confidence: 0,
       selectedProbability: null,
       vendorConfidence: null,
-      probabilityBasis: 'llm_score',
-      source: 'llm',
-      derivation: { kind: 'llm' },
-      modelCallIds: llmResult.modelCallIds ?? [],
+      probabilityBasis: null,
+      source: 'jev',
+      abstentionCode: 'service_failure',
+      abstentionReason: 'Model-backed product type ranking requires TypeSafe Jev. Superseded chat classifiers are retired per ADR 0033.',
+      derivation: { kind: 'model_choice' },
+      modelCallIds: [],
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,

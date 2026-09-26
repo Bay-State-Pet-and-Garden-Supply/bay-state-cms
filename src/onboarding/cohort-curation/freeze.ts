@@ -37,6 +37,7 @@ import type { ModelPolicyView } from '../../classification/model-policy-gateway'
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
 import type { ModelExecutionPlan, RuntimeRuleVersions } from '../../classification/model-operation-registry';
 import { getCohortCurationFlags } from '../../classification/flags';
+import { buildEvidenceTargetPacket } from '../../classification/evidence-targeting';
 import {
   evidenceFromProjection,
   matchMemberDeterministically,
@@ -78,12 +79,10 @@ import {
   persistRuntimeSnapshot,
   requireModelCallContext,
   getModelExecutionPlanEntry,
-  buildModelCallContext,
 } from '../../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import type { ModelCallContext } from '../../classification/model-operation-registry';
 import { modelPolicyViewFromConfig } from '../model-policy-snapshot';
-import { mapRankedLabelToOptionExactlyOne } from '../../classification/cohort-product-type-resolver';
 import type {
   CohortProductTypeResolution,
   ConfidentMemberProductTypeResult,
@@ -91,8 +90,6 @@ import type {
 } from '../../classification/cohort-product-type-resolver';
 import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
 import { getReviewedTypeFromSnapshot } from '../../classification/effective-curation-type';
-import { buildEvidenceTargetPacket } from '../../classification/evidence-targeting';
-import { llmRankOptions } from '../../classification/curation-target-ranker';
 import { resolveProductTypeDecision } from '../../classification/product-type-decision';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import { CohortLeaseKeeper } from './execution-lease';

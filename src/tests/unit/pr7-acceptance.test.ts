@@ -158,30 +158,6 @@ let capturedGroupPrompt: string | null = null;
 
 const PAGE_NAMES = ['Dog Food Dry', 'Dog Food Canned', 'Brand - Acme'];
 
-/** PR7 review R1 (T3): FROZEN expected legacy page results — the COMPLETE
- *  {pageName, confidence} proposal set per SKU the legacy path must produce
- *  byte-identically (flag OFF and shadow). The canned responses assign Dog
- *  Food Dry / Dog Food Canned from the frozen page list (position-independent, see
- *  `cannedGroupResponse`) and the deterministic normalizer adds the exact
- *  'Brand - Acme' page in multiple mode (0.85 canned + 0.95 brand shortcut).
- *  Entries are sorted by pageName for order-independent set equality. */
-const LEGACY_PAGE_RESULTS_BASELINE: Record<string, Array<{ pageName: string; confidence: number }>> = {
-  '100000000001': [
-    { pageName: 'Brand - Acme', confidence: 0.95 },
-    { pageName: 'Dog Food Dry', confidence: 0.85 },
-  ],
-  '100000000002': [
-    { pageName: 'Brand - Acme', confidence: 0.95 },
-    { pageName: 'Dog Food Canned', confidence: 0.85 },
-  ],
-  // The legacy SINGLETON path resolves its brand from the restricted page
-  // evidence packet (no brand record in this harness) — the normalizer never
-  // sees a brand page, so the result is the single canned page only.
-  '100000000003': [
-    { pageName: 'Dog Food Dry', confidence: 0.85 },
-  ],
-};
-
 /** Extract the frozen page list from a page prompt (`[ID:xxx] Name ...`). */
 function pageListFromPrompt(prompt: string): Array<{ id: string; name: string }> {
   const matches = [...prompt.matchAll(/\[ID:([^\]]+)\]\s+([^\n(]+)/g)];
@@ -817,40 +793,32 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       },
     })).rejects.toThrow('simulated kill after member 1 commit');
 
-    // The durable set: EXACTLY ONE group call + ONE singleton call; a row for
-    // EVERY member (the P-set, DECISION-A).
-    expect(groupPageCallCount).toBe(1);
-    expect(singletonPageCallCount).toBe(1);
+    // The durable set: parent page coordination preflights terminalized as unavailable
+    // per ADR 0033 (chat page transport retired); persisted abstained rows for EVERY member.
+    expect(groupPageCallCount).toBe(0);
+    expect(singletonPageCallCount).toBe(0);
     expect(countCohortPageOutputs(finalized.id)).toBe(3);
     const rows = getCohortPageOutputsByRun(finalized.id);
     expect(rows).toHaveLength(3);
     expect(rows.every(r => r.inputHash === rows[0].inputHash)).toBe(true);
     expect(rows.every(r => r.inputHash.length === 64)).toBe(true);
-    // One audited started+success pair per invocation (group + singleton).
-    expect(auditedPageCallCount).toBe(2);
-    // PR7 review R1 (B1): the ACTIVE parent group transport prompt is the v2
-    // text — it carries the full Execution Type context block (id + label +
-    // confidence + outcome) rendered from the hashed authority. This is the
-    // transport-level assertion on the real parent path. The confidence /
-    // outcome come from the frozen run row (the SAME authority the P-hash
-    // and the prompt render).
-    expect(capturedGroupPrompt).not.toBeNull();
-    const runTypeRow = getDb().query(
-      'SELECT product_type_confidence, product_type_outcome FROM classification_cohort_runs WHERE id = ?',
-    ).get(finalized.id) as { product_type_confidence: number | null; product_type_outcome: string | null };
-    expect(capturedGroupPrompt!).toContain(
-      `EXECUTION PRODUCT TYPE CONTEXT:\nProduct Type Context: "dog-food-dry (Dry Dog Food)"\nConfidence: ${String(runTypeRow.product_type_confidence)}\nOutcome: ${String(runTypeRow.product_type_outcome)}`,
-    );
-    expect(capturedGroupPrompt!).not.toContain('not resolved');
+    expect(rows.every(r => JSON.parse(r.outputValueJson).status === 'abstained')).toBe(true);
+
+    const pageAuditRows = getDb().query(
+      "SELECT * FROM classification_model_calls WHERE operation = 'cohort_page_assignment_parent' AND run_id IN (SELECT id FROM classification_runs WHERE cohort_run_id = ?)",
+    ).all(finalized.id) as Array<Record<string, any>>;
+    expect(pageAuditRows.length).toBe(2); // group + singleton, terminal preflight each
+    for (const row of pageAuditRows) {
+      expect(row.status).toBe('unavailable');
+    }
 
     // Member 1 committed with its stored assignment; members 2+3 untouched.
     const memberOne = findItemById(items[0].id)!;
-    expect(memberOne.stageStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(memberOne.stageStatus);
     const memberOnePages = memberOne.curationData!.classificationProposals.filter(
       proposal => proposal.proposalType === 'category_page',
     );
-    expect(memberOnePages.length).toBeGreaterThan(0);
-    expect(memberOnePages.every(p => (p.proposedValue as any).identityVerified === true)).toBe(true);
+    expect(memberOnePages.length).toBe(0);
     const memberTwo = findItemById(items[1].id)!;
     const memberThree = findItemById(items[2].id)!;
     expect(memberTwo.stageStatus).toBe('pending');
@@ -892,7 +860,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
 
     const memberTwoAfter = findItemById(items[1].id)!;
     const memberThreeAfter = findItemById(items[2].id)!;
-    expect(memberTwoAfter.stageStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(memberTwoAfter.stageStatus);
     expect(memberThreeAfter.stageStatus).toBe('pending');
 
     // ── Retry member 1 with a NEW child run: reset the item (stage pending,
@@ -915,43 +883,27 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     expect(childAfter!.id).not.toBe(childBefore!.id); // a NEW child run
 
     // Every member now consumes the EXACT stored assignments (PR7 review R1,
-    // T6): the normalized {pageId, pageName, confidence} proposal set equals
-    // the member's stored coordinated_page row — never containment. Additive
-    // historical proposals are excluded by scoping to the member's relevant
-    // (final) child run, exactly as the retried member-A check below does.
-    const storedBySku = new Map(rows.map(r => [r.productSku, JSON.parse(r.outputValueJson)]));
+    // T6): all 3 members consume the stored abstentions.
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      expect(stored.stageStatus).toBe('completed');
+      expect(['completed', 'completed_with_abstentions']).toContain(stored.stageStatus);
       const memberChild = getDb().query(
         'SELECT id FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1',
       ).get(finalized.id, item.id) as { id: string } | undefined;
       const pageProposals = stored.curationData!.classificationProposals.filter(
         proposal => proposal.proposalType === 'category_page' && proposal.runId === memberChild?.id,
       );
-      expect(pageProposals.length).toBeGreaterThan(0);
-      const storedRow = storedBySku.get(item.upc) as { pages: Array<{ pageId: string; pageName: string; confidence: number }> };
-      const proposalSet = new Set(pageProposals.map(proposal => {
-        const value = (proposal.proposedValue as any) ?? {};
-        return `${proposal.targetId}\u0000${value.pageName}\u0000${proposal.confidence}`;
-      }));
-      expect(proposalSet.size).toBe(storedRow.pages.length);
-      for (const storedPage of storedRow.pages) {
-        expect(proposalSet.has(`${storedPage.pageId}\u0000${storedPage.pageName}\u0000${storedPage.confidence}`)).toBe(true);
-      }
-      expect(pageProposals.every(p => (p.proposedValue as any).identityVerified === true)).toBe(true);
+      expect(pageProposals.length).toBe(0);
     }
     const rerunMemberOne = findItemById(items[0].id)!;
     const rerunPages = rerunMemberOne.curationData!.classificationProposals.filter(
       proposal => proposal.proposalType === 'category_page',
     );
-    const storedMemberOne = storedBySku.get(items[0].upc) as { pages: Array<{ pageId: string; pageName: string }> };
-    expect(rerunPages.map(p => p.targetId).sort()).toEqual(storedMemberOne.pages.map(page => page.pageId).sort());
+    expect(rerunPages.length).toBe(0);
 
-    // Total transport: exactly ONE group + ONE singleton call across the
-    // whole kill/restart/re-execute scenario (replay-safe after commit).
-    expect(groupPageCallCount).toBe(1);
-    expect(singletonPageCallCount).toBe(1);
+    // Total transport: exactly ZERO calls across the whole scenario per ADR 0033.
+    expect(groupPageCallCount).toBe(0);
+    expect(singletonPageCallCount).toBe(0);
   });
 
   it('5-6: drift rows (stale hash / MISSING member / EXTRA unexpected row) → CohortPageAuthorityDriftError → parent SUPERSEDED + running children terminalized → next claim yields a DIFFERENT run id; wrong-owner supersede is a no-op WHILE the run is still RUNNING; old page rows unchanged', async () => {
@@ -1110,29 +1062,19 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
 
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
-    // ONE group call for the two siblings; the singleton used the per-item
-    // parent path.
-    expect(groupPageCallCount).toBe(1);
+    // Page coordination preflights terminalized as unavailable per ADR 0033 (chat page transport retired).
+    expect(groupPageCallCount).toBe(0);
+    expect(singletonPageCallCount).toBe(0);
     expect(countCohortPageOutputs(finalized.id)).toBe(3);
+    const rows = getCohortPageOutputsByRun(finalized.id);
+    expect(rows.every(r => JSON.parse(r.outputValueJson).status === 'abstained')).toBe(true);
 
     const siblingOne = findItemById(items[0].id)!;
     const siblingTwo = findItemById(items[1].id)!;
     const pagesOne = siblingOne.curationData!.classificationProposals.filter(p => p.proposalType === 'category_page');
     const pagesTwo = siblingTwo.curationData!.classificationProposals.filter(p => p.proposalType === 'category_page');
-    expect(pagesOne.length).toBeGreaterThan(0);
-    expect(pagesTwo.length).toBeGreaterThan(0);
-    // Rule 7: siblings may legitimately differ — the canned response assigned
-    // one to Dog Food Dry and the other to Dog Food Canned from ONE group call.
-    const pagesByName = new Map<string, string[]>();
-    for (const row of getCohortPageOutputsByRun(finalized.id)) {
-      const names = (JSON.parse(row.outputValueJson).pages as Array<{ pageName: string }>).map(p => p.pageName);
-      pagesByName.set(row.productSku, names);
-    }
-    const namesOne = pagesByName.get(items[0].upc)!;
-    const namesTwo = pagesByName.get(items[1].upc)!;
-    expect(namesOne.some(name => name === 'Dog Food Dry')).toBe(true);
-    expect(namesTwo.some(name => name === 'Dog Food Canned')).toBe(true);
-    expect(pagesOne[0].targetId).not.toBe(pagesTwo[0].targetId);
+    expect(pagesOne.length).toBe(0);
+    expect(pagesTwo.length).toBe(0);
   });
 
   it('9: singleton member parent-owned — exactly ONE output row; the child materializes it; retry → zero calls', async () => {
@@ -1142,19 +1084,16 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
 
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.parentStatus).not.toBe('failed');
-    // The singleton member (100000000003) has exactly ONE durable row AND its
-    // proposals came from the stored row — the per-item child path was NOT
-    // consulted (no second call).
-    expect(singletonPageCallCount).toBe(1);
+    // The singleton member (100000000003) has exactly ONE durable row; per ADR 0033
+    // chat transport is retired and preflight terminalized as unavailable.
+    expect(singletonPageCallCount).toBe(0);
     const singleton = findItemById(items[2].id)!;
-    expect(singleton.stageStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(singleton.stageStatus);
     const singletonPages = singleton.curationData!.classificationProposals.filter(p => p.proposalType === 'category_page');
-    expect(singletonPages.length).toBeGreaterThan(0);
+    expect(singletonPages.length).toBe(0);
     const singletonRow = getCohortPageOutputsByRun(finalized.id).find(row => row.productSku === items[2].upc)!;
     expect(singletonRow).toBeTruthy();
-    const rowPages = JSON.parse(singletonRow.outputValueJson).pages as Array<{ pageId: string }>;
-    expect(singletonPages.map(p => p.targetId).sort()).toEqual(rowPages.map(page => page.pageId).sort());
-    expect(singletonPages.every(p => (p.proposedValue as any).identityVerified === true)).toBe(true);
+    expect(JSON.parse(singletonRow.outputValueJson).status).toBe('abstained');
 
     // Retry the singleton (reset + re-run the member pipeline in prepared
     // mode against the persisted outputs): ZERO page calls.
@@ -1168,8 +1107,7 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     const prepared = buildPreparedContext(workspaceId, finalized, singleton, frozenLineContext);
     const rerun = await curateTransitionalPreparedMember(findItemById(singleton.id)!, wsPath, workspaceId, prepared);
     const rerunPages = rerun.classificationProposals.filter(p => p.proposalType === 'category_page');
-    expect(rerunPages.length).toBeGreaterThan(0);
-    expect(rerunPages.map(p => p.targetId).sort()).toEqual(rowPages.map(page => page.pageId).sort());
+    expect(rerunPages.length).toBe(0);
     expect(groupPageCallCount + singletonPageCallCount).toBe(pageCalls);
   });
 
@@ -1238,20 +1176,14 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       // stage invocation binds its own model-call audit context — a distinct
       // cache key, so the two group members produce two audited group calls)
       // and one per-item singleton call.
-      expect(groupPageCallCount).toBe(2);
-      expect(singletonPageCallCount).toBe(1);
-      // Complete legacy page results == FROZEN baseline.
-      const pageResults: Record<string, Array<{ pageName: string; confidence: number }>> = {};
+      expect(groupPageCallCount).toBe(0);
+      expect(singletonPageCallCount).toBe(0);
       for (const item of items) {
         const stored = findItemById(item.id)!;
-        expect(stored.stageStatus).toBe('completed');
+        expect(['completed', 'completed_with_abstentions']).toContain(stored.stageStatus);
         const pageProposals = stored.curationData!.classificationProposals.filter(p => p.proposalType === 'category_page');
-        expect(pageProposals.length).toBeGreaterThan(0);
-        pageResults[item.upc] = pageProposals
-          .map(p => ({ pageName: (p.proposedValue as any).pageName as string, confidence: p.confidence }))
-          .sort((a, b) => a.pageName.localeCompare(b.pageName));
+        expect(pageProposals.length).toBe(0);
       }
-      expect(pageResults).toEqual(LEGACY_PAGE_RESULTS_BASELINE);
 
       // PR7 review R1 (T3): DIRECT cache-dedup proof at the transport level —
       // a second group entry with an IDENTICAL stable key (same groupId +
@@ -1287,32 +1219,18 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       const [result1, result2] = await Promise.all([promise1, promise2]);
       expect(promise1).toBe(promise2); // the SAME cached promise
       expect(result1).toBe(result2);
-      expect(groupPageCallCount).toBe(groupCallsBeforeDedup + 1); // ONE shared transport for both entries
+      expect(groupPageCallCount).toBe(groupCallsBeforeDedup);
 
-      // PR7 review R2 (F2d): the LEGACY child-path audit rows keep the legacy
-      // operations + v1 versions (never the parent operation). Scoped to THIS
-      // workspace (the shared DB accumulates rows across tests).
+      // Under ADR 0033: preflights terminalize as unavailable for non-systemone transport.
       const legacyGroupRows = getDb().query(
-        `SELECT operation, prompt_template_version, rule_version FROM classification_model_calls
+        `SELECT operation, status FROM classification_model_calls
          WHERE operation = 'cohort_page_assignment'
            AND run_id IN (SELECT id FROM classification_runs WHERE workspace_id = ?)`,
-      ).all(workspaceId) as Array<{ operation: string; prompt_template_version: string; rule_version: string }>;
+      ).all(workspaceId) as Array<{ operation: string; status: string }>;
       expect(legacyGroupRows.length).toBeGreaterThan(0);
       for (const row of legacyGroupRows) {
         expect(row.operation).toBe('cohort_page_assignment');
-        expect(row.prompt_template_version).toBe('cohort-page-assignment-prompt-v1');
-        expect(row.rule_version).toBe('cohort-page-assignment-rules-v1');
-      }
-      const legacySingletonRows = getDb().query(
-        `SELECT operation, prompt_template_version, rule_version FROM classification_model_calls
-         WHERE operation = 'page_assignment'
-           AND run_id IN (SELECT id FROM classification_runs WHERE workspace_id = ?)`,
-      ).all(workspaceId) as Array<{ operation: string; prompt_template_version: string; rule_version: string }>;
-      expect(legacySingletonRows.length).toBeGreaterThan(0);
-      for (const row of legacySingletonRows) {
-        expect(row.operation).toBe('page_assignment');
-        expect(row.prompt_template_version).toBe('page-assignment-prompt-v1');
-        expect(row.rule_version).toBe('page-assignment-rules-v1');
+        expect(row.status).toBe('unavailable');
       }
       // NO parent operation ever appears on the legacy path (this workspace).
       const parentOperationRows = getDb().query(
@@ -1329,25 +1247,20 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const finalized = await freezeActiveCohort(workspaceId, wsPath);
 
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).not.toBe('failed');
-    // ONE group call + ONE singleton call, both audited under the parent op.
-    expect(groupPageCallCount).toBe(1);
-    expect(singletonPageCallCount).toBe(1);
-    expect(auditedPageCallCount).toBe(2);
+    await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
+    // Group and singleton preflight terminalized as unavailable per ADR 0033.
+    expect(groupPageCallCount).toBe(0);
+    expect(singletonPageCallCount).toBe(0);
     const rows = getDb().query(
-      `SELECT operation, prompt_template_version, rule_version FROM classification_model_calls
+      `SELECT operation, status FROM classification_model_calls
        WHERE operation = 'cohort_page_assignment_parent'
          AND run_id IN (SELECT id FROM classification_runs WHERE cohort_run_id = ?)`,
-    ).all(finalized.id) as Array<{ operation: string; prompt_template_version: string; rule_version: string }>;
-    // The audit rows are manufactured per production semantics: every audited
-    // call writes a `started` row + a `success` row — 2 rows per call, so the
-    // two parent calls (group + singleton) produce FOUR rows.
-    expect(rows.length).toBe(4);
+    ).all(finalized.id) as Array<{ operation: string; status: string }>;
+    // The two parent preflight calls (group + singleton) produce TWO terminal preflight rows.
+    expect(rows.length).toBe(2);
     for (const row of rows) {
       expect(row.operation).toBe('cohort_page_assignment_parent');
-      expect(row.prompt_template_version).toBe('cohort-page-assignment-parent-prompt-v2');
-      expect(row.rule_version).toBe('cohort-page-assignment-parent-rules-v2');
+      expect(row.status).toBe('unavailable');
     }
     // The legacy child operations are NOT used by the active parent path.
     const legacyRows = getDb().query(

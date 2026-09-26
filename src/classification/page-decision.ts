@@ -71,7 +71,6 @@ import {
 import {
   buildPageHierarchy,
   extractProductContext,
-  llmAssignCategoryPages,
   normalizePageAssignments,
 } from './page-assignment-llm';
 import { validateCategoryPageAssignment } from './category-page-correctness';
@@ -507,60 +506,39 @@ export async function resolvePageDecision(
     }
   }
 
-  // 4. Fallback to existing chat LLM assigner if not routed to SystemOne
+  // 4. Post-qualification: Curation requires TypeSafe Jev (systemone transport).
+  // Chat fallbacks are retired (Issue #312 / ADR 0033).
   if (!isSystemOne) {
-    const llmResult = await llmAssignCategoryPages({
-      productName: productContext.productName ?? 'Unknown Product',
-      productDescription: productContext.productDescription ?? '',
-      ocrSummary: {
-        species: productContext.ocrSummary?.species ?? [],
-        flavor: productContext.ocrSummary?.flavor ?? null,
-        lifeStage: productContext.ocrSummary?.lifeStage ?? null,
-        productForm: productContext.ocrSummary?.productForm ?? null,
-        healthConcern: productContext.ocrSummary?.healthConcern ?? [],
-        productName: productContext.ocrSummary?.productName ?? null,
-        brand: productContext.ocrSummary?.brand ?? null,
-      },
-      productType: productContext.productType ?? null,
-      pages: rawHierarchy,
-      selectionMode,
-      maxPages,
-      modelPolicy: effectivePolicy,
-      snapshot,
+    assertHeld?.();
+    insertTerminalModelCall({
+      runId,
+      stageName: 'category_page_proposals',
+      operation: protectedOperation,
+      attempt: 1,
+      provider: route?.provider ?? null,
+      model: route?.model ?? null,
+      locality: route?.locality ?? null,
+      snapshotHash: snapshot?.snapshotHash ?? '',
+      modelPolicyDigest: effectivePolicy?.policyDigest ?? '',
+      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS[protectedOperation],
+      ruleVersion: RULE_VERSIONS[protectedOperation],
+      systemPromptHash: '',
+      userPromptHash: '',
+      status: MODEL_CALL_STATUS.unavailable,
+      errorMessage: 'Classification chat fallback retired per issue #312 / ADR 0033. Route requires TypeSafe Jev (systemone transport).',
+      costBasis: COST_BASIS.unknown,
     });
-
-    if (!llmResult || llmResult.pages.length === 0) {
-      return {
-        outcome: 'abstained',
-        status: 'abstained',
-        pages: [],
-        selectedProbability: null,
-        vendorConfidence: null,
-        probabilityBasis: null,
-        source: 'llm',
-        abstentionCode: 'no_match',
-        abstentionReason: 'No category page matches found from LLM.',
-        modelCallIds: llmResult?.modelCallIds ?? [],
-        evidenceIds,
-        supportingEvidenceIds,
-        contradictingEvidenceIds,
-      };
-    }
-
     return {
-      outcome: 'predicted',
-      status: 'succeeded',
-      pages: llmResult.pages.map(p => ({
-        pageId: p.pageId,
-        pageName: p.pageName,
-        confidence: p.confidence,
-        isBrandShortcut: p.isBrandShortcut,
-      })),
-      selectedProbability: llmResult.pages[0]?.confidence ?? 0.55,
+      outcome: 'abstained',
+      status: 'abstained',
+      pages: [],
+      selectedProbability: null,
       vendorConfidence: null,
-      probabilityBasis: 'llm_ranker',
-      source: 'llm',
-      modelCallIds: llmResult.modelCallIds ?? [],
+      probabilityBasis: null,
+      source: 'jev',
+      abstentionCode: 'service_failure',
+      abstentionReason: 'Model-backed category page assignment requires TypeSafe Jev. Superseded chat classifiers are retired per ADR 0033.',
+      modelCallIds: [],
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,
@@ -1431,7 +1409,7 @@ export async function coordinateCohortPagesWithJev(
   }
 
   let route: ReturnType<typeof resolveModelRoute> | null = null;
-  let conn: any = null;
+  let conn: any;
 
   try {
     assertModelPolicyIntact(effectivePolicy);

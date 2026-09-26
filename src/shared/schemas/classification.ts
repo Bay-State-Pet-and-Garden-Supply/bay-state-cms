@@ -856,6 +856,9 @@ export const ProposalDerivationSchema = z.discriminatedUnion('kind', [
     kind: z.literal('llm'),
   }).strict(),
   z.object({
+    kind: z.literal('model_choice'),
+  }).strict(),
+  z.object({
     kind: z.literal('systemone_judgment'),
     primitive: z.enum(['choice', 'noul']),
     questionId: z.string(),

@@ -17,6 +17,12 @@ vi.mock('@/onboarding/llm-client', () => ({
   // content in the enriched result shape the coordinator consumes.
   callLlmForTaskWithProvenance: (...args: unknown[]) => mocks.callLlmForTaskWithProvenance(...args),
 }));
+vi.mock('@/db/repositories/provider-connection-repo', () => ({
+  getFullAiRoutingConfig: vi.fn(() => ({ connections: {} })),
+}));
+vi.mock('@/db/repositories/api-key-repo', () => ({
+  getApiKey: vi.fn(() => null),
+}));
 vi.mock('@/db/repositories/page-repo', () => ({ listPages: vi.fn(() => []) }));
 // The coordinator records terminal preflight rows; mock the repo so the
 // bun:sqlite-backed module never loads in the Vitest graph.
@@ -207,51 +213,8 @@ describe('buildPrompt — v2 Execution Type context block (PR7 C3 / DECISION-F +
   });
 });
 
-describe('PR7 review R1 (B1) — the ACTIVE parent transport prompt is v2 (full Execution Type block)', () => {
-  it('sends the v2 prompt (type block with id+label+confidence+outcome) to callLlmForTaskWithProvenance on the parent path', async () => {
-    mocks.callLlmForTask.mockResolvedValue(validResponse(params().products));
-    await coordinateCohortPagesCore(
-      params(),
-      { executionTypeContext: { id: 'type-1', label: 'Dry Dog Food', confidence: 0.95, outcome: 'coherent' } },
-    );
-    const [task, prompt, , transportOptions] = mocks.callLlmForTaskWithProvenance.mock.calls[0] as [
-      string, string, string, Record<string, unknown>,
-    ];
-    expect(task).toBe('category_page_assignment');
-    expect(prompt).toContain(
-      'EXECUTION PRODUCT TYPE CONTEXT:\nProduct Type Context: "type-1 (Dry Dog Food)"\nConfidence: 0.95\nOutcome: coherent',
-    );
-    expect(prompt).not.toBe(LEGACY_PROMPT_BASELINE);
-    expect(transportOptions.protectedOperation).toBe('cohort_page_assignment');
-  });
-
-  it('round-3 P1: the parent path routes the transport as its OWN operation (cohort_page_assignment_parent) while the bare core keeps the legacy default', async () => {
-    mocks.callLlmForTask.mockResolvedValue(validResponse(params().products));
-    // Parent invocation: explicit protectedOperation override drives BOTH the
-    // preflight config resolution and the audited transport.
-    await coordinateCohortPagesCore(
-      params(),
-      {
-        executionTypeContext: { id: 'type-1', label: 'Dry Dog Food', confidence: 0.95, outcome: 'coherent' },
-        protectedOperation: 'cohort_page_assignment_parent',
-      },
-    );
-    const [, , , transportOptions] = mocks.callLlmForTaskWithProvenance.mock.calls[0] as [
-      string, string, string, Record<string, unknown>,
-    ];
-    expect(transportOptions.protectedOperation).toBe('cohort_page_assignment_parent');
-    const [, preflightOptions] = mocks.getLlmConfigForTask.mock.calls[0] as [string, Record<string, unknown>];
-    expect(preflightOptions.protectedOperation).toBe('cohort_page_assignment_parent');
-    // Bare core call (no opts): legacy v1 identity, unchanged.
-    await coordinateCohortPagesCore(params());
-    const [, , , legacyTransportOptions] = mocks.callLlmForTaskWithProvenance.mock.calls[1] as [
-      string, string, string, Record<string, unknown>,
-    ];
-    expect(legacyTransportOptions.protectedOperation).toBe('cohort_page_assignment');
-  });
-
+describe('coordinateCohortPagesCore — provenance and guards (PR7 C3)', () => {
   it('round-3 P1: a modelCall context whose operation diverges from the effective protected operation FAILS CLOSED before any transport', async () => {
-    mocks.callLlmForTask.mockResolvedValue(validResponse(params().products));
     const modelCall = {
       runId: 'run-1',
       snapshotHash: 'snap-1',
@@ -271,27 +234,6 @@ describe('PR7 review R1 (B1) — the ACTIVE parent transport prompt is v2 (full 
     expect(mocks.getLlmConfigForTask).not.toHaveBeenCalled();
   });
 
-  it('sends the FROZEN v1 prompt byte-for-byte when the legacy wrapper calls the core without opts', async () => {
-    mocks.callLlmForTask.mockResolvedValue(validResponse(params().products));
-    await coordinateCohortPagesCore(params());
-    const prompt = mocks.callLlmForTaskWithProvenance.mock.calls[0][1] as string;
-    expect(prompt).toBe(LEGACY_PROMPT_BASELINE);
-    expect(prompt).not.toContain('EXECUTION PRODUCT TYPE CONTEXT:');
-  });
-
-  it('sends the v2 block even when the hashed execution-type authority is a null id (not resolved + confidence + outcome)', async () => {
-    mocks.callLlmForTask.mockResolvedValue(validResponse(params().products));
-    await coordinateCohortPagesCore(
-      params(),
-      { executionTypeContext: { id: null, label: null, confidence: null, outcome: 'abstained' } },
-    );
-    const prompt = mocks.callLlmForTaskWithProvenance.mock.calls[0][1] as string;
-    expect(prompt).toContain('Product Type Context: "not resolved"\nConfidence: null\nOutcome: abstained');
-    expect(prompt).not.toBe(LEGACY_PROMPT_BASELINE);
-  });
-});
-
-describe('coordinateCohortPagesCore — guards unchanged (PR7 C3)', () => {
   it('abstains every member for <2 products with zero LLM calls', async () => {
     const input = params([product('SKU-1')]);
     const result = await coordinateCohortPagesCore(input);
@@ -313,77 +255,29 @@ describe('coordinateCohortPagesCore — guards unchanged (PR7 C3)', () => {
     expect([...result.values()][0]).toEqual({ status: 'abstained', reason: 'No configured Category Pages are available.' });
     expect(mocks.callLlmForTask).not.toHaveBeenCalled();
   });
+});
 
-  it('records a policy-denied terminal preflight and abstains every member when the model route is denied', async () => {
-    mocks.getLlmConfigForTask.mockImplementation(() => {
-      throw new Error('model-policy-denied');
-    });
-    const input = params();
-    const result = await coordinateCohortPagesCore(input);
-    expect(mocks.recordTerminalPreflight).toHaveBeenCalledTimes(1);
-    expect(mocks.recordTerminalPreflight).toHaveBeenCalledWith(
-      undefined,
-      '',
-      MODEL_CALL_STATUS.policyDenied,
-      expect.stringContaining('model-policy-denied'),
-    );
-    expect([...result.values()].every(value => value.status === 'abstained')).toBe(true);
-    expect(result.get('SKU-1')).toEqual({ status: 'abstained', reason: 'Cohort page LLM policy denied.' });
-    expect(mocks.callLlmForTask).not.toHaveBeenCalled();
-  });
-
-  it('records an unavailable terminal preflight when no config resolves', async () => {
-    mocks.getLlmConfigForTask.mockReturnValue(null);
+describe('coordinateCohortPagesCore — ADR 0033 retirement & preflight', () => {
+  it('records an unavailable terminal preflight and abstains when routed to non-Jev transport', async () => {
     const result = await coordinateCohortPagesCore(params());
     expect(mocks.recordTerminalPreflight).toHaveBeenCalledWith(
       undefined,
       '',
       MODEL_CALL_STATUS.unavailable,
-      expect.stringContaining('No category_page_assignment LLM is configured.'),
+      'Model-backed cohort category page assignment requires TypeSafe Jev. Superseded chat classifiers are retired per ADR 0033.',
     );
-    expect(result.get('SKU-1')).toEqual({ status: 'abstained', reason: 'No category_page_assignment LLM is configured.' });
+    expect(result.get('SKU-1')).toEqual({
+      status: 'abstained',
+      reason: 'Model-backed cohort category page assignment requires TypeSafe Jev. Superseded chat classifiers are retired per ADR 0033.',
+    });
     expect(mocks.callLlmForTask).not.toHaveBeenCalled();
   });
-});
 
-describe('coordinateCohortPagesCore — ownership/crash seams (PR7 C3)', () => {
-  it('threads assertHeld into the audited transport options', async () => {
-    const assertHeld = vi.fn();
-    await coordinateCohortPagesCore(params(), { assertHeld });
-    const transport = mocks.callLlmForTaskWithProvenance.mock.calls[0][3] as Record<string, unknown>;
-    expect(transport.assertHeld).toBe(assertHeld);
-    // The transport mock does not itself invoke the seam (that is the
-    // llm-client's job); the CORE is responsible for passing it through.
-    expect(assertHeld).not.toHaveBeenCalled();
-  });
-
-  it('invokes assertHeld before the policy-denied terminal-preflight write', async () => {
-    mocks.getLlmConfigForTask.mockImplementation(() => {
-      throw new Error('denied');
-    });
+  it('invokes assertHeld before the unavailable terminal-preflight write', async () => {
     const assertHeld = vi.fn();
     const result = await coordinateCohortPagesCore(params(), { assertHeld });
     expect(assertHeld).toHaveBeenCalledTimes(1);
     expect(mocks.recordTerminalPreflight).toHaveBeenCalledTimes(1);
-    expect(result.get('SKU-1')).toEqual({ status: 'abstained', reason: 'Cohort page LLM policy denied.' });
-  });
-
-  it('invokes afterCoordinatedCall after a successful transport response (the pre-commit crash seam)', async () => {
-    const afterCoordinatedCall = vi.fn();
-    const result = await coordinateCohortPagesCore(params(), { afterCoordinatedCall });
-    expect(mocks.callLlmForTask).toHaveBeenCalledTimes(1);
-    expect(afterCoordinatedCall).toHaveBeenCalledTimes(1);
-    expect(result.get('SKU-1')).toEqual({ status: 'assigned', pages: [
-      { pageId: 'cat-wet', pageName: 'Cat Food Wet', confidence: 0.8 },
-    ], modelCallIds: ['cohort-call-1'] });
-  });
-
-  it('a throwing afterCoordinatedCall rejects the core so the caller never persists', async () => {
-    const afterCoordinatedCall = vi.fn(() => {
-      throw new Error('simulated pre-commit crash');
-    });
-    await expect(coordinateCohortPagesCore(params(), { afterCoordinatedCall })).rejects.toThrow(
-      'simulated pre-commit crash',
-    );
+    expect(result.get('SKU-1')?.status).toBe('abstained');
   });
 });
