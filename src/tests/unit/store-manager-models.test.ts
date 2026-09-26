@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -178,11 +178,18 @@ describe('AI Compute connections: capability validation, picker parity & resilie
   });
 
   afterEach(() => {
-    try { deleteProviderConnection('office-pc'); } catch { /* ok */ }
-    try { deleteProviderConnection('office-pc-2'); } catch { /* ok */ }
+    if (isDbInitialized()) {
+      try { deleteProviderConnection('office-pc'); } catch { /* ok */ }
+      try { deleteProviderConnection('office-pc-2'); } catch { /* ok */ }
+    }
   });
 
   function upsertLanConnection(id: string, baseUrl: string): void {
+    if (!isDbInitialized()) {
+      try { resetDb(); } catch { /* ok */ }
+      initDb(testDbPath);
+      runMigrations();
+    }
     upsertProviderConnection({
       id,
       label: id === 'office-pc' ? 'Office PC' : 'Office PC 2',
