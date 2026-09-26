@@ -73,7 +73,7 @@ describe('classification policy routes (issue #296)', () => {
   let workspaceId: string;
   let baseBundleHash: string;
   let app: Hono;
-  const TEST_TOKEN = 'test-secret-token-296';
+  const TEST_TOKEN = 'test-fake-token-296';
 
   const activationContext = (): VerifiedActivationContext => ({
     catalogFields: REVIEWED_FIELDS,
