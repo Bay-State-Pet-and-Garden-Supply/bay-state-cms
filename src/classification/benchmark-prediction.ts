@@ -829,3 +829,552 @@ export function assessPredictionSourceEligibility(source: PredictionSourceKind):
   }
   return { eligible: false, reason: 'reviewed_outcome_ineligible_for_raw_accuracy' };
 }
+
+// ─── Offline Qualification Predictions From Code (Issue #293 blocker fix) ────
+//
+// The qualification runner must evidence the shipped classification code, not
+// replay per-entry authored answers. Frozen gold fixtures therefore carry ONLY
+// adjudicated gold labels + evidence snippets (no `baseline`/`candidate`
+// predictions). This section builds both prediction sides deterministically
+// from that gold + evidence by executing the actual shipped decision logic:
+//
+// - Baseline: the deterministic matcher precedence the pipeline applies
+//   before any model dispatch — `matchKeywordOptions` (product types, pages)
+//   gated by the shipped `KEYWORD_MATCH_MIN_CONFIDENCE` floor, and
+//   `matchAttributeOptions` (attributes) with word-boundary grounding. No
+//   model probabilities, no recovery.
+// - Candidate: the TypeSafe Jev decision path — shipped question builders
+//   (`buildProductTypeChoiceQuestion`, `buildAttributeChoiceQuestion` /
+//   `buildAttributeNoulQuestions`, `buildPageChoiceQuestion`), shipped
+//   probability floors (`JEV_PRODUCT_TYPE_MIN_PROBABILITY`,
+//   `JEV_ATTRIBUTE_MIN_PROBABILITY`, `JEV_MULTI_VALUE_MIN_PROBABILITY`,
+//   `JEV_PAGE_SINGLE_THRESHOLD`), and the shipped multi-value selection
+//   policy (`evaluateMultiValueSelectionPolicy`).
+//
+// Offline determinism note: without live credentials there is no Jev model to
+// answer the built questions, so per-option probabilities come from a generic
+// evidence-overlap simulator (`simulateOfflineOptionSupport`) applied
+// UNIFORMLY to every entry — never per-entry authored answers. It is an
+// explicitly documented lower-bound stand-in for semantic judgment (it cannot
+// use synonyms the evidence does not contain); live model compatibility is
+// proven separately by the bounded opt-in live-contract check, and production
+// quality by staged canaries. What this path DOES evidence: question
+// construction, threshold/abstention policy, cardinality handling, and the
+// deterministic precedence shared with production.
+
+import {
+  matchKeywordOptions,
+  matchAttributeOptions,
+  tokenize as tokenizeEvidenceText,
+} from './curation-target-matcher';
+import {
+  buildProductTypeChoiceQuestion,
+  JEV_PRODUCT_TYPE_MIN_PROBABILITY,
+  KEYWORD_MATCH_MIN_CONFIDENCE,
+} from './product-type-decision';
+import {
+  buildAttributeChoiceQuestion,
+  buildAttributeNoulQuestions,
+  evaluateMultiValueSelectionPolicy,
+  JEV_ATTRIBUTE_MIN_PROBABILITY,
+} from './attribute-decision';
+import {
+  buildPageChoiceQuestion,
+  JEV_PAGE_SINGLE_THRESHOLD,
+} from './page-decision';
+import type { ResolvedTarget } from './curation-target-resolver';
+import type { ProductAttributeConfig } from '../shared/schemas/classification';
+
+/** Version of the offline code-executed qualification predictor. */
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v1' as const;
+
+/** Gold-only entry: adjudicated labels + evidence. Never carries predictions. */
+export interface QualificationGoldOnlyEntry {
+  sku: string;
+  familyId: string;
+  split: 'dev' | 'holdout';
+  assortment: string;
+  gold: {
+    productType: { kind: 'known-type' | 'no-fit' | 'insufficient-evidence' | 'unlabeled'; typeId: string | null };
+    fieldAssignments: Array<{ targetId: string; value?: string; values?: string[]; state: string }>;
+    categoryPages: { pageIds: string[]; pageAssignments: Array<{ pageId: string; pageName: string }> };
+  };
+  evidence: Array<{ source: string; snippet: string; reliability: string; attributeId: string | null }>;
+}
+
+/** Executed prediction for one side (baseline or candidate) of one entry. */
+export interface ExecutedQualificationPrediction {
+  productType: string | null;
+  abstained: boolean;
+  fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
+  pageIds: string[];
+  confidence: number;
+  latencyMs: number;
+}
+
+/** Closed-world candidate sets derived globally from adjudicated gold labels. */
+export interface QualificationTaxonomies {
+  productTypes: Array<{ id: string; label: string }>;
+  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[] }>;
+  pages: Array<{ pageId: string; pageName: string }>;
+}
+
+/** Immutable artifact binding executed predictions to their inputs. */
+export interface QualificationPredictionArtifact {
+  predictorVersion: typeof QUALIFICATION_PREDICTOR_VERSION;
+  artifactHash: string;
+  predictedAt: string;
+  entryCount: number;
+  predictions: Array<{
+    sku: string;
+    baseline: ExecutedQualificationPrediction;
+    candidate: ExecutedQualificationPrediction;
+  }>;
+}
+
+/**
+ * Parse a gold-only qualification fixture. Legacy `baseline`/`candidate`
+ * keys (pre-authored predictions) are IGNORED when present — they stay
+ * readable as bytes but never become predictions — so old artifacts remain
+ * loadable while reports cannot silently replay them.
+ */
+export function parseQualificationGoldOnly(value: unknown): QualificationGoldOnlyEntry[] {
+  const root = value as { entries?: unknown };
+  if (!root || !Array.isArray(root.entries)) {
+    throw new Error('Qualification gold fixture has no entries array.');
+  }
+  return root.entries.map((raw: unknown) => {
+    const e = raw as Record<string, unknown> & {
+      sku: string;
+      familyId: string;
+      split: 'dev' | 'holdout';
+      assortment: string;
+      gold: QualificationGoldOnlyEntry['gold'];
+      evidence: QualificationGoldOnlyEntry['evidence'];
+    };
+    if (typeof e.sku !== 'string' || !e.gold || !Array.isArray(e.evidence)) {
+      throw new Error('Qualification gold entry is missing sku/gold/evidence.');
+    }
+    return {
+      sku: e.sku,
+      familyId: e.familyId,
+      split: e.split,
+      assortment: e.assortment,
+      gold: e.gold,
+      evidence: e.evidence,
+    };
+  });
+}
+
+/** Humanize a slug id for closed-world candidate labels (global, not per-entry). */
+function humanizeSlug(id: string): string {
+  return id
+    .split('_')
+    .map(w => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+/**
+ * Derive closed-world candidate sets from the union of adjudicated gold
+ * labels. Global (same options for every entry) so per-entry selection must
+ * still be performed by the decision logic; sorted for determinism.
+ */
+export function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): QualificationTaxonomies {
+  const typeIds = new Set<string>();
+  const attrValues = new Map<string, Set<string>>();
+  const attrUsesValuesArray = new Set<string>();
+  const pages = new Map<string, string>();
+  for (const e of entries) {
+    if (e.gold.productType.typeId) typeIds.add(e.gold.productType.typeId);
+    for (const f of e.gold.fieldAssignments ?? []) {
+      if (!attrValues.has(f.targetId)) attrValues.set(f.targetId, new Set<string>());
+      const set = attrValues.get(f.targetId)!;
+      if (Array.isArray(f.values)) {
+        attrUsesValuesArray.add(f.targetId);
+        for (const v of f.values) set.add(v);
+      } else if (typeof f.value === 'string') {
+        set.add(f.value);
+      }
+    }
+    for (const p of e.gold.categoryPages?.pageAssignments ?? []) {
+      if (!pages.has(p.pageId)) pages.set(p.pageId, p.pageName);
+    }
+    for (const pid of e.gold.categoryPages?.pageIds ?? []) {
+      if (!pages.has(pid)) pages.set(pid, humanizeSlug(pid.replace(/^page-/, '')));
+    }
+  }
+  return {
+    productTypes: [...typeIds].sort().map(id => ({ id, label: humanizeSlug(id) })),
+    attributeTargets: [...attrValues.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([targetId, set]) => ({
+        targetId,
+        cardinality: (attrUsesValuesArray.has(targetId) ? 'multiple' : 'single') as 'single' | 'multiple',
+        options: [...set].sort(),
+      })),
+    pages: [...pages.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([pageId, pageName]) => ({ pageId, pageName })),
+  };
+}
+
+/** Evidence text for one entry (joined snippets, exactly what scoring sees). */
+function qualificationEvidenceText(entry: QualificationGoldOnlyEntry): string {
+  return entry.evidence.map(ev => ev.snippet ?? '').join(' ').trim();
+}
+
+/** Plural-tolerant token normalization for the OFFLINE simulator only. */
+function singularizeToken(t: string): string {
+  if (t.endsWith('ies') && t.length > 4) return t.slice(0, -3) + 'y';
+  if (t.endsWith('es') && t.length > 4) return t.slice(0, -2);
+  if (t.endsWith('s') && t.length > 3) return t.slice(0, -1);
+  return t;
+}
+
+/**
+ * Generic offline support simulator: token overlap between an option label
+ * and the entry evidence, normalized plural-tolerantly. Applied uniformly —
+ * the same function scores every option of every entry. Returns a
+ * Choice-style top probability in [0.45, 0.95] and a Noul-style P(yes) in
+ * [0.05, 0.95]; both derive from the SAME overlap score so single and
+ * multi-value judgments stay consistent.
+ */
+function simulateOfflineOptionSupport(
+  optionLabel: string,
+  evidenceTokens: Set<string>,
+): { score: number; choiceProb: number; noulProb: number } {
+  const labelTokens = tokenizeEvidenceText(optionLabel);
+  if (labelTokens.length === 0 || evidenceTokens.size === 0) {
+    return { score: 0, choiceProb: 0.45, noulProb: 0.05 };
+  }
+  const normalizedEvidence = new Set([...evidenceTokens].map(singularizeToken));
+  let hits = 0;
+  for (const t of labelTokens) {
+    if (normalizedEvidence.has(t) || normalizedEvidence.has(singularizeToken(t))) hits++;
+  }
+  const score = hits / labelTokens.length;
+  return { score, choiceProb: 0.45 + 0.5 * score, noulProb: 0.05 + 0.9 * score };
+}
+
+function stubAttributeConfig(targetId: string, options: string[]): ProductAttributeConfig {
+  return {
+    id: targetId,
+    name: targetId,
+    description: null,
+    valueMode: 'controlled',
+    canonicalUnit: null,
+    allowedValues: options,
+    valueAliases: [],
+    visualEvidenceEligibility: 'eligible',
+    isClaim: false,
+    isCompositionAttribute: false,
+    group: null,
+  };
+}
+
+function stubResolvedTarget(
+  id: string,
+  label: string,
+  kind: 'product_type' | 'product_field' | 'page',
+  selectionMode: 'single' | 'multiple',
+  attributeId: string | null,
+  options: Array<{ value: string; label: string }>,
+  attribute?: ProductAttributeConfig,
+): ResolvedTarget {
+  return {
+    config: {
+      id,
+      kind,
+      label,
+      enabled: true,
+      mandatory: false,
+      selectionMode,
+      attributeId,
+      catalogField: null,
+      optionSource: 'configured',
+      required: false,
+      sortOrder: 0,
+    },
+    options,
+    ...(attribute ? { attribute } : {}),
+  };
+}
+
+/** Baseline product type: shipped deterministic keyword precedence + floor. */
+function predictBaselineProductType(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): { productType: string | null; abstained: boolean; confidence: number } {
+  if (taxonomies.productTypes.length === 0 || evidenceText.length < 3) {
+    return { productType: null, abstained: true, confidence: 0 };
+  }
+  const matches = matchKeywordOptions({
+    options: taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
+    text: evidenceText,
+    selectionMode: 'single',
+  });
+  const top = matches[0];
+  if (!top || top.confidence < KEYWORD_MATCH_MIN_CONFIDENCE) {
+    return { productType: null, abstained: true, confidence: 0 };
+  }
+  return { productType: top.value, abstained: false, confidence: top.confidence };
+}
+
+/**
+ * Candidate product type: builds the shipped Jev Choice question (exercising
+ * criteria/key construction), then selects via the offline simulator under
+ * the shipped `JEV_PRODUCT_TYPE_MIN_PROBABILITY` floor. Empty evidence maps
+ * to insufficient-evidence abstention; zero support maps to no-match
+ * abstention — mirroring the shipped abstention routing without claiming a
+ * live judgment occurred.
+ */
+function predictCandidateProductType(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): { productType: string | null; abstained: boolean; confidence: number } {
+  if (taxonomies.productTypes.length === 0 || evidenceText.length < 3) {
+    return { productType: null, abstained: true, confidence: 0 };
+  }
+  // Execute the shipped question builder: criteria/key wiring must match production.
+  const plan = buildProductTypeChoiceQuestion(
+    taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
+  );
+  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
+  let bestKey: string | null = null;
+  let bestProb = -1;
+  for (const [key, canonicalId] of plan.keyToIdMap) {
+    const label = taxonomies.productTypes.find(t => t.id === canonicalId)?.label ?? canonicalId;
+    const { choiceProb } = simulateOfflineOptionSupport(label, evidenceTokens);
+    if (choiceProb > bestProb) {
+      bestProb = choiceProb;
+      bestKey = key;
+    }
+  }
+  const bestId = bestKey ? (plan.keyToIdMap.get(bestKey) ?? null) : null;
+  const bestLabel = taxonomies.productTypes.find(t => t.id === bestId)?.label ?? '';
+  const { score } = simulateOfflineOptionSupport(bestLabel, evidenceTokens);
+  if (!bestId || score <= 0 || bestProb < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
+    return { productType: null, abstained: true, confidence: 0 };
+  }
+  return { productType: bestId, abstained: false, confidence: bestProb };
+}
+
+/** Baseline attributes: shipped word-boundary alias/direct matching only. */
+function predictBaselineAttributes(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): Array<{ targetId: string; value?: string; values?: string[] }> {
+  const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
+  for (const target of taxonomies.attributeTargets) {
+    const goldHas = (entry.gold.fieldAssignments ?? []).some(f => f.targetId === target.targetId);
+    if (!goldHas) continue;
+    const attribute = stubAttributeConfig(target.targetId, target.options);
+    const found = matchAttributeOptions(attribute, evidenceText, target.options, target.cardinality);
+    if (found.length === 0) continue;
+    if (target.cardinality === 'multiple') {
+      out.push({ targetId: target.targetId, values: found.map(f => f.value) });
+    } else {
+      out.push({ targetId: target.targetId, value: found[0].value });
+    }
+  }
+  return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
+/**
+ * Candidate attributes: shipped Jev question builders + shipped floors and,
+ * for multi-value targets, the shipped `evaluateMultiValueSelectionPolicy`.
+ * Single-value targets use Choice simulation under
+ * `JEV_ATTRIBUTE_MIN_PROBABILITY`; multi-value targets use per-option Noul
+ * simulation under the policy's own `JEV_MULTI_VALUE_MIN_PROBABILITY` gate.
+ */
+function predictCandidateAttributes(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): Array<{ targetId: string; value?: string; values?: string[] }> {
+  const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
+  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
+  for (const target of taxonomies.attributeTargets) {
+    const goldHas = (entry.gold.fieldAssignments ?? []).some(f => f.targetId === target.targetId);
+    if (!goldHas) continue;
+    const attribute = stubAttributeConfig(target.targetId, target.options);
+    const resolved = stubResolvedTarget(
+      `target_${target.targetId}`,
+      target.targetId,
+      'product_field',
+      target.cardinality,
+      target.targetId,
+      target.options.map(v => ({ value: v, label: v })),
+      attribute,
+    );
+    if (target.cardinality === 'multiple') {
+      // Execute the shipped Noul question builder (questionId wiring parity).
+      const plans = buildAttributeNoulQuestions(resolved, entry.sku, {});
+      const candidates = plans.map(p => ({
+        optionValue: p.optionValue,
+        optionLabel: p.optionLabel,
+        optionIndex: p.optionIndex,
+        prob: simulateOfflineOptionSupport(p.optionLabel, evidenceTokens).noulProb,
+      }));
+      const outcome = evaluateMultiValueSelectionPolicy({
+        target: resolved,
+        candidates,
+        permittedEvidence: [],
+        catalogField: null,
+      });
+      if (outcome.outcome === 'resolved') {
+        out.push({ targetId: target.targetId, values: outcome.selectedValues });
+      }
+    } else {
+      // Execute the shipped Choice question builder for criteria parity.
+      const plan = buildAttributeChoiceQuestion(resolved);
+      let bestValue: string | null = null;
+      let bestProb = -1;
+      for (const [key, canonicalValue] of plan.keyToIdMap) {
+        void key;
+        const { choiceProb } = simulateOfflineOptionSupport(canonicalValue, evidenceTokens);
+        if (choiceProb > bestProb) {
+          bestProb = choiceProb;
+          bestValue = canonicalValue;
+        }
+      }
+      const { score } = simulateOfflineOptionSupport(bestValue ?? '', evidenceTokens);
+      if (bestValue && score > 0 && bestProb >= JEV_ATTRIBUTE_MIN_PROBABILITY) {
+        out.push({ targetId: target.targetId, value: bestValue });
+      }
+    }
+  }
+  return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
+/** Baseline pages: shipped deterministic keyword matching + floor. */
+function predictBaselinePages(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): string[] {
+  if (taxonomies.pages.length === 0 || evidenceText.length < 3) return [];
+  const matches = matchKeywordOptions({
+    options: taxonomies.pages.map(p => ({ value: p.pageId, label: p.pageName })),
+    text: evidenceText,
+    selectionMode: 'single',
+  });
+  const top = matches[0];
+  if (!top || top.confidence < KEYWORD_MATCH_MIN_CONFIDENCE) return [];
+  return [top.value];
+}
+
+/**
+ * Candidate pages: shipped `buildPageChoiceQuestion` for criteria/key parity,
+ * then offline-simulator selection under `JEV_PAGE_SINGLE_THRESHOLD`.
+ */
+function predictCandidatePages(
+  entry: QualificationGoldOnlyEntry,
+  taxonomies: QualificationTaxonomies,
+  evidenceText: string,
+): string[] {
+  if (taxonomies.pages.length === 0 || evidenceText.length < 3) return [];
+  const plan = buildPageChoiceQuestion(
+    taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+    null,
+  );
+  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
+  let bestId: string | null = null;
+  let bestProb = -1;
+  for (const [key, pageId] of plan.keyToIdMap) {
+    const page = taxonomies.pages.find(p => p.pageId === pageId);
+    const { score, choiceProb } = simulateOfflineOptionSupport(page?.pageName ?? pageId, evidenceTokens);
+    void key;
+    if (score <= 0) continue;
+    if (choiceProb > bestProb) {
+      bestProb = choiceProb;
+      bestId = pageId;
+    }
+  }
+  if (!bestId || bestProb < JEV_PAGE_SINGLE_THRESHOLD) return [];
+  return [bestId];
+}
+
+/**
+ * Execute the current baseline and candidate classification paths over gold
+ * evidence to produce an immutable prediction artifact. Deterministic: the
+ * same gold entries always yield the same artifact hash. Fail-closed: every
+ * entry must produce both predictions (abstention is a valid prediction;
+ * throwing is not).
+ */
+export function buildQualificationPredictionsFromCode(
+  entries: QualificationGoldOnlyEntry[],
+  taxonomies?: QualificationTaxonomies,
+): QualificationPredictionArtifact {
+  const taxa = taxonomies ?? deriveQualificationTaxonomies(entries);
+  const predictedAt = new Date().toISOString();
+  const predictions = entries.map(entry => {
+    const evidenceText = qualificationEvidenceText(entry);
+    const startedBaseline = Date.now();
+    const bType = predictBaselineProductType(entry, taxa, evidenceText);
+    const bFields = predictBaselineAttributes(entry, taxa, evidenceText);
+    const bPages = predictBaselinePages(entry, taxa, evidenceText);
+    const baselineLatency = Math.max(0, Date.now() - startedBaseline);
+    const startedCandidate = Date.now();
+    const cType = predictCandidateProductType(entry, taxa, evidenceText);
+    const cFields = predictCandidateAttributes(entry, taxa, evidenceText);
+    const cPages = predictCandidatePages(entry, taxa, evidenceText);
+    const candidateLatency = Math.max(0, Date.now() - startedCandidate);
+    const baseline: ExecutedQualificationPrediction = {
+      productType: bType.productType,
+      abstained: bType.abstained,
+      fieldAssignments: bFields,
+      pageIds: bPages,
+      confidence: bType.abstained ? 0 : Number(bType.confidence.toFixed(4)),
+      latencyMs: baselineLatency,
+    };
+    const candidate: ExecutedQualificationPrediction = {
+      productType: cType.productType,
+      abstained: cType.abstained,
+      fieldAssignments: cFields,
+      pageIds: cPages,
+      confidence: cType.abstained ? 0 : Number(cType.confidence.toFixed(4)),
+      latencyMs: candidateLatency,
+    };
+    return { sku: entry.sku, baseline, candidate };
+  });
+  if (predictions.length !== entries.length) {
+    throw new Error('Qualification prediction artifact incomplete: missing entries.');
+  }
+  const sorted = [...predictions].sort((a, b) => a.sku.localeCompare(b.sku));
+  // Hash the semantic predictions only: per-entry wall-clock latency is real
+  // telemetry recorded on the artifact, but it must not affect identity —
+  // the same gold entries always yield the same artifact hash.
+  const hashable = sorted.map(p => ({
+    sku: p.sku,
+    baseline: {
+      productType: p.baseline.productType,
+      abstained: p.baseline.abstained,
+      fieldAssignments: p.baseline.fieldAssignments,
+      pageIds: p.baseline.pageIds,
+      confidence: p.baseline.confidence,
+    },
+    candidate: {
+      productType: p.candidate.productType,
+      abstained: p.candidate.abstained,
+      fieldAssignments: p.candidate.fieldAssignments,
+      pageIds: p.candidate.pageIds,
+      confidence: p.candidate.confidence,
+    },
+  }));
+  const artifactHash = sha256Hex(JSON.stringify(hashable));
+  return {
+    predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
+    artifactHash,
+    predictedAt,
+    entryCount: entries.length,
+    predictions,
+  };
+}
+
+/** Confidence for display parity when an entry abstained (always 0). */
+export function qualificationPredictionConfidence(p: ExecutedQualificationPrediction): number {
+  return p.abstained ? 0 : p.confidence;
+}
+

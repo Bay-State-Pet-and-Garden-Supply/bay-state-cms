@@ -28,6 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   dispatchSystemOne,
+  isSystemOneModelMatch,
   SYSTEMONE_MAX_CHOICE_OPTIONS,
   SYSTEMONE_MAX_ABSTENTION_RESERVED,
   SYSTEMONE_MAX_QUESTIONS,
@@ -1073,7 +1074,7 @@ export async function resolveAttributeDecision(
         const result = await dispatchSystemOne(jevConn as any, request);
         assertHeld?.();
 
-        if (result.returnedModel !== request.model) {
+        if (!isSystemOneModelMatch(request.model, result.returnedModel)) {
           throw new Error(`Model mismatch: requested model "${request.model}", but provider returned "${result.returnedModel}". Pinned model substitution is forbidden.`);
         }
 
@@ -1259,7 +1260,7 @@ export async function resolveAttributeDecision(
     const result = await dispatchSystemOne(jevConn as any, request);
     assertHeld?.();
 
-    if (result.returnedModel !== request.model) {
+    if (!isSystemOneModelMatch(request.model, result.returnedModel)) {
       throw new Error(`Model mismatch: requested model "${request.model}", but provider returned "${result.returnedModel}". Pinned model substitution is forbidden.`);
     }
 
@@ -2113,7 +2114,7 @@ export async function batchResolveAttributeDecisions(
         const dispatchRes = await dispatchSystemOne(jevConn as any, request);
         assertHeld?.();
 
-        if (dispatchRes.returnedModel !== request.model) {
+        if (!isSystemOneModelMatch(request.model, dispatchRes.returnedModel)) {
           throw new Error(`Model mismatch: requested model "${request.model}", but provider returned "${dispatchRes.returnedModel}". Pinned model substitution is forbidden.`);
         }
 

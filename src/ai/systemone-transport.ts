@@ -44,6 +44,7 @@ import type { ProviderConnection } from './provider-connections';
 import {
   assertSystemOneCapable,
   assertConnectionEnabledForDispatch,
+  validateConnectionTrustZone,
 } from './provider-connections';
 import {
   AiAvailabilityError,
@@ -164,6 +165,43 @@ export function assertSystemOneModelPin(modelId: string, connectionId?: string):
   const check = checkSystemOneModelPin(modelId);
   if (!check.ok) {
     throw new SystemOneUnsupportedError(check.message, connectionId, modelId);
+  }
+}
+
+/**
+ * Sane pin semantics for alias resolution.
+ *
+ * The default/production pin is the evaluated versioned model
+ * (`TYPESAFE_EVALUATED_MODEL`, currently `jev-1.13.0`). A configured
+ * documented alias (`jev-latest`/`jev-preview`) resolves server-side to the
+ * versioned pin, so `requested=alias, returned=evaluated-pin` is an expected
+ * resolution — not a substitution. Anything else where
+ * `returned !== requested` is a genuine mismatch and must stay rejected.
+ */
+export function isSystemOneModelMatch(requestedModel: string, returnedModel: string): boolean {
+  if (!requestedModel || !returnedModel) return false;
+  if (returnedModel === requestedModel) return true;
+  if (
+    TYPESAFE_KNOWN_ALIASES.includes(requestedModel) &&
+    TYPESAFE_KNOWN_MODELS.includes(returnedModel)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Throwing variant of the alias-aware identity check for decision boundaries. */
+export function assertSystemOneModelMatch(
+  requestedModel: string,
+  returnedModel: string,
+  connectionId?: string,
+): void {
+  if (!isSystemOneModelMatch(requestedModel, returnedModel)) {
+    throw new AiMisconfigurationError(
+      `Model mismatch: requested model "${requestedModel}", but provider returned "${returnedModel}". Pinned model substitution is forbidden.`,
+      connectionId,
+      requestedModel,
+    );
   }
 }
 
@@ -483,6 +521,19 @@ export async function executeSystemOne(
   state: unknown,
   options: SystemOneDispatchOptions = {},
 ): Promise<SystemOneDispatchResult> {
+  // Validate trust zone first (fail closed): a misconfigured baseUrl must
+  // never receive the bearer credential or product evidence. Mirrors the
+  // chat path (network-transport executeOpenAiChat) and the health probe.
+  try {
+    validateConnectionTrustZone(conn);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new AiPolicyDeniedError(
+      `Trust zone policy violation for connection "${conn.id}": ${message}`,
+      conn.id,
+      modelId,
+    );
+  }
   assertSystemOneCapable(conn, modelId);
   assertConnectionEnabledForDispatch(conn, modelId);
   assertSystemOneModelPin(modelId, conn.id);

@@ -557,6 +557,25 @@ export interface ProductionQualificationAssessment {
 
 /**
  * Checks all 10 acceptance criteria and produces an honest assessment.
+ *
+ * Fail-closed semantics (fix for confirmed blocker where operational flags
+ * alone could yield 'qualified'):
+ * - 'qualified' requires zero blockers. Every gate below independently adds
+ *   a blocker, so any single failure prevents 'qualified'.
+ * - 'provisionally_qualified' means offline evidence itself is clean
+ *   (offlineEvaluationPassed && comparisonReportComplete, which includes
+ *   zero harmful regressions and zero service failures) but operational /
+ *   verification blockers remain (family separation unverified, live
+ *   credentials/contract, staged canaries, compatibility, operator docs).
+ * - 'blocked' means offline evidence itself is incomplete or failed
+ *   (missing report, offline failure, service failures, regressions).
+ *   Offline failures never yield 'provisionally_qualified'.
+ *
+ * Currently 'qualified' is unreachable by design until the parallel
+ * runner workstream wires positive evidence for family separation,
+ * compatibility, and operator docs (see per-blocker comments): those three
+ * always emit blockers because the current report shape carries no field
+ * that establishes them, and this function must not assume them.
  * If credentials, live contract check, or store manager canary review
  * are missing, reports the specific blocker and keeps qualification incomplete.
  */
@@ -570,6 +589,10 @@ export function assessProductionQualification(options: {
   offlineComparisonReport?: JevOfflineComparisonReport;
 }): ProductionQualificationAssessment {
   const blockers: ProductionQualificationBlocker[] = [];
+  // Fail-closed defaults: every verification flag starts false (or is set
+  // from direct evidence below). The two exceptions documented at the end
+  // (policiesPublished, connectionDisablementVerified) are owned by other
+  // seams and are genuinely not gating here — see note before status.
   const checklist = {
     offlineEvaluationPassed: false,
     familySeparationPassed: false,
@@ -582,15 +605,118 @@ export function assessProductionQualification(options: {
       options.canaryAttributesReviewed &&
       options.canaryCohortPagesReviewed,
     connectionDisablementVerified: true,
-    compatibilityVerified: true,
-    operatorDocumentationPublished: true,
+    compatibilityVerified: false,
+    operatorDocumentationPublished: false,
   };
 
-  if (options.offlineComparisonReport) {
-    checklist.offlineEvaluationPassed = options.offlineComparisonReport.summary.candidateOutperformsBaseline;
-    checklist.familySeparationPassed = true;
+  // Criterion 4: offline comparison report must exist. A missing report is
+  // independently blocking (comparisonReportComplete stays false) and also
+  // means offline evaluation cannot have passed.
+  if (!options.offlineComparisonReport) {
+    blockers.push({
+      criterion: 4,
+      area: 'offline_comparison_report',
+      code: 'comparison_report_missing',
+      message: 'Offline baseline-vs-Jev comparison report has not been produced.',
+      actionRequired: 'Run bun scripts/typesafe-curation-qualification.ts to produce the offline comparison report.',
+    });
+    blockers.push({
+      criterion: 4,
+      area: 'offline_evaluation',
+      code: 'offline_evaluation_incomplete',
+      message: 'Offline evaluation cannot be established without a comparison report.',
+      actionRequired: 'Provide offlineComparisonReport with candidate outperforming baseline and zero regressions/service failures.',
+    });
+  } else {
+    const report = options.offlineComparisonReport;
     checklist.comparisonReportComplete = true;
+
+    // Offline pass requires all three: outperforms baseline, zero harmful
+    // regressions on holdout, zero candidate service failures. Any one
+    // failing independently blocks (fail-closed: no partial credit).
+    const outperforms = report.summary.candidateOutperformsBaseline === true;
+    const zeroRegressions =
+      report.summary.zeroHarmfulRegressionsOnHoldout === true &&
+      report.productType.harmfulRegressions === 0 &&
+      report.attributes.harmfulRegressions === 0 &&
+      report.categoryPages.harmfulRegressions === 0;
+    const candidateServiceFailures =
+      (report.productType.serviceFailures?.candidate ?? 0) +
+      (report.attributes.serviceFailures?.candidate ?? 0) +
+      (report.categoryPages.serviceFailures?.candidate ?? 0);
+    const zeroServiceFailures = report.summary.zeroServiceFailures === true && candidateServiceFailures === 0;
+
+    checklist.offlineEvaluationPassed = outperforms && zeroRegressions && zeroServiceFailures;
+
+    if (!outperforms) {
+      blockers.push({
+        criterion: 4,
+        area: 'offline_evaluation',
+        code: 'offline_evaluation_failed',
+        message: 'Offline evaluation did not show the Jev candidate outperforming the baseline.',
+        actionRequired: 'Investigate offline comparison deltas; do not promote until candidateOutperformsBaseline is true.',
+      });
+    }
+    if (!zeroRegressions) {
+      blockers.push({
+        criterion: 4,
+        area: 'offline_regressions',
+        code: 'harmful_regressions_detected',
+        message: 'Offline evaluation detected harmful regressions vs baseline.',
+        actionRequired: 'Resolve harmful regressions (product type, attributes, and pages must each show zero) before release.',
+      });
+    }
+    // Service failures independently block even when raw accuracy looks
+    // fine: an unavailable service must never count as a correct abstention.
+    if (!zeroServiceFailures) {
+      blockers.push({
+        criterion: 4,
+        area: 'offline_service_failures',
+        code: 'service_failures_detected',
+        message: `Offline evaluation recorded ${candidateServiceFailures} candidate service failure(s).`,
+        actionRequired: 'Eliminate candidate service failures (summary.zeroServiceFailures must be true) before release.',
+      });
+    }
   }
+
+  // Criterion 2: family separation is never assumed. The current
+  // JevOfflineComparisonReport shape carries dev/holdout counts but no
+  // family-leakage proof (the parallel runner workstream owns extending it,
+  // e.g. with detectFamilySplitLeakage output over goldset familyIds), so
+  // fail-closed means always blocking until such evidence is wired in.
+  // familySeparationPassed stays false by design.
+  blockers.push({
+    criterion: 2,
+    area: 'family_separation',
+    code: 'family_separation_unverified',
+    message: 'Family-separated dev/holdout evaluation has not been verified (zero-leakage proof absent).',
+    actionRequired: 'Verify family-split isolation (e.g. detectFamilySplitLeakage over goldset familyIds) and wire the proof into the qualification input.',
+  });
+
+  // Criterion 8: compatibility has no evidence input on this function's
+  // signature (other providers, deterministic rules, frozen snapshots,
+  // legacy reads are exercised by other seams), so fail-closed means
+  // always blocking until the runner wires an explicit verification flag.
+  // compatibilityVerified stays false by design.
+  blockers.push({
+    criterion: 8,
+    area: 'compatibility',
+    code: 'compatibility_unverified',
+    message: 'Compatibility with other providers, deterministic rules, frozen snapshots, and legacy reads is unverified.',
+    actionRequired: 'Run compatibility verification (other providers, deterministic rules, frozen snapshots, legacy reads) and wire its result into qualification.',
+  });
+
+  // Criterion 9: operator documentation has no evidence input on this
+  // function's signature, so fail-closed means always blocking until the
+  // runner wires an explicit published-docs flag.
+  // operatorDocumentationPublished stays false by design.
+  blockers.push({
+    criterion: 9,
+    area: 'operator_documentation',
+    code: 'operator_docs_missing',
+    message: 'Operator documentation and confidence concepts are not recorded as published.',
+    actionRequired: 'Publish operator documentation (rollout runbook, confidence concepts) and wire its receipt into qualification.',
+  });
 
   // Criterion 5: Bounded live contract check requires provisioned credentials
   if (!options.hasTypeSafeApiKey) {
@@ -643,11 +769,25 @@ export function assessProductionQualification(options: {
   }
 
   const isBlocked = blockers.length > 0;
-  const isProvisionallyQualified =
-    checklist.offlineEvaluationPassed &&
-    checklist.familySeparationPassed &&
-    checklist.comparisonReportComplete &&
-    isBlocked;
+  // 'provisionally_qualified' vs 'blocked':
+  // - Offline evidence clean (report present, candidate outperforms, zero
+  //   regressions, zero service failures) but verification/operational
+  //   blockers remain (family unverified, live, canaries, compatibility,
+  //   docs) => provisionally_qualified. Offline work is done; release is not.
+  // - Offline evidence itself incomplete/failed (missing report, offline
+  //   failure, regressions, service failures) => blocked. Never provisional.
+  // Note (genuinely not gating here): policiesPublished and
+  // connectionDisablementVerified remain true without adding blockers. They
+  // are owned by other seams (Criterion 3 qualification gates via
+  // evaluateQualificationGate; Criterion 7 disablement dispatch guarantees)
+  // and this function's signature carries no evidence input that could
+  // fail-closed on them without making every assessment trivially blocked
+  // for reasons outside its remit. All eight required gates above
+  // (offline, report, family, service, compatibility, docs, live, canaries)
+  // independently block 'qualified'.
+  const isOfflineClean =
+    checklist.offlineEvaluationPassed && checklist.comparisonReportComplete;
+  const isProvisionallyQualified = isOfflineClean && isBlocked;
 
   const status = !isBlocked ? 'qualified' : isProvisionallyQualified ? 'provisionally_qualified' : 'blocked';
 
@@ -655,7 +795,7 @@ export function assessProductionQualification(options: {
     status === 'qualified'
       ? 'The complete reviewed Jev Curation workflow is fully qualified for production release.'
       : status === 'provisionally_qualified'
-        ? `Offline benchmarks and comparison reports are fully qualified, but production qualification remains incomplete due to ${blockers.length} operational prerequisite(s) (live API credentials / canary reviews).`
+        ? `Offline benchmarks and comparison reports are fully qualified, but production qualification remains incomplete due to ${blockers.length} verification/operational prerequisite(s) (${blockers.map(b => b.code).join(', ')}).`
         : `Production qualification is blocked: ${blockers.map(b => b.code).join(', ')}`;
 
   return {

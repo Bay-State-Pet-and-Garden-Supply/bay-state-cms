@@ -33,6 +33,8 @@ import {
   validateSystemOneResponse,
   checkSystemOneModelPin,
   assertSystemOneModelPin,
+  isSystemOneModelMatch,
+  assertSystemOneModelMatch,
   parseRetryAfterMs,
   TYPESAFE_EVALUATED_MODEL,
   SYSTEMONE_CHOICE_SUM_TOLERANCE,
@@ -199,6 +201,59 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     const result = await executeSystemOne(TYPESAFE_CONN, 'jev-latest', NOUL_QUESTION, 'Hi');
     expect(result.requestedModel).toBe('jev-latest');
     expect(result.returnedModel).toBe('jev-1.13.0');
+  });
+
+  it('trust-zone validation blocks evil baseUrl before any network use (no credential leak)', async () => {
+    let calls = 0;
+    stubFetch(() => {
+      calls += 1;
+      return jsonResponse(validChoiceBody());
+    });
+
+    const evilConn: ProviderConnection = { ...TYPESAFE_CONN, baseUrl: 'https://evil.example/v1' };
+    const callId = insertAiModelCallStart({
+      workspaceId: 'ws-1',
+      task: 'product_type_classification',
+      provider: evilConn.id,
+      model: TYPESAFE_EVALUATED_MODEL,
+      locality: 'cloud',
+    });
+
+    const error = await executeSystemOne(evilConn, 'jev-1.13.0', NOUL_QUESTION, 'Hi').catch((e) => e);
+    expect(error).toBeInstanceOf(AiPolicyDeniedError);
+    expect(String(error.message)).toMatch(/trust zone|approved host|does not match/i);
+    expect(calls).toBe(0);
+    expect(String(error.message)).not.toContain('ts-test-key');
+
+    const row = getAiModelCallById(callId);
+    expect(JSON.stringify(row)).not.toContain('ts-test-key');
+    expect(JSON.stringify(row)).not.toContain('evil.example');
+  });
+
+  it('alias pin semantics: alias→evaluated-pin matches, genuine mismatches reject', () => {
+    // Exact pin match.
+    expect(isSystemOneModelMatch('jev-1.13.0', 'jev-1.13.0')).toBe(true);
+    // Documented alias resolution (request alias → versioned pin).
+    expect(isSystemOneModelMatch('jev-latest', 'jev-1.13.0')).toBe(true);
+    expect(isSystemOneModelMatch('jev-preview', 'jev-1.13.0')).toBe(true);
+    // Genuinely unexpected models still reject.
+    expect(isSystemOneModelMatch('jev-latest', 'jev-9.99.9')).toBe(false);
+    expect(isSystemOneModelMatch('jev-1.13.0', 'jev-9.99.9')).toBe(false);
+    expect(isSystemOneModelMatch('jev-1.13.0', 'jev-latest')).toBe(false);
+    expect(isSystemOneModelMatch('jev-latest', 'jev-preview')).toBe(false);
+
+    expect(() => assertSystemOneModelMatch('jev-latest', 'jev-1.13.0')).not.toThrow();
+    expect(() => assertSystemOneModelMatch('jev-1.13.0', 'jev-1.13.0')).not.toThrow();
+    expect(() => assertSystemOneModelMatch('jev-latest', 'jev-9.99.9')).toThrow(/Model mismatch/);
+    expect(() => assertSystemOneModelMatch('jev-1.13.0', 'jev-9.99.9')).toThrow(/Model mismatch/);
+  });
+
+  it('default/production pin is the evaluated versioned model', () => {
+    expect(TYPESAFE_EVALUATED_MODEL).toBe('jev-1.13.0');
+    const pin = checkSystemOneModelPin(TYPESAFE_EVALUATED_MODEL);
+    expect(pin.ok).toBe(true);
+    expect(pin.kind).toBe('known_pin');
+    expect(isSystemOneModelMatch(TYPESAFE_EVALUATED_MODEL, TYPESAFE_EVALUATED_MODEL)).toBe(true);
   });
 
   it('rejects missing answers, extra answers, and type mismatches', () => {
@@ -423,6 +478,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
       label: 'OpenAI (Cloud)',
       transport: 'openai-compatible',
       baseUrl: 'https://api.openai.com/v1',
+      approvedHost: 'api.openai.com',
     };
     await expect(executeSystemOne(chatConn, 'gpt-4o-mini', NOUL_QUESTION, 'Hi')).rejects.toThrow(
       /cannot serve/,

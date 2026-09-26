@@ -63,10 +63,48 @@ import {
   capturePreReviewPrediction,
   PRE_REVIEW_PREDICTION_SOURCE,
   PRE_REVIEW_BUNDLE_VERSION,
+  parseQualificationGoldOnly,
+  buildQualificationPredictionsFromCode,
+  QUALIFICATION_PREDICTOR_VERSION,
+  type QualificationGoldOnlyEntry,
 } from '../../classification/benchmark-prediction';
 import { detectFamilySplitLeakage } from '../../classification/benchmark-exporter';
+import { runLiveContractCheck } from '../../../scripts/typesafe-live-contract-check';
 import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
 import type { ClassificationEvidence, ModelPolicyConfigV2, BenchmarkPredictionEntry, EvalMetrics } from '../../shared/schemas/classification';
+
+/**
+ * Load the frozen GOLD-ONLY fixture and execute the current baseline +
+ * candidate classification paths from code (mirrors
+ * scripts/typesafe-curation-qualification.ts). Tests score the executed
+ * artifact — never stored predictions.
+ */
+function loadExecutedQualificationGoldset(): QualificationGoldset {
+  const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
+  const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  const goldEntries = parseQualificationGoldOnly(raw);
+  const artifact = buildQualificationPredictionsFromCode(goldEntries);
+  return {
+    version: raw.version,
+    description: raw.description,
+    adjudicatedBy: raw.adjudicatedBy,
+    verifiedPageImport: raw.verifiedPageImport,
+    entries: goldEntries.map(e => {
+      const p = artifact.predictions.find(x => x.sku === e.sku);
+      if (!p) throw new Error(`Missing executed prediction for "${e.sku}".`);
+      return {
+        sku: e.sku,
+        familyId: e.familyId,
+        split: e.split,
+        assortment: e.assortment,
+        gold: e.gold,
+        evidence: e.evidence,
+        baseline: { ...p.baseline },
+        candidate: { ...p.candidate },
+      };
+    }),
+  };
+}
 
 describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   const originalFetch = globalThis.fetch;
@@ -439,14 +477,22 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
       expect(fs.existsSync(fixturePath)).toBe(true);
 
-      const raw = fs.readFileSync(fixturePath, 'utf8');
-      const goldset = JSON.parse(raw) as QualificationGoldset;
+      const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+      const goldEntries = parseQualificationGoldOnly(raw);
 
-      expect(goldset.entries.length).toBeGreaterThanOrEqual(15);
-      expect(goldset.adjudicatedBy).toBeTruthy();
+      expect(goldEntries.length).toBeGreaterThanOrEqual(15);
+      expect(raw.adjudicatedBy).toBeTruthy();
+
+      // Gold-only contract: the frozen fixture carries adjudicated gold +
+      // evidence and NEVER stored baseline/candidate predictions. Reports
+      // must execute predictions from code instead of replaying the fixture.
+      for (const entryRaw of raw.entries as Array<Record<string, unknown>>) {
+        expect('baseline' in entryRaw).toBe(false);
+        expect('candidate' in entryRaw).toBe(false);
+      }
 
       // Check required assortments
-      const assortments = new Set(goldset.entries.map(e => e.assortment));
+      const assortments = new Set(goldEntries.map(e => e.assortment));
       expect(assortments.has('food')).toBe(true);
       expect(assortments.has('treats')).toBe(true);
       expect(assortments.has('toys')).toBe(true);
@@ -459,7 +505,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(assortments.has('mixed-cohort')).toBe(true);
 
       // Verify family-split isolation (0 leakage)
-      const assignments = goldset.entries.map(e => ({
+      const assignments = goldEntries.map(e => ({
         familyId: e.familyId,
         splitGroup: e.split,
       }));
@@ -467,7 +513,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(leakage).toHaveLength(0);
 
       // Verify gold states are adjudicated and not empty catalog defaults
-      for (const e of goldset.entries) {
+      for (const e of goldEntries) {
         expect(['known-type', 'no-fit', 'insufficient-evidence', 'unlabeled']).toContain(e.gold.productType.kind);
         if (e.gold.productType.kind === 'known-type') {
           expect(e.gold.productType.typeId).toBeTruthy();
@@ -543,8 +589,9 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   // ── Criterion 4: Baseline vs Jev Offline Comparison Report ──────────────────
   describe('Criterion 4: Baseline vs Jev offline comparison report', () => {
     it('produces stage-isolated and end-to-end outcomes with telemetry and disclaimers', () => {
-      const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
-      const goldset = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as QualificationGoldset;
+      // Predictions are executed from the current classification code paths,
+      // then scored — the fixture contributes gold + evidence only.
+      const goldset = loadExecutedQualificationGoldset();
 
       const report = evaluateJevOfflineComparison(goldset);
 
@@ -554,8 +601,15 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(report.attributes.setMetrics.f1.candidate).toBeGreaterThan(report.attributes.setMetrics.f1.baseline);
       expect(report.categoryPages.setMetrics.exactMatch.candidate).toBeGreaterThan(report.categoryPages.setMetrics.exactMatch.baseline);
 
-      // Telemetry: latencies and costs
-      expect(report.telemetry.latency.candidate.meanMs).toBeGreaterThan(0);
+      // Telemetry: measured in-process decision latencies are honest compute
+      // timings (frequently 0-2ms offline — never presented as model serving
+      // latency), and cost estimates stay present via evaluator defaults.
+      for (const side of [report.telemetry.latency.baseline, report.telemetry.latency.candidate]) {
+        expect(Number.isFinite(side.meanMs)).toBe(true);
+        expect(Number.isFinite(side.p50Ms)).toBe(true);
+        expect(Number.isFinite(side.p95Ms)).toBe(true);
+        expect(side.p95Ms).toBeGreaterThanOrEqual(side.meanMs);
+      }
       expect(report.telemetry.estimatedCostUsd.candidate).toBeGreaterThan(0);
 
       // Operator time disclaimer must be explicit
@@ -691,9 +745,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   // ── Criterion 10: Blocker Reporting for Production Qualification ───────────
   describe('Criterion 10: Blocker reporting for missing production prerequisites', () => {
     it('accurately identifies and reports incomplete qualification status', () => {
-      const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
-      const goldset = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as QualificationGoldset;
-      const offlineReport = evaluateJevOfflineComparison(goldset);
+      const offlineReport = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
 
       const assessment = assessProductionQualification({
         hasTypeSafeApiKey: false,
@@ -709,6 +761,229 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(assessment.blockers.length).toBeGreaterThan(0);
       expect(assessment.summary).toContain('Offline benchmarks and comparison reports are fully qualified');
       expect(assessment.summary).toContain('production qualification remains incomplete');
+    });
+  });
+
+  // ── Fail-closed qualification gates (assessProductionQualification blocker fix) ──
+  describe('Fail-closed production qualification gates', () => {
+    const operationalPass = {
+      hasTypeSafeApiKey: true,
+      liveContractCheckExecuted: true,
+      liveContractCheckSuccess: true,
+      canaryProductTypeReviewed: true,
+      canaryAttributesReviewed: true,
+      canaryCohortPagesReviewed: true,
+    };
+
+    function loadGoodReport() {
+      // Scores predictions executed from the current code paths — the same
+      // artifact shape the qualification runner produces.
+      return evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
+    }
+
+    it('never returns qualified when operational flags pass but verification evidence is absent', () => {
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: loadGoodReport(),
+      });
+
+      expect(assessment.status).not.toBe('qualified');
+      expect(assessment.blockers.some(b => b.code === 'family_separation_unverified')).toBe(true);
+      expect(assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      expect(assessment.blockers.some(b => b.code === 'operator_docs_missing')).toBe(true);
+      expect(assessment.checklist.familySeparationPassed).toBe(false);
+      expect(assessment.checklist.compatibilityVerified).toBe(false);
+      expect(assessment.checklist.operatorDocumentationPublished).toBe(false);
+    });
+
+    it('blocks (never provisional) when the comparison report is missing', () => {
+      const assessment = assessProductionQualification({ ...operationalPass });
+
+      expect(assessment.status).toBe('blocked');
+      expect(assessment.blockers.some(b => b.code === 'comparison_report_missing')).toBe(true);
+      expect(assessment.checklist.comparisonReportComplete).toBe(false);
+      expect(assessment.checklist.offlineEvaluationPassed).toBe(false);
+    });
+
+    it('blocks (never provisional) when offline evaluation fails', () => {
+      const bad = loadGoodReport();
+      bad.summary.candidateOutperformsBaseline = false;
+
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: bad,
+      });
+
+      expect(assessment.status).toBe('blocked');
+      expect(assessment.blockers.some(b => b.code === 'offline_evaluation_failed')).toBe(true);
+      expect(assessment.checklist.offlineEvaluationPassed).toBe(false);
+    });
+
+    it('blocks (never provisional) on candidate service failures', () => {
+      const bad = loadGoodReport();
+      bad.summary.zeroServiceFailures = false;
+      bad.productType.serviceFailures = { baseline: 0, candidate: 1 };
+
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: bad,
+      });
+
+      expect(assessment.status).toBe('blocked');
+      expect(assessment.blockers.some(b => b.code === 'service_failures_detected')).toBe(true);
+    });
+
+    it('blocks (never provisional) on harmful regressions', () => {
+      const bad = loadGoodReport();
+      bad.summary.zeroHarmfulRegressionsOnHoldout = false;
+      bad.productType.harmfulRegressions = 1;
+
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: bad,
+      });
+
+      expect(assessment.status).toBe('blocked');
+      expect(assessment.blockers.some(b => b.code === 'harmful_regressions_detected')).toBe(true);
+    });
+  });
+
+  // ── Code-executed qualification predictions (Issue #293 blocker fix) ───────
+  describe('Code-executed qualification predictions', () => {
+    function loadGoldEntries(): QualificationGoldOnlyEntry[] {
+      const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
+      return parseQualificationGoldOnly(JSON.parse(fs.readFileSync(fixturePath, 'utf8')));
+    }
+
+    it('produces deterministic immutable artifacts from gold + evidence', () => {
+      const entries = loadGoldEntries();
+      const first = buildQualificationPredictionsFromCode(entries);
+      const second = buildQualificationPredictionsFromCode(entries);
+
+      expect(first.predictorVersion).toBe(QUALIFICATION_PREDICTOR_VERSION);
+      expect(first.entryCount).toBe(entries.length);
+      expect(first.artifactHash).toBe(second.artifactHash);
+      expect(first.artifactHash).toMatch(/^[0-9a-f]{64}$/);
+      for (const p of first.predictions) {
+        expect(typeof p.baseline.abstained).toBe('boolean');
+        expect(typeof p.candidate.abstained).toBe('boolean');
+      }
+    });
+
+    it('ignores legacy stored predictions: mutating them cannot change the report', () => {
+      const entries = loadGoldEntries();
+      const baseline = buildQualificationPredictionsFromCode(entries);
+      // Simulate a legacy fixture copy that still embeds authored answers:
+      // the loader must strip them and the executed artifact must be identical.
+      const legacyCopy = JSON.parse(JSON.stringify(entries)) as Array<Record<string, unknown>>;
+      for (const e of legacyCopy) {
+        e.baseline = { productType: 'dog_toy', abstained: false, fieldAssignments: [], pageIds: [], confidence: 0.99 };
+        e.candidate = { productType: 'dog_toy', abstained: false, fieldAssignments: [], pageIds: [], confidence: 0.99 };
+      }
+      const reparsed = parseQualificationGoldOnly({ entries: legacyCopy });
+      const fromLegacy = buildQualificationPredictionsFromCode(reparsed);
+      expect(fromLegacy.artifactHash).toBe(baseline.artifactHash);
+    });
+
+    it('candidate outperforms the deterministic baseline with zero regressions', () => {
+      const report = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
+      expect(report.summary.candidateOutperformsBaseline).toBe(true);
+      expect(report.summary.zeroHarmfulRegressionsOnHoldout).toBe(true);
+      expect(report.summary.zeroServiceFailures).toBe(true);
+    });
+
+    it('live contract check succeeds against a mocked transport and refuses without a key (no network)', async () => {
+      const fetchBefore = globalThis.fetch;
+      try {
+        globalThis.fetch = (async () =>
+          new Response(
+            JSON.stringify({
+              model: 'jev-1.13.0',
+              answers: {
+                mentions_dog_food: { type: 'noul', noul: 0.9 },
+                topic: {
+                  type: 'choice',
+                  choice: 'pet_food',
+                  probabilities: { pet_food: 0.9, shipping: 0.1 },
+                  confidence: 0.85,
+                },
+                primary_product_type: {
+                  type: 'choice',
+                  choice: 'opt_0',
+                  probabilities: { opt_0: 0.85, opt_1: 0.05, no_match: 0.05, insufficient_evidence: 0.05 },
+                  confidence: 0.8,
+                },
+              },
+              usage: { input_tokens: 120, output_tokens: 30 },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )) as unknown as typeof fetch;
+
+        const ok = await runLiveContractCheck({ apiKey: 'test-key-12345678' });
+        expect(ok.ok).toBe(true);
+        if (ok.ok) {
+          expect(ok.returnedModel).toBe('jev-1.13.0');
+          expect(ok.calls).toBe(1);
+        }
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+
+      const refused = await runLiveContractCheck({ apiKey: '' });
+      expect(refused.ok).toBe(false);
+    });
+
+    it('runner --json scores executed predictions and wires receipts (no network)', () => {
+      const runnerPath = path.resolve(import.meta.dir, '../../../scripts/typesafe-curation-qualification.ts');
+      const cleanEnv: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined) cleanEnv[k] = v;
+      }
+      cleanEnv.TYPESAFE_API_KEY = '';
+      cleanEnv.TYPESAFE_LIVE_CHECK = '0';
+      delete cleanEnv.TYPESAFE_CANARY_RECEIPTS_PATH;
+      delete cleanEnv.TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED;
+      delete cleanEnv.TYPESAFE_CANARY_ATTRIBUTES_REVIEWED;
+      delete cleanEnv.TYPESAFE_CANARY_COHORT_PAGES_REVIEWED;
+
+      const proc = Bun.spawnSync(['bun', runnerPath, '--json'], {
+        env: cleanEnv,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(proc.exitCode).toBe(0);
+      const out = JSON.parse(proc.stdout.toString()) as {
+        comparisonReport: { evaluatedExamples: number };
+        assessment: { status: string };
+        predictionArtifact: { artifactHash: string };
+        predictionProvenance: { predictorVersion: string };
+        liveCheck: { requested: boolean; executed: boolean; success: boolean };
+        canary: { productTypeReviewed: boolean; attributesReviewed: boolean; cohortPagesReviewed: boolean };
+      };
+      const local = buildQualificationPredictionsFromCode(loadGoldEntries());
+      expect(out.predictionProvenance.predictorVersion).toBe(QUALIFICATION_PREDICTOR_VERSION);
+      expect(out.predictionArtifact.artifactHash).toBe(local.artifactHash);
+      expect(out.comparisonReport.evaluatedExamples).toBe(16);
+      expect(out.liveCheck.executed).toBe(false);
+      expect(out.liveCheck.success).toBe(false);
+      expect(out.canary.productTypeReviewed).toBe(false);
+
+      // Explicit canary receipts flow into the assessment instead of literals.
+      const withCanary = Bun.spawnSync(['bun', runnerPath, '--json'], {
+        env: {
+          ...cleanEnv,
+          TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED: '1',
+          TYPESAFE_CANARY_ATTRIBUTES_REVIEWED: '1',
+          TYPESAFE_CANARY_COHORT_PAGES_REVIEWED: '1',
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(withCanary.exitCode).toBe(0);
+      const canaryOut = JSON.parse(withCanary.stdout.toString()) as typeof out;
+      expect(canaryOut.canary.productTypeReviewed).toBe(true);
+      expect(canaryOut.canary.attributesReviewed).toBe(true);
+      expect(canaryOut.canary.cohortPagesReviewed).toBe(true);
     });
   });
 });
