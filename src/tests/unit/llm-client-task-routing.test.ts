@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -65,8 +65,16 @@ mock.module('node:dns/promises', () => ({
 // native globalThis.fetch (e.g. local HTTP-server OCR stage tests).
 const PRISTINE_FETCH = globalThis.fetch;
 
+const sharedTestDbPath = 'src/tests/unit/llm-client-task-routing-test.db';
+
+function removeTestDb(dbPath: string): void {
+  for (const ext of ['', '-shm', '-wal']) {
+    try { unlinkSync(dbPath + ext); } catch { /* ok */ }
+  }
+}
+
 describe('LLM Client — task-specific routing', () => {
-  const testDbPath = 'src/tests/unit/llm-client-routing-test.db';
+  const testDbPath = sharedTestDbPath;
   let originalFetch: typeof fetch;
 
   function stubFetch(responseBody: unknown = {
@@ -87,16 +95,26 @@ describe('LLM Client — task-specific routing', () => {
     return { calls };
   }
 
-  beforeAll(() => {
-    try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    // Seed credentials for all three providers.
+  function ensureDb() {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    getDb().run("UPDATE ai_routing_defaults SET text_data_sharing = 'this_device_only', image_data_sharing = 'this_device_only', catalog_primary_connection_id = 'local-ollama', catalog_primary_model_id = 'qwen2.5vl:latest', catalog_fallback_connection_id = NULL, catalog_fallback_model_id = NULL WHERE id = 'current'");
+    getDb().run("UPDATE provider_connections SET enabled = 0, base_url = 'http://localhost:11434/v1', trust_zone = 'this_device', credential = NULL, approved_host = 'localhost', approved_port = 11434 WHERE id = 'local-ollama'");
+    getDb().run("UPDATE provider_connections SET enabled = 1, base_url = 'https://api.openai.com/v1', trust_zone = 'cloud', credential = NULL, approved_host = 'api.openai.com', approved_port = 443 WHERE id = 'openai-cloud'");
+    getDb().run("UPDATE provider_connections SET enabled = 1, base_url = 'https://api.deepseek.com', trust_zone = 'cloud', credential = NULL, approved_host = 'api.deepseek.com', approved_port = 443 WHERE id = 'deepseek-cloud'");
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
     upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
-    // Clear seeded AI compute routes so legacy task routing is active
-    getDb().run('DELETE FROM ai_workload_routes');
+  }
+
+  beforeAll(() => {
+    try { resetDb(); } catch { /* ok */ }
+    removeTestDb(testDbPath);
+    ensureDb();
   });
 
   afterAll(() => {
@@ -105,6 +123,7 @@ describe('LLM Client — task-specific routing', () => {
   });
 
   beforeEach(() => {
+    ensureDb();
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -131,6 +150,7 @@ describe('LLM Client — task-specific routing', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Clean up task configs between tests
     for (const task of [
       'product_name_consolidation',
@@ -375,7 +395,7 @@ describe('LLM Client — task-specific routing', () => {
 });
 
 describe('Protected classification operations — model-policy gateway (issue #17 item A)', () => {
-  const testDbPath = 'src/tests/unit/llm-client-policy-test.db';
+  const testDbPath = sharedTestDbPath;
 
   function stubFetch(responseBody: unknown = {
     choices: [{ message: { content: 'mock response' } }],
@@ -415,12 +435,20 @@ describe('Protected classification operations — model-policy gateway (issue #1
 
   let originalFetch: typeof fetch;
 
+  function ensureDb() {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
+    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+    getDb().run('DELETE FROM ai_workload_routes');
+  }
+
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+    ensureDb();
   });
 
   afterAll(() => {
@@ -428,8 +456,14 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
-  afterEach(() => { globalThis.fetch = originalFetch; });
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
+  });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
     upsertLlmTaskConfig({ task: 'classification_evidence_extraction', provider: 'deepseek', model: 'deepseek-v4-flash' });
@@ -1052,7 +1086,7 @@ describe('Protected classification operations — model-policy gateway (issue #1
 });
 
 describe('Model-call provenance wrapper (issue #17 E)', () => {
-  const testDbPath = 'src/tests/unit/llm-client-provenance-test.db';
+  const testDbPath = sharedTestDbPath;
 
   function localView(snapshotHash: string) {
     return buildModelPolicyView(
@@ -1094,16 +1128,29 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
     };
   }
 
+  function ensureDb() {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
+    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+    getDb().run('DELETE FROM ai_workload_routes');
+  }
+
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+    ensureDb();
   });
 
   afterAll(() => {
     closeDb();
     try { unlinkSync(testDbPath); } catch { /* ok */ }
+  });
+
+  beforeEach(() => {
+    ensureDb();
   });
 
   test('audited success returns the full result and persists a durable success row with tokens and honest local cost', async () => {
@@ -1670,7 +1717,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
 });
 
 describe('AI Compute authority — configured routing never consults the legacy chain', () => {
-  const testDbPath = 'src/tests/unit/llm-client-authority-test.db';
+  const testDbPath = sharedTestDbPath;
   let originalFetch: typeof fetch;
 
   function stubFetch(responseBody: unknown = {
@@ -1687,12 +1734,19 @@ describe('AI Compute authority — configured routing never consults the legacy 
     return { calls };
   }
 
+  function ensureDb() {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
+    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+  }
+
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
-    initDb(testDbPath);
-    runMigrations();
-    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
-    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+    ensureDb();
   });
 
   afterAll(() => {
@@ -1700,9 +1754,13 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
     getDb().run('DELETE FROM ai_workload_routes');
