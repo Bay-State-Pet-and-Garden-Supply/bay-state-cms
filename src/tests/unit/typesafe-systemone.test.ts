@@ -611,7 +611,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
         label: 'TypeSafe Jev (Cloud)',
         transport: 'carrier-pigeon',
         baseUrl: 'https://api.typesafe.ai/v1',
-        credential: 'ts-key-1',
+        credential: 'test-fake-credential-1',
         trustZone: 'cloud',
         approvedHost: 'api.typesafe.ai',
         approvedPort: 443,
