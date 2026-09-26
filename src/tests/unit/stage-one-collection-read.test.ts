@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -57,8 +57,10 @@ let followupDbPath = '';
 
 function ensureFollowupDb(): void {
   if (!followupDbPath) throw new Error('collection-read file DB path not set');
-  initDb(followupDbPath);
-  runMigrations();
+  if (!isDbInitialized()) {
+    initDb(followupDbPath);
+    runMigrations();
+  }
 }
 
 function currentRevision(brand: string): number {
@@ -94,7 +96,7 @@ function makeItem(batchId: string, overrides: { upc?: string; brandHint?: string
   return item;
 }
 
-describe('stage-one collection read', () => {
+describe('Stage One Collection Read Suite', () => {
   let tempDir: string;
 
   beforeAll(() => {
@@ -120,6 +122,8 @@ describe('stage-one collection read', () => {
     closeDb();
     if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+describe('stage-one collection read', () => {
 
   beforeEach(() => {
     resetActiveWorkerForTest();
@@ -933,4 +937,5 @@ describe('stage-one activation follow-ups II (isolated workspace)', () => {
       resetSourcingFlagsOverride();
     }
   });
+});
 });
