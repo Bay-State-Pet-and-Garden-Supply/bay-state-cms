@@ -611,7 +611,12 @@ async function defaultDockerProbe(): Promise<boolean> {
     if (!bun) return false;
     const proc = bun.spawn(['docker', 'info'], { stdout: 'ignore', stderr: 'ignore' });
     const code = await proc.exited;
-    return code === 0;
+    if (code !== 0) return false;
+    const runProc = bun.spawn(
+      ['docker', 'run', '--rm', 'node:22-bookworm', 'node', '-e', 'process.exit(0)'],
+      { stdout: 'ignore', stderr: 'ignore' },
+    );
+    return (await runProc.exited) === 0;
   } catch {
     return false;
   }

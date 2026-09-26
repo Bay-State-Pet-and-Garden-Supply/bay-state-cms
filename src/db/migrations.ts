@@ -388,8 +388,8 @@ export function runMigrations(): void {
         catalog_primary_model_id TEXT NOT NULL,
         catalog_fallback_connection_id TEXT,
         catalog_fallback_model_id TEXT,
-        text_data_sharing TEXT NOT NULL DEFAULT 'cloud_allowed',
-        image_data_sharing TEXT NOT NULL DEFAULT 'trusted_lan_allowed',
+        text_data_sharing TEXT NOT NULL DEFAULT 'this_device_only',
+        image_data_sharing TEXT NOT NULL DEFAULT 'this_device_only',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
