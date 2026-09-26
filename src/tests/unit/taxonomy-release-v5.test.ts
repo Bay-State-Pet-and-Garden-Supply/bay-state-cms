@@ -274,5 +274,62 @@ describe('bay-state-v5 release validation & invariants', () => {
       expect(report.ok).toBe(false);
       expectFinding(report, 'page_projection_needs_review');
     });
+
+    it('fails when a controlled attribute contains duplicate allowed values or unresolved aliases', () => {
+      const dir = copyV5Release('duplicate-allowed-val');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      const species = attrs.entries.find((a: any) => a.id === 'species');
+      species.allowedValues.push('Dog'); // duplicate
+      species.valueAliases.push({ alias: 'pup', mapsTo: 'NonExistent' }); // unresolved
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'duplicate_allowed_value');
+      expectFinding(report, 'unresolved_value_alias');
+    });
+
+    it('fails when a measured attribute is missing canonicalUnit', () => {
+      const dir = copyV5Release('missing-unit');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      const targetAttr = attrs.entries[0];
+      targetAttr.valueMode = 'measured';
+      targetAttr.canonicalUnit = '  ';
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'measured_attribute_missing_unit');
+    });
+
+    it('fails when guidance references an unknown product type or department', () => {
+      const dir = copyV5Release('guidance-unknown-ref');
+      const guidancePath = path.join(dir, 'guidance.json');
+      const g = JSON.parse(fs.readFileSync(guidancePath, 'utf8'));
+      g.entries[0].structured = {
+        productTypeIds: ['non-existent-type'],
+        departmentIds: ['non-existent-dept'],
+      };
+      fs.writeFileSync(guidancePath, JSON.stringify(g, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'guidance_unknown_type_ref');
+      expectFinding(report, 'guidance_unknown_department_ref');
+    });
+
+    it('fails when focused release files declare inconsistent release origins', () => {
+      const dir = copyV5Release('inconsistent-origin');
+      const attrPath = path.join(dir, 'attributes.json');
+      const attrs = JSON.parse(fs.readFileSync(attrPath, 'utf8'));
+      attrs.bundleOrigin.releaseId = 'foreign-release';
+      fs.writeFileSync(attrPath, JSON.stringify(attrs, null, 2));
+
+      const report = validateTaxonomyReleaseV5(dir);
+      expect(report.ok).toBe(false);
+      expectFinding(report, 'inconsistent_release_origin');
+    });
   });
 });

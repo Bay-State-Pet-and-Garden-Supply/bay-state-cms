@@ -1598,7 +1598,7 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
     }
   }
 
-  // ── Rule A (reuse v3 checks): attributes ids + export duality ────────────
+  // ── Rule A (reuse v3 checks): attributes ids + export duality + controlled/measured invariants ──
   {
     const seenAttrIds = new Set<string>();
     for (const attr of attributes) {
@@ -1613,6 +1613,25 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
         fail('attribute_missing_export_disposition', `Attribute "${attr.id}" has no exportDisposition.`);
       } else if (attr.exportDisposition.kind === 'shopsite' && attr.exportDisposition.catalogField.trim().length === 0) {
         fail('attribute_empty_export_field', `Attribute "${attr.id}" has a shopsite disposition with an empty catalogField.`);
+      }
+
+      if (attr.valueMode === 'controlled') {
+        const seenValues = new Set<string>();
+        for (const value of (attr.allowedValues ?? [])) {
+          if (seenValues.has(value)) {
+            fail('duplicate_allowed_value', `Attribute "${attr.id}" has duplicate allowed value "${value}".`);
+          }
+          seenValues.add(value);
+        }
+        for (const alias of (attr.valueAliases ?? [])) {
+          if (!seenValues.has(alias.mapsTo)) {
+            fail('unresolved_value_alias', `Attribute "${attr.id}" alias "${alias.alias}" maps to unknown value "${alias.mapsTo}".`);
+          }
+        }
+      }
+
+      if (attr.valueMode === 'measured' && (!attr.canonicalUnit || attr.canonicalUnit.trim().length === 0)) {
+        fail('measured_attribute_missing_unit', `Measured attribute "${attr.id}" has no canonicalUnit.`);
       }
     }
 
@@ -1721,14 +1740,37 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
     }
   }
 
-  // ── Rule B: guidance ids unique; page-assignment-policy validity ─────────
+  // ── Rule B: guidance ids unique; structured refs known; page-assignment-policy validity ─────────
   {
     const seenGuidanceIds = new Set<string>();
+    const knownLeafTypes = new Set(hierarchy.filter(n => n.classifiable).map(n => n.id));
+    const knownDepartmentRoots = new Set(hierarchy.filter(n => n.parentId === null).map(n => n.id));
+
     for (const g of guidance) {
       if (seenGuidanceIds.has(g.id)) {
         fail('duplicate_guidance_id', `Duplicate guidance id "${g.id}".`);
       }
       seenGuidanceIds.add(g.id);
+
+      const structured = (g.structured ?? {}) as Record<string, unknown>;
+      if (typeof structured.productTypeIds === 'string') {
+        fail('guidance_invalid_type_ref', `Guidance "${g.id}" productTypeIds must be an array.`);
+      } else if (Array.isArray(structured.productTypeIds)) {
+        for (const ref of structured.productTypeIds) {
+          if (typeof ref === 'string' && !knownLeafTypes.has(ref)) {
+            fail('guidance_unknown_type_ref', `Guidance "${g.id}" references unknown product type "${ref}".`);
+          }
+        }
+      }
+      if (typeof structured.departmentIds === 'string') {
+        fail('guidance_invalid_department_ref', `Guidance "${g.id}" departmentIds must be an array.`);
+      } else if (Array.isArray(structured.departmentIds)) {
+        for (const ref of structured.departmentIds) {
+          if (typeof ref === 'string' && !knownDepartmentRoots.has(ref)) {
+            fail('guidance_unknown_department_ref', `Guidance "${g.id}" references unknown department "${ref}".`);
+          }
+        }
+      }
     }
     if (pagePolicy) {
       if (!Number.isInteger(pagePolicy.maxPagesPerProduct) || pagePolicy.maxPagesPerProduct <= 0) {
@@ -1736,6 +1778,43 @@ export function validateCanonicalHierarchyReleaseCore<TNode extends V4HierarchyN
       }
       if (!Array.isArray(pagePolicy.allowedSpecies) || pagePolicy.allowedSpecies.length === 0) {
         fail('invalid_allowed_species', 'page-assignment-policy allowedSpecies must be a non-empty array of strings.');
+      }
+    }
+  }
+
+  // ── Rule C: envelope origin consistency across focused release files ────
+  {
+    const originOf = (fileName: string): ClassificationBundleOriginV2 | null => {
+      const raw = rawFiles[fileName];
+      if (!raw || typeof raw !== 'object') return null;
+      const origin = (raw as Record<string, unknown>).bundleOrigin;
+      if (!origin) return null;
+      const parsed = ClassificationBundleOriginV2Schema.safeParse(origin);
+      return parsed.success ? parsed.data : null;
+    };
+    const envelopeOrigins = [
+      originOf('hierarchy.json'),
+      originOf('facet-profiles.json'),
+      originOf('legacy-mappings.json'),
+      originOf('attributes.json'),
+      originOf('export-mappings.json'),
+      originOf('shopsite-projection.json'),
+      originOf('guidance.json'),
+    ].filter((o): o is ClassificationBundleOriginV2 => o !== null);
+    if (envelopeOrigins.length > 0) {
+      const firstOriginJson = JSON.stringify(envelopeOrigins[0]);
+      for (const origin of envelopeOrigins) {
+        if (JSON.stringify(origin) !== firstOriginJson) {
+          fail('inconsistent_release_origin', 'Focused release files declare inconsistent bundle origins.');
+          break;
+        }
+        if (origin.kind !== 'release') {
+          fail('non_release_origin', `Focused file declares bundleOrigin.kind "${origin.kind}"; a taxonomy release must use kind "release".`);
+          break;
+        }
+      }
+      if (manifest && envelopeOrigins[0].kind === 'release' && envelopeOrigins[0].releaseId !== manifest.releaseId) {
+        fail('release_origin_mismatch', `Focused files declare releaseId "${envelopeOrigins[0].releaseId}" but manifest declares "${manifest.releaseId}".`);
       }
     }
   }
