@@ -183,7 +183,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       transport: 'systemone',
       baseUrl: 'https://api.typesafe.ai/v1',
       trustZone: 'cloud',
-      credential: 'ts-secret-key-298',
+      credential: 'test-fake-credential-298',
       enabled: true,
       lastProbedAt: new Date().toISOString(),
       lastProbeStatus: 'healthy',
