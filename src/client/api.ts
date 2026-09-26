@@ -554,7 +554,7 @@ export function activatePagesImport(input: {
   });
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// fallow-ignore-next-line unused-export
 export function upsertPage(name: string, fileName?: string | null, parentId?: string | null) {
   return request<{ success: boolean; page: Page }>('/pages', {
     method: 'POST',
@@ -562,12 +562,12 @@ export function upsertPage(name: string, fileName?: string | null, parentId?: st
   });
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// fallow-ignore-next-line unused-export
 export function deletePage(id: string) {
   return request<{ success: boolean }>(`/pages/${id}`, { method: 'DELETE' });
 }
 
-// fallow-ignore-next-line unused-export — used by tests
+// fallow-ignore-next-line unused-export
 export function getProductPages(sku: string) {
   return request<{ pages: string[] }>(`/products/${encodeURIComponent(sku)}/pages`);
 }

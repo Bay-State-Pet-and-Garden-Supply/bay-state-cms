@@ -528,7 +528,6 @@ export function coordinateCohortPagesOnce(
   return promise;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export function clearCohortPageCoordinationCache(): void {
   cache.clear();
 }

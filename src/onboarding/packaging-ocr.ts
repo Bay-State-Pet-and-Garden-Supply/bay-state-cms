@@ -342,7 +342,6 @@ async function loadImageWithReason(
  * 2. If `imageUrl` is an HTTP(S) URL, fetch it in-memory.
  * 3. Otherwise return null.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export async function loadProductImageAsBase64(
   imageUrl: string,
   workspacePath?: string,

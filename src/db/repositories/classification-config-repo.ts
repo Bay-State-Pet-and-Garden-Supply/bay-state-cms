@@ -28,7 +28,7 @@ export interface ConfigFileMeta {
   updatedAt: string;
 }
 
-// fallow-ignore-next-line unused-export — config-store diagnostics consume this in Milestone 3
+// fallow-ignore-next-line unused-export
 export function listConfigFiles(workspaceId: string): ConfigFileMeta[] {
   const rows = getDb()
     .query('SELECT * FROM classification_config_files WHERE workspace_id = ? ORDER BY file_name')
@@ -348,7 +348,6 @@ export function getCachedProductTypes(workspaceId: string): ProductTypeConfig[] 
   }));
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export function getCachedAttributes(workspaceId: string): ProductAttributeConfig[] {
   const rows = getDb()
     .query('SELECT * FROM classification_attributes WHERE workspace_id = ?')
@@ -393,7 +392,7 @@ export function getCachedAttributeMappings(workspaceId: string): AttributeMappin
   }));
 }
 
-// fallow-ignore-next-line unused-export — runtime snapshot builder consumes this in Milestone 4
+// fallow-ignore-next-line unused-export
 export function getCachedGuidance(workspaceId: string): GuidanceConfig[] {
   const rows = getDb()
     .query('SELECT * FROM classification_guidance WHERE workspace_id = ?')
@@ -408,7 +407,7 @@ export function getCachedGuidance(workspaceId: string): GuidanceConfig[] {
   }));
 }
 
-// fallow-ignore-next-line unused-export — runtime snapshot builder consumes this in Milestone 4
+// fallow-ignore-next-line unused-export
 export function getCachedModelPolicy(workspaceId: string): ModelPolicyConfig | null {
   const row = getDb()
     .query('SELECT * FROM classification_model_policies WHERE workspace_id = ?')

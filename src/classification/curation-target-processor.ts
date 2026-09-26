@@ -1233,7 +1233,7 @@ async function processTargetInternal(
  * Check whether Product Type is an enabled curation target for the given workspace.
  * Returns false when no config exists or the target is disabled.
  */
-// fallow-ignore-next-line unused-export — used by tests
+// fallow-ignore-next-line unused-export
 export function isProductTypeTargetEnabled(workspacePath: string): boolean {
   const config = loadClassificationConfig(workspacePath);
   const resolved = resolveEnabledTargets(config, '');
@@ -1243,7 +1243,7 @@ export function isProductTypeTargetEnabled(workspacePath: string): boolean {
 /**
  * Check whether any curation targets are enabled.
  */
-// fallow-ignore-next-line unused-export — used by tests
+// fallow-ignore-next-line unused-export
 export function hasAnyEnabledTarget(workspacePath: string): boolean {
   const config = loadClassificationConfig(workspacePath);
   const resolved = resolveEnabledTargets(config, '');

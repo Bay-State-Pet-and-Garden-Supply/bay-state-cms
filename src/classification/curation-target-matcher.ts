@@ -88,7 +88,6 @@ export function buildEvidenceText(
 /**
  * Tokenize text into lowercase word tokens, filtering out stop words and short tokens.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export function tokenize(text: string, stopWords?: Set<string>): string[] {
   const stop = stopWords ?? DEFAULT_STOP_WORDS;
   return text
