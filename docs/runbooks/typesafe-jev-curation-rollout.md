@@ -38,7 +38,8 @@ A central architectural requirement of ADR 0033 and Issue #302 is the distinctio
 Set the TypeSafe API credential in your environment:
 
 ```bash
-export TYPESAFE_API_KEY="<your-typesafe-api-key>"
+# Never commit a real key. Provide it via the environment only:
+export TYPESAFE_API_KEY
 ```
 
 The server automatically maps `process.env.TYPESAFE_API_KEY` to the `typesafe` provider connection credential during startup.
@@ -99,7 +100,8 @@ The script reports:
 To run an opt-in live check against the TypeSafe API:
 
 ```bash
-TYPESAFE_API_KEY="<your-typesafe-api-key>" bun scripts/typesafe-curation-qualification.ts --live-check
+# Requires TYPESAFE_API_KEY in the environment (never inline the value):
+bun scripts/typesafe-curation-qualification.ts --live-check
 ```
 
 *Note: Without `--live-check` and a valid `TYPESAFE_API_KEY`, the script will intentionally mark live contract checks and canary stages as blocked, keeping production status at `PROVISIONALLY_QUALIFIED`.*
