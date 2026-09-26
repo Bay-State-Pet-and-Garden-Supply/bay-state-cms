@@ -189,12 +189,11 @@ describe('classification policy service (issue #296)', () => {
     expect(connectionIds).toContain('conn-openai');
     expect(connectionIds).toContain('conn-typesafe');
 
-    // TypeSafe SystemOne is supported for primary_product_type_proposal (#297) and product_attribute_proposals (#298), and unwired for category_page_proposals (#299)
+    // TypeSafe SystemOne is supported for all three stages (#297/#298/#299 + #301 cohort coordination)
     const typeSafe = settings.availableConnections.find(c => c.id === 'conn-typesafe')!;
     expect(typeSafe.stageSupport.primary_product_type_proposal.supported).toBe(true);
     expect(typeSafe.stageSupport.product_attribute_proposals.supported).toBe(true);
-    expect(typeSafe.stageSupport.category_page_proposals.supported).toBe(false);
-    expect(typeSafe.stageSupport.category_page_proposals.reason).toContain('not yet available');
+    expect(typeSafe.stageSupport.category_page_proposals.supported).toBe(true);
   });
 
   it('previews a valid policy update and flags cloud data-sharing requirements', () => {
@@ -235,7 +234,7 @@ describe('classification policy service (issue #296)', () => {
     expect(validPreview.dataSharingEffects.length).toBeGreaterThan(0);
   });
 
-  it('allows preview for primary_product_type_proposal with TypeSafe Jev and rejects unwired stages', () => {
+  it('allows preview for all three stages with TypeSafe Jev (#297/#298/#299)', () => {
     // Valid preview for primary_product_type_proposal with Jev
     const validJevPreview = previewClassificationPolicy(root, {
       expectedBaseBundleHash: baseBundleHash,
@@ -270,8 +269,8 @@ describe('classification policy service (issue #296)', () => {
     expect(validAttrJevPreview.valid).toBe(true);
     expect(validAttrJevPreview.previewToken).toBeDefined();
 
-    // Rejects unwired stage (category_page_proposals)
-    const unwiredPreview = previewClassificationPolicy(root, {
+    // Wired stage (category_page_proposals, #299 singleton + #301 cohort coordination)
+    const jevPagePreview = previewClassificationPolicy(root, {
       expectedBaseBundleHash: baseBundleHash,
       stageOverrides: {
         category_page_proposals: {
@@ -284,10 +283,8 @@ describe('classification policy service (issue #296)', () => {
       textDataSharing: 'cloud_allowed',
     });
 
-    expect(unwiredPreview.valid).toBe(false);
-    expect(unwiredPreview.validationErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('TypeSafe Jev typed-judgment adapter is not yet available for stage "Category Pages"'),
-    ]));
+    expect(jevPagePreview.valid).toBe(true);
+    expect(jevPagePreview.previewToken).toBeDefined();
   });
 
   it('applies policy changes under CAS and rejects stale preview tokens', async () => {

@@ -15,9 +15,7 @@ import type { ResolvedTarget } from '../../classification/curation-target-resolv
 import type { ClassificationEvidence, ModelPolicyConfigV2 } from '../../shared/schemas/classification';
 import {
   resolveProductTypeDecision,
-  buildProductTypeState,
   buildProductTypeChoiceQuestion,
-  MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES,
   JEV_PRODUCT_TYPE_MIN_PROBABILITY,
 } from '../../classification/product-type-decision';
 

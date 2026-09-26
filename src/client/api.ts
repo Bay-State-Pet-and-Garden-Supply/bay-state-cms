@@ -1061,7 +1061,7 @@ export interface ApplyPolicyInputPayload {
   imageDataSharing?: 'local_only' | 'cloud_allowed';
 }
 
-export interface ApplyPolicyResultResponse {
+interface ApplyPolicyResultResponse {
   success: boolean;
   bundleHash: string;
   commitHash: string | null;

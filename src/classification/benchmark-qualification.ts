@@ -29,8 +29,7 @@ import { sha256Hex } from '../shared/stable-id';
 import type { EvalMetrics } from '../shared/schemas/classification';
 export const QUALIFIED_RAW_PREDICTION_SOURCE = 'prereview_raw' as const;
 export const LEGACY_REVIEWED_OUTCOME_SOURCE = 'reviewed_outcome' as const;
-export const QUALIFIED_RAW_BUNDLE_VERSION = 1 as const;
-export type RawAccuracySourceKind = typeof QUALIFIED_RAW_PREDICTION_SOURCE | typeof LEGACY_REVIEWED_OUTCOME_SOURCE;
+const QUALIFIED_RAW_BUNDLE_VERSION = 1 as const;
 export interface SourceEligibility {
   eligible: boolean;
   reasons: string[];

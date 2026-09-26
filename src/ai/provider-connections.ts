@@ -9,9 +9,6 @@ export type AiTrustZone = 'this_device' | 'trusted_lan' | 'cloud';
 export type AiTransport = 'openai-compatible' | 'ollama-native' | 'systemone';
 export type DataSharingPolicy = 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
 
-/** Capability class of a connection: chat completion vs typed judgment. */
-export type AiConnectionCapability = 'chat' | 'typed-judgment';
-
 export interface ProviderConnection {
   id: string;
   label: string;
@@ -312,48 +309,9 @@ export function isConnectionUsable(conn: ProviderConnection): boolean {
   return true;
 }
 
-/**
- * Capability class of a connection. System One (`systemone` transport) is
- * judgment-only: it answers typed Choice/Noul questions and can never serve
- * chat, naming, tool-calling, or vision workloads.
- */
-export function connectionCapability(conn: ProviderConnection): AiConnectionCapability {
-  return isSystemOneConnection(conn) ? 'typed-judgment' : 'chat';
-}
-
 /** True when the connection serves typed judgments (TypeSafe System One). */
 export function isSystemOneConnection(conn: Pick<ProviderConnection, 'transport'>): boolean {
   return conn.transport === 'systemone';
-}
-
-/**
- * Workload kinds that require a chat-capable connection. System One
- * connections are rejected for all of these at validation: chat completion,
- * naming/title synthesis, tool-calling assistants, and vision/OCR.
- */
-export const CHAT_ONLY_WORKLOADS: ReadonlyArray<string> = [
-  'discovery',
-  'curation',
-  'visionOcr',
-  'profileBuilder',
-  'storeManager',
-] as const;
-
-/**
- * Reject a System One connection for a chat/naming/tool/vision workload.
- * Throws `TrustZoneValidationError` (fail-closed validation, never a
- * transport attempt) so both configuration (server route validation) and
- * transport (dispatcher guard) share one predicate.
- */
-export function assertChatCapable(conn: ProviderConnection, workload: string): void {
-  if (isSystemOneConnection(conn)) {
-    throw new TrustZoneValidationError(
-      `Connection "${conn.label}" is a typed-judgment (System One) connection and cannot serve ` +
-        `the "${workload}" workload, which requires chat completion.`,
-      'systemone_chat_unsupported',
-      conn.id,
-    );
-  }
 }
 
 /**

@@ -59,7 +59,7 @@ export const EVALUATOR_GOLD_STATE_KNOWN = 'known' as const;
 export const EVALUATOR_GOLD_STATE_NO_FIT = 'no-fit' as const;
 export const EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
 export const EVALUATOR_GOLD_STATE_UNLABELED = 'unlabeled' as const;
-export const EVALUATOR_GOLD_STATES = [
+const EVALUATOR_GOLD_STATES = [
   EVALUATOR_GOLD_STATE_KNOWN,
   EVALUATOR_GOLD_STATE_NO_FIT,
   EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE,
@@ -67,7 +67,7 @@ export const EVALUATOR_GOLD_STATES = [
 ] as const;
 export type EvaluatorGoldState = (typeof EVALUATOR_GOLD_STATES)[number];
 /** Gold-labels JSON field carrying the adjudicated gold state. */
-export const EVALUATOR_GOLD_STATE_FIELD = 'productTypeState' as const;
+const EVALUATOR_GOLD_STATE_FIELD = 'productTypeState' as const;
 
 /**
  * Normalize adjudicated state spellings. Accepts the canonical exporter
@@ -75,7 +75,7 @@ export const EVALUATOR_GOLD_STATE_FIELD = 'productTypeState' as const;
  * the ticket aliases (`known-type`, `no-fitting-type`); unknown values and
  * non-strings yield null (legacy handling).
  */
-export function normalizeEvaluatorGoldState(value: unknown): EvaluatorGoldState | null {
+function normalizeEvaluatorGoldState(value: unknown): EvaluatorGoldState | null {
   if (typeof value !== 'string') return null;
   const v = value.trim().toLowerCase().replace(/_/g, '-');
   if (v === 'known' || v === 'known-type') return EVALUATOR_GOLD_STATE_KNOWN;
@@ -86,7 +86,7 @@ export function normalizeEvaluatorGoldState(value: unknown): EvaluatorGoldState 
 }
 
 /** Read the adjudicated gold state; null for legacy gold without a marker. */
-export function readEvaluatorGoldState(goldLabelsJson: string): EvaluatorGoldState | null {
+function readEvaluatorGoldState(goldLabelsJson: string): EvaluatorGoldState | null {
   try {
     const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
@@ -98,11 +98,11 @@ export function readEvaluatorGoldState(goldLabelsJson: string): EvaluatorGoldSta
 
 // ─── Field Gold-state contract (issue #298 / AC 8) ───────────────────────────
 export const EVALUATOR_FIELD_GOLD_STATE_KNOWN = 'known' as const;
-export const EVALUATOR_FIELD_GOLD_STATE_NO_FIT = 'no-fit' as const;
-export const EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
-export const EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE = 'inapplicable' as const;
-export const EVALUATOR_FIELD_GOLD_STATE_UNLABELED = 'unlabeled' as const;
-export const EVALUATOR_FIELD_GOLD_STATES = [
+const EVALUATOR_FIELD_GOLD_STATE_NO_FIT = 'no-fit' as const;
+const EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+const EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE = 'inapplicable' as const;
+const EVALUATOR_FIELD_GOLD_STATE_UNLABELED = 'unlabeled' as const;
+const EVALUATOR_FIELD_GOLD_STATES = [
   EVALUATOR_FIELD_GOLD_STATE_KNOWN,
   EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
   EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE,
@@ -110,9 +110,9 @@ export const EVALUATOR_FIELD_GOLD_STATES = [
   EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
 ] as const;
 export type EvaluatorFieldGoldState = (typeof EVALUATOR_FIELD_GOLD_STATES)[number];
-export const EVALUATOR_FIELD_GOLD_STATES_FIELD = 'fieldStates' as const;
+const EVALUATOR_FIELD_GOLD_STATES_FIELD = 'fieldStates' as const;
 
-export function normalizeEvaluatorFieldGoldState(value: unknown): EvaluatorFieldGoldState | null {
+function normalizeEvaluatorFieldGoldState(value: unknown): EvaluatorFieldGoldState | null {
   if (typeof value !== 'string') return null;
   const v = value.trim().toLowerCase().replace(/_/g, '-');
   if (v === 'known' || v === 'known-type' || v === 'known-value') return EVALUATOR_FIELD_GOLD_STATE_KNOWN;
@@ -146,9 +146,9 @@ export function readEvaluatorFieldStates(goldLabelsJson: string): Record<string,
 // both legacy bundles (abstained flag only) and pre-review bundles
 // (`outcome` + `failureCode`) are handled.
 export const EVALUATOR_OUTCOME_PREDICTED = 'predicted' as const;
-export const EVALUATOR_OUTCOME_ABSTAINED = 'abstained-semantic' as const;
-export const EVALUATOR_OUTCOME_FAILED = 'failed' as const;
-export const EVALUATOR_OUTCOME_MISSING = 'missing' as const;
+const EVALUATOR_OUTCOME_ABSTAINED = 'abstained-semantic' as const;
+const EVALUATOR_OUTCOME_FAILED = 'failed' as const;
+const EVALUATOR_OUTCOME_MISSING = 'missing' as const;
 export type EvaluatorPredictionOutcome =
   | typeof EVALUATOR_OUTCOME_PREDICTED
   | typeof EVALUATOR_OUTCOME_ABSTAINED
@@ -157,7 +157,7 @@ export type EvaluatorPredictionOutcome =
 
 
 /** Classify one bundle entry; undefined (no entry for the gold id) is missing. */
-export function classifyEvaluatorPredictionOutcome(
+function classifyEvaluatorPredictionOutcome(
   entry: BenchmarkPredictionEntry | undefined | null,
 ): EvaluatorPredictionOutcome {
   if (!entry) return EVALUATOR_OUTCOME_MISSING;
@@ -184,10 +184,10 @@ export function classifyEvaluatorPredictionOutcome(
 // New raw bundles carry `source: 'prereview_raw'` + version 1; legacy
 // reviewed-outcome bundles are plain arrays (version 0). Values mirror
 // benchmark-prediction.ts without importing it (parallel ownership).
-export const EVALUATOR_PRE_REVIEW_SOURCE = 'prereview_raw' as const;
-export const EVALUATOR_REVIEWED_OUTCOME_SOURCE = 'reviewed_outcome' as const;
-export const EVALUATOR_PRE_REVIEW_BUNDLE_VERSION = 1 as const;
-export const EVALUATOR_LEGACY_BUNDLE_VERSION = 0 as const;
+const EVALUATOR_PRE_REVIEW_SOURCE = 'prereview_raw' as const;
+const EVALUATOR_REVIEWED_OUTCOME_SOURCE = 'reviewed_outcome' as const;
+const EVALUATOR_PRE_REVIEW_BUNDLE_VERSION = 1 as const;
+const EVALUATOR_LEGACY_BUNDLE_VERSION = 0 as const;
 export type EvaluatorPredictionSource =
   | typeof EVALUATOR_PRE_REVIEW_SOURCE
   | typeof EVALUATOR_REVIEWED_OUTCOME_SOURCE
@@ -236,7 +236,7 @@ function evaluatorProvenanceFor(
  * reviewed-outcome; `{ source: 'prereview_raw', version: 1, predictions }`
  * = pre-review). Anything else resolves to `unknown` (fail closed downstream).
  */
-export function describeEvaluatorBundleProvenance(
+function describeEvaluatorBundleProvenance(
   persistedJson: unknown,
   loaderHint?: { source?: unknown; bundleVersion?: unknown },
 ): EvaluatorBundleProvenance {
@@ -478,7 +478,7 @@ export type EvaluatorExampleVerdict = 'correct' | 'incorrect' | 'abstained' | 'f
  * or missing entries earn no abstention credit. A `known` marker with no
  * label is contradictory fixture data and scores as excluded.
  */
-export function scoreEvaluatorExample(args: {
+function scoreEvaluatorExample(args: {
   goldState: EvaluatorGoldState | null;
   goldType: string | null;
   outcome: EvaluatorPredictionOutcome;

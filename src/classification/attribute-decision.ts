@@ -85,17 +85,11 @@ import { buildFieldAssignmentProposal } from './curation-target-proposal';
 
 // ─── Versioned Constants ──────────────────────────────────────────────────────
 
-export const ATTRIBUTE_JUDGMENT_VERSION = 'jev-choice-v1';
-export const ATTRIBUTE_NOUL_JUDGMENT_VERSION = 'jev-noul-v1';
-export const ATTRIBUTE_QUESTION_VERSION = 'attribute-question-v1';
-export const ATTRIBUTE_ELIGIBILITY_VERSION = 'jev-attr-eligibility-v1';
-export const ATTRIBUTE_STATE_VERSION = 'attribute-state-v1';
-
-export const MAX_ORDINARY_ATTRIBUTE_CANDIDATES =
+const MAX_ORDINARY_ATTRIBUTE_CANDIDATES =
   SYSTEMONE_MAX_CHOICE_OPTIONS - SYSTEMONE_MAX_ABSTENTION_RESERVED; // 253
 
-export const NO_MATCH_CHOICE_KEY = 'no_match';
-export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
+const NO_MATCH_CHOICE_KEY = 'no_match';
+const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
 
 /**
  * Development-fitted minimum probability for Jev Choice attribute selection.
@@ -107,12 +101,12 @@ export const JEV_ATTRIBUTE_MIN_PROBABILITY = 0.50;
  * Development-fitted minimum probability for Jev Noul multi-value attribute selection.
  * For independent binary judgments, P(yes) >= 0.70 demonstrates explicit positive support.
  */
-export const JEV_MULTI_VALUE_MIN_PROBABILITY = 0.70;
+const JEV_MULTI_VALUE_MIN_PROBABILITY = 0.70;
 
 /**
  * Floor below which all candidate probabilities indicate no fitting options in taxonomy.
  */
-export const JEV_MULTI_VALUE_UNCERTAIN_FLOOR = 0.40;
+const JEV_MULTI_VALUE_UNCERTAIN_FLOOR = 0.40;
 
 /** Approved sources for direct product evidence (claims & composition). */
 const DIRECT_EVIDENCE_SOURCES = new Set([
@@ -183,7 +177,7 @@ export interface AttributeDecisionResult {
 
 // ─── Bounded State Builder ───────────────────────────────────────────────────
 
-export interface BoundedAttributeState {
+interface BoundedAttributeState {
   sku: string;
   name: string;
   brand: string | null;
@@ -197,7 +191,7 @@ export interface BoundedAttributeState {
  * Filter evidence according to attribute eligibility.
  * E.g., if visualEvidenceEligibility is 'ineligible', exclude visual_product_evidence.
  */
-export function filterPermittedEvidence(
+function filterPermittedEvidence(
   evidence: ClassificationEvidence[],
   attribute?: ProductAttributeConfig | null,
 ): ClassificationEvidence[] {
@@ -210,7 +204,7 @@ export function filterPermittedEvidence(
 /**
  * Builds bounded structured state from target-specific permitted evidence, capped at 32k bytes.
  */
-export function buildAttributeState(
+function buildAttributeState(
   evidence: ClassificationEvidence[],
   sku: string,
   productContext?: { name?: string; brand?: string | null; productType?: string | null },

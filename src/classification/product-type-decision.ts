@@ -70,17 +70,12 @@ import { hashCanonicalJson } from '../shared/stable-id';
 
 // ─── Versioned Constants ──────────────────────────────────────────────────────
 
-export const PRODUCT_TYPE_JUDGMENT_VERSION = 'jev-choice-v1';
-export const PRODUCT_TYPE_QUESTION_VERSION = 'product-type-question-v1';
-export const PRODUCT_TYPE_ELIGIBILITY_VERSION = 'jev-pt-eligibility-v1';
-export const PRODUCT_TYPE_STATE_VERSION = 'product-type-state-v1';
-
-export const MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES =
+const MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES =
   SYSTEMONE_MAX_CHOICE_OPTIONS - SYSTEMONE_MAX_ABSTENTION_RESERVED; // 253
 
-export const JEV_PRODUCT_TYPE_QUESTION_ID = 'primary_product_type';
-export const NO_MATCH_CHOICE_KEY = 'no_match';
-export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
+const JEV_PRODUCT_TYPE_QUESTION_ID = 'primary_product_type';
+const NO_MATCH_CHOICE_KEY = 'no_match';
+const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
 
 /**
  * Development-fitted minimum probability for Jev Choice selection.
@@ -89,7 +84,7 @@ export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
  */
 export const JEV_PRODUCT_TYPE_MIN_PROBABILITY = 0.50;
 
-export const KEYWORD_MATCH_MIN_CONFIDENCE = 0.7;
+export const PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE = 0.7;
 
 const now = () => new Date().toISOString();
 
@@ -140,7 +135,7 @@ export interface ProductTypeDecisionResult {
 
 // ─── Bounded State Builder ───────────────────────────────────────────────────
 
-export interface BoundedProductTypeState {
+interface BoundedProductTypeState {
   sku: string;
   name: string;
   brand: string | null;
@@ -153,7 +148,7 @@ export interface BoundedProductTypeState {
 /**
  * Builds bounded structured state from product evidence, capped at 32k bytes.
  */
-export function buildProductTypeState(
+function buildProductTypeState(
   evidence: ClassificationEvidence[],
   sku: string,
 ): BoundedProductTypeState {
@@ -322,7 +317,7 @@ export async function resolveProductTypeDecision(
       text,
       selectionMode: 'single',
     });
-    if (keywordMatches.length > 0 && keywordMatches[0].confidence >= KEYWORD_MATCH_MIN_CONFIDENCE) {
+    if (keywordMatches.length > 0 && keywordMatches[0].confidence >= PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE) {
       const top = keywordMatches[0];
       const meetsFloor =
         params.confidenceFloor !== undefined ? top.confidence >= params.confidenceFloor : true;

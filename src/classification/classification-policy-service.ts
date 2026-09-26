@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-export
-
 /**
  * Classification Policy Settings Service (Issue #296 / ADR 0033).
  *

@@ -56,12 +56,8 @@ import {
 
 // ─── Public identity ─────────────────────────────────────────────────────────
 
-export const TYPESAFE_PROVIDER_ID = 'typesafe';
-export const TYPESAFE_DEFAULT_BASE_URL = 'https://api.typesafe.ai/v1';
-export const TYPESAFE_APPROVED_HOST = 'api.typesafe.ai';
 export const TYPESAFE_EVALUATED_MODEL = 'jev-1.13.0';
-export const SYSTEMONE_ENDPOINT_PATH = '/systemone';
-export const SYSTEMONE_MODELS_PATH = '/models';
+const SYSTEMONE_ENDPOINT_PATH = '/systemone';
 
 /**
  * Canonical versioned pins this integration treats as known-good. Only the
@@ -77,7 +73,7 @@ export const TYPESAFE_KNOWN_MODELS: ReadonlyArray<string> = [
  * Documented TypeSafe aliases. These survive only as discovered models
  * (exact `/models` matches) — never as known pins.
  */
-export const TYPESAFE_KNOWN_ALIASES: ReadonlyArray<string> = [
+const TYPESAFE_KNOWN_ALIASES: ReadonlyArray<string> = [
   'jev-latest',
   'jev-preview',
 ] as const;
@@ -97,7 +93,7 @@ export const SYSTEMONE_MAX_QUESTIONS = 32;
 export const SYSTEMONE_MAX_STATE_BYTES = 32_768;
 
 /** Conservative application budget for the serialized request body (64k documented). */
-export const SYSTEMONE_MAX_REQUEST_BYTES = 65_536;
+const SYSTEMONE_MAX_REQUEST_BYTES = 65_536;
 
 /** Probability-distribution closure tolerance for Choice answers. */
 export const SYSTEMONE_CHOICE_SUM_TOLERANCE = 0.01;
@@ -110,6 +106,7 @@ export const SYSTEMONE_CHOICE_SUM_TOLERANCE = 0.01;
  * connection, or an unknown/unsupported pinned model. Never retries.
  */
 export class SystemOneUnsupportedError extends AiTransportError {
+  // fallow-ignore-next-line unused-class-member
   override readonly isMisconfiguration = true;
 
   constructor(message: string, connectionId?: string, modelId?: string, statusCode?: number) {
@@ -486,7 +483,7 @@ export function parseRetryAfterMs(value: string | null, capMs = 10_000): number 
 }
 
 /** Bounded backoff for the single retry: Retry-After wins, else 500ms doubling capped at 5s. */
-export function systemOneRetryDelayMs(retryAfterMs: number | null | undefined, attempt: number): number {
+function systemOneRetryDelayMs(retryAfterMs: number | null | undefined, attempt: number): number {
   if (retryAfterMs !== null && retryAfterMs !== undefined && Number.isFinite(retryAfterMs)) {
     return Math.max(0, Math.min(retryAfterMs, 10_000));
   }
@@ -705,7 +702,6 @@ export async function dispatchSystemOne(
   return executeSystemOne(conn, request.model, request.questions, request.state, options);
 }
 
-
 async function readErrorDetail(response: Response): Promise<string> {
   try {
     const text = await response.text();
@@ -718,5 +714,4 @@ async function readErrorDetail(response: Response): Promise<string> {
   }
 }
 
-/** Connection capability predicates live in provider-connections (single owner). */
-export { isSystemOneConnection } from './provider-connections';
+

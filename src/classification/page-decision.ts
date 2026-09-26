@@ -86,21 +86,19 @@ import type { ProtectedOperation } from './model-operation-registry';
 
 export const PAGE_JUDGMENT_VERSION = 'jev-page-v1';
 export const PAGE_QUESTION_VERSION = 'page-question-v1';
-export const PAGE_ELIGIBILITY_VERSION = 'jev-page-eligibility-v1';
-export const PAGE_STATE_VERSION = 'page-state-v1';
 
 export const JEV_PAGE_QUESTION_ID = 'category_page_assignment';
-export const MAX_ORDINARY_PAGE_CANDIDATES =
+const MAX_ORDINARY_PAGE_CANDIDATES =
   SYSTEMONE_MAX_CHOICE_OPTIONS - SYSTEMONE_MAX_ABSTENTION_RESERVED; // 253
 
 export const JEV_PAGE_SINGLE_THRESHOLD = 0.50;
-export const JEV_PAGE_MULTI_THRESHOLD = 0.70;
-export const JEV_PAGE_MULTI_UNCERTAIN_FLOOR = 0.40;
+const JEV_PAGE_MULTI_THRESHOLD = 0.70;
+const JEV_PAGE_MULTI_UNCERTAIN_FLOOR = 0.40;
 
 export const NO_MATCH_CHOICE_KEY = 'abstain_no_match';
 export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'abstain_insufficient_evidence';
 
-export const PAGE_CONTEXT_SOURCE_FIELDS = [
+const PAGE_CONTEXT_SOURCE_FIELDS = [
   'name',
   'title',
   'description',
@@ -112,7 +110,7 @@ export const PAGE_CONTEXT_SOURCE_FIELDS = [
   'brand',
   'resolved_brand',
 ];
-export const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
+const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
 
 const now = () => new Date().toISOString();
 
@@ -219,7 +217,7 @@ function reviewedSpeciesValue(evidence: ClassificationEvidence[]): unknown {
  * Build bounded state specifically for Category Page decisions.
  * Restricted to page-evidence packet records (never unrelated claims or full runs).
  */
-export function buildPageState(
+function buildPageState(
   evidence: ClassificationEvidence[],
   sku: string,
   productContext?: PageDecisionProductContext,
@@ -297,7 +295,7 @@ export function buildPageChoiceQuestion(
   };
 }
 
-export interface PageNoulQuestionPlan {
+interface PageNoulQuestionPlan {
   questionId: string;
   pageId: string;
   pageName: string;
@@ -306,7 +304,7 @@ export interface PageNoulQuestionPlan {
   criteria: { true: string; false: string };
 }
 
-export function buildPageNoulQuestions(
+function buildPageNoulQuestions(
   candidates: PageCandidateItem[],
   sku: string,
   productContext?: PageDecisionProductContext,

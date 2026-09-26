@@ -18,7 +18,7 @@
 import { z } from 'zod';
 
 /** Caller-chosen correlation key: never model-visible, matched exactly. */
-export const SystemOneQuestionIdSchema = z
+const SystemOneQuestionIdSchema = z
   .string()
   .min(1)
   .max(128)
@@ -28,7 +28,7 @@ export const SystemOneQuestionIdSchema = z
   );
 
 /** Instructions carry the question meaning; criteria carry option rubrics. */
-export const SystemOneInstructionsSchema = z.union([
+const SystemOneInstructionsSchema = z.union([
   z.string().min(1).max(8000),
   z.record(z.string(), z.unknown()),
   z.array(z.unknown()).min(1).max(32),
@@ -42,7 +42,7 @@ const SystemOneCriteriaValueSchema = z.union([
 ]);
 
 /** Choice: pick one option from a caller-defined set (2+ options; the 255 cap is enforced with a candidate-limit error). */
-export const SystemOneChoiceQuestionSchema = z
+const SystemOneChoiceQuestionSchema = z
   .object({
     type: z.literal('choice'),
     instructions: SystemOneInstructionsSchema,
@@ -54,7 +54,7 @@ export const SystemOneChoiceQuestionSchema = z
   })
   .strict();
 /** Noul: yes/no question returning P(yes) in [0, 1]. */
-export const SystemOneNoulQuestionSchema = z
+const SystemOneNoulQuestionSchema = z
   .object({
     type: z.literal('noul'),
     instructions: SystemOneInstructionsSchema,
@@ -73,7 +73,7 @@ export const SystemOneNoulQuestionSchema = z
  * integration supports Choice/Noul only, so a score question fails closed
  * here (unsupported use) instead of traveling to the API.
  */
-export const SystemOneQuestionSchema = z.discriminatedUnion('type', [
+const SystemOneQuestionSchema = z.discriminatedUnion('type', [
   SystemOneChoiceQuestionSchema,
   SystemOneNoulQuestionSchema,
 ]);
@@ -81,7 +81,7 @@ export const SystemOneQuestionSchema = z.discriminatedUnion('type', [
 export type SystemOneQuestion = z.infer<typeof SystemOneQuestionSchema>;
 
 /** `state` is the evaluated content: text, a record, or an array of text. */
-export const SystemOneStateSchema = z.union([
+const SystemOneStateSchema = z.union([
   z.string(),
   z.record(z.string(), z.unknown()),
   z.array(z.unknown()),
@@ -106,7 +106,7 @@ export const SystemOneRequestSchema = z
 export type SystemOneRequest = z.infer<typeof SystemOneRequestSchema>;
 
 /** Noul answer: single P(yes) number. */
-export const SystemOneNoulAnswerSchema = z
+const SystemOneNoulAnswerSchema = z
   .object({
     type: z.literal('noul'),
     noul: z.number(),
@@ -114,7 +114,7 @@ export const SystemOneNoulAnswerSchema = z
   .strict();
 
 /** Choice answer: selected option + full distribution + concentration confidence. */
-export const SystemOneChoiceAnswerSchema = z
+const SystemOneChoiceAnswerSchema = z
   .object({
     type: z.literal('choice'),
     choice: z.string().min(1),
@@ -127,14 +127,14 @@ export const SystemOneChoiceAnswerSchema = z
  * One answer. An unknown `type` (e.g. `score`) fails this union and is
  * rejected as an unsupported answer kind — never coerced.
  */
-export const SystemOneAnswerSchema = z.discriminatedUnion('type', [
+const SystemOneAnswerSchema = z.discriminatedUnion('type', [
   SystemOneNoulAnswerSchema,
   SystemOneChoiceAnswerSchema,
 ]);
 
 export type SystemOneAnswer = z.infer<typeof SystemOneAnswerSchema>;
 
-export const SystemOneUsageSchema = z
+const SystemOneUsageSchema = z
   .object({
     input_tokens: z.number().int().min(0),
     output_tokens: z.number().int().min(0),

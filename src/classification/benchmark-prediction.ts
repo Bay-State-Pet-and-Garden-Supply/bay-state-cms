@@ -132,10 +132,10 @@ export function describeStoredBundleSource(parsed: unknown): { source: Predictio
  * - `unlabeled`: the target was never adjudicated — excluded from raw
  *   accuracy (never counted as correct, incorrect, or abstained).
  */
-export const GOLD_KIND_KNOWN_TYPE = 'known-type' as const;
-export const GOLD_KIND_NO_FIT = 'no-fit' as const;
-export const GOLD_KIND_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
-export const GOLD_KIND_UNLABELED = 'unlabeled' as const;
+const GOLD_KIND_KNOWN_TYPE = 'known-type' as const;
+const GOLD_KIND_NO_FIT = 'no-fit' as const;
+const GOLD_KIND_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+const GOLD_KIND_UNLABELED = 'unlabeled' as const;
 
 export type GoldKind = typeof GOLD_KIND_KNOWN_TYPE | typeof GOLD_KIND_NO_FIT | typeof GOLD_KIND_INSUFFICIENT_EVIDENCE | typeof GOLD_KIND_UNLABELED;
 
@@ -209,7 +209,7 @@ export function computePredictionBundleHash(predictions: BenchmarkPredictionEntr
  * are excluded. Because reviewer corrections are answers — not model
  * predictions — bundles built from this path stay readable for history but
  * are NEVER eligible to qualify raw model accuracy (see
- * `assessPredictionSourceEligibility`). Preserved byte-for-byte so historical
+ * `assessBasicPredictionSourceEligibility`). Preserved byte-for-byte so historical
  * bundle hashes still verify. New captures MUST use
  * `extractPreReviewPredictionForSku` instead.
  */
@@ -287,13 +287,13 @@ export interface PreReviewCaptureInput {
 }
 
 /** Coded service/validation failures (never abstention credit). */
-export const PRE_REVIEW_FAILURE_NO_RUN = 'no_run' as const;
-export const PRE_REVIEW_FAILURE_RUN_FAILED = 'run_failed' as const;
-export const PRE_REVIEW_FAILURE_RUN_INCOMPLETE = 'run_incomplete' as const;
-export const PRE_REVIEW_FAILURE_STAGE_FAILED = 'stage_failed' as const;
-export const PRE_REVIEW_FAILURE_CALL_FAILED = 'call_failed' as const;
-export const PRE_REVIEW_FAILURE_NO_PREDICTION = 'no_prediction' as const;
-export const PRE_REVIEW_FAILURE_AMBIGUOUS_PREDICTION = 'ambiguous_prediction' as const;
+const PRE_REVIEW_FAILURE_NO_RUN = 'no_run' as const;
+const PRE_REVIEW_FAILURE_RUN_FAILED = 'run_failed' as const;
+const PRE_REVIEW_FAILURE_RUN_INCOMPLETE = 'run_incomplete' as const;
+const PRE_REVIEW_FAILURE_STAGE_FAILED = 'stage_failed' as const;
+const PRE_REVIEW_FAILURE_CALL_FAILED = 'call_failed' as const;
+const PRE_REVIEW_FAILURE_NO_PREDICTION = 'no_prediction' as const;
+const PRE_REVIEW_FAILURE_AMBIGUOUS_PREDICTION = 'ambiguous_prediction' as const;
 
 /**
  * Decode a `reviewable_abstention` reason from the immutable proposedValue.
@@ -575,7 +575,7 @@ export interface BuildPredictionBundleOptions {
   claimTargets?: string[];
 }
 
-export interface GoldExampleForPreReviewBuild {
+interface GoldExampleForPreReviewBuild {
   id: string;
   product_sku: string;
   source_run_id: string | null;
@@ -823,7 +823,7 @@ export function loadPredictionBundle(
  * `reviewed_outcome` bundles stay readable but are explicitly labeled
  * ineligible because they contain reviewer answers, not predictions.
  */
-export function assessPredictionSourceEligibility(source: PredictionSourceKind): { eligible: boolean; reason: string } {
+export function assessBasicPredictionSourceEligibility(source: PredictionSourceKind): { eligible: boolean; reason: string } {
   if (source === PRE_REVIEW_PREDICTION_SOURCE) {
     return { eligible: true, reason: 'prereview_raw_v1_eligible' };
   }
@@ -840,7 +840,7 @@ export function assessPredictionSourceEligibility(source: PredictionSourceKind):
 //
 // - Baseline: the deterministic matcher precedence the pipeline applies
 //   before any model dispatch — `matchKeywordOptions` (product types, pages)
-//   gated by the shipped `KEYWORD_MATCH_MIN_CONFIDENCE` floor, and
+//   gated by the shipped `PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE` floor, and
 //   `matchAttributeOptions` (attributes) with word-boundary grounding. No
 //   model probabilities, no recovery.
 // - Candidate: the TypeSafe Jev decision path — shipped question builders
@@ -870,7 +870,7 @@ import {
 import {
   buildProductTypeChoiceQuestion,
   JEV_PRODUCT_TYPE_MIN_PROBABILITY,
-  KEYWORD_MATCH_MIN_CONFIDENCE,
+  PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE,
 } from './product-type-decision';
 import {
   buildAttributeChoiceQuestion,
@@ -979,7 +979,7 @@ function humanizeSlug(id: string): string {
  * labels. Global (same options for every entry) so per-entry selection must
  * still be performed by the decision logic; sorted for determinism.
  */
-export function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): QualificationTaxonomies {
+function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): QualificationTaxonomies {
   const typeIds = new Set<string>();
   const attrValues = new Map<string, Set<string>>();
   const attrUsesValuesArray = new Set<string>();
@@ -1113,7 +1113,7 @@ function predictBaselineProductType(
     selectionMode: 'single',
   });
   const top = matches[0];
-  if (!top || top.confidence < KEYWORD_MATCH_MIN_CONFIDENCE) {
+  if (!top || top.confidence < PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE) {
     return { productType: null, abstained: true, confidence: 0 };
   }
   return { productType: top.value, abstained: false, confidence: top.confidence };
@@ -1261,7 +1261,7 @@ function predictBaselinePages(
     selectionMode: 'single',
   });
   const top = matches[0];
-  if (!top || top.confidence < KEYWORD_MATCH_MIN_CONFIDENCE) return [];
+  if (!top || top.confidence < PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE) return [];
   return [top.value];
 }
 
@@ -1373,8 +1373,5 @@ export function buildQualificationPredictionsFromCode(
   };
 }
 
-/** Confidence for display parity when an entry abstained (always 0). */
-export function qualificationPredictionConfidence(p: ExecutedQualificationPrediction): number {
-  return p.abstained ? 0 : p.confidence;
-}
+
 

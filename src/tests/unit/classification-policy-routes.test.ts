@@ -240,7 +240,7 @@ describe('classification policy routes (issue #296)', () => {
     expect(body.preview.previewToken).toBeDefined();
   });
 
-  it('POST /api/classification/settings/policy/preview rejects unwired TypeSafe adapter', async () => {
+  it('POST /api/classification/settings/policy/preview allows wired TypeSafe adapter for Category Pages (#299/#301)', async () => {
     const res = await app.request('/api/classification/settings/policy/preview', {
       method: 'POST',
       headers: {
@@ -262,10 +262,8 @@ describe('classification policy routes (issue #296)', () => {
     });
     expect(res.status).toBe(200);
     const body = await res.json() as any;
-    expect(body.preview.valid).toBe(false);
-    expect(body.preview.validationErrors).toEqual(expect.arrayContaining([
-      expect.stringContaining('TypeSafe Jev typed-judgment adapter is not yet available for stage "Category Pages"'),
-    ]));
+    expect(body.preview.valid).toBe(true);
+    expect(body.preview.previewToken).toBeDefined();
   });
 
   it('POST /api/classification/settings/policy/apply enforces authentication and applies valid preview', async () => {

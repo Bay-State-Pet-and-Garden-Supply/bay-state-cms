@@ -301,29 +301,29 @@ export function exportBenchmark(
 // which carries retained inputs deliberately.
 
 /** Proposal types that are evaluation targets — never legal replay inputs. */
-export const REPLAY_TARGET_PROPOSAL_TYPES = [
+const REPLAY_TARGET_PROPOSAL_TYPES = [
   'primary_product_type',
   'category_page',
   'field_assignment',
 ] as const;
-export type ReplayTargetProposalType = (typeof REPLAY_TARGET_PROPOSAL_TYPES)[number];
+type ReplayTargetProposalType = (typeof REPLAY_TARGET_PROPOSAL_TYPES)[number];
 
 /** Minimal retained-input record stored inside replay input snapshots. */
-export interface RetainedReplayInput {
+interface RetainedReplayInput {
   proposalType: string;
   targetId: string | null;
   value: unknown;
 }
 
 /** Evidence record stored inside replay input snapshots. */
-export interface ReplayEvidenceItem {
+interface ReplayEvidenceItem {
   source: string;
   snippet: string;
   reliability?: string;
   attributeId?: string | null;
 }
 
-export interface PartitionReplayFactsOptions {
+interface PartitionReplayFactsOptions {
   /** When false, primary_product_type facts are retained inputs, not targets. */
   evaluateProductType?: boolean;
   /** When false, category_page facts are retained inputs, not targets. */
@@ -335,7 +335,7 @@ export interface PartitionReplayFactsOptions {
   evaluateFieldTargetIds?: string[] | null;
 }
 
-export function isTargetLabelFact(
+function isTargetLabelFact(
   fact: Pick<ReviewedFact, 'proposalType' | 'targetId'>,
   options: PartitionReplayFactsOptions = {},
 ): boolean {
@@ -351,7 +351,7 @@ export function isTargetLabelFact(
   return false;
 }
 
-export function partitionReplayFactsForReplay(
+function partitionReplayFactsForReplay(
   facts: ReviewedFact[],
   options: PartitionReplayFactsOptions = {},
 ): { replayInputs: ReviewedFact[]; targetLabels: ReviewedFact[] } {
@@ -364,13 +364,13 @@ export function partitionReplayFactsForReplay(
   return { replayInputs, targetLabels };
 }
 
-export function toRetainedReplayInput(
+function toRetainedReplayInput(
   fact: Pick<ReviewedFact, 'proposalType' | 'targetId' | 'value'>,
 ): RetainedReplayInput {
   return { proposalType: fact.proposalType, targetId: fact.targetId, value: fact.value };
 }
 
-export function buildReplayInputSnapshot(
+function buildReplayInputSnapshot(
   sku: string,
   evidence: ReplayEvidenceItem[],
   retainedInputs: RetainedReplayInput[] = [],
@@ -387,14 +387,14 @@ export function buildReplayInputSnapshot(
   });
 }
 
-export interface ParsedReplayInputSnapshot {
+interface ParsedReplayInputSnapshot {
   sku: string;
   evidence: ReplayEvidenceItem[];
   retainedInputs: RetainedReplayInput[];
 }
 
 /** Tolerant parse: legacy `{ sku, evidence }` snapshots read as zero retained inputs. */
-export function parseReplayInputSnapshot(json: string): ParsedReplayInputSnapshot {
+function parseReplayInputSnapshot(json: string): ParsedReplayInputSnapshot {
   const parsed: unknown = JSON.parse(json);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { sku: '', evidence: [], retainedInputs: [] };
@@ -417,20 +417,20 @@ export function parseReplayInputSnapshot(json: string): ParsedReplayInputSnapsho
 // as `goldLabelsJson[productTypeState]`; legacy `BenchmarkGoldLabels` readers
 // ignore the extra key, and historical example hashes are never rewritten.
 
-export const GOLD_STATE_KNOWN = 'known' as const;
-export const GOLD_STATE_NO_FIT = 'no-fit' as const;
-export const GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
-export const GOLD_STATE_UNLABELED = 'unlabeled' as const;
-export const ADJUDICATED_GOLD_STATES = [
+const GOLD_STATE_KNOWN = 'known' as const;
+const GOLD_STATE_NO_FIT = 'no-fit' as const;
+const GOLD_STATE_INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+const GOLD_STATE_UNLABELED = 'unlabeled' as const;
+const ADJUDICATED_GOLD_STATES = [
   GOLD_STATE_KNOWN,
   GOLD_STATE_NO_FIT,
   GOLD_STATE_INSUFFICIENT_EVIDENCE,
   GOLD_STATE_UNLABELED,
 ] as const;
-export type AdjudicatedGoldState = (typeof ADJUDICATED_GOLD_STATES)[number];
+type AdjudicatedGoldState = (typeof ADJUDICATED_GOLD_STATES)[number];
 
 /** Gold-labels JSON field carrying the adjudicated gold state. */
-export const FIXTURE_GOLD_STATE_FIELD = 'productTypeState' as const;
+const FIXTURE_GOLD_STATE_FIELD = 'productTypeState' as const;
 
 function isAdjudicatedGoldState(value: unknown): value is AdjudicatedGoldState {
   return (
@@ -442,7 +442,7 @@ function isAdjudicatedGoldState(value: unknown): value is AdjudicatedGoldState {
 }
 
 /** Read the adjudicated gold state; `null` for legacy gold without a state marker. */
-export function readFixtureGoldState(goldLabelsJson: string): AdjudicatedGoldState | null {
+function readFixtureGoldState(goldLabelsJson: string): AdjudicatedGoldState | null {
   try {
     const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
     const state = parsed[FIXTURE_GOLD_STATE_FIELD];
@@ -453,7 +453,7 @@ export function readFixtureGoldState(goldLabelsJson: string): AdjudicatedGoldSta
 }
 
 /** Split persisted gold JSON into labels + state; tolerates legacy gold without a state marker. */
-export function parseFixtureGoldLabels(goldLabelsJson: string): {
+function parseFixtureGoldLabels(goldLabelsJson: string): {
   labels: BenchmarkGoldLabels;
   goldState: AdjudicatedGoldState | null;
 } {
@@ -517,7 +517,7 @@ function goldAnswerStrings(gold: BenchmarkGoldLabels): string[] {
  * clean. Legacy `{ sku, evidence }` snapshots (no retained inputs) are clean
  * by construction.
  */
-export function findReplayInputLeakage(
+function findReplayInputLeakage(
   inputSnapshotJson: string,
   goldLabelsJson: string,
   scope: PartitionReplayFactsOptions = {},
@@ -573,7 +573,7 @@ export function findReplayInputLeakage(
 }
 
 /** Fail closed when a replay input carries the answer. */
-export function assertNoReplayLeakage(
+function assertNoReplayLeakage(
   inputSnapshotJson: string,
   goldLabelsJson: string,
   scope: PartitionReplayFactsOptions = {},
@@ -595,16 +595,16 @@ export function assertNoReplayLeakage(
 // `catalogAssignment` into gold. The dataset is created as a draft; freeze it
 // through the existing family-review + freeze interfaces.
 
-export const FIXTURE_COVERAGE_FOOD = 'food' as const;
-export const FIXTURE_COVERAGE_TREATS = 'treats' as const;
-export const FIXTURE_COVERAGE_TOYS = 'toys' as const;
-export const FIXTURE_COVERAGE_ANIMAL_CARE = 'animal-care' as const;
-export const FIXTURE_COVERAGE_GARDEN = 'garden' as const;
-export const FIXTURE_COVERAGE_PEST_CONTROL = 'pest-control' as const;
-export const FIXTURE_COVERAGE_CONFUSING_NEIGHBOR = 'confusing-neighbor' as const;
-export const FIXTURE_COVERAGE_UNKNOWN_TYPE = 'unknown-type' as const;
-export const FIXTURE_COVERAGE_INCOMPLETE_EVIDENCE = 'incomplete-evidence' as const;
-export const REQUIRED_FIXTURE_COVERAGE = [
+const FIXTURE_COVERAGE_FOOD = 'food' as const;
+const FIXTURE_COVERAGE_TREATS = 'treats' as const;
+const FIXTURE_COVERAGE_TOYS = 'toys' as const;
+const FIXTURE_COVERAGE_ANIMAL_CARE = 'animal-care' as const;
+const FIXTURE_COVERAGE_GARDEN = 'garden' as const;
+const FIXTURE_COVERAGE_PEST_CONTROL = 'pest-control' as const;
+const FIXTURE_COVERAGE_CONFUSING_NEIGHBOR = 'confusing-neighbor' as const;
+const FIXTURE_COVERAGE_UNKNOWN_TYPE = 'unknown-type' as const;
+const FIXTURE_COVERAGE_INCOMPLETE_EVIDENCE = 'incomplete-evidence' as const;
+const REQUIRED_FIXTURE_COVERAGE = [
   FIXTURE_COVERAGE_FOOD,
   FIXTURE_COVERAGE_TREATS,
   FIXTURE_COVERAGE_TOYS,
@@ -615,9 +615,9 @@ export const REQUIRED_FIXTURE_COVERAGE = [
   FIXTURE_COVERAGE_UNKNOWN_TYPE,
   FIXTURE_COVERAGE_INCOMPLETE_EVIDENCE,
 ] as const;
-export type FixtureCoverageKind = (typeof REQUIRED_FIXTURE_COVERAGE)[number];
+type FixtureCoverageKind = (typeof REQUIRED_FIXTURE_COVERAGE)[number];
 
-export interface AdjudicatedFixtureCase {
+interface AdjudicatedFixtureCase {
   sku: string;
   familyId: string;
   coverage: FixtureCoverageKind | string;
@@ -635,14 +635,14 @@ export interface AdjudicatedFixtureCase {
   sourceProductHash?: string | null;
 }
 
-export interface ExportFixtureDatasetOptions {
+interface ExportFixtureDatasetOptions {
   name: string;
   cases: AdjudicatedFixtureCase[];
   holdoutPercent?: number;
   splitSeed?: number;
 }
 
-export interface ExportFixtureDatasetResult {
+interface ExportFixtureDatasetResult {
   datasetId: string;
   exported: number;
   familyCount: number;
@@ -652,7 +652,7 @@ export interface ExportFixtureDatasetResult {
   leakageChecked: boolean;
 }
 
-export function summarizeFixtureCoverage(
+function summarizeFixtureCoverage(
   cases: Array<Pick<AdjudicatedFixtureCase, 'coverage'>>,
 ): { counts: Record<string, number>; missing: FixtureCoverageKind[] } {
   const counts: Record<string, number> = {};
@@ -723,7 +723,7 @@ function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void
  * splits reuse `splitForFamily`; every example is leakage-audited before
  * insert. Freeze through the existing family-review + freeze interfaces.
  */
-export function exportFixtureDataset(
+function exportFixtureDataset(
   workspaceId: string,
   options: ExportFixtureDatasetOptions,
 ): ExportFixtureDatasetResult {

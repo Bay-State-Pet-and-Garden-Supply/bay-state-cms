@@ -29,7 +29,6 @@ import { resolveProductTypeDecision } from '../../classification/product-type-de
 import {
   resolveAttributeDecision,
   buildProposalFromAttributeDecision,
-  JEV_MULTI_VALUE_MIN_PROBABILITY,
 } from '../../classification/attribute-decision';
 import { coordinateCohortPagesWithJev } from '../../classification/page-decision';
 import {

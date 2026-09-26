@@ -21,8 +21,8 @@
 import { executeSystemOne } from '../src/ai/systemone-transport';
 import type { ProviderConnection } from '../src/ai/provider-connections';
 
-export const LIVE_CONTRACT_CHECK_MODEL = 'jev-1.13.0';
-export const LIVE_CONTRACT_CHECK_MAX_CALLS = 2;
+const LIVE_CONTRACT_CHECK_MODEL = 'jev-1.13.0';
+const LIVE_CONTRACT_CHECK_MAX_CALLS = 2;
 
 export interface LiveContractCheckOptions {
   apiKey: string;

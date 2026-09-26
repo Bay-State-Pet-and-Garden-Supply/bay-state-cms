@@ -33,9 +33,6 @@ import {
   buildProposalFromAttributeDecision,
   buildAttributeNoulQuestions,
   evaluateMultiValueSelectionPolicy,
-  JEV_MULTI_VALUE_MIN_PROBABILITY,
-  JEV_MULTI_VALUE_UNCERTAIN_FLOOR,
-  MAX_ORDINARY_ATTRIBUTE_CANDIDATES,
 } from '../../classification/attribute-decision';
 import { capturePreReviewPrediction } from '../../classification/benchmark-prediction';
 import {

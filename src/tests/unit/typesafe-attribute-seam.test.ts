@@ -27,7 +27,6 @@ import {
   resolveAttributeDecision,
   batchResolveAttributeDecisions,
   buildProposalFromAttributeDecision,
-  MAX_ORDINARY_ATTRIBUTE_CANDIDATES,
 } from '../../classification/attribute-decision';
 import { processProductFieldTarget, processProductFieldTargetsBatch } from '../../classification/curation-target-processor';
 import { productAttributeProposalsStage } from '../../classification/stages/attribute-proposals';

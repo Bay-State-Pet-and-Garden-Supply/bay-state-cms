@@ -57,7 +57,7 @@ function legacySignedDecimalHash(value: string): string {
   return String(hash);
 }
 
-export function upsertConfigFile(workspaceId: string, fileName: string, schemaVersion: number, content: unknown): void {
+function upsertConfigFile(workspaceId: string, fileName: string, schemaVersion: number, content: unknown): void {
   const json = canonicalJsonStringify(content);
   const hash = hashCanonicalJson(content);
   getDb().run(

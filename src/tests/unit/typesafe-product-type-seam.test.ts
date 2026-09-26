@@ -20,7 +20,7 @@ import { runMigrations } from '../../db/migrations';
 import { createRun, getRun } from '../../db/repositories/classification-run-repo';
 import { getModelCallsByRun } from '../../db/repositories/classification-model-call-repo';
 import { upsertProviderConnection } from '../../db/repositories/provider-connection-repo';
-import { resolveProductTypeDecision, MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES } from '../../classification/product-type-decision';
+import { resolveProductTypeDecision } from '../../classification/product-type-decision';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';

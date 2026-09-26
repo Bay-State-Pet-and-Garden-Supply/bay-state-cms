@@ -6,7 +6,9 @@
     "src/extraction-worker/server.ts",
     "src/onboarding/job-queue.ts",
     "src/db/migrations.ts",
-    "scripts/apply-brand-strategies-199.ts"
+    "scripts/apply-brand-strategies-199.ts",
+    "scripts/typesafe-curation-qualification.ts",
+    "scripts/typesafe-live-contract-check.ts"
   ],
   "ignorePatterns": [
     "scratch/**",

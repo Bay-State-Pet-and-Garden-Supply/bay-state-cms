@@ -15,7 +15,7 @@ import {
   adjudicateGoldProductType,
   isPreReviewBundleEnvelope,
   describeStoredBundleSource,
-  assessPredictionSourceEligibility,
+  assessBasicPredictionSourceEligibility,
   computePredictionBundleHash,
   validatePredictionBundle,
   extractPredictionsForSku,
@@ -437,8 +437,8 @@ describe('Benchmark pre-review predictions (#294)', () => {
     const parsed: unknown = [{ exampleId: 'e1' }];
     expect(describeStoredBundleSource(parsed).source).toBe(REVIEWED_OUTCOME_PREDICTION_SOURCE);
     expect(describeStoredBundleSource(parsed).bundleVersion).toBe(LEGACY_BUNDLE_VERSION);
-    expect(assessPredictionSourceEligibility(REVIEWED_OUTCOME_PREDICTION_SOURCE).eligible).toBe(false);
-    expect(assessPredictionSourceEligibility(PRE_REVIEW_PREDICTION_SOURCE).eligible).toBe(true);
+    expect(assessBasicPredictionSourceEligibility(REVIEWED_OUTCOME_PREDICTION_SOURCE).eligible).toBe(false);
+    expect(assessBasicPredictionSourceEligibility(PRE_REVIEW_PREDICTION_SOURCE).eligible).toBe(true);
 
     // Legacy byte-for-byte hash semantics preserved: a reviewed-outcome array
     // hashes without any source marker, so historical digests still verify.
