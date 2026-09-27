@@ -109,6 +109,7 @@ export default defineConfig({
       'src/tests/unit/typesafe-attribute-multi-value.test.ts',
       'src/tests/unit/typesafe-page-seam.test.ts',
       'src/tests/unit/typesafe-cohort-page-seam.test.ts',
+      'src/tests/unit/typesafe-curation-qualification.test.ts',
       'src/tests/unit/classification-run-routes.test.ts',
       'src/tests/unit/profile-generation-repo.test.ts',
       'src/tests/unit/profile-promoter.test.ts',
