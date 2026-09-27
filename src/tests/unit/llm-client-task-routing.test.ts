@@ -97,6 +97,12 @@ describe('LLM Client — task-specific routing', () => {
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
     // Clear seeded AI compute routes so legacy task routing is active
     getDb().run('DELETE FROM ai_workload_routes');
+    // AI Compute isolation: a stale DB file may also carry custom
+    // provider_connections rows or routing defaults that flip
+    // isAiComputeConfigured() on (authoritative nulls). Reset to the
+    // pristine-install state; builtins/defaults re-seed lazily.
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
   });
 
   afterAll(() => {
@@ -419,6 +425,12 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+    // AI Compute isolation (see first describe): a stale DB file must not
+    // flip isAiComputeConfigured() on, or the legacy-chain assertions below
+    // resolve to authoritative nulls.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
   });
@@ -1098,6 +1110,12 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+    // AI Compute isolation (see first describe): a stale DB file must not
+    // flip isAiComputeConfigured() on, or the legacy-chain assertions below
+    // resolve to authoritative nulls.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
   });
 
@@ -1691,6 +1709,11 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+    // AI Compute isolation (see first describe): start pristine so the
+    // per-test route cleanup in afterEach restores a known state.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
     upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
   });
@@ -1705,8 +1728,11 @@ describe('AI Compute authority — configured routing never consults the legacy 
     globalThis.fetch = originalFetch;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
+    // Full AI Compute reset (routes + connections + defaults); builtins and
+    // defaults re-seed lazily via ensureSeededDefaults().
     getDb().run('DELETE FROM ai_workload_routes');
-    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {

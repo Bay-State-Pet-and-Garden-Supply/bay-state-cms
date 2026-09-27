@@ -11,7 +11,7 @@
  */
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
@@ -61,6 +61,16 @@ beforeAll(() => {
   try { resetDb(); } catch { /* ok */ }
   initDb(TEST_DB_PATH);
   runMigrations();
+  // AI Compute isolation: a stale DB file (e.g. left by a killed `bun
+  // test` process whose afterAll unlink never ran) may carry
+  // provider_connections rows, workload routes, or routing defaults that
+  // flip isAiComputeConfigured() on. AI Compute is authoritative once
+  // configured, so reset to the pristine-install state — the seeded
+  // builtins/defaults re-seed lazily via ensureSeededDefaults() and the
+  // legacy api_keys chain below only resolves on pristine installs.
+  getDb().run('DELETE FROM ai_workload_routes');
+  getDb().run('DELETE FROM provider_connections');
+  getDb().run('DELETE FROM ai_routing_defaults');
   // Seed a fallback API key so getLlmConfig() finds one (for tests
   // that exercise the LLM path rather than the LCS fallback).
   upsertApiKey('deepseek', 'sk-test-key', null, 'deepseek-chat');
