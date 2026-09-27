@@ -17,8 +17,6 @@ import path from 'node:path';
 import { unlinkSync } from 'node:fs';
 import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
-// TEMPORARY CI DIAGNOSTIC (remove after root-causing Linux-only failures).
-process.env.CI_DEBUG_ROUTING = '1';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
   upsertProviderConnection,
@@ -109,22 +107,11 @@ describe('LLM Client — task-specific routing', () => {
     try {
       const { getFullAiRoutingConfig, isAiComputeConfigured } = await import('../../db/repositories/provider-connection-repo');
       const cfg = getFullAiRoutingConfig();
-      const db = getDb();
-      const scrub = (rows: any[]) => rows.map(r => {
-        const o: any = { ...r };
-        for (const k of ['credential', 'api_key', 'apiKey']) if (k in o) o[k] = o[k] ? `<present:${String(o[k]).length}ch>` : o[k];
-        return o;
-      });
       console.log('[CI-DEBUG] connections=' + JSON.stringify(Object.keys(cfg.connections)) +
         ' workloads=' + JSON.stringify(Object.fromEntries(Object.entries(cfg.workloads).map(([k, v]: any) => [k, v.primary]))) +
         ' defaults=' + JSON.stringify(cfg.defaults) +
         ' isConfigured=' + isAiComputeConfigured() +
         ' platform=' + process.platform);
-      console.log('[CI-DEBUG] raw provider_connections=' + JSON.stringify(scrub(db.query('SELECT * FROM provider_connections').all() as any[])));
-      console.log('[CI-DEBUG] raw ai_workload_routes=' + JSON.stringify((db.query('SELECT * FROM ai_workload_routes').all() as any[])));
-      console.log('[CI-DEBUG] raw ai_routing_defaults=' + JSON.stringify((db.query('SELECT * FROM ai_routing_defaults').all() as any[])));
-      console.log('[CI-DEBUG] api_keys services=' + JSON.stringify((db.query('SELECT service FROM api_keys').all() as any[])) +
-        ' task_configs=' + JSON.stringify((db.query('SELECT task FROM llm_task_configs').all() as any[])));
     } catch (e) {
       console.log('[CI-DEBUG] diagnostic failed: ' + String(e));
     }

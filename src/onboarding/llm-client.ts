@@ -465,7 +465,6 @@ export function getLlmConfigForTask(
     // (which would bypass the AI Compute privacy boundary). Legacy resolution
     // below is a migration path for never-configured installs only.
     if (isAiComputeConfigured()) {
-      if (process.env.CI_DEBUG_ROUTING) console.log(`[CI-DEBUG] getLlmConfigForTask(${task}): return null via configured-authoritative`);
       return null;
     }
   } catch {
@@ -492,7 +491,6 @@ export function getLlmConfigForTask(
   if (requiresExplicit) {
     throw new MissingLlmTaskConfigError(task);
   }
-  if (process.env.CI_DEBUG_ROUTING) console.log(`[CI-DEBUG] getLlmConfigForTask(${task}): return null via tail (requiresExplicit=${requiresExplicit})`);
   return null;
 }
 
