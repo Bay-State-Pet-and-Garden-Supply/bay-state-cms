@@ -17,6 +17,8 @@ import path from 'node:path';
 import { unlinkSync } from 'node:fs';
 import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
+// TEMPORARY CI DIAGNOSTIC (remove after root-causing Linux-only failures).
+process.env.CI_DEBUG_ROUTING = '1';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
   upsertProviderConnection,
