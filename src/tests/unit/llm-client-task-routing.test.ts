@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -104,7 +104,28 @@ describe('LLM Client — task-specific routing', () => {
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
+  function resetAiComputeState(): void {
+    if (!isDbInitialized()) return;
+    try {
+      getDb().run('DELETE FROM ai_workload_routes');
+      getDb().run('DELETE FROM ai_routing_defaults');
+      getDb().run('DELETE FROM provider_connections');
+    } catch { /* ignore */ }
+  }
+
+  function ensureDb(): void {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+    upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+    upsertApiKey('openai', 'sk-openai-test', null, 'gpt-4o-mini');
+    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+    resetAiComputeState();
+  }
+
   beforeEach(() => {
+    ensureDb();
     originalFetch = PRISTINE_FETCH;
   });
 
@@ -131,6 +152,7 @@ describe('LLM Client — task-specific routing', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Clean up task configs between tests
     for (const task of [
       'product_name_consolidation',
@@ -142,6 +164,7 @@ describe('LLM Client — task-specific routing', () => {
     ] as const) {
       try { deleteLlmTaskConfig(task); } catch { /* ignore */ }
     }
+    resetAiComputeState();
   });
 
   // ── Profile task requires explicit config (fail closed) ────────────────
@@ -428,8 +451,20 @@ describe('Protected classification operations — model-policy gateway (issue #1
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
-  afterEach(() => { globalThis.fetch = originalFetch; });
+  function ensureDb(): void {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+    }
+  }
+
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
 
   test('a live DeepSeek task config is ignored for a protected op under a local-only/Ollama policy', async () => {
     upsertLlmTaskConfig({ task: 'classification_evidence_extraction', provider: 'deepseek', model: 'deepseek-v4-flash' });
@@ -1094,11 +1129,23 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
     };
   }
 
+  function ensureDb(): void {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+      upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+    }
+  }
+
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+  });
+
+  beforeEach(() => {
+    ensureDb();
   });
 
   afterAll(() => {
@@ -1107,7 +1154,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('audited success returns the full result and persists a durable success row with tokens and honest local cost', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallById } = await import('../../db/repositories/classification-model-call-repo');
     const { callLlmForTaskWithProvenance } = await import('../../onboarding/llm-client');
@@ -1161,7 +1207,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('token absence persists null tokens and unknown cloud cost is never a guessed zero', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallById } = await import('../../db/repositories/classification-model-call-repo');
     const { callLlmForTaskWithProvenance } = await import('../../onboarding/llm-client');
@@ -1202,7 +1247,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('policy denial records a policy_denied row and never transports', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { callLlmForTaskWithProvenance } = await import('../../onboarding/llm-client');
@@ -1316,7 +1360,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('a post-start decode error leaves a durable failed terminal row (never stranded started)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { callLlmForTaskWithProvenance } = await import('../../onboarding/llm-client');
@@ -1352,7 +1395,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('mutating llm_task_configs cannot change a protected call temperature (frozen parameters)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { callLlmForTaskWithProvenance } = await import('../../onboarding/llm-client');
     const { upsertLlmTaskConfig } = await import('../../db/repositories/llm-task-config-repo');
@@ -1399,7 +1441,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('cloud VLM persists usage tokens and a durable success row (pass 4b)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { extractPackagingOcrFromCloud } = await import('../../onboarding/cloud-vlm-client');
@@ -1513,7 +1554,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('run-bound local VLM OCR is audited with a durable success row (pass 4b)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { extractPackagingOcr } = await import('../../onboarding/packaging-ocr');
@@ -1557,7 +1597,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('run-bound local VLM OCR with a schema-v1 snapshot fails closed before transport (pass 4c)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { extractPackagingOcr } = await import('../../onboarding/packaging-ocr');
@@ -1594,7 +1633,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('run-bound local VLM OCR rejects a forged loopback route not in the frozen plan (pass 4c)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { extractPackagingOcr } = await import('../../onboarding/packaging-ocr');
@@ -1635,7 +1673,6 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
   });
 
   test('run-bound local VLM OCR rejects a model-call context without a snapshot (pass 4d)', async () => {
-    const { getDb } = await import('../../db/connection');
     const { createRun } = await import('../../db/repositories/classification-run-repo');
     const { getModelCallsByRun } = await import('../../db/repositories/classification-model-call-repo');
     const { extractPackagingOcr } = await import('../../onboarding/packaging-ocr');
@@ -1700,13 +1737,29 @@ describe('AI Compute authority — configured routing never consults the legacy 
     try { unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  beforeEach(() => { originalFetch = globalThis.fetch; });
+  function ensureDb(): void {
+    if (!isDbInitialized()) {
+      initDb(testDbPath);
+      runMigrations();
+      upsertApiKey('deepseek', 'sk-deepseek-test', null, 'deepseek-default');
+      upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
+    }
+  }
+
+  beforeEach(() => {
+    ensureDb();
+    originalFetch = globalThis.fetch;
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
-    getDb().run('DELETE FROM ai_workload_routes');
-    getDb().run(`DELETE FROM provider_connections WHERE id NOT IN ('local-ollama','openai-cloud','deepseek-cloud')`);
+    try {
+      getDb().run('DELETE FROM ai_workload_routes');
+      getDb().run('DELETE FROM ai_routing_defaults');
+      getDb().run('DELETE FROM provider_connections');
+    } catch { /* ignore */ }
   });
 
   test('configured + unusable route fails closed — legacy llm_task_configs/api_keys are never consulted', async () => {
