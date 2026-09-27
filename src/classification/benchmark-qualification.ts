@@ -134,106 +134,185 @@ export interface QualificationResult {
     failureCount: number;
   };
 }
-export function evaluateQualificationGate(
-  metrics: EvalMetrics,
-  holdoutSize: number,
-  options: QualificationGateOptions = {},
-): QualificationResult {
-  const requiredHoldout = options.requiredHoldout ?? 200;
-  const requiredClassSupport = options.requiredClassSupport ?? 20;
-  const requiredCoverage = options.requiredCoverage ?? 0.8;
-  const primaryMetric = options.primaryMetric ?? 'productType.top1Accuracy';
+interface GateCheckState {
+  reasons: string[];
+  requiredHoldout: number;
+  requiredClassSupport: number;
+  requiredCoverage: number;
+  primaryMetric: string;
+}
 
-  const reasons: string[] = [];
+function gateCheckDefaults(options: QualificationGateOptions): GateCheckState {
+  return {
+    reasons: [],
+    requiredHoldout: options.requiredHoldout ?? 200,
+    requiredClassSupport: options.requiredClassSupport ?? 20,
+    requiredCoverage: options.requiredCoverage ?? 0.8,
+    primaryMetric: options.primaryMetric ?? 'productType.top1Accuracy',
+  };
+}
 
-  if (holdoutSize < requiredHoldout) {
-    reasons.push(`insufficient_sample: holdout ${holdoutSize} < ${requiredHoldout}`);
+/** Holdout-sample gate: frozen holdout must meet the required size. */
+function checkHoldoutGate(state: GateCheckState, holdoutSize: number): void {
+  if (holdoutSize < state.requiredHoldout) {
+    state.reasons.push(`insufficient_sample: holdout ${holdoutSize} < ${state.requiredHoldout}`);
   }
+}
 
-  const coverage = metrics.productType.coverage;
-  if (coverage < requiredCoverage) {
-    reasons.push(`coverage ${coverage.toFixed(3)} < ${requiredCoverage}`);
+/** Coverage gate: evaluated product-type coverage must meet the floor. */
+function checkCoverageGate(state: GateCheckState, coverage: number): void {
+  if (coverage < state.requiredCoverage) {
+    state.reasons.push(`coverage ${coverage.toFixed(3)} < ${state.requiredCoverage}`);
   }
+}
 
-  const perClassSupport = metrics.productType.perClassSupport;
+/** Class-support gate: every evaluated class needs labeled support. */
+function checkClassSupportGate(
+  state: GateCheckState,
+  perClassSupport: Record<string, number>,
+): number {
   const supportValues = Object.values(perClassSupport);
   const minClassSupport = supportValues.length > 0 ? Math.min(...supportValues) : 0;
-  if (supportValues.length === 0 || minClassSupport < requiredClassSupport) {
-    reasons.push(
-      `insufficient_class_support: min support ${minClassSupport} < ${requiredClassSupport} over ${supportValues.length} class(es)`,
+  if (supportValues.length === 0 || minClassSupport < state.requiredClassSupport) {
+    state.reasons.push(
+      `insufficient_class_support: min support ${minClassSupport} < ${state.requiredClassSupport} over ${supportValues.length} class(es)`,
     );
   }
+  return minClassSupport;
+}
 
+/** Safety gate: zero cross-species, claim-safety, and controlled-value violations. */
+function checkSafetyGate(
+  state: GateCheckState,
+  metrics: EvalMetrics,
+): { crossSpecies: number; claimSafety: number; controlledValue: number } {
   const violations = {
     crossSpecies: metrics.safety.crossSpeciesCount,
     claimSafety: metrics.safety.claimSafetyViolations,
     controlledValue: metrics.safety.controlledValueViolations,
   };
   if (violations.crossSpecies + violations.claimSafety + violations.controlledValue > 0) {
-    reasons.push(
+    state.reasons.push(
       `safety_violations: ${JSON.stringify(violations)}`,
     );
   }
+  return violations;
+}
 
+/** Paired-delta gate: predeclared metric with a lower 95% bound above zero. */
+function checkPairedDeltaGate(state: GateCheckState, metrics: EvalMetrics): number {
   const deltaLower95 = metrics.pairedDelta.deltaLower95;
-  if (metrics.pairedDelta.primaryMetric !== primaryMetric) {
-    reasons.push(
-      `paired_metric_mismatch: evaluated "${metrics.pairedDelta.primaryMetric}", predeclared "${primaryMetric}"`,
+  if (metrics.pairedDelta.primaryMetric !== state.primaryMetric) {
+    state.reasons.push(
+      `paired_metric_mismatch: evaluated "${metrics.pairedDelta.primaryMetric}", predeclared "${state.primaryMetric}"`,
     );
   } else if (deltaLower95 <= 0) {
-    reasons.push(`paired_delta_not_significant: lower 95% CI ${deltaLower95.toFixed(4)} <= 0`);
+    state.reasons.push(`paired_delta_not_significant: lower 95% CI ${deltaLower95.toFixed(4)} <= 0`);
   }
+  return deltaLower95;
+}
 
-  let nonRegressionFloorsMet = true;
-  for (const floor of options.nonRegressionFloors ?? []) {
+/** Non-regression floors gate: task-specific metric floors must all hold. */
+function checkNonRegressionFloorsGate(
+  state: GateCheckState,
+  floors: QualificationGateOptions['nonRegressionFloors'],
+): boolean {
+  let floorsMet = true;
+  for (const floor of floors ?? []) {
     if (floor.actual < floor.floor) {
-      nonRegressionFloorsMet = false;
-      reasons.push(`non_regression_floor: ${floor.metric} ${floor.actual.toFixed(3)} < ${floor.floor}`);
+      floorsMet = false;
+      state.reasons.push(`non_regression_floor: ${floor.metric} ${floor.actual.toFixed(3)} < ${floor.floor}`);
     }
   }
+  return floorsMet;
+}
 
-  const failureCount = options.failureCount ?? 0;
-  if (failureCount > 0) {
-    reasons.push(`prediction_failures: ${failureCount} service/validation failure(s); failed calls cannot earn abstention correctness`);
+/** Failure gate: any service/validation failure stays unqualified. */
+function checkFailureGate(state: GateCheckState, failureCount: number | null | undefined): number {
+  const count = failureCount ?? 0;
+  if (count > 0) {
+    state.reasons.push(`prediction_failures: ${count} service/validation failure(s); failed calls cannot earn abstention correctness`);
   }
-  const labeledSupport = options.labeledSupport ?? null;
-  if (labeledSupport !== null) {
-    const requiredLabeledSupport = options.requiredLabeledSupport ?? requiredHoldout;
-    if (labeledSupport < requiredLabeledSupport) {
-      reasons.push(`insufficient_labeled_support: labeled ${labeledSupport} < ${requiredLabeledSupport}`);
+  return count;
+}
+
+/** Labeled-support gate: gated only when the labeled count is provided. */
+function checkLabeledSupportGate(
+  state: GateCheckState,
+  labeledSupport: number | null | undefined,
+  requiredLabeledSupport: number | undefined,
+): number | null {
+  const support = labeledSupport ?? null;
+  if (support !== null) {
+    const required = requiredLabeledSupport ?? state.requiredHoldout;
+    if (support < required) {
+      state.reasons.push(`insufficient_labeled_support: labeled ${support} < ${required}`);
     }
   }
-  const snapshotMatched = options.snapshotMatched ?? null;
-  if (snapshotMatched === false) {
-    const detail = options.snapshotDetail ? `: ${options.snapshotDetail}` : '';
-    reasons.push(`snapshot_mismatch: frozen dataset and captured bundle snapshots differ${detail}`);
+  return support;
+}
+
+/** Snapshot gate: an explicit mismatch fails closed with its detail. */
+function checkSnapshotGate(
+  state: GateCheckState,
+  snapshotMatched: boolean | null | undefined,
+  snapshotDetail: string | null | undefined,
+): boolean | null {
+  const matched = snapshotMatched ?? null;
+  if (matched === false) {
+    const detail = snapshotDetail ? `: ${snapshotDetail}` : '';
+    state.reasons.push(`snapshot_mismatch: frozen dataset and captured bundle snapshots differ${detail}`);
   }
-  const sourceProvided = options.predictionSource !== undefined || options.bundleVersion !== undefined;
-  const predictionSource = options.predictionSource ?? null;
-  const bundleVersion = options.bundleVersion ?? null;
-  let sourceEligible: boolean;
-  if (sourceProvided) {
-    const eligibility = assessPredictionSourceEligibility(predictionSource, bundleVersion);
-    sourceEligible = eligibility.eligible;
-    reasons.push(...eligibility.reasons);
-  } else {
-    sourceEligible = false;
-  }
-  const qualified = reasons.length === 0;
+  return matched;
+}
+
+/** Source-eligibility gate: raw-accuracy claims must pass the stored source. */
+function checkSourceEligibilityGate(
+  state: GateCheckState,
+  predictionSource: string | null | undefined,
+  bundleVersion: number | null | undefined,
+): { predictionSource: string | null; bundleVersion: number | null; sourceEligible: boolean } {
+  const sourceProvided = predictionSource !== undefined || bundleVersion !== undefined;
+  const source = predictionSource ?? null;
+  const version = bundleVersion ?? null;
+  if (!sourceProvided) return { predictionSource: source, bundleVersion: version, sourceEligible: false };
+  const eligibility = assessPredictionSourceEligibility(source, version);
+  state.reasons.push(...eligibility.reasons);
+  return { predictionSource: source, bundleVersion: version, sourceEligible: eligibility.eligible };
+}
+
+export function evaluateQualificationGate(
+  metrics: EvalMetrics,
+  holdoutSize: number,
+  options: QualificationGateOptions = {},
+): QualificationResult {
+  const state = gateCheckDefaults(options);
+  checkHoldoutGate(state, holdoutSize);
+  const coverage = metrics.productType.coverage;
+  checkCoverageGate(state, coverage);
+  const minClassSupport = checkClassSupportGate(state, metrics.productType.perClassSupport);
+  const violations = checkSafetyGate(state, metrics);
+  const deltaLower95 = checkPairedDeltaGate(state, metrics);
+  const nonRegressionFloorsMet = checkNonRegressionFloorsGate(state, options.nonRegressionFloors);
+  const failureCount = checkFailureGate(state, options.failureCount);
+  const labeledSupport = checkLabeledSupportGate(state, options.labeledSupport, options.requiredLabeledSupport);
+  const snapshotMatched = checkSnapshotGate(state, options.snapshotMatched, options.snapshotDetail);
+  const source = checkSourceEligibilityGate(state, options.predictionSource, options.bundleVersion);
+  const qualified = state.reasons.length === 0;
   return {
     qualified,
-    reasons,
+    reasons: state.reasons,
     gate: {
       holdoutSize,
       coverage,
       minClassSupport,
       violations,
       deltaLower95,
-      primaryMetric,
+      primaryMetric: state.primaryMetric,
       nonRegressionFloorsMet,
-      predictionSource,
-      bundleVersion,
-      sourceEligible,
+      predictionSource: source.predictionSource,
+      bundleVersion: source.bundleVersion,
+      sourceEligible: source.sourceEligible,
       labeledSupport,
       snapshotMatched,
       failureCount,

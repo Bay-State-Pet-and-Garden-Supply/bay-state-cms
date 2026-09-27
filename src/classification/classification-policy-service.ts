@@ -188,6 +188,168 @@ function trustZoneToLocality(trustZone: string): ProviderLocality {
   return 'local';
 }
 
+// ─── Shared policy plumbing (extracted to keep handler complexity low) ───────
+// Each helper below owns one narrow concern; behavior is byte-identical to the
+// pre-extraction inline blocks (same messages, same CAS/token semantics).
+
+function resolveActivationContext(workspacePath: string, workspaceId?: string) {
+  if (!workspaceId) return undefined;
+  try {
+    return createRuntimeActivationContext(workspacePath, workspaceId);
+  } catch {
+    return undefined;
+  }
+}
+
+function readActiveBundleHash(workspacePath: string, fallbackHash: string): string {
+  const manifestPath = path.join(workspacePath, 'store', 'classification', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return fallbackHash;
+  try {
+    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    if (raw.bundleHash) return raw.bundleHash;
+  } catch {
+    // Fall back to the bundle manifest hash.
+  }
+  return fallbackHash;
+}
+
+type StageSupportMap = ConnectionOption['stageSupport'];
+
+function stageSupportForSystemOne(stage: StageDefinition): StageSupportMap[string] {
+  if (stage.id === 'primary_product_type_proposal') return { supported: true };
+  if (stage.id === 'product_attribute_proposals') return { supported: true, multiValueSupported: true };
+  if (stage.id === 'category_page_proposals') return { supported: true, cohortSupported: true };
+  return {
+    supported: false,
+    reason: `TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`,
+  };
+}
+
+function stageSupportForTransport(stage: StageDefinition, transport: string): StageSupportMap[string] {
+  if (stage.supportedTransports.includes(transport as never)) {
+    return {
+      supported: true,
+      ...(stage.id === 'product_attribute_proposals' ? { multiValueSupported: true } : {}),
+      ...(stage.id === 'category_page_proposals' ? { cohortSupported: true } : {}),
+    };
+  }
+  return {
+    supported: false,
+    reason: `Transport "${transport}" is not supported for stage "${stage.label}".`,
+  };
+}
+
+function buildStageSupportForConnection(conn: ProviderConnection): StageSupportMap {
+  const support: StageSupportMap = {};
+  for (const stage of CLASSIFICATION_POLICY_STAGES) {
+    support[stage.id] = conn.transport === 'systemone'
+      ? stageSupportForSystemOne(stage)
+      : stageSupportForTransport(stage, conn.transport);
+  }
+  return support;
+}
+
+function connectionModels(conn: ProviderConnection): Array<{ id: string; name: string }> {
+  const connAny = conn as unknown as { models?: unknown; lastProbeStatus?: string };
+  if (Array.isArray(connAny.models)) return connAny.models as Array<{ id: string; name: string }>;
+  if (conn.transport === 'systemone') return [{ id: 'jev-1.13.0', name: 'Jev 1.13.0' }];
+  return [];
+}
+
+function connectionStatus(conn: ProviderConnection): string {
+  const connAny = conn as unknown as { lastProbeStatus?: string };
+  return connAny.lastProbeStatus || getCachedConnectionHealth(conn.id) || 'healthy';
+}
+
+function toConnectionOption(conn: ProviderConnection): ConnectionOption {
+  return {
+    id: conn.id,
+    label: conn.label || conn.id,
+    transport: conn.transport,
+    trustZone: conn.trustZone,
+    locality: trustZoneToLocality(conn.trustZone),
+    enabled: conn.enabled !== false,
+    status: connectionStatus(conn),
+    models: connectionModels(conn),
+    stageSupport: buildStageSupportForConnection(conn),
+  };
+}
+
+function findMatchingConnection(
+  connections: ProviderConnection[],
+  effectiveProvider: string,
+): ProviderConnection | undefined {
+  return connections.find(c =>
+    c.id === effectiveProvider ||
+    c.label === effectiveProvider ||
+    (c.transport === 'ollama-native' && effectiveProvider === 'ollama'),
+  );
+}
+
+function resolveEffectiveProviderModel(
+  stage: StageDefinition,
+  modelPolicy: { defaultProvider: string; defaultModel: string; stageOverrides: StageOverrideRecord },
+): { isInherited: boolean; provider: string; model: string; fallbackProvider: string | null; fallbackModel: string | null } {
+  const override = modelPolicy.stageOverrides[stage.id];
+  const isInherited = !override || !override.provider;
+  return {
+    isInherited,
+    provider: (!isInherited && override.provider) ? override.provider : modelPolicy.defaultProvider,
+    model: (!isInherited && override.model) ? override.model : modelPolicy.defaultModel,
+    fallbackProvider: override?.fallbackProvider ?? null,
+    fallbackModel: override?.fallbackModel ?? null,
+  };
+}
+
+function resolveConnectionDisplay(
+  matchedConn: ProviderConnection | undefined,
+  effectiveProvider: string,
+  providerLocalities: Record<string, ProviderLocality>,
+): Pick<EffectiveStageRoute, 'connectionId' | 'connectionLabel' | 'connectionStatus' | 'connectionLocality'> {
+  const matchedAny = matchedConn as unknown as { lastProbeStatus?: string } | undefined;
+  return {
+    connectionId: matchedConn?.id ?? null,
+    connectionLabel: matchedConn?.label ?? effectiveProvider,
+    connectionStatus: matchedAny?.lastProbeStatus || (matchedConn ? getCachedConnectionHealth(matchedConn.id) : null) || 'healthy',
+    connectionLocality: matchedConn ? trustZoneToLocality(matchedConn.trustZone) : (providerLocalities[effectiveProvider] ?? 'local'),
+  };
+}
+
+function toEffectiveStageRoute(
+  stage: StageDefinition,
+  modelPolicy: { defaultProvider: string; defaultModel: string; stageOverrides: StageOverrideRecord; providerLocalities: Record<string, ProviderLocality> },
+  connections: ProviderConnection[],
+): EffectiveStageRoute {
+  const resolved = resolveEffectiveProviderModel(stage, modelPolicy);
+  const matchedConn = findMatchingConnection(connections, resolved.provider);
+  return {
+    id: stage.id,
+    label: stage.label,
+    description: stage.description,
+    isInherited: resolved.isInherited,
+    effectiveProvider: resolved.provider,
+    effectiveModel: resolved.model,
+    effectiveFallbackProvider: resolved.fallbackProvider,
+    effectiveFallbackModel: resolved.fallbackModel,
+    ...resolveConnectionDisplay(matchedConn, resolved.provider, modelPolicy.providerLocalities),
+  };
+}
+
+function emptyPreviewDiff(): PreviewPolicyResult['diff'] {
+  return { stages: {}, dataSharing: { text: { from: '', to: '' }, image: { from: '', to: '' } } };
+}
+
+function invalidPreview(baseBundleHash: string, validationErrors: string[]): PreviewPolicyResult {
+  return {
+    valid: false,
+    previewToken: null,
+    baseBundleHash,
+    dataSharingEffects: [],
+    validationErrors,
+    diff: emptyPreviewDiff(),
+  };
+}
+
 /**
  * Reads classification policy settings for the active workspace.
  */
@@ -209,14 +371,7 @@ export function getClassificationPolicySettings(
     };
   }
 
-  let activationContext;
-  if (_workspaceId) {
-    try {
-      activationContext = createRuntimeActivationContext(workspacePath, _workspaceId);
-    } catch {
-      // fallback
-    }
-  }
+  const activationContext = resolveActivationContext(workspacePath, _workspaceId);
   const authority = loadRuntimeConfigAuthority(workspacePath, activationContext);
   if (authority.kind === 'v1') {
     return {
@@ -234,140 +389,42 @@ export function getClassificationPolicySettings(
   }
 
   const bundle = authority.bundle;
-  const manifest = bundle.manifest;
-  const modelPolicy = bundle.modelPolicy;
-  const dataSharing = bundle.dataSharing;
-
-  const activeDir = path.join(workspacePath, 'store', 'classification');
-  let activeBundleHash = manifest.bundleHash;
-  if (fs.existsSync(path.join(activeDir, 'manifest.json'))) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(path.join(activeDir, 'manifest.json'), 'utf-8'));
-      if (raw.bundleHash) activeBundleHash = raw.bundleHash;
-    } catch {
-      // fallback to bundle manifest
-    }
-  }
-
-  const fullRouting = getFullAiRoutingConfig();
-  const connections = Object.values(fullRouting.connections);
-
-  // Map available connections with stage support
-  const availableConnections: ConnectionOption[] = connections.map(conn => {
-    const locality = trustZoneToLocality(conn.trustZone);
-    const stageSupport: Record<string, { supported: boolean; reason?: string; multiValueSupported?: boolean; cohortSupported?: boolean }> = {};
-
-    for (const stage of CLASSIFICATION_POLICY_STAGES) {
-      if (conn.transport === 'systemone') {
-        if (stage.id === 'primary_product_type_proposal') {
-          stageSupport[stage.id] = { supported: true };
-        } else if (stage.id === 'product_attribute_proposals') {
-          stageSupport[stage.id] = { supported: true, multiValueSupported: true };
-        } else if (stage.id === 'category_page_proposals') {
-          stageSupport[stage.id] = { supported: true, cohortSupported: true };
-        } else {
-          stageSupport[stage.id] = {
-            supported: false,
-            reason: `TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`,
-          };
-        }
-      } else if (stage.supportedTransports.includes(conn.transport as any)) {
-        stageSupport[stage.id] = {
-          supported: true,
-          ...(stage.id === 'product_attribute_proposals' ? { multiValueSupported: true } : {}),
-          ...(stage.id === 'category_page_proposals' ? { cohortSupported: true } : {}),
-        };
-      } else {
-        stageSupport[stage.id] = {
-          supported: false,
-          reason: `Transport "${conn.transport}" is not supported for stage "${stage.label}".`,
-        };
-      }
-    }
-
-    const connAny = conn as any;
-    const health = getCachedConnectionHealth(conn.id);
-    const models = (connAny.models && Array.isArray(connAny.models))
-      ? connAny.models
-      : (conn.transport === 'systemone' ? [{ id: 'jev-1.13.0', name: 'Jev 1.13.0' }] : []);
-    const status = connAny.lastProbeStatus || health || 'healthy';
-
-    return {
-      id: conn.id,
-      label: conn.label || conn.id,
-      transport: conn.transport,
-      trustZone: conn.trustZone,
-      locality,
-      enabled: conn.enabled !== false,
-      status,
-      models,
-      stageSupport,
-    };
-  });
-
-  // Calculate effective route for each of the 3 stages
-  const stages: EffectiveStageRoute[] = CLASSIFICATION_POLICY_STAGES.map(stage => {
-    const override = modelPolicy.stageOverrides[stage.id];
-    const isInherited = !override || !override.provider;
-
-    const effectiveProvider = (!isInherited && override.provider) ? override.provider : modelPolicy.defaultProvider;
-    const effectiveModel = (!isInherited && override.model) ? override.model : modelPolicy.defaultModel;
-    const effectiveFallbackProvider = override?.fallbackProvider ?? null;
-    const effectiveFallbackModel = override?.fallbackModel ?? null;
-
-    // Resolve matching connection
-    const matchedConn = connections.find(c => c.id === effectiveProvider || c.label === effectiveProvider || (c.transport === 'ollama-native' && effectiveProvider === 'ollama'));
-    const matchedConnAny = matchedConn as any;
-    const connectionStatus = matchedConnAny?.lastProbeStatus || (matchedConn ? getCachedConnectionHealth(matchedConn.id) : null) || 'healthy';
-
-    return {
-      id: stage.id,
-      label: stage.label,
-      description: stage.description,
-      isInherited,
-      effectiveProvider,
-      effectiveModel,
-      effectiveFallbackProvider,
-      effectiveFallbackModel,
-      connectionId: matchedConn?.id ?? null,
-      connectionLabel: matchedConn?.label ?? effectiveProvider,
-      connectionStatus,
-      connectionLocality: matchedConn ? trustZoneToLocality(matchedConn.trustZone) : (modelPolicy.providerLocalities[effectiveProvider] ?? 'local'),
-    };
-  });
-
+  const activeBundleHash = readActiveBundleHash(workspacePath, bundle.manifest.bundleHash);
+  const connections = Object.values(getFullAiRoutingConfig().connections);
   return {
     migrationRequired: false,
     bundleHash: activeBundleHash,
-    activeRevision: manifest.activeRevision,
-    defaultProvider: modelPolicy.defaultProvider,
-    defaultModel: modelPolicy.defaultModel,
-    textDataSharing: dataSharing.textPolicy,
-    imageDataSharing: dataSharing.imagePolicy,
-    stages,
-    availableConnections,
+    activeRevision: bundle.manifest.activeRevision,
+    defaultProvider: bundle.modelPolicy.defaultProvider,
+    defaultModel: bundle.modelPolicy.defaultModel,
+    textDataSharing: bundle.dataSharing.textPolicy,
+    imageDataSharing: bundle.dataSharing.imagePolicy,
+    stages: CLASSIFICATION_POLICY_STAGES.map(stage => toEffectiveStageRoute(stage, bundle.modelPolicy, connections)),
+    availableConnections: connections.map(toConnectionOption),
   };
 }
 
-function resolveProviderAndLocality(
+function resolveConnectionProposal(
   proposal: StageOverrideProposal,
   connections: ProviderConnection[],
 ): { provider: string; model: string; locality: ProviderLocality; transport: string } {
-  if (proposal.connectionId) {
-    const conn = connections.find(c => c.id === proposal.connectionId);
-    if (!conn) {
-      throw new ClassificationPolicyServiceError(`Connection "${proposal.connectionId}" not found.`, 'connection_not_found', 400);
-    }
-    const connAny = conn as any;
-    const model = proposal.model || connAny.models?.[0]?.id || (conn.transport === 'systemone' ? 'jev-1.13.0' : 'default');
-    return {
-      provider: conn.id,
-      model,
-      locality: trustZoneToLocality(conn.trustZone),
-      transport: conn.transport,
-    };
+  const conn = connections.find(c => c.id === proposal.connectionId);
+  if (!conn) {
+    throw new ClassificationPolicyServiceError(`Connection "${proposal.connectionId}" not found.`, 'connection_not_found', 400);
   }
+  const connAny = conn as unknown as { models?: Array<{ id: string }> };
+  const model = proposal.model || connAny.models?.[0]?.id || (conn.transport === 'systemone' ? 'jev-1.13.0' : 'default');
+  return {
+    provider: conn.id,
+    model,
+    locality: trustZoneToLocality(conn.trustZone),
+    transport: conn.transport,
+  };
+}
 
+function resolveLegacyProposal(
+  proposal: StageOverrideProposal,
+): { provider: string; model: string; locality: ProviderLocality; transport: string } {
   const provider = proposal.provider || 'ollama';
   const model = proposal.model || 'qwen2.5:7b';
   return {
@@ -378,6 +435,123 @@ function resolveProviderAndLocality(
   };
 }
 
+function resolveProviderAndLocality(
+  proposal: StageOverrideProposal,
+  connections: ProviderConnection[],
+): { provider: string; model: string; locality: ProviderLocality; transport: string } {
+  if (proposal.connectionId) return resolveConnectionProposal(proposal, connections);
+  return resolveLegacyProposal(proposal);
+}
+
+function checkStageTransportSupport(stage: StageDefinition, transport: string): string | null {
+  if (transport === 'systemone') {
+    if (
+      stage.id !== 'primary_product_type_proposal' &&
+      stage.id !== 'product_attribute_proposals' &&
+      stage.id !== 'category_page_proposals'
+    ) {
+      return `TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`;
+    }
+    return null;
+  }
+  if (!stage.supportedTransports.includes(transport as never)) {
+    return `Provider transport "${transport}" is not supported for stage "${stage.label}".`;
+  }
+  return null;
+}
+
+interface StagePreviewAccumulator {
+  proposedOverrides: Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }>;
+  providerLocalities: Record<string, ProviderLocality>;
+  diffStages: PreviewPolicyResult['diff']['stages'];
+  validationErrors: string[];
+  dataSharingEffects: string[];
+  hasCloudProvider: boolean;
+}
+
+type StageOverrideRecord = Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }>;
+
+function accumulateUnchangedStage(
+  stage: StageDefinition,
+  currentBundle: { modelPolicy: { defaultProvider: string; defaultModel: string; stageOverrides: StageOverrideRecord; providerLocalities: Record<string, ProviderLocality> } },
+  acc: StagePreviewAccumulator,
+): void {
+  const currentOverride = currentBundle.modelPolicy.stageOverrides[stage.id];
+  const fromProvider = currentOverride?.provider || currentBundle.modelPolicy.defaultProvider;
+  const fromModel = currentOverride?.model || currentBundle.modelPolicy.defaultModel;
+  acc.diffStages[stage.id] = {
+    from: { provider: fromProvider, model: fromModel },
+    to: { provider: fromProvider, model: fromModel },
+  };
+  if (acc.providerLocalities[fromProvider] === 'cloud') acc.hasCloudProvider = true;
+}
+
+function accumulateProposedStage(
+  stage: StageDefinition,
+  proposal: StageOverrideProposal,
+  currentBundle: { modelPolicy: { defaultProvider: string; defaultModel: string; stageOverrides: StageOverrideRecord } },
+  connections: ProviderConnection[],
+  acc: StagePreviewAccumulator,
+): void {
+  const currentOverride = currentBundle.modelPolicy.stageOverrides[stage.id];
+  const fromProvider = currentOverride?.provider || currentBundle.modelPolicy.defaultProvider;
+  const fromModel = currentOverride?.model || currentBundle.modelPolicy.defaultModel;
+  try {
+    const resolved = resolveProviderAndLocality(proposal, connections);
+    const supportError = checkStageTransportSupport(stage, resolved.transport);
+    if (supportError) acc.validationErrors.push(supportError);
+    acc.proposedOverrides[stage.id] = {
+      provider: resolved.provider,
+      model: resolved.model,
+      fallbackProvider: proposal.fallbackProvider ?? null,
+      fallbackModel: proposal.fallbackModel ?? null,
+    };
+    acc.providerLocalities[resolved.provider] = resolved.locality;
+    if (resolved.locality === 'cloud') {
+      acc.hasCloudProvider = true;
+      acc.dataSharingEffects.push(`Stage "${stage.label}" uses cloud provider "${resolved.provider}". Text data will be sent to external cloud endpoint.`);
+    }
+    acc.diffStages[stage.id] = {
+      from: { provider: fromProvider, model: fromModel },
+      to: { provider: resolved.provider, model: resolved.model },
+    };
+  } catch (err) {
+    acc.validationErrors.push(err instanceof Error ? err.message : String(err));
+  }
+}
+
+function validateCloudSharing(
+  hasCloudProvider: boolean,
+  proposedTextSharing: string,
+  acc: Pick<StagePreviewAccumulator, 'validationErrors' | 'dataSharingEffects'>,
+): void {
+  if (hasCloudProvider && proposedTextSharing !== 'cloud_allowed') {
+    acc.validationErrors.push(`Using a cloud provider requires textDataSharing to be cloud_allowed (currently "${proposedTextSharing}").`);
+  }
+  if (!hasCloudProvider && proposedTextSharing === 'local_only') {
+    acc.dataSharingEffects.push('All configured providers are local; product data remains strictly on-device.');
+  }
+}
+
+function buildPreviewToken(
+  valid: boolean,
+  input: PreviewPolicyInput,
+  acc: Pick<StagePreviewAccumulator, 'proposedOverrides'>,
+  proposedTextSharing: string,
+  proposedImageSharing: string,
+  currentBundle: { modelPolicy: { defaultProvider: string; defaultModel: string } },
+): string | null {
+  if (!valid) return null;
+  return sha256Hex(canonicalJsonStringify({
+    baseBundleHash: input.expectedBaseBundleHash,
+    stageOverrides: acc.proposedOverrides,
+    textDataSharing: proposedTextSharing,
+    imageDataSharing: proposedImageSharing,
+    defaultProvider: input.defaultProvider || currentBundle.modelPolicy.defaultProvider,
+    defaultModel: input.defaultModel || currentBundle.modelPolicy.defaultModel,
+  }));
+}
+
 /**
  * Previews a proposed classification policy change and returns a bound previewToken.
  */
@@ -386,152 +560,51 @@ export function previewClassificationPolicy(
   input: PreviewPolicyInput,
   workspaceId?: string,
 ): PreviewPolicyResult {
-  let activationContext;
-  if (workspaceId) {
-    try {
-      activationContext = createRuntimeActivationContext(workspacePath, workspaceId);
-    } catch {
-      // fallback
-    }
-  }
+  const activationContext = resolveActivationContext(workspacePath, workspaceId);
   const authority = loadRuntimeConfigAuthority(workspacePath, activationContext);
   if (authority.kind === 'v1') {
-    return {
-      valid: false,
-      previewToken: null,
-      baseBundleHash: input.expectedBaseBundleHash,
-      dataSharingEffects: [],
-      validationErrors: ['v1 classification workspace must be migrated to v2 before configuring stage providers.'],
-      diff: { stages: {}, dataSharing: { text: { from: '', to: '' }, image: { from: '', to: '' } } },
-    };
+    return invalidPreview(input.expectedBaseBundleHash, [
+      'v1 classification workspace must be migrated to v2 before configuring stage providers.',
+    ]);
   }
 
   const currentBundle = authority.bundle;
-  const currentManifest = currentBundle.manifest;
-  const activeDir = path.join(workspacePath, 'store', 'classification');
-  let activeBundleHash = currentManifest.bundleHash;
-  if (fs.existsSync(path.join(activeDir, 'manifest.json'))) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(path.join(activeDir, 'manifest.json'), 'utf-8'));
-      if (raw.bundleHash) activeBundleHash = raw.bundleHash;
-    } catch {
-      // fallback
-    }
-  }
-
+  const activeBundleHash = readActiveBundleHash(workspacePath, currentBundle.manifest.bundleHash);
   if (activeBundleHash !== input.expectedBaseBundleHash) {
-    return {
-      valid: false,
-      previewToken: null,
-      baseBundleHash: input.expectedBaseBundleHash,
-      dataSharingEffects: [],
-      validationErrors: [`Configuration has changed (expected ${input.expectedBaseBundleHash}, found ${activeBundleHash}). Please refresh.`],
-      diff: { stages: {}, dataSharing: { text: { from: '', to: '' }, image: { from: '', to: '' } } },
-    };
+    return invalidPreview(input.expectedBaseBundleHash, [
+      `Configuration has changed (expected ${input.expectedBaseBundleHash}, found ${activeBundleHash}). Please refresh.`,
+    ]);
   }
 
-  const fullRouting = getFullAiRoutingConfig();
-  const connections = Object.values(fullRouting.connections);
-
-  const validationErrors: string[] = [];
-  const dataSharingEffects: string[] = [];
-  const diffStages: PreviewPolicyResult['diff']['stages'] = {};
-
-  const proposedOverrides: Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }> = {
-    ...currentBundle.modelPolicy.stageOverrides,
+  const connections = Object.values(getFullAiRoutingConfig().connections);
+  const acc: StagePreviewAccumulator = {
+    proposedOverrides: { ...currentBundle.modelPolicy.stageOverrides },
+    providerLocalities: { ...currentBundle.modelPolicy.providerLocalities },
+    diffStages: {},
+    validationErrors: [],
+    dataSharingEffects: [],
+    hasCloudProvider: false,
   };
-  const providerLocalities: Record<string, ProviderLocality> = {
-    ...currentBundle.modelPolicy.providerLocalities,
-  };
-
-  let hasCloudProvider = false;
 
   for (const stage of CLASSIFICATION_POLICY_STAGES) {
     const proposal = input.stageOverrides[stage.id];
-    const currentOverride = currentBundle.modelPolicy.stageOverrides[stage.id];
-    const fromProvider = currentOverride?.provider || currentBundle.modelPolicy.defaultProvider;
-    const fromModel = currentOverride?.model || currentBundle.modelPolicy.defaultModel;
-
-    if (!proposal) {
-      diffStages[stage.id] = {
-        from: { provider: fromProvider, model: fromModel },
-        to: { provider: fromProvider, model: fromModel },
-      };
-      if (providerLocalities[fromProvider] === 'cloud') hasCloudProvider = true;
-      continue;
-    }
-
-    try {
-      const resolved = resolveProviderAndLocality(proposal, connections);
-
-      // Check stage adapter compatibility
-      if (resolved.transport === 'systemone') {
-        if (
-          stage.id !== 'primary_product_type_proposal' &&
-          stage.id !== 'product_attribute_proposals' &&
-          stage.id !== 'category_page_proposals'
-        ) {
-          validationErrors.push(`TypeSafe Jev typed-judgment adapter is not yet available for stage "${stage.label}" (pending stage adapter).`);
-        }
-      } else if (!stage.supportedTransports.includes(resolved.transport as any)) {
-        validationErrors.push(`Provider transport "${resolved.transport}" is not supported for stage "${stage.label}".`);
-      }
-
-      proposedOverrides[stage.id] = {
-        provider: resolved.provider,
-        model: resolved.model,
-        fallbackProvider: proposal.fallbackProvider ?? null,
-        fallbackModel: proposal.fallbackModel ?? null,
-      };
-      providerLocalities[resolved.provider] = resolved.locality;
-
-      if (resolved.locality === 'cloud') {
-        hasCloudProvider = true;
-        dataSharingEffects.push(`Stage "${stage.label}" uses cloud provider "${resolved.provider}". Text data will be sent to external cloud endpoint.`);
-      }
-
-      diffStages[stage.id] = {
-        from: { provider: fromProvider, model: fromModel },
-        to: { provider: resolved.provider, model: resolved.model },
-      };
-    } catch (err) {
-      validationErrors.push(err instanceof Error ? err.message : String(err));
-    }
+    if (!proposal) accumulateUnchangedStage(stage, currentBundle, acc);
+    else accumulateProposedStage(stage, proposal, currentBundle, connections, acc);
   }
 
   const proposedTextSharing = input.textDataSharing || currentBundle.dataSharing.textPolicy;
   const proposedImageSharing = input.imageDataSharing || currentBundle.dataSharing.imagePolicy;
+  validateCloudSharing(acc.hasCloudProvider, proposedTextSharing, acc);
 
-  if (hasCloudProvider && proposedTextSharing !== 'cloud_allowed') {
-    validationErrors.push(`Using a cloud provider requires textDataSharing to be cloud_allowed (currently "${proposedTextSharing}").`);
-  }
-
-  if (!hasCloudProvider && proposedTextSharing === 'local_only') {
-    dataSharingEffects.push('All configured providers are local; product data remains strictly on-device.');
-  }
-
-  const valid = validationErrors.length === 0;
-
-  // Build deterministic preview token binding inputs and base bundle hash
-  const previewToken = valid
-    ? sha256Hex(canonicalJsonStringify({
-        baseBundleHash: input.expectedBaseBundleHash,
-        stageOverrides: proposedOverrides,
-        textDataSharing: proposedTextSharing,
-        imageDataSharing: proposedImageSharing,
-        defaultProvider: input.defaultProvider || currentBundle.modelPolicy.defaultProvider,
-        defaultModel: input.defaultModel || currentBundle.modelPolicy.defaultModel,
-      }))
-    : null;
-
+  const valid = acc.validationErrors.length === 0;
   return {
     valid,
-    previewToken,
+    previewToken: buildPreviewToken(valid, input, acc, proposedTextSharing, proposedImageSharing, currentBundle),
     baseBundleHash: input.expectedBaseBundleHash,
-    dataSharingEffects,
-    validationErrors,
+    dataSharingEffects: acc.dataSharingEffects,
+    validationErrors: acc.validationErrors,
     diff: {
-      stages: diffStages,
+      stages: acc.diffStages,
       dataSharing: {
         text: { from: currentBundle.dataSharing.textPolicy, to: proposedTextSharing },
         image: { from: currentBundle.dataSharing.imagePolicy, to: proposedImageSharing },
@@ -540,15 +613,11 @@ export function previewClassificationPolicy(
   };
 }
 
-/**
- * Applies a previewed classification policy under CAS and configuration locking.
- */
-export async function applyClassificationPolicy(
+function revalidatePreviewForApply(
   workspacePath: string,
   workspaceId: string,
   input: ApplyPolicyInput,
-): Promise<ApplyPolicyResult> {
-  // Re-preview to validate token and inputs
+): PreviewPolicyResult {
   const preview = previewClassificationPolicy(workspacePath, {
     expectedBaseBundleHash: input.expectedBaseBundleHash,
     stageOverrides: input.stageOverrides,
@@ -565,7 +634,6 @@ export async function applyClassificationPolicy(
       400,
     );
   }
-
   if (preview.previewToken !== input.previewToken) {
     throw new ClassificationPolicyServiceError(
       'Preview token mismatch or expired. Please re-preview before applying.',
@@ -573,35 +641,36 @@ export async function applyClassificationPolicy(
       409,
     );
   }
+  return preview;
+}
 
-  let activationContext;
-  if (workspaceId) {
-    try {
-      activationContext = createRuntimeActivationContext(workspacePath, workspaceId);
-    } catch {
-      // fallback
-    }
-  }
+function loadV2BundleForApply(workspacePath: string, workspaceId: string) {
+  const activationContext = resolveActivationContext(workspacePath, workspaceId);
   const authority = loadRuntimeConfigAuthority(workspacePath, activationContext);
   if (authority.kind !== 'v2') {
     throw new ClassificationPolicyServiceError('Workspace is not v2.', 'v1_migration_required', 400);
   }
+  return authority.bundle;
+}
 
-  const currentBundle = authority.bundle;
-  const fullRouting = getFullAiRoutingConfig();
-  const connections = Object.values(fullRouting.connections);
-
+function buildApplyOverrides(
+  currentBundle: { modelPolicy: { defaultProvider: string; defaultModel: string; stageOverrides: StageOverrideRecord; providerLocalities: Record<string, ProviderLocality> } },
+  connections: ProviderConnection[],
+  stageOverrides: Record<string, StageOverrideProposal>,
+): {
+  proposedOverrides: Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }>;
+  providerLocalities: Record<string, ProviderLocality>;
+  effectiveRoutes: Record<string, { provider: string; model: string }>;
+} {
   const proposedOverrides: Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }> = {
     ...currentBundle.modelPolicy.stageOverrides,
   };
   const providerLocalities: Record<string, ProviderLocality> = {
     ...currentBundle.modelPolicy.providerLocalities,
   };
-
   const effectiveRoutes: Record<string, { provider: string; model: string }> = {};
-
   for (const stage of CLASSIFICATION_POLICY_STAGES) {
-    const proposal = input.stageOverrides[stage.id];
+    const proposal = stageOverrides[stage.id];
     if (proposal) {
       const resolved = resolveProviderAndLocality(proposal, connections);
       proposedOverrides[stage.id] = {
@@ -620,22 +689,65 @@ export async function applyClassificationPolicy(
       };
     }
   }
+  return { proposedOverrides, providerLocalities, effectiveRoutes };
+}
 
-  const newModelPolicy: ModelPolicyConfigV2 = {
-    ...currentBundle.modelPolicy,
-    defaultProvider: input.defaultProvider || currentBundle.modelPolicy.defaultProvider,
-    defaultModel: input.defaultModel || currentBundle.modelPolicy.defaultModel,
+function buildUpdatedPolicies(
+  currentBundle: { modelPolicy: ModelPolicyConfigV2; dataSharing: DataSharingConfigV2 },
+  input: ApplyPolicyInput,
+  proposedOverrides: Record<string, { provider?: string; model?: string; fallbackProvider: string | null; fallbackModel: string | null }>,
+  providerLocalities: Record<string, ProviderLocality>,
+): { newModelPolicy: ModelPolicyConfigV2; newDataSharing: DataSharingConfigV2 } {
+  return {
+    newModelPolicy: {
+      ...currentBundle.modelPolicy,
+      defaultProvider: input.defaultProvider || currentBundle.modelPolicy.defaultProvider,
+      defaultModel: input.defaultModel || currentBundle.modelPolicy.defaultModel,
+      providerLocalities,
+      stageOverrides: proposedOverrides,
+      textDataSharing: input.textDataSharing || currentBundle.modelPolicy.textDataSharing,
+      imageDataSharing: input.imageDataSharing || currentBundle.modelPolicy.imageDataSharing,
+    },
+    newDataSharing: {
+      ...currentBundle.dataSharing,
+      textPolicy: input.textDataSharing || currentBundle.dataSharing.textPolicy,
+      imagePolicy: input.imageDataSharing || currentBundle.dataSharing.imagePolicy,
+    },
+  };
+}
+
+function mapConfigStoreError(err: unknown): never {
+  if (err instanceof ConfigStoreConflictError) {
+    throw new ClassificationPolicyServiceError(err.message, 'config_conflict', 409);
+  }
+  if (err instanceof ConfigStoreError) {
+    throw new ClassificationPolicyServiceError(err.message, err.code, 400);
+  }
+  throw err;
+}
+
+/**
+ * Applies a previewed classification policy under CAS and configuration locking.
+ */
+export async function applyClassificationPolicy(
+  workspacePath: string,
+  workspaceId: string,
+  input: ApplyPolicyInput,
+): Promise<ApplyPolicyResult> {
+  revalidatePreviewForApply(workspacePath, workspaceId, input);
+  const currentBundle = loadV2BundleForApply(workspacePath, workspaceId);
+  const connections = Object.values(getFullAiRoutingConfig().connections);
+  const { proposedOverrides, providerLocalities, effectiveRoutes } = buildApplyOverrides(
+    currentBundle,
+    connections,
+    input.stageOverrides,
+  );
+  const { newModelPolicy, newDataSharing } = buildUpdatedPolicies(
+    currentBundle,
+    input,
+    proposedOverrides,
     providerLocalities,
-    stageOverrides: proposedOverrides,
-    textDataSharing: input.textDataSharing || currentBundle.modelPolicy.textDataSharing,
-    imageDataSharing: input.imageDataSharing || currentBundle.modelPolicy.imageDataSharing,
-  };
-
-  const newDataSharing: DataSharingConfigV2 = {
-    ...currentBundle.dataSharing,
-    textPolicy: input.textDataSharing || currentBundle.dataSharing.textPolicy,
-    imagePolicy: input.imageDataSharing || currentBundle.dataSharing.imagePolicy,
-  };
+  );
 
   try {
     const writeResult = await updateClassificationPolicy({
@@ -654,12 +766,6 @@ export async function applyClassificationPolicy(
       effectiveRoutes,
     };
   } catch (err) {
-    if (err instanceof ConfigStoreConflictError) {
-      throw new ClassificationPolicyServiceError(err.message, 'config_conflict', 409);
-    }
-    if (err instanceof ConfigStoreError) {
-      throw new ClassificationPolicyServiceError(err.message, err.code, 400);
-    }
-    throw err;
+    mapConfigStoreError(err);
   }
 }

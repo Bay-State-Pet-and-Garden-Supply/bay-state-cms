@@ -23,6 +23,34 @@ import type {
   BenchmarkPredictionEntry,
   EvalMetrics,
 } from '../shared/schemas/classification';
+import {
+  classifyPredictionOutcome,
+  deriveBaselineComparison,
+  deriveFixedPopulation,
+  deriveSupportStatus,
+  detectSharedFamilyLeakage,
+  emptyBaselineComparisonAccumulator,
+  emptyFixedPopulationCounts,
+  emptyPageComparisonCounters,
+  extractFailureCode,
+  finalizePageComparisonSummary,
+  goldPageIdsOf,
+  goldPageNamesOf,
+  groupPredictionsByExampleId,
+  indexPredictionsByExampleId,
+  lookupStateAlias,
+  pageItemsOf,
+  pageProvenanceOf,
+  recordBaselinePair,
+  resolvePageIdentityCapability,
+  scorePageSet,
+  sortedIds,
+  supportReasonsFor,
+  type BaselineComparisonAccumulator,
+  type FixedPopulationCounts,
+  type PageComparisonCounters,
+  type SharedPageComparisonSummary,
+} from './benchmark-scoring-helpers';
 
 // ─── Pure metric core ──────────────────────────────────────────────────────────
 
@@ -70,19 +98,27 @@ export type EvaluatorGoldState = (typeof EVALUATOR_GOLD_STATES)[number];
 const EVALUATOR_GOLD_STATE_FIELD = 'productTypeState' as const;
 
 /**
- * Normalize adjudicated state spellings. Accepts the canonical exporter
- * spellings (`known`, `no-fit`, `insufficient-evidence`, `unlabeled`) plus
- * the ticket aliases (`known-type`, `no-fitting-type`); unknown values and
- * non-strings yield null (legacy handling).
+ * Alias table for adjudicated product-type gold states. Accepts the canonical
+ * exporter spellings (`known`, `no-fit`, `insufficient-evidence`, `unlabeled`)
+ * plus the ticket aliases (`known-type`, `no-fitting-type`); unknown values
+ * and non-strings yield null (legacy handling).
  */
+const EVALUATOR_GOLD_STATE_ALIASES: Record<string, EvaluatorGoldState> = {
+  known: EVALUATOR_GOLD_STATE_KNOWN,
+  'known-type': EVALUATOR_GOLD_STATE_KNOWN,
+  'no-fit': EVALUATOR_GOLD_STATE_NO_FIT,
+  'no-fitting-type': EVALUATOR_GOLD_STATE_NO_FIT,
+  'no-fit-type': EVALUATOR_GOLD_STATE_NO_FIT,
+  nofit: EVALUATOR_GOLD_STATE_NO_FIT,
+  'insufficient-evidence': EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  insufficientevidence: EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  unlabeled: EVALUATOR_GOLD_STATE_UNLABELED,
+  unlabelled: EVALUATOR_GOLD_STATE_UNLABELED,
+};
+
+/** Normalize adjudicated state spellings via the shared alias table. */
 function normalizeEvaluatorGoldState(value: unknown): EvaluatorGoldState | null {
-  if (typeof value !== 'string') return null;
-  const v = value.trim().toLowerCase().replace(/_/g, '-');
-  if (v === 'known' || v === 'known-type') return EVALUATOR_GOLD_STATE_KNOWN;
-  if (v === 'no-fit' || v === 'no-fitting-type' || v === 'no-fit-type' || v === 'nofit') return EVALUATOR_GOLD_STATE_NO_FIT;
-  if (v === 'insufficient-evidence' || v === 'insufficientevidence') return EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE;
-  if (v === 'unlabeled' || v === 'unlabelled') return EVALUATOR_GOLD_STATE_UNLABELED;
-  return null;
+  return lookupStateAlias(value, EVALUATOR_GOLD_STATE_ALIASES);
 }
 
 /** Read the adjudicated gold state; null for legacy gold without a marker. */
@@ -112,15 +148,26 @@ const EVALUATOR_FIELD_GOLD_STATES = [
 export type EvaluatorFieldGoldState = (typeof EVALUATOR_FIELD_GOLD_STATES)[number];
 const EVALUATOR_FIELD_GOLD_STATES_FIELD = 'fieldStates' as const;
 
+const EVALUATOR_FIELD_GOLD_STATE_ALIASES: Record<string, EvaluatorFieldGoldState> = {
+  known: EVALUATOR_FIELD_GOLD_STATE_KNOWN,
+  'known-type': EVALUATOR_FIELD_GOLD_STATE_KNOWN,
+  'known-value': EVALUATOR_FIELD_GOLD_STATE_KNOWN,
+  'no-fit': EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  'no-fitting-type': EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  'no-fit-type': EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  nofit: EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  'no-fitting': EVALUATOR_FIELD_GOLD_STATE_NO_FIT,
+  'insufficient-evidence': EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  insufficientevidence: EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE,
+  inapplicable: EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
+  'not-applicable': EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
+  na: EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
+  unlabeled: EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
+  unlabelled: EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
+};
+
 function normalizeEvaluatorFieldGoldState(value: unknown): EvaluatorFieldGoldState | null {
-  if (typeof value !== 'string') return null;
-  const v = value.trim().toLowerCase().replace(/_/g, '-');
-  if (v === 'known' || v === 'known-type' || v === 'known-value') return EVALUATOR_FIELD_GOLD_STATE_KNOWN;
-  if (v === 'no-fit' || v === 'no-fitting-type' || v === 'no-fit-type' || v === 'nofit' || v === 'no-fitting') return EVALUATOR_FIELD_GOLD_STATE_NO_FIT;
-  if (v === 'insufficient-evidence' || v === 'insufficientevidence') return EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE;
-  if (v === 'inapplicable' || v === 'not-applicable' || v === 'na') return EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE;
-  if (v === 'unlabeled' || v === 'unlabelled') return EVALUATOR_FIELD_GOLD_STATE_UNLABELED;
-  return null;
+  return lookupStateAlias(value, EVALUATOR_FIELD_GOLD_STATE_ALIASES);
 }
 
 export function readEvaluatorFieldStates(goldLabelsJson: string): Record<string, EvaluatorFieldGoldState> | null {
@@ -160,24 +207,7 @@ export type EvaluatorPredictionOutcome =
 function classifyEvaluatorPredictionOutcome(
   entry: BenchmarkPredictionEntry | undefined | null,
 ): EvaluatorPredictionOutcome {
-  if (!entry) return EVALUATOR_OUTCOME_MISSING;
-  const raw = entry as unknown as Record<string, unknown>;
-  // A failure marker always wins: a failed call earns no abstention credit,
-  // even when the entry also carries an abstention flag or outcome.
-  const failureCode = raw.failureCode;
-  if (typeof failureCode === 'string' && failureCode.trim() !== '') {
-    return EVALUATOR_OUTCOME_FAILED;
-  }
-  const outcome = typeof raw.outcome === 'string' ? raw.outcome : null;
-  // Explicit pre-review outcomes are authoritative when present.
-  if (outcome === 'failed') return EVALUATOR_OUTCOME_FAILED;
-  if (outcome === 'abstained') return EVALUATOR_OUTCOME_ABSTAINED;
-  if (outcome === 'predicted') return EVALUATOR_OUTCOME_PREDICTED;
-  if (entry.abstained === true) return EVALUATOR_OUTCOME_ABSTAINED;
-  // Legacy parity: a null type with no abstention flag is "no answer", not an
-  // error — legacy metrics count exactly this shape as abstained.
-  if (entry.productType === null || entry.productType === undefined) return EVALUATOR_OUTCOME_ABSTAINED;
-  return EVALUATOR_OUTCOME_PREDICTED;
+  return classifyPredictionOutcome(entry);
 }
 
 // ─── Bundle source/version contract (issue #294) ────────────────────────────
@@ -229,34 +259,38 @@ function evaluatorProvenanceFor(
   };
 }
 
-/**
- * Resolve per-bundle source provenance. Prefers the loader-provided
- * source/version hint (new `loadPredictionBundle` shape) and falls back to
- * structural detection of the persisted JSON (array = legacy
- * reviewed-outcome; `{ source: 'prereview_raw', version: 1, predictions }`
- * = pre-review). Anything else resolves to `unknown` (fail closed downstream).
- */
-function describeEvaluatorBundleProvenance(
-  persistedJson: unknown,
+/** Resolve provenance from the loader-provided source/version hint, if usable. */
+function provenanceFromLoaderHint(
   loaderHint?: { source?: unknown; bundleVersion?: unknown },
-): EvaluatorBundleProvenance {
+): EvaluatorBundleProvenance | null {
   const hintSource = loaderHint?.source;
   const hintVersion = loaderHint?.bundleVersion;
-  if (hintSource === EVALUATOR_PRE_REVIEW_SOURCE || hintSource === EVALUATOR_REVIEWED_OUTCOME_SOURCE) {
-    const version = typeof hintVersion === 'number' && Number.isFinite(hintVersion)
-      ? hintVersion
-      : hintSource === EVALUATOR_PRE_REVIEW_SOURCE
-        ? EVALUATOR_PRE_REVIEW_BUNDLE_VERSION
-        : EVALUATOR_LEGACY_BUNDLE_VERSION;
-    return evaluatorProvenanceFor(hintSource, version);
+  if (hintSource !== EVALUATOR_PRE_REVIEW_SOURCE && hintSource !== EVALUATOR_REVIEWED_OUTCOME_SOURCE) {
+    return null;
   }
-  let parsed = persistedJson;
-  if (typeof parsed === 'string') {
-    try {
-      parsed = JSON.parse(parsed) as unknown;
-    } catch {
-      return evaluatorProvenanceFor('unknown', -1);
-    }
+  const version = typeof hintVersion === 'number' && Number.isFinite(hintVersion)
+    ? hintVersion
+    : hintSource === EVALUATOR_PRE_REVIEW_SOURCE
+      ? EVALUATOR_PRE_REVIEW_BUNDLE_VERSION
+      : EVALUATOR_LEGACY_BUNDLE_VERSION;
+  return evaluatorProvenanceFor(hintSource, version);
+}
+
+/** Parse a persisted bundle payload; null when it is not parseable JSON. */
+function parsePersistedBundleJson(persistedJson: unknown): unknown | null {
+  if (typeof persistedJson !== 'string') return persistedJson;
+  try {
+    return JSON.parse(persistedJson) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve provenance by structural detection of the persisted JSON. */
+function provenanceFromPersistedJson(persistedJson: unknown): EvaluatorBundleProvenance {
+  const parsed = parsePersistedBundleJson(persistedJson);
+  if (parsed === null && typeof persistedJson === 'string') {
+    return evaluatorProvenanceFor('unknown', -1);
   }
   if (Array.isArray(parsed)) {
     return evaluatorProvenanceFor(EVALUATOR_REVIEWED_OUTCOME_SOURCE, EVALUATOR_LEGACY_BUNDLE_VERSION);
@@ -272,6 +306,20 @@ function describeEvaluatorBundleProvenance(
     }
   }
   return evaluatorProvenanceFor('unknown', -1);
+}
+
+/**
+ * Resolve per-bundle source provenance. Prefers the loader-provided
+ * source/version hint (new `loadPredictionBundle` shape) and falls back to
+ * structural detection of the persisted JSON (array = legacy
+ * reviewed-outcome; `{ source: 'prereview_raw', version: 1, predictions }`
+ * = pre-review). Anything else resolves to `unknown` (fail closed downstream).
+ */
+function describeEvaluatorBundleProvenance(
+  persistedJson: unknown,
+  loaderHint?: { source?: unknown; bundleVersion?: unknown },
+): EvaluatorBundleProvenance {
+  return provenanceFromLoaderHint(loaderHint) ?? provenanceFromPersistedJson(persistedJson);
 }
 
 export interface ControlledValues {
@@ -371,6 +419,41 @@ export interface PerExamplePrimaryMetric {
   baseline: number;
 }
 
+/** Candidate correctness for the paired metric (null when unpaired). */
+function pairedCandidateCorrectness(
+  example: GoldExampleForEvaluation,
+  candidate: BenchmarkPredictionEntry[],
+): number | null {
+  if (!example.goldLabels.productType) return null;
+  const cand = predictionForExample(candidate, example.id);
+  if (!cand || cand.abstained || cand.productType === null) return null;
+  return cand.productType === example.goldLabels.productType ? 1 : 0;
+}
+
+/** Baseline correctness for the paired metric (null when unpaired; 0 when none). */
+function pairedBaselineCorrectness(
+  example: GoldExampleForEvaluation,
+  baseline: BenchmarkPredictionEntry[] | null,
+): number | null {
+  if (!baseline) return 0;
+  const base = predictionForExample(baseline, example.id);
+  if (!base || base.abstained) return null;
+  return base.productType === example.goldLabels.productType ? 1 : 0;
+}
+
+/** Per-example paired value for one labeled example (null when unpaired). */
+function pairedPrimaryMetricForExample(
+  example: GoldExampleForEvaluation,
+  candidate: BenchmarkPredictionEntry[],
+  baseline: BenchmarkPredictionEntry[] | null,
+): PerExamplePrimaryMetric | null {
+  const candidateScore = pairedCandidateCorrectness(example, candidate);
+  if (candidateScore === null) return null;
+  const baselineScore = pairedBaselineCorrectness(example, baseline);
+  if (baselineScore === null) return null;
+  return { exampleId: example.id, candidate: candidateScore, baseline: baselineScore };
+}
+
 /** Per-example paired values for the primary metric (product type accuracy). */
 function computePerExamplePrimaryMetric(
   gold: GoldExampleForEvaluation[],
@@ -379,14 +462,8 @@ function computePerExamplePrimaryMetric(
 ): PerExamplePrimaryMetric[] {
   const result: PerExamplePrimaryMetric[] = [];
   for (const example of gold) {
-    if (!example.goldLabels.productType) continue;
-    const cand = predictionForExample(candidate, example.id);
-    if (!cand || cand.abstained || cand.productType === null) continue;
-    const base = baseline ? predictionForExample(baseline, example.id) : null;
-    if (baseline && (!base || base.abstained)) continue;
-    const candCorrect = cand.productType === example.goldLabels.productType ? 1 : 0;
-    const baseCorrect = baseline ? (base!.productType === example.goldLabels.productType ? 1 : 0) : 0;
-    result.push({ exampleId: example.id, candidate: candCorrect, baseline: baseCorrect });
+    const pair = pairedPrimaryMetricForExample(example, candidate, baseline);
+    if (pair) result.push(pair);
   }
   return result;
 }
@@ -421,33 +498,59 @@ function computePairedBootstrap(
   return { deltaMean, deltaLower95: lower, deltaUpper95: upper, bootstrapRuns };
 }
 
+interface EceBin {
+  count: number;
+  correct: number;
+  confSum: number;
+}
+
+/** Accumulate one confident non-abstained prediction into its confidence bin. */
+function accumulateEceExample(
+  bins: EceBin[],
+  binCount: number,
+  example: GoldExampleForEvaluation,
+  predictions: BenchmarkPredictionEntry[],
+): void {
+  if (!example.goldLabels.productType) return;
+  const pred = predictionForExample(predictions, example.id);
+  if (!pred || pred.abstained || pred.productType === null || pred.confidence === null || pred.confidence === undefined) {
+    return;
+  }
+  const bin = Math.min(binCount - 1, Math.floor(pred.confidence * binCount));
+  bins[bin].count++;
+  if (pred.productType === example.goldLabels.productType) bins[bin].correct++;
+  bins[bin].confSum += pred.confidence;
+}
+
+/** Finalize populated bins into ECE + per-bin accuracy/confidence. */
+function finalizeEceBins(
+  bins: EceBin[],
+  total: number,
+): { ece: number; bins: EvalMetrics['calibration']['bins'] } {
+  let ece = 0;
+  const outBins = bins
+    .filter(bin => bin.count > 0)
+    .map(bin => {
+      const accuracy = bin.correct / bin.count;
+      const avgConfidence = bin.confSum / bin.count;
+      ece += (bin.count / total) * Math.abs(accuracy - avgConfidence);
+      return { bin: bins.indexOf(bin), count: bin.count, accuracy, avgConfidence };
+    });
+  return { ece, bins: outBins };
+}
+
 function computeEce(
   gold: GoldExampleForEvaluation[],
   predictions: BenchmarkPredictionEntry[],
 ): { ece: number; bins: EvalMetrics['calibration']['bins'] } {
   const binCount = 10;
-  const bins = Array.from({ length: binCount }, () => ({ count: 0, correct: 0, confSum: 0 }));
+  const bins: EceBin[] = Array.from({ length: binCount }, () => ({ count: 0, correct: 0, confSum: 0 }));
   for (const example of gold) {
-    if (!example.goldLabels.productType) continue;
-    const pred = predictionForExample(predictions, example.id);
-    if (!pred || pred.abstained || pred.productType === null || pred.confidence === null || pred.confidence === undefined) continue;
-    const bin = Math.min(binCount - 1, Math.floor(pred.confidence * binCount));
-    bins[bin].count++;
-    if (pred.productType === example.goldLabels.productType) bins[bin].correct++;
-    bins[bin].confSum += pred.confidence;
+    accumulateEceExample(bins, binCount, example, predictions);
   }
-  const total = bins.reduce((acc, b) => acc + b.count, 0);
+  const total = bins.reduce((acc, bin) => acc + bin.count, 0);
   if (total === 0) return { ece: 0, bins: [] };
-  let ece = 0;
-  const outBins = bins
-    .filter(b => b.count > 0)
-    .map(b => {
-      const accuracy = b.correct / b.count;
-      const avgConfidence = b.confSum / b.count;
-      ece += (b.count / total) * Math.abs(accuracy - avgConfidence);
-      return { bin: bins.indexOf(b), count: b.count, accuracy, avgConfidence };
-    });
-  return { ece, bins: outBins };
+  return finalizeEceBins(bins, total);
 }
 
 // ─── Attribution detail (issue #294) ─────────────────────────────────────────
@@ -469,6 +572,43 @@ function computeEce(
 
 export type EvaluatorExampleVerdict = 'correct' | 'incorrect' | 'abstained' | 'failed' | 'missing' | 'excluded';
 
+/** True for gold states that expect semantic abstention (no-fit family). */
+function expectsAbstentionForGoldState(goldState: EvaluatorGoldState | null): boolean {
+  return (
+    goldState === EVALUATOR_GOLD_STATE_NO_FIT ||
+    goldState === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  );
+}
+
+/** Score an unlabeled/legacy-unlabeled example: always excluded. */
+function scoreUnlabeledGoldExample(): EvaluatorExampleVerdict {
+  return 'excluded';
+}
+
+/**
+ * Score no-fit / insufficient-evidence gold: abstaining is correct, any
+ * concrete prediction is a forced-guess error, and failures or missing
+ * entries earn no abstention credit.
+ */
+function scoreNoFitGoldExample(outcome: EvaluatorPredictionOutcome): EvaluatorExampleVerdict {
+  if (outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'correct';
+  if (outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
+  if (outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
+  return 'incorrect';
+}
+
+/** Score known-type gold: match is correct, abstention is honest, else error. */
+function scoreKnownGoldExample(
+  outcome: EvaluatorPredictionOutcome,
+  predictedType: string | null | undefined,
+  goldType: string,
+): EvaluatorExampleVerdict {
+  if (outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
+  if (outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
+  if (outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'abstained';
+  return predictedType === goldType ? 'correct' : 'incorrect';
+}
+
 /**
  * Score one example under its adjudicated gold state. `known` covers both the
  * explicit marker and legacy gold carrying a type; legacy gold without a type
@@ -485,22 +625,13 @@ function scoreEvaluatorExample(args: {
   predictedType: string | null | undefined;
 }): EvaluatorExampleVerdict {
   const goldType = typeof args.goldType === 'string' ? args.goldType : null;
-  if (args.goldState === EVALUATOR_GOLD_STATE_UNLABELED) return 'excluded';
-  if (args.goldState === null && goldType === null) return 'excluded';
-  if (
-    args.goldState === EVALUATOR_GOLD_STATE_NO_FIT ||
-    args.goldState === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE
-  ) {
-    if (args.outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'correct';
-    if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
-    if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
-    return 'incorrect';
+  if (args.goldState === EVALUATOR_GOLD_STATE_UNLABELED) return scoreUnlabeledGoldExample();
+  if (args.goldState === null && goldType === null) return scoreUnlabeledGoldExample();
+  if (expectsAbstentionForGoldState(args.goldState)) {
+    return scoreNoFitGoldExample(args.outcome);
   }
-  if (goldType === null) return 'excluded';
-  if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
-  if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
-  if (args.outcome === EVALUATOR_OUTCOME_ABSTAINED) return 'abstained';
-  return args.predictedType === goldType ? 'correct' : 'incorrect';
+  if (goldType === null) return scoreUnlabeledGoldExample();
+  return scoreKnownGoldExample(args.outcome, args.predictedType, goldType);
 }
 
 /**
@@ -566,6 +697,86 @@ export function computeSetMetrics(
   return { precision, recall, f1, exactMatch };
 }
 
+/** True for field gold excluded from the eligible denominator. */
+function isExcludedFieldGold(
+  goldState: EvaluatorFieldGoldState | null,
+  goldValue: string | null,
+  goldSetSize: number,
+): boolean {
+  if (
+    goldState === EVALUATOR_FIELD_GOLD_STATE_UNLABELED ||
+    goldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE
+  ) {
+    return true;
+  }
+  return goldState === null && goldValue === null && goldSetSize === 0;
+}
+
+/** True for no-fit / insufficient-evidence field gold (abstention expected). */
+function expectsFieldAbstention(goldState: EvaluatorFieldGoldState | null): boolean {
+  return (
+    goldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT ||
+    goldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  );
+}
+
+/** True when the prediction side abstained (no values and no concrete outcome). */
+function isFieldPredictionAbstained(
+  predValue: string | null,
+  predSetSize: number,
+  outcome: EvaluatorPredictionOutcome | undefined,
+): boolean {
+  return (
+    (predValue === null && predSetSize === 0) || outcome === EVALUATOR_OUTCOME_ABSTAINED
+  );
+}
+
+/**
+ * Score no-fit / insufficient-evidence field gold: abstaining is correct,
+ * any concrete prediction is a forced-guess error.
+ */
+function scoreNoFitFieldExample(
+  predValue: string | null,
+  predSetSize: number,
+  outcome: EvaluatorPredictionOutcome | undefined,
+): EvaluatorExampleVerdict {
+  if (isFieldPredictionAbstained(predValue, predSetSize, outcome)) return 'correct';
+  return 'incorrect';
+}
+
+/** Exact set match used when either side carries multiple values. */
+function fieldValueSetsMatch(goldSet: Set<string>, predSet: Set<string>): boolean {
+  return goldSet.size === predSet.size && [...goldSet].every(v => predSet.has(v));
+}
+
+/** True when set-based comparison applies to this field example. */
+function usesFieldSetComparison(
+  args: ScoreEvaluatorFieldExampleArgs,
+  goldSetSize: number,
+  predSetSize: number,
+): boolean {
+  return (
+    args.goldValues !== undefined ||
+    args.predictedValues !== undefined ||
+    goldSetSize > 1 ||
+    predSetSize > 1
+  );
+}
+
+/** Score known (or legacy-valued) field gold: match, mismatch, or abstention. */
+function scoreKnownFieldExample(
+  args: ScoreEvaluatorFieldExampleArgs,
+  goldSet: Set<string>,
+  predSet: Set<string>,
+  goldValue: string | null,
+  predValue: string | null,
+): EvaluatorExampleVerdict {
+  if (usesFieldSetComparison(args, goldSet.size, predSet.size)) {
+    return fieldValueSetsMatch(goldSet, predSet) ? 'correct' : 'incorrect';
+  }
+  return predValue === goldValue ? 'correct' : 'incorrect';
+}
+
 /**
  * Score one field target under its adjudicated gold state (issue #298 / #300).
  *
@@ -585,37 +796,22 @@ export function scoreEvaluatorFieldExample(args: ScoreEvaluatorFieldExampleArgs)
   const goldValue = typeof args.goldValue === 'string' && args.goldValue.trim() !== '' ? args.goldValue.trim() : null;
   const predValue = typeof args.predictedValue === 'string' && args.predictedValue.trim() !== '' ? args.predictedValue.trim() : null;
 
-  if (args.goldState === EVALUATOR_FIELD_GOLD_STATE_UNLABELED || args.goldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) {
-    return 'excluded';
-  }
-  if (args.goldState === null && goldValue === null && goldSet.size === 0) {
+  if (isExcludedFieldGold(args.goldState, goldValue, goldSet.size)) {
     return 'excluded';
   }
   if (args.outcome === EVALUATOR_OUTCOME_FAILED) return 'failed';
   if (args.outcome === EVALUATOR_OUTCOME_MISSING) return 'missing';
 
-  if (
-    args.goldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT ||
-    args.goldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE
-  ) {
-    if ((predValue === null && predSet.size === 0) || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
-      return 'correct';
-    }
-    return 'incorrect';
+  if (expectsFieldAbstention(args.goldState)) {
+    return scoreNoFitFieldExample(predValue, predSet.size, args.outcome);
   }
 
   // goldState === known or legacy gold with non-null goldValue
-  if ((predValue === null && predSet.size === 0) || args.outcome === EVALUATOR_OUTCOME_ABSTAINED) {
+  if (isFieldPredictionAbstained(predValue, predSet.size, args.outcome)) {
     return 'abstained';
   }
 
-  // Set-based comparison if multiple values exist in gold or predicted
-  if (args.goldValues !== undefined || args.predictedValues !== undefined || goldSet.size > 1 || predSet.size > 1) {
-    const isMatch = goldSet.size === predSet.size && [...goldSet].every(v => predSet.has(v));
-    return isMatch ? 'correct' : 'incorrect';
-  }
-
-  return predValue === goldValue ? 'correct' : 'incorrect';
+  return scoreKnownFieldExample(args, goldSet, predSet, goldValue, predValue);
 }
 
 export interface EvaluatorFailedPrediction {
@@ -747,23 +943,7 @@ export interface EvaluatorPageAttributionReport {
   } | null;
 }
 
-export interface SingletonPageComparisonReport {
-  eligibleCount: number;
-  evaluatedCount: number;
-  unlabeledCount: number;
-  unavailableCount: number;
-  candidateExactMatches: number;
-  baselineExactMatches: number;
-  candidatePrecision: number;
-  candidateRecall: number;
-  baselinePrecision: number;
-  baselineRecall: number;
-  exactSetDeltaMean: number;
-  recoveredBaselineAbstentions: number;
-  harmedBaselineSuccesses: number;
-  coverageShift: number;
-  evaluatedByIdentity: boolean;
-  eligibleToQualifyJev: boolean;
+export interface SingletonPageComparisonReport extends SharedPageComparisonSummary {
   examples: Array<{
     exampleId: string;
     productSku: string;
@@ -827,6 +1007,950 @@ export interface ComputeAttributionOptions {
   allSplitExamples?: Array<{ familyId: string | null; splitGroup: string | null }>;
 }
 
+// ─── Attribution sections (decomposed named steps) ────────────────────────────
+// `computeEvaluatorAttribution` orchestrates these pure steps; each step owns
+// one concern (indexing, product-type scoring, field scoring, page scoring,
+// finalization) so no single function carries the whole flow.
+
+interface AttributionPredictionIndex {
+  entriesById: Map<string, BenchmarkPredictionEntry[]>;
+  baselineById: Map<string, BenchmarkPredictionEntry[]>;
+  baselinePredictions: BenchmarkPredictionEntry[];
+  duplicateExampleIds: string[];
+  unknownExampleIds: string[];
+  hasBaseline: boolean;
+}
+
+/** Index candidate/baseline bundles by example id; detect duplicates/unknowns. */
+function indexAttributionPredictions(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  baselinePredictions?: BenchmarkPredictionEntry[] | null,
+): AttributionPredictionIndex {
+  const entriesById = groupPredictionsByExampleId(predictions);
+  const baselineList = baselinePredictions ?? [];
+  const baselineById = groupPredictionsByExampleId(baselineList);
+  const goldIds = new Set(gold.map(example => example.id));
+  const duplicateExampleIds = sortedIds(
+    [...entriesById.entries()].filter(([, list]) => list.length > 1).map(([id]) => id),
+  );
+  const unknownExampleIds = sortedIds([...entriesById.keys()].filter(id => !goldIds.has(id)));
+  return {
+    entriesById,
+    baselineById,
+    baselinePredictions: baselineList,
+    duplicateExampleIds,
+    unknownExampleIds,
+    hasBaseline: baselinePredictions !== null && baselinePredictions !== undefined,
+  };
+}
+
+/** First entry for an example id (duplicates stay readable via the index). */
+function firstIndexedEntry(
+  index: Map<string, BenchmarkPredictionEntry[]>,
+  exampleId: string,
+): BenchmarkPredictionEntry | undefined {
+  const list = index.get(exampleId) ?? [];
+  return list.length > 0 ? list[0] : undefined;
+}
+
+interface ProductTypeAttribution {
+  known: number;
+  noFit: number;
+  insufficientEvidence: number;
+  unlabeled: number;
+  legacy: number;
+  predicted: number;
+  abstainedSemantic: number;
+  failed: number;
+  missing: number;
+  counts: FixedPopulationCounts;
+  failedPredictions: EvaluatorFailedPrediction[];
+  missingExampleIds: string[];
+  snapshotMismatches: EvaluatorSnapshotMismatch[];
+  perClassGoldSupport: Record<string, number>;
+  baseline: BaselineComparisonAccumulator;
+}
+
+function emptyProductTypeAttribution(): ProductTypeAttribution {
+  return {
+    known: 0,
+    noFit: 0,
+    insufficientEvidence: 0,
+    unlabeled: 0,
+    legacy: 0,
+    predicted: 0,
+    abstainedSemantic: 0,
+    failed: 0,
+    missing: 0,
+    counts: emptyFixedPopulationCounts(),
+    failedPredictions: [],
+    missingExampleIds: [],
+    snapshotMismatches: [],
+    perClassGoldSupport: {},
+    baseline: emptyBaselineComparisonAccumulator(),
+  };
+}
+
+/** Tally one example's adjudicated gold state (unlabeled bucket is the fallthrough). */
+function tallyAttributionGoldState(
+  acc: ProductTypeAttribution,
+  state: EvaluatorGoldState | null,
+): void {
+  if (state === null) acc.legacy++;
+  else if (state === EVALUATOR_GOLD_STATE_KNOWN) acc.known++;
+  else if (state === EVALUATOR_GOLD_STATE_NO_FIT) acc.noFit++;
+  else if (state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE) acc.insufficientEvidence++;
+  else acc.unlabeled++;
+}
+
+/** Tally one eligible example's candidate outcome (missing bucket is the fallthrough). */
+function tallyAttributionOutcome(
+  acc: ProductTypeAttribution,
+  outcome: EvaluatorPredictionOutcome,
+): void {
+  if (outcome === EVALUATOR_OUTCOME_PREDICTED) acc.predicted++;
+  else if (outcome === EVALUATOR_OUTCOME_ABSTAINED) acc.abstainedSemantic++;
+  else if (outcome === EVALUATOR_OUTCOME_FAILED) acc.failed++;
+  else acc.missing++;
+}
+
+/** True for gold states whose correct verdicts count as correct abstentions. */
+function countsAsCorrectAbstention(state: EvaluatorGoldState | null): boolean {
+  return (
+    state === EVALUATOR_GOLD_STATE_NO_FIT ||
+    state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  );
+}
+
+/** Tally one eligible verdict into fixed-population counts. */
+function tallyFixedPopulationVerdict(
+  counts: FixedPopulationCounts,
+  verdict: EvaluatorExampleVerdict,
+  abstentionCountsAsCorrect: boolean,
+): void {
+  if (verdict === 'correct') {
+    counts.correct++;
+    if (abstentionCountsAsCorrect) counts.correctAbstentions++;
+  } else if (verdict === 'incorrect') {
+    counts.incorrect++;
+  } else if (verdict === 'abstained') {
+    counts.abstainedSemantic++;
+  } else if (verdict === 'failed') {
+    counts.failed++;
+  } else if (verdict === 'missing') {
+    counts.missing++;
+  }
+}
+
+/** Capture failure code / missing id details for product-type attribution. */
+function noteAttributionVerdictDetail(
+  acc: ProductTypeAttribution,
+  verdict: EvaluatorExampleVerdict,
+  example: GoldExampleForEvaluation,
+  entry: BenchmarkPredictionEntry | undefined,
+): void {
+  if (verdict === 'failed') {
+    acc.failedPredictions.push({
+      exampleId: example.id,
+      productSku: example.productSku,
+      failureCode: extractFailureCode(entry),
+    });
+  } else if (verdict === 'missing') {
+    acc.missingExampleIds.push(example.id);
+  }
+}
+
+/** Provenance record carried on a bundle entry (null when absent/malformed). */
+function provenanceRecordOf(
+  entry: BenchmarkPredictionEntry | undefined,
+): Record<string, unknown> | null {
+  const rawProvenance = (entry as unknown as Record<string, unknown> | undefined)?.provenance;
+  return rawProvenance !== null && typeof rawProvenance === 'object' && !Array.isArray(rawProvenance)
+    ? (rawProvenance as Record<string, unknown>)
+    : null;
+}
+
+/** One snapshot-mismatch finding for a hash field (null when consistent). */
+function snapshotMismatchForField(
+  example: GoldExampleForEvaluation,
+  provenanceRecord: Record<string, unknown> | null,
+  field: 'sourceProductHash' | 'configSnapshotHash',
+): EvaluatorSnapshotMismatch | null {
+  const provenanceValue = provenanceRecord !== null ? provenanceRecord[field] : null;
+  const goldValue = field === 'sourceProductHash'
+    ? example.sourceProductHash
+    : example.sourceConfigHash;
+  if (
+    typeof provenanceValue === 'string' && provenanceValue !== '' &&
+    typeof goldValue === 'string' && goldValue !== '' &&
+    provenanceValue !== goldValue
+  ) {
+    return {
+      exampleId: example.id,
+      productSku: example.productSku,
+      field,
+      goldValue,
+      predictionValue: provenanceValue,
+    };
+  }
+  return null;
+}
+
+/** Snapshot-mismatch findings for one example (both hash fields, in order). */
+function collectExampleSnapshotMismatches(
+  example: GoldExampleForEvaluation,
+  entry: BenchmarkPredictionEntry | undefined,
+): EvaluatorSnapshotMismatch[] {
+  if (!entry) return [];
+  const record = provenanceRecordOf(entry);
+  const mismatches: EvaluatorSnapshotMismatch[] = [];
+  for (const field of ['sourceProductHash', 'configSnapshotHash'] as const) {
+    const mismatch = snapshotMismatchForField(example, record, field);
+    if (mismatch) mismatches.push(mismatch);
+  }
+  return mismatches;
+}
+
+/** Tally known-type gold toward per-class labeled support. */
+function tallyKnownClassSupport(
+  acc: ProductTypeAttribution,
+  state: EvaluatorGoldState | null,
+  goldType: string | null,
+): void {
+  const isKnown = state === EVALUATOR_GOLD_STATE_KNOWN || (state === null && goldType !== null);
+  if (isKnown && goldType !== null) {
+    acc.perClassGoldSupport[goldType] = (acc.perClassGoldSupport[goldType] ?? 0) + 1;
+  }
+}
+
+/** Score + record the baseline verdict paired with one candidate verdict. */
+function tallyProductTypeBaselinePair(
+  acc: ProductTypeAttribution,
+  example: GoldExampleForEvaluation,
+  state: EvaluatorGoldState | null,
+  goldType: string | null,
+  verdict: EvaluatorExampleVerdict,
+  index: AttributionPredictionIndex,
+): void {
+  const baseEntry = firstIndexedEntry(index.baselineById, example.id);
+  const baseOutcome = classifyEvaluatorPredictionOutcome(baseEntry);
+  const baseVerdict = scoreEvaluatorExample({
+    goldState: state,
+    goldType,
+    outcome: baseOutcome,
+    predictedType: baseEntry?.productType,
+  });
+  recordBaselinePair(acc.baseline, verdict, baseVerdict, example.id);
+}
+
+/** Score one gold example's product-type attribution into the accumulator. */
+function scoreProductTypeAttributionExample(
+  acc: ProductTypeAttribution,
+  example: GoldExampleForEvaluation,
+  index: AttributionPredictionIndex,
+): void {
+  const state = example.goldState ?? null;
+  tallyAttributionGoldState(acc, state);
+  const goldType = typeof example.goldLabels.productType === 'string'
+    ? example.goldLabels.productType
+    : null;
+  const entry = firstIndexedEntry(index.entriesById, example.id);
+  const outcome = classifyEvaluatorPredictionOutcome(entry);
+  const verdict = scoreEvaluatorExample({
+    goldState: state,
+    goldType,
+    outcome,
+    predictedType: entry?.productType,
+  });
+  if (verdict === 'excluded') return;
+  tallyAttributionOutcome(acc, outcome);
+  tallyFixedPopulationVerdict(acc.counts, verdict, countsAsCorrectAbstention(state));
+  noteAttributionVerdictDetail(acc, verdict, example, entry);
+  acc.snapshotMismatches.push(...collectExampleSnapshotMismatches(example, entry));
+  tallyKnownClassSupport(acc, state, goldType);
+  if (index.hasBaseline) {
+    tallyProductTypeBaselinePair(acc, example, state, goldType, verdict, index);
+  }
+}
+
+/** Product-type fixed-population attribution over the evaluated split. */
+function scoreProductTypeAttributionSection(
+  gold: GoldExampleForEvaluation[],
+  index: AttributionPredictionIndex,
+): ProductTypeAttribution {
+  const acc = emptyProductTypeAttribution();
+  for (const example of gold) {
+    scoreProductTypeAttributionExample(acc, example, index);
+  }
+  return acc;
+}
+
+/** Build the report-level fixed population from section counts. */
+function toEvaluatorFixedPopulation(counts: FixedPopulationCounts): EvaluatorFixedPopulation {
+  const derived = deriveFixedPopulation(counts);
+  return {
+    eligible: derived.eligible,
+    correct: counts.correct,
+    correctAbstentions: counts.correctAbstentions,
+    incorrect: counts.incorrect,
+    abstainedSemantic: counts.abstainedSemantic,
+    failed: counts.failed,
+    missing: counts.missing,
+    correctness: derived.correctness,
+    errorRate: derived.errorRate,
+    abstentionRate: derived.abstentionRate,
+    coverage: derived.coverage,
+    conditionalAccuracy: derived.conditionalAccuracy,
+  };
+}
+
+/**
+ * Build the report-level baseline comparison. `sortIds` mirrors the legacy
+ * shape: product-type and field comparisons sort recovered/harmed/dual id
+ * lists; the page comparison keeps gold order.
+ */
+function toEvaluatorBaselineComparison(
+  acc: BaselineComparisonAccumulator,
+  hasBaseline: boolean,
+  sortIds: boolean,
+): EvaluatorBaselineComparison | null {
+  if (!hasBaseline) return null;
+  const derived = deriveBaselineComparison(acc);
+  return {
+    eligible: derived.eligible,
+    candidateCorrect: derived.candidateCorrect,
+    baselineCorrect: derived.baselineCorrect,
+    candidateCoverage: derived.candidateCoverage,
+    baselineCoverage: derived.baselineCoverage,
+    coverageShift: derived.coverageShift,
+    fixedDeltaMean: derived.fixedDeltaMean,
+    recoveredBaselineAbstentions: acc.recoveredBaselineAbstentions,
+    recoveredExampleIds: sortIds ? sortedIds(acc.recoveredExampleIds) : acc.recoveredExampleIds,
+    harmedBaselineSuccesses: acc.harmedBaselineSuccesses,
+    harmedExampleIds: sortIds ? sortedIds(acc.harmedExampleIds) : acc.harmedExampleIds,
+    retainedSuccesses: acc.retainedSuccesses,
+    dualAbstentions: acc.dualAbstentions,
+    dualAbstainedExampleIds: sortIds
+      ? sortedIds(acc.dualAbstainedExampleIds)
+      : acc.dualAbstainedExampleIds,
+  };
+}
+
+/** Sort failed predictions by example id for stable report output. */
+function sortFailedPredictions(
+  failedPredictions: EvaluatorFailedPrediction[],
+): EvaluatorFailedPrediction[] {
+  return [...failedPredictions].sort((a, b) => (
+    a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : 0
+  ));
+}
+
+/** Sort snapshot mismatches by (example id, field) for stable report output. */
+function sortSnapshotMismatches(
+  snapshotMismatches: EvaluatorSnapshotMismatch[],
+): EvaluatorSnapshotMismatch[] {
+  return [...snapshotMismatches].sort((a, b) => (
+    a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : a.field < b.field ? -1 : 1
+  ));
+}
+
+/** Build labeled-support status over eligible known-type examples. */
+function buildAttributionSupport(
+  eligible: number,
+  perClassGoldSupport: Record<string, number>,
+  requiredClassSupport: number,
+): EvaluatorSupportStatus {
+  const { orderedPerClassGoldSupport, labeledClasses, minClassSupport } =
+    deriveSupportStatus(perClassGoldSupport);
+  const reasons = supportReasonsFor(eligible, labeledClasses, minClassSupport, requiredClassSupport);
+  return {
+    eligibleExamples: eligible,
+    labeledClasses: labeledClasses.length,
+    perClassGoldSupport: orderedPerClassGoldSupport,
+    minClassSupport,
+    requiredClassSupport,
+    sufficient: reasons.length === 0,
+    reasons,
+  };
+}
+
+/** Build family-leakage findings over dataset-wide split examples. */
+function buildAttributionFamilyLeakage(
+  allSplitExamples: Array<{ familyId: string | null; splitGroup: string | null }> | undefined,
+): EvaluatorFamilyLeakage {
+  const { leaked, findings, ungroupedExamples } = detectSharedFamilyLeakage(allSplitExamples ?? []);
+  return { leaked, findings, ungroupedExamples };
+}
+
+// ─── Field attribution section ──────────────────────────────────────────────
+
+interface FieldTargetAttribution {
+  known: number;
+  noFit: number;
+  insufficientEvidence: number;
+  inapplicable: number;
+  unlabeled: number;
+  legacy: number;
+  counts: FixedPopulationCounts;
+  baseline: BaselineComparisonAccumulator;
+  setPrecisionSum: number;
+  setRecallSum: number;
+  setF1Sum: number;
+  setExactMatchCount: number;
+  setEvaluatedCount: number;
+}
+
+function emptyFieldTargetAttribution(): FieldTargetAttribution {
+  return {
+    known: 0,
+    noFit: 0,
+    insufficientEvidence: 0,
+    inapplicable: 0,
+    unlabeled: 0,
+    legacy: 0,
+    counts: emptyFixedPopulationCounts(),
+    baseline: emptyBaselineComparisonAccumulator(),
+    setPrecisionSum: 0,
+    setRecallSum: 0,
+    setF1Sum: 0,
+    setExactMatchCount: 0,
+    setEvaluatedCount: 0,
+  };
+}
+
+/** Add gold-side field target ids (assignments + adjudicated states). */
+function addGoldFieldTargetIds(
+  ids: Set<string>,
+  gold: GoldExampleForEvaluation[],
+): void {
+  for (const example of gold) {
+    for (const field of example.goldLabels.fieldAssignments ?? []) {
+      if (field.targetId) ids.add(field.targetId);
+    }
+    if (example.fieldGoldStates) {
+      for (const targetId of Object.keys(example.fieldGoldStates)) ids.add(targetId);
+    }
+  }
+}
+
+/** Add bundle-side field target ids (candidate or baseline predictions). */
+function addBundleFieldTargetIds(
+  ids: Set<string>,
+  predictions: BenchmarkPredictionEntry[],
+): void {
+  for (const prediction of predictions) {
+    for (const field of prediction.fieldAssignments ?? []) {
+      if (field.targetId) ids.add(field.targetId);
+    }
+  }
+}
+
+/** Collect every field target id across gold, candidate, and baseline sides. */
+function collectAllFieldTargetIds(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  baselinePredictions: BenchmarkPredictionEntry[],
+): string[] {
+  const ids = new Set<string>();
+  addGoldFieldTargetIds(ids, gold);
+  addBundleFieldTargetIds(ids, predictions);
+  addBundleFieldTargetIds(ids, baselinePredictions);
+  return [...ids].sort();
+}
+
+/** Split a comma-joined field value into trimmed values (null when empty). */
+function splitFieldValueList(value: string | null): string[] | null {
+  if (!value) return null;
+  return value.split(',').map(part => part.trim()).filter(Boolean);
+}
+
+/** Gold value/values for one field target (explicit `values` win). */
+function goldFieldValueOf(
+  example: GoldExampleForEvaluation,
+  targetId: string,
+): { value: string | null; values: string[] | null } {
+  const goldField = example.goldLabels.fieldAssignments?.find(field => field.targetId === targetId);
+  const value = goldField ? goldField.value : null;
+  const values = (goldField as { values?: string[] } | undefined)?.values
+    ?? splitFieldValueList(value);
+  return { value, values };
+}
+
+/** Predicted value/values for one field target (explicit `values` win). */
+function predictedFieldValueOf(
+  predEntry: BenchmarkPredictionEntry | undefined,
+  targetId: string,
+): { value: string | null; values: string[] | null } {
+  const predField = predEntry?.fieldAssignments?.find(field => field.targetId === targetId);
+  const value = predField ? predField.value : null;
+  const values = (predField as { values?: string[] } | undefined)?.values
+    ?? splitFieldValueList(value);
+  return { value, values };
+}
+
+/** Tally one example's field gold state for a target. */
+function tallyFieldTargetGoldState(
+  acc: FieldTargetAttribution,
+  fieldState: EvaluatorFieldGoldState | null,
+  goldValue: string | null,
+): void {
+  if (fieldState === null) {
+    if (goldValue !== null && goldValue !== undefined) acc.legacy++;
+    else acc.unlabeled++;
+  } else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_KNOWN) acc.known++;
+  else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT) acc.noFit++;
+  else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
+    acc.insufficientEvidence++;
+  } else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) acc.inapplicable++;
+  else acc.unlabeled++;
+}
+
+/** True for field states whose correct verdicts count as correct abstentions. */
+function fieldCountsAsCorrectAbstention(fieldState: EvaluatorFieldGoldState | null): boolean {
+  return (
+    fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT ||
+    fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE
+  );
+}
+
+/** Tally one eligible field verdict (field reports keep no id lists). */
+function tallyFieldTargetVerdict(
+  acc: FieldTargetAttribution,
+  verdict: EvaluatorExampleVerdict,
+  fieldState: EvaluatorFieldGoldState | null,
+): void {
+  tallyFixedPopulationVerdict(acc.counts, verdict, fieldCountsAsCorrectAbstention(fieldState));
+}
+
+/**
+ * Derive a field-side outcome for one entry: failures first, then missing
+ * entries, then value-less entries as abstained, else predicted.
+ */
+function deriveFieldEntryOutcome(
+  predEntry: BenchmarkPredictionEntry | undefined,
+  predValue: string | null,
+  predValues: string[] | null,
+): EvaluatorPredictionOutcome {
+  if (!predEntry) return EVALUATOR_OUTCOME_MISSING;
+  const raw = predEntry as unknown as Record<string, unknown>;
+  if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') {
+    return EVALUATOR_OUTCOME_FAILED;
+  }
+  if (raw.outcome === 'failed') return EVALUATOR_OUTCOME_FAILED;
+  if (predValue === null && (!predValues || predValues.length === 0)) {
+    return EVALUATOR_OUTCOME_ABSTAINED;
+  }
+  return EVALUATOR_OUTCOME_PREDICTED;
+}
+
+/** Accumulate set metrics for eligible (non-no-fit) field examples with values. */
+function accumulateFieldSetMetrics(
+  acc: FieldTargetAttribution,
+  fieldState: EvaluatorFieldGoldState | null,
+  goldValues: string[] | null,
+  goldValue: string | null,
+  predValues: string[] | null,
+  predValue: string | null,
+): void {
+  if (fieldCountsAsCorrectAbstention(fieldState)) return;
+  const goldSet = parseValueSet(goldValues ?? goldValue);
+  const predSet = parseValueSet(predValues ?? predValue);
+  if (goldSet.size === 0 && predSet.size === 0) return;
+  const setMetrics = computeSetMetrics(goldSet, predSet);
+  acc.setPrecisionSum += setMetrics.precision;
+  acc.setRecallSum += setMetrics.recall;
+  acc.setF1Sum += setMetrics.f1;
+  if (setMetrics.exactMatch) acc.setExactMatchCount++;
+  acc.setEvaluatedCount++;
+}
+
+/** Score + record the baseline field verdict paired with one candidate verdict. */
+function tallyFieldTargetBaselinePair(
+  acc: FieldTargetAttribution,
+  example: GoldExampleForEvaluation,
+  targetId: string,
+  fieldState: EvaluatorFieldGoldState | null,
+  goldValue: string | null,
+  goldValues: string[] | null,
+  verdict: EvaluatorExampleVerdict,
+  index: AttributionPredictionIndex,
+): void {
+  const baseEntry = firstIndexedEntry(index.baselineById, example.id);
+  const { value: baseValue, values: baseValues } = predictedFieldValueOf(baseEntry, targetId);
+  const baseOutcome = deriveFieldEntryOutcome(baseEntry, baseValue, baseValues);
+  const baseVerdict = scoreEvaluatorFieldExample({
+    goldState: fieldState,
+    goldValue,
+    goldValues,
+    predictedValue: baseValue,
+    predictedValues: baseValues,
+    outcome: baseOutcome,
+  });
+  recordBaselinePair(acc.baseline, verdict, baseVerdict, example.id);
+}
+
+/** Score one gold example's field target into the accumulator. */
+function scoreFieldTargetExample(
+  acc: FieldTargetAttribution,
+  example: GoldExampleForEvaluation,
+  targetId: string,
+  index: AttributionPredictionIndex,
+): void {
+  const fieldState = example.fieldGoldStates?.[targetId] ?? null;
+  const { value: goldValue, values: goldValues } = goldFieldValueOf(example, targetId);
+  tallyFieldTargetGoldState(acc, fieldState, goldValue);
+  const predEntry = firstIndexedEntry(index.entriesById, example.id);
+  const { value: predValue, values: predValues } = predictedFieldValueOf(predEntry, targetId);
+  const outcome = deriveFieldEntryOutcome(predEntry, predValue, predValues);
+  const verdict = scoreEvaluatorFieldExample({
+    goldState: fieldState,
+    goldValue,
+    goldValues,
+    predictedValue: predValue,
+    predictedValues: predValues,
+    outcome,
+  });
+  if (verdict === 'excluded') return;
+  accumulateFieldSetMetrics(acc, fieldState, goldValues, goldValue, predValues, predValue);
+  tallyFieldTargetVerdict(acc, verdict, fieldState);
+  if (index.hasBaseline) {
+    tallyFieldTargetBaselinePair(acc, example, targetId, fieldState, goldValue, goldValues, verdict, index);
+  }
+}
+
+/** Field fixed-population attribution + baseline comparison for one target. */
+function scoreFieldTargetSection(
+  targetId: string,
+  gold: GoldExampleForEvaluation[],
+  index: AttributionPredictionIndex,
+): EvaluatorFieldAttributionReport {
+  const acc = emptyFieldTargetAttribution();
+  for (const example of gold) {
+    scoreFieldTargetExample(acc, example, targetId, index);
+  }
+  return {
+    targetId,
+    goldStates: {
+      known: acc.known,
+      noFit: acc.noFit,
+      insufficientEvidence: acc.insufficientEvidence,
+      inapplicable: acc.inapplicable,
+      unlabeled: acc.unlabeled,
+      legacy: acc.legacy,
+    },
+    fixedPopulation: toEvaluatorFixedPopulation(acc.counts),
+    baselineComparison: toEvaluatorBaselineComparison(acc.baseline, index.hasBaseline, true),
+    setMetrics: acc.setEvaluatedCount > 0
+      ? {
+        evaluatedCount: acc.setEvaluatedCount,
+        exactMatchAccuracy: acc.setExactMatchCount / acc.setEvaluatedCount,
+        meanPrecision: acc.setPrecisionSum / acc.setEvaluatedCount,
+        meanRecall: acc.setRecallSum / acc.setEvaluatedCount,
+        meanF1: acc.setF1Sum / acc.setEvaluatedCount,
+      }
+      : null,
+  };
+}
+
+/** Field attribution reports keyed by field target id (sorted for determinism). */
+function scoreAllFieldTargetSections(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  index: AttributionPredictionIndex,
+): Record<string, EvaluatorFieldAttributionReport> {
+  const targetIds = collectAllFieldTargetIds(gold, predictions, index.baselinePredictions);
+  const fieldReports: Record<string, EvaluatorFieldAttributionReport> = {};
+  for (const targetId of targetIds) {
+    fieldReports[targetId] = scoreFieldTargetSection(targetId, gold, index);
+  }
+  return fieldReports;
+}
+
+// ─── Page attribution section ───────────────────────────────────────────────
+
+interface PageAttributionAccumulator {
+  known: number;
+  unlabeled: number;
+  counts: FixedPopulationCounts;
+  comparisonEligible: number;
+  candidateCorrect: number;
+  baselineCorrect: number;
+  candidateCoveredCount: number;
+  baselineCoveredCount: number;
+  deltaSum: number;
+  recoveredBaselineAbstentions: number;
+  recoveredExampleIds: string[];
+  harmedBaselineSuccesses: number;
+  harmedExampleIds: string[];
+  precisionSum: number;
+  recallSum: number;
+  f1Sum: number;
+  exactMatchCount: number;
+  setEvaluatedCount: number;
+}
+
+function emptyPageAttributionAccumulator(): PageAttributionAccumulator {
+  return {
+    known: 0,
+    unlabeled: 0,
+    counts: emptyFixedPopulationCounts(),
+    comparisonEligible: 0,
+    candidateCorrect: 0,
+    baselineCorrect: 0,
+    candidateCoveredCount: 0,
+    baselineCoveredCount: 0,
+    deltaSum: 0,
+    recoveredBaselineAbstentions: 0,
+    recoveredExampleIds: [],
+    harmedBaselineSuccesses: 0,
+    harmedExampleIds: [],
+    precisionSum: 0,
+    recallSum: 0,
+    f1Sum: 0,
+    exactMatchCount: 0,
+    setEvaluatedCount: 0,
+  };
+}
+
+type AttributionPageStatus = 'predicted' | 'abstained' | 'failed' | 'missing';
+
+/**
+ * Resolve the attribution page status for one entry. Only an explicit
+ * `outcome: 'failed'` fails here (legacy parity with the metrics path);
+ * value-less entries abstain.
+ */
+function resolveAttributionPageStatus(
+  entry: BenchmarkPredictionEntry | undefined,
+): AttributionPageStatus {
+  if (!entry) return 'missing';
+  const raw = entry as unknown as Record<string, unknown> | undefined;
+  if (raw?.outcome === 'failed') return 'failed';
+  if (entry.abstained || (entry.pageAssignments.length === 0 && (!entry.pageIds || entry.pageIds.length === 0))) {
+    return 'abstained';
+  }
+  return 'predicted';
+}
+
+/** Tally the candidate page status (missing/failed/abstained counters). */
+function tallyPageCandidateStatus(
+  acc: PageAttributionAccumulator,
+  status: AttributionPageStatus,
+): void {
+  if (status === 'missing') acc.counts.missing++;
+  else if (status === 'failed') acc.counts.failed++;
+  else if (status === 'abstained') acc.counts.abstainedSemantic++;
+}
+
+/** Page gold target set under the identity capability (ids vs names). */
+function pageTargetGoldSet(
+  example: GoldExampleForEvaluation,
+  byIdentity: boolean,
+): Set<string> {
+  return new Set(byIdentity ? goldPageIdsOf(example) : goldPageNamesOf(example));
+}
+
+/**
+ * Score the candidate page prediction for one labeled example; returns the
+ * exact-match flag consumed by the baseline comparison below.
+ */
+function scorePageCandidateMatch(
+  acc: PageAttributionAccumulator,
+  predSet: Set<string>,
+  targetGoldSet: Set<string>,
+): boolean {
+  acc.setEvaluatedCount++;
+  const { precision, recall, f1, exactMatch } = scorePageSet(targetGoldSet, predSet);
+  acc.precisionSum += precision;
+  acc.recallSum += recall;
+  acc.f1Sum += f1;
+  if (exactMatch) {
+    acc.exactMatchCount++;
+    acc.counts.correct++;
+  } else {
+    acc.counts.incorrect++;
+  }
+  return exactMatch;
+}
+
+/**
+ * Score the baseline page prediction paired with one candidate verdict.
+ * Covered rules mirror the legacy flow exactly: candidate coverage counts
+ * predicted + abstained, baseline coverage counts predicted only.
+ */
+/** Resolved baseline page outcome: status plus scored set (predicted only). */
+interface PageBaselineOutcome {
+  status: AttributionPageStatus;
+  set: Set<string>;
+}
+
+/** Resolve the baseline page status/set for one example. */
+function resolvePageBaselineOutcome(
+  index: AttributionPredictionIndex,
+  example: GoldExampleForEvaluation,
+  byIdentity: boolean,
+): PageBaselineOutcome {
+  const base = firstIndexedEntry(index.baselineById, example.id);
+  const status = resolveAttributionPageStatus(base);
+  if (status !== 'predicted') return { status, set: new Set<string>() };
+  return { status, set: new Set(pageItemsOf(base, byIdentity)) };
+}
+
+/** Tally baseline coverage/correctness for one page example. */
+function tallyPageBaselineCorrectness(
+  acc: PageAttributionAccumulator,
+  outcome: PageBaselineOutcome,
+  targetGoldSet: Set<string>,
+): boolean {
+  if (outcome.status !== 'predicted') return false;
+  acc.baselineCoveredCount++;
+  const exact = scorePageSet(targetGoldSet, outcome.set).exactMatch;
+  if (exact) acc.baselineCorrect++;
+  return exact;
+}
+
+/** Tally candidate coverage/correctness + delta for one page example. */
+function tallyPageCandidateCorrectness(
+  acc: PageAttributionAccumulator,
+  predStatus: AttributionPageStatus,
+  isExactMatch: boolean,
+  isBaseExactMatch: boolean,
+): void {
+  if (predStatus === 'predicted' || predStatus === 'abstained') {
+    acc.candidateCoveredCount++;
+  }
+  const candidateScore = isExactMatch ? 1 : 0;
+  acc.candidateCorrect += candidateScore;
+  acc.deltaSum += candidateScore - (isBaseExactMatch ? 1 : 0);
+}
+
+/** Tally recovery/harm transitions for one page example. */
+function tallyPageBaselineTransitions(
+  acc: PageAttributionAccumulator,
+  example: GoldExampleForEvaluation,
+  baseStatus: AttributionPageStatus,
+  isExactMatch: boolean,
+  isBaseExactMatch: boolean,
+): void {
+  if (baseStatus === 'abstained' && isExactMatch) {
+    acc.recoveredBaselineAbstentions++;
+    acc.recoveredExampleIds.push(example.id);
+  }
+  if (isBaseExactMatch && !isExactMatch) {
+    acc.harmedBaselineSuccesses++;
+    acc.harmedExampleIds.push(example.id);
+  }
+}
+
+function tallyPageBaselineMatch(
+  acc: PageAttributionAccumulator,
+  example: GoldExampleForEvaluation,
+  index: AttributionPredictionIndex,
+  byIdentity: boolean,
+  targetGoldSet: Set<string>,
+  predStatus: AttributionPageStatus,
+  isExactMatch: boolean,
+): void {
+  acc.comparisonEligible++;
+  const outcome = resolvePageBaselineOutcome(index, example, byIdentity);
+  const isBaseExactMatch = tallyPageBaselineCorrectness(acc, outcome, targetGoldSet);
+  tallyPageCandidateCorrectness(acc, predStatus, isExactMatch, isBaseExactMatch);
+  tallyPageBaselineTransitions(acc, example, outcome.status, isExactMatch, isBaseExactMatch);
+}
+
+/** Score one gold example's page attribution into the accumulator. */
+function scorePageAttributionExample(
+  acc: PageAttributionAccumulator,
+  example: GoldExampleForEvaluation,
+  index: AttributionPredictionIndex,
+  byIdentity: boolean,
+): void {
+  const pred = firstIndexedEntry(index.entriesById, example.id);
+  const predStatus = resolveAttributionPageStatus(pred);
+  tallyPageCandidateStatus(acc, predStatus);
+  const targetGoldSet = pageTargetGoldSet(example, byIdentity);
+  const hasGoldLabels = targetGoldSet.size > 0;
+  if (hasGoldLabels) acc.known++;
+  else acc.unlabeled++;
+  let isExactMatch = false;
+  if (hasGoldLabels && predStatus === 'predicted') {
+    isExactMatch = scorePageCandidateMatch(acc, new Set(pageItemsOf(pred, byIdentity)), targetGoldSet);
+  }
+  if (index.hasBaseline && hasGoldLabels) {
+    tallyPageBaselineMatch(acc, example, index, byIdentity, targetGoldSet, predStatus, isExactMatch);
+  }
+}
+
+/** Page baseline comparison with gold-order id lists (legacy shape). */
+function toPageBaselineComparison(
+  acc: PageAttributionAccumulator,
+  hasBaseline: boolean,
+): EvaluatorBaselineComparison | null {
+  if (!hasBaseline || acc.comparisonEligible === 0) return null;
+  const candidateCoverage = acc.candidateCoveredCount / acc.comparisonEligible;
+  const baselineCoverage = acc.baselineCoveredCount / acc.comparisonEligible;
+  return {
+    eligible: acc.comparisonEligible,
+    candidateCorrect: acc.candidateCorrect,
+    baselineCorrect: acc.baselineCorrect,
+    candidateCoverage,
+    baselineCoverage,
+    coverageShift: candidateCoverage - baselineCoverage,
+    fixedDeltaMean: acc.deltaSum / acc.comparisonEligible,
+    recoveredBaselineAbstentions: acc.recoveredBaselineAbstentions,
+    recoveredExampleIds: acc.recoveredExampleIds,
+    harmedBaselineSuccesses: acc.harmedBaselineSuccesses,
+    harmedExampleIds: acc.harmedExampleIds,
+    retainedSuccesses: 0,
+    dualAbstentions: 0,
+    dualAbstainedExampleIds: [],
+  };
+}
+
+/**
+ * Category page fixed-population attribution + baseline comparison
+ * (issue #299 / AC 7 & 8). Undefined when no gold page labels exist.
+ */
+function scorePageAttributionSection(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  index: AttributionPredictionIndex,
+): EvaluatorPageAttributionReport | undefined {
+  const goldPagesExist = gold.some(example =>
+    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
+    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
+  );
+  if (!goldPagesExist) return undefined;
+  const { canEvaluateByIdentity } = resolvePageIdentityCapability(gold, predictions);
+  const acc = emptyPageAttributionAccumulator();
+  for (const example of gold) {
+    scorePageAttributionExample(acc, example, index, canEvaluateByIdentity);
+  }
+  return {
+    evaluatedByIdentity: canEvaluateByIdentity,
+    eligibleToQualifyJev: canEvaluateByIdentity,
+    verifiedImportProvenance: canEvaluateByIdentity ? pageProvenanceOf(gold, predictions) : null,
+    blocked: !canEvaluateByIdentity,
+    blockedReason: !canEvaluateByIdentity ? 'blocked_missing_verified_page_gold' : null,
+    goldStates: {
+      known: acc.known,
+      noFit: 0,
+      insufficientEvidence: 0,
+      unlabeled: acc.unlabeled,
+      legacy: 0,
+    },
+    fixedPopulation: toEvaluatorFixedPopulation(acc.counts),
+    baselineComparison: toPageBaselineComparison(acc, index.hasBaseline),
+    setMetrics: acc.setEvaluatedCount > 0 ? {
+      evaluatedCount: acc.setEvaluatedCount,
+      exactMatchAccuracy: acc.exactMatchCount / acc.setEvaluatedCount,
+      meanPrecision: acc.precisionSum / acc.setEvaluatedCount,
+      meanRecall: acc.recallSum / acc.setEvaluatedCount,
+      meanF1: acc.f1Sum / acc.setEvaluatedCount,
+    } : null,
+  };
+}
+
 /**
  * Pure fixed-population attribution. No database, no runs, no decisions:
  * everything needed rides in `gold` (frozen examples incl. state/family/
@@ -839,777 +1963,441 @@ export function computeEvaluatorAttribution(
   options: ComputeAttributionOptions = {},
 ): EvaluatorAttributionReport {
   const splitGroup = options.splitGroup ?? 'test';
-  const goldIds = new Set(gold.map(example => example.id));
-  const entriesById = new Map<string, BenchmarkPredictionEntry[]>();
-  for (const entry of predictions) {
-    const existing = entriesById.get(entry.exampleId);
-    if (existing) existing.push(entry);
-    else entriesById.set(entry.exampleId, [entry]);
-  }
-  const baselineById = new Map<string, BenchmarkPredictionEntry[]>();
-  for (const entry of options.baselinePredictions ?? []) {
-    const existing = baselineById.get(entry.exampleId);
-    if (existing) existing.push(entry);
-    else baselineById.set(entry.exampleId, [entry]);
-  }
+  const index = indexAttributionPredictions(gold, predictions, options.baselinePredictions);
 
-  const duplicateExampleIds = [...entriesById.entries()]
-    .filter(([, list]) => list.length > 1)
-    .map(([id]) => id)
-    .sort();
-  const unknownExampleIds = [...entriesById.keys()].filter(id => !goldIds.has(id)).sort();
-
-  let known = 0;
-  let noFit = 0;
-  let insufficientEvidence = 0;
-  let unlabeled = 0;
-  let legacy = 0;
-  let predicted = 0;
-  let abstainedSemantic = 0;
-  let failed = 0;
-  let missing = 0;
-  let correct = 0;
-  let correctAbstentions = 0;
-  let incorrect = 0;
-  let abstainedCount = 0;
-  let failedCount = 0;
-  let missingCount = 0;
-  const failedPredictions: EvaluatorFailedPrediction[] = [];
-  const missingExampleIds: string[] = [];
-  const snapshotMismatches: EvaluatorSnapshotMismatch[] = [];
-  const perClassGoldSupport: Record<string, number> = {};
-
-  let candidateCorrect = 0;
-  let baselineCorrect = 0;
-  let candidateCoveredCount = 0;
-  let baselineCoveredCount = 0;
-  let deltaSum = 0;
-  let comparisonEligible = 0;
-  let recoveredBaselineAbstentions = 0;
-  const recoveredExampleIds: string[] = [];
-  let harmedBaselineSuccesses = 0;
-  const harmedExampleIds: string[] = [];
-  let retainedSuccesses = 0;
-  let dualAbstentions = 0;
-  const dualAbstainedExampleIds: string[] = [];
-  const hasBaseline = options.baselinePredictions !== null && options.baselinePredictions !== undefined;
-
-  for (const example of gold) {
-    const state = example.goldState ?? null;
-    if (state === null) legacy++;
-    else if (state === EVALUATOR_GOLD_STATE_KNOWN) known++;
-    else if (state === EVALUATOR_GOLD_STATE_NO_FIT) noFit++;
-    else if (state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE) insufficientEvidence++;
-    else unlabeled++;
-
-    const goldType = typeof example.goldLabels.productType === 'string' ? example.goldLabels.productType : null;
-    const list = entriesById.get(example.id) ?? [];
-    const entry = list.length > 0 ? list[0] : undefined;
-    const outcome = classifyEvaluatorPredictionOutcome(entry);
-    const verdict = scoreEvaluatorExample({ goldState: state, goldType, outcome, predictedType: entry?.productType });
-    if (verdict === 'excluded') continue;
-
-    if (outcome === EVALUATOR_OUTCOME_PREDICTED) predicted++;
-    else if (outcome === EVALUATOR_OUTCOME_ABSTAINED) abstainedSemantic++;
-    else if (outcome === EVALUATOR_OUTCOME_FAILED) failed++;
-    else missing++;
-
-    if (verdict === 'correct') {
-      correct++;
-      if (state === EVALUATOR_GOLD_STATE_NO_FIT || state === EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
-        correctAbstentions++;
-      }
-    } else if (verdict === 'incorrect') {
-      incorrect++;
-    } else if (verdict === 'abstained') {
-      abstainedCount++;
-    } else if (verdict === 'failed') {
-      failedCount++;
-      let failureCode: string | null = null;
-      const rawFailure = (entry as unknown as Record<string, unknown> | undefined)?.failureCode;
-      if (typeof rawFailure === 'string' && rawFailure.trim() !== '') failureCode = rawFailure.trim();
-      failedPredictions.push({ exampleId: example.id, productSku: example.productSku, failureCode });
-    } else {
-      missingCount++;
-      missingExampleIds.push(example.id);
-    }
-
-    if (entry) {
-      const rawProvenance = (entry as unknown as Record<string, unknown>).provenance;
-      const provenanceRecord = rawProvenance !== null && typeof rawProvenance === 'object' && !Array.isArray(rawProvenance)
-        ? (rawProvenance as Record<string, unknown>)
-        : null;
-      const provenanceSourceProductHash = provenanceRecord !== null ? provenanceRecord.sourceProductHash : null;
-      if (
-        typeof provenanceSourceProductHash === 'string' && provenanceSourceProductHash !== '' &&
-        typeof example.sourceProductHash === 'string' && example.sourceProductHash !== '' &&
-        provenanceSourceProductHash !== example.sourceProductHash
-      ) {
-        snapshotMismatches.push({
-          exampleId: example.id,
-          productSku: example.productSku,
-          field: 'sourceProductHash',
-          goldValue: example.sourceProductHash,
-          predictionValue: provenanceSourceProductHash,
-        });
-      }
-      const provenanceConfigHash = provenanceRecord !== null ? provenanceRecord.configSnapshotHash : null;
-      if (
-        typeof provenanceConfigHash === 'string' && provenanceConfigHash !== '' &&
-        typeof example.sourceConfigHash === 'string' && example.sourceConfigHash !== '' &&
-        provenanceConfigHash !== example.sourceConfigHash
-      ) {
-        snapshotMismatches.push({
-          exampleId: example.id,
-          productSku: example.productSku,
-          field: 'configSnapshotHash',
-          goldValue: example.sourceConfigHash,
-          predictionValue: provenanceConfigHash,
-        });
-      }
-    }
-
-    const isKnown = state === EVALUATOR_GOLD_STATE_KNOWN || (state === null && goldType !== null);
-    if (isKnown && goldType !== null) {
-      perClassGoldSupport[goldType] = (perClassGoldSupport[goldType] ?? 0) + 1;
-    }
-
-    if (hasBaseline) {
-      const baseList = baselineById.get(example.id) ?? [];
-      const baseEntry = baseList.length > 0 ? baseList[0] : undefined;
-      const baseOutcome = classifyEvaluatorPredictionOutcome(baseEntry);
-      const baseVerdict = scoreEvaluatorExample({
-        goldState: state,
-        goldType,
-        outcome: baseOutcome,
-        predictedType: baseEntry?.productType,
-      });
-      const candidateScore = verdict === 'correct' ? 1 : 0;
-      const baselineScore = baseVerdict === 'correct' ? 1 : 0;
-      const candCovered = verdict === 'correct' || verdict === 'incorrect' || verdict === 'abstained';
-      const baseCovered = baseVerdict === 'correct' || baseVerdict === 'incorrect' || baseVerdict === 'abstained';
-      if (candCovered) candidateCoveredCount++;
-      if (baseCovered) baselineCoveredCount++;
-      comparisonEligible++;
-      candidateCorrect += candidateScore;
-      baselineCorrect += baselineScore;
-      deltaSum += candidateScore - baselineScore;
-      if (baseVerdict === 'abstained' && verdict === 'correct') {
-        recoveredBaselineAbstentions++;
-        recoveredExampleIds.push(example.id);
-      }
-      if (baseVerdict === 'correct' && verdict !== 'correct') {
-        harmedBaselineSuccesses++;
-        harmedExampleIds.push(example.id);
-      }
-      if (baseVerdict === 'correct' && verdict === 'correct') retainedSuccesses++;
-      if (baseVerdict === 'abstained' && verdict === 'abstained') {
-        dualAbstentions++;
-        dualAbstainedExampleIds.push(example.id);
-      }
-    }
-  }
-
-  const eligible = correct + incorrect + abstainedCount + failedCount + missingCount;
-  const covered = correct + incorrect + abstainedCount;
-  const fixedPopulation: EvaluatorFixedPopulation = {
-    eligible,
-    correct,
-    correctAbstentions,
-    incorrect,
-    abstainedSemantic: abstainedCount,
-    failed: failedCount,
-    missing: missingCount,
-    correctness: eligible > 0 ? correct / eligible : 0,
-    errorRate: eligible > 0 ? incorrect / eligible : 0,
-    abstentionRate: eligible > 0 ? abstainedCount / eligible : 0,
-    coverage: eligible > 0 ? covered / eligible : 0,
-    conditionalAccuracy: covered > 0 ? correct / covered : 0,
-  };
-
-  const candidateCoverage = comparisonEligible > 0 ? candidateCoveredCount / comparisonEligible : 0;
-  const baselineCoverage = comparisonEligible > 0 ? baselineCoveredCount / comparisonEligible : 0;
-  const baselineComparison: EvaluatorBaselineComparison | null = hasBaseline
-    ? {
-        eligible: comparisonEligible,
-        candidateCorrect,
-        baselineCorrect,
-        candidateCoverage,
-        baselineCoverage,
-        coverageShift: candidateCoverage - baselineCoverage,
-        fixedDeltaMean: comparisonEligible > 0 ? deltaSum / comparisonEligible : 0,
-        recoveredBaselineAbstentions,
-        recoveredExampleIds: recoveredExampleIds.sort(),
-        harmedBaselineSuccesses,
-        harmedExampleIds: harmedExampleIds.sort(),
-        retainedSuccesses,
-        dualAbstentions,
-        dualAbstainedExampleIds: dualAbstainedExampleIds.sort(),
-      }
-    : null;
-
-  const labeledClasses = Object.keys(perClassGoldSupport).sort();
-  const orderedPerClassGoldSupport: Record<string, number> = {};
-  for (const className of labeledClasses) {
-    orderedPerClassGoldSupport[className] = perClassGoldSupport[className] ?? 0;
-  }
-  const minClassSupport = labeledClasses.length > 0
-    ? Math.min(...labeledClasses.map(className => orderedPerClassGoldSupport[className] ?? 0))
-    : 0;
-  const requiredClassSupport = options.requiredClassSupport ?? 20;
-  const supportReasons: string[] = [];
-  if (eligible === 0) {
-    supportReasons.push('no_eligible_examples: no labeled gold in the evaluated split');
-  } else if (labeledClasses.length === 0) {
-    supportReasons.push('no_labeled_classes: eligible examples carry no known-type labels');
-  } else if (minClassSupport < requiredClassSupport) {
-    supportReasons.push(
-      `insufficient_class_support: min support ${minClassSupport} < ${requiredClassSupport} over ${labeledClasses.length} class(es)`,
-    );
-  }
-  const support: EvaluatorSupportStatus = {
-    eligibleExamples: eligible,
-    labeledClasses: labeledClasses.length,
-    perClassGoldSupport: orderedPerClassGoldSupport,
-    minClassSupport,
-    requiredClassSupport,
-    sufficient: supportReasons.length === 0,
-    reasons: supportReasons,
-  };
-
-  const familySplits = new Map<string, Set<string>>();
-  let ungroupedExamples = 0;
-  for (const splitExample of options.allSplitExamples ?? []) {
-    const familyId = typeof splitExample.familyId === 'string' && splitExample.familyId.trim() !== ''
-      ? splitExample.familyId
-      : null;
-    if (familyId === null) {
-      ungroupedExamples++;
-      continue;
-    }
-    const splitName = typeof splitExample.splitGroup === 'string' && splitExample.splitGroup !== ''
-      ? splitExample.splitGroup
-      : 'unknown';
-    const splits = familySplits.get(familyId);
-    if (splits) splits.add(splitName);
-    else familySplits.set(familyId, new Set([splitName]));
-  }
-  const leakageFindings: EvaluatorFamilyLeakageFinding[] = [...familySplits.entries()]
-    .filter(([, splits]) => splits.size > 1)
-    .map(([familyId, splits]) => ({ familyId, splits: [...splits].sort() }))
-    .sort((a, b) => (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));
-  const familyLeakage: EvaluatorFamilyLeakage = {
-    leaked: leakageFindings.length > 0,
-    findings: leakageFindings,
-    ungroupedExamples,
-  };
+  const productType = scoreProductTypeAttributionSection(gold, index);
+  const fixedPopulation = toEvaluatorFixedPopulation(productType.counts);
+  const baselineComparison = toEvaluatorBaselineComparison(
+    productType.baseline,
+    index.hasBaseline,
+    true,
+  );
+  const support = buildAttributionSupport(
+    fixedPopulation.eligible,
+    productType.perClassGoldSupport,
+    options.requiredClassSupport ?? 20,
+  );
+  const familyLeakage = buildAttributionFamilyLeakage(options.allSplitExamples);
 
   // ── Field fixed-population attribution & baseline comparison (issue #298 / AC 8)
-  const allFieldTargetIds = new Set<string>();
-  for (const example of gold) {
-    for (const f of example.goldLabels.fieldAssignments ?? []) {
-      if (f.targetId) allFieldTargetIds.add(f.targetId);
-    }
-    if (example.fieldGoldStates) {
-      for (const tid of Object.keys(example.fieldGoldStates)) {
-        allFieldTargetIds.add(tid);
-      }
-    }
-  }
-  for (const p of predictions) {
-    for (const f of p.fieldAssignments ?? []) {
-      if (f.targetId) allFieldTargetIds.add(f.targetId);
-    }
-  }
-  for (const b of options.baselinePredictions ?? []) {
-    for (const f of b.fieldAssignments ?? []) {
-      if (f.targetId) allFieldTargetIds.add(f.targetId);
-    }
-  }
-
-  const fieldReports: Record<string, EvaluatorFieldAttributionReport> = {};
-
-  for (const targetId of [...allFieldTargetIds].sort()) {
-    let fKnown = 0;
-    let fNoFit = 0;
-    let fInsufficientEvidence = 0;
-    let fInapplicable = 0;
-    let fUnlabeled = 0;
-    let fLegacy = 0;
-
-    let fCorrect = 0;
-    let fCorrectAbstentions = 0;
-    let fIncorrect = 0;
-    let fAbstainedCount = 0;
-    let fFailedCount = 0;
-    let fMissingCount = 0;
-
-    let fComparisonEligible = 0;
-    let fCandidateCorrect = 0;
-    let fBaselineCorrect = 0;
-    let fCandidateCoveredCount = 0;
-    let fBaselineCoveredCount = 0;
-    let fDeltaSum = 0;
-    let fRecoveredBaselineAbstentions = 0;
-    const fRecoveredExampleIds: string[] = [];
-    let fHarmedBaselineSuccesses = 0;
-    const fHarmedExampleIds: string[] = [];
-    let fRetainedSuccesses = 0;
-    let fDualAbstentions = 0;
-    const fDualAbstainedExampleIds: string[] = [];
-
-    let setPrecisionSum = 0;
-    let setRecallSum = 0;
-    let setF1Sum = 0;
-    let setExactMatchCount = 0;
-    let setEvaluatedCount = 0;
-
-    for (const example of gold) {
-      const fieldState = example.fieldGoldStates?.[targetId] ?? null;
-      const goldField = example.goldLabels.fieldAssignments?.find(f => f.targetId === targetId);
-      const goldVal = goldField ? goldField.value : null;
-      const goldVals = (goldField as any)?.values ?? (goldVal ? goldVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
-
-      if (fieldState === null) {
-        if (goldVal !== null && goldVal !== undefined) fLegacy++;
-        else fUnlabeled++;
-      } else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_KNOWN) fKnown++;
-      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT) fNoFit++;
-      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) fInsufficientEvidence++;
-      else if (fieldState === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE) fInapplicable++;
-      else fUnlabeled++;
-
-      const predList = entriesById.get(example.id) ?? [];
-      const predEntry = predList.length > 0 ? predList[0] : undefined;
-      const predField = predEntry?.fieldAssignments?.find(f => f.targetId === targetId);
-      const predVal = predField ? predField.value : null;
-      const predVals = (predField as any)?.values ?? (predVal ? predVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
-
-      let outcome: EvaluatorPredictionOutcome;
-      if (!predEntry) {
-        outcome = EVALUATOR_OUTCOME_MISSING;
-      } else {
-        const raw = predEntry as unknown as Record<string, unknown>;
-        if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') {
-          outcome = EVALUATOR_OUTCOME_FAILED;
-        } else if (raw.outcome === 'failed') {
-          outcome = EVALUATOR_OUTCOME_FAILED;
-        } else if (predVal === null && (!predVals || predVals.length === 0)) {
-          outcome = EVALUATOR_OUTCOME_ABSTAINED;
-        } else {
-          outcome = EVALUATOR_OUTCOME_PREDICTED;
-        }
-      }
-
-      const verdict = scoreEvaluatorFieldExample({
-        goldState: fieldState,
-        goldValue: goldVal,
-        goldValues: goldVals,
-        predictedValue: predVal,
-        predictedValues: predVals,
-        outcome,
-      });
-
-      if (verdict === 'excluded') continue;
-
-      if (fieldState !== EVALUATOR_FIELD_GOLD_STATE_NO_FIT && fieldState !== EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
-        const gSet = parseValueSet(goldVals ?? goldVal);
-        const pSet = parseValueSet(predVals ?? predVal);
-        if (gSet.size > 0 || pSet.size > 0) {
-          const sMet = computeSetMetrics(gSet, pSet);
-          setPrecisionSum += sMet.precision;
-          setRecallSum += sMet.recall;
-          setF1Sum += sMet.f1;
-          if (sMet.exactMatch) setExactMatchCount++;
-          setEvaluatedCount++;
-        }
-      }
-
-      if (verdict === 'correct') {
-        fCorrect++;
-        if (fieldState === EVALUATOR_FIELD_GOLD_STATE_NO_FIT || fieldState === EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE) {
-          fCorrectAbstentions++;
-        }
-      } else if (verdict === 'incorrect') {
-        fIncorrect++;
-      } else if (verdict === 'abstained') {
-        fAbstainedCount++;
-      } else if (verdict === 'failed') {
-        fFailedCount++;
-      } else if (verdict === 'missing') {
-        fMissingCount++;
-      }
-
-      if (hasBaseline) {
-        const baseList = baselineById.get(example.id) ?? [];
-        const baseEntry = baseList.length > 0 ? baseList[0] : undefined;
-        const baseField = baseEntry?.fieldAssignments?.find(f => f.targetId === targetId);
-        const baseVal = baseField ? baseField.value : null;
-        const baseVals = (baseField as any)?.values ?? (baseVal ? baseVal.split(',').map((s: string) => s.trim()).filter(Boolean) : null);
-
-        let baseOutcome: EvaluatorPredictionOutcome;
-        if (!baseEntry) {
-          baseOutcome = EVALUATOR_OUTCOME_MISSING;
-        } else {
-          const rawBase = baseEntry as unknown as Record<string, unknown>;
-          if (typeof rawBase.failureCode === 'string' && rawBase.failureCode.trim() !== '') {
-            baseOutcome = EVALUATOR_OUTCOME_FAILED;
-          } else if (rawBase.outcome === 'failed') {
-            baseOutcome = EVALUATOR_OUTCOME_FAILED;
-          } else if (baseVal === null && (!baseVals || baseVals.length === 0)) {
-            baseOutcome = EVALUATOR_OUTCOME_ABSTAINED;
-          } else {
-            baseOutcome = EVALUATOR_OUTCOME_PREDICTED;
-          }
-        }
-
-        const baseVerdict = scoreEvaluatorFieldExample({
-          goldState: fieldState,
-          goldValue: goldVal,
-          goldValues: goldVals,
-          predictedValue: baseVal,
-          predictedValues: baseVals,
-          outcome: baseOutcome,
-        });
-
-        const candidateScore = verdict === 'correct' ? 1 : 0;
-        const baselineScore = baseVerdict === 'correct' ? 1 : 0;
-        const candCovered = verdict === 'correct' || verdict === 'incorrect' || verdict === 'abstained';
-        const baseCovered = baseVerdict === 'correct' || baseVerdict === 'incorrect' || baseVerdict === 'abstained';
-        if (candCovered) fCandidateCoveredCount++;
-        if (baseCovered) fBaselineCoveredCount++;
-        fComparisonEligible++;
-        fCandidateCorrect += candidateScore;
-        fBaselineCorrect += baselineScore;
-        fDeltaSum += candidateScore - baselineScore;
-        if (baseVerdict === 'abstained' && verdict === 'correct') {
-          fRecoveredBaselineAbstentions++;
-          fRecoveredExampleIds.push(example.id);
-        }
-        if (baseVerdict === 'correct' && verdict !== 'correct') {
-          fHarmedBaselineSuccesses++;
-          fHarmedExampleIds.push(example.id);
-        }
-        if (baseVerdict === 'correct' && verdict === 'correct') fRetainedSuccesses++;
-        if (baseVerdict === 'abstained' && verdict === 'abstained') {
-          fDualAbstentions++;
-          fDualAbstainedExampleIds.push(example.id);
-        }
-      }
-    }
-
-    const fEligible = fCorrect + fIncorrect + fAbstainedCount + fFailedCount + fMissingCount;
-    const fCovered = fCorrect + fIncorrect + fAbstainedCount;
-    const fixedPopulation: EvaluatorFixedPopulation = {
-      eligible: fEligible,
-      correct: fCorrect,
-      correctAbstentions: fCorrectAbstentions,
-      incorrect: fIncorrect,
-      abstainedSemantic: fAbstainedCount,
-      failed: fFailedCount,
-      missing: fMissingCount,
-      correctness: fEligible > 0 ? fCorrect / fEligible : 0,
-      errorRate: fEligible > 0 ? fIncorrect / fEligible : 0,
-      abstentionRate: fEligible > 0 ? fAbstainedCount / fEligible : 0,
-      coverage: fEligible > 0 ? fCovered / fEligible : 0,
-      conditionalAccuracy: fCovered > 0 ? fCorrect / fCovered : 0,
-    };
-
-    const candidateCoverage = fComparisonEligible > 0 ? fCandidateCoveredCount / fComparisonEligible : 0;
-    const baselineCoverage = fComparisonEligible > 0 ? fBaselineCoveredCount / fComparisonEligible : 0;
-    const baselineComparison: EvaluatorBaselineComparison | null = hasBaseline
-      ? {
-          eligible: fComparisonEligible,
-          candidateCorrect: fCandidateCorrect,
-          baselineCorrect: fBaselineCorrect,
-          candidateCoverage,
-          baselineCoverage,
-          coverageShift: candidateCoverage - baselineCoverage,
-          fixedDeltaMean: fComparisonEligible > 0 ? fDeltaSum / fComparisonEligible : 0,
-          recoveredBaselineAbstentions: fRecoveredBaselineAbstentions,
-          recoveredExampleIds: fRecoveredExampleIds.sort(),
-          harmedBaselineSuccesses: fHarmedBaselineSuccesses,
-          harmedExampleIds: fHarmedExampleIds.sort(),
-          retainedSuccesses: fRetainedSuccesses,
-          dualAbstentions: fDualAbstentions,
-          dualAbstainedExampleIds: fDualAbstainedExampleIds.sort(),
-        }
-      : null;
-
-    fieldReports[targetId] = {
-      targetId,
-      goldStates: {
-        known: fKnown,
-        noFit: fNoFit,
-        insufficientEvidence: fInsufficientEvidence,
-        inapplicable: fInapplicable,
-        unlabeled: fUnlabeled,
-        legacy: fLegacy,
-      },
-      fixedPopulation,
-      baselineComparison,
-      setMetrics: setEvaluatedCount > 0
-        ? {
-            evaluatedCount: setEvaluatedCount,
-            exactMatchAccuracy: setExactMatchCount / setEvaluatedCount,
-            meanPrecision: setPrecisionSum / setEvaluatedCount,
-            meanRecall: setRecallSum / setEvaluatedCount,
-            meanF1: setF1Sum / setEvaluatedCount,
-          }
-        : null,
-    };
-  }
+  const fieldReports = scoreAllFieldTargetSections(gold, predictions, index);
 
   // ── Category Page fixed-population attribution & baseline comparison (issue #299 / AC 7 & 8)
-  let pageReport: EvaluatorPageAttributionReport | undefined = undefined;
-  const goldPagesExistForAttr = gold.some(example =>
-    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
-    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
-  );
-
-  if (goldPagesExistForAttr) {
-    const allGoldPagesHaveVerifiedIds = gold.every(example => {
-      const assignments = example.goldLabels.pageAssignments ?? [];
-      const catPageIds = example.goldLabels.categoryPageIds ?? [];
-      if (assignments.length === 0 && catPageIds.length === 0) return true;
-      if (catPageIds.length > 0) return true;
-      return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
-    });
-
-    const hasVerifiedImportProvenance =
-      gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
-      predictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
-
-    const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
-
-    let pKnown = 0;
-    let pNoFit = 0;
-    let pInsufficientEvidence = 0;
-    let pUnlabeled = 0;
-    let pLegacy = 0;
-
-    let pCorrect = 0;
-    let pCorrectAbstentions = 0;
-    let pIncorrect = 0;
-    let pAbstainedCount = 0;
-    let pFailedCount = 0;
-    let pMissingCount = 0;
-
-    let pComparisonEligible = 0;
-    let pCandidateCorrect = 0;
-    let pBaselineCorrect = 0;
-    let pCandidateCoveredCount = 0;
-    let pBaselineCoveredCount = 0;
-    let pDeltaSum = 0;
-    let pRecoveredBaselineAbstentions = 0;
-    const pRecoveredExampleIds: string[] = [];
-    let pHarmedBaselineSuccesses = 0;
-    const pHarmedExampleIds: string[] = [];
-
-    let pPrecisionSum = 0;
-    let pRecallSum = 0;
-    let pF1Sum = 0;
-    let pExactMatchCount = 0;
-    let pSetEvaluatedCount = 0;
-
-    for (const example of gold) {
-      const gAssignments = example.goldLabels.pageAssignments ?? [];
-      const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
-      const goldPageIds = gCatPageIds.length > 0 ? gCatPageIds : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
-      const goldPageNames = gAssignments.map(p => p.pageName);
-
-      const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
-
-      const predList = entriesById.get(example.id) ?? [];
-      const pred = predList[0] ?? null;
-
-      let predSet = new Set<string>();
-      let predStatus: 'predicted' | 'abstained' | 'failed' | 'missing' = 'missing';
-
-      const predRaw = pred as unknown as Record<string, unknown> | undefined;
-      if (!pred) {
-        pMissingCount++;
-      } else if (predRaw?.outcome === 'failed') {
-        pFailedCount++;
-        predStatus = 'failed';
-      } else if (pred.abstained || (pred.pageAssignments.length === 0 && (!pred.pageIds || pred.pageIds.length === 0))) {
-        pAbstainedCount++;
-        predStatus = 'abstained';
-      } else {
-        predStatus = 'predicted';
-        const candItems = canEvaluateByIdentity
-          ? (pred.pageIds ?? [])
-          : (pred.pageAssignments ?? []);
-        predSet = new Set(candItems.filter(Boolean));
-      }
-
-      const hasGoldLabels = targetGoldSet.size > 0;
-      if (hasGoldLabels) {
-        pKnown++;
-      } else {
-        pUnlabeled++;
-      }
-
-      let isExactMatch = false;
-      if (hasGoldLabels && predStatus === 'predicted') {
-        pSetEvaluatedCount++;
-        let hits = 0;
-        for (const item of predSet) {
-          if (targetGoldSet.has(item)) hits++;
-        }
-        const prec = predSet.size > 0 ? hits / predSet.size : 0;
-        const rec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
-        const f1 = (prec + rec) > 0 ? (2 * prec * rec) / (prec + rec) : 0;
-        isExactMatch = targetGoldSet.size === predSet.size && hits === targetGoldSet.size;
-
-        pPrecisionSum += prec;
-        pRecallSum += rec;
-        pF1Sum += f1;
-        if (isExactMatch) {
-          pExactMatchCount++;
-          pCorrect++;
-        } else {
-          pIncorrect++;
-        }
-      }
-
-      // Baseline comparison
-      if (hasBaseline && hasGoldLabels) {
-        pComparisonEligible++;
-        const baseList = baselineById.get(example.id) ?? [];
-        const base = baseList[0] ?? null;
-        const baseRaw = base as unknown as Record<string, unknown> | null;
-
-        let baseSet = new Set<string>();
-        let baseStatus: 'predicted' | 'abstained' | 'failed' | 'missing' = 'missing';
-
-        if (!base) {
-          // missing
-        } else if (baseRaw?.outcome === 'failed') {
-          baseStatus = 'failed';
-        } else if (base.abstained || (base.pageAssignments.length === 0 && (!base.pageIds || base.pageIds.length === 0))) {
-          baseStatus = 'abstained';
-        } else {
-          baseStatus = 'predicted';
-          const bItems = canEvaluateByIdentity ? (base.pageIds ?? []) : (base.pageAssignments ?? []);
-          baseSet = new Set(bItems.filter(Boolean));
-        }
-
-        let isBaseExactMatch = false;
-        if (baseStatus === 'predicted') {
-          pBaselineCoveredCount++;
-          let bHits = 0;
-          for (const item of baseSet) {
-            if (targetGoldSet.has(item)) bHits++;
-          }
-          isBaseExactMatch = targetGoldSet.size === baseSet.size && bHits === targetGoldSet.size;
-          if (isBaseExactMatch) pBaselineCorrect++;
-        }
-
-        if (predStatus === 'predicted' || predStatus === 'abstained') {
-          pCandidateCoveredCount++;
-        }
-
-        const candidateScore = isExactMatch ? 1 : 0;
-        const baselineScore = isBaseExactMatch ? 1 : 0;
-        pCandidateCorrect += candidateScore;
-        pDeltaSum += candidateScore - baselineScore;
-
-        if (baseStatus === 'abstained' && isExactMatch) {
-          pRecoveredBaselineAbstentions++;
-          pRecoveredExampleIds.push(example.id);
-        }
-        if (isBaseExactMatch && !isExactMatch) {
-          pHarmedBaselineSuccesses++;
-          pHarmedExampleIds.push(example.id);
-        }
-      }
-    }
-
-    const pEligible = pCorrect + pIncorrect + pAbstainedCount + pFailedCount + pMissingCount;
-    const pCovered = pCorrect + pIncorrect + pAbstainedCount;
-    const pFixedPop: EvaluatorFixedPopulation = {
-      eligible: pEligible,
-      correct: pCorrect,
-      correctAbstentions: pCorrectAbstentions,
-      incorrect: pIncorrect,
-      abstainedSemantic: pAbstainedCount,
-      failed: pFailedCount,
-      missing: pMissingCount,
-      correctness: pEligible > 0 ? pCorrect / pEligible : 0,
-      errorRate: pEligible > 0 ? pIncorrect / pEligible : 0,
-      abstentionRate: pEligible > 0 ? pAbstainedCount / pEligible : 0,
-      coverage: pEligible > 0 ? pCovered / pEligible : 0,
-      conditionalAccuracy: pCovered > 0 ? pCorrect / pCovered : 0,
-    };
-
-    let pBaseComp: EvaluatorBaselineComparison | null = null;
-    if (hasBaseline && pComparisonEligible > 0) {
-      const cCov = pCandidateCoveredCount / pComparisonEligible;
-      const bCov = pBaselineCoveredCount / pComparisonEligible;
-      pBaseComp = {
-        eligible: pComparisonEligible,
-        candidateCorrect: pCandidateCorrect,
-        baselineCorrect: pBaselineCorrect,
-        candidateCoverage: cCov,
-        baselineCoverage: bCov,
-        coverageShift: cCov - bCov,
-        fixedDeltaMean: pDeltaSum / pComparisonEligible,
-        recoveredBaselineAbstentions: pRecoveredBaselineAbstentions,
-        recoveredExampleIds: pRecoveredExampleIds,
-        harmedBaselineSuccesses: pHarmedBaselineSuccesses,
-        harmedExampleIds: pHarmedExampleIds,
-        retainedSuccesses: 0,
-        dualAbstentions: 0,
-        dualAbstainedExampleIds: [],
-      };
-    }
-
-    pageReport = {
-      evaluatedByIdentity: canEvaluateByIdentity,
-      eligibleToQualifyJev: canEvaluateByIdentity,
-      verifiedImportProvenance: canEvaluateByIdentity
-        ? (predictions.find(p => p.verifiedImportProvenance)?.verifiedImportProvenance ?? gold.find(g => g.goldLabels.verifiedImportProvenance)?.goldLabels.verifiedImportProvenance ?? null)
-        : null,
-      blocked: !canEvaluateByIdentity,
-      blockedReason: !canEvaluateByIdentity ? 'blocked_missing_verified_page_gold' : null,
-      goldStates: {
-        known: pKnown,
-        noFit: pNoFit,
-        insufficientEvidence: pInsufficientEvidence,
-        unlabeled: pUnlabeled,
-        legacy: pLegacy,
-      },
-      fixedPopulation: pFixedPop,
-      baselineComparison: pBaseComp,
-      setMetrics: pSetEvaluatedCount > 0 ? {
-        evaluatedCount: pSetEvaluatedCount,
-        exactMatchAccuracy: pExactMatchCount / pSetEvaluatedCount,
-        meanPrecision: pPrecisionSum / pSetEvaluatedCount,
-        meanRecall: pRecallSum / pSetEvaluatedCount,
-        meanF1: pF1Sum / pSetEvaluatedCount,
-      } : null,
-    };
-  }
+  const pageReport = scorePageAttributionSection(gold, predictions, index);
 
   return {
     evaluatedSplit: splitGroup,
     goldTotal: gold.length,
-    goldStates: { known, noFit, insufficientEvidence, unlabeled, legacy },
-    predictionOutcomes: { predicted, abstainedSemantic, failed, missing },
-    failedPredictions: failedPredictions.sort((a, b) => (a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : 0)),
-    missingExampleIds: missingExampleIds.sort(),
-    duplicateExampleIds,
-    unknownExampleIds,
-    snapshotMismatches: snapshotMismatches.sort((a, b) => (
-      a.exampleId < b.exampleId ? -1 : a.exampleId > b.exampleId ? 1 : a.field < b.field ? -1 : 1
-    )),
+    goldStates: {
+      known: productType.known,
+      noFit: productType.noFit,
+      insufficientEvidence: productType.insufficientEvidence,
+      unlabeled: productType.unlabeled,
+      legacy: productType.legacy,
+    },
+    predictionOutcomes: {
+      predicted: productType.predicted,
+      abstainedSemantic: productType.abstainedSemantic,
+      failed: productType.failed,
+      missing: productType.missing,
+    },
+    failedPredictions: sortFailedPredictions(productType.failedPredictions),
+    missingExampleIds: sortedIds(productType.missingExampleIds),
+    duplicateExampleIds: index.duplicateExampleIds,
+    unknownExampleIds: index.unknownExampleIds,
+    snapshotMismatches: sortSnapshotMismatches(productType.snapshotMismatches),
     fixedPopulation,
     baselineComparison,
     support,
     familyLeakage,
     fieldReports,
     pageReport,
+  };
+}
+
+// ─── Metrics sections (decomposed named steps) ────────────────────────────────
+// `computeMetrics` orchestrates these pure steps; each step owns one metric
+// family so no single function carries the whole computation.
+
+interface ProductTypeSectionAccumulator {
+  eligible: number;
+  evaluated: number;
+  correct: number;
+  abstained: number;
+  classStats: Record<string, { gold: number; correct: number; predicted: number }>;
+  confusionMap: Record<string, number>;
+}
+
+function emptyProductTypeSectionAccumulator(): ProductTypeSectionAccumulator {
+  return { eligible: 0, evaluated: 0, correct: 0, abstained: 0, classStats: {}, confusionMap: {} };
+}
+
+/** True when a prediction abstained (flag or null/undefined type). */
+function isAbstainedTypePrediction(
+  pred: BenchmarkPredictionEntry | undefined,
+): boolean {
+  return pred?.abstained || pred?.productType === null || pred?.productType === undefined;
+}
+
+/** Record a correct/incorrect type prediction into class stats + confusion. */
+function tallyTypePredictionHit(
+  acc: ProductTypeSectionAccumulator,
+  goldType: string,
+  predictedType: string,
+): void {
+  if (predictedType === goldType) {
+    acc.correct++;
+    acc.classStats[goldType].correct++;
+  }
+  acc.classStats[predictedType] = acc.classStats[predictedType] ?? { gold: 0, correct: 0, predicted: 0 };
+  acc.classStats[predictedType].predicted++;
+  if (predictedType !== goldType) {
+    const pairKey = `${goldType} -> ${predictedType}`;
+    acc.confusionMap[pairKey] = (acc.confusionMap[pairKey] ?? 0) + 1;
+  }
+}
+
+/** Score one example's product-type contribution (abstentions counted, not evaluated). */
+function accumulateProductTypeExample(
+  acc: ProductTypeSectionAccumulator,
+  example: GoldExampleForEvaluation,
+  predictions: BenchmarkPredictionEntry[],
+): void {
+  const goldType = example.goldLabels.productType;
+  const pred = predictionForExample(predictions, example.id);
+  if (!pred || isAbstainedTypePrediction(pred)) {
+    if (goldType) {
+      acc.eligible++;
+      acc.abstained++;
+    }
+    return;
+  }
+  if (!goldType) return;
+  acc.eligible++;
+  acc.evaluated++;
+  acc.classStats[goldType] = acc.classStats[goldType] ?? { gold: 0, correct: 0, predicted: 0 };
+  acc.classStats[goldType].gold++;
+  if (pred.productType) {
+    tallyTypePredictionHit(acc, goldType, pred.productType);
+  }
+}
+
+/** Macro F1 from class-level precision/recall. */
+function computeMacroF1(
+  classStats: Record<string, { gold: number; correct: number; predicted: number }>,
+): number {
+  let macroF1Sum = 0;
+  let classCount = 0;
+  for (const stats of Object.values(classStats)) {
+    const precision = stats.predicted > 0 ? stats.correct / stats.predicted : 0;
+    const recall = stats.gold > 0 ? stats.correct / stats.gold : 0;
+    const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+    macroF1Sum += f1;
+    classCount++;
+  }
+  return classCount > 0 ? macroF1Sum / classCount : 0;
+}
+
+/** Confusion pairs from the gold->predicted count map. */
+function toConfusionPairs(
+  confusionMap: Record<string, number>,
+): Array<[string, string, number]> {
+  return Object.entries(confusionMap).map(([key, count]) => {
+    const [gold, predicted] = key.split(' -> ');
+    return [gold, predicted, count] as [string, string, number];
+  });
+}
+
+/**
+ * Apply the product-type section to the metrics.
+ * INTENTIONAL (M9 review note): per-class support is reported conservatively
+ * as min(gold, predicted) rather than the standard gold-class count. This
+ * UNDER-reports support for under-predicted classes, which makes the
+ * qualification gate reject those classes more aggressively — a fail-closed
+ * bias, never a license to pass.
+ */
+function applyProductTypeSection(
+  metrics: EvalMetrics,
+  acc: ProductTypeSectionAccumulator,
+): void {
+  metrics.productType.support = acc.evaluated;
+  metrics.productType.coverage = acc.eligible > 0 ? acc.evaluated / acc.eligible : 0;
+  metrics.productType.top1Accuracy = acc.evaluated > 0 ? acc.correct / acc.evaluated : 0;
+  metrics.productType.perClassSupport = Object.fromEntries(
+    Object.entries(acc.classStats).map(([cls, stats]) => [cls, Math.min(stats.gold, stats.correct + (stats.predicted - Math.min(stats.gold, stats.correct)))]),
+  );
+  metrics.productType.macroF1 = computeMacroF1(acc.classStats);
+  metrics.productType.confusionPairs = toConfusionPairs(acc.confusionMap);
+}
+
+/** Score the product-type section over all gold examples. */
+function scoreMetricsProductTypeSection(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+): ProductTypeSectionAccumulator {
+  const acc = emptyProductTypeSectionAccumulator();
+  for (const example of gold) {
+    accumulateProductTypeExample(acc, example, predictions);
+  }
+  return acc;
+}
+
+/** Apply abstention rates derived from the product-type section. */
+function applyAbstentionSection(
+  metrics: EvalMetrics,
+  gold: GoldExampleForEvaluation[],
+  abstained: number,
+  evaluated: number,
+  correct: number,
+): void {
+  metrics.abstention.abstainedPercent = gold.length > 0 ? (abstained / gold.length) * 100 : 0;
+  metrics.abstention.accuracyOfNonAbstained = evaluated > 0 ? correct / evaluated : 0;
+}
+
+interface MetricsPageSection {
+  goldPagesExist: boolean;
+  canEvaluateByIdentity: boolean;
+  precisionSum: number;
+  recallSum: number;
+  exactMatches: number;
+  evaluated: number;
+}
+
+/** Gold/predicted page sets for the metrics path under the identity capability. */
+function metricsPageSetsForExample(
+  example: GoldExampleForEvaluation,
+  pred: BenchmarkPredictionEntry | undefined,
+  byIdentity: boolean,
+): { goldPages: Set<string>; predPages: Set<string> } {
+  if (byIdentity) {
+    return {
+      goldPages: new Set(goldPageIdsOf(example)),
+      predPages: new Set(pageItemsOf(pred, true)),
+    };
+  }
+  return {
+    goldPages: new Set(goldPageNamesOf(example)),
+    predPages: new Set(pageItemsOf(pred, false)),
+  };
+}
+
+/** Score the page section over all gold examples (empty-vs-empty pairs skipped). */
+function scoreMetricsPageSection(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  canEvaluateByIdentity: boolean,
+): Omit<MetricsPageSection, 'goldPagesExist' | 'canEvaluateByIdentity'> {
+  let precisionSum = 0;
+  let recallSum = 0;
+  let exactMatches = 0;
+  let evaluated = 0;
+  for (const example of gold) {
+    const pred = predictionForExample(predictions, example.id);
+    const { goldPages, predPages } = metricsPageSetsForExample(example, pred, canEvaluateByIdentity);
+    if (goldPages.size === 0 && predPages.size === 0) continue;
+    evaluated++;
+    const { precision, recall, exactMatch } = scorePageSet(goldPages, predPages);
+    precisionSum += precision;
+    recallSum += recall;
+    if (exactMatch) exactMatches++;
+  }
+  return { precisionSum, recallSum, exactMatches, evaluated };
+}
+
+/** Apply the page section to the metrics (blocked without verified identity). */
+function applyPageSection(
+  metrics: EvalMetrics,
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  section: MetricsPageSection,
+): void {
+  metrics.pages.precisionAtK = section.evaluated > 0 ? section.precisionSum / section.evaluated : 0;
+  metrics.pages.recallAtK = section.evaluated > 0 ? section.recallSum / section.evaluated : 0;
+  metrics.pages.exactSetAccuracy = section.evaluated > 0 ? section.exactMatches / section.evaluated : 0;
+  metrics.pages.blocked = section.goldPagesExist && !section.canEvaluateByIdentity;
+  metrics.pages.blockedReason = (section.goldPagesExist && !section.canEvaluateByIdentity)
+    ? 'blocked_missing_verified_page_gold'
+    : null;
+  metrics.pages.evaluatedByIdentity = section.canEvaluateByIdentity;
+  metrics.pages.eligibleToQualifyJev = section.canEvaluateByIdentity;
+  metrics.pages.verifiedImportProvenance = section.canEvaluateByIdentity
+    ? pageProvenanceOf(gold, predictions)
+    : null;
+}
+
+/** Resolve the metrics page identity capability (empty gold cannot establish it). */
+function resolveMetricsPageCapability(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+): { goldPagesExist: boolean; canEvaluateByIdentity: boolean } {
+  const goldPagesExist = gold.some(example =>
+    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
+    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
+  );
+  const capability = resolvePageIdentityCapability(gold, predictions);
+  const canEvaluateByIdentity = goldPagesExist &&
+    capability.allGoldPagesHaveVerifiedIds &&
+    capability.hasVerifiedImportProvenance;
+  return { goldPagesExist, canEvaluateByIdentity };
+}
+
+/** Predicted field map (target id -> value) for one example. */
+function fieldPredictionMap(
+  predictions: BenchmarkPredictionEntry[],
+  exampleId: string,
+): Map<string, string | null | undefined> {
+  const pred = predictionForExample(predictions, exampleId);
+  return new Map((pred?.fieldAssignments ?? []).map(field => [field.targetId, field.value]));
+}
+
+/** Score per-target field support/accuracy over non-null gold values. */
+function scoreMetricsFieldSection(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+): Record<string, { support: number; correct: number }> {
+  const fieldStats: Record<string, { support: number; correct: number }> = {};
+  for (const example of gold) {
+    const predFields = fieldPredictionMap(predictions, example.id);
+    for (const goldField of example.goldLabels.fieldAssignments) {
+      if (goldField.value === null) continue;
+      fieldStats[goldField.targetId] = fieldStats[goldField.targetId] ?? { support: 0, correct: 0 };
+      fieldStats[goldField.targetId].support++;
+      if (predFields.get(goldField.targetId) === goldField.value) {
+        fieldStats[goldField.targetId].correct++;
+      }
+    }
+  }
+  return fieldStats;
+}
+
+/** Apply per-target field support/accuracy to the metrics. */
+function applyFieldSection(
+  metrics: EvalMetrics,
+  fieldStats: Record<string, { support: number; correct: number }>,
+): void {
+  metrics.fields.targetSupport = Object.fromEntries(
+    Object.entries(fieldStats).map(([targetId, stats]) => [targetId, stats.support]),
+  );
+  metrics.fields.targetAccuracy = Object.fromEntries(
+    Object.entries(fieldStats).map(([targetId, stats]) => [targetId, stats.support > 0 ? stats.correct / stats.support : 0]),
+  );
+}
+
+/** Score corrections-per-hundred over non-null gold field values. */
+function scoreMetricsOperationsSection(
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+): number {
+  let totalCorrections = 0;
+  let totalFieldProposals = 0;
+  for (const example of gold) {
+    const predFields = fieldPredictionMap(predictions, example.id);
+    for (const goldField of example.goldLabels.fieldAssignments) {
+      if (goldField.value === null) continue;
+      totalFieldProposals++;
+      const predicted = predFields.get(goldField.targetId);
+      if (predicted !== null && predicted !== undefined && predicted !== goldField.value) {
+        totalCorrections++;
+      }
+    }
+  }
+  return totalFieldProposals > 0 ? (totalCorrections / totalFieldProposals) * 100 : 0;
+}
+
+/** Cross-species violation text for one page (null when consistent). */
+function crossSpeciesViolationForPage(
+  example: GoldExampleForEvaluation,
+  goldSpecies: { dog: boolean; cat: boolean },
+  page: string,
+): string | null {
+  const lower = page.toLowerCase();
+  if (goldSpecies.dog && /\bcat\b/.test(lower) && !/\bdog\b/.test(lower)) {
+    return `${example.productSku}: Dog product on page '${page}'`;
+  }
+  if (goldSpecies.cat && /\bdog\b/.test(lower) && !/\bcat\b/.test(lower)) {
+    return `${example.productSku}: Cat product on page '${page}'`;
+  }
+  return null;
+}
+
+/** Score cross-species page violations for one example. */
+function scoreCrossSpeciesExample(
+  example: GoldExampleForEvaluation,
+  pred: BenchmarkPredictionEntry | undefined,
+): string[] {
+  const violations: string[] = [];
+  const goldSpecies = speciesOfType(example.goldLabels.productType);
+  for (const page of pred?.pageAssignments ?? []) {
+    const violation = crossSpeciesViolationForPage(example, goldSpecies, page);
+    if (violation) violations.push(violation);
+  }
+  return violations;
+}
+
+/** Count claim-safety violations (asserted claim-sensitive values). */
+function countClaimSafetyViolations(pred: BenchmarkPredictionEntry | undefined): number {
+  let violations = 0;
+  for (const claimTarget of pred?.claimTargets ?? []) {
+    const asserted = (pred?.fieldAssignments ?? []).some(
+      field => field.targetId === claimTarget && field.value !== null && field.value !== undefined,
+    );
+    if (asserted) violations++;
+  }
+  return violations;
+}
+
+/** Count controlled-value violations (values outside the declared vocabulary). */
+function countControlledValueViolations(
+  pred: BenchmarkPredictionEntry | undefined,
+  controlledValues: ControlledValues,
+): number {
+  let violations = 0;
+  for (const field of pred?.fieldAssignments ?? []) {
+    const allowed = controlledValues[field.targetId];
+    if (field.value !== null && field.value !== undefined && allowed && allowed.length > 0 && !allowed.includes(field.value)) {
+      violations++;
+    }
+  }
+  return violations;
+}
+
+/** Apply the safety section (cross-species, claim-safety, controlled-value). */
+function applySafetySection(
+  metrics: EvalMetrics,
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  controlledValues: ControlledValues,
+): void {
+  const crossSpeciesExamples: string[] = [];
+  for (const example of gold) {
+    const pred = predictionForExample(predictions, example.id);
+    const violations = scoreCrossSpeciesExample(example, pred);
+    metrics.safety.crossSpeciesCount += violations.length;
+    crossSpeciesExamples.push(...violations);
+    metrics.safety.claimSafetyViolations += countClaimSafetyViolations(pred);
+    metrics.safety.controlledValueViolations += countControlledValueViolations(pred, controlledValues);
+  }
+  metrics.safety.crossSpeciesExamples = crossSpeciesExamples;
+}
+
+/** Apply the paired-delta section (deterministic seeded bootstrap interval). */
+function applyPairedDeltaSection(
+  metrics: EvalMetrics,
+  gold: GoldExampleForEvaluation[],
+  predictions: BenchmarkPredictionEntry[],
+  options: ComputeMetricsOptions,
+  primaryMetric: string,
+  bootstrapRuns: number,
+): void {
+  const pairs = computePerExamplePrimaryMetric(gold, predictions, options.baselinePredictions ?? null);
+  const seedDigest = options.pairedSeedDigest ?? '0000000000000000000000000000000000000000000000000000000000000000';
+  const bootstrap = computePairedBootstrap(pairs, seedDigest, bootstrapRuns);
+  metrics.pairedDelta = {
+    primaryMetric,
+    deltaMean: bootstrap.deltaMean,
+    deltaLower95: bootstrap.deltaLower95,
+    deltaUpper95: bootstrap.deltaUpper95,
+    bootstrapRuns: bootstrap.bootstrapRuns,
   };
 }
 
@@ -1626,223 +2414,28 @@ export function computeMetrics(
   const primaryMetric = options.primaryMetric ?? 'productType.top1Accuracy';
   const bootstrapRuns = options.bootstrapRuns ?? 2000;
 
-  // ── Product Type ───────────────────────────────────────────────────────────
-  let eligible = 0;
-  let evaluated = 0;
-  let correct = 0;
-  const classStats: Record<string, { gold: number; correct: number; predicted: number }> = {};
-  const confusionMap: Record<string, number> = {};
-  let abstained = 0;
+  // ── Product Type + Abstention ────────────────────────────────────────────
+  const productType = scoreMetricsProductTypeSection(gold, predictions);
+  applyProductTypeSection(metrics, productType);
+  applyAbstentionSection(metrics, gold, productType.abstained, productType.evaluated, productType.correct);
 
-  for (const example of gold) {
-    const goldType = example.goldLabels.productType;
-    const pred = predictionForExample(predictions, example.id);
+  // ── Pages ────────────────────────────────────────────────────────────────
+  const pageCapability = resolveMetricsPageCapability(gold, predictions);
+  const pageSection = scoreMetricsPageSection(gold, predictions, pageCapability.canEvaluateByIdentity);
+  applyPageSection(metrics, gold, predictions, { ...pageCapability, ...pageSection });
 
-    if (pred?.abstained || pred?.productType === null || pred?.productType === undefined) {
-      if (goldType) {
-        eligible++;
-        abstained++;
-      }
-      continue;
-    }
-    if (!goldType) continue;
+  // ── Fields + Operations ──────────────────────────────────────────────────
+  applyFieldSection(metrics, scoreMetricsFieldSection(gold, predictions));
+  metrics.operations.correctionsPerHundred = scoreMetricsOperationsSection(gold, predictions);
 
-    eligible++;
-    evaluated++;
-    classStats[goldType] = classStats[goldType] ?? { gold: 0, correct: 0, predicted: 0 };
-    classStats[goldType].gold++;
-    if (pred.productType === goldType) {
-      correct++;
-      classStats[goldType].correct++;
-    }
-    if (pred.productType) {
-      classStats[pred.productType] = classStats[pred.productType] ?? { gold: 0, correct: 0, predicted: 0 };
-      classStats[pred.productType].predicted++;
-      if (pred.productType !== goldType) {
-        const pairKey = `${goldType} -> ${pred.productType}`;
-        confusionMap[pairKey] = (confusionMap[pairKey] ?? 0) + 1;
-      }
-    }
-  }
-
-  metrics.productType.support = evaluated;
-  metrics.productType.coverage = eligible > 0 ? evaluated / eligible : 0;
-  metrics.productType.top1Accuracy = evaluated > 0 ? correct / evaluated : 0;
-  // INTENTIONAL (M9 review note): per-class support is reported conservatively
-  // as min(gold, predicted) rather than the standard gold-class count. This
-  // UNDER-reports support for under-predicted classes, which makes the
-  // qualification gate reject those classes more aggressively — a fail-closed
-  // bias, never a license to pass. Standard "support = gold count" consumers
-  // should use the classStats breakdown when a non-conservative reading is
-  // required.
-  metrics.productType.perClassSupport = Object.fromEntries(
-    Object.entries(classStats).map(([cls, s]) => [cls, Math.min(s.gold, s.correct + (s.predicted - Math.min(s.gold, s.correct)))]),
-  );
-
-  // Macro F1 from class-level precision/recall.
-  let macroF1Sum = 0;
-  let classCount = 0;
-  for (const stats of Object.values(classStats)) {
-    const precision = stats.predicted > 0 ? stats.correct / stats.predicted : 0;
-    const recall = stats.gold > 0 ? stats.correct / stats.gold : 0;
-    const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-    macroF1Sum += f1;
-    classCount++;
-  }
-  metrics.productType.macroF1 = classCount > 0 ? macroF1Sum / classCount : 0;
-  metrics.productType.confusionPairs = Object.entries(confusionMap).map(([key, count]) => {
-    const [g, p] = key.split(' -> ');
-    return [g, p, count] as [string, string, number];
-  });
-
-  // ── Abstention ─────────────────────────────────────────────────────────────
-  metrics.abstention.abstainedPercent = gold.length > 0 ? (abstained / gold.length) * 100 : 0;
-  const nonAbstained = evaluated;
-  metrics.abstention.accuracyOfNonAbstained = nonAbstained > 0 ? correct / nonAbstained : 0;
-
-  // ── Pages ──────────────────────────────────────────────────────────────────
-  const goldPagesExist = gold.some(example =>
-    (example.goldLabels.pageAssignments && example.goldLabels.pageAssignments.length > 0) ||
-    (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0),
-  );
-
-  const allGoldPagesHaveVerifiedIds = goldPagesExist && gold.every(example => {
-    const assignments = example.goldLabels.pageAssignments ?? [];
-    const catPageIds = example.goldLabels.categoryPageIds ?? [];
-    if (assignments.length === 0 && catPageIds.length === 0) return true;
-    if (catPageIds.length > 0) return true;
-    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
-  });
-
-  const hasVerifiedImportProvenance =
-    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
-    predictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
-
-  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
-
-  let pagePrecisionSum = 0;
-  let pageRecallSum = 0;
-  let exactMatches = 0;
-  let pageEvaluated = 0;
-
-  for (const example of gold) {
-    const pred = predictionForExample(predictions, example.id);
-    let goldPages: Set<string>;
-    let predPages: Set<string>;
-
-    if (canEvaluateByIdentity) {
-      const gIds = (example.goldLabels.categoryPageIds && example.goldLabels.categoryPageIds.length > 0)
-        ? example.goldLabels.categoryPageIds
-        : (example.goldLabels.pageAssignments ?? []).map(p => p.pageId!).filter(Boolean);
-      goldPages = new Set(gIds);
-      predPages = new Set((pred?.pageIds ?? []).filter((v): v is string => Boolean(v)));
-    } else {
-      goldPages = new Set((example.goldLabels.pageAssignments ?? []).map(p => p.pageName));
-      predPages = new Set((pred?.pageAssignments ?? []).filter((v): v is string => Boolean(v)));
-    }
-
-    if (goldPages.size === 0 && predPages.size === 0) continue;
-    pageEvaluated++;
-    let hits = 0;
-    for (const page of predPages) if (goldPages.has(page)) hits++;
-    pagePrecisionSum += predPages.size > 0 ? hits / predPages.size : 0;
-    pageRecallSum += goldPages.size > 0 ? hits / goldPages.size : 0;
-    if (goldPages.size === predPages.size && [...goldPages].every(p => predPages.has(p))) exactMatches++;
-  }
-
-  metrics.pages.precisionAtK = pageEvaluated > 0 ? pagePrecisionSum / pageEvaluated : 0;
-  metrics.pages.recallAtK = pageEvaluated > 0 ? pageRecallSum / pageEvaluated : 0;
-  metrics.pages.exactSetAccuracy = pageEvaluated > 0 ? exactMatches / pageEvaluated : 0;
-  metrics.pages.blocked = goldPagesExist && !canEvaluateByIdentity;
-  metrics.pages.blockedReason = (goldPagesExist && !canEvaluateByIdentity) ? 'blocked_missing_verified_page_gold' : null;
-  metrics.pages.evaluatedByIdentity = canEvaluateByIdentity;
-  metrics.pages.eligibleToQualifyJev = canEvaluateByIdentity;
-  metrics.pages.verifiedImportProvenance = canEvaluateByIdentity
-    ? (predictions.find(p => p.verifiedImportProvenance)?.verifiedImportProvenance ?? gold.find(g => g.goldLabels.verifiedImportProvenance)?.goldLabels.verifiedImportProvenance ?? null)
-    : null;
-
-  // ── Fields ─────────────────────────────────────────────────────────────────
-  const fieldStats: Record<string, { support: number; correct: number }> = {};
-  for (const example of gold) {
-    const pred = predictionForExample(predictions, example.id);
-    const predFields = new Map((pred?.fieldAssignments ?? []).map(f => [f.targetId, f.value]));
-    for (const goldField of example.goldLabels.fieldAssignments) {
-      if (goldField.value === null) continue;
-      fieldStats[goldField.targetId] = fieldStats[goldField.targetId] ?? { support: 0, correct: 0 };
-      fieldStats[goldField.targetId].support++;
-      const predicted = predFields.get(goldField.targetId);
-      if (predicted === goldField.value) fieldStats[goldField.targetId].correct++;
-    }
-  }
-  metrics.fields.targetSupport = Object.fromEntries(Object.entries(fieldStats).map(([t, s]) => [t, s.support]));
-  metrics.fields.targetAccuracy = Object.fromEntries(
-    Object.entries(fieldStats).map(([t, s]) => [t, s.support > 0 ? s.correct / s.support : 0]),
-  );
-
-  // ── Operations: corrections per hundred ────────────────────────────────────
-  let totalCorrections = 0;
-  let totalFieldProposals = 0;
-  for (const example of gold) {
-    const pred = predictionForExample(predictions, example.id);
-    const predFields = new Map((pred?.fieldAssignments ?? []).map(f => [f.targetId, f.value]));
-    for (const goldField of example.goldLabels.fieldAssignments) {
-      if (goldField.value === null) continue;
-      totalFieldProposals++;
-      const predicted = predFields.get(goldField.targetId);
-      if (predicted !== null && predicted !== undefined && predicted !== goldField.value) {
-        totalCorrections++;
-      }
-    }
-  }
-  metrics.operations.correctionsPerHundred = totalFieldProposals > 0 ? (totalCorrections / totalFieldProposals) * 100 : 0;
-
-  // ── Safety ─────────────────────────────────────────────────────────────────
-  const crossSpeciesExamples: string[] = [];
-  for (const example of gold) {
-    const goldSpecies = speciesOfType(example.goldLabels.productType);
-    const pred = predictionForExample(predictions, example.id);
-    for (const page of pred?.pageAssignments ?? []) {
-      const lower = page.toLowerCase();
-      if (goldSpecies.dog && /\bcat\b/.test(lower) && !/\bdog\b/.test(lower)) {
-        metrics.safety.crossSpeciesCount++;
-        crossSpeciesExamples.push(`${example.productSku}: Dog product on page '${page}'`);
-      } else if (goldSpecies.cat && /\bdog\b/.test(lower) && !/\bcat\b/.test(lower)) {
-        metrics.safety.crossSpeciesCount++;
-        crossSpeciesExamples.push(`${example.productSku}: Cat product on page '${page}'`);
-      }
-    }
-
-    // Claim-safety: asserting a value for a claim-sensitive target without
-    // linked evidence in the bundle is a violation.
-    for (const claimTarget of pred?.claimTargets ?? []) {
-      const asserted = (pred?.fieldAssignments ?? []).some(f => f.targetId === claimTarget && f.value !== null && f.value !== undefined);
-      if (asserted) metrics.safety.claimSafetyViolations++;
-    }
-
-    // Controlled-value: a predicted value outside the declared vocabulary.
-    for (const field of pred?.fieldAssignments ?? []) {
-      const allowed = controlledValues[field.targetId];
-      if (field.value !== null && field.value !== undefined && allowed && allowed.length > 0 && !allowed.includes(field.value)) {
-        metrics.safety.controlledValueViolations++;
-      }
-    }
-  }
-  metrics.safety.crossSpeciesExamples = crossSpeciesExamples;
+  // ── Safety ───────────────────────────────────────────────────────────────
+  applySafetySection(metrics, gold, predictions, controlledValues);
 
   // ── Calibration (ECE over non-abstained product-type predictions) ─────────
   metrics.calibration = computeEce(gold, predictions);
 
   // ── Paired delta (candidate vs baseline; default abstention baseline) ─────
-  const pairs = computePerExamplePrimaryMetric(gold, predictions, options.baselinePredictions ?? null);
-  const seedDigest = options.pairedSeedDigest ?? '0000000000000000000000000000000000000000000000000000000000000000';
-  const bootstrap = computePairedBootstrap(pairs, seedDigest, bootstrapRuns);
-  metrics.pairedDelta = {
-    primaryMetric,
-    deltaMean: bootstrap.deltaMean,
-    deltaLower95: bootstrap.deltaLower95,
-    deltaUpper95: bootstrap.deltaUpper95,
-    bootstrapRuns: bootstrap.bootstrapRuns,
-  };
+  applyPairedDeltaSection(metrics, gold, predictions, options, primaryMetric, bootstrapRuns);
 
   return metrics;
 }
@@ -2045,6 +2638,435 @@ export interface CompareSingletonPagePredictionsOptions {
   requireReviewedProductType?: boolean;
 }
 
+// ─── Singleton/cohort page comparison sections ────────────────────────────────
+// The two comparisons share indexing, verified-identity capability, gold
+// extraction, set scoring, and summary finalization. They differ only in
+// status resolution (singleton entry status vs cohort outcome category),
+// coverage rules, and per-example rows — each side owns a named scorer.
+
+/** Singleton/cohort page status for one comparison entry. */
+type ComparisonPageStatus = 'predicted' | 'abstained' | 'failed' | 'unavailable';
+
+/** Index candidate/baseline bundles first-wins by example id. */
+function indexComparisonPredictions(
+  candidatePredictions: BenchmarkPredictionEntry[],
+  baselinePredictions: BenchmarkPredictionEntry[],
+): {
+  candidateById: Map<string, BenchmarkPredictionEntry>;
+  baselineById: Map<string, BenchmarkPredictionEntry>;
+} {
+  return {
+    candidateById: indexPredictionsByExampleId(candidatePredictions),
+    baselineById: indexPredictionsByExampleId(baselinePredictions),
+  };
+}
+
+/** Verified-identity capability for the comparisons (empty gold cannot establish it). */
+function resolveComparisonIdentityCapability(
+  gold: GoldExampleForEvaluation[],
+  candidatePredictions: BenchmarkPredictionEntry[],
+  baselinePredictions: BenchmarkPredictionEntry[],
+): boolean {
+  return resolvePageIdentityCapability(gold, candidatePredictions, baselinePredictions, true)
+    .canEvaluateByIdentity;
+}
+
+/** Gold ids/names + target set for one example under the identity capability. */
+function comparisonGoldForExample(
+  example: GoldExampleForEvaluation,
+  byIdentity: boolean,
+): { goldPageIds: string[]; goldPageNames: string[]; targetGoldSet: Set<string> } {
+  const goldPageIds = goldPageIdsOf(example);
+  const goldPageNames = goldPageNamesOf(example);
+  return { goldPageIds, goldPageNames, targetGoldSet: new Set(byIdentity ? goldPageIds : goldPageNames) };
+}
+
+/**
+ * Singleton entry status: missing entries are unavailable (not errors);
+ * failure codes and explicit failed outcomes fail; value-less entries abstain.
+ */
+function resolveComparisonPageStatus(
+  entry: BenchmarkPredictionEntry | undefined,
+): ComparisonPageStatus {
+  if (!entry) return 'unavailable';
+  const raw = entry as unknown as Record<string, unknown>;
+  if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') return 'failed';
+  if (raw.outcome === 'failed') return 'failed';
+  if (entry.abstained || (entry.pageAssignments.length === 0 && (!entry.pageIds || entry.pageIds.length === 0))) {
+    return 'abstained';
+  }
+  return 'predicted';
+}
+
+/** Add one scored side's precision/recall/exact-match to the counters. */
+function addComparisonSideSums(
+  counters: PageComparisonCounters,
+  precision: number,
+  recall: number,
+  exactMatch: boolean,
+  isCandidate: boolean,
+): void {
+  if (isCandidate) {
+    counters.candidatePrecisionSum += precision;
+    counters.candidateRecallSum += recall;
+    if (exactMatch) counters.candidateExactMatches++;
+  } else {
+    counters.baselinePrecisionSum += precision;
+    counters.baselineRecallSum += recall;
+    if (exactMatch) counters.baselineExactMatches++;
+  }
+}
+
+/** Score one singleton comparison side (predicted only; abstained counts as covered). */
+function scoreSingletonComparisonSide(
+  counters: PageComparisonCounters,
+  set: Set<string>,
+  targetGoldSet: Set<string>,
+  isCandidate: boolean,
+): boolean {
+  if (isCandidate) counters.candidateCoveredCount++;
+  else counters.baselineCoveredCount++;
+  const { precision, recall, exactMatch } = scorePageSet(targetGoldSet, set);
+  addComparisonSideSums(counters, precision, recall, exactMatch, isCandidate);
+  return exactMatch;
+}
+
+/** Note recovery (baseline abstained, challenger exact) and harm (reverse). */
+function noteComparisonDelta(
+  counters: PageComparisonCounters,
+  challengerExact: boolean,
+  baselineExact: boolean,
+  recoveredWhen: boolean,
+): void {
+  counters.deltaSum += (challengerExact ? 1 : 0) - (baselineExact ? 1 : 0);
+  if (recoveredWhen && challengerExact) counters.recoveredBaselineAbstentions++;
+  if (baselineExact && !challengerExact) counters.harmedBaselineSuccesses++;
+}
+
+/** Gate one comparison example: require-pt and gold-label checks (true = score it). */
+function gatePageComparisonExample(
+  counters: PageComparisonCounters,
+  example: GoldExampleForEvaluation,
+  targetGoldSet: Set<string>,
+  requirePt: boolean,
+): boolean {
+  if (requirePt && !example.goldLabels.productType) {
+    counters.unavailableCount++;
+    return false;
+  }
+  if (targetGoldSet.size === 0) {
+    counters.unlabeledCount++;
+    return false;
+  }
+  counters.eligibleCount++;
+  return true;
+}
+
+/** Score the predicted singleton sides into counters; returns exact flags. */
+function scoreSingletonComparisonSides(
+  counters: PageComparisonCounters,
+  candSet: Set<string>,
+  baseSet: Set<string>,
+  targetGoldSet: Set<string>,
+  candStatus: ComparisonPageStatus,
+  baseStatus: ComparisonPageStatus,
+): { challengerExact: boolean; baselineExact: boolean } {
+  let challengerExact = false;
+  if (candStatus === 'predicted') {
+    challengerExact = scoreSingletonComparisonSide(counters, candSet, targetGoldSet, true);
+  } else if (candStatus === 'abstained') {
+    counters.candidateCoveredCount++;
+  }
+  let baselineExact = false;
+  if (baseStatus === 'predicted') {
+    baselineExact = scoreSingletonComparisonSide(counters, baseSet, targetGoldSet, false);
+  } else if (baseStatus === 'abstained') {
+    counters.baselineCoveredCount++;
+  }
+  return { challengerExact, baselineExact };
+}
+
+/** Tally unavailable/evaluated presence for one singleton example. */
+function tallySingletonExamplePresence(
+  counters: PageComparisonCounters,
+  candStatus: ComparisonPageStatus,
+  baseStatus: ComparisonPageStatus,
+): void {
+  if (candStatus === 'unavailable' || baseStatus === 'unavailable') {
+    counters.unavailableCount++;
+  }
+  if (candStatus !== 'unavailable' || baseStatus !== 'unavailable') {
+    counters.evaluatedCount++;
+  }
+}
+
+/** Non-empty page id/name lists for both comparison sides. */
+function comparisonPageLists(
+  cand: BenchmarkPredictionEntry | undefined,
+  base: BenchmarkPredictionEntry | undefined,
+): { candIds: string[]; candNames: string[]; baseIds: string[]; baseNames: string[] } {
+  return {
+    candIds: (cand?.pageIds ?? []).filter(Boolean),
+    candNames: (cand?.pageAssignments ?? []).filter(Boolean),
+    baseIds: (base?.pageIds ?? []).filter(Boolean),
+    baseNames: (base?.pageAssignments ?? []).filter(Boolean),
+  };
+}
+
+/** Push one singleton comparison row report. */
+function pushSingletonExampleReport(
+  exampleReports: SingletonPageComparisonReport['examples'],
+  example: GoldExampleForEvaluation,
+  goldPageIds: string[],
+  goldPageNames: string[],
+  lists: { candIds: string[]; candNames: string[]; baseIds: string[]; baseNames: string[] },
+  candStatus: ComparisonPageStatus,
+  baseStatus: ComparisonPageStatus,
+  challengerExact: boolean,
+  baselineExact: boolean,
+): void {
+  exampleReports.push({
+    exampleId: example.id,
+    productSku: example.productSku,
+    goldPageIds,
+    goldPageNames,
+    baselinePageIds: lists.baseIds,
+    baselinePageNames: lists.baseNames,
+    challengerPageIds: lists.candIds,
+    challengerPageNames: lists.candNames,
+    baselineStatus: baseStatus,
+    challengerStatus: candStatus,
+    isExactMatchBaseline: baselineExact,
+    isExactMatchChallenger: challengerExact,
+  });
+}
+
+/** Push one cohort comparison row report. */
+function pushCohortExampleReport(
+  exampleReports: CohortPageExampleReport[],
+  example: GoldExampleForEvaluation,
+  goldPageIds: string[],
+  goldPageNames: string[],
+  lists: { candIds: string[]; candNames: string[]; baseIds: string[]; baseNames: string[] },
+  candCat: CohortPageOutcomeCategory,
+  baseCat: CohortPageOutcomeCategory,
+  challenger: { exact: boolean; prec: number; rec: number },
+  baseline: { exact: boolean; prec: number; rec: number },
+): void {
+  exampleReports.push({
+    exampleId: example.id,
+    productSku: example.productSku,
+    goldPageIds,
+    goldPageNames,
+    baselinePageIds: lists.baseIds,
+    baselinePageNames: lists.baseNames,
+    challengerPageIds: lists.candIds,
+    challengerPageNames: lists.candNames,
+    baselineCategory: baseCat,
+    challengerCategory: candCat,
+    isExactMatchBaseline: baseline.exact,
+    isExactMatchChallenger: challenger.exact,
+    baselinePrecision: baseline.prec,
+    baselineRecall: baseline.rec,
+    challengerPrecision: challenger.prec,
+    challengerRecall: challenger.rec,
+  });
+}
+
+/** Score one singleton comparison example into counters + row reports. */
+function scoreSingletonComparisonExample(
+  counters: PageComparisonCounters,
+  exampleReports: SingletonPageComparisonReport['examples'],
+  example: GoldExampleForEvaluation,
+  cand: BenchmarkPredictionEntry | undefined,
+  base: BenchmarkPredictionEntry | undefined,
+  byIdentity: boolean,
+  requirePt: boolean,
+): void {
+  const { goldPageIds, goldPageNames, targetGoldSet } = comparisonGoldForExample(example, byIdentity);
+  if (!gatePageComparisonExample(counters, example, targetGoldSet, requirePt)) return;
+  const candStatus = resolveComparisonPageStatus(cand);
+  const baseStatus = resolveComparisonPageStatus(base);
+  tallySingletonExamplePresence(counters, candStatus, baseStatus);
+  const lists = comparisonPageLists(cand, base);
+  const candSet = new Set(candStatus === 'predicted' ? (byIdentity ? lists.candIds : lists.candNames) : []);
+  const baseSet = new Set(baseStatus === 'predicted' ? (byIdentity ? lists.baseIds : lists.baseNames) : []);
+  const { challengerExact, baselineExact } = scoreSingletonComparisonSides(
+    counters, candSet, baseSet, targetGoldSet, candStatus, baseStatus,
+  );
+  noteComparisonDelta(counters, challengerExact, baselineExact, baseStatus === 'abstained');
+  pushSingletonExampleReport(
+    exampleReports, example, goldPageIds, goldPageNames, lists,
+    candStatus, baseStatus, challengerExact, baselineExact,
+  );
+}
+
+/** True for cohort model failures (service/dispatch codes or failed outcome). */
+function isCohortModelFailure(
+  raw: Record<string, unknown>,
+  failureCode: string | null,
+): boolean {
+  return failureCode === 'service_failure' || raw.outcome === 'failed' || failureCode === 'dispatch_failed';
+}
+
+const COHORT_CORRECTNESS_REJECTION_CODES = [
+  'species_conflict',
+  'validation_blocked',
+  'cardinality_limit_exceeded',
+  'candidate_limit_exceeded',
+  'unknown_option_key',
+] as const;
+
+/** True for correctness rejections (known codes or matching reason text). */
+function isCohortCorrectnessRejection(
+  abstentionCode: string | null,
+  abstentionReason: string,
+): boolean {
+  if (abstentionCode !== null && (COHORT_CORRECTNESS_REJECTION_CODES as readonly string[]).includes(abstentionCode)) {
+    return true;
+  }
+  return /cross-species|species conflict|validation|limit|exceeded|unknown choice/i.test(abstentionReason);
+}
+
+/** Empty cohort outcome breakdown (all categories start at zero). */
+function emptyCohortOutcomeBreakdown(): CohortOutcomeBreakdown {
+  return {
+    successfulAssignments: 0,
+    semanticAbstentions: 0,
+    correctnessRejections: 0,
+    modelFailures: 0,
+    unlabeled: 0,
+    unavailable: 0,
+  };
+}
+
+/** Tally one cohort outcome category into its breakdown. */
+function tallyCohortBreakdown(
+  breakdown: CohortOutcomeBreakdown,
+  category: CohortPageOutcomeCategory,
+): void {
+  if (category === 'successful_assignment') breakdown.successfulAssignments++;
+  else if (category === 'semantic_abstention') breakdown.semanticAbstentions++;
+  else if (category === 'correctness_rejection') breakdown.correctnessRejections++;
+  else if (category === 'model_failure') breakdown.modelFailures++;
+  else if (category === 'unavailable') breakdown.unavailable++;
+}
+
+/** Scored values for one cohort comparison side (precision/recall/exact). */
+interface CohortSideScore {
+  exact: boolean;
+  prec: number;
+  rec: number;
+}
+
+/** Score one cohort comparison side into counters (covered rules per category). */
+function scoreCohortComparisonSide(
+  counters: PageComparisonCounters,
+  set: Set<string>,
+  targetGoldSet: Set<string>,
+  category: CohortPageOutcomeCategory,
+  isCandidate: boolean,
+): CohortSideScore {
+  const covered = category === 'successful_assignment' ||
+    category === 'semantic_abstention' ||
+    category === 'correctness_rejection';
+  if (!covered) return { exact: false, prec: 0, rec: 0 };
+  if (isCandidate) counters.candidateCoveredCount++;
+  else counters.baselineCoveredCount++;
+  if (category !== 'successful_assignment') return { exact: false, prec: 0, rec: 0 };
+  const { precision, recall, exactMatch } = scorePageSet(targetGoldSet, set);
+  addComparisonSideSums(counters, precision, recall, exactMatch, isCandidate);
+  return { exact: exactMatch, prec: precision, rec: recall };
+}
+
+/** Gate one cohort example: require-pt and gold checks with breakdown bumps. */
+function gateCohortComparisonExample(
+  counters: PageComparisonCounters,
+  candidateBreakdown: CohortOutcomeBreakdown,
+  baselineBreakdown: CohortOutcomeBreakdown,
+  example: GoldExampleForEvaluation,
+  targetGoldSet: Set<string>,
+  requirePt: boolean,
+): boolean {
+  if (requirePt && !example.goldLabels.productType) {
+    counters.unavailableCount++;
+    candidateBreakdown.unavailable++;
+    baselineBreakdown.unavailable++;
+    return false;
+  }
+  if (targetGoldSet.size === 0) {
+    counters.unlabeledCount++;
+    candidateBreakdown.unlabeled++;
+    baselineBreakdown.unlabeled++;
+    return false;
+  }
+  counters.eligibleCount++;
+  return true;
+}
+
+/** Tally cohort outcome categories + unavailable presence for one example. */
+function tallyCohortExamplePresence(
+  counters: PageComparisonCounters,
+  candidateBreakdown: CohortOutcomeBreakdown,
+  baselineBreakdown: CohortOutcomeBreakdown,
+  candCat: CohortPageOutcomeCategory,
+  baseCat: CohortPageOutcomeCategory,
+): void {
+  tallyCohortBreakdown(candidateBreakdown, candCat);
+  tallyCohortBreakdown(baselineBreakdown, baseCat);
+  if (candCat === 'unavailable' || baseCat === 'unavailable') {
+    counters.unavailableCount++;
+  }
+}
+
+/** Tally evaluated presence for one cohort example (either side available). */
+function tallyCohortExampleEvaluated(
+  counters: PageComparisonCounters,
+  candCat: CohortPageOutcomeCategory,
+  baseCat: CohortPageOutcomeCategory,
+): void {
+  if (candCat !== 'unavailable' || baseCat !== 'unavailable') {
+    counters.evaluatedCount++;
+  }
+}
+
+/** Score one cohort comparison example into counters, breakdowns, and rows. */
+function scoreCohortComparisonExample(
+  counters: PageComparisonCounters,
+  candidateBreakdown: CohortOutcomeBreakdown,
+  baselineBreakdown: CohortOutcomeBreakdown,
+  exampleReports: CohortPageExampleReport[],
+  example: GoldExampleForEvaluation,
+  cand: BenchmarkPredictionEntry | undefined,
+  base: BenchmarkPredictionEntry | undefined,
+  byIdentity: boolean,
+  requirePt: boolean,
+): void {
+  const { goldPageIds, goldPageNames, targetGoldSet } = comparisonGoldForExample(example, byIdentity);
+  if (!gateCohortComparisonExample(counters, candidateBreakdown, baselineBreakdown, example, targetGoldSet, requirePt)) {
+    return;
+  }
+  const candCat = classifyCohortPageOutcome(cand);
+  const baseCat = classifyCohortPageOutcome(base);
+  tallyCohortExamplePresence(counters, candidateBreakdown, baselineBreakdown, candCat, baseCat);
+  const lists = comparisonPageLists(cand, base);
+  const candSet = new Set(byIdentity ? lists.candIds : lists.candNames);
+  const baseSet = new Set(byIdentity ? lists.baseIds : lists.baseNames);
+  const challenger = scoreCohortComparisonSide(counters, candSet, targetGoldSet, candCat, true);
+  const baseline = scoreCohortComparisonSide(counters, baseSet, targetGoldSet, baseCat, false);
+  tallyCohortExampleEvaluated(counters, candCat, baseCat);
+  noteComparisonDelta(
+    counters,
+    challenger.exact,
+    baseline.exact,
+    baseCat !== 'successful_assignment',
+  );
+  pushCohortExampleReport(
+    exampleReports, example, goldPageIds, goldPageNames, lists,
+    candCat, baseCat, challenger, baseline,
+  );
+}
+
 /**
  * Stage-isolated comparison helper between uncorrected current/baseline and Jev challenger
  * singleton page outputs over the same frozen state with common reviewed product type (issue #299 / AC 8).
@@ -2057,192 +3079,30 @@ export function compareSingletonPagePredictions(
   options: CompareSingletonPagePredictionsOptions = {},
 ): SingletonPageComparisonReport {
   const requirePt = options.requireReviewedProductType ?? true;
-
-  const candidateById = new Map<string, BenchmarkPredictionEntry>();
-  for (const entry of candidatePredictions) {
-    if (!candidateById.has(entry.exampleId)) candidateById.set(entry.exampleId, entry);
-  }
-  const baselineById = new Map<string, BenchmarkPredictionEntry>();
-  for (const entry of baselinePredictions) {
-    if (!baselineById.has(entry.exampleId)) baselineById.set(entry.exampleId, entry);
-  }
-
-  const allGoldPagesHaveVerifiedIds = gold.length > 0 && gold.every(example => {
-    const assignments = example.goldLabels.pageAssignments ?? [];
-    const catPageIds = example.goldLabels.categoryPageIds ?? [];
-    if (assignments.length === 0 && catPageIds.length === 0) return true;
-    if (catPageIds.length > 0) return true;
-    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
-  });
-
-  const hasVerifiedImportProvenance =
-    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
-    candidatePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0)) ||
-    baselinePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
-
-  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
-
-  let eligibleCount = 0;
-  let evaluatedCount = 0;
-  let unlabeledCount = 0;
-  let unavailableCount = 0;
-  let candidateExactMatches = 0;
-  let baselineExactMatches = 0;
-  let candidatePrecisionSum = 0;
-  let candidateRecallSum = 0;
-  let baselinePrecisionSum = 0;
-  let baselineRecallSum = 0;
-  let recoveredBaselineAbstentions = 0;
-  let harmedBaselineSuccesses = 0;
-  let deltaSum = 0;
-  let candidateCoveredCount = 0;
-  let baselineCoveredCount = 0;
-
+  const { candidateById, baselineById } = indexComparisonPredictions(
+    candidatePredictions,
+    baselinePredictions,
+  );
+  const canEvaluateByIdentity = resolveComparisonIdentityCapability(
+    gold,
+    candidatePredictions,
+    baselinePredictions,
+  );
+  const counters = emptyPageComparisonCounters();
   const exampleReports: SingletonPageComparisonReport['examples'] = [];
-
   for (const example of gold) {
-    const gAssignments = example.goldLabels.pageAssignments ?? [];
-    const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
-    const goldPageIds = gCatPageIds.length > 0
-      ? gCatPageIds
-      : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
-    const goldPageNames = gAssignments.map(p => p.pageName).filter(Boolean);
-
-    const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
-
-    if (requirePt && !example.goldLabels.productType) {
-      unavailableCount++;
-      continue;
-    }
-
-    if (targetGoldSet.size === 0) {
-      unlabeledCount++;
-      continue;
-    }
-
-    eligibleCount++;
-
-    const cand = candidateById.get(example.id);
-    const base = baselineById.get(example.id);
-
-    const resolveStatus = (entry: BenchmarkPredictionEntry | undefined): 'predicted' | 'abstained' | 'failed' | 'unavailable' => {
-      if (!entry) return 'unavailable';
-      const raw = entry as unknown as Record<string, unknown>;
-      if (typeof raw.failureCode === 'string' && raw.failureCode.trim() !== '') return 'failed';
-      if (raw.outcome === 'failed') return 'failed';
-      if (entry.abstained || (entry.pageAssignments.length === 0 && (!entry.pageIds || entry.pageIds.length === 0))) {
-        return 'abstained';
-      }
-      return 'predicted';
-    };
-
-    const candStatus = resolveStatus(cand);
-    const baseStatus = resolveStatus(base);
-
-    if (candStatus === 'unavailable' || baseStatus === 'unavailable') {
-      unavailableCount++;
-    }
-
-    const candIds = (cand?.pageIds ?? []).filter(Boolean);
-    const candNames = (cand?.pageAssignments ?? []).filter(Boolean);
-    const baseIds = (base?.pageIds ?? []).filter(Boolean);
-    const baseNames = (base?.pageAssignments ?? []).filter(Boolean);
-
-    const candTargetItems = canEvaluateByIdentity ? candIds : candNames;
-    const baseTargetItems = canEvaluateByIdentity ? baseIds : baseNames;
-
-    const candSet = new Set(candStatus === 'predicted' ? candTargetItems : []);
-    const baseSet = new Set(baseStatus === 'predicted' ? baseTargetItems : []);
-
-    let isExactMatchChallenger = false;
-    let candPrec = 0;
-    let candRec = 0;
-    if (candStatus === 'predicted') {
-      candidateCoveredCount++;
-      let hits = 0;
-      for (const item of candSet) {
-        if (targetGoldSet.has(item)) hits++;
-      }
-      candPrec = candSet.size > 0 ? hits / candSet.size : 0;
-      candRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
-      isExactMatchChallenger = targetGoldSet.size === candSet.size && hits === targetGoldSet.size;
-      if (isExactMatchChallenger) candidateExactMatches++;
-      candidatePrecisionSum += candPrec;
-      candidateRecallSum += candRec;
-    } else if (candStatus === 'abstained') {
-      candidateCoveredCount++;
-    }
-
-    let isExactMatchBaseline = false;
-    let basePrec = 0;
-    let baseRec = 0;
-    if (baseStatus === 'predicted') {
-      baselineCoveredCount++;
-      let hits = 0;
-      for (const item of baseSet) {
-        if (targetGoldSet.has(item)) hits++;
-      }
-      basePrec = baseSet.size > 0 ? hits / baseSet.size : 0;
-      baseRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
-      isExactMatchBaseline = targetGoldSet.size === baseSet.size && hits === targetGoldSet.size;
-      if (isExactMatchBaseline) baselineExactMatches++;
-      baselinePrecisionSum += basePrec;
-      baselineRecallSum += baseRec;
-    } else if (baseStatus === 'abstained') {
-      baselineCoveredCount++;
-    }
-
-    if (candStatus !== 'unavailable' || baseStatus !== 'unavailable') {
-      evaluatedCount++;
-    }
-
-    const candScore = isExactMatchChallenger ? 1 : 0;
-    const baseScore = isExactMatchBaseline ? 1 : 0;
-    deltaSum += candScore - baseScore;
-
-    if (baseStatus === 'abstained' && isExactMatchChallenger) {
-      recoveredBaselineAbstentions++;
-    }
-    if (isExactMatchBaseline && !isExactMatchChallenger) {
-      harmedBaselineSuccesses++;
-    }
-
-    exampleReports.push({
-      exampleId: example.id,
-      productSku: example.productSku,
-      goldPageIds,
-      goldPageNames,
-      baselinePageIds: baseIds,
-      baselinePageNames: baseNames,
-      challengerPageIds: candIds,
-      challengerPageNames: candNames,
-      baselineStatus: baseStatus,
-      challengerStatus: candStatus,
-      isExactMatchBaseline,
-      isExactMatchChallenger,
-    });
+    scoreSingletonComparisonExample(
+      counters,
+      exampleReports,
+      example,
+      candidateById.get(example.id),
+      baselineById.get(example.id),
+      canEvaluateByIdentity,
+      requirePt,
+    );
   }
-
-  const candCov = eligibleCount > 0 ? candidateCoveredCount / eligibleCount : 0;
-  const baseCov = eligibleCount > 0 ? baselineCoveredCount / eligibleCount : 0;
-
   return {
-    eligibleCount,
-    evaluatedCount,
-    unlabeledCount,
-    unavailableCount,
-    candidateExactMatches,
-    baselineExactMatches,
-    candidatePrecision: evaluatedCount > 0 ? candidatePrecisionSum / evaluatedCount : 0,
-    candidateRecall: evaluatedCount > 0 ? candidateRecallSum / evaluatedCount : 0,
-    baselinePrecision: evaluatedCount > 0 ? baselinePrecisionSum / evaluatedCount : 0,
-    baselineRecall: evaluatedCount > 0 ? baselineRecallSum / evaluatedCount : 0,
-    exactSetDeltaMean: eligibleCount > 0 ? deltaSum / eligibleCount : 0,
-    recoveredBaselineAbstentions,
-    harmedBaselineSuccesses,
-    coverageShift: candCov - baseCov,
-    evaluatedByIdentity: canEvaluateByIdentity,
-    eligibleToQualifyJev: canEvaluateByIdentity,
+    ...finalizePageComparisonSummary(counters, canEvaluateByIdentity),
     examples: exampleReports,
   };
 }
@@ -2285,23 +3145,7 @@ export interface CohortPageExampleReport {
   challengerRecall: number;
 }
 
-export interface CohortPageComparisonReport {
-  eligibleCount: number;
-  evaluatedCount: number;
-  unlabeledCount: number;
-  unavailableCount: number;
-  candidateExactMatches: number;
-  baselineExactMatches: number;
-  candidatePrecision: number;
-  candidateRecall: number;
-  baselinePrecision: number;
-  baselineRecall: number;
-  exactSetDeltaMean: number;
-  recoveredBaselineAbstentions: number;
-  harmedBaselineSuccesses: number;
-  coverageShift: number;
-  evaluatedByIdentity: boolean;
-  eligibleToQualifyJev: boolean;
+export interface CohortPageComparisonReport extends SharedPageComparisonSummary {
   candidateBreakdown: CohortOutcomeBreakdown;
   baselineBreakdown: CohortOutcomeBreakdown;
   examples: CohortPageExampleReport[];
@@ -2311,30 +3155,13 @@ export function classifyCohortPageOutcome(entry: BenchmarkPredictionEntry | unde
   if (!entry) return 'unavailable';
   const raw = entry as unknown as Record<string, unknown>;
   const failureCode = typeof raw.failureCode === 'string' ? raw.failureCode.trim() : null;
-  const outcome = raw.outcome;
+  if (isCohortModelFailure(raw, failureCode)) return 'model_failure';
+  const hasPages = (entry.pageAssignments && entry.pageAssignments.length > 0) || (entry.pageIds && entry.pageIds.length > 0);
+  if (!entry.abstained && hasPages) return 'successful_assignment';
   const abstentionCode = typeof raw.abstentionCode === 'string' ? raw.abstentionCode.trim() : null;
   const abstentionReason = typeof raw.abstentionReason === 'string' ? String(raw.abstentionReason) : '';
-
-  if (failureCode === 'service_failure' || outcome === 'failed' || failureCode === 'dispatch_failed') {
-    return 'model_failure';
-  }
-
-  const hasPages = (entry.pageAssignments && entry.pageAssignments.length > 0) || (entry.pageIds && entry.pageIds.length > 0);
-  if (entry.abstained || !hasPages) {
-    if (
-      abstentionCode === 'species_conflict' ||
-      abstentionCode === 'validation_blocked' ||
-      abstentionCode === 'cardinality_limit_exceeded' ||
-      abstentionCode === 'candidate_limit_exceeded' ||
-      abstentionCode === 'unknown_option_key' ||
-      /cross-species|species conflict|validation|limit|exceeded|unknown choice/i.test(abstentionReason)
-    ) {
-      return 'correctness_rejection';
-    }
-    return 'semantic_abstention';
-  }
-
-  return 'successful_assignment';
+  if (isCohortCorrectnessRejection(abstentionCode, abstentionReason)) return 'correctness_rejection';
+  return 'semantic_abstention';
 }
 
 export function compareCohortPagePredictions(
@@ -2344,225 +3171,34 @@ export function compareCohortPagePredictions(
   options: CompareSingletonPagePredictionsOptions = {},
 ): CohortPageComparisonReport {
   const requirePt = options.requireReviewedProductType ?? true;
-
-  const candidateById = new Map<string, BenchmarkPredictionEntry>();
-  for (const entry of candidatePredictions) {
-    if (!candidateById.has(entry.exampleId)) candidateById.set(entry.exampleId, entry);
-  }
-  const baselineById = new Map<string, BenchmarkPredictionEntry>();
-  for (const entry of baselinePredictions) {
-    if (!baselineById.has(entry.exampleId)) baselineById.set(entry.exampleId, entry);
-  }
-
-  const allGoldPagesHaveVerifiedIds = gold.length > 0 && gold.every(example => {
-    const assignments = example.goldLabels.pageAssignments ?? [];
-    const catPageIds = example.goldLabels.categoryPageIds ?? [];
-    if (assignments.length === 0 && catPageIds.length === 0) return true;
-    if (catPageIds.length > 0) return true;
-    return assignments.every(p => typeof p.pageId === 'string' && p.pageId.trim().length > 0);
-  });
-
-  const hasVerifiedImportProvenance =
-    gold.some(e => Boolean(e.goldLabels.verifiedImportProvenance)) ||
-    candidatePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0)) ||
-    baselinePredictions.some(p => Boolean(p.verifiedImportProvenance) || (Array.isArray(p.pageIds) && p.pageIds.length > 0));
-
-  const canEvaluateByIdentity = allGoldPagesHaveVerifiedIds && hasVerifiedImportProvenance;
-
-  let eligibleCount = 0;
-  let evaluatedCount = 0;
-  let unlabeledCount = 0;
-  let unavailableCount = 0;
-  let candidateExactMatches = 0;
-  let baselineExactMatches = 0;
-  let candidatePrecisionSum = 0;
-  let candidateRecallSum = 0;
-  let baselinePrecisionSum = 0;
-  let baselineRecallSum = 0;
-  let recoveredBaselineAbstentions = 0;
-  let harmedBaselineSuccesses = 0;
-  let deltaSum = 0;
-  let candidateCoveredCount = 0;
-  let baselineCoveredCount = 0;
-
-  const candidateBreakdown: CohortOutcomeBreakdown = {
-    successfulAssignments: 0,
-    semanticAbstentions: 0,
-    correctnessRejections: 0,
-    modelFailures: 0,
-    unlabeled: 0,
-    unavailable: 0,
-  };
-
-  const baselineBreakdown: CohortOutcomeBreakdown = {
-    successfulAssignments: 0,
-    semanticAbstentions: 0,
-    correctnessRejections: 0,
-    modelFailures: 0,
-    unlabeled: 0,
-    unavailable: 0,
-  };
-
+  const { candidateById, baselineById } = indexComparisonPredictions(
+    candidatePredictions,
+    baselinePredictions,
+  );
+  const canEvaluateByIdentity = resolveComparisonIdentityCapability(
+    gold,
+    candidatePredictions,
+    baselinePredictions,
+  );
+  const counters = emptyPageComparisonCounters();
+  const candidateBreakdown = emptyCohortOutcomeBreakdown();
+  const baselineBreakdown = emptyCohortOutcomeBreakdown();
   const exampleReports: CohortPageExampleReport[] = [];
-
   for (const example of gold) {
-    const gAssignments = example.goldLabels.pageAssignments ?? [];
-    const gCatPageIds = example.goldLabels.categoryPageIds ?? [];
-    const goldPageIds = gCatPageIds.length > 0
-      ? gCatPageIds
-      : gAssignments.map(p => p.pageId).filter((v): v is string => Boolean(v));
-    const goldPageNames = gAssignments.map(p => p.pageName).filter(Boolean);
-
-    const targetGoldSet = new Set(canEvaluateByIdentity ? goldPageIds : goldPageNames);
-
-    if (requirePt && !example.goldLabels.productType) {
-      unavailableCount++;
-      candidateBreakdown.unavailable++;
-      baselineBreakdown.unavailable++;
-      continue;
-    }
-
-    if (targetGoldSet.size === 0) {
-      unlabeledCount++;
-      candidateBreakdown.unlabeled++;
-      baselineBreakdown.unlabeled++;
-      continue;
-    }
-
-    eligibleCount++;
-
-    const cand = candidateById.get(example.id);
-    const base = baselineById.get(example.id);
-
-    const candCat = classifyCohortPageOutcome(cand);
-    const baseCat = classifyCohortPageOutcome(base);
-
-    switch (candCat) {
-      case 'successful_assignment': candidateBreakdown.successfulAssignments++; break;
-      case 'semantic_abstention': candidateBreakdown.semanticAbstentions++; break;
-      case 'correctness_rejection': candidateBreakdown.correctnessRejections++; break;
-      case 'model_failure': candidateBreakdown.modelFailures++; break;
-      case 'unavailable': candidateBreakdown.unavailable++; break;
-      default: break;
-    }
-
-    switch (baseCat) {
-      case 'successful_assignment': baselineBreakdown.successfulAssignments++; break;
-      case 'semantic_abstention': baselineBreakdown.semanticAbstentions++; break;
-      case 'correctness_rejection': baselineBreakdown.correctnessRejections++; break;
-      case 'model_failure': baselineBreakdown.modelFailures++; break;
-      case 'unavailable': baselineBreakdown.unavailable++; break;
-      default: break;
-    }
-
-    if (candCat === 'unavailable' || baseCat === 'unavailable') {
-      unavailableCount++;
-    }
-
-    const candIds = (cand?.pageIds ?? []).filter(Boolean);
-    const candNames = (cand?.pageAssignments ?? []).filter(Boolean);
-    const baseIds = (base?.pageIds ?? []).filter(Boolean);
-    const baseNames = (base?.pageAssignments ?? []).filter(Boolean);
-
-    const candTargetItems = canEvaluateByIdentity ? candIds : candNames;
-    const baseTargetItems = canEvaluateByIdentity ? baseIds : baseNames;
-
-    const candSet = new Set(candCat === 'successful_assignment' ? candTargetItems : []);
-    const baseSet = new Set(baseCat === 'successful_assignment' ? baseTargetItems : []);
-
-    let isExactMatchChallenger = false;
-    let candPrec = 0;
-    let candRec = 0;
-    if (candCat === 'successful_assignment') {
-      candidateCoveredCount++;
-      let hits = 0;
-      for (const item of candSet) {
-        if (targetGoldSet.has(item)) hits++;
-      }
-      candPrec = candSet.size > 0 ? hits / candSet.size : 0;
-      candRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
-      isExactMatchChallenger = targetGoldSet.size === candSet.size && hits === targetGoldSet.size;
-      if (isExactMatchChallenger) candidateExactMatches++;
-      candidatePrecisionSum += candPrec;
-      candidateRecallSum += candRec;
-    } else if (candCat === 'semantic_abstention' || candCat === 'correctness_rejection') {
-      candidateCoveredCount++;
-    }
-
-    let isExactMatchBaseline = false;
-    let basePrec = 0;
-    let baseRec = 0;
-    if (baseCat === 'successful_assignment') {
-      baselineCoveredCount++;
-      let hits = 0;
-      for (const item of baseSet) {
-        if (targetGoldSet.has(item)) hits++;
-      }
-      basePrec = baseSet.size > 0 ? hits / baseSet.size : 0;
-      baseRec = targetGoldSet.size > 0 ? hits / targetGoldSet.size : 0;
-      isExactMatchBaseline = targetGoldSet.size === baseSet.size && hits === targetGoldSet.size;
-      if (isExactMatchBaseline) baselineExactMatches++;
-      baselinePrecisionSum += basePrec;
-      baselineRecallSum += baseRec;
-    } else if (baseCat === 'semantic_abstention' || baseCat === 'correctness_rejection') {
-      baselineCoveredCount++;
-    }
-
-    if (candCat !== 'unavailable' || baseCat !== 'unavailable') {
-      evaluatedCount++;
-    }
-
-    const candScore = isExactMatchChallenger ? 1 : 0;
-    const baseScore = isExactMatchBaseline ? 1 : 0;
-    deltaSum += candScore - baseScore;
-
-    if (baseCat !== 'successful_assignment' && isExactMatchChallenger) {
-      recoveredBaselineAbstentions++;
-    }
-    if (isExactMatchBaseline && !isExactMatchChallenger) {
-      harmedBaselineSuccesses++;
-    }
-
-    exampleReports.push({
-      exampleId: example.id,
-      productSku: example.productSku,
-      goldPageIds,
-      goldPageNames,
-      baselinePageIds: baseIds,
-      baselinePageNames: baseNames,
-      challengerPageIds: candIds,
-      challengerPageNames: candNames,
-      baselineCategory: baseCat,
-      challengerCategory: candCat,
-      isExactMatchBaseline,
-      isExactMatchChallenger,
-      baselinePrecision: basePrec,
-      baselineRecall: baseRec,
-      challengerPrecision: candPrec,
-      challengerRecall: candRec,
-    });
+    scoreCohortComparisonExample(
+      counters,
+      candidateBreakdown,
+      baselineBreakdown,
+      exampleReports,
+      example,
+      candidateById.get(example.id),
+      baselineById.get(example.id),
+      canEvaluateByIdentity,
+      requirePt,
+    );
   }
-
-  const candCov = eligibleCount > 0 ? candidateCoveredCount / eligibleCount : 0;
-  const baseCov = eligibleCount > 0 ? baselineCoveredCount / eligibleCount : 0;
-
   return {
-    eligibleCount,
-    evaluatedCount,
-    unlabeledCount,
-    unavailableCount,
-    candidateExactMatches,
-    baselineExactMatches,
-    candidatePrecision: evaluatedCount > 0 ? candidatePrecisionSum / evaluatedCount : 0,
-    candidateRecall: evaluatedCount > 0 ? candidateRecallSum / evaluatedCount : 0,
-    baselinePrecision: evaluatedCount > 0 ? baselinePrecisionSum / evaluatedCount : 0,
-    baselineRecall: evaluatedCount > 0 ? baselineRecallSum / evaluatedCount : 0,
-    exactSetDeltaMean: eligibleCount > 0 ? deltaSum / eligibleCount : 0,
-    recoveredBaselineAbstentions,
-    harmedBaselineSuccesses,
-    coverageShift: candCov - baseCov,
-    evaluatedByIdentity: canEvaluateByIdentity,
-    eligibleToQualifyJev: canEvaluateByIdentity,
+    ...finalizePageComparisonSummary(counters, canEvaluateByIdentity),
     candidateBreakdown,
     baselineBreakdown,
     examples: exampleReports,
@@ -2589,117 +3225,279 @@ export interface CohortPipelineEffectsReport {
   endToEndCorrectAllStages: number;
 }
 
+// ─── Cohort pipeline-effects sections ─────────────────────────────────────────
+// Per-stage scorers for end-to-end cohort effects: type resolution, attribute
+// effects conditioned on type correctness, and page effects likewise.
+
+interface PipelinePredictionIndexes {
+  typeBySku: Map<string, BenchmarkPredictionEntry>;
+  attrBySku: Map<string, BenchmarkPredictionEntry[]>;
+  pageBySku: Map<string, BenchmarkPredictionEntry>;
+}
+
+/** Index pipeline prediction sides by product SKU (last-wins for type/page). */
+function indexPipelinePredictionsBySku(
+  typePredictions: BenchmarkPredictionEntry[],
+  attributePredictions: BenchmarkPredictionEntry[],
+  pagePredictions: BenchmarkPredictionEntry[],
+): PipelinePredictionIndexes {
+  const typeBySku = new Map<string, BenchmarkPredictionEntry>();
+  for (const prediction of typePredictions) typeBySku.set(prediction.productSku, prediction);
+  const attrBySku = new Map<string, BenchmarkPredictionEntry[]>();
+  for (const prediction of attributePredictions) {
+    const list = attrBySku.get(prediction.productSku) ?? [];
+    list.push(prediction);
+    attrBySku.set(prediction.productSku, list);
+  }
+  const pageBySku = new Map<string, BenchmarkPredictionEntry>();
+  for (const prediction of pagePredictions) pageBySku.set(prediction.productSku, prediction);
+  return { typeBySku, attrBySku, pageBySku };
+}
+
+interface PipelineTypeStatus {
+  isTypeCorrect: boolean;
+  isTypeAbstained: boolean;
+}
+
+/** Resolve type correctness/abstention for one SKU (legacy id shapes included). */
+function resolvePipelineTypeStatus(
+  typePred: BenchmarkPredictionEntry | undefined,
+  goldType: string | null,
+): PipelineTypeStatus {
+  const predType = typePred?.productType ?? (typePred as unknown as { predictedProductTypeId?: string })?.predictedProductTypeId;
+  return {
+    isTypeCorrect: Boolean(goldType && predType === goldType),
+    isTypeAbstained: Boolean(typePred?.abstained || !predType),
+  };
+}
+
+interface PipelineCounters {
+  typeCorrect: number;
+  typeAbstained: number;
+  typeIncorrect: number;
+  attrCorrectWhenTypeCorrect: number;
+  attrAbstainedWhenTypeAbstained: number;
+  totalAttrEvaluated: number;
+  pageExactMatchWhenTypeCorrect: number;
+  pageAbstainedWhenTypeAbstained: number;
+  totalPageEvaluated: number;
+  endToEndCorrect: number;
+}
+
+function emptyPipelineCounters(): PipelineCounters {
+  return {
+    typeCorrect: 0,
+    typeAbstained: 0,
+    typeIncorrect: 0,
+    attrCorrectWhenTypeCorrect: 0,
+    attrAbstainedWhenTypeAbstained: 0,
+    totalAttrEvaluated: 0,
+    pageExactMatchWhenTypeCorrect: 0,
+    pageAbstainedWhenTypeAbstained: 0,
+    totalPageEvaluated: 0,
+    endToEndCorrect: 0,
+  };
+}
+
+/** Tally type resolution for one example. */
+function tallyPipelineTypeResolution(
+  counters: PipelineCounters,
+  status: PipelineTypeStatus,
+): void {
+  if (status.isTypeCorrect) counters.typeCorrect++;
+  else if (status.isTypeAbstained) counters.typeAbstained++;
+  else counters.typeIncorrect++;
+}
+
+/** Normalized field assignments for one attribute prediction (legacy shapes included). */
+function pipelineFieldAssignmentsOf(
+  prediction: BenchmarkPredictionEntry,
+): Array<{ targetId: string; value: string | null }> {
+  if (prediction.fieldAssignments && prediction.fieldAssignments.length > 0) {
+    return prediction.fieldAssignments;
+  }
+  const legacy = prediction as unknown as {
+    targetId?: string;
+    predictedValue?: string | null;
+    predictedValues?: string[];
+  };
+  if (legacy.targetId) {
+    return [{
+      targetId: legacy.targetId,
+      value: legacy.predictedValue ?? legacy.predictedValues?.[0] ?? null,
+    }];
+  }
+  return [];
+}
+
+/** Gold value for one field target (gold value, first values entry, or legacy attributes). */
+function pipelineGoldFieldValueOf(
+  example: GoldExampleForEvaluation,
+  goldFieldMap: Map<string, string | null>,
+  targetId: string,
+): string | null {
+  return goldFieldMap.get(targetId) ??
+    (example.goldLabels as unknown as { attributes?: Record<string, string | null> }).attributes?.[targetId] ??
+    null;
+}
+
+/** Correctness/abstention judgment for one pipeline attribute field. */
+function judgePipelineAttributeField(
+  goldAttrVal: string | null,
+  predVal: string | null,
+  abstained: boolean | undefined,
+): { correct: boolean; abstained: boolean } {
+  return {
+    correct: Boolean(goldAttrVal && predVal === goldAttrVal),
+    abstained: Boolean(abstained || !predVal),
+  };
+}
+
+/** Tally one judged attribute field conditioned on the type status. */
+function tallyPipelineAttributeJudgment(
+  counters: PipelineCounters,
+  judgment: { correct: boolean; abstained: boolean },
+  status: PipelineTypeStatus,
+): void {
+  if (status.isTypeCorrect && judgment.correct) counters.attrCorrectWhenTypeCorrect++;
+  if (status.isTypeAbstained && judgment.abstained) counters.attrAbstainedWhenTypeAbstained++;
+}
+
+/** Score one attribute field for the pipeline effects (conditioned on type status). */
+function scorePipelineAttributeField(
+  counters: PipelineCounters,
+  example: GoldExampleForEvaluation,
+  goldFieldMap: Map<string, string | null>,
+  prediction: BenchmarkPredictionEntry,
+  field: { targetId: string; value: string | null },
+  status: PipelineTypeStatus,
+): boolean {
+  counters.totalAttrEvaluated++;
+  const goldAttrVal = pipelineGoldFieldValueOf(example, goldFieldMap, field.targetId);
+  const predVal = field.value ?? (field as { values?: string[] }).values?.[0] ?? null;
+  const judgment = judgePipelineAttributeField(goldAttrVal, predVal, prediction.abstained);
+  tallyPipelineAttributeJudgment(counters, judgment, status);
+  return judgment.correct;
+}
+
+/** Score attribute effects for one example; returns all-attrs-correct for the SKU. */
+function scorePipelineAttributeExample(
+  counters: PipelineCounters,
+  example: GoldExampleForEvaluation,
+  index: PipelinePredictionIndexes,
+  status: PipelineTypeStatus,
+): boolean {
+  const attrs = index.attrBySku.get(example.productSku) ?? [];
+  let allAttrsCorrectForSku = attrs.length > 0;
+  const goldFieldMap = new Map(
+    example.goldLabels.fieldAssignments?.map(field => [field.targetId, field.value ?? field.values?.[0] ?? null]) ?? [],
+  );
+  for (const prediction of attrs) {
+    for (const field of pipelineFieldAssignmentsOf(prediction)) {
+      if (!scorePipelineAttributeField(counters, example, goldFieldMap, prediction, field, status)) {
+        allAttrsCorrectForSku = false;
+      }
+    }
+  }
+  return allAttrsCorrectForSku;
+}
+
+/** Gold/predicted page sets for one pipeline example. */
+function pipelinePageSetsOf(
+  example: GoldExampleForEvaluation,
+  pagePred: BenchmarkPredictionEntry | undefined,
+): { goldPages: Set<string>; predPages: Set<string> } {
+  return {
+    goldPages: new Set(
+      (example.goldLabels.categoryPageIds ??
+        example.goldLabels.pageAssignments?.map(page => page.pageId).filter(Boolean) ??
+        []) as string[],
+    ),
+    predPages: new Set(
+      (pagePred?.pageIds ?? pagePred?.pageAssignments ?? []).filter(Boolean) as string[],
+    ),
+  };
+}
+
+/** Tally one pipeline page outcome conditioned on the type status. */
+function tallyPipelinePageOutcome(
+  counters: PipelineCounters,
+  status: PipelineTypeStatus,
+  isPageExactMatch: boolean,
+  isPageAbstained: boolean,
+): void {
+  if (status.isTypeCorrect && isPageExactMatch) counters.pageExactMatchWhenTypeCorrect++;
+  if (status.isTypeAbstained && isPageAbstained) counters.pageAbstainedWhenTypeAbstained++;
+}
+
+/** Score page effects for one example; returns exact-match for end-to-end. */
+function scorePipelinePageExample(
+  counters: PipelineCounters,
+  example: GoldExampleForEvaluation,
+  index: PipelinePredictionIndexes,
+  status: PipelineTypeStatus,
+): boolean {
+  const pagePred = index.pageBySku.get(example.productSku);
+  const { goldPages, predPages } = pipelinePageSetsOf(example, pagePred);
+  counters.totalPageEvaluated++;
+  const isPageExactMatch = goldPages.size > 0 &&
+    goldPages.size === predPages.size &&
+    [...goldPages].every(page => predPages.has(page));
+  tallyPipelinePageOutcome(
+    counters,
+    status,
+    isPageExactMatch,
+    Boolean(pagePred?.abstained || predPages.size === 0),
+  );
+  return isPageExactMatch;
+}
+
+/** Score one example's end-to-end pipeline effects into the counters. */
+function scorePipelineEffectsExample(
+  counters: PipelineCounters,
+  example: GoldExampleForEvaluation,
+  index: PipelinePredictionIndexes,
+): void {
+  const status = resolvePipelineTypeStatus(
+    index.typeBySku.get(example.productSku),
+    example.goldLabels.productType,
+  );
+  tallyPipelineTypeResolution(counters, status);
+  const allAttrsCorrect = scorePipelineAttributeExample(counters, example, index, status);
+  const pageExact = scorePipelinePageExample(counters, example, index, status);
+  if (status.isTypeCorrect && allAttrsCorrect && pageExact) {
+    counters.endToEndCorrect++;
+  }
+}
+
 export function evaluateCohortPipelineEffects(
   gold: GoldExampleForEvaluation[],
   typePredictions: BenchmarkPredictionEntry[],
   attributePredictions: BenchmarkPredictionEntry[],
   pagePredictions: BenchmarkPredictionEntry[],
 ): CohortPipelineEffectsReport {
-  const typeBySku = new Map<string, BenchmarkPredictionEntry>();
-  for (const p of typePredictions) typeBySku.set(p.productSku, p);
-
-  const attrBySku = new Map<string, BenchmarkPredictionEntry[]>();
-  for (const p of attributePredictions) {
-    const list = attrBySku.get(p.productSku) ?? [];
-    list.push(p);
-    attrBySku.set(p.productSku, list);
-  }
-
-  const pageBySku = new Map<string, BenchmarkPredictionEntry>();
-  for (const p of pagePredictions) pageBySku.set(p.productSku, p);
-
-  let typeCorrect = 0;
-  let typeAbstained = 0;
-  let typeIncorrect = 0;
-
-  let attrCorrectWhenTypeCorrect = 0;
-  let attrAbstainedWhenTypeAbstained = 0;
-  let totalAttrEvaluated = 0;
-
-  let pageExactMatchWhenTypeCorrect = 0;
-  let pageAbstainedWhenTypeAbstained = 0;
-  let totalPageEvaluated = 0;
-
-  let endToEndCorrect = 0;
-
+  const index = indexPipelinePredictionsBySku(typePredictions, attributePredictions, pagePredictions);
+  const counters = emptyPipelineCounters();
   for (const example of gold) {
-    const sku = example.productSku;
-    const typePred = typeBySku.get(sku);
-    const goldType = example.goldLabels.productType;
-
-    const predType = typePred?.productType ?? (typePred as any)?.predictedProductTypeId;
-    const isTypeCorrect = Boolean(goldType && predType === goldType);
-    const isTypeAbstained = Boolean(typePred?.abstained || !predType);
-
-    if (isTypeCorrect) typeCorrect++;
-    else if (isTypeAbstained) typeAbstained++;
-    else typeIncorrect++;
-
-    const attrs = attrBySku.get(sku) ?? [];
-    let allAttrsCorrectForSku = attrs.length > 0;
-    const goldFieldMap = new Map(
-      example.goldLabels.fieldAssignments?.map(f => [f.targetId, f.value ?? f.values?.[0] ?? null]) ?? [],
-    );
-    for (const a of attrs) {
-      const predFieldAssignments =
-        a.fieldAssignments && a.fieldAssignments.length > 0
-          ? a.fieldAssignments
-          : (a as any).targetId
-            ? [{ targetId: (a as any).targetId, value: (a as any).predictedValue ?? (a as any).predictedValues?.[0] ?? null }]
-            : [];
-
-      for (const field of predFieldAssignments) {
-        totalAttrEvaluated++;
-        const goldAttrVal = goldFieldMap.get(field.targetId) ?? (example.goldLabels as any).attributes?.[field.targetId];
-        const predVal = field.value ?? (field as any).values?.[0] ?? null;
-        const isAttrCorrect = Boolean(goldAttrVal && predVal === goldAttrVal);
-        const isAttrAbstained = Boolean(a.abstained || !predVal);
-
-        if (isTypeCorrect && isAttrCorrect) attrCorrectWhenTypeCorrect++;
-        if (isTypeAbstained && isAttrAbstained) attrAbstainedWhenTypeAbstained++;
-        if (!isAttrCorrect) allAttrsCorrectForSku = false;
-      }
-    }
-
-    const pagePred = pageBySku.get(sku);
-    const goldPages = new Set(
-      (example.goldLabels.categoryPageIds ??
-        example.goldLabels.pageAssignments?.map(p => p.pageId).filter(Boolean) ??
-        []) as string[],
-    );
-    const predPages = new Set(
-      (pagePred?.pageIds ?? pagePred?.pageAssignments ?? []).filter(Boolean) as string[],
-    );
-
-    totalPageEvaluated++;
-    const isPageExactMatch = goldPages.size > 0 && goldPages.size === predPages.size && [...goldPages].every(p => predPages.has(p));
-    const isPageAbstained = Boolean(pagePred?.abstained || predPages.size === 0);
-
-    if (isTypeCorrect && isPageExactMatch) pageExactMatchWhenTypeCorrect++;
-    if (isTypeAbstained && isPageAbstained) pageAbstainedWhenTypeAbstained++;
-
-    if (isTypeCorrect && allAttrsCorrectForSku && isPageExactMatch) {
-      endToEndCorrect++;
-    }
+    scorePipelineEffectsExample(counters, example, index);
   }
-
   return {
     totalMembers: gold.length,
     typeResolution: {
-      correct: typeCorrect,
-      abstained: typeAbstained,
-      incorrect: typeIncorrect,
+      correct: counters.typeCorrect,
+      abstained: counters.typeAbstained,
+      incorrect: counters.typeIncorrect,
     },
     attributeEffects: {
-      totalEvaluated: totalAttrEvaluated,
-      correctWhenTypeCorrect: attrCorrectWhenTypeCorrect,
-      abstainedWhenTypeAbstained: attrAbstainedWhenTypeAbstained,
+      totalEvaluated: counters.totalAttrEvaluated,
+      correctWhenTypeCorrect: counters.attrCorrectWhenTypeCorrect,
+      abstainedWhenTypeAbstained: counters.attrAbstainedWhenTypeAbstained,
     },
     pageEffects: {
-      totalEvaluated: totalPageEvaluated,
-      exactMatchWhenTypeCorrect: pageExactMatchWhenTypeCorrect,
-      abstainedWhenTypeAbstained: pageAbstainedWhenTypeAbstained,
+      totalEvaluated: counters.totalPageEvaluated,
+      exactMatchWhenTypeCorrect: counters.pageExactMatchWhenTypeCorrect,
+      abstainedWhenTypeAbstained: counters.pageAbstainedWhenTypeAbstained,
     },
-    endToEndCorrectAllStages: endToEndCorrect,
+    endToEndCorrectAllStages: counters.endToEndCorrect,
   };
 }

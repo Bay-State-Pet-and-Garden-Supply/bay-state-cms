@@ -29,6 +29,11 @@ import * as benchmarkRepo from '../db/repositories/benchmark-repo';
 import * as classRunRepo from '../db/repositories/classification-run-repo';
 import type { BenchmarkGoldLabels } from '../shared/schemas/classification';
 import type { ReviewedFact } from './reviewed-facts';
+import {
+  detectDevHoldoutStraddle,
+  effectiveReviewedTargetId,
+  stringifyDecisionValue,
+} from './benchmark-scoring-helpers';
 
 export interface ExportBenchmarkOptions {
   name: string;
@@ -78,6 +83,232 @@ function hasVerifiedPageIdentity(workspaceId: string): boolean {
   return Number(row?.c ?? 0) > 0;
 }
 
+// ─── Export sections (decomposed named steps) ─────────────────────────────────
+// `exportBenchmark` orchestrates these steps; per-SKU candidacy, gold
+// accumulation, and split persistence each own a named function.
+
+interface ExportCandidateItem {
+  sku: string;
+  familyId: string;
+  inputSnapshotJson: string;
+  goldLabels: BenchmarkGoldLabels;
+  sourceRunId: string;
+  sourceConfigHash: string | null;
+  sourceProductHash: string | null;
+}
+
+type ExportCandidateOutcome =
+  | { kind: 'candidate'; candidate: ExportCandidateItem }
+  | { kind: 'skipped' }
+  | { kind: 'config-drift' };
+
+interface ExportGoldAccumulator {
+  productType: string | null;
+  pageAssignments: Array<{ pageName: string; pageId: string | null }>;
+  fieldAssignments: Array<{ targetId: string; value: string | null }>;
+}
+
+function emptyExportGoldAccumulator(): ExportGoldAccumulator {
+  return { productType: null, pageAssignments: [], fieldAssignments: [] };
+}
+
+type ExportRunProposal = ReturnType<typeof classRunRepo.getProposalsByRun>[number];
+type ExportRunDecision = ReturnType<typeof classRunRepo.getLiveDecisionsByRun>[number];
+
+/**
+ * Effective reviewed value with exporter-exact semantics: a present revised
+ * value wins (null/undefined revised values stay null); otherwise the
+ * proposal value stringifies. Shared stringification via the scoring helpers.
+ */
+function exportReviewedValue(
+  decision: ExportRunDecision,
+  proposal: ExportRunProposal,
+): string | null {
+  if (decision.hasRevisedValue) {
+    return decision.revisedValue === null || decision.revisedValue === undefined
+      ? null
+      : typeof decision.revisedValue === 'string'
+        ? decision.revisedValue
+        : JSON.stringify(decision.revisedValue);
+  }
+  return stringifyDecisionValue(proposal.proposedValue);
+}
+
+/** Apply one accepted category-page proposal (identity-gated display names). */
+function applyExportPageProposal(
+  acc: ExportGoldAccumulator,
+  proposal: ExportRunProposal,
+  decision: ExportRunDecision,
+  verifiedPages: boolean,
+): void {
+  // Page labels are excluded until a verified Page identity exists.
+  if (!verifiedPages) return;
+  // Display name comes from the effective value — never the stable
+  // Page ID (issue #17 D1).
+  const pageName = pageNameFromPageValue(
+    decision.hasRevisedValue ? decision.revisedValue : proposal.proposedValue,
+  );
+  if (pageName) acc.pageAssignments.push({ pageName, pageId: null });
+}
+
+/** Score one proposal into the export gold (accepted decisions only). */
+function applyExportProposal(
+  acc: ExportGoldAccumulator,
+  proposal: ExportRunProposal,
+  decisions: ExportRunDecision[],
+  verifiedPages: boolean,
+): void {
+  // Source-drift exclusion: stale proposals never become gold.
+  if (proposal.isStale) return;
+  const decision = decisions.find(d => d.proposalId === proposal.id);
+  if (!decision || decision.decision !== 'accepted') return;
+  const value = exportReviewedValue(decision, proposal);
+  const effectiveTarget = effectiveReviewedTargetId(decision, proposal);
+  if (proposal.proposalType === 'primary_product_type') {
+    acc.productType = value;
+  } else if (proposal.proposalType === 'category_page') {
+    applyExportPageProposal(acc, proposal, decision, verifiedPages);
+  } else if (proposal.proposalType === 'field_assignment' && effectiveTarget) {
+    acc.fieldAssignments.push({ targetId: effectiveTarget, value });
+  }
+}
+
+/** Accumulate reviewed gold labels from one run's proposals/decisions. */
+function accumulateExportGold(
+  proposals: ExportRunProposal[],
+  decisions: ExportRunDecision[],
+  verifiedPages: boolean,
+): ExportGoldAccumulator {
+  const acc = emptyExportGoldAccumulator();
+  for (const proposal of proposals) {
+    applyExportProposal(acc, proposal, decisions, verifiedPages);
+  }
+  return acc;
+}
+
+/** Brand + product name from run evidence (catalog guidance + product name). */
+function exportBrandAndProductName(
+  evidence: ReturnType<typeof classRunRepo.getEvidenceByRun>,
+  sku: string,
+): { brandName: string; productName: string } {
+  let brandName = '';
+  let productName = sku;
+  for (const item of evidence) {
+    if (item.source === 'catalog_manager_guidance' && item.snippet) {
+      brandName = item.snippet;
+    }
+    if (item.sourceField === 'product_name' && item.snippet) {
+      productName = item.snippet;
+    }
+  }
+  return { brandName, productName };
+}
+
+/** Build one export candidate from a verified run (null when unlabeled). */
+function buildExportCandidateItem(
+  sku: string,
+  run: NonNullable<ReturnType<typeof classRunRepo.getRecentRun>>,
+  evidence: ReturnType<typeof classRunRepo.getEvidenceByRun>,
+  gold: ExportGoldAccumulator,
+): ExportCandidateItem | null {
+  if (!gold.productType && gold.pageAssignments.length === 0 && gold.fieldAssignments.length === 0) {
+    return null;
+  }
+  const goldLabels: BenchmarkGoldLabels = {
+    productType: gold.productType,
+    pageAssignments: gold.pageAssignments,
+    fieldAssignments: gold.fieldAssignments,
+  };
+  const { brandName, productName } = exportBrandAndProductName(evidence, sku);
+  const normBrand = normalizeBrand(brandName);
+  const stem = extractNameStem(productName);
+  const familyId = `family-${normBrand || 'no-brand'}-${stem.slice(0, 30).replace(/\s+/g, '-')}`;
+  const inputSnapshotJson = JSON.stringify({
+    sku,
+    evidence: evidence.map(e => ({
+      source: e.source,
+      snippet: e.snippet,
+      reliability: e.reliability,
+      attributeId: e.attributeId,
+    })),
+  });
+  return {
+    sku,
+    familyId,
+    inputSnapshotJson,
+    goldLabels,
+    sourceRunId: run.id,
+    sourceConfigHash: run.configSnapshotHash,
+    sourceProductHash: run.sourceProductHash,
+  };
+}
+
+/** True when the run's config snapshot is verifiable (no config drift). */
+function hasVerifiableExportSnapshot(
+  db: ReturnType<typeof getDb>,
+  workspaceId: string,
+  configSnapshotHash: string | null | undefined,
+): boolean {
+  if (!configSnapshotHash) return false;
+  const snapshotRow = db.query(
+    'SELECT 1 FROM classification_config_snapshots WHERE workspace_id = ? AND snapshot_hash = ?',
+  ).get(workspaceId, configSnapshotHash);
+  return Boolean(snapshotRow);
+}
+
+/** Try one SKU: candidate, skipped (no run/labels), or config-drift. */
+function tryBuildExportCandidate(
+  db: ReturnType<typeof getDb>,
+  workspaceId: string,
+  sku: string,
+  verifiedPages: boolean,
+): ExportCandidateOutcome {
+  const run = classRunRepo.getRecentRun(workspaceId, sku);
+  if (!run) return { kind: 'skipped' };
+  // Config-drift exclusion: the run must be bound to a verifiable config
+  // snapshot, otherwise its labels cannot be tied to the activated config.
+  if (!hasVerifiableExportSnapshot(db, workspaceId, run.configSnapshotHash)) {
+    return { kind: 'config-drift' };
+  }
+  const evidence = classRunRepo.getEvidenceByRun(run.id);
+  const proposals = classRunRepo.getProposalsByRun(run.id);
+  const decisions = classRunRepo.getLiveDecisionsByRun(run.id);
+  const gold = accumulateExportGold(proposals, decisions, verifiedPages);
+  const candidate = buildExportCandidateItem(sku, run, evidence, gold);
+  if (!candidate) return { kind: 'skipped' };
+  return { kind: 'candidate', candidate };
+}
+
+/** Persist candidates with deterministic family-grouped splits. */
+function persistExportCandidates(
+  datasetId: string,
+  candidates: ExportCandidateItem[],
+  splitSeed: number,
+  holdoutPercent: number,
+): { exported: number; splitDistribution: { train: number; test: number; holdout: number } } {
+  const splitDistribution = { train: 0, test: 0, holdout: 0 };
+  let exported = 0;
+  for (const candidate of candidates) {
+    const splitGroup = splitForFamily(candidate.familyId, splitSeed, holdoutPercent);
+    splitDistribution[splitGroup]++;
+    benchmarkRepo.insertExample(
+      datasetId,
+      candidate.sku,
+      candidate.familyId,
+      splitGroup,
+      candidate.inputSnapshotJson,
+      JSON.stringify(candidate.goldLabels),
+      {
+        sourceRunId: candidate.sourceRunId,
+        sourceConfigHash: candidate.sourceConfigHash,
+        sourceProductHash: candidate.sourceProductHash,
+      },
+    );
+    exported++;
+  }
+  return { exported, splitDistribution };
+}
+
 export function exportBenchmark(
   workspaceId: string,
   options: ExportBenchmarkOptions,
@@ -113,163 +344,24 @@ export function exportBenchmark(
     )
     .all(workspaceId, minDecisionsPerSku) as Array<{ product_sku: string }>;
 
-  let exported = 0;
   let skipped = 0;
   let configDriftSkipped = 0;
-
-  interface CandidateItem {
-    sku: string;
-    familyId: string;
-    inputSnapshotJson: string;
-    goldLabels: BenchmarkGoldLabels;
-    sourceRunId: string;
-    sourceConfigHash: string | null;
-    sourceProductHash: string | null;
-  }
-
-  const candidates: CandidateItem[] = [];
+  const candidates: ExportCandidateItem[] = [];
 
   for (const { product_sku: sku } of skuRows) {
-    const run = classRunRepo.getRecentRun(workspaceId, sku);
-    if (!run) {
-      skipped++;
-      continue;
-    }
-
-    // Config-drift exclusion: the run must be bound to a verifiable config
-    // snapshot, otherwise its labels cannot be tied to the activated config.
-    if (!run.configSnapshotHash) {
-      configDriftSkipped++;
-      continue;
-    }
-    const snapshotRow = db.query(
-      'SELECT 1 FROM classification_config_snapshots WHERE workspace_id = ? AND snapshot_hash = ?',
-    ).get(workspaceId, run.configSnapshotHash);
-    if (!snapshotRow) {
-      configDriftSkipped++;
-      continue;
-    }
-
-    const evidence = classRunRepo.getEvidenceByRun(run.id);
-    const proposals = classRunRepo.getProposalsByRun(run.id);
-    const decisions = classRunRepo.getLiveDecisionsByRun(run.id);
-
-    const pageAssignments: Array<{ pageName: string; pageId: string | null }> = [];
-    const fieldAssignments: Array<{ targetId: string; value: string | null }> = [];
-    let productType: string | null = null;
-    let brandName = '';
-    let productName = sku;
-
-    for (const ev of evidence) {
-      if (ev.source === 'catalog_manager_guidance' && ev.snippet) {
-        brandName = ev.snippet;
-      }
-      if (ev.sourceField === 'product_name' && ev.snippet) {
-        productName = ev.snippet;
-      }
-    }
-
-    for (const proposal of proposals) {
-      // Source-drift exclusion: stale proposals never become gold.
-      if (proposal.isStale) continue;
-
-      const decision = decisions.find(d => d.proposalId === proposal.id);
-      if (!decision || decision.decision !== 'accepted') continue;
-
-      let val: string | null;
-      if (decision.hasRevisedValue) {
-        val = decision.revisedValue === null || decision.revisedValue === undefined
-          ? null
-          : typeof decision.revisedValue === 'string'
-            ? decision.revisedValue
-            : JSON.stringify(decision.revisedValue);
-      } else {
-        val = proposal.proposedValue === null || proposal.proposedValue === undefined
-          ? null
-          : typeof proposal.proposedValue === 'string'
-            ? proposal.proposedValue
-            : JSON.stringify(proposal.proposedValue);
-      }
-
-      const effectiveTarget = decision.hasRevisedTargetId && decision.revisedTargetId !== undefined
-        ? decision.revisedTargetId
-        : proposal.targetId;
-
-      if (proposal.proposalType === 'primary_product_type') {
-        productType = val;
-      } else if (proposal.proposalType === 'category_page') {
-        // Page labels are excluded until a verified Page identity exists.
-        if (verifiedPages) {
-          // Display name comes from the effective value — never the stable
-          // Page ID (issue #17 D1).
-          const pageName = pageNameFromPageValue(
-            decision.hasRevisedValue ? decision.revisedValue : proposal.proposedValue,
-          );
-          if (pageName) pageAssignments.push({ pageName, pageId: null });
-        }
-      } else if (proposal.proposalType === 'field_assignment' && effectiveTarget) {
-        fieldAssignments.push({ targetId: effectiveTarget, value: val });
-      }
-    }
-
-    if (!productType && pageAssignments.length === 0 && fieldAssignments.length === 0) {
-      skipped++;
-      continue;
-    }
-
-    const goldLabels: BenchmarkGoldLabels = {
-      productType,
-      pageAssignments,
-      fieldAssignments,
-    };
-
-    const normBrand = normalizeBrand(brandName);
-    const stem = extractNameStem(productName);
-    const familyId = `family-${normBrand || 'no-brand'}-${stem.slice(0, 30).replace(/\s+/g, '-')}`;
-
-    const inputSnapshotJson = JSON.stringify({
-      sku,
-      evidence: evidence.map(e => ({
-        source: e.source,
-        snippet: e.snippet,
-        reliability: e.reliability,
-        attributeId: e.attributeId,
-      })),
-    });
-
-    candidates.push({
-      sku,
-      familyId,
-      inputSnapshotJson,
-      goldLabels,
-      sourceRunId: run.id,
-      sourceConfigHash: run.configSnapshotHash,
-      sourceProductHash: run.sourceProductHash,
-    });
+    const outcome = tryBuildExportCandidate(db, workspaceId, sku, verifiedPages);
+    if (outcome.kind === 'candidate') candidates.push(outcome.candidate);
+    else if (outcome.kind === 'config-drift') configDriftSkipped++;
+    else skipped++;
   }
 
   const uniqueFamilies = new Set(candidates.map(c => c.familyId));
-  const splitDistribution = { train: 0, test: 0, holdout: 0 };
-
-  for (const candidate of candidates) {
-    const splitGroup = splitForFamily(candidate.familyId, splitSeed, holdoutPercent);
-    splitDistribution[splitGroup]++;
-
-    benchmarkRepo.insertExample(
-      dataset.id,
-      candidate.sku,
-      candidate.familyId,
-      splitGroup,
-      candidate.inputSnapshotJson,
-      JSON.stringify(candidate.goldLabels),
-      {
-        sourceRunId: candidate.sourceRunId,
-        sourceConfigHash: candidate.sourceConfigHash,
-        sourceProductHash: candidate.sourceProductHash,
-      },
-    );
-    exported++;
-  }
+  const { exported, splitDistribution } = persistExportCandidates(
+    dataset.id,
+    candidates,
+    splitSeed,
+    holdoutPercent,
+  );
 
   benchmarkRepo.updateDatasetExampleCount(dataset.id);
 
@@ -393,21 +485,39 @@ interface ParsedReplayInputSnapshot {
   retainedInputs: RetainedReplayInput[];
 }
 
+/** SKU string from a parsed snapshot (empty when absent). */
+function snapshotSkuOf(parsed: Record<string, unknown>): string {
+  return 'sku' in parsed && typeof parsed.sku === 'string' ? parsed.sku : '';
+}
+
+/** Evidence items from a parsed snapshot (empty when absent). */
+function snapshotEvidenceOf(parsed: Record<string, unknown>): ReplayEvidenceItem[] {
+  if (!('evidence' in parsed) || !Array.isArray(parsed.evidence)) return [];
+  return parsed.evidence.filter(
+    (item): item is ReplayEvidenceItem => !!item && typeof item === 'object' && 'source' in item && 'snippet' in item,
+  );
+}
+
+/** Retained inputs from a parsed snapshot (empty for legacy snapshots). */
+function snapshotRetainedInputsOf(parsed: Record<string, unknown>): RetainedReplayInput[] {
+  if (!('retainedInputs' in parsed) || !Array.isArray(parsed.retainedInputs)) return [];
+  return parsed.retainedInputs.filter(
+    (item): item is RetainedReplayInput => !!item && typeof item === 'object' && 'proposalType' in item,
+  );
+}
+
 /** Tolerant parse: legacy `{ sku, evidence }` snapshots read as zero retained inputs. */
 function parseReplayInputSnapshot(json: string): ParsedReplayInputSnapshot {
   const parsed: unknown = JSON.parse(json);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { sku: '', evidence: [], retainedInputs: [] };
   }
-  const sku = 'sku' in parsed && typeof parsed.sku === 'string' ? parsed.sku : '';
-  const evidence: ReplayEvidenceItem[] = 'evidence' in parsed && Array.isArray(parsed.evidence)
-    ? parsed.evidence.filter((item): item is ReplayEvidenceItem => !!item && typeof item === 'object' && 'source' in item && 'snippet' in item)
-    : [];
-  const retainedInputs: RetainedReplayInput[] =
-    'retainedInputs' in parsed && Array.isArray(parsed.retainedInputs)
-      ? parsed.retainedInputs.filter((item): item is RetainedReplayInput => !!item && typeof item === 'object' && 'proposalType' in item)
-      : [];
-  return { sku, evidence, retainedInputs };
+  const record = parsed as Record<string, unknown>;
+  return {
+    sku: snapshotSkuOf(record),
+    evidence: snapshotEvidenceOf(record),
+    retainedInputs: snapshotRetainedInputsOf(record),
+  };
 }
 
 // ─── Adjudicated gold state (issue #294) ─────────────────────────────────────
@@ -494,22 +604,129 @@ const FORBIDDEN_REPLAY_INPUT_KEYS = [
   'targetLabels',
 ] as const;
 
-function goldAnswerStrings(gold: BenchmarkGoldLabels): string[] {
+/** Normalized non-empty answer string (null when blank/non-string). */
+function normalizedAnswerString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === '' ? null : trimmed;
+}
+
+/** Collect normalized answer strings from a labeled list via a getter. */
+function collectAnswerStrings<T>(
+  items: T[] | undefined | null,
+  valueOf: (item: T) => unknown,
+): string[] {
   const answers: string[] = [];
-  if (typeof gold.productType === 'string' && gold.productType.trim() !== '') {
-    answers.push(gold.productType.trim().toLowerCase());
-  }
-  for (const p of gold.pageAssignments ?? []) {
-    if (typeof p?.pageName === 'string' && p.pageName.trim() !== '') {
-      answers.push(p.pageName.trim().toLowerCase());
-    }
-  }
-  for (const f of gold.fieldAssignments ?? []) {
-    if (typeof f?.value === 'string' && f.value.trim() !== '') {
-      answers.push(f.value.trim().toLowerCase());
-    }
+  for (const item of items ?? []) {
+    const answer = normalizedAnswerString(valueOf(item));
+    if (answer) answers.push(answer);
   }
   return answers;
+}
+
+function goldAnswerStrings(gold: BenchmarkGoldLabels): string[] {
+  return [
+    ...collectAnswerStrings(gold.productType ? [gold.productType] : [], value => value),
+    ...collectAnswerStrings(gold.pageAssignments, page => page?.pageName),
+    ...collectAnswerStrings(gold.fieldAssignments, field => field?.value),
+  ];
+}
+
+/** Parsed replay input + gold pair (null when either side is not JSON). */
+function parseReplayLeakagePair(
+  inputSnapshotJson: string,
+  goldLabelsJson: string,
+): { input: Record<string, unknown>; gold: BenchmarkGoldLabels } | { error: string } {
+  let input: Record<string, unknown>;
+  try {
+    input = JSON.parse(inputSnapshotJson) as Record<string, unknown>;
+  } catch {
+    return { error: 'unparseable_input_snapshot: replay input is not JSON' };
+  }
+  try {
+    const gold = JSON.parse(goldLabelsJson) as BenchmarkGoldLabels;
+    return { input, gold };
+  } catch {
+    return { error: 'unparseable_gold_labels: gold labels are not JSON' };
+  }
+}
+
+/** Forbidden top-level answer keys carried alongside the replay input. */
+function findForbiddenReplayInputKeys(input: Record<string, unknown>): string[] {
+  const findings: string[] = [];
+  for (const key of FORBIDDEN_REPLAY_INPUT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) {
+      findings.push(`forbidden_input_key: replay input carries "${key}" alongside the answer`);
+    }
+  }
+  return findings;
+}
+
+/** Retained inputs array (null when malformed — reported, not thrown). */
+function parseRetainedReplayInputs(
+  input: Record<string, unknown>,
+): { retained: RetainedReplayInput[] } | { error: string } {
+  const rawRetained = (input as { retainedInputs?: unknown }).retainedInputs;
+  if (rawRetained !== undefined && !Array.isArray(rawRetained)) {
+    return { error: 'malformed_retained_inputs: "retainedInputs" must be an array' };
+  }
+  return { retained: (Array.isArray(rawRetained) ? rawRetained : []) as RetainedReplayInput[] };
+}
+
+/** String proposal type on a retained input (null when absent/non-string). */
+function retainedProposalTypeOf(entry: RetainedReplayInput): string | null {
+  return 'proposalType' in entry && typeof entry.proposalType === 'string' ? entry.proposalType : null;
+}
+
+/** Target id on a retained input (undefined when absent/non-string-or-null). */
+function retainedTargetIdOf(entry: RetainedReplayInput): string | null | undefined {
+  if (!('targetId' in entry)) return undefined;
+  const targetId = entry.targetId;
+  return typeof targetId === 'string' || targetId === null ? targetId : undefined;
+}
+
+/** Reviewer-answer marker for one retained input (null when it carries nothing). */
+function retainedInputMarker(
+  entry: RetainedReplayInput,
+): Pick<ReviewedFact, 'proposalType' | 'targetId'> | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const proposalType = retainedProposalTypeOf(entry);
+  const targetId = retainedTargetIdOf(entry);
+  if (proposalType === null && targetId === undefined && !('value' in entry)) return null;
+  return { proposalType: proposalType ?? '', targetId: targetId ?? null };
+}
+
+/** Target-label finding for one marker (null when the fact is a legal input). */
+function retainedTargetLabelFinding(
+  marker: Pick<ReviewedFact, 'proposalType' | 'targetId'>,
+  scope: PartitionReplayFactsOptions,
+): string | null {
+  if (!isTargetLabelFact(marker, scope)) return null;
+  return `retained_target_label: proposalType="${marker.proposalType}" targetId="${marker.targetId ?? ''}" must never replay as input`;
+}
+
+/** Value-match finding for one retained input (null when it matches no answer). */
+function retainedValueMatchFinding(
+  entry: RetainedReplayInput,
+  answers: Set<string>,
+): string | null {
+  const value = 'value' in entry ? entry.value : undefined;
+  if (typeof value === 'string' && value.trim() !== '' && answers.has(value.trim().toLowerCase())) {
+    return `retained_value_matches_gold: retained input value "${value}" equals a target answer`;
+  }
+  return null;
+}
+
+/** Leakage finding for one retained input (null when clean). */
+function findRetainedInputLeakage(
+  entry: RetainedReplayInput,
+  answers: Set<string>,
+  scope: PartitionReplayFactsOptions,
+): string | null {
+  const marker = retainedInputMarker(entry);
+  if (!marker) return null;
+  return retainedTargetLabelFinding(marker, scope)
+    ?? retainedValueMatchFinding(entry, answers);
 }
 
 /**
@@ -522,52 +739,18 @@ function findReplayInputLeakage(
   goldLabelsJson: string,
   scope: PartitionReplayFactsOptions = {},
 ): string[] {
-  const findings: string[] = [];
-  let input: Record<string, unknown>;
-  let gold: BenchmarkGoldLabels;
-  try {
-    input = JSON.parse(inputSnapshotJson) as Record<string, unknown>;
-  } catch {
-    return ['unparseable_input_snapshot: replay input is not JSON'];
-  }
-  try {
-    gold = JSON.parse(goldLabelsJson) as BenchmarkGoldLabels;
-  } catch {
-    return ['unparseable_gold_labels: gold labels are not JSON'];
-  }
-  for (const key of FORBIDDEN_REPLAY_INPUT_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(input, key)) {
-      findings.push(`forbidden_input_key: replay input carries "${key}" alongside the answer`);
-    }
-  }
-  const rawRetained = (input as { retainedInputs?: unknown }).retainedInputs;
-  if (rawRetained !== undefined && !Array.isArray(rawRetained)) {
-    findings.push('malformed_retained_inputs: "retainedInputs" must be an array');
+  const parsed = parseReplayLeakagePair(inputSnapshotJson, goldLabelsJson);
+  if ('error' in parsed) return [parsed.error];
+  const findings = findForbiddenReplayInputKeys(parsed.input);
+  const retained = parseRetainedReplayInputs(parsed.input);
+  if ('error' in retained) {
+    findings.push(retained.error);
     return findings;
   }
-  const retained: RetainedReplayInput[] = Array.isArray(rawRetained)
-    ? (rawRetained as RetainedReplayInput[])
-    : [];
-  const answers = new Set(goldAnswerStrings(gold));
-  for (const entry of retained) {
-    if (!entry || typeof entry !== 'object') continue;
-    const hasType = 'proposalType' in entry && typeof entry.proposalType === 'string';
-    const hasTarget = 'targetId' in entry && (typeof entry.targetId === 'string' || entry.targetId === null);
-    if (!hasType && !hasTarget && !('value' in entry)) continue;
-    const marker: Pick<ReviewedFact, 'proposalType' | 'targetId'> = {
-      proposalType: hasType ? entry.proposalType : '',
-      targetId: hasTarget ? entry.targetId : null,
-    };
-    if (isTargetLabelFact(marker, scope)) {
-      findings.push(
-        `retained_target_label: proposalType="${marker.proposalType}" targetId="${marker.targetId ?? ''}" must never replay as input`,
-      );
-      continue;
-    }
-    const value = 'value' in entry ? entry.value : undefined;
-    if (typeof value === 'string' && value.trim() !== '' && answers.has(value.trim().toLowerCase())) {
-      findings.push(`retained_value_matches_gold: retained input value "${value}" equals a target answer`);
-    }
+  const answers = new Set(goldAnswerStrings(parsed.gold));
+  for (const entry of retained.retained) {
+    const finding = findRetainedInputLeakage(entry, answers, scope);
+    if (finding) findings.push(finding);
   }
   return findings;
 }
@@ -671,23 +854,11 @@ function summarizeFixtureCoverage(
 export function detectFamilySplitLeakage(
   assignments: Array<{ familyId: string; splitGroup: string }>,
 ): Array<{ familyId: string; groups: string[] }> {
-  const byFamily = new Map<string, Set<string>>();
-  for (const a of assignments) {
-    if (!byFamily.has(a.familyId)) byFamily.set(a.familyId, new Set());
-    byFamily.get(a.familyId)!.add(a.splitGroup);
-  }
-  const offenders: Array<{ familyId: string; groups: string[] }> = [];
-  for (const [familyId, groups] of byFamily) {
-    const list = [...groups].sort();
-    const inDev = list.includes('train') || list.includes('test');
-    const inHoldout = list.includes('holdout');
-    if (inDev && inHoldout) offenders.push({ familyId, groups: list });
-  }
-  offenders.sort((a, b) => (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));
-  return offenders;
+  return detectDevHoldoutStraddle(assignments);
 }
 
-function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void {
+/** Assert fixture identity basics: non-empty sku + familyId + evidence array. */
+function assertFixtureCaseIdentity(fixtureCase: AdjudicatedFixtureCase): void {
   if (!fixtureCase.sku || fixtureCase.sku.trim() === '') {
     throw new Error('fixture_case_missing_sku: every fixture case needs a sku.');
   }
@@ -697,6 +868,10 @@ function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void
   if (!Array.isArray(fixtureCase.evidence)) {
     throw new Error(`fixture_case_missing_evidence: SKU "${fixtureCase.sku}" needs an evidence array (possibly empty for incomplete-evidence cases).`);
   }
+}
+
+/** Assert explicit adjudication: adjudicator + known gold state. */
+function assertFixtureCaseAdjudication(fixtureCase: AdjudicatedFixtureCase): void {
   if (!fixtureCase.adjudicatedBy || fixtureCase.adjudicatedBy.trim() === '') {
     throw new Error(
       `fixture_case_not_adjudicated: SKU "${fixtureCase.sku}" has no adjudicator; catalog assignments never auto-gold.`,
@@ -705,6 +880,10 @@ function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void
   if (!isAdjudicatedGoldState(fixtureCase.goldState)) {
     throw new Error(`fixture_case_unknown_gold_state: SKU "${fixtureCase.sku}" carries "${fixtureCase.goldState}".`);
   }
+}
+
+/** Assert gold/state consistency: known carries a type, others carry none. */
+function assertFixtureGoldStateConsistency(fixtureCase: AdjudicatedFixtureCase): void {
   const productType = fixtureCase.gold?.productType ?? null;
   if (fixtureCase.goldState === GOLD_STATE_KNOWN && (typeof productType !== 'string' || productType.trim() === '')) {
     throw new Error(`fixture_gold_state_mismatch: SKU "${fixtureCase.sku}" is "known" but has no productType gold.`);
@@ -714,8 +893,99 @@ function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void
       `fixture_gold_state_mismatch: SKU "${fixtureCase.sku}" is "${fixtureCase.goldState}" but carries productType gold "${productType}".`,
     );
   }
+}
+
+function assertFixtureCaseAdjudicated(fixtureCase: AdjudicatedFixtureCase): void {
+  assertFixtureCaseIdentity(fixtureCase);
+  assertFixtureCaseAdjudication(fixtureCase);
+  assertFixtureGoldStateConsistency(fixtureCase);
   // NOTE: `catalogAssignment` is deliberately never read here — it is
   // reference-only and can never become gold without explicit adjudication.
+}
+
+/** Validate fixture dataset options (holdout percent + non-empty cases). */
+function validateFixtureDatasetOptions(
+  options: ExportFixtureDatasetOptions,
+): { holdoutPercent: number; splitSeed: number } {
+  const holdoutPercent = options.holdoutPercent ?? 20;
+  const splitSeed = options.splitSeed ?? 42;
+  if (!Number.isFinite(holdoutPercent) || holdoutPercent < 0 || holdoutPercent > 100) {
+    throw new Error(`fixture_invalid_holdout_percent: ${holdoutPercent} must be within 0-100.`);
+  }
+  if (!options.cases || options.cases.length === 0) {
+    throw new Error('fixture_no_cases: at least one adjudicated case is required.');
+  }
+  return { holdoutPercent, splitSeed };
+}
+
+/** Assert every fixture case is adjudicated and SKUs are unique. */
+function assertFixtureCasesUnique(cases: AdjudicatedFixtureCase[]): void {
+  const seenSkus = new Set<string>();
+  for (const fixtureCase of cases) {
+    assertFixtureCaseAdjudicated(fixtureCase);
+    if (seenSkus.has(fixtureCase.sku)) {
+      throw new Error(`fixture_duplicate_sku: SKU "${fixtureCase.sku}" appears twice.`);
+    }
+    seenSkus.add(fixtureCase.sku);
+  }
+}
+
+/** Build leakage-audited snapshot + gold JSON for one fixture case. */
+function buildFixtureCasePayload(
+  fixtureCase: AdjudicatedFixtureCase,
+): { inputSnapshotJson: string; goldLabelsJson: string } {
+  const inputSnapshotJson = buildReplayInputSnapshot(
+    fixtureCase.sku,
+    fixtureCase.evidence,
+    fixtureCase.retainedInputs ?? [],
+  );
+  const goldLabelsJson = JSON.stringify({
+    productType: fixtureCase.gold.productType,
+    pageAssignments: fixtureCase.gold.pageAssignments,
+    fieldAssignments: fixtureCase.gold.fieldAssignments,
+    [FIXTURE_GOLD_STATE_FIELD]: fixtureCase.goldState,
+  });
+  assertNoReplayLeakage(inputSnapshotJson, goldLabelsJson);
+  return { inputSnapshotJson, goldLabelsJson };
+}
+
+/** Insert one fixture case with its family-grouped split; returns the assignment. */
+function insertFixtureCase(
+  datasetId: string,
+  fixtureCase: AdjudicatedFixtureCase,
+  splitSeed: number,
+  holdoutPercent: number,
+): { familyId: string; splitGroup: 'train' | 'test' | 'holdout' } {
+  const splitGroup = splitForFamily(fixtureCase.familyId, splitSeed, holdoutPercent);
+  const { inputSnapshotJson, goldLabelsJson } = buildFixtureCasePayload(fixtureCase);
+  benchmarkRepo.insertExample(
+    datasetId,
+    fixtureCase.sku,
+    fixtureCase.familyId,
+    splitGroup,
+    inputSnapshotJson,
+    goldLabelsJson,
+    {
+      reviewerId: fixtureCase.reviewerId ?? null,
+      adjudicatedBy: fixtureCase.adjudicatedBy,
+      sourceRunId: fixtureCase.sourceRunId ?? null,
+      sourceConfigHash: fixtureCase.sourceConfigHash ?? null,
+      sourceProductHash: fixtureCase.sourceProductHash ?? null,
+    },
+  );
+  return { familyId: fixtureCase.familyId, splitGroup };
+}
+
+/** Fail closed when fixture families straddle dev and holdout. */
+function assertNoFixtureFamilyLeakage(
+  assignments: Array<{ familyId: string; splitGroup: string }>,
+): void {
+  const familyLeakage = detectFamilySplitLeakage(assignments);
+  if (familyLeakage.length > 0) {
+    throw new Error(
+      `fixture_family_leakage: families straddle dev and holdout: ${familyLeakage.map(f => f.familyId).join(', ')}`,
+    );
+  }
 }
 
 /**
@@ -727,69 +997,20 @@ function exportFixtureDataset(
   workspaceId: string,
   options: ExportFixtureDatasetOptions,
 ): ExportFixtureDatasetResult {
-  const holdoutPercent = options.holdoutPercent ?? 20;
-  const splitSeed = options.splitSeed ?? 42;
-  if (!Number.isFinite(holdoutPercent) || holdoutPercent < 0 || holdoutPercent > 100) {
-    throw new Error(`fixture_invalid_holdout_percent: ${holdoutPercent} must be within 0-100.`);
-  }
-  if (!options.cases || options.cases.length === 0) {
-    throw new Error('fixture_no_cases: at least one adjudicated case is required.');
-  }
-  const seenSkus = new Set<string>();
-  for (const fixtureCase of options.cases) {
-    assertFixtureCaseAdjudicated(fixtureCase);
-    if (seenSkus.has(fixtureCase.sku)) {
-      throw new Error(`fixture_duplicate_sku: SKU "${fixtureCase.sku}" appears twice.`);
-    }
-    seenSkus.add(fixtureCase.sku);
-  }
+  const { holdoutPercent, splitSeed } = validateFixtureDatasetOptions(options);
+  assertFixtureCasesUnique(options.cases);
 
   const dataset = benchmarkRepo.createDataset(workspaceId, options.name, 'product_family', splitSeed);
   const splitDistribution = { train: 0, test: 0, holdout: 0 };
   const assignments: Array<{ familyId: string; splitGroup: string }> = [];
 
   for (const fixtureCase of options.cases) {
-    const splitGroup = splitForFamily(fixtureCase.familyId, splitSeed, holdoutPercent);
-    splitDistribution[splitGroup]++;
-    assignments.push({ familyId: fixtureCase.familyId, splitGroup });
-
-    const inputSnapshotJson = buildReplayInputSnapshot(
-      fixtureCase.sku,
-      fixtureCase.evidence,
-      fixtureCase.retainedInputs ?? [],
-    );
-    const goldLabelsJson = JSON.stringify({
-      productType: fixtureCase.gold.productType,
-      pageAssignments: fixtureCase.gold.pageAssignments,
-      fieldAssignments: fixtureCase.gold.fieldAssignments,
-      [FIXTURE_GOLD_STATE_FIELD]: fixtureCase.goldState,
-    });
-    assertNoReplayLeakage(inputSnapshotJson, goldLabelsJson);
-
-    benchmarkRepo.insertExample(
-      dataset.id,
-      fixtureCase.sku,
-      fixtureCase.familyId,
-      splitGroup,
-      inputSnapshotJson,
-      goldLabelsJson,
-      {
-        reviewerId: fixtureCase.reviewerId ?? null,
-        adjudicatedBy: fixtureCase.adjudicatedBy,
-        sourceRunId: fixtureCase.sourceRunId ?? null,
-        sourceConfigHash: fixtureCase.sourceConfigHash ?? null,
-        sourceProductHash: fixtureCase.sourceProductHash ?? null,
-      },
-    );
+    const assignment = insertFixtureCase(dataset.id, fixtureCase, splitSeed, holdoutPercent);
+    splitDistribution[assignment.splitGroup]++;
+    assignments.push(assignment);
   }
 
-  const familyLeakage = detectFamilySplitLeakage(assignments);
-  if (familyLeakage.length > 0) {
-    throw new Error(
-      `fixture_family_leakage: families straddle dev and holdout: ${familyLeakage.map(f => f.familyId).join(', ')}`,
-    );
-  }
-
+  assertNoFixtureFamilyLeakage(assignments);
   benchmarkRepo.updateDatasetExampleCount(dataset.id);
 
   const families = new Set(options.cases.map(c => c.familyId));

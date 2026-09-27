@@ -18,36 +18,21 @@
  * - Fallback to existing chat LLM ranker when provider is openai-compatible/ollama-native.
  */
 
-import { randomUUID } from 'node:crypto';
 import {
-  dispatchSystemOne,
-  isSystemOneModelMatch,
-  SYSTEMONE_MAX_CHOICE_OPTIONS,
-  SYSTEMONE_MAX_ABSTENTION_RESERVED,
-  SYSTEMONE_MAX_STATE_BYTES,
-  TYPESAFE_EVALUATED_MODEL,
+    TYPESAFE_EVALUATED_MODEL,
 } from '../ai/systemone-transport';
+import { assertConnectionEnabledForDispatch } from '../ai/provider-connections';
 import {
-  assertConnectionEnabledForDispatch,
-  isConnectionUsable,
-} from '../ai/provider-connections';
-import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
-import { getApiKey } from '../db/repositories/api-key-repo';
-import {
-  insertModelCallStart,
   completeModelCall,
-  insertTerminalModelCall,
 } from '../db/repositories/classification-model-call-repo';
 import {
   MODEL_CALL_STATUS,
-  COST_BASIS,
   PROMPT_TEMPLATE_VERSIONS,
   RULE_VERSIONS,
   type ModelCallContext,
 } from './model-operation-registry';
 import {
   resolveModelRoute,
-  assertModelPolicyIntact,
   ModelPolicyDeniedError,
   type ModelPolicyView,
 } from './model-policy-gateway';
@@ -66,12 +51,26 @@ import { llmRankOptions } from './curation-target-ranker';
 import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import type { ClassificationEvidence, ProposalDerivation } from '../shared/schemas/classification';
-import { hashCanonicalJson } from '../shared/stable-id';
+import {
+  MAX_ORDINARY_CHOICE_CANDIDATES,
+  SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY,
+    buildChoiceJudgmentDerivation,
+  buildChoiceKeyMaps,
+  choiceKeyToCanonicalId,
+  evidenceTextValue,
+  fitStateToBudget,
+    asEffectivePolicyView,
+  insertPolicyDeniedTerminalCall,
+  openSingleChoiceRequest,
+  resolveDecisionRouteForOperation,
+  runSingleChoiceDispatch,
+  sourceFieldOf,
+  truncateSnippets,
+} from './systemone-decision-core';
 
 // ─── Versioned Constants ──────────────────────────────────────────────────────
 
-const MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES =
-  SYSTEMONE_MAX_CHOICE_OPTIONS - SYSTEMONE_MAX_ABSTENTION_RESERVED; // 253
+const MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES = MAX_ORDINARY_CHOICE_CANDIDATES; // 253
 
 const JEV_PRODUCT_TYPE_QUESTION_ID = 'primary_product_type';
 const NO_MATCH_CHOICE_KEY = 'no_match';
@@ -82,7 +81,7 @@ const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
  * Tuned on representative Pet & Garden assortment examples.
  * An ungrounded option pick below 0.50 probability is an explicit semantic abstention.
  */
-export const JEV_PRODUCT_TYPE_MIN_PROBABILITY = 0.50;
+export const JEV_PRODUCT_TYPE_MIN_PROBABILITY = SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY; // 0.50
 
 export const PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE = 0.7;
 
@@ -145,6 +144,93 @@ interface BoundedProductTypeState {
   evidenceCount: number;
 }
 
+type ProductTypeEvidenceSlot = 'name' | 'brand' | 'description';
+
+interface ProductTypeStateAccumulator {
+  name: string;
+  brand: string | null;
+  description: string | null;
+}
+
+/**
+ * All state slots one evidence record matches, in priority order. A record
+ * may match several slots (e.g. a brand name field); guards stay with the
+ * collector so first-wins cascade order is preserved exactly.
+ */
+function matchingProductTypeEvidenceSlots(
+  sourceField: string,
+  attributeId: string | null | undefined,
+): ProductTypeEvidenceSlot[] {
+  const slots: ProductTypeEvidenceSlot[] = [];
+  if (sourceField.includes('name') || sourceField.includes('title')) slots.push('name');
+  if (sourceField.includes('brand') || attributeId === 'brand') slots.push('brand');
+  if (sourceField.includes('description')) slots.push('description');
+  return slots;
+}
+
+/**
+ * Try to place one evidence value into the first matching open slot.
+ * Returns true when placed (mirrors the original else-if cascade exactly).
+ */
+function tryPlaceProductTypeSlot(
+  acc: ProductTypeStateAccumulator,
+  slot: ProductTypeEvidenceSlot,
+  val: string,
+  e: ClassificationEvidence,
+): boolean {
+  if (slot === 'name' && !acc.name) {
+    acc.name = val;
+    return true;
+  }
+  if (slot === 'brand' && !acc.brand) {
+    acc.brand = typeof e.value === 'string' ? e.value : null;
+    return true;
+  }
+  if (slot === 'description' && !acc.description) {
+    acc.description = val;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Collect name/brand/description/snippets from product evidence (first wins).
+ */
+function collectProductTypeStateFields(
+  evidence: ClassificationEvidence[],
+): { name: string; brand: string | null; description: string | null; snippets: string[] } {
+  const acc: ProductTypeStateAccumulator = { name: '', brand: null, description: null };
+  const snippets: string[] = [];
+  for (const e of evidence) {
+    const val = evidenceTextValue(e);
+    const sourceField = sourceFieldOf(e);
+    let placed = false;
+    for (const slot of matchingProductTypeEvidenceSlots(sourceField, e.attributeId)) {
+      if (tryPlaceProductTypeSlot(acc, slot, val, e)) {
+        placed = true;
+        break;
+      }
+    }
+    if (!placed && e.snippet) snippets.push(e.snippet);
+  }
+  return { name: acc.name, brand: acc.brand, description: acc.description, snippets };
+}
+
+/**
+ * Collect per-attribute values from product evidence.
+ */
+function collectProductTypeStateAttributes(
+  evidence: ClassificationEvidence[],
+): Record<string, unknown> {
+  const attributes: Record<string, unknown> = {};
+  for (const e of evidence) {
+    if (e.attributeId && e.value != null) {
+      attributes[e.attributeId] = e.value;
+    }
+  }
+  return attributes;
+}
+
 /**
  * Builds bounded structured state from product evidence, capped at 32k bytes.
  */
@@ -152,49 +238,30 @@ function buildProductTypeState(
   evidence: ClassificationEvidence[],
   sku: string,
 ): BoundedProductTypeState {
-  let name = '';
-  let brand: string | null = null;
-  let description: string | null = null;
-  const snippets: string[] = [];
-  const attributes: Record<string, unknown> = {};
-
-  for (const e of evidence) {
-    const val = typeof e.value === 'string' ? e.value : (e.snippet ?? '');
-    const sourceField = (e.sourceField ?? '').toLowerCase();
-
-    if (!name && (sourceField.includes('name') || sourceField.includes('title'))) {
-      name = val;
-    } else if (!brand && (sourceField.includes('brand') || e.attributeId === 'brand')) {
-      brand = typeof e.value === 'string' ? e.value : null;
-    } else if (!description && sourceField.includes('description')) {
-      description = val;
-    } else if (e.snippet) {
-      snippets.push(e.snippet);
-    }
-
-    if (e.attributeId && e.value != null) {
-      attributes[e.attributeId] = e.value;
-    }
-  }
+  const collected = collectProductTypeStateFields(evidence);
+  const name = collected.name;
+  const brand = collected.brand;
+  const description = collected.description;
+  const snippets = collected.snippets;
+  const attributes = collectProductTypeStateAttributes(evidence);
 
   const baseState: BoundedProductTypeState = {
     sku,
     name: name || sku,
     brand,
     description: description ? description.slice(0, 4000) : null,
-    snippets: snippets.slice(0, 15).map(s => s.slice(0, 500)),
+    snippets: truncateSnippets(snippets),
     attributes,
     evidenceCount: evidence.length,
   };
 
-  // Ensure state serialization fits within SYSTEMONE_MAX_STATE_BYTES (32,768)
-  let serialized = JSON.stringify(baseState);
-  if (Buffer.byteLength(serialized, 'utf-8') > SYSTEMONE_MAX_STATE_BYTES) {
-    baseState.snippets = baseState.snippets.slice(0, 5);
-    if (baseState.description) {
-      baseState.description = baseState.description.slice(0, 1000);
+  // Ensure state serialization fits within the SystemOne state budget (32,768 bytes)
+  fitStateToBudget(baseState, s => {
+    s.snippets = s.snippets.slice(0, 5);
+    if (s.description) {
+      s.description = s.description.slice(0, 1000);
     }
-  }
+  });
 
   return baseState;
 }
@@ -212,19 +279,8 @@ export interface ProductTypeChoiceQuestionPlan {
 export function buildProductTypeChoiceQuestion(
   options: ResolvedTargetOption[],
 ): ProductTypeChoiceQuestionPlan {
-  const keyToIdMap = new Map<string, string>();
-  const idToKeyMap = new Map<string, string>();
   const criteria: Record<string, string> = {};
-
-  for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    const key = `opt_${i}`;
-    keyToIdMap.set(key, opt.value);
-    idToKeyMap.set(opt.value, key);
-    const optWithDesc = opt as { value: string; label: string; description?: string };
-    const desc = optWithDesc.description ? `: ${optWithDesc.description}` : '';
-    criteria[key] = `${opt.label}${desc}`;
-  }
+  const { keyToIdMap, idToKeyMap } = buildChoiceKeyMaps(criteria, options, 'opt');
 
   // Two dedicated abstention outcomes
   criteria[NO_MATCH_CHOICE_KEY] =
@@ -246,55 +302,25 @@ export function buildProductTypeChoiceQuestion(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function resolveCredential(provider: string) {
-  try {
-    const aiConfig = getFullAiRoutingConfig();
-    const conn =
-      aiConfig.connections[provider] ||
-      Object.values(aiConfig.connections).find(
-        (c) => c.id === provider || (provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
-      );
-    if (conn && conn.credential) {
-      return { provider, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
-    }
-  } catch {
-    // fallback to api_keys
-  }
-  const keyRow = getApiKey(provider);
-  if (keyRow?.api_key) {
-    return { provider, apiKey: keyRow.api_key, baseUrl: keyRow.base_url ?? null, model: null };
-  }
-  return null;
-}
-
-// ─── Canonical Decision Resolution ───────────────────────────────────────────
-
-export async function resolveProductTypeDecision(
-  params: ProductTypeDecisionParams,
-): Promise<ProductTypeDecisionResult> {
-  const { target, evidence, sku, runId, snapshot, modelPolicy, assertHeld } = params;
-  assertHeld?.();
-  const options = target.options;
-
-  // 1. Build bounded evidence packet for grounding & deterministic match
-  const packet: EvidenceTargetPacket = buildEvidenceTargetPacket(evidence, {
-    attributeId: null,
-    sourceField: null,
-    selectionMode: 'single',
-    includeProductTypeContext: true,
-    isGroundingSupport: tokenGroundingSupport,
-  });
-
-  const text = packet.promptText;
-  const evidenceIds = packet.evidenceIds;
-  const supportingEvidenceIds = packet.supportingEvidenceIds;
-  const contradictingEvidenceIds = packet.contradictingEvidenceIds;
-
-  // 2. Deterministic matching precedence
-  if (params.deterministicMatch && params.deterministicMatch.productTypeId !== null) {
-    const match = params.deterministicMatch;
+/**
+ * Deterministic precedence for product type: explicit caller match, keyword
+ * match over the evidence text, then the empty-taxonomy abstention.
+ * Returns a terminal result when precedence applies, otherwise null.
+ */
+/**
+ * Explicit caller-supplied deterministic product-type match with an optional
+ * confidence floor.
+ */
+function matchProductTypeDeterministicParam(input: {
+  match: { productTypeId: string; confidence: number | null };
+  confidenceFloor?: number;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult | null {
+  const { match, confidenceFloor, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
     const meetsFloor =
-      params.confidenceFloor !== undefined ? (match.confidence ?? 0) >= params.confidenceFloor : true;
+      confidenceFloor !== undefined ? (match.confidence ?? 0) >= confidenceFloor : true;
     if (meetsFloor) {
       return {
         status: 'resolved',
@@ -311,7 +337,23 @@ export async function resolveProductTypeDecision(
         contradictingEvidenceIds,
       };
     }
-  } else if (options.length > 0 && text && text.length >= 3) {
+  return null;
+}
+
+/**
+ * Keyword deterministic product-type match over the evidence text with an
+ * optional confidence floor.
+ */
+function matchProductTypeKeyword(input: {
+  options: ResolvedTargetOption[];
+  text: string;
+  confidenceFloor?: number;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult | null {
+  const { options, text, confidenceFloor, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
+  if (options.length > 0 && text && text.length >= 3) {
     const keywordMatches = matchKeywordOptions({
       options,
       text,
@@ -320,7 +362,7 @@ export async function resolveProductTypeDecision(
     if (keywordMatches.length > 0 && keywordMatches[0].confidence >= PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE) {
       const top = keywordMatches[0];
       const meetsFloor =
-        params.confidenceFloor !== undefined ? top.confidence >= params.confidenceFloor : true;
+        confidenceFloor !== undefined ? top.confidence >= confidenceFloor : true;
       if (meetsFloor) {
         return {
           status: 'resolved',
@@ -338,6 +380,43 @@ export async function resolveProductTypeDecision(
         };
       }
     }
+  }
+  return null;
+}
+
+function checkProductTypeDeterministicMatch(input: {
+  options: ResolvedTargetOption[];
+  text: string;
+  packet: EvidenceTargetPacket;
+  deterministicMatch: ProductTypeDecisionParams['deterministicMatch'];
+  confidenceFloor?: number;
+}): ProductTypeDecisionResult | null {
+  const { options, text, packet, deterministicMatch, confidenceFloor } = input;
+  const evidenceIds = packet.evidenceIds;
+  const supportingEvidenceIds = packet.supportingEvidenceIds;
+  const contradictingEvidenceIds = packet.contradictingEvidenceIds;
+  if (deterministicMatch && deterministicMatch.productTypeId !== null) {
+    const paramMatch = matchProductTypeDeterministicParam({
+      match: {
+        productTypeId: deterministicMatch.productTypeId,
+        confidence: deterministicMatch.confidence,
+      },
+      confidenceFloor,
+      evidenceIds,
+      supportingEvidenceIds,
+      contradictingEvidenceIds,
+    });
+    if (paramMatch) return paramMatch;
+  } else {
+    const keywordMatch = matchProductTypeKeyword({
+      options,
+      text,
+      confidenceFloor,
+      evidenceIds,
+      supportingEvidenceIds,
+      contradictingEvidenceIds,
+    });
+    if (keywordMatch) return keywordMatch;
   }
 
   // Target has no options configured
@@ -360,80 +439,26 @@ export async function resolveProductTypeDecision(
     };
   }
 
-  // 3. Resolve route through frozen model policy
-  const rawPolicy = modelPolicy ?? (snapshot?.modelPolicy as unknown as ModelPolicyView) ?? null;
-  const effectivePolicy =
-    rawPolicy && typeof rawPolicy === 'object' && 'policyDigest' in rawPolicy && 'providerLocalities' in rawPolicy
-      ? rawPolicy
-      : null;
-  let route: ReturnType<typeof resolveModelRoute> | null = null;
-  let conn: any = null;
-  let isSystemOne = false;
+  return null;
+}
 
-  if (effectivePolicy) {
-    try {
-      assertModelPolicyIntact(effectivePolicy);
-      const resolvedRoute = resolveModelRoute(effectivePolicy, 'product_type_ranking', {
-        getCredential: (p: string) => resolveCredential(p),
-        defaultBaseUrls: {
-          typesafe: 'https://api.typesafe.ai/v1',
-          ollama: 'http://127.0.0.1:11434/v1',
-          openai: 'https://api.openai.com/v1',
-          deepseek: 'https://api.deepseek.com',
-        },
-      });
-      route = resolvedRoute;
-      const aiConfig = getFullAiRoutingConfig();
-      conn =
-        aiConfig.connections[resolvedRoute.provider] ||
-        Object.values(aiConfig.connections).find(
-          (c) => c.id === resolvedRoute.provider || (resolvedRoute.provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
-        );
-      isSystemOne = resolvedRoute.provider === 'typesafe' || conn?.transport === 'systemone';
-    } catch (err) {
-      if (err instanceof HeartbeatLostError) throw err;
-      if (err instanceof ModelPolicyDeniedError) {
-        assertHeld?.();
-        insertTerminalModelCall({
-          runId,
-          stageName: 'primary_product_type_proposal',
-          operation: 'product_type_ranking',
-          attempt: 1,
-          provider: err.provider ?? null,
-          model: null,
-          locality: null,
-          snapshotHash: snapshot?.snapshotHash ?? '',
-          modelPolicyDigest: effectivePolicy.policyDigest,
-          promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
-          ruleVersion: RULE_VERSIONS.product_type_ranking,
-          systemPromptHash: '',
-          userPromptHash: '',
-          status: MODEL_CALL_STATUS.policyDenied,
-          errorMessage: err.message,
-          costBasis: COST_BASIS.unknown,
-        });
-        return {
-          status: 'abstained',
-          productTypeId: null,
-          confidence: 0,
-          selectedProbability: null,
-          vendorConfidence: null,
-          probabilityBasis: null,
-          source: 'keyword',
-          abstentionCode: 'policy_denied',
-          abstentionReason: `Model policy denied: ${err.message}`,
-          derivation: { kind: 'evidence_match' },
-          modelCallIds: [],
-          evidenceIds,
-          supportingEvidenceIds,
-          contradictingEvidenceIds,
-        };
-      }
-      throw err;
-    }
-  }
-
-  if (!isSystemOne) {
+/**
+ * Legacy chat-LLM fallback for product type (OpenAI / Ollama / DeepSeek).
+ * Used only when the frozen route is not a SystemOne provider.
+ */
+/**
+ * Invoke the legacy chat-LLM ranker for product type.
+ */
+async function callProductTypeLegacyRanker(input: {
+  target: ResolvedTarget;
+  options: ResolvedTargetOption[];
+  text: string;
+  effectivePolicy: ModelPolicyView | null;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+  runId: string;
+  assertHeld?: () => void;
+}): Promise<Awaited<ReturnType<typeof llmRankOptions>>> {
+  const { target, options, text, effectivePolicy, snapshot, runId, assertHeld } = input;
     // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
     const llmResult = await llmRankOptions({
       targetLabel: target.config.label,
@@ -455,7 +480,21 @@ export async function resolveProductTypeDecision(
       snapshot,
       assertHeld,
     });
+  return llmResult;
+}
 
+/**
+ * Map one legacy chat-LLM ranker result to a terminal product-type decision.
+ */
+function mapProductTypeLlmResult(input: {
+  llmResult: Awaited<ReturnType<typeof llmRankOptions>>;
+  options: ResolvedTargetOption[];
+  effectivePolicy: ModelPolicyView | null;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult {
+  const { llmResult, options, effectivePolicy, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
     if (!llmResult || llmResult.values.length === 0) {
       return {
         status: 'abstained',
@@ -475,6 +514,29 @@ export async function resolveProductTypeDecision(
       };
     }
 
+    return resolveProductTypeLlmSelection({
+      llmResult,
+      options,
+      effectivePolicy,
+      evidenceIds,
+      supportingEvidenceIds,
+      contradictingEvidenceIds,
+    });
+}
+
+/**
+ * Resolve one legacy ranker result to its canonical product-type selection:
+ * unmapped labels abstain, otherwise the mapped id resolves.
+ */
+function resolveProductTypeLlmSelection(input: {
+  llmResult: Exclude<Awaited<ReturnType<typeof llmRankOptions>>, null | undefined>;
+  options: ResolvedTargetOption[];
+  effectivePolicy: ModelPolicyView | null;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult {
+  const { llmResult, options, effectivePolicy, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
     const rawLabel = llmResult.values[0];
     const mappedId = mapRankedLabelToOptionExactlyOne(rawLabel, options);
     const resolvedId = mappedId ?? (effectivePolicy ? null : rawLabel);
@@ -511,13 +573,119 @@ export async function resolveProductTypeDecision(
       supportingEvidenceIds,
       contradictingEvidenceIds,
     };
-  }
+}
 
-  // ── TypeSafe Jev System One Choice Path ─────────────────────────────────────
+async function executeProductTypeLegacyFallback(input: {
+  target: ResolvedTarget;
+  options: ResolvedTargetOption[];
+  text: string;
+  effectivePolicy: ModelPolicyView | null;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+  runId: string;
+  assertHeld?: () => void;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): Promise<ProductTypeDecisionResult> {
+  const {
+    target,
+    options,
+    text,
+    effectivePolicy,
+    snapshot,
+    runId,
+    assertHeld,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
+  const llmResult = await callProductTypeLegacyRanker({
+    target,
+    options,
+    text,
+    effectivePolicy,
+    snapshot,
+    runId,
+    assertHeld,
+  });
+  return mapProductTypeLlmResult({
+    llmResult,
+    options,
+    effectivePolicy,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  });
+}
 
+type ProductTypeJevPreparation =
+  | { outcome: 'limited'; result: ProductTypeDecisionResult }
+  | {
+      outcome: 'ready';
+      questionPlan: ProductTypeChoiceQuestionPlan;
+      state: BoundedProductTypeState;
+      request: { model: string; state: BoundedProductTypeState; questions: Record<string, { type: 'choice'; instructions: string; criteria: Record<string, string> }> };
+      ctx: ModelCallContext;
+      promptHash: string;
+      callId: string;
+      jevConn: unknown;
+      startedAt: number;
+    };
+
+/**
+ * Prepare one product-type Jev Choice request: limit guard, connection,
+ * question, bounded state, audit context, and the durable start row.
+ */
+/**
+ * Build the audit context for one product-type Jev call.
+ */
+function buildProductTypeCallContext(input: {
+  runId: string;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+}): ModelCallContext {
+  const { runId, snapshot } = input;
+  return {
+    runId,
+    snapshotHash: snapshot?.snapshotHash ?? '',
+    stage: 'primary_product_type_proposal',
+    operation: 'product_type_ranking',
+    attempt: 1,
+    promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
+    ruleVersion: RULE_VERSIONS.product_type_ranking,
+  };
+}
+
+function prepareProductTypeJevRequest(input: {
+  options: ResolvedTargetOption[];
+  evidence: ClassificationEvidence[];
+  sku: string;
+  runId: string;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+  assertHeld?: () => void;
+  route: ReturnType<typeof resolveModelRoute> | null;
+  conn: any;
+  effectivePolicy: ModelPolicyView | null;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeJevPreparation {
+  const {
+    options,
+    evidence,
+    sku,
+    runId,
+    snapshot,
+    assertHeld,
+    route,
+    conn,
+    effectivePolicy,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
   // Option limit check: > 253 produces explicit limit abstention (no first-N clipping)
   if (options.length > MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES) {
-    return {
+    return { outcome: 'limited', result: {
       status: 'abstained',
       productTypeId: null,
       confidence: 0,
@@ -527,20 +695,12 @@ export async function resolveProductTypeDecision(
       source: 'jev',
       abstentionCode: 'candidate_limit_exceeded',
       abstentionReason: `candidate_limit_exceeded: Candidate Product Types (${options.length}) exceed maximum Choice capacity of ${MAX_ORDINARY_PRODUCT_TYPE_CANDIDATES}. First-N clipping is forbidden.`,
-      derivation: {
-        kind: 'systemone_judgment',
-        primitive: 'choice',
-        questionId: JEV_PRODUCT_TYPE_QUESTION_ID,
-        selectedProbability: null,
-        vendorConfidence: null,
-        probabilityBasis: 'choice_probability',
-        abstentionCode: 'candidate_limit_exceeded',
-      },
+      derivation: buildChoiceJudgmentDerivation(JEV_PRODUCT_TYPE_QUESTION_ID, null, null, 'candidate_limit_exceeded'),
       modelCallIds: [],
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,
-    };
+    } };
   }
 
   if (!route || !effectivePolicy) {
@@ -563,96 +723,217 @@ export async function resolveProductTypeDecision(
   // Build question and bounded state
   const questionPlan = buildProductTypeChoiceQuestion(options);
   const state = buildProductTypeState(evidence, sku);
-
-  const request = {
-    model: route.model || TYPESAFE_EVALUATED_MODEL,
-    state,
-    questions: {
-      [questionPlan.questionId]: {
-        type: 'choice' as const,
-        instructions: questionPlan.instructions,
-        criteria: questionPlan.criteria,
-      },
-    },
-  };
-
-  // Lease assertion before audit start
-  assertHeld?.();
-
-  const ctx: ModelCallContext = {
-    runId,
-    snapshotHash: snapshot?.snapshotHash ?? '',
-    stage: 'primary_product_type_proposal',
-    operation: 'product_type_ranking',
-    attempt: 1,
-    promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
-    ruleVersion: RULE_VERSIONS.product_type_ranking,
-  };
+  const ctx = buildProductTypeCallContext({ runId, snapshot });
 
   if (snapshot) {
     assertModelPlanCompatible(snapshot, 'product_type_ranking', ctx);
   }
 
-  const promptHash = hashCanonicalJson(request);
-
-  const callId = insertModelCallStart({
+  const opened = openSingleChoiceRequest({
+    route,
+    state,
+    questionPlan,
     runId,
-    stageName: ctx.stage,
-    operation: ctx.operation,
-    attempt: ctx.attempt,
-    provider: route.provider,
-    model: route.model,
-    requestedModel: route.model,
-    locality: route.locality,
-    snapshotHash: ctx.snapshotHash,
-    modelPolicyDigest: effectivePolicy.policyDigest,
-    promptTemplateVersion: ctx.promptTemplateVersion,
-    ruleVersion: ctx.ruleVersion,
-    systemPromptHash: promptHash,
-    userPromptHash: promptHash,
+    ctx,
+    effectivePolicyDigest: effectivePolicy.policyDigest,
+    assertHeld,
+  });
+  return { outcome: 'ready', questionPlan, state, request: opened.request, ctx, promptHash: opened.promptHash, callId: opened.callId, jevConn, startedAt: opened.startedAt };
+}
+
+/**
+ * Execute the TypeSafe Jev SystemOne Choice path: candidate-limit guard, frozen
+ * request preparation, protected dispatch with audit rows, and interpretation.
+ * Lease assertions and HeartbeatLost rethrow semantics are unchanged.
+ */
+/**
+ * Run one prepared product-type Jev dispatch with audit completion and
+ * answer interpretation. Dispatch failures surface as `service_failure`.
+ */
+/**
+ * Record one failed product-type Jev dispatch (no post-loss writes on lease loss).
+ */
+function failProductTypeJevDispatch(input: {
+  err: unknown;
+  callId: string;
+  startedAt: number;
+  assertHeld?: () => void;
+  questionPlan: ProductTypeChoiceQuestionPlan;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult {
+  const { err, callId, startedAt, assertHeld, questionPlan, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
+  if (err instanceof HeartbeatLostError) {
+    // Lease lost: no post-loss writes, rethrow immediately
+    throw err;
+  }
+
+  assertHeld?.();
+  const durationMs = Date.now() - startedAt;
+  completeModelCall(callId, {
+    status: MODEL_CALL_STATUS.failed,
+    endedAt: now(),
+    durationMs,
+    errorMessage: err instanceof Error ? err.message : String(err),
   });
 
-  const startedAt = Date.now();
+  return {
+    status: 'failed',
+    productTypeId: null,
+    confidence: 0,
+    selectedProbability: null,
+    vendorConfidence: null,
+    probabilityBasis: null,
+    source: 'jev',
+    abstentionCode: 'service_failure',
+    abstentionReason: `service_failure: ${err instanceof Error ? err.message : String(err)}`,
+    derivation: buildChoiceJudgmentDerivation(questionPlan.questionId, null, null, 'service_failure'),
+    modelCallIds: [callId],
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+    error: err,
+  };
+}
 
-  try {
-    assertHeld?.();
-    const result = await dispatchSystemOne(jevConn as any, request);
-    assertHeld?.();
-
-    if (!isSystemOneModelMatch(request.model, result.returnedModel)) {
-      throw new Error(`Model mismatch: requested model "${request.model}", but provider returned "${result.returnedModel}". Pinned model substitution is forbidden.`);
-    }
-
-    const durationMs = Date.now() - startedAt;
-    const answer = result.answers[questionPlan.questionId];
-
-    if (!answer || answer.type !== 'choice') {
-      throw new Error(`Expected choice answer for question "${questionPlan.questionId}", got "${answer?.type ?? 'missing'}".`);
-    }
-
-    const choiceKey = answer.choice;
-    const selectedProbability = answer.probabilities[choiceKey] ?? 0;
-    const vendorConfidence = answer.confidence;
-
-    // Record complete durable call
-    completeModelCall(callId, {
-      status: MODEL_CALL_STATUS.success,
-      endedAt: now(),
-      durationMs,
-      promptTokens: result.usage.inputTokens,
-      completionTokens: result.usage.outputTokens,
-      resolvedModel: result.returnedModel,
-      typedResultMetadata: {
-        questionId: questionPlan.questionId,
-        choice: choiceKey,
-        canonicalId: questionPlan.keyToIdMap.get(choiceKey) ?? null,
-        resolvedId: questionPlan.keyToIdMap.get(choiceKey) ?? null,
+async function runProductTypeJevDispatch(input: {
+  jevConn: unknown;
+  request: { model: string; state: unknown; questions: Record<string, { type: 'choice' | 'noul'; instructions: unknown; criteria?: unknown }> };
+  questionPlan: ProductTypeChoiceQuestionPlan;
+  callId: string;
+  assertHeld?: () => void;
+  startedAt: number;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): Promise<ProductTypeDecisionResult> {
+  const {
+    jevConn,
+    request,
+    questionPlan,
+    callId,
+    assertHeld,
+    startedAt,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
+  return runSingleChoiceDispatch({
+    jevConn,
+    request,
+    questionPlan,
+    callId,
+    assertHeld,
+    startedAt,
+    interpret: ({ choiceKey, selectedProbability, vendorConfidence }) =>
+      interpretProductTypeChoiceAnswer({
+        choiceKey,
         selectedProbability,
         vendorConfidence,
-        basis: 'choice_probability',
-      },
-    });
+        questionPlan,
+        callId,
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
+      }),
+    fail: (err) =>
+      failProductTypeJevDispatch({
+        err,
+        callId,
+        startedAt,
+        assertHeld,
+        questionPlan,
+        evidenceIds,
+        supportingEvidenceIds,
+        contradictingEvidenceIds,
+      }),
+  });
+}
 
+async function executeProductTypeJevChoice(input: {
+  options: ResolvedTargetOption[];
+  evidence: ClassificationEvidence[];
+  sku: string;
+  runId: string;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+  assertHeld?: () => void;
+  route: ReturnType<typeof resolveModelRoute> | null;
+  conn: any;
+  effectivePolicy: ModelPolicyView | null;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): Promise<ProductTypeDecisionResult> {
+  const {
+    options,
+    evidence,
+    sku,
+    runId,
+    snapshot,
+    assertHeld,
+    route,
+    conn,
+    effectivePolicy,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
+  const preparation = prepareProductTypeJevRequest({
+    options,
+    evidence,
+    sku,
+    runId,
+    snapshot,
+    assertHeld,
+    route,
+    conn,
+    effectivePolicy,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  });
+  if (preparation.outcome === 'limited') return preparation.result;
+  const { questionPlan, request, callId, jevConn, startedAt } = preparation;
+
+  return runProductTypeJevDispatch({
+    jevConn,
+    request,
+    questionPlan,
+    callId,
+    assertHeld,
+    startedAt,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  });
+}
+
+/**
+ * Interpret one SystemOne Choice answer for product type: abstention outcomes,
+ * canonical-id mapping, then the development-fitted 0.50 eligibility floor.
+ * Unknown choice keys throw and surface as `service_failure` via the caller.
+ */
+function interpretProductTypeChoiceAnswer(input: {
+  choiceKey: string;
+  selectedProbability: number;
+  vendorConfidence: number;
+  questionPlan: ProductTypeChoiceQuestionPlan;
+  callId: string;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult {
+  const {
+    choiceKey,
+    selectedProbability,
+    vendorConfidence,
+    questionPlan,
+    callId,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
     // Evaluate against outcomes and calibrated eligibility policy
     if (choiceKey === NO_MATCH_CHOICE_KEY) {
       return {
@@ -665,15 +946,7 @@ export async function resolveProductTypeDecision(
         source: 'jev',
         abstentionCode: 'no_match',
         abstentionReason: 'no_fit: No matching product type in the configured taxonomy fits the product.',
-        derivation: {
-          kind: 'systemone_judgment',
-          primitive: 'choice',
-          questionId: questionPlan.questionId,
-          selectedProbability,
-          vendorConfidence,
-          probabilityBasis: 'choice_probability',
-          abstentionCode: 'no_match',
-        },
+        derivation: buildChoiceJudgmentDerivation(questionPlan.questionId, selectedProbability, vendorConfidence, 'no_match'),
         modelCallIds: [callId],
         evidenceIds,
         supportingEvidenceIds,
@@ -692,15 +965,7 @@ export async function resolveProductTypeDecision(
         source: 'jev',
         abstentionCode: 'insufficient_evidence',
         abstentionReason: 'insufficient_evidence: Product evidence is insufficient to determine a product type with confidence.',
-        derivation: {
-          kind: 'systemone_judgment',
-          primitive: 'choice',
-          questionId: questionPlan.questionId,
-          selectedProbability,
-          vendorConfidence,
-          probabilityBasis: 'choice_probability',
-          abstentionCode: 'insufficient_evidence',
-        },
+        derivation: buildChoiceJudgmentDerivation(questionPlan.questionId, selectedProbability, vendorConfidence, 'insufficient_evidence'),
         modelCallIds: [callId],
         evidenceIds,
         supportingEvidenceIds,
@@ -708,10 +973,7 @@ export async function resolveProductTypeDecision(
       };
     }
 
-    const canonicalId = questionPlan.keyToIdMap.get(choiceKey);
-    if (!canonicalId) {
-      throw new Error(`Returned choice key "${choiceKey}" does not map to any canonical option ID.`);
-    }
+    const canonicalId = choiceKeyToCanonicalId(questionPlan.keyToIdMap, choiceKey, 'option ID');
 
     // Check development-fitted eligibility floor (0.50)
     if (selectedProbability < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
@@ -725,15 +987,7 @@ export async function resolveProductTypeDecision(
         source: 'jev',
         abstentionCode: 'low_probability',
         abstentionReason: `low_probability: Selected product type "${canonicalId}" probability (${selectedProbability.toFixed(3)}) is below required threshold (${JEV_PRODUCT_TYPE_MIN_PROBABILITY}).`,
-        derivation: {
-          kind: 'systemone_judgment',
-          primitive: 'choice',
-          questionId: questionPlan.questionId,
-          selectedProbability,
-          vendorConfidence,
-          probabilityBasis: 'choice_probability',
-          abstentionCode: 'low_probability',
-        },
+        derivation: buildChoiceJudgmentDerivation(questionPlan.questionId, selectedProbability, vendorConfidence, 'low_probability'),
         modelCallIds: [callId],
         evidenceIds,
         supportingEvidenceIds,
@@ -750,58 +1004,175 @@ export async function resolveProductTypeDecision(
       vendorConfidence,
       probabilityBasis: 'choice_probability',
       source: 'jev',
-      derivation: {
-        kind: 'systemone_judgment',
-        primitive: 'choice',
-        questionId: questionPlan.questionId,
-        selectedProbability,
-        vendorConfidence,
-        probabilityBasis: 'choice_probability',
-      },
+      derivation: buildChoiceJudgmentDerivation(questionPlan.questionId, selectedProbability, vendorConfidence),
       modelCallIds: [callId],
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,
     };
-  } catch (err) {
-    if (err instanceof HeartbeatLostError) {
-      // Lease lost: no post-loss writes, rethrow immediately
+}
+
+// ─── Canonical Decision Resolution ───────────────────────────────────────────
+
+/**
+ * Build the bounded evidence packet for grounding and deterministic matching.
+ */
+function buildProductTypeEvidencePacket(evidence: ClassificationEvidence[]): EvidenceTargetPacket {
+  return buildEvidenceTargetPacket(evidence, {
+    attributeId: null,
+    sourceField: null,
+    selectionMode: 'single',
+    includeProductTypeContext: true,
+    isGroundingSupport: tokenGroundingSupport,
+  });
+}
+
+/**
+ * Resolve the effective frozen model policy view (null when absent or malformed).
+ */
+function resolveProductTypeEffectivePolicy(
+  modelPolicy: ModelPolicyView | null | undefined,
+  snapshot: RuntimeClassificationSnapshot | null | undefined,
+): ModelPolicyView | null {
+  return asEffectivePolicyView(modelPolicy ?? snapshot?.modelPolicy ?? null);
+}
+
+/**
+ * Build the terminal policy-denied result for product type (audit row + abstention).
+ */
+function buildProductTypePolicyDeniedResult(input: {
+  err: ModelPolicyDeniedError;
+  runId: string;
+  snapshot: RuntimeClassificationSnapshot | null | undefined;
+  effectivePolicy: ModelPolicyView;
+  assertHeld?: () => void;
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult {
+  const {
+    err,
+    runId,
+    snapshot,
+    effectivePolicy,
+    assertHeld,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  } = input;
+  assertHeld?.();
+  insertPolicyDeniedTerminalCall({
+    runId,
+    stageName: 'primary_product_type_proposal',
+    operation: 'product_type_ranking',
+    provider: err.provider ?? null,
+    snapshotHash: snapshot?.snapshotHash ?? '',
+    modelPolicyDigest: effectivePolicy.policyDigest,
+    promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
+    ruleVersion: RULE_VERSIONS.product_type_ranking,
+    errorMessage: err.message,
+  });
+  return {
+    status: 'abstained',
+    productTypeId: null,
+    confidence: 0,
+    selectedProbability: null,
+    vendorConfidence: null,
+    probabilityBasis: null,
+    source: 'keyword',
+    abstentionCode: 'policy_denied',
+    abstentionReason: `Model policy denied: ${err.message}`,
+    derivation: { kind: 'evidence_match' },
+    modelCallIds: [],
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  };
+}
+
+export async function resolveProductTypeDecision(
+  params: ProductTypeDecisionParams,
+): Promise<ProductTypeDecisionResult> {
+  const { target, evidence, sku, runId, snapshot, modelPolicy, assertHeld } = params;
+  assertHeld?.();
+  const options = target.options;
+
+  // 1. Build bounded evidence packet for grounding & deterministic match
+  const packet = buildProductTypeEvidencePacket(evidence);
+
+  const text = packet.promptText;
+  const evidenceIds = packet.evidenceIds;
+  const supportingEvidenceIds = packet.supportingEvidenceIds;
+  const contradictingEvidenceIds = packet.contradictingEvidenceIds;
+
+  const deterministic = checkProductTypeDeterministicMatch({
+    options,
+    text,
+    packet,
+    deterministicMatch: params.deterministicMatch,
+    confidenceFloor: params.confidenceFloor,
+  });
+  if (deterministic) return deterministic;
+
+  // 3. Resolve route through frozen model policy
+  const effectivePolicy = resolveProductTypeEffectivePolicy(modelPolicy, snapshot);
+  let route: ReturnType<typeof resolveModelRoute> | null = null;
+  let conn: any = null;
+  let isSystemOne = false;
+
+  if (effectivePolicy) {
+    try {
+      const decision = resolveDecisionRouteForOperation(effectivePolicy, 'product_type_ranking');
+      route = decision.route;
+      conn = decision.conn;
+      isSystemOne = decision.isSystemOne;
+    } catch (err) {
+      if (err instanceof HeartbeatLostError) throw err;
+      if (err instanceof ModelPolicyDeniedError) {
+        return buildProductTypePolicyDeniedResult({
+          err,
+          runId,
+          snapshot,
+          effectivePolicy,
+          assertHeld,
+          evidenceIds,
+          supportingEvidenceIds,
+          contradictingEvidenceIds,
+        });
+      }
       throw err;
     }
+  }
 
-    assertHeld?.();
-    const durationMs = Date.now() - startedAt;
-    completeModelCall(callId, {
-      status: MODEL_CALL_STATUS.failed,
-      endedAt: now(),
-      durationMs,
-      errorMessage: err instanceof Error ? err.message : String(err),
-    });
-
-    return {
-      status: 'failed',
-      productTypeId: null,
-      confidence: 0,
-      selectedProbability: null,
-      vendorConfidence: null,
-      probabilityBasis: null,
-      source: 'jev',
-      abstentionCode: 'service_failure',
-      abstentionReason: `service_failure: ${err instanceof Error ? err.message : String(err)}`,
-      derivation: {
-        kind: 'systemone_judgment',
-        primitive: 'choice',
-        questionId: questionPlan.questionId,
-        selectedProbability: null,
-        vendorConfidence: null,
-        probabilityBasis: 'choice_probability',
-        abstentionCode: 'service_failure',
-      },
-      modelCallIds: [callId],
+  if (!isSystemOne) {
+    // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
+    return executeProductTypeLegacyFallback({
+      target,
+      options,
+      text,
+      effectivePolicy,
+      snapshot,
+      runId,
+      assertHeld,
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,
-      error: err,
-    };
+    });
   }
+
+  // ── TypeSafe Jev System One Choice Path ─────────────────────────────────────
+  return executeProductTypeJevChoice({
+    options,
+    evidence,
+    sku,
+    runId,
+    snapshot,
+    assertHeld,
+    route,
+    conn,
+    effectivePolicy,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  });
 }

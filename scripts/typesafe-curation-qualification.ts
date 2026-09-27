@@ -134,43 +134,76 @@ if (!liveCheckRequested) {
 }
 
 // 4. Staged-canary sign-offs from explicit operator receipts (fail-closed default).
-function readCanaryReceipts(): { productType: boolean; attributes: boolean; cohortPages: boolean; source: string } {
-  const receipts: { productType: boolean; attributes: boolean; cohortPages: boolean; source: string } = {
+interface CanaryReceipts {
+  productType: boolean;
+  attributes: boolean;
+  cohortPages: boolean;
+  source: string;
+}
+
+function emptyCanaryReceipts(): CanaryReceipts {
+  return {
     productType: false,
     attributes: false,
     cohortPages: false,
     source: 'none provided (unreviewed)',
   };
-  const receiptsPath = process.env.TYPESAFE_CANARY_RECEIPTS_PATH;
-  if (receiptsPath) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(receiptsPath, 'utf8')) as {
-        productTypeReviewed?: unknown;
-        attributesReviewed?: unknown;
-        cohortPagesReviewed?: unknown;
-      };
-      receipts.productType = parsed.productTypeReviewed === true;
-      receipts.attributes = parsed.attributesReviewed === true;
-      receipts.cohortPages = parsed.cohortPagesReviewed === true;
-      receipts.source = `file ${receiptsPath}`;
-    } catch (err) {
-      console.error(
-        `Warning: TYPESAFE_CANARY_RECEIPTS_PATH unreadable (${err instanceof Error ? err.message : String(err)}); treating canaries as unreviewed.`,
-      );
-      receipts.source = `unreadable file ${receiptsPath} (unreviewed)`;
-    }
+}
+
+/** Read canary sign-offs from the receipts file (fail-closed when unreadable). */
+function readCanaryReceiptsFile(receipts: CanaryReceipts, receiptsPath: string): void {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(receiptsPath, 'utf8')) as {
+      productTypeReviewed?: unknown;
+      attributesReviewed?: unknown;
+      cohortPagesReviewed?: unknown;
+    };
+    receipts.productType = parsed.productTypeReviewed === true;
+    receipts.attributes = parsed.attributesReviewed === true;
+    receipts.cohortPages = parsed.cohortPagesReviewed === true;
+    receipts.source = `file ${receiptsPath}`;
+  } catch (err) {
+    console.error(
+      `Warning: TYPESAFE_CANARY_RECEIPTS_PATH unreadable (${err instanceof Error ? err.message : String(err)}); treating canaries as unreviewed.`,
+    );
+    receipts.source = `unreadable file ${receiptsPath} (unreviewed)`;
   }
-  if (process.env.TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED === '1') receipts.productType = true;
-  if (process.env.TYPESAFE_CANARY_ATTRIBUTES_REVIEWED === '1') receipts.attributes = true;
-  if (process.env.TYPESAFE_CANARY_COHORT_PAGES_REVIEWED === '1') receipts.cohortPages = true;
-  if (
-    receipts.source === 'none provided (unreviewed)' &&
-    (process.env.TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED === '1' ||
-      process.env.TYPESAFE_CANARY_ATTRIBUTES_REVIEWED === '1' ||
-      process.env.TYPESAFE_CANARY_COHORT_PAGES_REVIEWED === '1')
-  ) {
+}
+
+/** Env override flags for canary sign-offs (keyed by receipt field). */
+const CANARY_ENV_FLAGS = [
+  ['TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED', 'productType'],
+  ['TYPESAFE_CANARY_ATTRIBUTES_REVIEWED', 'attributes'],
+  ['TYPESAFE_CANARY_COHORT_PAGES_REVIEWED', 'cohortPages'],
+] as const;
+
+/** True when any canary env override flag is set. */
+function hasCanaryEnvOverrides(): boolean {
+  return CANARY_ENV_FLAGS.some(([envVar]) => process.env[envVar] === '1');
+}
+
+/** Label env-sourced receipts when no file source was recorded. */
+function labelCanaryEnvSource(receipts: CanaryReceipts): void {
+  if (receipts.source === 'none provided (unreviewed)' && hasCanaryEnvOverrides()) {
     receipts.source = 'env TYPESAFE_CANARY_*_REVIEWED';
   }
+}
+
+/** Apply TYPESAFE_CANARY_*_REVIEWED env overrides on top of file receipts. */
+function applyCanaryEnvOverrides(receipts: CanaryReceipts): void {
+  for (const [envVar, key] of CANARY_ENV_FLAGS) {
+    if (process.env[envVar] === '1') receipts[key] = true;
+  }
+  labelCanaryEnvSource(receipts);
+}
+
+function readCanaryReceipts(): CanaryReceipts {
+  const receipts = emptyCanaryReceipts();
+  const receiptsPath = process.env.TYPESAFE_CANARY_RECEIPTS_PATH;
+  if (receiptsPath) {
+    readCanaryReceiptsFile(receipts, receiptsPath);
+  }
+  applyCanaryEnvOverrides(receipts);
   return receipts;
 }
 const canary = readCanaryReceipts();

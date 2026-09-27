@@ -34,6 +34,12 @@ import * as benchmarkRepo from '../db/repositories/benchmark-repo';
 import * as classRunRepo from '../db/repositories/classification-run-repo';
 import { getModelCallsByRun } from '../db/repositories/classification-model-call-repo';
 import type { BenchmarkPredictionEntry, BenchmarkPredictionBundle } from '../shared/schemas/classification';
+import {
+  effectiveReviewedTargetId,
+  effectiveReviewedValue,
+  selectBestByProbability,
+  type QualificationGoldCore,
+} from './benchmark-scoring-helpers';
 
 /**
  * Explicit prediction-source contract. New raw bundles carry
@@ -152,6 +158,34 @@ export interface AdjudicatedGoldType {
   typeId: string | null;
 }
 
+/** Exact gold-kind table for object-shaped gold labels (legacy bytes preserved). */
+const OBJECT_GOLD_KINDS: Record<string, GoldKind> = {
+  [GOLD_KIND_NO_FIT]: GOLD_KIND_NO_FIT,
+  [GOLD_KIND_INSUFFICIENT_EVIDENCE]: GOLD_KIND_INSUFFICIENT_EVIDENCE,
+  [GOLD_KIND_UNLABELED]: GOLD_KIND_UNLABELED,
+  [GOLD_KIND_KNOWN_TYPE]: GOLD_KIND_KNOWN_TYPE,
+};
+
+/** Adjudicate a known-type object label (valid typeId wins, else unlabeled). */
+function adjudicateKnownTypeObjectKind(value: Record<string, unknown>): AdjudicatedGoldType {
+  if (!('typeId' in value)) return { kind: GOLD_KIND_UNLABELED, typeId: null };
+  const typeId: unknown = value.typeId;
+  if (typeof typeId === 'string' && typeId.length > 0) return { kind: GOLD_KIND_KNOWN_TYPE, typeId };
+  return { kind: GOLD_KIND_UNLABELED, typeId: null };
+}
+
+/** Adjudicate an object-shaped gold label to its kind (known-type needs a typeId). */
+function adjudicateGoldObjectKind(value: Record<string, unknown>): AdjudicatedGoldType {
+  const kind = typeof value.kind === 'string' ? (OBJECT_GOLD_KINDS[value.kind] ?? null) : null;
+  if (kind === GOLD_KIND_NO_FIT) return { kind: GOLD_KIND_NO_FIT, typeId: null };
+  if (kind === GOLD_KIND_INSUFFICIENT_EVIDENCE) {
+    return { kind: GOLD_KIND_INSUFFICIENT_EVIDENCE, typeId: null };
+  }
+  if (kind === GOLD_KIND_UNLABELED) return { kind: GOLD_KIND_UNLABELED, typeId: null };
+  if (kind === GOLD_KIND_KNOWN_TYPE) return adjudicateKnownTypeObjectKind(value);
+  return { kind: GOLD_KIND_UNLABELED, typeId: null };
+}
+
 /** Normalize a stored gold productType label to its adjudicated kind. */
 export function adjudicateGoldProductType(value: unknown): AdjudicatedGoldType {
   if (typeof value === 'string') {
@@ -160,15 +194,7 @@ export function adjudicateGoldProductType(value: unknown): AdjudicatedGoldType {
       : { kind: GOLD_KIND_UNLABELED, typeId: null };
   }
   if (value && typeof value === 'object' && !Array.isArray(value) && 'kind' in value) {
-    const kind: unknown = value.kind;
-    if (kind === GOLD_KIND_NO_FIT) return { kind: GOLD_KIND_NO_FIT, typeId: null };
-    if (kind === GOLD_KIND_INSUFFICIENT_EVIDENCE) return { kind: GOLD_KIND_INSUFFICIENT_EVIDENCE, typeId: null };
-    if (kind === GOLD_KIND_UNLABELED) return { kind: GOLD_KIND_UNLABELED, typeId: null };
-    if (kind === GOLD_KIND_KNOWN_TYPE && 'typeId' in value) {
-      const typeId: unknown = value.typeId;
-      if (typeof typeId === 'string' && typeId.length > 0) return { kind: GOLD_KIND_KNOWN_TYPE, typeId };
-      return { kind: GOLD_KIND_UNLABELED, typeId: null };
-    }
+    return adjudicateGoldObjectKind(value as Record<string, unknown>);
   }
   return { kind: GOLD_KIND_UNLABELED, typeId: null };
 }
@@ -213,6 +239,91 @@ export function computePredictionBundleHash(predictions: BenchmarkPredictionEntr
  * bundle hashes still verify. New captures MUST use
  * `extractPreReviewPredictionForSku` instead.
  */
+interface ReviewedOutcomeAccumulator {
+  productType: string | null;
+  pageAssignments: string[];
+  fieldAssignments: Array<{ targetId: string; value: string | null }>;
+  abstained: boolean;
+  confidence: number | null;
+}
+
+function emptyReviewedOutcomeAccumulator(): ReviewedOutcomeAccumulator {
+  return { productType: null, pageAssignments: [], fieldAssignments: [], abstained: false, confidence: null };
+}
+
+type ReviewedRunProposal = ReturnType<typeof classRunRepo.getProposalsByRun>[number];
+type ReviewedRunDecision = ReturnType<typeof classRunRepo.getLiveDecisionsByRun>[number];
+
+/** Apply one accepted primary-product-type proposal to the accumulator. */
+function applyReviewedTypeProposal(
+  acc: ReviewedOutcomeAccumulator,
+  proposal: ReviewedRunProposal,
+  value: string | null,
+): void {
+  acc.productType = value;
+  acc.confidence = proposal.confidence;
+}
+
+/** Apply one accepted category-page proposal (display name, never the Page ID). */
+function applyReviewedPageProposal(
+  acc: ReviewedOutcomeAccumulator,
+  proposal: ReviewedRunProposal,
+  decision: ReviewedRunDecision,
+): void {
+  const pageName = pageNameFromPageValue(
+    decision.hasRevisedValue ? decision.revisedValue : proposal.proposedValue,
+  );
+  if (pageName) acc.pageAssignments.push(pageName);
+}
+
+/** Apply one accepted field-assignment proposal to the accumulator. */
+function applyReviewedFieldProposal(
+  acc: ReviewedOutcomeAccumulator,
+  effectiveTarget: string | null | undefined,
+  value: string | null,
+): void {
+  if (effectiveTarget) acc.fieldAssignments.push({ targetId: effectiveTarget, value });
+}
+
+/** Score one reviewed proposal into the accumulator (accepted decisions only). */
+function scoreReviewedOutcomeProposal(
+  acc: ReviewedOutcomeAccumulator,
+  proposal: ReviewedRunProposal,
+  decisions: ReviewedRunDecision[],
+): void {
+  // Exclude stale/config-drift/source-drift records at extraction time.
+  if (proposal.isStale) return;
+  if (proposal.proposalType === 'reviewable_abstention') {
+    acc.abstained = true;
+    return;
+  }
+  const decision = decisions.find(d => d.proposalId === proposal.id);
+  if (!decision || decision.decision !== 'accepted') return;
+  const value = effectiveReviewedValue(decision, proposal);
+  const effectiveTarget = effectiveReviewedTargetId(decision, proposal);
+  if (proposal.proposalType === 'primary_product_type') {
+    applyReviewedTypeProposal(acc, proposal, value);
+  } else if (proposal.proposalType === 'category_page') {
+    // Page labels use the display name from the effective value — never the
+    // stable Page ID (issue #17 D1).
+    applyReviewedPageProposal(acc, proposal, decision);
+  } else if (proposal.proposalType === 'field_assignment') {
+    applyReviewedFieldProposal(acc, effectiveTarget, value);
+  }
+}
+
+/** Score all reviewed proposals of a run into one outcome. */
+function scoreReviewedOutcomeProposals(
+  proposals: ReviewedRunProposal[],
+  decisions: ReviewedRunDecision[],
+): ReviewedOutcomeAccumulator {
+  const acc = emptyReviewedOutcomeAccumulator();
+  for (const proposal of proposals) {
+    scoreReviewedOutcomeProposal(acc, proposal, decisions);
+  }
+  return acc;
+}
+
 export function extractPredictionsForSku(
   workspaceId: string,
   sku: string,
@@ -225,56 +336,20 @@ export function extractPredictionsForSku(
   if (proposals.length === 0) return null;
 
   const decisions = classRunRepo.getLiveDecisionsByRun(run.id);
+  const outcome = scoreReviewedOutcomeProposals(proposals, decisions);
 
-  let productType: string | null = null;
-  const pageAssignments: string[] = [];
-  const fieldAssignments: Array<{ targetId: string; value: string | null }> = [];
-  let abstained = false;
-  let confidence: number | null = null;
-
-  for (const proposal of proposals) {
-    // Exclude stale/config-drift/source-drift records at extraction time.
-    if (proposal.isStale) continue;
-    if (proposal.proposalType === 'reviewable_abstention') {
-      abstained = true;
-      continue;
-    }
-
-    const decision = decisions.find(d => d.proposalId === proposal.id);
-    if (!decision || decision.decision !== 'accepted') continue;
-
-    const val = effectiveValue(decision, proposal);
-    const effectiveTarget = decision.hasRevisedTargetId && decision.revisedTargetId !== undefined
-      ? decision.revisedTargetId
-      : proposal.targetId;
-
-    if (proposal.proposalType === 'primary_product_type') {
-      productType = val;
-      confidence = proposal.confidence;
-    } else if (proposal.proposalType === 'category_page') {
-      // Page labels use the display name from the effective value — never the
-      // stable Page ID (issue #17 D1).
-      const pageName = pageNameFromPageValue(
-        decision.hasRevisedValue ? decision.revisedValue : proposal.proposedValue,
-      );
-      if (pageName) pageAssignments.push(pageName);
-    } else if (proposal.proposalType === 'field_assignment' && effectiveTarget) {
-      fieldAssignments.push({ targetId: effectiveTarget, value: val });
-    }
-  }
-
-  if (!productType && pageAssignments.length === 0 && fieldAssignments.length === 0 && !abstained) {
+  if (!outcome.productType && outcome.pageAssignments.length === 0 && outcome.fieldAssignments.length === 0 && !outcome.abstained) {
     return null;
   }
 
   return {
     exampleId: '', // filled by the builder against the gold example id
     productSku: sku,
-    productType,
-    pageAssignments: [...new Set(pageAssignments)],
-    fieldAssignments,
-    abstained,
-    confidence,
+    productType: outcome.productType,
+    pageAssignments: [...new Set(outcome.pageAssignments)],
+    fieldAssignments: outcome.fieldAssignments,
+    abstained: outcome.abstained,
+    confidence: outcome.confidence,
     claimTargets,
   };
 }
@@ -341,170 +416,329 @@ function evidenceFingerprint(evidence: Array<{ source: unknown; snippet: unknown
  * Semantic abstention is an explicit outcome; every `failed` outcome earns no
  * abstention credit downstream.
  */
-export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreReviewPredictionEntry {
-  const claimTargets = input.claimTargets ?? [];
-  const capturedAt = new Date().toISOString();
-  const base = {
+type PreReviewRun = ReturnType<typeof classRunRepo.getRun>;
+type PreReviewProposal = ReturnType<typeof classRunRepo.getProposalsByRun>[number];
+type PreReviewModelCall = ReturnType<typeof getModelCallsByRun>[number];
+
+interface PreReviewCaptureBase {
+  exampleId: string;
+  productSku: string;
+  pageAssignments: string[];
+  pageIds: string[];
+  verifiedImportProvenance: string | null;
+  fieldAssignments: Array<{ targetId: string; value: string | null; values?: string[] }>;
+  abstained: boolean;
+  confidence: number | null;
+  claimTargets: string[];
+  source: typeof PRE_REVIEW_PREDICTION_SOURCE;
+  bundleVersion: typeof PRE_REVIEW_BUNDLE_VERSION;
+}
+
+/** Fresh capture base for one product (fields filled by the collectors below). */
+function buildPreReviewBase(input: PreReviewCaptureInput): PreReviewCaptureBase {
+  return {
     exampleId: '',
     productSku: input.productSku,
-    pageAssignments: [] as string[],
-    pageIds: [] as string[],
-    verifiedImportProvenance: null as string | null,
-    fieldAssignments: [] as Array<{ targetId: string; value: string | null; values?: string[] }>,
+    pageAssignments: [],
+    pageIds: [],
+    verifiedImportProvenance: null,
+    fieldAssignments: [],
     abstained: false,
-    confidence: null as number | null,
-    claimTargets,
+    confidence: null,
+    claimTargets: input.claimTargets ?? [],
     source: PRE_REVIEW_PREDICTION_SOURCE,
     bundleVersion: PRE_REVIEW_BUNDLE_VERSION,
   };
+}
 
-  const fail = (failureCode: string): PreReviewPredictionEntry => ({
+/** Failed capture entry (never abstention credit; provenance attached by callers). */
+function failPreReviewPrediction(
+  base: PreReviewCaptureBase,
+  failureCode: string,
+): PreReviewPredictionEntry {
+  return {
     ...base,
     productType: null,
     outcome: 'failed',
     failureCode,
     abstentionReason: null,
-  });
+  };
+}
 
+/** Load the exact replay run (null when missing or bound to another SKU/workspace). */
+function loadPreReviewRun(input: PreReviewCaptureInput): PreReviewRun | null {
   const run = classRunRepo.getRun(input.runId);
-  if (!run || run.workspaceId !== input.workspaceId || run.productSku !== input.productSku) return fail(PRE_REVIEW_FAILURE_NO_RUN);
+  if (!run || run.workspaceId !== input.workspaceId || run.productSku !== input.productSku) {
+    return null;
+  }
+  return run;
+}
 
-  const terminalOk = run.status === 'completed' || run.status === 'completed_with_abstentions';
-  if (run.status === 'failed' || run.status === 'cancelled') return fail(PRE_REVIEW_FAILURE_RUN_FAILED);
-
+/** Evidence fingerprint for provenance (count + hash of stable evidence fields). */
+function fingerprintRunEvidence(
+  run: NonNullable<PreReviewRun>,
+): { count: number; hash: string | null } {
   const evidence = classRunRepo.getEvidenceByRun(run.id);
-  const evidencePrint = evidenceFingerprint(evidence.map(e => ({
+  return evidenceFingerprint(evidence.map(e => ({
     source: e.source,
     snippet: e.snippet,
     reliability: e.reliability,
     attributeId: e.attributeId,
   })));
+}
 
-  const calls = getModelCallsByRun(run.id);
-  const primaryCall = [...calls]
-    .filter(c => c.operation === 'product_type_ranking')
-    .sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0))[0]
-    ?? [...calls].sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0))[0]
+/** Primary model call: latest `product_type_ranking` call, else the latest call. */
+function selectPrimaryModelCall(calls: PreReviewModelCall[]): PreReviewModelCall | null {
+  const byStartedDesc = (a: PreReviewModelCall, b: PreReviewModelCall) =>
+    (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0);
+  return [...calls].filter(call => call.operation === 'product_type_ranking').sort(byStartedDesc)[0]
+    ?? [...calls].sort(byStartedDesc)[0]
     ?? null;
-  const callFailed = calls.some(c => c.status === 'failed' || c.status === 'cancelled');
+}
 
-  const provenance: PreReviewEntryProvenance = {
+/** Provenance snapshot captured at pre-review build time (immutable after persist). */
+function buildPreReviewProvenance(
+  run: NonNullable<PreReviewRun>,
+  capturedAt: string,
+): PreReviewEntryProvenance {
+  const evidencePrint = fingerprintRunEvidence(run);
+  const calls = getModelCallsByRun(run.id);
+  const primaryCall = selectPrimaryModelCall(calls);
+  return {
     runId: run.id,
     configSnapshotHash: run.configSnapshotHash,
     sourceProductHash: run.sourceProductHash,
     evidenceCount: evidencePrint.count,
     evidenceHash: evidencePrint.hash,
-    modelCalls: calls.map(c => ({
-      id: c.id,
-      operation: c.operation,
-      provider: c.provider,
-      model: c.model,
-      requestedModel: c.requested_model ?? null,
-      resolvedModel: c.resolved_model ?? null,
-      status: c.status,
+    modelCalls: calls.map(call => ({
+      id: call.id,
+      operation: call.operation,
+      provider: call.provider,
+      model: call.model,
+      requestedModel: call.requested_model ?? null,
+      resolvedModel: call.resolved_model ?? null,
+      status: call.status,
     })),
     primaryModelProvider: primaryCall?.provider ?? null,
     primaryModel: primaryCall?.model ?? null,
     verifiedPageImportHash: run.configSnapshotHash ?? null,
     capturedAt,
   };
+}
 
-  const stageFailed = classRunRepo.getStageResults(run.id).some(s => {
-    const stageName: unknown = s.stage_name;
-    return stageName === 'primary_product_type_proposal' && s.status === 'failed';
+/** True when the product-type proposal stage itself failed. */
+function isProductTypeStageFailed(runId: string): boolean {
+  return classRunRepo.getStageResults(runId).some(stage => {
+    const stageName: unknown = stage.stage_name;
+    return stageName === 'primary_product_type_proposal' && stage.status === 'failed';
   });
-  if (!terminalOk) return { ...fail(PRE_REVIEW_FAILURE_RUN_INCOMPLETE), provenance };
-  if (stageFailed) return { ...fail(PRE_REVIEW_FAILURE_STAGE_FAILED), provenance };
-  if (callFailed) return { ...fail(PRE_REVIEW_FAILURE_CALL_FAILED), provenance };
+}
 
-  const proposals = classRunRepo.getProposalsByRun(run.id).filter(p => !p.isStale);
+/** True when any model call for the run failed or was cancelled. */
+function hasFailedModelCall(runId: string): boolean {
+  return getModelCallsByRun(runId).some(call => call.status === 'failed' || call.status === 'cancelled');
+}
 
-  const fieldProposalsByTarget = new Map<string, { value: string | null; values?: string[]; confidence: number; proposalType: string }>();
-  for (const p of proposals) {
-    if (p.proposalType === 'field_assignment' && p.targetId) {
-      let val: string | null = null;
-      let values: string[] | undefined = undefined;
-      if (Array.isArray(p.proposedValue)) {
-        values = p.proposedValue.map(v => typeof v === 'string' ? v : (v != null ? String(v) : '')).filter(Boolean);
-        val = values.join(', ');
-      } else if (typeof p.proposedValue === 'string') {
-        val = p.proposedValue;
-        values = [p.proposedValue];
-      } else if (p.proposedValue != null) {
-        val = String(p.proposedValue);
-        values = [val];
-      }
-      const existing = fieldProposalsByTarget.get(p.targetId);
-      if (!existing || existing.proposalType !== 'field_assignment' || (p.confidence ?? 0) > existing.confidence) {
-        fieldProposalsByTarget.set(p.targetId, { value: val, values, confidence: p.confidence ?? 0, proposalType: 'field_assignment' });
-      }
-    } else if (p.proposalType === 'reviewable_abstention' && p.targetId) {
-      const isTypeOrPage =
-        p.targetId === 'primary_product_type_proposal' ||
-        p.targetId === 'primary_product_type' ||
-        p.targetId === 'product_type_ranking' ||
-        p.targetId === 'category_page_assignment';
-      if (!isTypeOrPage) {
-        if (!fieldProposalsByTarget.has(p.targetId)) {
-          fieldProposalsByTarget.set(p.targetId, { value: null, confidence: 0, proposalType: 'reviewable_abstention' });
-        }
-      }
-    }
+/**
+ * Map run health to a terminal failure code (null when the run may proceed).
+ * Order mirrors the legacy gate: incomplete terminal state first, then stage
+ * failure, then model-call failure.
+ */
+function assessPreReviewRunHealth(
+  run: NonNullable<PreReviewRun>,
+  terminalOk: boolean,
+): string | null {
+  if (!terminalOk) return PRE_REVIEW_FAILURE_RUN_INCOMPLETE;
+  if (isProductTypeStageFailed(run.id)) return PRE_REVIEW_FAILURE_STAGE_FAILED;
+  if (hasFailedModelCall(run.id)) return PRE_REVIEW_FAILURE_CALL_FAILED;
+  return null;
+}
+
+/** Normalize one field-assignment proposed value to value/values. */
+function normalizePreReviewFieldValue(
+  proposedValue: unknown,
+): { value: string | null; values: string[] | undefined } {
+  if (Array.isArray(proposedValue)) {
+    const values = proposedValue
+      .map(v => typeof v === 'string' ? v : (v != null ? String(v) : ''))
+      .filter(Boolean);
+    return { value: values.join(', '), values };
   }
+  if (typeof proposedValue === 'string') {
+    return { value: proposedValue, values: [proposedValue] };
+  }
+  if (proposedValue != null) {
+    const value = String(proposedValue);
+    return { value, values: [value] };
+  }
+  return { value: null, values: undefined };
+}
 
-  base.fieldAssignments = [...fieldProposalsByTarget.entries()]
+/** True for abstention targets naming the type/page stages (never field targets). */
+function isTypeOrPageAbstentionTarget(targetId: string): boolean {
+  return targetId === 'primary_product_type_proposal' ||
+    targetId === 'primary_product_type' ||
+    targetId === 'product_type_ranking' ||
+    targetId === 'category_page_assignment';
+}
+
+type PreReviewFieldProposal = { value: string | null; values?: string[]; confidence: number; proposalType: string };
+
+/** Apply one field-assignment proposal (highest confidence wins per target). */
+function applyPreReviewFieldProposal(
+  byTarget: Map<string, PreReviewFieldProposal>,
+  proposal: PreReviewProposal,
+): void {
+  if (proposal.proposalType !== 'field_assignment' || !proposal.targetId) return;
+  const { value, values } = normalizePreReviewFieldValue(proposal.proposedValue);
+  const existing = byTarget.get(proposal.targetId);
+  if (!existing || existing.proposalType !== 'field_assignment' || (proposal.confidence ?? 0) > existing.confidence) {
+    byTarget.set(proposal.targetId, { value, values, confidence: proposal.confidence ?? 0, proposalType: 'field_assignment' });
+  }
+}
+
+/** Apply one reviewable-abstention proposal as a null field placeholder. */
+function applyPreReviewAbstentionPlaceholder(
+  byTarget: Map<string, PreReviewFieldProposal>,
+  proposal: PreReviewProposal,
+): void {
+  if (proposal.proposalType !== 'reviewable_abstention' || !proposal.targetId) return;
+  if (isTypeOrPageAbstentionTarget(proposal.targetId)) return;
+  if (!byTarget.has(proposal.targetId)) {
+    byTarget.set(proposal.targetId, { value: null, confidence: 0, proposalType: 'reviewable_abstention' });
+  }
+}
+
+/** Collect field assignments from non-stale proposals (sorted by target id). */
+function collectPreReviewFieldAssignments(
+  proposals: PreReviewProposal[],
+): Array<{ targetId: string; value: string | null; values?: string[] }> {
+  const byTarget = new Map<string, PreReviewFieldProposal>();
+  for (const proposal of proposals) {
+    applyPreReviewFieldProposal(byTarget, proposal);
+    applyPreReviewAbstentionPlaceholder(byTarget, proposal);
+  }
+  return [...byTarget.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([targetId, { value, values }]) => ({ targetId, value, ...(values ? { values } : {}) }));
+}
 
-  const pageProposals = proposals.filter(p => p.proposalType === 'category_page');
+/** Display name for one pre-review page proposal (never the stable Page ID). */
+function preReviewPageNameOf(
+  proposal: PreReviewProposal,
+  value: unknown,
+): string | null {
+  const named = (value as { pageName?: unknown } | null | undefined)?.pageName;
+  if (named !== null && named !== undefined) return named as string;
+  if (typeof value === 'string') return value;
+  return typeof proposal.targetId === 'string' ? proposal.targetId : null;
+}
+
+/** Stable id for one pre-review page proposal (null when absent). */
+function preReviewPageIdOf(
+  proposal: PreReviewProposal,
+  value: unknown,
+): string | null {
+  const id = (value as { pageId?: unknown } | null | undefined)?.pageId;
+  if (id !== null && id !== undefined) return id as string;
+  return typeof proposal.targetId === 'string' && proposal.targetId.length > 0 ? proposal.targetId : null;
+}
+
+/** Accumulate one category-page proposal into the name/id lists (deduped). */
+function accumulatePreReviewPage(
+  pageNames: string[],
+  pageIds: string[],
+  proposal: PreReviewProposal,
+): void {
+  const val = proposal.proposedValue as { pageName?: string; pageId?: string } | string | null;
+  const name = preReviewPageNameOf(proposal, val);
+  const id = preReviewPageIdOf(proposal, val);
+  if (name && !pageNames.includes(name)) pageNames.push(name);
+  if (id && !pageIds.includes(id)) pageIds.push(id);
+}
+
+/** Collect category-page names/ids from non-stale page proposals. */
+function collectPreReviewPages(
+  proposals: PreReviewProposal[],
+): { pageNames: string[]; pageIds: string[] } {
   const pageNames: string[] = [];
   const pageIds: string[] = [];
-  for (const p of pageProposals) {
-    const val = p.proposedValue as any;
-    const name = val?.pageName ?? (typeof val === 'string' ? val : null) ?? (typeof p.targetId === 'string' ? p.targetId : null);
-    const id = val?.pageId ?? (typeof p.targetId === 'string' && p.targetId.length > 0 ? p.targetId : null);
-    if (name && !pageNames.includes(name)) pageNames.push(name);
-    if (id && !pageIds.includes(id)) pageIds.push(id);
+  for (const proposal of proposals.filter(p => p.proposalType === 'category_page')) {
+    accumulatePreReviewPage(pageNames, pageIds, proposal);
   }
-  base.pageAssignments = pageNames;
-  base.pageIds = pageIds;
-  base.verifiedImportProvenance = run.configSnapshotHash ?? null;
+  return { pageNames, pageIds };
+}
 
-  const typeProposals = proposals
+/** Deterministic type-proposal order: confidence, then createdAt, then id. */
+function sortPreReviewTypeProposals(proposals: PreReviewProposal[]): PreReviewProposal[] {
+  return proposals
     .filter(p => p.proposalType === 'primary_product_type')
     .sort((a, b) =>
       b.confidence - a.confidence
       || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)
       || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
+}
 
-  if (typeProposals.length > 0) {
-    const winner = typeProposals[0];
-    const winnerId = canonicalPreReviewTypeId(winner);
-    if (!winnerId) return { ...fail(PRE_REVIEW_FAILURE_NO_PREDICTION), provenance };
-    const contender = typeProposals.find(
-      p => p.confidence === winner.confidence && p.id !== winner.id && canonicalPreReviewTypeId(p) !== winnerId,
-    );
-    if (contender) return { ...fail(PRE_REVIEW_FAILURE_AMBIGUOUS_PREDICTION), provenance };
-    const winnerCallCode = codeFromValue(winner.proposedValue);
-    return {
-      ...base,
-      productType: winnerId,
-      abstained: false,
-      confidence: winner.confidence,
-      outcome: 'predicted',
-      abstentionReason: null,
-      failureCode: winnerCallCode,
-      provenance,
-    };
-  }
-
-  // No type proposal: explicit semantic abstention only when a
-  // `reviewable_abstention` names the product-type stage/target.
-  const abstention = proposals.find(
-    p => p.proposalType === 'reviewable_abstention'
-      && (p.targetId === 'primary_product_type_proposal' || p.targetId === 'primary_product_type' || p.targetId === 'product_type_ranking'),
+/** Distinct-ID contender tied with the winner (unbreakable tie → ambiguous). */
+function findAmbiguousTypeContender(
+  typeProposals: PreReviewProposal[],
+  winner: PreReviewProposal,
+  winnerId: string,
+): PreReviewProposal | undefined {
+  return typeProposals.find(
+    p => p.confidence === winner.confidence && p.id !== winner.id && canonicalPreReviewTypeId(p) !== winnerId,
   );
+}
+
+/**
+ * Resolve the product-type outcome (null when no type proposals exist —
+ * the caller falls through to explicit abstention handling).
+ */
+function resolvePreReviewProductType(
+  proposals: PreReviewProposal[],
+  base: PreReviewCaptureBase,
+  provenance: PreReviewEntryProvenance,
+): PreReviewPredictionEntry | null {
+  const typeProposals = sortPreReviewTypeProposals(proposals);
+  if (typeProposals.length === 0) return null;
+  const winner = typeProposals[0];
+  const winnerId = canonicalPreReviewTypeId(winner);
+  if (!winnerId) return { ...failPreReviewPrediction(base, PRE_REVIEW_FAILURE_NO_PREDICTION), provenance };
+  if (findAmbiguousTypeContender(typeProposals, winner, winnerId)) {
+    return { ...failPreReviewPrediction(base, PRE_REVIEW_FAILURE_AMBIGUOUS_PREDICTION), provenance };
+  }
+  return {
+    ...base,
+    productType: winnerId,
+    abstained: false,
+    confidence: winner.confidence,
+    outcome: 'predicted',
+    abstentionReason: null,
+    failureCode: codeFromValue(winner.proposedValue),
+    provenance,
+  };
+}
+
+/** True for abstentions naming the product-type stage/target. */
+function isProductTypeAbstention(proposal: PreReviewProposal): boolean {
+  return proposal.proposalType === 'reviewable_abstention'
+    && (proposal.targetId === 'primary_product_type_proposal' ||
+      proposal.targetId === 'primary_product_type' ||
+      proposal.targetId === 'product_type_ranking');
+}
+
+/**
+ * Resolve the no-type-proposal outcome: explicit semantic abstention only
+ * when a `reviewable_abstention` names the product-type stage/target,
+ * else a `no_prediction` service failure.
+ */
+function resolvePreReviewAbstention(
+  proposals: PreReviewProposal[],
+  base: PreReviewCaptureBase,
+  provenance: PreReviewEntryProvenance,
+): PreReviewPredictionEntry {
+  const abstention = proposals.find(isProductTypeAbstention);
   if (abstention) {
     return {
       ...base,
@@ -517,20 +751,34 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
       provenance,
     };
   }
-  return { ...fail(PRE_REVIEW_FAILURE_NO_PREDICTION), provenance };
+  return { ...failPreReviewPrediction(base, PRE_REVIEW_FAILURE_NO_PREDICTION), provenance };
 }
 
-function effectiveValue(decision: { hasRevisedValue?: boolean; revisedValue?: unknown }, proposal: { proposedValue?: unknown }): string | null {
-  if (decision.hasRevisedValue && decision.revisedValue !== undefined) {
-    return typeof decision.revisedValue === 'string'
-      ? decision.revisedValue
-      : decision.revisedValue === null
-        ? null
-        : JSON.stringify(decision.revisedValue);
+export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreReviewPredictionEntry {
+  const capturedAt = new Date().toISOString();
+  const base = buildPreReviewBase(input);
+
+  const run = loadPreReviewRun(input);
+  if (!run) return failPreReviewPrediction(base, PRE_REVIEW_FAILURE_NO_RUN);
+
+  const terminalOk = run.status === 'completed' || run.status === 'completed_with_abstentions';
+  if (run.status === 'failed' || run.status === 'cancelled') {
+    return failPreReviewPrediction(base, PRE_REVIEW_FAILURE_RUN_FAILED);
   }
-  const pv = proposal.proposedValue;
-  if (pv === null || pv === undefined) return null;
-  return typeof pv === 'string' ? pv : JSON.stringify(pv);
+
+  const provenance = buildPreReviewProvenance(run, capturedAt);
+  const healthFailure = assessPreReviewRunHealth(run, terminalOk);
+  if (healthFailure) return { ...failPreReviewPrediction(base, healthFailure), provenance };
+
+  const proposals = classRunRepo.getProposalsByRun(run.id).filter(p => !p.isStale);
+  base.fieldAssignments = collectPreReviewFieldAssignments(proposals);
+  const { pageNames, pageIds } = collectPreReviewPages(proposals);
+  base.pageAssignments = pageNames;
+  base.pageIds = pageIds;
+  base.verifiedImportProvenance = run.configSnapshotHash ?? null;
+
+  return resolvePreReviewProductType(proposals, base, provenance)
+    ?? resolvePreReviewAbstention(proposals, base, provenance);
 }
 
 export function validatePredictionBundle(
@@ -582,6 +830,86 @@ interface GoldExampleForPreReviewBuild {
   source_config_hash: string | null;
 }
 
+/** Gold examples for one frozen split (fail closed on missing/draft data). */
+function loadFrozenSplitGoldExamples(
+  workspaceId: string,
+  datasetId: string,
+  splitGroup: 'test' | 'holdout',
+): { datasetId: string; goldExamples: ReturnType<typeof benchmarkRepo.getExamples> } {
+  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspaceId);
+  if (!dataset) throw new Error('Dataset not found or not owned by this workspace.');
+  if (dataset.status !== 'frozen') {
+    throw new Error(`Predictions require a frozen dataset; dataset is ${dataset.status}.`);
+  }
+  const goldExamples = benchmarkRepo.getExamples(datasetId, splitGroup);
+  if (goldExamples.length === 0) {
+    throw new Error(`No gold examples in split "${splitGroup}".`);
+  }
+  return { datasetId, goldExamples };
+}
+
+type FrozenSplitGoldExample = ReturnType<typeof loadFrozenSplitGoldExamples>['goldExamples'][number];
+
+/** Fail-closed bundle assembly shared by both prediction sources. */
+function assemblePredictionBundle(
+  workspaceId: string,
+  datasetId: string,
+  options: BuildPredictionBundleOptions,
+  predictions: BenchmarkPredictionEntry[],
+  goldExamples: FrozenSplitGoldExample[],
+  capturedAt: string,
+): BenchmarkPredictionBundle {
+  const bundleHash = computePredictionBundleHash(predictions);
+  const bundle: BenchmarkPredictionBundle = {
+    id: randomUUID(),
+    datasetId,
+    workspaceId,
+    runLabel: options.runLabel,
+    splitGroup: options.splitGroup,
+    predictions,
+    bundleHash,
+    createdAt: capturedAt,
+  };
+  // Fail closed BEFORE persisting: the persisted bundle must be complete and
+  // self-consistent, otherwise no evaluation can ever be run against it.
+  validatePredictionBundle(
+    predictions,
+    goldExamples.map(e => ({ id: e.id, productSku: e.product_sku })),
+    bundleHash,
+  );
+  return bundle;
+}
+
+/** Capture one pre-review prediction with its frozen source-config check. */
+function capturePreReviewExamplePrediction(
+  workspaceId: string,
+  example: FrozenSplitGoldExample,
+  claimTargets: string[],
+): PreReviewPredictionEntry {
+  const runId = resolveReplayRunId(workspaceId, example);
+  const entry = capturePreReviewPrediction({ runId, workspaceId, productSku: example.product_sku, claimTargets });
+  if (example.source_config_hash && entry.provenance?.configSnapshotHash !== example.source_config_hash) {
+    throw new Error(
+      `Snapshot mismatch for gold example "${example.id}" (SKU ${example.product_sku}): replay run config does not match the frozen source.`,
+    );
+  }
+  return { ...entry, exampleId: example.id };
+}
+
+/** Capture one legacy reviewed-outcome prediction (fail closed when absent). */
+function captureReviewedExamplePrediction(
+  workspaceId: string,
+  example: FrozenSplitGoldExample,
+  claimTargets: string[],
+): BenchmarkPredictionEntry {
+  const entry = extractPredictionsForSku(workspaceId, example.product_sku, claimTargets);
+  if (!entry) {
+    throw new Error(
+      `No reviewed-run prediction available for gold example "${example.id}" (SKU ${example.product_sku}).`,
+    );
+  }
+  return { ...entry, exampleId: example.id };
+}
 /** Resolve the exact run a gold example replays (fail closed on ambiguity). */
 function resolveReplayRunId(
   workspaceId: string,
@@ -620,49 +948,21 @@ export function buildPreReviewPredictionBundle(
   datasetId: string,
   options: BuildPredictionBundleOptions,
 ): BenchmarkPredictionBundle {
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspaceId);
-  if (!dataset) throw new Error('Dataset not found or not owned by this workspace.');
-  if (dataset.status !== 'frozen') {
-    throw new Error(`Predictions require a frozen dataset; dataset is ${dataset.status}.`);
-  }
-
-  const goldExamples = benchmarkRepo.getExamples(datasetId, options.splitGroup);
-  if (goldExamples.length === 0) {
-    throw new Error(`No gold examples in split "${options.splitGroup}".`);
-  }
+  const { goldExamples } = loadFrozenSplitGoldExamples(workspaceId, datasetId, options.splitGroup);
 
   const claimTargets = options.claimTargets ?? [];
   const capturedAt = new Date().toISOString();
-  const predictions: PreReviewPredictionEntry[] = goldExamples.map(example => {
-    const runId = resolveReplayRunId(workspaceId, example);
-    const entry = capturePreReviewPrediction({ runId, workspaceId, productSku: example.product_sku, claimTargets });
-    if (example.source_config_hash && entry.provenance?.configSnapshotHash !== example.source_config_hash) {
-      throw new Error(
-        `Snapshot mismatch for gold example "${example.id}" (SKU ${example.product_sku}): replay run config does not match the frozen source.`,
-      );
-    }
-    return { ...entry, exampleId: example.id };
-  });
+  const predictions: PreReviewPredictionEntry[] = goldExamples.map(example =>
+    capturePreReviewExamplePrediction(workspaceId, example, claimTargets),
+  );
 
-  const bundleHash = computePredictionBundleHash(predictions);
-
-  const bundle: BenchmarkPredictionBundle = {
-    id: randomUUID(),
-    datasetId,
+  const bundle = assemblePredictionBundle(
     workspaceId,
-    runLabel: options.runLabel,
-    splitGroup: options.splitGroup,
+    datasetId,
+    options,
     predictions,
-    bundleHash,
-    createdAt: capturedAt,
-  };
-
-  // Fail closed BEFORE persisting: the persisted bundle must be complete and
-  // self-consistent, otherwise no evaluation can ever be run against it.
-  validatePredictionBundle(
-    predictions,
-    goldExamples.map(e => ({ id: e.id, productSku: e.product_sku })),
-    bundleHash,
+    goldExamples,
+    capturedAt,
   );
 
   const envelope: PreReviewBundleEnvelope = {
@@ -684,7 +984,7 @@ export function buildPreReviewPredictionBundle(
     options.runLabel,
     options.splitGroup,
     JSON.stringify(envelope),
-    bundleHash,
+    bundle.bundleHash,
     bundle.id,
   );
 
@@ -704,47 +1004,20 @@ export function buildPredictionBundle(
   datasetId: string,
   options: BuildPredictionBundleOptions,
 ): BenchmarkPredictionBundle {
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspaceId);
-  if (!dataset) throw new Error('Dataset not found or not owned by this workspace.');
-  if (dataset.status !== 'frozen') {
-    throw new Error(`Predictions require a frozen dataset; dataset is ${dataset.status}.`);
-  }
-
-  const goldExamples = benchmarkRepo.getExamples(datasetId, options.splitGroup);
-  if (goldExamples.length === 0) {
-    throw new Error(`No gold examples in split "${options.splitGroup}".`);
-  }
+  const { goldExamples } = loadFrozenSplitGoldExamples(workspaceId, datasetId, options.splitGroup);
 
   const claimTargets = options.claimTargets ?? [];
-  const predictions: BenchmarkPredictionEntry[] = goldExamples.map(example => {
-    const entry = extractPredictionsForSku(workspaceId, example.product_sku, claimTargets);
-    if (!entry) {
-      throw new Error(
-        `No reviewed-run prediction available for gold example "${example.id}" (SKU ${example.product_sku}).`,
-      );
-    }
-    return { ...entry, exampleId: example.id };
-  });
+  const predictions: BenchmarkPredictionEntry[] = goldExamples.map(example =>
+    captureReviewedExamplePrediction(workspaceId, example, claimTargets),
+  );
 
-  const bundleHash = computePredictionBundleHash(predictions);
-
-  const bundle: BenchmarkPredictionBundle = {
-    id: randomUUID(),
-    datasetId,
+  const bundle = assemblePredictionBundle(
     workspaceId,
-    runLabel: options.runLabel,
-    splitGroup: options.splitGroup,
+    datasetId,
+    options,
     predictions,
-    bundleHash,
-    createdAt: new Date().toISOString(),
-  };
-
-  // Fail closed BEFORE persisting: the persisted bundle must be complete and
-  // self-consistent, otherwise no evaluation can ever be run against it.
-  validatePredictionBundle(
-    predictions,
-    goldExamples.map(e => ({ id: e.id, productSku: e.product_sku })),
-    bundleHash,
+    goldExamples,
+    new Date().toISOString(),
   );
 
   benchmarkRepo.createPredictionBundle(
@@ -753,7 +1026,7 @@ export function buildPredictionBundle(
     options.runLabel,
     options.splitGroup,
     JSON.stringify(predictions),
-    bundleHash,
+    bundle.bundleHash,
     bundle.id,
   );
 
@@ -889,18 +1162,7 @@ import type { ProductAttributeConfig } from '../shared/schemas/classification';
 export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v1' as const;
 
 /** Gold-only entry: adjudicated labels + evidence. Never carries predictions. */
-export interface QualificationGoldOnlyEntry {
-  sku: string;
-  familyId: string;
-  split: 'dev' | 'holdout';
-  assortment: string;
-  gold: {
-    productType: { kind: 'known-type' | 'no-fit' | 'insufficient-evidence' | 'unlabeled'; typeId: string | null };
-    fieldAssignments: Array<{ targetId: string; value?: string; values?: string[]; state: string }>;
-    categoryPages: { pageIds: string[]; pageAssignments: Array<{ pageId: string; pageName: string }> };
-  };
-  evidence: Array<{ source: string; snippet: string; reliability: string; attributeId: string | null }>;
-}
+export interface QualificationGoldOnlyEntry extends QualificationGoldCore {}
 
 /** Executed prediction for one side (baseline or candidate) of one entry. */
 export interface ExecutedQualificationPrediction {
@@ -974,46 +1236,78 @@ function humanizeSlug(id: string): string {
     .join(' ');
 }
 
+interface RawTaxonomyCollections {
+  typeIds: Set<string>;
+  attrValues: Map<string, Set<string>>;
+  attrUsesValuesArray: Set<string>;
+  pages: Map<string, string>;
+}
+
+function emptyTaxonomyCollections(): RawTaxonomyCollections {
+  return { typeIds: new Set(), attrValues: new Map(), attrUsesValuesArray: new Set(), pages: new Map() };
+}
+
+/** Collect one entry's product-type id into the taxonomy sets. */
+function collectEntryTypeId(collections: RawTaxonomyCollections, entry: QualificationGoldOnlyEntry): void {
+  if (entry.gold.productType.typeId) collections.typeIds.add(entry.gold.productType.typeId);
+}
+
+/** Collect one entry's field values into the taxonomy sets. */
+function collectEntryFieldValues(collections: RawTaxonomyCollections, entry: QualificationGoldOnlyEntry): void {
+  for (const field of entry.gold.fieldAssignments ?? []) {
+    if (!collections.attrValues.has(field.targetId)) {
+      collections.attrValues.set(field.targetId, new Set<string>());
+    }
+    const set = collections.attrValues.get(field.targetId)!;
+    if (Array.isArray(field.values)) {
+      collections.attrUsesValuesArray.add(field.targetId);
+      for (const value of field.values) set.add(value);
+    } else if (typeof field.value === 'string') {
+      set.add(field.value);
+    }
+  }
+}
+
+/** Collect one entry's category pages into the taxonomy sets. */
+function collectEntryPages(collections: RawTaxonomyCollections, entry: QualificationGoldOnlyEntry): void {
+  for (const page of entry.gold.categoryPages?.pageAssignments ?? []) {
+    if (!collections.pages.has(page.pageId)) collections.pages.set(page.pageId, page.pageName);
+  }
+  for (const pageId of entry.gold.categoryPages?.pageIds ?? []) {
+    if (!collections.pages.has(pageId)) collections.pages.set(pageId, humanizeSlug(pageId.replace(/^page-/, '')));
+  }
+}
+
+/** Assemble sorted closed-world candidate sets from the raw collections. */
+function assembleQualificationTaxonomies(collections: RawTaxonomyCollections): QualificationTaxonomies {
+  return {
+    productTypes: [...collections.typeIds].sort().map(id => ({ id, label: humanizeSlug(id) })),
+    attributeTargets: [...collections.attrValues.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([targetId, set]) => ({
+        targetId,
+        cardinality: (collections.attrUsesValuesArray.has(targetId) ? 'multiple' : 'single') as 'single' | 'multiple',
+        options: [...set].sort(),
+      })),
+    pages: [...collections.pages.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([pageId, pageName]) => ({ pageId, pageName })),
+  };
+}
+
 /**
  * Derive closed-world candidate sets from the union of adjudicated gold
  * labels. Global (same options for every entry) so per-entry selection must
  * still be performed by the decision logic; sorted for determinism.
  */
 function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): QualificationTaxonomies {
-  const typeIds = new Set<string>();
-  const attrValues = new Map<string, Set<string>>();
-  const attrUsesValuesArray = new Set<string>();
-  const pages = new Map<string, string>();
-  for (const e of entries) {
-    if (e.gold.productType.typeId) typeIds.add(e.gold.productType.typeId);
-    for (const f of e.gold.fieldAssignments ?? []) {
-      if (!attrValues.has(f.targetId)) attrValues.set(f.targetId, new Set<string>());
-      const set = attrValues.get(f.targetId)!;
-      if (Array.isArray(f.values)) {
-        attrUsesValuesArray.add(f.targetId);
-        for (const v of f.values) set.add(v);
-      } else if (typeof f.value === 'string') {
-        set.add(f.value);
-      }
-    }
-    for (const p of e.gold.categoryPages?.pageAssignments ?? []) {
-      if (!pages.has(p.pageId)) pages.set(p.pageId, p.pageName);
-    }
-    for (const pid of e.gold.categoryPages?.pageIds ?? []) {
-      if (!pages.has(pid)) pages.set(pid, humanizeSlug(pid.replace(/^page-/, '')));
-    }
+  const collections = emptyTaxonomyCollections();
+  for (const entry of entries) {
+    collectEntryTypeId(collections, entry);
+    collectEntryFieldValues(collections, entry);
+    collectEntryPages(collections, entry);
   }
-  return {
-    productTypes: [...typeIds].sort().map(id => ({ id, label: humanizeSlug(id) })),
-    attributeTargets: [...attrValues.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([targetId, set]) => ({
-        targetId,
-        cardinality: (attrUsesValuesArray.has(targetId) ? 'multiple' : 'single') as 'single' | 'multiple',
-        options: [...set].sort(),
-      })),
-    pages: [...pages.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([pageId, pageName]) => ({ pageId, pageName })),
-  };
+  return assembleQualificationTaxonomies(collections);
 }
 
 /** Evidence text for one entry (joined snippets, exactly what scoring sees). */
@@ -1098,13 +1392,58 @@ function stubResolvedTarget(
   };
 }
 
+/** True when prediction is impossible: no options or no usable evidence. */
+function isQualificationPredictionEmpty(optionCount: number, evidenceText: string): boolean {
+  return optionCount === 0 || evidenceText.length < 3;
+}
+
+/**
+ * Best offline-simulator Choice option (first-wins ties, deterministic input
+ * order). Shared by every candidate Choice selection in this module.
+ */
+function selectBestSimulatorLabel(
+  options: Array<{ value: string; label: string }>,
+  evidenceTokens: Set<string>,
+): { bestValue: string | null; bestProb: number } {
+  const { best, bestProb } = selectBestByProbability(
+    options,
+    option => simulateOfflineOptionSupport(option.label, evidenceTokens).choiceProb,
+  );
+  return { bestValue: best ? best.value : null, bestProb };
+}
+
+/** True when the gold fixture adjudicates this field target for the entry. */
+function goldHasFieldTarget(
+  entry: QualificationGoldOnlyEntry,
+  targetId: string,
+): boolean {
+  return (entry.gold.fieldAssignments ?? []).some(field => field.targetId === targetId);
+}
+
+/** Stub attribute config + resolved target for one closed-world target. */
+function stubAttributeTarget(
+  target: QualificationTaxonomies['attributeTargets'][number],
+): { attribute: ProductAttributeConfig; resolved: ResolvedTarget } {
+  const attribute = stubAttributeConfig(target.targetId, target.options);
+  const resolved = stubResolvedTarget(
+    `target_${target.targetId}`,
+    target.targetId,
+    'product_field',
+    target.cardinality,
+    target.targetId,
+    target.options.map(v => ({ value: v, label: v })),
+    attribute,
+  );
+  return { attribute, resolved };
+}
+
 /** Baseline product type: shipped deterministic keyword precedence + floor. */
 function predictBaselineProductType(
   entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
 ): { productType: string | null; abstained: boolean; confidence: number } {
-  if (taxonomies.productTypes.length === 0 || evidenceText.length < 3) {
+  if (isQualificationPredictionEmpty(taxonomies.productTypes.length, evidenceText)) {
     return { productType: null, abstained: true, confidence: 0 };
   }
   const matches = matchKeywordOptions({
@@ -1132,7 +1471,7 @@ function predictCandidateProductType(
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
 ): { productType: string | null; abstained: boolean; confidence: number } {
-  if (taxonomies.productTypes.length === 0 || evidenceText.length < 3) {
+  if (isQualificationPredictionEmpty(taxonomies.productTypes.length, evidenceText)) {
     return { productType: null, abstained: true, confidence: 0 };
   }
   // Execute the shipped question builder: criteria/key wiring must match production.
@@ -1140,17 +1479,11 @@ function predictCandidateProductType(
     taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
   );
   const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
-  let bestKey: string | null = null;
-  let bestProb = -1;
-  for (const [key, canonicalId] of plan.keyToIdMap) {
-    const label = taxonomies.productTypes.find(t => t.id === canonicalId)?.label ?? canonicalId;
-    const { choiceProb } = simulateOfflineOptionSupport(label, evidenceTokens);
-    if (choiceProb > bestProb) {
-      bestProb = choiceProb;
-      bestKey = key;
-    }
-  }
-  const bestId = bestKey ? (plan.keyToIdMap.get(bestKey) ?? null) : null;
+  const options = [...plan.keyToIdMap].map(([, canonicalId]) => ({
+    value: canonicalId,
+    label: taxonomies.productTypes.find(t => t.id === canonicalId)?.label ?? canonicalId,
+  }));
+  const { bestValue: bestId, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
   const bestLabel = taxonomies.productTypes.find(t => t.id === bestId)?.label ?? '';
   const { score } = simulateOfflineOptionSupport(bestLabel, evidenceTokens);
   if (!bestId || score <= 0 || bestProb < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
@@ -1167,9 +1500,8 @@ function predictBaselineAttributes(
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
   for (const target of taxonomies.attributeTargets) {
-    const goldHas = (entry.gold.fieldAssignments ?? []).some(f => f.targetId === target.targetId);
-    if (!goldHas) continue;
-    const attribute = stubAttributeConfig(target.targetId, target.options);
+    if (!goldHasFieldTarget(entry, target.targetId)) continue;
+    const { attribute } = stubAttributeTarget(target);
     const found = matchAttributeOptions(attribute, evidenceText, target.options, target.cardinality);
     if (found.length === 0) continue;
     if (target.cardinality === 'multiple') {
@@ -1179,6 +1511,51 @@ function predictBaselineAttributes(
     }
   }
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
+/**
+ * Candidate multi-value attributes: shipped Noul questions + the shipped
+ * `evaluateMultiValueSelectionPolicy` (null when the policy does not resolve).
+ */
+function predictCandidateMultiAttributeValues(
+  resolved: ResolvedTarget,
+  entry: QualificationGoldOnlyEntry,
+  evidenceTokens: Set<string>,
+): string[] | null {
+  // Execute the shipped Noul question builder (questionId wiring parity).
+  const plans = buildAttributeNoulQuestions(resolved, entry.sku, {});
+  const candidates = plans.map(p => ({
+    optionValue: p.optionValue,
+    optionLabel: p.optionLabel,
+    optionIndex: p.optionIndex,
+    prob: simulateOfflineOptionSupport(p.optionLabel, evidenceTokens).noulProb,
+  }));
+  const outcome = evaluateMultiValueSelectionPolicy({
+    target: resolved,
+    candidates,
+    permittedEvidence: [],
+    catalogField: null,
+  });
+  return outcome.outcome === 'resolved' ? outcome.selectedValues : null;
+}
+
+/**
+ * Candidate single-value attribute: shipped Choice question + simulation
+ * under `JEV_ATTRIBUTE_MIN_PROBABILITY` (null when unsupported).
+ */
+function predictCandidateSingleAttributeValue(
+  resolved: ResolvedTarget,
+  evidenceTokens: Set<string>,
+): string | null {
+  // Execute the shipped Choice question builder for criteria parity.
+  const plan = buildAttributeChoiceQuestion(resolved);
+  const options = [...plan.keyToIdMap].map(([, canonicalValue]) => ({
+    value: canonicalValue,
+    label: canonicalValue,
+  }));
+  const { bestValue, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
+  const { score } = simulateOfflineOptionSupport(bestValue ?? '', evidenceTokens);
+  return bestValue && score > 0 && bestProb >= JEV_ATTRIBUTE_MIN_PROBABILITY ? bestValue : null;
 }
 
 /**
@@ -1196,53 +1573,14 @@ function predictCandidateAttributes(
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
   const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
   for (const target of taxonomies.attributeTargets) {
-    const goldHas = (entry.gold.fieldAssignments ?? []).some(f => f.targetId === target.targetId);
-    if (!goldHas) continue;
-    const attribute = stubAttributeConfig(target.targetId, target.options);
-    const resolved = stubResolvedTarget(
-      `target_${target.targetId}`,
-      target.targetId,
-      'product_field',
-      target.cardinality,
-      target.targetId,
-      target.options.map(v => ({ value: v, label: v })),
-      attribute,
-    );
+    if (!goldHasFieldTarget(entry, target.targetId)) continue;
+    const { resolved } = stubAttributeTarget(target);
     if (target.cardinality === 'multiple') {
-      // Execute the shipped Noul question builder (questionId wiring parity).
-      const plans = buildAttributeNoulQuestions(resolved, entry.sku, {});
-      const candidates = plans.map(p => ({
-        optionValue: p.optionValue,
-        optionLabel: p.optionLabel,
-        optionIndex: p.optionIndex,
-        prob: simulateOfflineOptionSupport(p.optionLabel, evidenceTokens).noulProb,
-      }));
-      const outcome = evaluateMultiValueSelectionPolicy({
-        target: resolved,
-        candidates,
-        permittedEvidence: [],
-        catalogField: null,
-      });
-      if (outcome.outcome === 'resolved') {
-        out.push({ targetId: target.targetId, values: outcome.selectedValues });
-      }
+      const values = predictCandidateMultiAttributeValues(resolved, entry, evidenceTokens);
+      if (values) out.push({ targetId: target.targetId, values });
     } else {
-      // Execute the shipped Choice question builder for criteria parity.
-      const plan = buildAttributeChoiceQuestion(resolved);
-      let bestValue: string | null = null;
-      let bestProb = -1;
-      for (const [key, canonicalValue] of plan.keyToIdMap) {
-        void key;
-        const { choiceProb } = simulateOfflineOptionSupport(canonicalValue, evidenceTokens);
-        if (choiceProb > bestProb) {
-          bestProb = choiceProb;
-          bestValue = canonicalValue;
-        }
-      }
-      const { score } = simulateOfflineOptionSupport(bestValue ?? '', evidenceTokens);
-      if (bestValue && score > 0 && bestProb >= JEV_ATTRIBUTE_MIN_PROBABILITY) {
-        out.push({ targetId: target.targetId, value: bestValue });
-      }
+      const value = predictCandidateSingleAttributeValue(resolved, evidenceTokens);
+      if (value) out.push({ targetId: target.targetId, value });
     }
   }
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
@@ -1254,7 +1592,7 @@ function predictBaselinePages(
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
 ): string[] {
-  if (taxonomies.pages.length === 0 || evidenceText.length < 3) return [];
+  if (isQualificationPredictionEmpty(taxonomies.pages.length, evidenceText)) return [];
   const matches = matchKeywordOptions({
     options: taxonomies.pages.map(p => ({ value: p.pageId, label: p.pageName })),
     text: evidenceText,
@@ -1274,78 +1612,78 @@ function predictCandidatePages(
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
 ): string[] {
-  if (taxonomies.pages.length === 0 || evidenceText.length < 3) return [];
+  if (isQualificationPredictionEmpty(taxonomies.pages.length, evidenceText)) return [];
   const plan = buildPageChoiceQuestion(
     taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
     null,
   );
   const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
-  let bestId: string | null = null;
-  let bestProb = -1;
-  for (const [key, pageId] of plan.keyToIdMap) {
-    const page = taxonomies.pages.find(p => p.pageId === pageId);
-    const { score, choiceProb } = simulateOfflineOptionSupport(page?.pageName ?? pageId, evidenceTokens);
-    void key;
-    if (score <= 0) continue;
-    if (choiceProb > bestProb) {
-      bestProb = choiceProb;
-      bestId = pageId;
-    }
-  }
+  const options = [...plan.keyToIdMap]
+    .map(([, pageId]) => {
+      const page = taxonomies.pages.find(p => p.pageId === pageId);
+      return { value: pageId, label: page?.pageName ?? pageId };
+    })
+    .filter(option => simulateOfflineOptionSupport(option.label, evidenceTokens).score > 0);
+  const { bestValue: bestId, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
   if (!bestId || bestProb < JEV_PAGE_SINGLE_THRESHOLD) return [];
   return [bestId];
 }
 
-/**
- * Execute the current baseline and candidate classification paths over gold
- * evidence to produce an immutable prediction artifact. Deterministic: the
- * same gold entries always yield the same artifact hash. Fail-closed: every
- * entry must produce both predictions (abstention is a valid prediction;
- * throwing is not).
- */
-export function buildQualificationPredictionsFromCode(
-  entries: QualificationGoldOnlyEntry[],
-  taxonomies?: QualificationTaxonomies,
-): QualificationPredictionArtifact {
-  const taxa = taxonomies ?? deriveQualificationTaxonomies(entries);
-  const predictedAt = new Date().toISOString();
-  const predictions = entries.map(entry => {
-    const evidenceText = qualificationEvidenceText(entry);
-    const startedBaseline = Date.now();
-    const bType = predictBaselineProductType(entry, taxa, evidenceText);
-    const bFields = predictBaselineAttributes(entry, taxa, evidenceText);
-    const bPages = predictBaselinePages(entry, taxa, evidenceText);
-    const baselineLatency = Math.max(0, Date.now() - startedBaseline);
-    const startedCandidate = Date.now();
-    const cType = predictCandidateProductType(entry, taxa, evidenceText);
-    const cFields = predictCandidateAttributes(entry, taxa, evidenceText);
-    const cPages = predictCandidatePages(entry, taxa, evidenceText);
-    const candidateLatency = Math.max(0, Date.now() - startedCandidate);
-    const baseline: ExecutedQualificationPrediction = {
+/** Confidence for the artifact (abstained sides carry zero confidence). */
+function artifactConfidence(abstained: boolean, confidence: number): number {
+  return abstained ? 0 : Number(confidence.toFixed(4));
+}
+
+/** Execute baseline + candidate paths for one gold entry (latencies measured). */
+function executeEntryPredictions(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+): { sku: string; baseline: ExecutedQualificationPrediction; candidate: ExecutedQualificationPrediction } {
+  const evidenceText = qualificationEvidenceText(entry);
+  const startedBaseline = Date.now();
+  const bType = predictBaselineProductType(entry, taxa, evidenceText);
+  const bFields = predictBaselineAttributes(entry, taxa, evidenceText);
+  const bPages = predictBaselinePages(entry, taxa, evidenceText);
+  const baselineLatency = Math.max(0, Date.now() - startedBaseline);
+  const startedCandidate = Date.now();
+  const cType = predictCandidateProductType(entry, taxa, evidenceText);
+  const cFields = predictCandidateAttributes(entry, taxa, evidenceText);
+  const cPages = predictCandidatePages(entry, taxa, evidenceText);
+  const candidateLatency = Math.max(0, Date.now() - startedCandidate);
+  return {
+    sku: entry.sku,
+    baseline: {
       productType: bType.productType,
       abstained: bType.abstained,
       fieldAssignments: bFields,
       pageIds: bPages,
-      confidence: bType.abstained ? 0 : Number(bType.confidence.toFixed(4)),
+      confidence: artifactConfidence(bType.abstained, bType.confidence),
       latencyMs: baselineLatency,
-    };
-    const candidate: ExecutedQualificationPrediction = {
+    },
+    candidate: {
       productType: cType.productType,
       abstained: cType.abstained,
       fieldAssignments: cFields,
       pageIds: cPages,
-      confidence: cType.abstained ? 0 : Number(cType.confidence.toFixed(4)),
+      confidence: artifactConfidence(cType.abstained, cType.confidence),
       latencyMs: candidateLatency,
-    };
-    return { sku: entry.sku, baseline, candidate };
-  });
-  if (predictions.length !== entries.length) {
-    throw new Error('Qualification prediction artifact incomplete: missing entries.');
-  }
+    },
+  };
+}
+
+/**
+ * Hash semantic predictions only: per-entry wall-clock latency is real
+ * telemetry recorded on the artifact, but it must not affect identity —
+ * the same gold entries always yield the same artifact hash.
+ */
+function hashQualificationPredictions(
+  predictions: Array<{
+    sku: string;
+    baseline: ExecutedQualificationPrediction;
+    candidate: ExecutedQualificationPrediction;
+  }>,
+): string {
   const sorted = [...predictions].sort((a, b) => a.sku.localeCompare(b.sku));
-  // Hash the semantic predictions only: per-entry wall-clock latency is real
-  // telemetry recorded on the artifact, but it must not affect identity —
-  // the same gold entries always yield the same artifact hash.
   const hashable = sorted.map(p => ({
     sku: p.sku,
     baseline: {
@@ -1363,10 +1701,29 @@ export function buildQualificationPredictionsFromCode(
       confidence: p.candidate.confidence,
     },
   }));
-  const artifactHash = sha256Hex(JSON.stringify(hashable));
+  return sha256Hex(JSON.stringify(hashable));
+}
+
+/**
+ * Execute the current baseline and candidate classification paths over gold
+ * evidence to produce an immutable prediction artifact. Deterministic: the
+ * same gold entries always yield the same artifact hash. Fail-closed: every
+ * entry must produce both predictions (abstention is a valid prediction;
+ * throwing is not).
+ */
+export function buildQualificationPredictionsFromCode(
+  entries: QualificationGoldOnlyEntry[],
+  taxonomies?: QualificationTaxonomies,
+): QualificationPredictionArtifact {
+  const taxa = taxonomies ?? deriveQualificationTaxonomies(entries);
+  const predictedAt = new Date().toISOString();
+  const predictions = entries.map(entry => executeEntryPredictions(entry, taxa));
+  if (predictions.length !== entries.length) {
+    throw new Error('Qualification prediction artifact incomplete: missing entries.');
+  }
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
-    artifactHash,
+    artifactHash: hashQualificationPredictions(predictions),
     predictedAt,
     entryCount: entries.length,
     predictions,
