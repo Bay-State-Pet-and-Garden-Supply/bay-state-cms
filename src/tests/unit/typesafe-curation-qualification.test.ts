@@ -105,6 +105,156 @@ function loadExecutedQualificationGoldset(): QualificationGoldset {
   };
 }
 
+/**
+ * Shared fixture builders (complexity extraction only — test behavior
+ * identical). Hoists the inline SystemOne mock, evidence, and target
+ * fixtures out of the Criterion bodies so the test arrows stay below the
+ * complexity thresholds.
+ */
+function qualificationChoiceAnswerFor(criteriaKeys: string[]) {
+  const remainingKeys = criteriaKeys.slice(1);
+  const remainder = remainingKeys.length > 0 ? (1 - 0.94) / remainingKeys.length : 0;
+  const probabilities: Record<string, number> = {
+    [criteriaKeys[0]]: 0.94,
+  };
+  for (const rk of remainingKeys) {
+    probabilities[rk] = remainder;
+  }
+  return {
+    type: 'choice',
+    choice: criteriaKeys[0],
+    probabilities,
+    confidence: 0.94,
+  };
+}
+
+function qualificationNoulAnswerFor(key: string) {
+  const isMatch = key.includes('Chicken') || key.includes('Duck') || key.includes('val_0') || key.includes('val_1');
+  return {
+    type: 'noul',
+    noul: isMatch ? 0.92 : 0.05,
+  };
+}
+
+function buildQualificationMockFetch(): typeof fetch {
+  return (async (url: any, init: any) => {
+    const body = JSON.parse(init.body);
+    const questions = body.questions;
+    const answers: Record<string, any> = {};
+
+    for (const [key, q] of Object.entries(questions) as [string, any][]) {
+      if (q.type === 'choice') {
+        answers[key] = qualificationChoiceAnswerFor(Object.keys(q.criteria));
+      } else if (q.type === 'noul') {
+        answers[key] = qualificationNoulAnswerFor(key);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        model: 'jev-1.13.0',
+        answers,
+        usage: { input_tokens: 120, output_tokens: 30 },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof fetch;
+}
+
+function makeQualificationPtTarget(): unknown {
+  const ptOptions = [
+    { value: 'dog_food_dry', label: 'Dry Dog Food' },
+    { value: 'dog_food_wet', label: 'Wet Dog Food' },
+  ];
+  return {
+    config: {
+      id: 'primary_product_type',
+      label: 'Primary Product Type',
+      kind: 'product_type',
+      attributeId: null,
+      catalogField: 'ProductType',
+      selectionMode: 'single',
+      confidenceThreshold: 0.7,
+    },
+    options: ptOptions,
+    attribute: null,
+  };
+}
+
+function makeQualificationSnapshot(
+  workspaceId: string,
+  runtimeRuleVersions: unknown,
+  modelExecutionPlan: unknown,
+  defaultPolicyConfig: unknown,
+): unknown {
+  return {
+    schemaVersion: 2,
+    id: 'snap-qual-1',
+    workspaceId,
+    snapshotHash: 'hash-snap-qual-1',
+    catalogHash: 'hash-snap-qual-1',
+    curationTargets: [
+      { id: 'primary_product_type', label: 'Primary Product Type', kind: 'product_type', catalogField: 'ProductField24', selectionMode: 'single', confidenceThreshold: 0.7, guidancePrompt: 'Select product type', enabled: true, mandatory: true },
+      { id: 'category_pages', label: 'Category Pages', kind: 'pages', catalogField: 'ProductOnPages', selectionMode: 'multiple', confidenceThreshold: 0.7, guidancePrompt: 'Select category pages', enabled: true, mandatory: false },
+    ],
+    productType: { state: 'verified' },
+    pages: {
+      state: 'verified',
+      catalogHash: 'hash-snap-qual-1',
+      records: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food', verified: true, active: true }],
+    },
+    modelPolicy: defaultPolicyConfig,
+    runtimeRuleVersions,
+    modelExecutionPlan,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function makeQualificationFlavorTarget(): unknown {
+  return {
+    config: {
+      id: 'target_flavor',
+      label: 'Flavors',
+      kind: 'product_field',
+      attributeId: 'flavor',
+      catalogField: 'ProductField1',
+      selectionMode: 'multiple',
+      confidenceThreshold: 0.7,
+    },
+    options: [
+      { value: 'Chicken', label: 'Chicken' },
+      { value: 'Duck', label: 'Duck' },
+      { value: 'Beef', label: 'Beef' },
+    ],
+    attribute: {
+      id: 'flavor',
+      name: 'Flavors',
+      valueMode: 'controlled',
+      visualEvidenceEligibility: 'eligible',
+    },
+  };
+}
+
+function makeQualificationEvidence(runId: string, productSku: string): unknown[] {
+  return [
+    {
+      id: 'ev-qual-1',
+      runId,
+      stageName: 'evidence_extraction',
+      productSku,
+      attributeId: null,
+      source: 'official_product_page',
+      reliability: 'high',
+      sourceUrl: 'https://example.com/kibble',
+      sourceField: 'title',
+      snippet: 'Fromm Gold Adult Canine Kibble Chicken & Duck Recipe',
+      value: 'Fromm Gold Adult Canine Kibble Chicken & Duck Recipe',
+      metadata: null,
+      capturedAt: new Date().toISOString(),
+    },
+  ];
+}
+
 describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   const originalFetch = globalThis.fetch;
   let wsPath: string;
@@ -214,108 +364,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         'hash-snap-qual-1',
       );
 
-      const ptOptions: ResolvedTargetOption[] = [
-        { value: 'dog_food_dry', label: 'Dry Dog Food' },
-        { value: 'dog_food_wet', label: 'Wet Dog Food' },
-      ];
-      const ptTarget = {
-        config: {
-          id: 'primary_product_type',
-          label: 'Primary Product Type',
-          kind: 'product_type',
-          attributeId: null,
-          catalogField: 'ProductType',
-          selectionMode: 'single',
-          confidenceThreshold: 0.7,
-        },
-        options: ptOptions,
-        attribute: null,
-      } as unknown as ResolvedTarget;
+      const ptTarget = makeQualificationPtTarget() as unknown as ResolvedTarget;
 
-      const evidence: ClassificationEvidence[] = [
-        {
-          id: 'ev-qual-1',
-          runId: run.id,
-          stageName: 'evidence_extraction',
-          productSku: 'SKU-QUAL-FULL-01',
-          attributeId: null,
-          source: 'official_product_page',
-          reliability: 'high',
-          sourceUrl: 'https://example.com/kibble',
-          sourceField: 'title',
-          snippet: 'Fromm Gold Adult Canine Kibble Chicken & Duck Recipe',
-          value: 'Fromm Gold Adult Canine Kibble Chicken & Duck Recipe',
-          metadata: null,
-          capturedAt: new Date().toISOString(),
-        },
-      ];
+      const evidence = makeQualificationEvidence(run.id, 'SKU-QUAL-FULL-01') as unknown as ClassificationEvidence[];
 
       // Mock SystemOne HTTP endpoint for Product Type, Attributes, and Cohort Pages
-      globalThis.fetch = (async (url: any, init: any) => {
-        const body = JSON.parse(init.body);
-        const questions = body.questions;
-        const answers: Record<string, any> = {};
-
-        for (const [key, q] of Object.entries(questions) as [string, any][]) {
-          if (q.type === 'choice') {
-            const criteriaKeys = Object.keys(q.criteria);
-            const remainingKeys = criteriaKeys.slice(1);
-            const remainder = remainingKeys.length > 0 ? (1 - 0.94) / remainingKeys.length : 0;
-            const probabilities: Record<string, number> = {
-              [criteriaKeys[0]]: 0.94,
-            };
-            for (const rk of remainingKeys) {
-              probabilities[rk] = remainder;
-            }
-            answers[key] = {
-              type: 'choice',
-              choice: criteriaKeys[0],
-              probabilities,
-              confidence: 0.94,
-            };
-          } else if (q.type === 'noul') {
-            const isMatch = key.includes('Chicken') || key.includes('Duck') || key.includes('val_0') || key.includes('val_1');
-            answers[key] = {
-              type: 'noul',
-              noul: isMatch ? 0.92 : 0.05,
-            };
-          }
-        }
-
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 120, output_tokens: 30 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as typeof fetch;
+      globalThis.fetch = buildQualificationMockFetch();
 
       const runtimeRuleVersions = buildRuntimeRuleVersions();
       const modelExecutionPlan = buildModelExecutionPlan(policyView);
 
-      const snapshot = {
-        schemaVersion: 2,
-        id: 'snap-qual-1',
-        workspaceId,
-        snapshotHash: 'hash-snap-qual-1',
-        catalogHash: 'hash-snap-qual-1',
-        curationTargets: [
-          { id: 'primary_product_type', label: 'Primary Product Type', kind: 'product_type', catalogField: 'ProductField24', selectionMode: 'single', confidenceThreshold: 0.7, guidancePrompt: 'Select product type', enabled: true, mandatory: true },
-          { id: 'category_pages', label: 'Category Pages', kind: 'pages', catalogField: 'ProductOnPages', selectionMode: 'multiple', confidenceThreshold: 0.7, guidancePrompt: 'Select category pages', enabled: true, mandatory: false },
-        ],
-        productType: { state: 'verified' },
-        pages: {
-          state: 'verified',
-          catalogHash: 'hash-snap-qual-1',
-          records: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food', verified: true, active: true }],
-        },
-        modelPolicy: defaultPolicyConfig,
-        runtimeRuleVersions,
-        modelExecutionPlan,
-        createdAt: new Date().toISOString(),
-      };
+      const snapshot = makeQualificationSnapshot(workspaceId, runtimeRuleVersions, modelExecutionPlan, defaultPolicyConfig);
 
       const ptDecision = await resolveProductTypeDecision({
         target: ptTarget,
@@ -336,28 +395,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(ptCalls[0].model).toBe('jev-1.13.0');
 
       // 4. Attribute proposals stage (multi-value flavors)
-      const flavorTarget = {
-        config: {
-          id: 'target_flavor',
-          label: 'Flavors',
-          kind: 'product_field',
-          attributeId: 'flavor',
-          catalogField: 'ProductField1',
-          selectionMode: 'multiple',
-          confidenceThreshold: 0.7,
-        },
-        options: [
-          { value: 'Chicken', label: 'Chicken' },
-          { value: 'Duck', label: 'Duck' },
-          { value: 'Beef', label: 'Beef' },
-        ],
-        attribute: {
-          id: 'flavor',
-          name: 'Flavors',
-          valueMode: 'controlled',
-          visualEvidenceEligibility: 'eligible',
-        },
-      } as unknown as ResolvedTarget;
+      const flavorTarget = makeQualificationFlavorTarget() as unknown as ResolvedTarget;
 
       const attrDecision = await resolveAttributeDecision({
         target: flavorTarget,

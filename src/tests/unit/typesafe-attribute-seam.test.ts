@@ -45,6 +45,25 @@ import type {
   ModelPolicyConfigV2,
 } from '../../shared/schemas/classification';
 
+/**
+ * Shared fixture builder (complexity extraction only — test behavior
+ * identical). Hoists the repeated SystemOne JSON Response envelope out of
+ * the per-criterion fetch mocks.
+ */
+function systemOneJsonResponse(
+  answers: Record<string, any>,
+  usage: { input_tokens: number; output_tokens: number } = { input_tokens: 100, output_tokens: 10 },
+): Response {
+  return new Response(
+    JSON.stringify({
+      model: 'jev-1.13.0',
+      answers,
+      usage,
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}
+
 describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
   const originalFetch = globalThis.fetch;
   const workspaceId = 'ws-typesafe-attr-seam';
@@ -207,26 +226,22 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       expect(body.questions.attr_flavor).toBeDefined();
       expect(body.questions.attr_flavor.criteria.opt_0).toContain('Chicken');
 
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_flavor: {
-              type: 'choice',
-              choice: 'opt_0',
-              probabilities: {
-                opt_0: 0.88,
-                opt_1: 0.05,
-                opt_2: 0.04,
-                no_match: 0.02,
-                insufficient_evidence: 0.01,
-              },
-              confidence: 0.94,
+      return systemOneJsonResponse(
+        {
+          attr_flavor: {
+            type: 'choice',
+            choice: 'opt_0',
+            probabilities: {
+              opt_0: 0.88,
+              opt_1: 0.05,
+              opt_2: 0.04,
+              no_match: 0.02,
+              insufficient_evidence: 0.01,
             },
+            confidence: 0.94,
           },
-          usage: { input_tokens: 120, output_tokens: 10 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
+        },
+        { input_tokens: 120, output_tokens: 10 },
       );
     }) as any;
 
@@ -495,21 +510,14 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     } as any;
 
     globalThis.fetch = (async () => {
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_universal_attr: {
-              type: 'choice',
-              choice: 'opt_0',
-              probabilities: { opt_0: 0.90, no_match: 0.05, insufficient_evidence: 0.05 },
-              confidence: 0.95,
-            },
-          },
-          usage: { input_tokens: 100, output_tokens: 10 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return systemOneJsonResponse({
+        attr_universal_attr: {
+          type: 'choice',
+          choice: 'opt_0',
+          probabilities: { opt_0: 0.90, no_match: 0.05, insufficient_evidence: 0.05 },
+          confidence: 0.95,
+        },
+      });
     }) as any;
 
     const stageResult = await productAttributeProposalsStage.execute(stageInput, stageContext);
@@ -579,14 +587,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
           confidence: 0.9,
         };
       }
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers,
-          usage: { input_tokens: 100, output_tokens: 10 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return systemOneJsonResponse(answers);
     }) as any;
 
     const decisions = await batchResolveAttributeDecisions({
@@ -661,21 +662,14 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     ];
 
     globalThis.fetch = (async () => {
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_organic: {
-              type: 'choice',
-              choice: 'opt_0',
-              probabilities: { opt_0: 0.95, opt_1: 0.03, no_match: 0.01, insufficient_evidence: 0.01 },
-              confidence: 0.98,
-            },
-          },
-          usage: { input_tokens: 100, output_tokens: 10 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return systemOneJsonResponse({
+        attr_organic: {
+          type: 'choice',
+          choice: 'opt_0',
+          probabilities: { opt_0: 0.95, opt_1: 0.03, no_match: 0.01, insufficient_evidence: 0.01 },
+          confidence: 0.98,
+        },
+      });
     }) as any;
 
     const decision = await resolveAttributeDecision({

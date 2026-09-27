@@ -53,6 +53,26 @@ import type {
   BenchmarkPredictionEntry,
 } from '../../shared/schemas/classification';
 
+/**
+ * Shared fixture builder (complexity extraction only — test behavior
+ * identical). Hoists the repeated SystemOne JSON Response envelope out of
+ * the per-criterion fetch mocks. This file's mocks use `{ status: 200 }`
+ * without an explicit content-type header — preserved verbatim.
+ */
+function systemOneJsonResponse(
+  answers: Record<string, any>,
+  usage: { input_tokens: number; output_tokens: number } = { input_tokens: 120, output_tokens: 25 },
+): Response {
+  return new Response(
+    JSON.stringify({
+      model: 'jev-1.13.0',
+      answers,
+      usage,
+    }),
+    { status: 200 },
+  );
+}
+
 describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
   const originalFetch = globalThis.fetch;
   const workspaceId = 'ws-typesafe-attr-multi-value';
@@ -288,20 +308,13 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
       expect(body.questions.attr_flavor__val_1.type).toBe('noul');
 
       // Return independent raw probabilities that do NOT sum to 1.0 (e.g. 0.92, 0.84, 0.12, 0.05, 0.02)
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_flavor__val_0: { type: 'noul', noul: 0.92 },
-            attr_flavor__val_1: { type: 'noul', noul: 0.84 },
-            attr_flavor__val_2: { type: 'noul', noul: 0.12 },
-            attr_flavor__val_3: { type: 'noul', noul: 0.05 },
-            attr_flavor__val_4: { type: 'noul', noul: 0.02 },
-          },
-          usage: { input_tokens: 120, output_tokens: 25 },
-        }),
-        { status: 200 },
-      );
+      return systemOneJsonResponse({
+        attr_flavor__val_0: { type: 'noul', noul: 0.92 },
+        attr_flavor__val_1: { type: 'noul', noul: 0.84 },
+        attr_flavor__val_2: { type: 'noul', noul: 0.12 },
+        attr_flavor__val_3: { type: 'noul', noul: 0.05 },
+        attr_flavor__val_4: { type: 'noul', noul: 0.02 },
+      });
     }) as any;
 
     const decision = await resolveAttributeDecision({
@@ -375,14 +388,7 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
         for (const k of qKeys) {
           answers[k] = { type: 'noul', noul: 0.80 };
         }
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 300, output_tokens: 60 },
-          }),
-          { status: 200 },
-        );
+        return systemOneJsonResponse(answers, { input_tokens: 300, output_tokens: 60 });
       }
 
       // Second chunk (3 questions) fails with network error
@@ -555,17 +561,13 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
     ];
 
     globalThis.fetch = (async () => {
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_special_diet__val_0: { type: 'noul', noul: 0.95 },
-            attr_special_diet__val_1: { type: 'noul', noul: 0.10 },
-            attr_special_diet__val_2: { type: 'noul', noul: 0.05 },
-          },
-          usage: { input_tokens: 80, output_tokens: 15 },
-        }),
-        { status: 200 },
+      return systemOneJsonResponse(
+        {
+          attr_special_diet__val_0: { type: 'noul', noul: 0.95 },
+          attr_special_diet__val_1: { type: 'noul', noul: 0.10 },
+          attr_special_diet__val_2: { type: 'noul', noul: 0.05 },
+        },
+        { input_tokens: 80, output_tokens: 15 },
       );
     }) as any;
 
@@ -812,19 +814,15 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
 
     // 1. Model predicts Chicken and Salmon
     globalThis.fetch = (async () => {
-      return new Response(
-        JSON.stringify({
-          model: 'jev-1.13.0',
-          answers: {
-            attr_flavor__val_0: { type: 'noul', noul: 0.90 }, // Chicken
-            attr_flavor__val_1: { type: 'noul', noul: 0.20 }, // Beef
-            attr_flavor__val_2: { type: 'noul', noul: 0.85 }, // Salmon
-            attr_flavor__val_3: { type: 'noul', noul: 0.05 }, // Duck
-            attr_flavor__val_4: { type: 'noul', noul: 0.02 }, // Turkey
-          },
-          usage: { input_tokens: 150, output_tokens: 30 },
-        }),
-        { status: 200 },
+      return systemOneJsonResponse(
+        {
+          attr_flavor__val_0: { type: 'noul', noul: 0.90 }, // Chicken
+          attr_flavor__val_1: { type: 'noul', noul: 0.20 }, // Beef
+          attr_flavor__val_2: { type: 'noul', noul: 0.85 }, // Salmon
+          attr_flavor__val_3: { type: 'noul', noul: 0.05 }, // Duck
+          attr_flavor__val_4: { type: 'noul', noul: 0.02 }, // Turkey
+        },
+        { input_tokens: 150, output_tokens: 30 },
       );
     }) as any;
 

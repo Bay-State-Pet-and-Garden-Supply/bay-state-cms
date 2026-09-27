@@ -49,6 +49,25 @@ import type {
 } from '../../shared/schemas/classification';
 import type { RuntimeClassificationSnapshot, PageSnapshotRecord } from '../../classification/runtime-snapshot';
 
+/**
+ * Shared fixture builder (complexity extraction only — test behavior
+ * identical). Hoists the repeated SystemOne JSON Response envelope out of
+ * the per-criterion fetch mocks.
+ */
+function systemOneJsonResponse(
+  answers: Record<string, any>,
+  usage: { input_tokens: number; output_tokens: number } = { input_tokens: 50, output_tokens: 5 },
+): Response {
+  return new Response(
+    JSON.stringify({
+      model: 'jev-1.13.0',
+      answers,
+      usage,
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}
+
 describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
   const originalFetch = globalThis.fetch;
   const workspaceId = 'ws-typesafe-page-seam';
@@ -361,14 +380,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           }
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -562,14 +574,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           }
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -633,14 +638,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           answers[qid] = { type: 'noul', noul: 0.80 };
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -680,14 +678,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           }
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -724,14 +715,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           };
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -770,14 +754,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           }
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);
@@ -832,14 +809,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
           };
         }
 
-        return new Response(
-          JSON.stringify({
-            model: 'jev-1.13.0',
-            answers,
-            usage: { input_tokens: 50, output_tokens: 5 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
+        return systemOneJsonResponse(answers);
       }) as any;
 
       const policyView = buildModelPolicyView(cloudJevPolicy);

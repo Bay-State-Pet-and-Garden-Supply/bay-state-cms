@@ -27,6 +27,28 @@ import {
 const router = new Hono();
 
 /**
+ * Shared guards for the policy-settings clone family (3 introduced groups).
+ * Error strings, codes, and status codes are preserved verbatim so route
+ * paths/status codes/error codes/auth behavior is unchanged. Settings
+ * preview/apply semantics are unchanged — these helpers only hoist the
+ * identical workspace guard and policy-service error mapping.
+ */
+function requireClassificationWorkspace(c: any) {
+  const ws = getCurrentWorkspace();
+  if (!ws) {
+    return { ws: null, error: c.json({ error: 'No active workspace' }, 400) } as const;
+  }
+  return { ws, error: null } as const;
+}
+
+function handlePolicyServiceError(c: any, err: unknown) {
+  if (err instanceof ClassificationPolicyServiceError) {
+    return c.json({ error: err.message, code: err.code }, err.statusCode as any);
+  }
+  return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+}
+
+/**
  * P0 taxonomy freeze (set-in-stone taxonomy).
  *
  * The taxonomy is frozen: definitions, attribute profiles, curation targets,
@@ -483,19 +505,14 @@ router.post('/classification/process-refresh-queue', async (c) => {
  * Returns classification provider settings, effective routes, and available connections.
  */
 router.get('/classification/settings/policy', (c) => {
-  const ws = getCurrentWorkspace();
-  if (!ws) {
-    return c.json({ error: 'No active workspace' }, 400);
-  }
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
 
   try {
     const settings = getClassificationPolicySettings(ws.workspacePath, ws.id);
     return c.json({ settings });
   } catch (err) {
-    if (err instanceof ClassificationPolicyServiceError) {
-      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
-    }
-    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return handlePolicyServiceError(c, err);
   }
 });
 
@@ -504,10 +521,8 @@ router.get('/classification/settings/policy', (c) => {
  * Previews classification provider policy changes and computes deterministic previewToken and diff.
  */
 router.post('/classification/settings/policy/preview', async (c) => {
-  const ws = getCurrentWorkspace();
-  if (!ws) {
-    return c.json({ error: 'No active workspace' }, 400);
-  }
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
 
   try {
     const body = await c.req.json();
@@ -518,10 +533,7 @@ router.post('/classification/settings/policy/preview', async (c) => {
     const preview = previewClassificationPolicy(ws.workspacePath, body, ws.id);
     return c.json({ preview });
   } catch (err) {
-    if (err instanceof ClassificationPolicyServiceError) {
-      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
-    }
-    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return handlePolicyServiceError(c, err);
   }
 });
 
@@ -530,10 +542,8 @@ router.post('/classification/settings/policy/preview', async (c) => {
  * Applies a previewed classification provider policy under CAS and configuration locking.
  */
 router.post('/classification/settings/policy/apply', async (c) => {
-  const ws = getCurrentWorkspace();
-  if (!ws) {
-    return c.json({ error: 'No active workspace' }, 400);
-  }
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
 
   try {
     const body = await c.req.json();
@@ -544,10 +554,7 @@ router.post('/classification/settings/policy/apply', async (c) => {
     const result = await applyClassificationPolicy(ws.workspacePath, ws.id, body);
     return c.json({ result });
   } catch (err) {
-    if (err instanceof ClassificationPolicyServiceError) {
-      return c.json({ error: err.message, code: err.code }, err.statusCode as any);
-    }
-    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+    return handlePolicyServiceError(c, err);
   }
 });
 

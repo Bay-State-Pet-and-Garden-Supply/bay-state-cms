@@ -300,11 +300,17 @@ const isFiniteBoundedProbability = (value: unknown): value is number =>
  * - model/usage identity passthrough (requested + returned recorded; unknown
  *   returned pins never rewrite the request).
  */
-export function validateSystemOneResponse(
+/**
+ * Response-validation helpers (complexity extraction only). Exact
+ * response-question matching, type-match, and model-identity behavior are
+ * preserved verbatim. (Named `...Shape` to avoid colliding with the
+ * dispatch-time fetch body parser below.)
+ */
+function parseSystemOneResponseShape(
   request: Pick<SystemOneRequest, 'model' | 'questions'>,
   responseBody: unknown,
   opts?: { connectionId?: string },
-): ValidatedSystemOneResponse {
+): SystemOneResponse {
   const parsed = SystemOneResponseSchema.safeParse(responseBody);
   if (!parsed.success) {
     const detail = parsed.error.issues
@@ -317,8 +323,14 @@ export function validateSystemOneResponse(
       request.model,
     );
   }
-  const response: SystemOneResponse = parsed.data;
+  return parsed.data;
+}
 
+function assertResponseQuestionCorrelation(
+  request: Pick<SystemOneRequest, 'model' | 'questions'>,
+  response: SystemOneResponse,
+  opts?: { connectionId?: string },
+): void {
   const requestIds = Object.keys(request.questions).sort();
   const responseIds = Object.keys(response.answers).sort();
   const missing = requestIds.filter((id) => !responseIds.includes(id));
@@ -334,7 +346,13 @@ export function validateSystemOneResponse(
       request.model,
     );
   }
+}
 
+function assertQuestionAnswer(
+  request: Pick<SystemOneRequest, 'model' | 'questions'>,
+  response: SystemOneResponse,
+  opts?: { connectionId?: string },
+): void {
   for (const [questionId, question] of Object.entries(request.questions)) {
     const answer = response.answers[questionId];
     if (!answer || answer.type !== question.type) {
@@ -359,6 +377,16 @@ export function validateSystemOneResponse(
       }
     }
   }
+}
+
+export function validateSystemOneResponse(
+  request: Pick<SystemOneRequest, 'model' | 'questions'>,
+  responseBody: unknown,
+  opts?: { connectionId?: string },
+): ValidatedSystemOneResponse {
+  const response = parseSystemOneResponseShape(request, responseBody, opts);
+  assertResponseQuestionCorrelation(request, response, opts);
+  assertQuestionAnswer(request, response, opts);
 
   if (!response.model || typeof response.model !== 'string') {
     throw new AiMisconfigurationError(
@@ -379,24 +407,38 @@ export function validateSystemOneResponse(
   };
 }
 
-function validateChoiceAnswer(
+/**
+ * Choice-answer validation helpers (complexity extraction only).
+ * Alias-match semantics, error messages, and throw behavior are preserved
+ * verbatim — labels never substitute for canonical keys, distributions must
+ * be complete/closed/argmax-consistent.
+ */
+function failChoiceValidation(questionId: string, message: string, connectionId: string | undefined, modelId: string): never {
+  throw new AiMisconfigurationError(message, connectionId, modelId);
+}
+
+function assertChoiceMembership(
   questionId: string,
   criteriaKeys: string[],
   answer: Extract<SystemOneAnswer, { type: 'choice' }>,
   connectionId: string | undefined,
   modelId: string,
 ): void {
-  const fail = (message: string): never => {
-    throw new AiMisconfigurationError(message, connectionId, modelId);
-  };
-
   if (!criteriaKeys.includes(answer.choice)) {
-    fail(
+    failChoiceValidation(questionId,
       `Question "${questionId}" selected unknown option "${answer.choice}". ` +
         'The selected option must be a member of the requested criteria — labels never substitute for canonical keys.',
-    );
+      connectionId, modelId);
   }
+}
 
+function assertDistributionCompleteness(
+  questionId: string,
+  criteriaKeys: string[],
+  answer: Extract<SystemOneAnswer, { type: 'choice' }>,
+  connectionId: string | undefined,
+  modelId: string,
+): void {
   const probabilityKeys = Object.keys(answer.probabilities).sort();
   const expectedKeys = [...criteriaKeys].sort();
   const missingOptions = expectedKeys.filter((key) => !probabilityKeys.includes(key));
@@ -405,48 +447,79 @@ function validateChoiceAnswer(
     const parts: string[] = [];
     if (missingOptions.length > 0) parts.push(`missing probabilities for: ${missingOptions.join(', ')}`);
     if (extraOptions.length > 0) parts.push(`unexpected probabilities for: ${extraOptions.join(', ')}`);
-    fail(
+    failChoiceValidation(questionId,
       `Question "${questionId}" returned an incomplete Choice distribution (${parts.join('; ')}). ` +
         'Every requested option must carry a probability.',
-    );
+      connectionId, modelId);
   }
+}
 
+function sumAndMaxProbabilities(
+  questionId: string,
+  answer: Extract<SystemOneAnswer, { type: 'choice' }>,
+  connectionId: string | undefined,
+  modelId: string,
+): { sum: number; maxValue: number } {
   let sum = 0;
   let maxValue = -Infinity;
   for (const probability of Object.values(answer.probabilities)) {
     if (!isFiniteBoundedProbability(probability)) {
       const offending = Object.entries(answer.probabilities).find(([, value]) => value === probability)?.[0] ?? '?';
-      fail(
+      failChoiceValidation(questionId,
         `Question "${questionId}" returned a non-finite or out-of-range probability for option ` +
           `"${offending}" (${String(probability)}). Expected finite numbers in [0, 1].`,
-      );
+        connectionId, modelId);
     }
     sum += probability;
     if (probability > maxValue) {
       maxValue = probability;
     }
   }
+  return { sum, maxValue };
+}
+
+function assertDistributionClosureAndArgmax(
+  questionId: string,
+  answer: Extract<SystemOneAnswer, { type: 'choice' }>,
+  sum: number,
+  maxValue: number,
+  connectionId: string | undefined,
+  modelId: string,
+): void {
   if (Math.abs(sum - 1) > SYSTEMONE_CHOICE_SUM_TOLERANCE) {
-    fail(
+    failChoiceValidation(questionId,
       `Question "${questionId}" Choice probabilities sum to ${sum.toFixed(4)}, outside the ` +
         `±${SYSTEMONE_CHOICE_SUM_TOLERANCE} tolerance around 1.`,
-    );
+      connectionId, modelId);
   }
   const tiedMaxima = Object.entries(answer.probabilities)
     .filter(([, probability]) => probability === maxValue)
     .map(([option]) => option);
   if (!tiedMaxima.includes(answer.choice)) {
-    fail(
+    failChoiceValidation(questionId,
       `Question "${questionId}" selected "${answer.choice}" but the highest-probability option is ` +
         `"${tiedMaxima.join('", "')}". The selected option must be the distribution argmax.`,
-    );
+      connectionId, modelId);
   }
   if (!isFiniteBoundedProbability(answer.confidence)) {
-    fail(
+    failChoiceValidation(questionId,
       `Question "${questionId}" returned a non-finite or out-of-range confidence ` +
         `(${String(answer.confidence)}). Expected a finite number in [0, 1].`,
-    );
+      connectionId, modelId);
   }
+}
+
+function validateChoiceAnswer(
+  questionId: string,
+  criteriaKeys: string[],
+  answer: Extract<SystemOneAnswer, { type: 'choice' }>,
+  connectionId: string | undefined,
+  modelId: string,
+): void {
+  assertChoiceMembership(questionId, criteriaKeys, answer, connectionId, modelId);
+  assertDistributionCompleteness(questionId, criteriaKeys, answer, connectionId, modelId);
+  const { sum, maxValue } = sumAndMaxProbabilities(questionId, answer, connectionId, modelId);
+  assertDistributionClosureAndArgmax(questionId, answer, sum, maxValue, connectionId, modelId);
 }
 
 // ─── Dispatch ────────────────────────────────────────────────────────────────
@@ -511,13 +584,16 @@ function systemOneSleep(ms: number): Promise<void> {
  *   request context and are never persisted here — callers record digests
  *   and identities only.
  */
-export async function executeSystemOne(
+/**
+ * Dispatch helpers (complexity extraction only). Trust-zone enforcement
+ * (fail-closed before any credential use), alias-match semantics
+ * (isSystemOneModelMatch / pin checks), single-retry budget, status-code
+ * mapping, and audit behavior are preserved verbatim.
+ */
+function assertSystemOneDispatchPreconditions(
   conn: ProviderConnection,
   modelId: string,
-  questions: Record<string, { type: 'choice' | 'noul'; instructions: unknown; criteria?: unknown }>,
-  state: unknown,
-  options: SystemOneDispatchOptions = {},
-): Promise<SystemOneDispatchResult> {
+): void {
   // Validate trust zone first (fail closed): a misconfigured baseUrl must
   // never receive the bearer credential or product evidence. Mirrors the
   // chat path (network-transport executeOpenAiChat) and the health probe.
@@ -534,10 +610,17 @@ export async function executeSystemOne(
   assertSystemOneCapable(conn, modelId);
   assertConnectionEnabledForDispatch(conn, modelId);
   assertSystemOneModelPin(modelId, conn.id);
+}
 
+function buildSystemOneDispatchContext(
+  conn: ProviderConnection,
+  modelId: string,
+  questions: Record<string, { type: 'choice' | 'noul'; instructions: unknown; criteria?: unknown }>,
+  state: unknown,
+  options: SystemOneDispatchOptions,
+): { request: ValidatedSystemOneRequest; timeoutMs: number; url: string; headers: Record<string, string> } {
   const request = validateSystemOneRequest({ state, model: modelId, questions });
   const timeoutMs = options.timeoutMs ?? conn.inferenceTimeoutMs ?? 60_000;
-
   const cleanBase = conn.baseUrl.replace(/\/+$/, '');
   const url = `${cleanBase}${SYSTEMONE_ENDPOINT_PATH}`;
   const headers: Record<string, string> = {
@@ -548,6 +631,158 @@ export async function executeSystemOne(
   if (conn.credential) {
     headers.Authorization = `Bearer ${conn.credential}`;
   }
+  return { request, timeoutMs, url, headers };
+}
+
+function isTransientNetworkMessage(message: string): boolean {
+  return message.includes('timed out') || message.includes('ECONNREFUSED') || message.includes('fetch failed') || message.includes('Connection refused') || message.includes('terminated');
+}
+
+/**
+ * Handle a fetch-level transport failure. Sleeps and returns true when the
+ * caller should retry once; throws otherwise. Retry budget and error
+ * mapping are preserved verbatim.
+ */
+async function handleSystemOneTransportFailure(
+  err: unknown,
+  conn: ProviderConnection,
+  modelId: string,
+  url: string,
+  attempt: number,
+  retryAfterMs: number | null | undefined,
+): Promise<boolean> {
+  if (err instanceof AiTransportError) {
+    if (err instanceof AiPolicyDeniedError) throw err;
+    if (attempt === 1 && (err instanceof AiAvailabilityError || (typeof err.statusCode === 'number' && RETRYABLE_STATUS[err.statusCode]))) {
+      await systemOneSleep(systemOneRetryDelayMs(retryAfterMs, 0));
+      return true;
+    }
+    throw err;
+  }
+  if (err !== null && typeof err === 'object' && 'name' in err && ((err as { name?: unknown }).name === 'AbortError' || (err as { name?: unknown }).name === 'TimeoutError')) {
+    throw err;
+  }
+  const message = String(err instanceof Error ? err.message : err ?? '');
+  if (attempt === 1 && isTransientNetworkMessage(message)) {
+    await systemOneSleep(systemOneRetryDelayMs(retryAfterMs, 0));
+    return true;
+  }
+  throw new AiAvailabilityError(
+    `Network failure reaching System One on "${conn.label}" at ${url}: ${message.replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]').slice(0, 200)}`,
+    conn.id,
+    modelId,
+  );
+}
+
+/**
+ * Handle an HTTP status response. Sleeps and returns true when the caller
+ * should consume the single retry; returns false to proceed to body parsing;
+ * throws for terminal failures. Status mapping is preserved verbatim.
+ */
+async function handleSystemOneHttpStatus(
+  response: Response,
+  conn: ProviderConnection,
+  modelId: string,
+  attempt: number,
+  retryAfterMs: number | null | undefined,
+): Promise<boolean> {
+  if (response.status === 401 || response.status === 403) {
+    throw new AiMisconfigurationError(
+      `Authentication failed for System One connection "${conn.label}" (HTTP ${response.status}). Check the TypeSafe API key.`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  if (response.status === 400 || response.status === 404 || response.status === 422) {
+    const detail = await readErrorDetail(response);
+    if (response.status === 400 || response.status === 422) {
+      throw new SystemOneUnsupportedError(
+        `System One rejected the request (HTTP ${response.status}): ${detail}`,
+        conn.id,
+        modelId,
+        response.status,
+      );
+    }
+    throw new AiMisconfigurationError(
+      `System One request failed (HTTP ${response.status}): ${detail}`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  if (response.status === 429 || response.status === 529) {
+    if (attempt === 1) {
+      const retryAfter = parseRetryAfterMs(response.headers.get('retry-after'));
+      await systemOneSleep(systemOneRetryDelayMs(retryAfter ?? retryAfterMs, 0));
+      return true;
+    }
+    throw new AiAvailabilityError(
+      `System One rate limit/overload persisted after one retry (HTTP ${response.status}).`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  if (RETRYABLE_STATUS[response.status]) {
+    if (attempt === 1) {
+      await systemOneSleep(systemOneRetryDelayMs(retryAfterMs, 0));
+      return true;
+    }
+    throw new AiAvailabilityError(
+      `System One transient failure persisted after one retry (HTTP ${response.status}).`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  if (NO_RETRY_STATUS[response.status] || (response.status >= 400 && response.status < 500)) {
+    const detail = await readErrorDetail(response);
+    throw new AiMisconfigurationError(
+      `System One request failed (HTTP ${response.status}): ${detail}`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new AiAvailabilityError(
+      `HTTP ${response.status} from System One on "${conn.label}": ${detail}`,
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+  return false;
+}
+
+async function parseSystemOneResponseBody(
+  response: Response,
+  conn: ProviderConnection,
+  modelId: string,
+): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new AiMisconfigurationError(
+      'System One returned a non-JSON response body.',
+      conn.id,
+      modelId,
+      response.status,
+    );
+  }
+}
+
+export async function executeSystemOne(
+  conn: ProviderConnection,
+  modelId: string,
+  questions: Record<string, { type: 'choice' | 'noul'; instructions: unknown; criteria?: unknown }>,
+  state: unknown,
+  options: SystemOneDispatchOptions = {},
+): Promise<SystemOneDispatchResult> {
+  assertSystemOneDispatchPreconditions(conn, modelId);
+  const { request, timeoutMs, url, headers } = buildSystemOneDispatchContext(conn, modelId, questions, state, options);
 
   let attempt = 0;
   let retried = false;
@@ -574,114 +809,21 @@ export async function executeSystemOne(
         signal: options.signal,
       });
     } catch (err: unknown) {
-      if (err instanceof AiTransportError) {
-        if (err instanceof AiPolicyDeniedError) throw err;
-        if (attempt === 1 && (err instanceof AiAvailabilityError || (typeof err.statusCode === 'number' && RETRYABLE_STATUS[err.statusCode]))) {
-          retried = true;
-          await systemOneSleep(systemOneRetryDelayMs(options.retryAfterMs, 0));
-          continue;
-        }
-        throw err;
-      }
-      if (err !== null && typeof err === 'object' && 'name' in err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-        throw err;
-      }
-      const message = String(err instanceof Error ? err.message : err ?? '');
-      const transient = message.includes('timed out') || message.includes('ECONNREFUSED') || message.includes('fetch failed') || message.includes('Connection refused') || message.includes('terminated');
-      if (attempt === 1 && transient) {
+      const shouldRetry = await handleSystemOneTransportFailure(err, conn, modelId, url, attempt, options.retryAfterMs);
+      if (shouldRetry) {
         retried = true;
-        await systemOneSleep(systemOneRetryDelayMs(options.retryAfterMs, 0));
         continue;
       }
-      throw new AiAvailabilityError(
-        `Network failure reaching System One on "${conn.label}" at ${url}: ${message.replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]').slice(0, 200)}`,
-        conn.id,
-        modelId,
-      );
+      throw err;
     }
 
-    if (response.status === 401 || response.status === 403) {
-      throw new AiMisconfigurationError(
-        `Authentication failed for System One connection "${conn.label}" (HTTP ${response.status}). Check the TypeSafe API key.`,
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
-    if (response.status === 400 || response.status === 404 || response.status === 422) {
-      const detail = await readErrorDetail(response);
-      if (response.status === 400 || response.status === 422) {
-        throw new SystemOneUnsupportedError(
-          `System One rejected the request (HTTP ${response.status}): ${detail}`,
-          conn.id,
-          modelId,
-          response.status,
-        );
-      }
-      throw new AiMisconfigurationError(
-        `System One request failed (HTTP ${response.status}): ${detail}`,
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
-    if (response.status === 429 || response.status === 529) {
-      if (attempt === 1) {
-        const retryAfter = parseRetryAfterMs(response.headers.get('retry-after'));
-        retried = true;
-        await systemOneSleep(systemOneRetryDelayMs(retryAfter ?? options.retryAfterMs, 0));
-        continue;
-      }
-      throw new AiAvailabilityError(
-        `System One rate limit/overload persisted after one retry (HTTP ${response.status}).`,
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
-    if (RETRYABLE_STATUS[response.status]) {
-      if (attempt === 1) {
-        retried = true;
-        await systemOneSleep(systemOneRetryDelayMs(options.retryAfterMs, 0));
-        continue;
-      }
-      throw new AiAvailabilityError(
-        `System One transient failure persisted after one retry (HTTP ${response.status}).`,
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
-    if (NO_RETRY_STATUS[response.status] || (response.status >= 400 && response.status < 500)) {
-      const detail = await readErrorDetail(response);
-      throw new AiMisconfigurationError(
-        `System One request failed (HTTP ${response.status}): ${detail}`,
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
-    if (!response.ok) {
-      const detail = await readErrorDetail(response);
-      throw new AiAvailabilityError(
-        `HTTP ${response.status} from System One on "${conn.label}": ${detail}`,
-        conn.id,
-        modelId,
-        response.status,
-      );
+    const shouldRetryStatus = await handleSystemOneHttpStatus(response, conn, modelId, attempt, options.retryAfterMs);
+    if (shouldRetryStatus) {
+      retried = true;
+      continue;
     }
 
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw new AiMisconfigurationError(
-        'System One returned a non-JSON response body.',
-        conn.id,
-        modelId,
-        response.status,
-      );
-    }
+    const body = await parseSystemOneResponseBody(response, conn, modelId);
     const validated = validateSystemOneResponse(request, body, { connectionId: conn.id });
     return { ...validated, attempts: attempt, retried };
   }

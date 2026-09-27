@@ -35,9 +35,12 @@ import {
   SYSTEMONE_MAX_CHOICE_OPTIONS,
   SYSTEMONE_MAX_STATE_BYTES,
   TYPESAFE_EVALUATED_MODEL,
+  assertSystemOneModelMatch,
   dispatchSystemOne,
-  isSystemOneModelMatch,
 } from '../ai/systemone-transport';
+// Canonical `assertSystemOneModelMatch` lives in `../ai/systemone-transport`;
+// re-exported here so existing decision-boundary callers keep working.
+export { assertSystemOneModelMatch };
 import { hashCanonicalJson } from '../shared/stable-id';
 import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import { getApiKey } from '../db/repositories/api-key-repo';
@@ -339,19 +342,8 @@ export function applyCardinalityLimit<T>(sortedQualifying: T[], maxItems: number
 }
 
 // ─── Dispatch validation (pure) ──────────────────────────────────────────────
-
-/**
- * Enforce the pinned-model rule with the canonical message.
- * Alias acceptance itself lives in `isSystemOneModelMatch`; any mismatch is a
- * hard failure because pinned-model substitution is forbidden.
- */
-export function assertSystemOneModelMatch(requestModel: string, returnedModel: string): void {
-  if (!isSystemOneModelMatch(requestModel, returnedModel)) {
-    throw new Error(
-      `Model mismatch: requested model "${requestModel}", but provider returned "${returnedModel}". Pinned model substitution is forbidden.`,
-    );
-  }
-}
+// `assertSystemOneModelMatch` is canonically defined in
+// `../ai/systemone-transport` and re-exported above; see module header.
 
 /**
  * Require a Choice answer for a question id, preserving the canonical message.

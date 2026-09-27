@@ -72,7 +72,12 @@ import {
 } from '../../db/repositories/classification-cohort-run-repo';
 import { findItemById, updateItemExtractionData } from '../../db/repositories/onboarding-item-repo';
 import { getOcrStageFlags } from '../../classification/ocr-stage-flags';
-import { runPackagingOcrStageForFreeze } from '../../classification/stages/packaging-ocr-stage';
+import {
+  runPackagingOcrStageForFreeze,
+  collectOcrImageUrls,
+  pickMergedOcrResult,
+  computeOverallOcrStatus,
+} from '../../classification/stages/packaging-ocr-stage';
 import { completeRun, createRun, childRunHasSideEffects } from '../../db/repositories/classification-run-repo';
 import {
   persistRuntimeSnapshot,
@@ -97,7 +102,7 @@ import { resolveProductTypeDecision } from '../../classification/product-type-de
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import { CohortLeaseKeeper } from './execution-lease';
 import { getVlmConfig } from '../vlm-client';
-import { runPackagingOcrAttempt, mergeOcrResults } from '../packaging-ocr';
+import { runPackagingOcrAttempt } from '../packaging-ocr';
 import {
   computeOcrInputHash,
   storedOcrInputHash,
@@ -517,14 +522,7 @@ export async function runFrozenOcrPullForward(params: {
   let localFailureReason: import('../../shared/schemas/onboarding').OcrFailureReason | null = null;
   let localAttempts = 0;
 
-  const imageUrls: string[] = [];
-  if (ext.primaryImage) imageUrls.push(String(ext.primaryImage));
-  if (Array.isArray(ext.additionalImages)) {
-    for (const img of ext.additionalImages) {
-      if (imageUrls.length >= 2) break;
-      if (img && String(img).trim()) imageUrls.push(String(img));
-    }
-  }
+  const imageUrls = collectOcrImageUrls(ext);
 
   const ocrResults: PackagingOcrData[] = [];
   let packagingOcrData: PackagingOcrData | undefined;
@@ -584,7 +582,7 @@ export async function runFrozenOcrPullForward(params: {
     }
 
     if (ocrResults.length > 0) {
-      const merged = ocrResults.length === 1 ? ocrResults[0] : mergeOcrResults(ocrResults);
+      const merged = pickMergedOcrResult(ocrResults);
       if (hasOcrContent(merged)) {
         localOcrSucceeded = true;
         localStatus = 'succeeded';
@@ -631,14 +629,13 @@ export async function runFrozenOcrPullForward(params: {
     }
   }
 
-  const overallStatus: OcrAttemptOutcome['status'] =
-    localStatus === 'succeeded' || cloudStatus === 'succeeded'
-      ? 'succeeded'
-      : imageUrls.length === 0
-        ? 'no_image'
-        : !canUseLocalVlm && !canUseCloudImages
-          ? 'disabled'
-          : 'failed';
+  const overallStatus = computeOverallOcrStatus({
+    localStatus,
+    cloudStatus,
+    imageCount: imageUrls.length,
+    canUseLocalVlm,
+    canUseCloudImages,
+  });
 
   const ocrOutcome: OcrAttemptOutcome = {
     status: overallStatus,

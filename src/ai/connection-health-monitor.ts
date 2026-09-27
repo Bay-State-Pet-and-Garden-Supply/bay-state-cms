@@ -80,6 +80,107 @@ export function getCachedConnectionHealth(connectionId: string): ConnectionHealt
 }
 
 /**
+ * Shared health-report builders (extraction to bring probeConnectionHealth
+ * below the complexity/size thresholds). Messages, statuses, and caching
+ * semantics are preserved verbatim.
+ */
+function cacheAndReturnHealthReport(connectionId: string, report: ConnectionHealthReport, now: number): ConnectionHealthReport {
+  HEALTH_CACHE.set(connectionId, { report, expiresAt: now + CACHE_TTL_MS });
+  return report;
+}
+
+function buildMisconfiguredReport(
+  connectionId: string,
+  latencyMs: number,
+  errorMessage: string,
+  now: number,
+): ConnectionHealthReport {
+  return cacheAndReturnHealthReport(connectionId, {
+    connectionId,
+    status: 'misconfigured',
+    latencyMs,
+    models: [],
+    lastChecked: new Date().toISOString(),
+    errorMessage,
+  }, now);
+}
+
+function buildUnreachableReport(
+  conn: ProviderConnection,
+  startTime: number,
+  timeoutMs: number,
+  err: any,
+  now: number,
+): ConnectionHealthReport {
+  const latencyMs = Date.now() - startTime;
+  const isTimeout = err?.name === 'AbortError' || err?.name === 'TimeoutError';
+  return cacheAndReturnHealthReport(conn.id, {
+    connectionId: conn.id,
+    status: 'unreachable',
+    latencyMs,
+    models: [],
+    lastChecked: new Date().toISOString(),
+    errorMessage: isTimeout
+      ? `Connection timed out after ${timeoutMs}ms (Host offline or unreachable).`
+      : `Network error: ${err?.message || 'Connection refused'}`,
+  }, now);
+}
+
+function extractRawModelList(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (typeof data !== 'object' || data === null) return [];
+  const record = data as Record<string, unknown>;
+  if (Array.isArray(record.data)) return record.data as unknown[];
+  if (Array.isArray(record.models)) return record.models as unknown[];
+  return [];
+}
+
+function parseDiscoveredModel(item: unknown): DiscoveredModel | null {
+  if (item === null || typeof item !== 'object') return null;
+  const record = item as Record<string, unknown>;
+  const rawId = typeof record.id === 'string' ? record.id
+    : (typeof record.name === 'string' ? record.name : null);
+  if (!rawId) return null;
+  const id: string = rawId;
+  const caps = inferModelCapabilities(id);
+  const ownedBy = typeof record.owned_by === 'string' ? record.owned_by : undefined;
+  return { id, label: id, ownedBy, ...caps };
+}
+
+function buildProbeRequest(conn: ProviderConnection): { url: string; headers: Record<string, string> } {
+  const cleanBase = conn.baseUrl.replace(/\/+$/, '');
+  const url = `${cleanBase}/models`;
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'BaystateCMS-HealthProbe/1.0',
+  };
+  if (conn.credential) {
+    headers.Authorization = `Bearer ${conn.credential}`;
+  }
+  return { url, headers };
+}
+
+async function classifyProbeResponse(
+  conn: ProviderConnection,
+  response: Response,
+  startTime: number,
+  now: number,
+): Promise<ConnectionHealthReport | null> {
+  const latencyMs = Date.now() - startTime;
+  if (response.status >= 300 && response.status < 400) {
+    return buildMisconfiguredReport(conn.id, latencyMs, `HTTP Redirect (${response.status}) forbidden on AI connection (Anti-SSRF).`, now);
+  }
+  if (response.status === 401 || response.status === 403) {
+    return buildMisconfiguredReport(conn.id, latencyMs, `Authentication failed (HTTP ${response.status}). Check API key/credential.`, now);
+  }
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    return buildMisconfiguredReport(conn.id, latencyMs, `HTTP ${response.status}: ${errorText.slice(0, 150)}`, now);
+  }
+  return null;
+}
+
+/**
  * Probes the /v1/models endpoint for an OpenAI-compatible connection.
  */
 export async function probeConnectionHealth(
@@ -96,16 +197,7 @@ export async function probeConnectionHealth(
   try {
     validateConnectionTrustZone(conn);
   } catch (err: any) {
-    const report: ConnectionHealthReport = {
-      connectionId: conn.id,
-      status: 'misconfigured',
-      latencyMs: 0,
-      models: [],
-      lastChecked: new Date().toISOString(),
-      errorMessage: `Policy validation error: ${err.message}`,
-    };
-    HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-    return report;
+    return buildMisconfiguredReport(conn.id, 0, `Policy validation error: ${err.message}`, now);
   }
 
   // Typed-judgment (System One) connections probe GET /models on the same
@@ -114,16 +206,7 @@ export async function probeConnectionHealth(
   const timeoutMs = conn.connectTimeoutMs ?? 2000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  const cleanBase = conn.baseUrl.replace(/\/+$/, '');
-  const url = `${cleanBase}/models`;
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'User-Agent': 'BaystateCMS-HealthProbe/1.0',
-  };
-  if (conn.credential) {
-    headers.Authorization = `Bearer ${conn.credential}`;
-  }
+  const { url, headers } = buildProbeRequest(conn);
 
   try {
     const response = await fetch(url, {
@@ -133,97 +216,26 @@ export async function probeConnectionHealth(
       signal: controller.signal,
     });
     clearTimeout(timer);
+
+    const classified = await classifyProbeResponse(conn, response, startTime, now);
+    if (classified) return classified;
     const latencyMs = Date.now() - startTime;
 
-    if (response.status >= 300 && response.status < 400) {
-      const report: ConnectionHealthReport = {
-        connectionId: conn.id,
-        status: 'misconfigured',
-        latencyMs,
-        models: [],
-        lastChecked: new Date().toISOString(),
-        errorMessage: `HTTP Redirect (${response.status}) forbidden on AI connection (Anti-SSRF).`,
-      };
-      HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-      return report;
-    }
-
-    if (response.status === 401 || response.status === 403) {
-      const report: ConnectionHealthReport = {
-        connectionId: conn.id,
-        status: 'misconfigured',
-        latencyMs,
-        models: [],
-        lastChecked: new Date().toISOString(),
-        errorMessage: `Authentication failed (HTTP ${response.status}). Check API key/credential.`,
-      };
-      HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-      return report;
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      const report: ConnectionHealthReport = {
-        connectionId: conn.id,
-        status: 'misconfigured',
-        latencyMs,
-        models: [],
-        lastChecked: new Date().toISOString(),
-        errorMessage: `HTTP ${response.status}: ${errorText.slice(0, 150)}`,
-      };
-      HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-      return report;
-    }
-
     const data: unknown = await response.json();
-    const rawList: unknown[] = Array.isArray(data) ? data
-      : (data !== null && typeof data === 'object' && 'data' in data && Array.isArray(data.data) ? data.data
-      : (data !== null && typeof data === 'object' && 'models' in data && Array.isArray(data.models) ? data.models : []));
-    const parsedModels: Array<DiscoveredModel | null> = rawList
-      .map((item: unknown): DiscoveredModel | null => {
-        if (item === null || typeof item !== 'object') return null;
-        const record = item as Record<string, unknown>;
-        const rawId = typeof record.id === 'string' ? record.id
-          : (typeof record.name === 'string' ? record.name : null);
-        if (!rawId) return null;
-        const id: string = rawId;
-        const caps = inferModelCapabilities(id);
-        const ownedBy = typeof record.owned_by === 'string' ? record.owned_by : undefined;
-        const model: DiscoveredModel = {
-          id,
-          label: id,
-          ownedBy,
-          ...caps,
-        };
-        return model;
-      });
-    const models: DiscoveredModel[] = parsedModels.filter((m): m is DiscoveredModel => m !== null);
+    const models = extractRawModelList(data)
+      .map(parseDiscoveredModel)
+      .filter((m): m is DiscoveredModel => m !== null);
 
-    const report: ConnectionHealthReport = {
+    return cacheAndReturnHealthReport(conn.id, {
       connectionId: conn.id,
       status: 'online',
       latencyMs,
       models,
       lastChecked: new Date().toISOString(),
-    };
-    HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-    return report;
+    }, now);
   } catch (err: any) {
     clearTimeout(timer);
-    const latencyMs = Date.now() - startTime;
-    const isTimeout = err?.name === 'AbortError' || err?.name === 'TimeoutError';
-    const report: ConnectionHealthReport = {
-      connectionId: conn.id,
-      status: 'unreachable',
-      latencyMs,
-      models: [],
-      lastChecked: new Date().toISOString(),
-      errorMessage: isTimeout
-        ? `Connection timed out after ${timeoutMs}ms (Host offline or unreachable).`
-        : `Network error: ${err?.message || 'Connection refused'}`,
-    };
-    HEALTH_CACHE.set(conn.id, { report, expiresAt: now + CACHE_TTL_MS });
-    return report;
+    return buildUnreachableReport(conn, startTime, timeoutMs, err, now);
   }
 }
 

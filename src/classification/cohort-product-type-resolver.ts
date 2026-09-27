@@ -95,6 +95,251 @@ export interface DeterministicTypeMatchResult {
   source: 'keyword' | null;
 }
 
+// ─── C3a helpers (complexity/duplication extraction) ─────────────────────────
+// Each helper is intentionally tiny (<60 lines, <20 cyclomatic) so the Fallow
+// complexity gate passes per-function. Behavior preserved verbatim: same
+// field mapping, same ordering, same confidence floors, same OCR binding.
+// Frozen execution hashes unchanged — helpers only hoist byte-identical blocks.
+
+type ProjectionEvidenceContext = {
+  sku: string;
+  runId: string;
+  sourceUrl: string | null;
+  ext: ExecutionEvidenceProjectionMemberV1['extraction'];
+  identity: ExecutionEvidenceProjectionMemberV1['spreadsheetIdentity'];
+  extV2: ExecutionEvidenceProjectionMemberV2['extraction'] | null;
+  distributorSource: boolean;
+  distributorMetadata: Record<string, unknown> | undefined;
+  pageSource: ClassificationEvidence['source'];
+  pageEvidenceUrl: string | null;
+};
+
+function resolveProjectionEvidenceContext(
+  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
+  options: EvidenceFromProjectionOptions,
+): ProjectionEvidenceContext {
+  const sku = options.productSku ?? memberProjection.productSku ?? '';
+  const runId = options.runId ?? '';
+  const sourceUrl = memberProjection.sourceUrl;
+  const ext = memberProjection.extraction;
+  const identity = memberProjection.spreadsheetIdentity;
+  const extV2 =
+    'itemSourceType' in memberProjection
+      ? (memberProjection as ExecutionEvidenceProjectionMemberV2).extraction
+      : null;
+  const sourceProvenance = sourceProvenanceFromMember(memberProjection);
+  const distributorSource = sourceProvenance.itemSourceType === 'distributor_record';
+  const distributorMetadata = distributorSource
+    ? {
+        provenance: 'distributor_record',
+        providerIds: sourceProvenance.providerIds,
+        acceptedEvidenceAttemptIds: sourceProvenance.acceptedEvidenceAttemptIds,
+        sourcingGenerationId: sourceProvenance.sourcingGenerationId,
+        evidenceHash: sourceProvenance.distributorEvidenceHash,
+        fieldProvenance: ext.fieldProvenance ?? {},
+      }
+    : undefined;
+  const pageSource: ClassificationEvidence['source'] = distributorSource
+    ? 'distributor_record'
+    : 'official_product_page';
+  const pageEvidenceUrl = distributorSource ? null : sourceUrl;
+  return { sku, runId, sourceUrl, ext, identity, extV2, distributorSource, distributorMetadata, pageSource, pageEvidenceUrl };
+}
+
+type EvidencePush = (entry: Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>) => void;
+
+function pushSpreadsheetIdentity(push: EvidencePush, identity: ProjectionEvidenceContext['identity']): void {
+  push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'name', snippet: identity.name.slice(0, 300), value: identity.name, metadata: { provenance: 'spreadsheet_import' } });
+  if (identity.expectedName && identity.expectedName !== identity.name) {
+    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'expected_name', snippet: identity.expectedName.slice(0, 300), value: identity.expectedName, metadata: { provenance: 'spreadsheet_import', refinement: 'discovery_consolidation' } });
+  }
+  if (identity.brandHint) {
+    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'brand', snippet: identity.brandHint.slice(0, 300), value: identity.brandHint, metadata: { provenance: 'spreadsheet_import' } });
+  }
+}
+
+type ProjectionIdentityField = { field: string; value: string; sourceField: string; snippet: string };
+
+function collectBaseIdentityFields(ext: ProjectionEvidenceContext['ext']): ProjectionIdentityField[] {
+  const fields: ProjectionIdentityField[] = [];
+  if (ext.title && ext.title.trim()) {
+    fields.push({ field: 'name', value: ext.title, sourceField: 'name', snippet: ext.title.slice(0, 300) });
+  }
+  if (ext.brand && ext.brand.trim()) {
+    fields.push({ field: 'brand', value: ext.brand, sourceField: 'brand', snippet: ext.brand.slice(0, 300) });
+  }
+  if (ext.weight && ext.weight.trim()) {
+    fields.push({ field: 'weight', value: ext.weight, sourceField: 'weight', snippet: ext.weight.slice(0, 300) });
+  }
+  return fields;
+}
+
+function collectDistributorIdentityFields(
+  extV2: ProjectionEvidenceContext['extV2'],
+): ProjectionIdentityField[] {
+  const fields: ProjectionIdentityField[] = [];
+  if (extV2?.distributorSku && extV2.distributorSku.trim()) {
+    fields.push({ field: 'distributorSku', value: extV2.distributorSku, sourceField: 'distributor_sku', snippet: extV2.distributorSku.slice(0, 300) });
+  }
+  if (extV2?.manufacturerPartNumber && extV2.manufacturerPartNumber.trim()) {
+    fields.push({ field: 'manufacturerPartNumber', value: extV2.manufacturerPartNumber, sourceField: 'manufacturer_part_number', snippet: extV2.manufacturerPartNumber.slice(0, 300) });
+  }
+  for (const [key, rawVal] of Object.entries(extV2?.variantAttributes ?? {})) {
+    const value = String(rawVal ?? '').trim();
+    if (!value) continue;
+    fields.push({ field: key, value, sourceField: key, snippet: value.slice(0, 300) });
+  }
+  return fields;
+}
+
+function collectProjectionIdentityFields(ctx: ProjectionEvidenceContext): ProjectionIdentityField[] {
+  const fields = collectBaseIdentityFields(ctx.ext);
+  if (ctx.distributorSource) {
+    fields.push(...collectDistributorIdentityFields(ctx.extV2));
+  }
+  return fields;
+}
+
+function pushIdentityFields(
+  push: EvidencePush,
+  identityFields: ProjectionIdentityField[],
+  ctx: ProjectionEvidenceContext,
+): void {
+  for (const f of identityFields) {
+    push({
+      attributeId: null,
+      source: ctx.pageSource,
+      reliability: 'medium',
+      sourceUrl: ctx.pageEvidenceUrl,
+      sourceField: f.sourceField,
+      snippet: f.snippet,
+      value: f.value,
+      metadata: ctx.distributorMetadata ?? { provenance: 'official_product_page' },
+    });
+  }
+}
+
+function pushMerchDescriptionBullets(
+  push: EvidencePush,
+  extV2: NonNullable<ProjectionEvidenceContext['extV2']>,
+  pageSource: ClassificationEvidence['source'],
+  pageEvidenceUrl: string | null,
+  merchMetadata: Record<string, unknown>,
+): void {
+  if (extV2.description && extV2.description.trim()) {
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'description', snippet: extV2.description.slice(0, 500), value: extV2.description, metadata: merchMetadata });
+  }
+  for (const bullet of extV2.bulletPoints ?? []) {
+    if (!bullet || !String(bullet).trim()) continue;
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: merchMetadata });
+  }
+}
+
+function pushMerchScalars(
+  push: EvidencePush,
+  extV2: NonNullable<ProjectionEvidenceContext['extV2']>,
+  pageSource: ClassificationEvidence['source'],
+  pageEvidenceUrl: string | null,
+  merchMetadata: Record<string, unknown>,
+): void {
+  const merchScalars: Array<{ sourceField: string; value: string | null }> = [
+    { sourceField: 'distributor_category', value: (extV2 as { distributorCategory?: string | null }).distributorCategory ?? null },
+    { sourceField: 'dimensions', value: (extV2 as { dimensions?: string | null }).dimensions ?? null },
+    { sourceField: 'case_pack', value: (extV2 as { casePack?: string | null }).casePack ?? null },
+    { sourceField: 'unit_of_measure', value: (extV2 as { unitOfMeasure?: string | null }).unitOfMeasure ?? null },
+    { sourceField: 'ingredients', value: (extV2 as { ingredients?: string | null }).ingredients ?? null },
+  ];
+  for (const item of merchScalars) {
+    const trimmed = (item.value ?? '').trim();
+    if (!trimmed) continue;
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: item.sourceField, snippet: trimmed.slice(0, 300), value: trimmed, metadata: merchMetadata });
+  }
+}
+
+function pushDistributorMerchandising(
+  push: EvidencePush,
+  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
+  ctx: ProjectionEvidenceContext,
+): void {
+  const { extV2, distributorSource, pageSource, pageEvidenceUrl, distributorMetadata } = ctx;
+  const isV2Distributor =
+    distributorSource &&
+    extV2 != null &&
+    (memberProjection as ExecutionEvidenceProjectionMemberV2).extractionMethod === 'distributor_record_v2';
+  if (!isV2Distributor || !extV2) return;
+  const merchMetadata = {
+    ...(distributorMetadata ?? {}),
+    merchandisingProvenance: (extV2 as { merchandisingProvenance?: Record<string, unknown> }).merchandisingProvenance ?? {},
+  };
+  pushMerchDescriptionBullets(push, extV2, pageSource, pageEvidenceUrl, merchMetadata);
+  pushMerchScalars(push, extV2, pageSource, pageEvidenceUrl, merchMetadata);
+}
+
+function pushOfficialPageFields(push: EvidencePush, ctx: ProjectionEvidenceContext): void {
+  const { ext, distributorSource, pageSource, sourceUrl } = ctx;
+  if (distributorSource) return;
+  if (ext.description && ext.description.trim()) {
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'description', snippet: ext.description.slice(0, 500), value: ext.description, metadata: { provenance: 'official_product_page' } });
+  }
+  for (const bullet of ext.bulletPoints) {
+    if (!bullet || !bullet.trim()) continue;
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: { provenance: 'official_product_page' } });
+  }
+  if (ext.searchKeywords && ext.searchKeywords.trim()) {
+    push({ attributeId: null, source: pageSource, reliability: 'low', sourceUrl, sourceField: 'search_keywords', snippet: ext.searchKeywords.slice(0, 300), value: ext.searchKeywords, metadata: { provenance: 'product_data' } });
+  }
+  for (const [key, rawVal] of Object.entries(ext.customFields)) {
+    const value = String(rawVal ?? '').trim();
+    if (!value) continue;
+    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: key, snippet: value.slice(0, 300), value, metadata: { provenance: 'product_data' } });
+  }
+}
+
+function ocrInputHashMatches(
+  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
+  ext: ProjectionEvidenceContext['ext'],
+): boolean {
+  const frozenOcr = ext.ocr;
+  if (frozenOcr.packagingOcrData == null) return false;
+  return hashCanonicalJson({
+    sourceUrl: memberProjection.sourceUrl,
+    extractionSourceUrl: memberProjection.extractionSourceUrl,
+    primaryImage: ext.primaryImage,
+    additionalImages: ext.additionalImages,
+  }) === frozenOcr.ocrInputHash;
+}
+
+function ocrExecutionDigestBound(
+  frozenOcr: ProjectionEvidenceContext['ext']['ocr'],
+  expectedDigest: string | null | undefined,
+  hasExpected: boolean,
+): boolean {
+  if (hasExpected) {
+    return expectedDigest !== null && frozenOcr.ocrExecutionDigest === expectedDigest;
+  }
+  return frozenOcr.ocrExecutionDigest !== null;
+}
+
+function materializeFrozenOcr(
+  evidence: ClassificationEvidence[],
+  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
+  ctx: ProjectionEvidenceContext,
+  expectedDigest: string | null | undefined,
+  hasExpected: boolean,
+): void {
+  const frozenOcr = ctx.ext.ocr;
+  if (!frozenOcr.packagingOcrData) return;
+  if (!ocrInputHashMatches(memberProjection, ctx.ext)) return;
+  if (!ocrExecutionDigestBound(frozenOcr, expectedDigest, hasExpected)) return;
+  const modelCallIds = frozenOcr.packagingOcrData.metadata?.modelCallIds;
+  evidence.push(...packagingOcrDataToEvidence(frozenOcr.packagingOcrData, {
+    runId: ctx.runId,
+    sku: ctx.sku,
+    model: frozenOcr.outcome?.model ?? 'unknown',
+    ...(Array.isArray(modelCallIds) && modelCallIds.length > 0 ? { modelCallIds } : {}),
+  }));
+}
+
 /**
  * Build the per-member evidence records purely from a frozen
  * `execution-evidence-v1` projection member — a projection-only mirror of the
@@ -125,202 +370,26 @@ export function evidenceFromProjection(
   options: EvidenceFromProjectionOptions = {},
 ): ClassificationEvidence[] {
   const evidence: ClassificationEvidence[] = [];
-  const sku = options.productSku ?? memberProjection.productSku ?? '';
-  const runId = options.runId ?? '';
-  const sourceUrl = memberProjection.sourceUrl;
-  const ext = memberProjection.extraction;
-  const identity = memberProjection.spreadsheetIdentity;
-  // V2 members carry the distributor identity fields (SKU/MPN/variants); V1
-  // members normalize to official-page provenance and have none.
-  const extV2 =
-    'itemSourceType' in memberProjection
-      ? (memberProjection as ExecutionEvidenceProjectionMemberV2).extraction
-      : null;
+  const ctx = resolveProjectionEvidenceContext(memberProjection, options);
 
-  // Milestone E: source-kind/provenance binding of the frozen member. A
-  // distributor-record member is a THIRD-PARTY evidence source: its
-  // classification evidence uses source='distributor_record', a null
-  // classification URL, identity-only fields, and provenance metadata — and
-  // is NEVER labeled 'official_product_page'. V1 members normalize to
-  // official-page provenance (distributor routing did not exist then).
-  const sourceProvenance = sourceProvenanceFromMember(memberProjection);
-  const distributorSource = sourceProvenance.itemSourceType === 'distributor_record';
-  const distributorMetadata = distributorSource
-    ? {
-        provenance: 'distributor_record',
-        providerIds: sourceProvenance.providerIds,
-        acceptedEvidenceAttemptIds: sourceProvenance.acceptedEvidenceAttemptIds,
-        sourcingGenerationId: sourceProvenance.sourcingGenerationId,
-        evidenceHash: sourceProvenance.distributorEvidenceHash,
-        // Per-field provenance from the frozen member (Milestone E review):
-        // distributor identity evidence carries the same field-level
-        // provenance the main evidence-extraction stage emits.
-        fieldProvenance: ext.fieldProvenance ?? {},
-      }
-    : undefined;
-  const pageSource: ClassificationEvidence['source'] = distributorSource
-    ? 'distributor_record'
-    : 'official_product_page';
-  // Distributor evidence carries NO classification URL (identity-only; the
-  // real distributor page URL stays on the immutable evidence attempt).
-  const pageEvidenceUrl = distributorSource ? null : sourceUrl;
-
-  const push = (entry: Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>): void => {
+  const push: EvidencePush = (entry) => {
     evidence.push({
       ...entry,
       id: randomUUID(),
-      runId,
+      runId: ctx.runId,
       stageName: 'evidence_extraction',
-      productSku: sku,
+      productSku: ctx.sku,
       capturedAt: now(),
     } as ClassificationEvidence);
   };
 
-  // ── Spreadsheet identity (frozen spreadsheet hints) ────────────────────
-  push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'name', snippet: identity.name.slice(0, 300), value: identity.name, metadata: { provenance: 'spreadsheet_import' } });
-  if (identity.expectedName && identity.expectedName !== identity.name) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'expected_name', snippet: identity.expectedName.slice(0, 300), value: identity.expectedName, metadata: { provenance: 'spreadsheet_import', refinement: 'discovery_consolidation' } });
-  }
-  if (identity.brandHint) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'brand', snippet: identity.brandHint.slice(0, 300), value: identity.brandHint, metadata: { provenance: 'spreadsheet_import' } });
-  }
+  pushSpreadsheetIdentity(push, ctx.identity);
+  pushIdentityFields(push, collectProjectionIdentityFields(ctx), ctx);
+  pushDistributorMerchandising(push, memberProjection, ctx);
+  pushOfficialPageFields(push, ctx);
 
-  // ── Normalized extraction fields ────────────────────────────────────────
-  // Distributor-record members carry IDENTITY-ONLY extraction data: title/
-  // brand/weight only — never description, bullets, search keywords, or
-  // arbitrary custom fields (those would elevate third-party copy into
-  // classification evidence). Official-page members keep the full mapping.
-  const identityFields: Array<{ field: string; value: string; sourceField: string; snippet: string }> = [];
-  if (ext.title && ext.title.trim()) {
-    identityFields.push({ field: 'name', value: ext.title, sourceField: 'name', snippet: ext.title.slice(0, 300) });
-  }
-  if (ext.brand && ext.brand.trim()) {
-    identityFields.push({ field: 'brand', value: ext.brand, sourceField: 'brand', snippet: ext.brand.slice(0, 300) });
-  }
-  if (ext.weight && ext.weight.trim()) {
-    identityFields.push({ field: 'weight', value: ext.weight, sourceField: 'weight', snippet: ext.weight.slice(0, 300) });
-  }
-  // Milestone E review: distributor identity evidence includes the frozen
-  // distributor SKU, MPN, and whitelisted variant attributes (identity fields
-  // present in the V2 member extraction) — matching the main evidence-
-  // extraction stage's distributor mapping. Never copy/images/claims.
-  if (distributorSource) {
-    if (extV2?.distributorSku && extV2.distributorSku.trim()) {
-      identityFields.push({ field: 'distributorSku', value: extV2.distributorSku, sourceField: 'distributor_sku', snippet: extV2.distributorSku.slice(0, 300) });
-    }
-    if (extV2?.manufacturerPartNumber && extV2.manufacturerPartNumber.trim()) {
-      identityFields.push({ field: 'manufacturerPartNumber', value: extV2.manufacturerPartNumber, sourceField: 'manufacturer_part_number', snippet: extV2.manufacturerPartNumber.slice(0, 300) });
-    }
-    for (const [key, rawVal] of Object.entries(extV2?.variantAttributes ?? {})) {
-      const value = String(rawVal ?? '').trim();
-      if (!value) continue;
-      identityFields.push({ field: key, value, sourceField: key, snippet: value.slice(0, 300) });
-    }
-  }
-  for (const f of identityFields) {
-    push({
-      attributeId: null,
-      source: pageSource,
-      reliability: 'medium',
-      sourceUrl: pageEvidenceUrl,
-      sourceField: f.sourceField,
-      snippet: f.snippet,
-      value: f.value,
-      metadata: distributorMetadata ?? { provenance: 'official_product_page' },
-    });
-  }
-
-  // Amendment B merchandising mirror (M5b-1): a VERIFIED v2 distributor member
-  // (`extractionMethod === 'distributor_record_v2'`) emits the SAME explicit
-  // merchandising fields as the frozen evidence stage — description, each
-  // feature as bullet_point, distributor_category, dimensions, case_pack,
-  // unit_of_measure, ingredients — so freeze-time deterministic matching and
-  // run-time evidence extraction cannot diverge. V1 members stay identity-only;
-  // price/inventory/images/search-keywords/arbitrary fields never appear.
-  const isV2Distributor =
-    distributorSource &&
-    extV2 != null &&
-    (memberProjection as ExecutionEvidenceProjectionMemberV2).extractionMethod === 'distributor_record_v2';
-  if (isV2Distributor && extV2) {
-    const merchMetadata = {
-      ...(distributorMetadata ?? {}),
-      merchandisingProvenance: (extV2 as { merchandisingProvenance?: Record<string, unknown> }).merchandisingProvenance ?? {},
-    };
-    if (extV2.description && extV2.description.trim()) {
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'description', snippet: extV2.description.slice(0, 500), value: extV2.description, metadata: merchMetadata });
-    }
-    for (const bullet of extV2.bulletPoints ?? []) {
-      if (!bullet || !String(bullet).trim()) continue;
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: merchMetadata });
-    }
-    const merchScalars: Array<{ sourceField: string; value: string | null }> = [
-      { sourceField: 'distributor_category', value: (extV2 as { distributorCategory?: string | null }).distributorCategory ?? null },
-      { sourceField: 'dimensions', value: (extV2 as { dimensions?: string | null }).dimensions ?? null },
-      { sourceField: 'case_pack', value: (extV2 as { casePack?: string | null }).casePack ?? null },
-      { sourceField: 'unit_of_measure', value: (extV2 as { unitOfMeasure?: string | null }).unitOfMeasure ?? null },
-      { sourceField: 'ingredients', value: (extV2 as { ingredients?: string | null }).ingredients ?? null },
-    ];
-    for (const item of merchScalars) {
-      const trimmed = (item.value ?? '').trim();
-      if (!trimmed) continue;
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: item.sourceField, snippet: trimmed.slice(0, 300), value: trimmed, metadata: merchMetadata });
-    }
-  }
-
-  if (!distributorSource) {
-    if (ext.description && ext.description.trim()) {
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'description', snippet: ext.description.slice(0, 500), value: ext.description, metadata: { provenance: 'official_product_page' } });
-    }
-    for (const bullet of ext.bulletPoints) {
-      if (!bullet || !bullet.trim()) continue;
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: { provenance: 'official_product_page' } });
-    }
-    if (ext.searchKeywords && ext.searchKeywords.trim()) {
-      push({ attributeId: null, source: pageSource, reliability: 'low', sourceUrl, sourceField: 'search_keywords', snippet: ext.searchKeywords.slice(0, 300), value: ext.searchKeywords, metadata: { provenance: 'product_data' } });
-    }
-    for (const [key, rawVal] of Object.entries(ext.customFields)) {
-      const value = String(rawVal ?? '').trim();
-      if (!value) continue;
-      push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: key, snippet: value.slice(0, 300), value, metadata: { provenance: 'product_data' } });
-    }
-  }
-
-  // ── FROZEN packaging OCR materialization (NO model call) ────────────────
-  const frozenOcr = ext.ocr;
-  const ocrInputHashMatches =
-    frozenOcr.packagingOcrData != null &&
-    hashCanonicalJson({
-      sourceUrl: memberProjection.sourceUrl,
-      extractionSourceUrl: memberProjection.extractionSourceUrl,
-      primaryImage: ext.primaryImage,
-      additionalImages: ext.additionalImages,
-    }) === frozenOcr.ocrInputHash;
-  // Execution-authority binding: the freeze verified the stored OCR against
-  // the member snapshot's plan/rule digest and persisted the digest into the
-  // content-addressed projection. A projection without a digest predates the
-  // binding (PR3 hardening) and is never materialized (fail-closed mirror).
-  // PR12 review R1: when an EXPECTED digest is supplied, the stored digest
-  // must EXACTLY equal the CURRENT authority's digest — stale persisted OCR
-  // (non-null but computed under an older authority) is rejected read-only.
-  // PR13 C4 (the literal contract): `expected !== undefined ?
-  // expected !== null && stored === expected : stored !== null` — an
-  // explicitly supplied `null` expected digest rejects OCR ENTIRELY and can
-  // NEVER match a stored `null` (a digest comparison under no expected
-  // authority would bless unverifiable OCR).
-  const executionDigestBound =
-    options.expectedOcrExecutionDigest !== undefined
-      ? options.expectedOcrExecutionDigest !== null &&
-        frozenOcr.ocrExecutionDigest === options.expectedOcrExecutionDigest
-      : frozenOcr.ocrExecutionDigest !== null;
-  if (frozenOcr.packagingOcrData && ocrInputHashMatches && executionDigestBound) {
-    const modelCallIds = frozenOcr.packagingOcrData.metadata?.modelCallIds;
-    evidence.push(...packagingOcrDataToEvidence(frozenOcr.packagingOcrData, {
-      runId,
-      sku,
-      model: frozenOcr.outcome?.model ?? 'unknown',
-      ...(Array.isArray(modelCallIds) && modelCallIds.length > 0 ? { modelCallIds } : {}),
-    }));
-  }
+  const hasExpected = options.expectedOcrExecutionDigest !== undefined;
+  materializeFrozenOcr(evidence, memberProjection, ctx, options.expectedOcrExecutionDigest, hasExpected);
 
   return evidence;
 }

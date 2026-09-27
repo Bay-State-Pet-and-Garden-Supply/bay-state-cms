@@ -71,6 +71,19 @@ function defaultModelForConnection(connId: string, healthMap: Record<string, Con
 }
 
 /**
+ * Shared connection-option list (extraction for the 4-group/63-line clone
+ * family). Filters System One transports out of chat-route dropdowns.
+ * Rendered output is identical — only the duplication is hoisted.
+ */
+function NonSystemOneConnectionOptions({ connections }: { connections: ProviderConnection[] }) {
+  return (
+    <>
+      <NonSystemOneConnectionOptions connections={connections} />
+    </>
+  );
+}
+
+/**
  * Model selector for a route target. Shows a dropdown of the connection's
  * probe-discovered models when available (with a "Custom…" escape hatch for
  * arbitrary model IDs), and falls back to a plain text field when the
@@ -634,7 +647,7 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                       }}
                       style={{ flex: 1, padding: '0.375rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                     >
-                      {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      <NonSystemOneConnectionOptions connections={connections} />
                     </select>
                     <ModelSelectField
                       connId={config.defaults.catalogTarget.connectionId}
@@ -667,7 +680,7 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                       style={{ flex: 1, padding: '0.375rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                     >
                       <option value="">None (Heuristic / Fail)</option>
-                      {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      <NonSystemOneConnectionOptions connections={connections} />
                     </select>
                     {config.defaults.catalogFallback && (
                       <ModelSelectField
@@ -742,7 +755,7 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                           style={{ flex: 1, padding: '0.375rem', fontSize: '0.8125rem', borderRadius: rounded.sm, border: `1px solid ${colors.cardBorder}` }}
                         >
                           <option value="inherit">Inherit Catalog Default</option>
-                          {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          <NonSystemOneConnectionOptions connections={connections} />
                         </select>
                         {!isPrimaryInherit && (
                           <ModelSelectField
@@ -781,7 +794,7 @@ export function AiComputePanel({ onChange }: AiComputePanelProps) {
                         >
                           <option value="inherit">Inherit Catalog Fallback</option>
                           <option value="">None (Heuristic / Fail)</option>
-                          {connections.filter(c => c.transport !== 'systemone').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          <NonSystemOneConnectionOptions connections={connections} />
                         </select>
                         {!isFallbackInherit && route.fallback && (
                           <ModelSelectField

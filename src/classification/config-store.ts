@@ -364,6 +364,20 @@ function readGitHead(workspacePath: string): string | null {
   return result.status === 0 && result.stdout ? result.stdout : null;
 }
 
+/**
+ * Shared git staging helper (extraction for the config-store clone group).
+ * Runs `git add` for the given specs, then lists staged paths. Error code
+ * and message (`git_add_failed`) are preserved verbatim.
+ */
+function stagePathsViaGit(workspacePath: string, addSpecs: string[]): string[] {
+  const addResult = runGit(workspacePath, ['add', '--', ...addSpecs]);
+  if (addResult.status !== 0) {
+    throw new ConfigStoreError(`git add failed: ${addResult.stdout}`, 'git_add_failed');
+  }
+  const stagedResult = runGit(workspacePath, ['diff', '--cached', '--name-only']);
+  return stagedResult.stdout.split('\n').filter(Boolean);
+}
+
 function assertNoPreStagedPaths(workspacePath: string): void {
   const result = runGit(workspacePath, ['diff', '--cached', '--name-only']);
   if (result.status !== 0) {
@@ -389,12 +403,7 @@ export function commitClassificationScope(workspacePath: string, message: string
   }
   assertNoPreStagedPaths(workspacePath);
 
-  const addResult = runGit(workspacePath, ['add', '--', 'store/classification']);
-  if (addResult.status !== 0) {
-    throw new ConfigStoreError(`git add failed: ${addResult.stdout}`, 'git_add_failed');
-  }
-  const stagedResult = runGit(workspacePath, ['diff', '--cached', '--name-only']);
-  const stagedPaths = stagedResult.stdout.split('\n').filter(Boolean);
+  const stagedPaths = stagePathsViaGit(workspacePath, ['store/classification']);
   const outOfScope = stagedPaths.filter(stagedPath => !stagedPath.startsWith('store/classification/'));
   if (outOfScope.length > 0) {
     runGit(workspacePath, ['reset', '--', ...outOfScope]);
@@ -744,13 +753,7 @@ export async function updateClassificationPolicy(
     let commitHash: string | null = null;
     if (options.gitEnabled !== false) {
       try {
-        const addResult = runGit(workspacePath, ['add', '--', ...POLICY_ALLOWLIST]);
-        if (addResult.status !== 0) {
-          throw new ConfigStoreError(`git add failed: ${addResult.stdout}`, 'git_add_failed');
-        }
-
-        const stagedResult = runGit(workspacePath, ['diff', '--cached', '--name-only']);
-        const stagedPaths = stagedResult.stdout.split('\n').filter(Boolean);
+        const stagedPaths = stagePathsViaGit(workspacePath, [...POLICY_ALLOWLIST]);
         const outOfScope = stagedPaths.filter(p => !POLICY_ALLOWLIST.includes(p as any));
         if (outOfScope.length > 0) {
           runGit(workspacePath, ['reset', '--', ...stagedPaths]);

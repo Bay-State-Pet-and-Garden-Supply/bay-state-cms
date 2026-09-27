@@ -172,50 +172,63 @@ describe('TypeSafe Jev Cohort Page Seam Verification (Issue #301)', () => {
     modelExecutionPlan,
   } as unknown as RuntimeClassificationSnapshot;
 
+  /**
+   * Shared fixture builders (complexity extraction only — test behavior
+   * identical). Hoists the choice/noul answer construction out of the mock
+   * so the mock stays below the complexity thresholds.
+   */
+  function buildMockChoiceAnswer(qid: string, q: any, getProbability?: (qid: string, question: any) => any) {
+    const criteriaKeys = Object.keys(q.criteria);
+    const custom = getProbability ? getProbability(qid, q) : null;
+    let chosenKey: string;
+    let chosenProb: number;
+
+    if (custom && typeof custom === 'object' && custom.choice) {
+      chosenKey = custom.choice;
+      chosenProb = custom.probability ?? 0.90;
+    } else {
+      const match = criteriaKeys.find(k => q.criteria[k].includes('Dry Dog Food')) || criteriaKeys[0];
+      chosenKey = match;
+      chosenProb = 0.92;
+    }
+
+    const probabilities: Record<string, number> = {};
+    const remainingKeys = criteriaKeys.filter(k => k !== chosenKey);
+    const remainder = (1.0 - chosenProb) / (remainingKeys.length || 1);
+    probabilities[chosenKey] = chosenProb;
+    for (const k of remainingKeys) {
+      probabilities[k] = remainder;
+    }
+
+    return {
+      type: 'choice',
+      choice: chosenKey,
+      probabilities,
+      confidence: chosenProb,
+    };
+  }
+
+  function buildMockNoulAnswer(qid: string, q: any, getProbability?: (qid: string, question: any) => any) {
+    const custom = getProbability ? getProbability(qid, q) : null;
+    let prob = 0.85;
+    if (typeof custom === 'number') {
+      prob = custom;
+    } else if (custom && typeof custom === 'object' && typeof custom.noul === 'number') {
+      prob = custom.noul;
+    }
+    return {
+      type: 'noul',
+      noul: prob,
+    };
+  }
+
   function mockSystemOneResponse(requestBody: any, getProbability?: (qid: string, question: any) => any) {
     const answers: Record<string, any> = {};
     for (const [qid, q] of Object.entries(requestBody.questions as Record<string, any>)) {
       if (q.type === 'choice') {
-        const criteriaKeys = Object.keys(q.criteria);
-        const custom = getProbability ? getProbability(qid, q) : null;
-        let chosenKey: string;
-        let chosenProb: number;
-
-        if (custom && typeof custom === 'object' && custom.choice) {
-          chosenKey = custom.choice;
-          chosenProb = custom.probability ?? 0.90;
-        } else {
-          const match = criteriaKeys.find(k => q.criteria[k].includes('Dry Dog Food')) || criteriaKeys[0];
-          chosenKey = match;
-          chosenProb = 0.92;
-        }
-
-        const probabilities: Record<string, number> = {};
-        const remainingKeys = criteriaKeys.filter(k => k !== chosenKey);
-        const remainder = (1.0 - chosenProb) / (remainingKeys.length || 1);
-        probabilities[chosenKey] = chosenProb;
-        for (const k of remainingKeys) {
-          probabilities[k] = remainder;
-        }
-
-        answers[qid] = {
-          type: 'choice',
-          choice: chosenKey,
-          probabilities,
-          confidence: chosenProb,
-        };
+        answers[qid] = buildMockChoiceAnswer(qid, q, getProbability);
       } else if (q.type === 'noul') {
-        const custom = getProbability ? getProbability(qid, q) : null;
-        let prob = 0.85;
-        if (typeof custom === 'number') {
-          prob = custom;
-        } else if (custom && typeof custom === 'object' && typeof custom.noul === 'number') {
-          prob = custom.noul;
-        }
-        answers[qid] = {
-          type: 'noul',
-          noul: prob,
-        };
+        answers[qid] = buildMockNoulAnswer(qid, q, getProbability);
       }
     }
 
@@ -1049,57 +1062,74 @@ describe('TypeSafe Jev Cohort Page Seam Verification (Issue #301)', () => {
     });
   });
 
+  /**
+   * Mixed Pet & Garden cohort fixture builder (complexity extraction only —
+   * test behavior identical). Hoists the inline product list out of the
+   * Criterion 10 test body.
+   */
+  function makeMixedCohortProducts(): ProductLineItemSnapshot[] {
+    return [
+      {
+        sku: 'SKU-MIXED-DOG-DRY',
+        name: 'Fromm Gold Adult Dry Dog Food 26 lb',
+        webTitle: 'Fromm Gold Adult Dry Dog Food',
+        brand: 'Fromm',
+        description: 'Premium wholesome dog food.',
+        species: ['Dog'],
+        flavor: 'Chicken',
+        lifeStage: 'Adult',
+        productForm: 'Dry',
+        healthConcern: [],
+      },
+      {
+        sku: 'SKU-MIXED-CAT-WET',
+        name: 'Fromm Gold Chicken Pate Wet Cat Food 5.5 oz',
+        webTitle: 'Fromm Gold Chicken Pate Cat Food',
+        brand: 'Fromm',
+        description: 'Finely minced chicken pate for adult cats.',
+        species: ['Cat'],
+        flavor: 'Chicken',
+        lifeStage: 'Adult',
+        productForm: 'Pate',
+        healthConcern: [],
+      },
+      {
+        sku: 'SKU-MIXED-PLANT-FOOD',
+        name: 'Miracle-Gro All Purpose Plant Food 5 lb',
+        webTitle: 'Miracle-Gro Water Soluble Plant Food',
+        brand: 'Miracle-Gro',
+        description: 'Instantly feeds all flowers, vegetables, and houseplants.',
+        species: [],
+        flavor: null,
+        lifeStage: null,
+        productForm: 'Granular',
+        healthConcern: [],
+      },
+    ];
+  }
+
+  /**
+   * Mixed-cohort fetch mock builder (complexity extraction only — test
+   * behavior identical).
+   */
+  function buildMixedCohortMockFetch(): (url: any, init: any) => Promise<Response> {
+    return async (_url: any, init: any) => {
+      const body = JSON.parse(init.body);
+      return mockSystemOneResponse(body, (qid) => {
+        if (qid.includes('SKU-MIXED-DOG-DRY') && qid.includes('dry-dog-food')) return 0.95;
+        if (qid.includes('SKU-MIXED-CAT-WET') && qid.includes('cat-wet')) return 0.93;
+        if (qid.includes('SKU-MIXED-PLANT-FOOD') && qid.includes('plant-food')) return 0.96;
+        return 0.10;
+      });
+    };
+  }
+
   // ── Criterion 10: Mixed Pet & Garden fixture cohort execution ───────────────
   describe('Criterion 10: Mixed Pet & Garden fixture cohort execution', () => {
     it('executes realistic mixed Pet & Garden cohort verifying attributable assignments & benchmark reporting', async () => {
-      const mixedProducts: ProductLineItemSnapshot[] = [
-        {
-          sku: 'SKU-MIXED-DOG-DRY',
-          name: 'Fromm Gold Adult Dry Dog Food 26 lb',
-          webTitle: 'Fromm Gold Adult Dry Dog Food',
-          brand: 'Fromm',
-          description: 'Premium wholesome dog food.',
-          species: ['Dog'],
-          flavor: 'Chicken',
-          lifeStage: 'Adult',
-          productForm: 'Dry',
-          healthConcern: [],
-        },
-        {
-          sku: 'SKU-MIXED-CAT-WET',
-          name: 'Fromm Gold Chicken Pate Wet Cat Food 5.5 oz',
-          webTitle: 'Fromm Gold Chicken Pate Cat Food',
-          brand: 'Fromm',
-          description: 'Finely minced chicken pate for adult cats.',
-          species: ['Cat'],
-          flavor: 'Chicken',
-          lifeStage: 'Adult',
-          productForm: 'Pate',
-          healthConcern: [],
-        },
-        {
-          sku: 'SKU-MIXED-PLANT-FOOD',
-          name: 'Miracle-Gro All Purpose Plant Food 5 lb',
-          webTitle: 'Miracle-Gro Water Soluble Plant Food',
-          brand: 'Miracle-Gro',
-          description: 'Instantly feeds all flowers, vegetables, and houseplants.',
-          species: [],
-          flavor: null,
-          lifeStage: null,
-          productForm: 'Granular',
-          healthConcern: [],
-        },
-      ];
+      const mixedProducts: ProductLineItemSnapshot[] = makeMixedCohortProducts();
 
-      (globalThis as any).fetch = async (_url: any, init: any) => {
-        const body = JSON.parse(init.body);
-        return mockSystemOneResponse(body, (qid) => {
-          if (qid.includes('SKU-MIXED-DOG-DRY') && qid.includes('dry-dog-food')) return 0.95;
-          if (qid.includes('SKU-MIXED-CAT-WET') && qid.includes('cat-wet')) return 0.93;
-          if (qid.includes('SKU-MIXED-PLANT-FOOD') && qid.includes('plant-food')) return 0.96;
-          return 0.10;
-        });
-      };
+      (globalThis as any).fetch = buildMixedCohortMockFetch();
 
       const results = await coordinateCohortPagesWithJev({
         groupId: 'grp-mixed-pet-garden',

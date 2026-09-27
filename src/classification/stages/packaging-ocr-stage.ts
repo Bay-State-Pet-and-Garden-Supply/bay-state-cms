@@ -96,6 +96,49 @@ function hasOcrContent(ocr: PackagingOcrData | undefined | null): boolean {
   return false;
 }
 
+// ─── Shared OCR helpers (packaging-ocr-stage ↔ freeze clone family) ─────────
+// Single canonical home for the 3 shared clone groups (100 lines): image-set
+// collection, single-vs-merged selection, and overall-status computation.
+// `freeze.ts` imports these — behavior preserved verbatim (same cap of 2,
+// same single-vs-merge rule, same status ternary). Content checks stay with
+// the callers (each side keeps its own `hasOcrContent`).
+
+/** Image set: primary + additionalImages up to a TOTAL of 2 (exact cap loop). */
+export function collectOcrImageUrls(ext: {
+  primaryImage?: unknown;
+  additionalImages?: unknown;
+}): string[] {
+  const imageUrls: string[] = [];
+  if (ext.primaryImage) imageUrls.push(String(ext.primaryImage));
+  if (Array.isArray(ext.additionalImages)) {
+    for (const img of ext.additionalImages) {
+      if (imageUrls.length >= 2) break;
+      if (img && String(img).trim()) imageUrls.push(String(img));
+    }
+  }
+  return imageUrls;
+}
+
+/** Single-vs-merged selection (no content check — callers keep their own). */
+export function pickMergedOcrResult(ocrResults: PackagingOcrData[]): PackagingOcrData {
+  return ocrResults.length === 1 ? ocrResults[0] : mergeOcrResults(ocrResults);
+}
+
+/** Overall OCR status from the two legs (identical ternary everywhere). */
+export function computeOverallOcrStatus(input: {
+  localStatus: OcrAttemptOutcome['status'];
+  cloudStatus: OcrAttemptOutcome['status'];
+  imageCount: number;
+  canUseLocalVlm: boolean;
+  canUseCloudImages: boolean;
+}): OcrAttemptOutcome['status'] {
+  const { localStatus, cloudStatus, imageCount, canUseLocalVlm, canUseCloudImages } = input;
+  if (localStatus === 'succeeded' || cloudStatus === 'succeeded') return 'succeeded';
+  if (imageCount === 0) return 'no_image';
+  if (!canUseLocalVlm && !canUseCloudImages) return 'disabled';
+  return 'failed';
+}
+
 /**
  * The canonical OCR input-set hash, byte-compatible with
  * `cohort-curator.computeOcrInputHash(item, extractionSourceUrl)` so a hash
@@ -399,16 +442,9 @@ export const packagingOcrStage: StageDefinition = {
     // never set by the legacy inline path.
     const baselineIsStageAuthored = typeof ext.packagingOcrStageRunId === 'string' && ext.packagingOcrStageRunId.length > 0;
 
-    // Image set: primary + additionalImages up to a TOTAL of 2 — the exact cap
-    // loop used by product-evidence-extractor.ts / cohort-curator.ts today.
-    const imageUrls: string[] = [];
-    if (ext.primaryImage) imageUrls.push(String(ext.primaryImage));
-    if (Array.isArray(ext.additionalImages)) {
-      for (const img of ext.additionalImages) {
-        if (imageUrls.length >= 2) break;
-        if (img && String(img).trim()) imageUrls.push(String(img));
-      }
-    }
+    // Image set: primary + additionalImages up to a TOTAL of 2 — shared helper
+    // (single canonical home for the stage ↔ freeze clone family).
+    const imageUrls = collectOcrImageUrls(ext);
 
     const sku = item.upc;
 
@@ -539,7 +575,7 @@ export const packagingOcrStage: StageDefinition = {
       }
 
       if (ocrResults.length > 0) {
-        const merged = ocrResults.length === 1 ? ocrResults[0] : mergeOcrResults(ocrResults);
+        const merged = pickMergedOcrResult(ocrResults);
         if (hasOcrContent(merged)) {
           localOcrSucceeded = true;
           localStatus = 'succeeded';
@@ -587,14 +623,13 @@ export const packagingOcrStage: StageDefinition = {
       }
     }
 
-    const overallStatus: OcrAttemptOutcome['status'] =
-      localStatus === 'succeeded' || cloudStatus === 'succeeded'
-        ? 'succeeded'
-        : imageUrls.length === 0
-          ? 'no_image'
-          : !canUseLocalVlm && !canUseCloudImages
-            ? 'disabled'
-            : 'failed';
+    const overallStatus = computeOverallOcrStatus({
+      localStatus,
+      cloudStatus,
+      imageCount: imageUrls.length,
+      canUseLocalVlm,
+      canUseCloudImages,
+    });
 
     const ocrOutcome: OcrAttemptOutcome = OcrAttemptOutcomeSchema.parse({
       status: overallStatus,
