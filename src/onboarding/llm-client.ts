@@ -146,7 +146,6 @@ export function getLlmConfig(): LlmConfig | null {
     // route fails closed here rather than silently selecting the legacy
     // api_keys chain (which would bypass the AI Compute privacy boundary).
     if (isAiComputeConfigured()) {
-      if (process.env.CI_DEBUG_ROUTING) console.log('[CI-DEBUG] getLlmConfig: null via configured-authoritative');
       return null;
     }
   } catch {
@@ -247,10 +246,7 @@ function buildConfigFromTaskConfig(
   taskConfig: LlmTaskConfig,
 ): LlmConfig | null {
   const cred = resolveProviderCredential(taskConfig.provider);
-  if (!cred) {
-    if (process.env.CI_DEBUG_ROUTING) console.log(`[CI-DEBUG] buildConfigFromTaskConfig null cred for provider=${taskConfig.provider}`);
-    return null;
-  }
+  if (!cred) return null;
   return {
     provider: taskConfig.provider,
     apiKey: cred.apiKey,
@@ -423,15 +419,6 @@ export function getLlmConfigForTask(
   task: LlmTask,
   options: GetLlmConfigForTaskOptions = {},
 ): LlmConfig | null {
-  // TEMPORARY CI DIAGNOSTIC (revert after).
-  if (process.env.CI_DEBUG_ROUTING) {
-    try {
-      const wk = workloadKeyForTask(task);
-      console.log(`[CI-DEBUG] enter task=${task} allowFallback=${String(options.allowFallback)} hasPolicy=${options.modelPolicy !== undefined} workloadKey=${String(wk)} explicit=${PROFILE_TASKS_REQUIRE_EXPLICIT.has(task)}`);
-    } catch (e) {
-      console.log(`[CI-DEBUG] enter task=${task} workloadKey THREW: ${String(e)}`);
-    }
-  }
   const operation = options.protectedOperation ?? defaultProtectedOperationForTask(task);
 
   // Protected operations REQUIRE an explicit policy context: omitting

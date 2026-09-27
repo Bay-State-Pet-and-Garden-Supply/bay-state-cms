@@ -414,30 +414,26 @@ export function isAiComputeConfigured(): boolean {
   const db = getDb();
   ensureSeededDefaults();
   try {
-    // TEMPORARY CI DIAGNOSTIC (revert after): report exactly which check flips configured on.
-    const dbg = (reason: string, detail?: unknown) => {
-      if (process.env.CI_DEBUG_ROUTING) console.log(`[CI-DEBUG] isAiComputeConfigured TRUE via ${reason} ${detail === undefined ? '' : JSON.stringify(detail)}`);
-    };
     const routeCount = db.query('SELECT COUNT(*) as c FROM ai_workload_routes').get() as { c: number };
-    if (routeCount.c > 0) { dbg('routes', routeCount.c); return true; }
+    if (routeCount.c > 0) return true;
 
     const defaultsRow = db.query('SELECT * FROM ai_routing_defaults WHERE id = ?').get('current') as DbRoutingDefaults | undefined;
     if (defaultsRow) {
-      if (defaultsRow.text_data_sharing !== 'this_device_only' || defaultsRow.image_data_sharing !== 'this_device_only') { dbg('defaults-sharing', defaultsRow); return true; }
-      if (defaultsRow.catalog_primary_connection_id !== 'local-ollama' || defaultsRow.catalog_primary_model_id !== DEFAULT_LOCAL_VISION_MODEL) { dbg('defaults-target', defaultsRow); return true; }
-      if (defaultsRow.catalog_fallback_connection_id !== null || defaultsRow.catalog_fallback_model_id !== null) { dbg('defaults-fallback', defaultsRow); return true; }
+      if (defaultsRow.text_data_sharing !== 'this_device_only' || defaultsRow.image_data_sharing !== 'this_device_only') return true;
+      if (defaultsRow.catalog_primary_connection_id !== 'local-ollama' || defaultsRow.catalog_primary_model_id !== DEFAULT_LOCAL_VISION_MODEL) return true;
+      if (defaultsRow.catalog_fallback_connection_id !== null || defaultsRow.catalog_fallback_model_id !== null) return true;
     }
 
     const rows = db.query('SELECT * FROM provider_connections').all() as DbProviderConnection[];
     for (const row of rows) {
       const seed = DEFAULT_BUILTIN_CONNECTIONS[row.id];
-      if (!seed) { dbg('operator-conn', row.id); return true; } // operator-added connection
-      if (seed.enabled !== Boolean(row.enabled)) { dbg('enabled', { id: row.id, seed: seed.enabled, row: row.enabled }); return true; }
-      if (seed.baseUrl !== row.base_url) { dbg('baseUrl', { id: row.id }); return true; }
-      if (seed.trustZone !== row.trust_zone) { dbg('trustZone', { id: row.id }); return true; }
-      if ((seed.credential ?? null) !== row.credential) { dbg('credential', { id: row.id, seedNull: seed.credential == null, rowNull: row.credential == null }); return true; }
-      if (seed.approvedHost !== row.approved_host) { dbg('approvedHost', { id: row.id }); return true; }
-      if ((seed.approvedPort ?? null) !== row.approved_port) { dbg('approvedPort', { id: row.id, seed: seed.approvedPort, row: row.approved_port }); return true; }
+      if (!seed) return true; // operator-added connection
+      if (seed.enabled !== Boolean(row.enabled)) return true;
+      if (seed.baseUrl !== row.base_url) return true;
+      if (seed.trustZone !== row.trust_zone) return true;
+      if ((seed.credential ?? null) !== row.credential) return true;
+      if (seed.approvedHost !== row.approved_host) return true;
+      if ((seed.approvedPort ?? null) !== row.approved_port) return true;
     }
   } catch {
     // DB unavailable → treat as unconfigured (legacy migration path remains).
