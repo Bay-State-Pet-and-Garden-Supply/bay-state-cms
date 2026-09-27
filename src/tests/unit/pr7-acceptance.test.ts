@@ -175,9 +175,12 @@ const LEGACY_PAGE_RESULTS_BASELINE: Record<string, Array<{ pageName: string; con
     { pageName: 'Dog Food Canned', confidence: 0.85 },
   ],
   // The legacy SINGLETON path resolves its brand from the restricted page
-  // evidence packet (no brand record in this harness) — the normalizer never
-  // sees a brand page, so the result is the single canned page only.
+  // evidence packet. Since #299 the packet carries brand records (brand +
+  // resolved_brand source fields), so the deterministic normalizer applies
+  // its pre-existing rule-6 brand shortcut here exactly as it does for group
+  // members — the result is the canned page PLUS 'Brand - Acme' (0.95).
   '100000000003': [
+    { pageName: 'Brand - Acme', confidence: 0.95 },
     { pageName: 'Dog Food Dry', confidence: 0.85 },
   ],
 };

@@ -1026,7 +1026,7 @@ export async function processPageTarget(
         const conn =
           aiConfig.connections[provider] ||
           Object.values(aiConfig.connections).find(
-            (c) => c.id === provider || (c.transport === 'systemone'),
+            (c) => c.id === provider || (provider === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
           );
         isSystemOne = conn?.transport === 'systemone';
       } catch {
