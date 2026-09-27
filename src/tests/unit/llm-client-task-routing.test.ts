@@ -182,6 +182,7 @@ describe('LLM Client — task-specific routing', () => {
       ' taskCfg=' + JSON.stringify(getLlmTaskConfig('profile_generation')) +
       ' configured=' + isAiComputeConfigured() +
       ' platform=' + process.platform);
+    console.log('[CI-DEBUG] fn-src=' + getLlmConfigForTask.toString().slice(0, 300).replace(/\n/g, '|'));
     expect(() => getLlmConfigForTask('profile_generation', { allowFallback: false }))
       .toThrow(MissingLlmTaskConfigError);
   });
