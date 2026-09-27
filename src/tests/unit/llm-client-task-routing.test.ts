@@ -87,7 +87,7 @@ describe('LLM Client — task-specific routing', () => {
     return { calls };
   }
 
-  beforeAll(() => {
+  beforeAll(async () => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
@@ -103,6 +103,18 @@ describe('LLM Client — task-specific routing', () => {
     // pristine-install state; builtins/defaults re-seed lazily.
     getDb().run('DELETE FROM provider_connections');
     getDb().run('DELETE FROM ai_routing_defaults');
+    // TEMPORARY CI DIAGNOSTIC (remove after root-causing Linux-only failures).
+    try {
+      const { getFullAiRoutingConfig, isAiComputeConfigured } = await import('../../db/repositories/provider-connection-repo');
+      const cfg = getFullAiRoutingConfig();
+      console.log('[CI-DEBUG] connections=' + JSON.stringify(Object.keys(cfg.connections)) +
+        ' workloads=' + JSON.stringify(Object.fromEntries(Object.entries(cfg.workloads).map(([k, v]: any) => [k, v.primary]))) +
+        ' defaults=' + JSON.stringify(cfg.defaults) +
+        ' isConfigured=' + isAiComputeConfigured() +
+        ' platform=' + process.platform);
+    } catch (e) {
+      console.log('[CI-DEBUG] diagnostic failed: ' + String(e));
+    }
   });
 
   afterAll(() => {
