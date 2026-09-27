@@ -18,8 +18,6 @@ import {
   assertModelPolicyIntact,
   ModelPolicyDeniedError,
 } from './model-policy-gateway';
-import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
-import { getApiKey } from '../db/repositories/api-key-repo';
 import { HeartbeatLostError } from './heartbeat-errors';
 
 export interface CohortPageOption {
@@ -330,6 +328,9 @@ export async function coordinateCohortPagesCore(
       isSystemOne = true;
     } else {
       try {
+        // Lazy-loaded so the bun:sqlite-backed repo never enters the Vitest
+        // module graph (see the repo mocks in cohort-page-coordinator tests).
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
         const aiConfig = getFullAiRoutingConfig();
         const conn =
           aiConfig.connections[configuredProvider] ||
