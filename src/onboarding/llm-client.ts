@@ -146,6 +146,7 @@ export function getLlmConfig(): LlmConfig | null {
     // route fails closed here rather than silently selecting the legacy
     // api_keys chain (which would bypass the AI Compute privacy boundary).
     if (isAiComputeConfigured()) {
+      if (process.env.CI_DEBUG_ROUTING) console.log('[CI-DEBUG] getLlmConfig: null via configured-authoritative');
       return null;
     }
   } catch {
@@ -246,7 +247,10 @@ function buildConfigFromTaskConfig(
   taskConfig: LlmTaskConfig,
 ): LlmConfig | null {
   const cred = resolveProviderCredential(taskConfig.provider);
-  if (!cred) return null;
+  if (!cred) {
+    if (process.env.CI_DEBUG_ROUTING) console.log(`[CI-DEBUG] buildConfigFromTaskConfig null cred for provider=${taskConfig.provider}`);
+    return null;
+  }
   return {
     provider: taskConfig.provider,
     apiKey: cred.apiKey,
