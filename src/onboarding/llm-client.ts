@@ -419,10 +419,6 @@ export function getLlmConfigForTask(
   task: LlmTask,
   options: GetLlmConfigForTaskOptions = {},
 ): LlmConfig | null {
-  // TEMPORARY CI DIAGNOSTIC (revert after).
-  if (process.env.CI_DEBUG_ROUTING) {
-    console.log(`[CI-DEBUG] enter task=${task}`);
-  }
   const operation = options.protectedOperation ?? defaultProtectedOperationForTask(task);
 
   // Protected operations REQUIRE an explicit policy context: omitting
