@@ -169,6 +169,23 @@ describe('LLM Client — task-specific routing', () => {
     expect(PROFILE_TASKS_REQUIRE_EXPLICIT.has('profile_revision')).toBe(true);
   });
 
+  // TEMPORARY CI DIAGNOSTIC (revert after): clone of the next test with full
+  // intermediate dumps to discriminate intra-file state evolution from
+  // position-independent divergence.
+  test('TEMP-DIAG profile_generation resolution intermediates', async () => {
+    const { getFullAiRoutingConfig, isAiComputeConfigured } = await import('../../db/repositories/provider-connection-repo');
+    const { getLlmTaskConfig } = await import('../../db/repositories/llm-task-config-repo');
+    const { defaultProtectedOperationForTask } = await import('../../onboarding/llm-client');
+    const aiConfig = getFullAiRoutingConfig();
+    console.log('[CI-DEBUG] diag workloadKeys=' + JSON.stringify(Object.keys(aiConfig.workloads)) +
+      ' op=' + String(defaultProtectedOperationForTask('profile_generation')) +
+      ' taskCfg=' + JSON.stringify(getLlmTaskConfig('profile_generation')) +
+      ' configured=' + isAiComputeConfigured() +
+      ' platform=' + process.platform);
+    expect(() => getLlmConfigForTask('profile_generation', { allowFallback: false }))
+      .toThrow(MissingLlmTaskConfigError);
+  });
+
   test('profile_generation throws MissingLlmTaskConfigError when no task config and no fallback', () => {
     expect(() => getLlmConfigForTask('profile_generation', { allowFallback: false }))
       .toThrow(MissingLlmTaskConfigError);
