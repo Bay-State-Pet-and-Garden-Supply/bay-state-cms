@@ -23,8 +23,16 @@ import {
   type CohortPipelineEffectsReport,
   type GoldExampleForEvaluation,
 } from './benchmark-evaluator';
-import type { QualificationGoldCore } from './benchmark-scoring-helpers';
+import {
+  type QualificationGoldCore,
+} from './benchmark-scoring-helpers';
 import type { BenchmarkPredictionEntry, EvalMetrics } from '../shared/schemas/classification';
+import type {
+  CompatibilityReceipt,
+  FamilySeparationProof,
+  FrozenTaxonomySnapshot,
+  OperatorDocsReceipt,
+} from '../shared/schemas/classification';
 
 export interface QualificationGoldEntry extends QualificationGoldCore {
   baseline: {
@@ -33,7 +41,8 @@ export interface QualificationGoldEntry extends QualificationGoldCore {
     fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
     pageIds: string[];
     confidence: number;
-    failureCode?: string;
+    /** Blocked-side code carried from executed predictions (null when unblocked). */
+    failureCode?: string | null;
     latencyMs?: number;
     costUsd?: number;
   };
@@ -43,7 +52,8 @@ export interface QualificationGoldEntry extends QualificationGoldCore {
     fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
     pageIds: string[];
     confidence: number;
-    failureCode?: string;
+    /** Blocked-side code carried from executed predictions (null when unblocked). */
+    failureCode?: string | null;
     latencyMs?: number;
     costUsd?: number;
   };
@@ -58,6 +68,14 @@ export interface QualificationGoldset {
     importHash: string;
     provenance: string;
   };
+  /**
+   * Frozen production taxonomy snapshot the candidate option sets are derived
+   * from (additive: legacy fixtures omit it). Gold labels remain the answers;
+   * candidates come from this snapshot, never the union of gold labels. The
+   * code-executed predictor workstream consumes it; the service carries it as
+   * evidence without changing scoring.
+   */
+  frozenTaxonomy?: FrozenTaxonomySnapshot | null;
   entries: QualificationGoldEntry[];
 }
 
@@ -819,6 +837,92 @@ interface ProductionQualificationInputs {
   canaryAttributesReviewed: boolean;
   canaryCohortPagesReviewed: boolean;
   offlineComparisonReport?: JevOfflineComparisonReport;
+  /**
+   * Family-separation proof (shared-identity + near-duplicate verification
+   * over the qualification goldset, e.g. via `verifyFamilySeparation`).
+   * Absent or failing proof keeps the fail-closed blocker below.
+   */
+  familySeparationProof?: FamilySeparationProof | null;
+  /**
+   * Compatibility receipt (already-green suites recorded at qualification
+   * time with suite identifiers + commit + pass status). Absent or failing
+   * receipt keeps the fail-closed blocker below.
+   */
+  compatibilityReceipt?: CompatibilityReceipt | null;
+  /**
+   * Operator-documentation receipt (published runbook path + content hash
+   * recorded at qualification time). Absent or failing receipt keeps the
+   * fail-closed blocker below.
+   */
+  operatorDocsReceipt?: OperatorDocsReceipt | null;
+}
+
+// ─── Qualification evidence receipts ─────────────────────────────────────────
+// Explicit evidence inputs consumed by the gates below. Every receipt is
+// fail-closed when absent: omitting a receipt reproduces today's blockers
+// byte-for-byte.
+
+/** Proof version bound into every accepted family-separation receipt. */
+export const FAMILY_SEPARATION_PROOF_VERSION = 'family-separation-v1' as const;
+
+/**
+ * Compatibility suites that must each report passed at qualification time:
+ * other providers, deterministic rules, frozen snapshots, and legacy reads.
+ * Suite ids map to the already-green seams: provider transports
+ * (classification policy stages), deterministic page rules (page/cohort
+ * seams), frozen runtime snapshots, and legacy reviewed-outcome/legacy-gold
+ * reads (prediction/evaluator contracts).
+ */
+export const REQUIRED_COMPATIBILITY_SUITE_IDS = [
+  'other-providers',
+  'deterministic-rules',
+  'frozen-snapshots',
+  'legacy-reads',
+] as const;
+
+/** Published runbook path accepted by the operator-docs gate. */
+export const OPERATOR_RUNBOOK_PATH = 'docs/runbooks/typesafe-jev-curation-rollout.md' as const;
+
+/** True for a family-separation proof that establishes zero leakage. */
+function isValidFamilySeparationProof(proof: FamilySeparationProof | null | undefined): boolean {
+  if (!proof || typeof proof !== 'object') return false;
+  return (
+    proof.proofVersion === FAMILY_SEPARATION_PROOF_VERSION &&
+    typeof proof.verifiedAt === 'string' &&
+    proof.verifiedAt.trim() !== '' &&
+    proof.familiesChecked > 0 &&
+    proof.passed === true &&
+    Array.isArray(proof.leakedFamilies) &&
+    proof.leakedFamilies.length === 0 &&
+    Array.isArray(proof.nearDuplicatePairs) &&
+    proof.nearDuplicatePairs.length === 0
+  );
+}
+
+/** True for a compatibility receipt with every required suite passing. */
+function isValidCompatibilityReceipt(receipt: CompatibilityReceipt | null | undefined): boolean {
+  if (!receipt || typeof receipt !== 'object' || !Array.isArray(receipt.suites)) return false;
+  if (typeof receipt.recordedAt !== 'string' || receipt.recordedAt.trim() === '') return false;
+  const byId = new Map(receipt.suites.map(suite => [suite?.suiteId, suite]));
+  return (REQUIRED_COMPATIBILITY_SUITE_IDS as readonly string[]).every(suiteId => {
+    const result = byId.get(suiteId);
+    return (
+      !!result &&
+      result.passed === true &&
+      typeof result.commit === 'string' &&
+      result.commit.trim() !== ''
+    );
+  });
+}
+
+/** True for an operator-docs receipt bound to the published runbook bytes. */
+function isValidOperatorDocsReceipt(receipt: OperatorDocsReceipt | null | undefined): boolean {
+  if (!receipt || typeof receipt !== 'object') return false;
+  return (
+    receipt.runbookPath === OPERATOR_RUNBOOK_PATH &&
+    typeof receipt.contentHash === 'string' &&
+    /^[a-f0-9]{64}$/.test(receipt.contentHash)
+  );
 }
 
 /** Fail-closed checklist defaults (verification flags start false). */
@@ -935,14 +1039,22 @@ function assessOfflineComparisonGates(
 }
 
 /**
- * Criterion 2: family separation is never assumed. The current
- * JevOfflineComparisonReport shape carries dev/holdout counts but no
- * family-leakage proof (the parallel runner workstream owns extending it,
- * e.g. with detectFamilySplitLeakage output over goldset familyIds), so
- * fail-closed means always blocking until such evidence is wired in.
- * familySeparationPassed stays false by design.
+ * Criterion 2: family separation is never assumed. Without a zero-leakage
+ * proof (shared family identity plus cross-split near-duplicate detection,
+ * e.g. `verifyFamilySeparation` over the goldset familyIds) the gate fails
+ * closed with the blocker below. A valid proof sets
+ * `familySeparationPassed` and clears the blocker.
  */
-function blockFamilySeparation(blockers: ProductionQualificationBlocker[]): void {
+function assessFamilySeparationGates(
+  blockers: ProductionQualificationBlocker[],
+  checklist: ProductionChecklist,
+  proof: FamilySeparationProof | null | undefined,
+): void {
+  if (isValidFamilySeparationProof(proof)) {
+    checklist.familySeparationPassed = true;
+    return;
+  }
+  checklist.familySeparationPassed = false;
   blockers.push({
     criterion: 2,
     area: 'family_separation',
@@ -953,13 +1065,22 @@ function blockFamilySeparation(blockers: ProductionQualificationBlocker[]): void
 }
 
 /**
- * Criterion 8: compatibility has no evidence input on this function's
- * signature (other providers, deterministic rules, frozen snapshots,
- * legacy reads are exercised by other seams), so fail-closed means
- * always blocking until the runner wires an explicit verification flag.
- * compatibilityVerified stays false by design.
+ * Criterion 8: compatibility is never assumed. Without a receipt recording
+ * the already-green suites (other providers, deterministic rules, frozen
+ * snapshots, legacy reads) with suite identifiers + commit + pass status at
+ * qualification time, the gate fails closed with the blocker below. A valid
+ * receipt sets `compatibilityVerified` and clears the blocker.
  */
-function blockCompatibility(blockers: ProductionQualificationBlocker[]): void {
+function assessCompatibilityGates(
+  blockers: ProductionQualificationBlocker[],
+  checklist: ProductionChecklist,
+  receipt: CompatibilityReceipt | null | undefined,
+): void {
+  if (isValidCompatibilityReceipt(receipt)) {
+    checklist.compatibilityVerified = true;
+    return;
+  }
+  checklist.compatibilityVerified = false;
   blockers.push({
     criterion: 8,
     area: 'compatibility',
@@ -970,12 +1091,21 @@ function blockCompatibility(blockers: ProductionQualificationBlocker[]): void {
 }
 
 /**
- * Criterion 9: operator documentation has no evidence input on this
- * function's signature, so fail-closed means always blocking until the
- * runner wires an explicit published-docs flag.
- * operatorDocumentationPublished stays false by design.
+ * Criterion 9: operator documentation is never assumed. Without a receipt
+ * recording the published runbook path + content hash at qualification time,
+ * the gate fails closed with the blocker below. A valid receipt sets
+ * `operatorDocumentationPublished` and clears the blocker.
  */
-function blockOperatorDocumentation(blockers: ProductionQualificationBlocker[]): void {
+function assessOperatorDocumentationGates(
+  blockers: ProductionQualificationBlocker[],
+  checklist: ProductionChecklist,
+  receipt: OperatorDocsReceipt | null | undefined,
+): void {
+  if (isValidOperatorDocsReceipt(receipt)) {
+    checklist.operatorDocumentationPublished = true;
+    return;
+  }
+  checklist.operatorDocumentationPublished = false;
   blockers.push({
     criterion: 9,
     area: 'operator_documentation',
@@ -1093,17 +1223,17 @@ function summarizeProductionQualification(
  * - 'provisionally_qualified' means offline evidence itself is clean
  *   (offlineEvaluationPassed && comparisonReportComplete, which includes
  *   zero harmful regressions and zero service failures) but operational /
- *   verification blockers remain (family separation unverified, live
+ *   verification blockers remain (family separation, live
  *   credentials/contract, staged canaries, compatibility, operator docs).
  * - 'blocked' means offline evidence itself is incomplete or failed
  *   (missing report, offline failure, service failures, regressions).
  *   Offline failures never yield 'provisionally_qualified'.
  *
- * Currently 'qualified' is unreachable by design until the parallel
- * runner workstream wires positive evidence for family separation,
- * compatibility, and operator docs (see per-blocker comments): those three
- * always emit blockers because the current report shape carries no field
- * that establishes them, and this function must not assume them.
+ * The family-separation, compatibility, and operator-docs gates consume
+ * explicit evidence receipts (`familySeparationProof`, `compatibilityReceipt`,
+ * `operatorDocsReceipt`): each is fail-closed when its receipt is absent or
+ * failing, and clears only on a valid receipt. Omitting all three receipts
+ * reproduces the previous always-blocking behavior exactly.
  * If credentials, live contract check, or store manager canary review
  * are missing, reports the specific blocker and keeps qualification incomplete.
  */
@@ -1126,9 +1256,9 @@ export function assessProductionQualification(
     assessOfflineComparisonGates(blockers, checklist, options.offlineComparisonReport);
   }
 
-  blockFamilySeparation(blockers);
-  blockCompatibility(blockers);
-  blockOperatorDocumentation(blockers);
+  assessFamilySeparationGates(blockers, checklist, options.familySeparationProof);
+  assessCompatibilityGates(blockers, checklist, options.compatibilityReceipt);
+  assessOperatorDocumentationGates(blockers, checklist, options.operatorDocsReceipt);
   assessLiveContractGates(blockers, options);
   assessCanaryGates(blockers, options);
 

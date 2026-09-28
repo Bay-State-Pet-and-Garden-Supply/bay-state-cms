@@ -1,16 +1,57 @@
 {
   "version": 2,
-  "description": "Representative family-separated GOLD evaluation dataset for Jev Curation qualification (Issue #302). Adjudicated gold labels + evidence only (no stored predictions). Predictions are executed from the current classification code paths at report time via buildQualificationPredictionsFromCode; legacy baseline/candidate keys in older copies are ignored by the loader and never scored. Covers food/treats, toys, animal-care, garden/pest-control, ambiguous neighbors, unknown/no-fit types, incomplete evidence, and mixed cohorts.",
+  "description": "Representative family-separated GOLD evaluation dataset for Jev Curation qualification (Issue #302). Adjudicated gold labels + evidence only (no stored predictions). Predictions are executed from the current classification code paths at report time via buildQualificationPredictionsFromCode; legacy baseline/candidate keys in older copies are ignored by the loader and never scored. Covers food/treats, toys, animal-care, garden/pest-control, ambiguous neighbors, unknown/no-fit types, incomplete evidence, and mixed cohorts. Candidate option sets derive from the frozen production taxonomy snapshot in `frozenTaxonomy` — never the union of gold labels. Real product families (variants/sizes of the same underlying product) share ONE familyId and never cross the dev/holdout boundary.",
   "adjudicatedBy": "store-manager-adjudication-panel",
   "verifiedPageImport": {
     "importId": "import-active-2026",
     "importHash": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890",
     "provenance": "prov-active-import-001"
   },
+  "frozenTaxonomy": {
+    "snapshotHash": "f8136c9820f0ddac2bb77abb0240d4b6ca1d5ba0a7e21adfe8852a74aab8125d",
+    "source": "frozen production taxonomy snapshot for Jev qualification evidence: candidate option sets (product types, allowed attribute values, pages) derive from this snapshot, never the union of gold labels",
+    "capturedAt": "2026-09-28T00:00:00.000Z",
+    "productTypes": [
+      { "id": "bird_seed_food", "label": "Bird Seed Food" },
+      { "id": "cat_food_dry", "label": "Dry Cat Food" },
+      { "id": "cat_treat", "label": "Cat Treat" },
+      { "id": "dog_food_dry", "label": "Dry Dog Food" },
+      { "id": "dog_food_wet", "label": "Wet Dog Food" },
+      { "id": "dog_toy", "label": "Dog Toy" },
+      { "id": "flea_tick_control", "label": "Flea Tick Control" },
+      { "id": "garden_fertilizer", "label": "Garden Fertilizer" },
+      { "id": "insect_pest_control", "label": "Insect Pest Control" },
+      { "id": "potting_soil", "label": "Potting Soil" },
+      { "id": "suet_cakes", "label": "Suet Cakes" }
+    ],
+    "attributeTargets": [
+      { "targetId": "animal_type", "cardinality": "multiple", "options": ["bird", "cat", "dog", "fish"] },
+      { "targetId": "application_method", "cardinality": "single", "options": ["Bait", "Granular", "Spray"] },
+      { "targetId": "flavor", "cardinality": "single", "options": ["Beef", "Berry", "Chicken", "Duck", "Lamb", "Salmon"] },
+      { "targetId": "life_stage", "cardinality": "single", "options": ["Adult", "Puppy", "Senior"] },
+      { "targetId": "material", "cardinality": "single", "options": ["Nylon", "Rope", "Rubber"] },
+      { "targetId": "organic", "cardinality": "single", "options": ["No", "Yes"] },
+      { "targetId": "package_type", "cardinality": "single", "options": ["Bag", "Box", "Tub"] },
+      { "targetId": "target_pest", "cardinality": "multiple", "options": ["ant", "fly", "hornet", "mosquito", "roach", "spider", "wasp"] },
+      { "targetId": "volume", "cardinality": "single", "options": ["1 cu ft", "2 cu ft", "8 qt"] }
+    ],
+    "pages": [
+      { "pageId": "page-cat-food", "pageName": "Cat Food" },
+      { "pageId": "page-cat-treats", "pageName": "Cat Treats" },
+      { "pageId": "page-dog-toys", "pageName": "Dog Toys" },
+      { "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" },
+      { "pageId": "page-flea-tick", "pageName": "Flea & Tick Prevention" },
+      { "pageId": "page-garden-fertilizer", "pageName": "Garden Fertilizer" },
+      { "pageId": "page-lawn-garden", "pageName": "Lawn & Garden Soil" },
+      { "pageId": "page-pest-control", "pageName": "Insect & Pest Control" },
+      { "pageId": "page-wet-dog-food", "pageName": "Wet Dog Food" },
+      { "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }
+    ]
+  },
   "entries": [
     {
       "sku": "QUAL-DOG-KIBBLE-01",
-      "familyId": "fam-acme-kibble-dev",
+      "familyId": "fam-acme-kibble",
       "split": "dev",
       "assortment": "food",
       "gold": {
@@ -32,7 +73,7 @@
     },
     {
       "sku": "QUAL-DOG-KIBBLE-02",
-      "familyId": "fam-acme-kibble-dev",
+      "familyId": "fam-acme-kibble",
       "split": "dev",
       "assortment": "food",
       "gold": {
@@ -52,8 +93,29 @@
       ]
     },
     {
+      "sku": "QUAL-DOG-KIBBLE-03",
+      "familyId": "fam-acme-kibble",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 30 lb bag giant breed", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
       "sku": "QUAL-CAT-TREAT-01",
-      "familyId": "fam-beacon-treats-dev",
+      "familyId": "fam-beacon-treats",
       "split": "dev",
       "assortment": "treats",
       "gold": {
@@ -73,7 +135,7 @@
     },
     {
       "sku": "QUAL-DOG-CHEW-TOY-01",
-      "familyId": "fam-cowyard-chew-dev",
+      "familyId": "fam-cowyard-chew",
       "split": "dev",
       "assortment": "toys",
       "gold": {
@@ -93,7 +155,7 @@
     },
     {
       "sku": "QUAL-FLEA-01",
-      "familyId": "fam-beacon-flea-dev",
+      "familyId": "fam-beacon-flea",
       "split": "dev",
       "assortment": "animal-care",
       "gold": {
@@ -113,7 +175,7 @@
     },
     {
       "sku": "QUAL-PEST-01",
-      "familyId": "fam-gardenpro-pest-dev",
+      "familyId": "fam-gardenpro-yard-insect",
       "split": "dev",
       "assortment": "pest-control",
       "gold": {
@@ -133,7 +195,7 @@
     },
     {
       "sku": "QUAL-SOIL-01",
-      "familyId": "fam-gardenpro-soil-dev",
+      "familyId": "fam-gardenpro-soil",
       "split": "dev",
       "assortment": "garden",
       "gold": {
@@ -153,7 +215,7 @@
     },
     {
       "sku": "QUAL-NEIGHBOR-SUET-01",
-      "familyId": "fam-suet-neighbor-dev",
+      "familyId": "fam-suet-neighbor",
       "split": "dev",
       "assortment": "confusing-neighbor",
       "gold": {
@@ -173,7 +235,7 @@
     },
     {
       "sku": "QUAL-UNKNOWN-FOGGER-01",
-      "familyId": "fam-reptile-fogger-dev",
+      "familyId": "fam-reptile-fogger",
       "split": "dev",
       "assortment": "unknown-type",
       "gold": {
@@ -187,7 +249,7 @@
     },
     {
       "sku": "QUAL-THIN-EVIDENCE-01",
-      "familyId": "fam-thin-evidence-dev",
+      "familyId": "fam-thin-evidence",
       "split": "dev",
       "assortment": "incomplete-evidence",
       "gold": {
@@ -199,7 +261,7 @@
     },
     {
       "sku": "QUAL-UNLABELED-PENDING-01",
-      "familyId": "fam-pending-dev",
+      "familyId": "fam-pending-review",
       "split": "dev",
       "assortment": "incomplete-evidence",
       "gold": {
@@ -212,29 +274,8 @@
       ]
     },
     {
-      "sku": "QUAL-DOG-KIBBLE-HOLDOUT-01",
-      "familyId": "fam-acme-kibble-holdout",
-      "split": "holdout",
-      "assortment": "food",
-      "gold": {
-        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
-        "fieldAssignments": [
-          { "targetId": "flavor", "value": "Chicken", "state": "known" },
-          { "targetId": "life_stage", "value": "Adult", "state": "known" },
-          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
-        ],
-        "categoryPages": {
-          "pageIds": ["page-dry-dog-food"],
-          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
-        }
-      },
-      "evidence": [
-        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 30 lb bag giant breed", "reliability": "high", "attributeId": null }
-      ]
-    },
-    {
       "sku": "QUAL-PEST-HOLDOUT-01",
-      "familyId": "fam-gardenpro-pest-holdout",
+      "familyId": "fam-gardenpro-wasp-hornet",
       "split": "holdout",
       "assortment": "pest-control",
       "gold": {
@@ -254,7 +295,7 @@
     },
     {
       "sku": "QUAL-NEIGHBOR-SEED-HOLDOUT-01",
-      "familyId": "fam-seed-neighbor-holdout",
+      "familyId": "fam-northland-seed",
       "split": "holdout",
       "assortment": "confusing-neighbor",
       "gold": {
@@ -274,7 +315,7 @@
     },
     {
       "sku": "QUAL-COHORT-FROMM-ADULT-01",
-      "familyId": "fam-fromm-mixed-cohort-holdout",
+      "familyId": "fam-fromm-gold",
       "split": "holdout",
       "assortment": "mixed-cohort",
       "gold": {
@@ -295,7 +336,7 @@
     },
     {
       "sku": "QUAL-COHORT-FROMM-PUPPY-02",
-      "familyId": "fam-fromm-mixed-cohort-holdout",
+      "familyId": "fam-fromm-gold",
       "split": "holdout",
       "assortment": "mixed-cohort",
       "gold": {

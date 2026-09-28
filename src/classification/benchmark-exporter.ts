@@ -27,7 +27,7 @@ import { normalizeBrand, extractNameStem } from '../onboarding/product-line-grou
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import * as benchmarkRepo from '../db/repositories/benchmark-repo';
 import * as classRunRepo from '../db/repositories/classification-run-repo';
-import type { BenchmarkGoldLabels } from '../shared/schemas/classification';
+import type { BenchmarkGoldLabels, FrozenTaxonomySnapshot } from '../shared/schemas/classification';
 import type { ReviewedFact } from './reviewed-facts';
 import {
   detectDevHoldoutStraddle,
@@ -1024,5 +1024,307 @@ function exportFixtureDataset(
     coverage: counts,
     missingCoverage: missing,
     leakageChecked: true,
+  };
+}
+
+// ─── Frozen-taxonomy candidates ─────────────────────────────────────────────
+//
+// Candidate option sets (Product Types, allowed attribute values, pages) MUST
+// come from the frozen production taxonomy/config snapshot — never from the
+// union of adjudicated gold labels. Gold labels remain the answers: they are
+// validated to sit WITHIN the frozen sets (`assertGoldWithinFrozenTaxonomy`)
+// but never define them. The code-executed predictor workstream consumes
+// `buildFrozenTaxonomyCandidates`; this module owns the frozen source so the
+// option pool cannot silently narrow to the gold union.
+
+/** Closed-world candidate sets derived from a frozen taxonomy snapshot. */
+export interface FrozenCandidateSets {
+  productTypes: Array<{ id: string; label: string }>;
+  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[] }>;
+  pages: Array<{ pageId: string; pageName: string }>;
+}
+
+/**
+ * Derive closed-world candidate sets from the frozen taxonomy snapshot.
+ * Sorted for determinism. Reads ONLY the snapshot — gold labels are never an
+ * input, so a gold-only type/value/page can never widen or narrow the pool.
+ */
+export function buildFrozenTaxonomyCandidates(snapshot: FrozenTaxonomySnapshot): FrozenCandidateSets {
+  return {
+    productTypes: [...snapshot.productTypes]
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map(t => ({ id: t.id, label: t.label })),
+    attributeTargets: [...snapshot.attributeTargets]
+      .sort((a, b) => (a.targetId < b.targetId ? -1 : a.targetId > b.targetId ? 1 : 0))
+      .map(t => ({
+        targetId: t.targetId,
+        cardinality: t.cardinality,
+        options: [...t.options].sort(),
+      })),
+    pages: [...snapshot.pages]
+      .sort((a, b) => (a.pageId < b.pageId ? -1 : a.pageId > b.pageId ? 1 : 0))
+      .map(p => ({ pageId: p.pageId, pageName: p.pageName })),
+  };
+}
+
+/** Minimal adjudicated-gold view for frozen-taxonomy containment checks. */
+export interface FrozenGoldCheckEntry {
+  sku: string;
+  gold: {
+    productType: { kind: string; typeId: string | null };
+    fieldAssignments: Array<{ targetId: string; value?: unknown; values?: unknown }>;
+    categoryPages: {
+      pageIds: string[];
+      pageAssignments: Array<{ pageId: string }>;
+    };
+  };
+}
+
+/** One string value under test (null when absent/non-string). */
+function frozenCheckString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/** String values carried by one gold field assignment. */
+function frozenCheckFieldValues(field: { value?: unknown; values?: unknown }): string[] {
+  const out: string[] = [];
+  const single = frozenCheckString(field.value);
+  if (single) out.push(single);
+  if (Array.isArray(field.values)) {
+    for (const v of field.values) {
+      const s = frozenCheckString(v);
+      if (s) out.push(s);
+    }
+  }
+  return out;
+}
+
+/**
+ * List gold-outside-frozen findings. Empty means every adjudicated answer
+ * sits within the frozen candidate pool (gold answers, never the pool).
+ */
+export function findGoldOutsideFrozenTaxonomy(
+  entries: FrozenGoldCheckEntry[],
+  frozen: FrozenTaxonomySnapshot,
+): string[] {
+  const findings: string[] = [];
+  const typeIds = new Set(frozen.productTypes.map(t => t.id));
+  const attrOptions = new Map(frozen.attributeTargets.map(t => [t.targetId, new Set(t.options)]));
+  const pageIds = new Set(frozen.pages.map(p => p.pageId));
+  for (const entry of entries) {
+    const typeId = frozenCheckString(entry.gold.productType.typeId);
+    if (typeId !== null && !typeIds.has(typeId)) {
+      findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" productType "${typeId}" not in frozen candidates`);
+    }
+    for (const field of entry.gold.fieldAssignments ?? []) {
+      const allowed = attrOptions.get(field.targetId);
+      if (!allowed) {
+        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field target "${field.targetId}" not in frozen candidates`);
+        continue;
+      }
+      for (const value of frozenCheckFieldValues(field)) {
+        if (!allowed.has(value)) {
+          findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field "${field.targetId}" value "${value}" not in frozen candidates`);
+        }
+      }
+    }
+    for (const pageId of entry.gold.categoryPages?.pageIds ?? []) {
+      if (!pageIds.has(pageId)) {
+        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${pageId}" not in frozen candidates`);
+      }
+    }
+    for (const page of entry.gold.categoryPages?.pageAssignments ?? []) {
+      if (!pageIds.has(page.pageId)) {
+        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${page.pageId}" not in frozen candidates`);
+      }
+    }
+  }
+  return findings;
+}
+
+/** Fail closed when any adjudicated answer falls outside the frozen pool. */
+export function assertGoldWithinFrozenTaxonomy(
+  entries: FrozenGoldCheckEntry[],
+  frozen: FrozenTaxonomySnapshot,
+): void {
+  const findings = findGoldOutsideFrozenTaxonomy(entries, frozen);
+  if (findings.length > 0) {
+    throw new Error(`Gold outside frozen taxonomy: ${findings.join('; ')}`);
+  }
+}
+
+// ─── Family-separation verification ─────────────────────────────────────────
+//
+// True family split: real product families (variants/sizes of the same
+// underlying product) share ONE family id and never cross the dev/holdout
+// boundary. Split-suffixed ids (`*-dev` / `*-holdout` as distinct families)
+// are forbidden as family identity — they disguise leakage as separation.
+// `verifyFamilySeparation` produces the proof consumed by
+// `assessProductionQualification`: shared-identity leakage (a family id on
+// both sides) plus cross-split near-duplicate detection (the same underlying
+// product filed under two family ids).
+
+/** Proof version bound into every family-separation receipt. */
+export const FAMILY_SEPARATION_PROOF_VERSION = 'family-separation-v1' as const;
+
+/** Minimal entry view for family-separation verification. */
+export interface FamilySeparationEntry {
+  sku: string;
+  familyId: string;
+  split: string;
+  splitGroup?: string;
+  evidence?: Array<{ snippet?: unknown }>;
+  evidenceText?: string;
+}
+
+/** One cross-split near-duplicate pair under distinct family ids. */
+export interface FamilyNearDuplicatePair {
+  skuA: string;
+  skuB: string;
+  familyA: string;
+  familyB: string;
+  reason: string;
+  similarity: number | null;
+}
+
+/** Family-separation proof consumed by production qualification. */
+export interface FamilySeparationProof {
+  proofVersion: typeof FAMILY_SEPARATION_PROOF_VERSION;
+  verifiedAt: string;
+  familiesChecked: number;
+  leakedFamilies: Array<{ familyId: string; groups: string[] }>;
+  nearDuplicatePairs: FamilyNearDuplicatePair[];
+  passed: boolean;
+}
+
+/** Jaccard threshold for cross-split near-duplicate evidence (0.5). */
+const FAMILY_NEAR_DUPLICATE_JACCARD_THRESHOLD = 0.5;
+/** Pairs with either side below this many evidence tokens are skipped (thin-evidence guard). */
+const FAMILY_NEAR_DUPLICATE_MIN_TOKENS = 5;
+
+/** Effective split side: train/test/dev are dev-side; holdout stands alone. */
+function familySplitSide(split: string): 'dev' | 'holdout' | 'other' {
+  if (split === 'holdout') return 'holdout';
+  if (split === 'dev' || split === 'train' || split === 'test') return 'dev';
+  return 'other';
+}
+
+/**
+ * Families straddling the dev/holdout boundary (dev-side is dev, train, or
+ * test). Unlike `detectDevHoldoutStraddle` (train/test/holdout vocabulary of
+ * persisted dataset splits), this covers the qualification goldset's
+ * dev/holdout vocabulary: the shared helper is blind to a family shared
+ * between dev and holdout, so the exporter owns the dev-aware boundary.
+ */
+export function detectFamilyDevHoldoutStraddle(
+  assignments: Array<{ familyId: string; splitGroup: string }>,
+): Array<{ familyId: string; groups: string[] }> {
+  const byFamily = new Map<string, Set<string>>();
+  for (const assignment of assignments) {
+    if (!byFamily.has(assignment.familyId)) byFamily.set(assignment.familyId, new Set());
+    byFamily.get(assignment.familyId)!.add(assignment.splitGroup);
+  }
+  const offenders: Array<{ familyId: string; groups: string[] }> = [];
+  for (const [familyId, groups] of byFamily) {
+    const list = [...groups].sort();
+    const touchesDevSide = list.some(group => familySplitSide(group) === 'dev');
+    if (touchesDevSide && list.includes('holdout')) {
+      offenders.push({ familyId, groups: list });
+    }
+  }
+  offenders.sort((a, b) => (a.familyId < b.familyId ? -1 : a.familyId > b.familyId ? 1 : 0));
+  return offenders;
+}
+
+/** Split value for one entry (splitGroup alias wins when present). */
+function familyEntrySplit(entry: FamilySeparationEntry): string {
+  return entry.splitGroup ?? entry.split;
+}
+
+/** Evidence text for one entry (joined snippets, or the explicit text). */
+function familyEvidenceText(entry: FamilySeparationEntry): string {
+  if (typeof entry.evidenceText === 'string') return entry.evidenceText;
+  return (entry.evidence ?? [])
+    .map(e => (typeof e?.snippet === 'string' ? e.snippet : ''))
+    .join(' ')
+    .trim();
+}
+
+/** Lowercased alphanumeric evidence tokens. */
+function familyEvidenceTokens(text: string): Set<string> {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length > 1);
+  return new Set(tokens);
+}
+
+/** Jaccard similarity over two token sets (0 when both empty). */
+function familyEvidenceJaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0;
+  let intersection = 0;
+  for (const t of a) {
+    if (b.has(t)) intersection++;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+/** Near-duplicate finding for one cross-split pair (null when clean/skipped). */
+function findFamilyNearDuplicatePair(
+  a: FamilySeparationEntry,
+  b: FamilySeparationEntry,
+): FamilyNearDuplicatePair | null {
+  if (a.familyId === b.familyId) return null;
+  if (familySplitSide(familyEntrySplit(a)) === familySplitSide(familyEntrySplit(b))) return null;
+  if (familySplitSide(familyEntrySplit(a)) === 'other' || familySplitSide(familyEntrySplit(b)) === 'other') return null;
+  const tokensA = familyEvidenceTokens(familyEvidenceText(a));
+  const tokensB = familyEvidenceTokens(familyEvidenceText(b));
+  if (tokensA.size < FAMILY_NEAR_DUPLICATE_MIN_TOKENS || tokensB.size < FAMILY_NEAR_DUPLICATE_MIN_TOKENS) return null;
+  const similarity = familyEvidenceJaccard(tokensA, tokensB);
+  if (similarity < FAMILY_NEAR_DUPLICATE_JACCARD_THRESHOLD) return null;
+  const [first, second] = a.sku < b.sku ? [a, b] : [b, a];
+  return {
+    skuA: first.sku,
+    skuB: second.sku,
+    familyA: first.familyId,
+    familyB: second.familyId,
+    reason: `near-duplicate-evidence: jaccard ${similarity.toFixed(3)} across dev/holdout under distinct families`,
+    similarity: Number(similarity.toFixed(4)),
+  };
+}
+
+/** Cross-split near-duplicate pairs, sorted deterministically by (skuA, skuB). */
+function detectFamilyNearDuplicates(entries: FamilySeparationEntry[]): FamilyNearDuplicatePair[] {
+  const pairs: FamilyNearDuplicatePair[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const pair = findFamilyNearDuplicatePair(entries[i], entries[j]);
+      if (pair) pairs.push(pair);
+    }
+  }
+  pairs.sort((x, y) => (x.skuA < y.skuA ? -1 : x.skuA > y.skuA ? 1 : x.skuB < y.skuB ? -1 : x.skuB > y.skuB ? 1 : 0));
+  return pairs;
+}
+
+/**
+ * Verify true family separation over qualification entries: shared family
+ * identity must never cross the dev/holdout boundary (dev-aware straddle
+ * check) AND no cross-split pair under distinct family ids may read as the
+ * same underlying product (evidence near-duplicates).
+ * Pure and deterministic; `passed` is true only over a non-empty family
+ * population with both lists empty.
+ */
+export function verifyFamilySeparation(entries: FamilySeparationEntry[]): FamilySeparationProof {
+  const assignments = entries.map(e => ({ familyId: e.familyId, splitGroup: familyEntrySplit(e) }));
+  const leakedFamilies = detectFamilyDevHoldoutStraddle(assignments);
+  const nearDuplicatePairs = detectFamilyNearDuplicates(entries);
+  const familiesChecked = new Set(entries.map(e => e.familyId)).size;
+  return {
+    proofVersion: FAMILY_SEPARATION_PROOF_VERSION,
+    verifiedAt: new Date().toISOString(),
+    familiesChecked,
+    leakedFamilies,
+    nearDuplicatePairs,
+    passed: familiesChecked > 0 && leakedFamilies.length === 0 && nearDuplicatePairs.length === 0,
   };
 }

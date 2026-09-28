@@ -9,6 +9,8 @@ import { createRun } from '../../db/repositories/classification-run-repo';
 import {
   evaluateBenchmark,
   computeEvaluatorAttribution,
+  findPredictionsOutsideFrozenTaxonomy,
+  verifyFrozenTaxonomySnapshotShape,
   EVALUATOR_GOLD_STATE_KNOWN,
   EVALUATOR_GOLD_STATE_NO_FIT,
   EVALUATOR_GOLD_STATE_INSUFFICIENT_EVIDENCE,
@@ -453,5 +455,58 @@ describe('Benchmark Evaluator', () => {
     expect(report.snapshotMismatches[0].field).toBe('sourceProductHash');
     expect(report.snapshotMismatches[0].goldValue).toBe('hash-aaa');
     expect(report.snapshotMismatches[0].predictionValue).toBe('hash-bbb');
+  });
+
+  describe('frozen-taxonomy candidate verification', () => {
+    const frozen = {
+      snapshotHash: 'c'.repeat(64),
+      source: 'test frozen snapshot',
+      capturedAt: '2026-09-28T00:00:00.000Z',
+      productTypes: [
+        { id: 'dog_food_dry', label: 'Dry Dog Food' },
+        { id: 'cat_treat', label: 'Cat Treat' },
+      ],
+      attributeTargets: [
+        { targetId: 'flavor', cardinality: 'single' as const, options: ['Chicken', 'Salmon'] },
+      ],
+      pages: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+    };
+
+    it('accepts predictions within the frozen pool and flags outside selections', () => {
+      expect(verifyFrozenTaxonomySnapshotShape(frozen)).toHaveLength(0);
+      expect(findPredictionsOutsideFrozenTaxonomy([
+        {
+          productType: 'dog_food_dry',
+          fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }],
+          pageIds: ['page-dry-dog-food'],
+        },
+        { productType: null, abstained: true, fieldAssignments: [], pageIds: [] },
+      ], frozen)).toHaveLength(0);
+
+      const findings = findPredictionsOutsideFrozenTaxonomy([
+        {
+          productType: 'novel_type',
+          fieldAssignments: [{ targetId: 'flavor', value: 'Venison' }],
+          pageIds: ['page-novel'],
+        },
+      ], frozen);
+      expect(findings.length).toBe(3);
+      expect(findings.some(f => f.includes('"novel_type"'))).toBe(true);
+      expect(findings.some(f => f.includes('"Venison"'))).toBe(true);
+      expect(findings.some(f => f.includes('"page-novel"'))).toBe(true);
+    });
+
+    it('flags malformed snapshots (duplicates, empty option sets)', () => {
+      expect(verifyFrozenTaxonomySnapshotShape({
+        ...frozen,
+        productTypes: [
+          { id: 'dog_food_dry', label: 'Dry Dog Food' },
+          { id: 'dog_food_dry', label: 'Dry Dog Food' },
+        ],
+        attributeTargets: [
+          { targetId: 'flavor', cardinality: 'single' as const, options: [] },
+        ],
+      }).length).toBeGreaterThan(0);
+    });
   });
 });

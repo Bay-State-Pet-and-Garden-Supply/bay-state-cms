@@ -22,6 +22,7 @@ import type {
   BenchmarkGoldLabels,
   BenchmarkPredictionEntry,
   EvalMetrics,
+  FrozenTaxonomySnapshot,
 } from '../shared/schemas/classification';
 import {
   classifyPredictionOutcome,
@@ -3500,4 +3501,118 @@ export function evaluateCohortPipelineEffects(
     },
     endToEndCorrectAllStages: counters.endToEndCorrect,
   };
+}
+
+// ─── Frozen-taxonomy candidate verification ────────────────────────────────
+//
+// Closed-world discipline for qualification EVIDENCE: predictions must select
+// from the frozen production taxonomy snapshot — never from the union of gold
+// labels. Abstention (null/empty) is always legal and never flagged; every
+// concrete predicted type, field value, and page must sit WITHIN the frozen
+// sets. Pure reporting: metric computation above is untouched.
+
+/** Minimal prediction view for frozen-taxonomy containment checks. */
+export interface FrozenPredictionCheckEntry {
+  productType?: string | null;
+  abstained?: boolean | null;
+  fieldAssignments?: Array<{ targetId: string; value?: unknown; values?: unknown }>;
+  pageIds?: string[];
+  pageAssignments?: Array<string | { pageId?: unknown }>;
+}
+
+/** Page id carried by one predicted page assignment (null when absent). */
+function frozenPredictedPageId(entry: string | { pageId?: unknown } | null | undefined): string | null {
+  if (typeof entry === 'string') return entry.trim() !== '' ? entry : null;
+  if (entry && typeof entry === 'object' && typeof entry.pageId === 'string' && entry.pageId.trim() !== '') {
+    return entry.pageId;
+  }
+  return null;
+}
+
+/** String values carried by one predicted field assignment. */
+function frozenPredictedFieldValues(field: { value?: unknown; values?: unknown }): string[] {
+  const out: string[] = [];
+  if (typeof field.value === 'string' && field.value.trim() !== '') out.push(field.value);
+  if (Array.isArray(field.values)) {
+    for (const v of field.values) {
+      if (typeof v === 'string' && v.trim() !== '') out.push(v);
+    }
+  }
+  return out;
+}
+
+/** True for a concrete (non-abstained) predicted product type. */
+function isConcreteFrozenType(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * List predictions that select outside the frozen candidate pool. Empty means
+ * every concrete prediction is a legal frozen selection (abstentions exempt).
+ * The label identifies the bundle under test for readable findings.
+ */
+export function findPredictionsOutsideFrozenTaxonomy(
+  predictions: FrozenPredictionCheckEntry[],
+  frozen: FrozenTaxonomySnapshot,
+  label = 'candidate',
+): string[] {
+  const findings: string[] = [];
+  const typeIds = new Set(frozen.productTypes.map(t => t.id));
+  const attrOptions = new Map(frozen.attributeTargets.map(t => [t.targetId, new Set(t.options)]));
+  const pageIds = new Set(frozen.pages.map(p => p.pageId));
+  predictions.forEach((pred, index) => {
+    const where = label + '[' + String(index) + ']';
+    if (isConcreteFrozenType(pred.productType) && !typeIds.has(pred.productType)) {
+      findings.push('prediction_outside_frozen_taxonomy: ' + where + ' productType "' + pred.productType + '" not in frozen candidates');
+    }
+    for (const field of pred.fieldAssignments ?? []) {
+      const allowed = attrOptions.get(field.targetId);
+      if (!allowed) {
+        findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field target "' + field.targetId + '" not in frozen candidates');
+        continue;
+      }
+      for (const value of frozenPredictedFieldValues(field)) {
+        if (!allowed.has(value)) {
+          findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field "' + field.targetId + '" value "' + value + '" not in frozen candidates');
+        }
+      }
+    }
+    const predictedPages: string[] = [
+      ...(pred.pageIds ?? []),
+      ...(pred.pageAssignments ?? []).map(frozenPredictedPageId).filter((id): id is string => id !== null),
+    ];
+    for (const pageId of new Set(predictedPages)) {
+      if (!pageIds.has(pageId)) {
+        findings.push('prediction_outside_frozen_taxonomy: ' + where + ' page "' + pageId + '" not in frozen candidates');
+      }
+    }
+  });
+  return findings;
+}
+
+/**
+ * List structural problems in a frozen snapshot (duplicate ids, empty option
+ * sets). Empty means well-formed. Complements the zod schema for plain-JS
+ * callers that never parse through it.
+ */
+export function verifyFrozenTaxonomySnapshotShape(frozen: FrozenTaxonomySnapshot): string[] {
+  const findings: string[] = [];
+  const typeIds = frozen.productTypes.map(t => t.id);
+  if (new Set(typeIds).size !== typeIds.length) {
+    findings.push('frozen_taxonomy_shape: duplicate product type ids');
+  }
+  const targetIds = frozen.attributeTargets.map(t => t.targetId);
+  if (new Set(targetIds).size !== targetIds.length) {
+    findings.push('frozen_taxonomy_shape: duplicate attribute target ids');
+  }
+  for (const target of frozen.attributeTargets) {
+    if (target.options.length === 0) {
+      findings.push('frozen_taxonomy_shape: attribute target "' + target.targetId + '" carries no options');
+    }
+  }
+  const pageIds = frozen.pages.map(p => p.pageId);
+  if (new Set(pageIds).size !== pageIds.length) {
+    findings.push('frozen_taxonomy_shape: duplicate page ids');
+  }
+  return findings;
 }

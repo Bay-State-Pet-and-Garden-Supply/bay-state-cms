@@ -37,7 +37,6 @@ import type { BenchmarkPredictionEntry, BenchmarkPredictionBundle } from '../sha
 import {
   effectiveReviewedTargetId,
   effectiveReviewedValue,
-  selectBestByProbability,
   type QualificationGoldCore,
 } from './benchmark-scoring-helpers';
 
@@ -1103,68 +1102,146 @@ export function assessBasicPredictionSourceEligibility(source: PredictionSourceK
   return { eligible: false, reason: 'reviewed_outcome_ineligible_for_raw_accuracy' };
 }
 
-// ─── Offline Qualification Predictions From Code (Issue #293 blocker fix) ────
+// ─── Honest Captured Qualification Predictions (Issue #293 blocker fix) ────
 //
 // The qualification runner must evidence the shipped classification code, not
 // replay per-entry authored answers. Frozen gold fixtures therefore carry ONLY
 // adjudicated gold labels + evidence snippets (no `baseline`/`candidate`
-// predictions). This section builds both prediction sides deterministically
-// from that gold + evidence by executing the actual shipped decision logic:
+// predictions). This section captures both prediction sides by executing the
+// actual shipped decision logic against that frozen gold evidence:
 //
-// - Baseline: the deterministic matcher precedence the pipeline applies
-//   before any model dispatch — `matchKeywordOptions` (product types, pages)
-//   gated by the shipped `PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE` floor, and
-//   `matchAttributeOptions` (attributes) with word-boundary grounding. No
-//   model probabilities, no recovery.
-// - Candidate: the TypeSafe Jev decision path — shipped question builders
+// - Baseline (incumbent path): the deterministic matcher precedence the
+//   pipeline applies before any model dispatch — `matchKeywordOptions`
+//   (product types, pages) gated by the shipped
+//   `PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE` floor, and
+//   `matchAttributeOptions` (attributes) with word-boundary grounding. When the
+//   deterministic matcher abstains and a baseline chat route was explicitly
+//   opted in, the legacy chat-LLM ranker (`llmRankOptions` — the exact
+//   function production's non-SystemOne fallback invokes) is attempted with
+//   credentials resolved from the existing provider store.
+// - Candidate (Jev decision path): shipped question builders
 //   (`buildProductTypeChoiceQuestion`, `buildAttributeChoiceQuestion` /
-//   `buildAttributeNoulQuestions`, `buildPageChoiceQuestion`), shipped
+//   `buildAttributeNoulQuestions`, `buildPageChoiceQuestion`), the shipped
+//   transport (`executeSystemOne`), shipped answer extraction
+//   (`requireChoiceAnswer` / `requireNoulAnswer`), shipped canonical mapping
+//   (`choiceKeyToCanonicalId`, `mapRankedLabelToOptionExactlyOne`), shipped
 //   probability floors (`JEV_PRODUCT_TYPE_MIN_PROBABILITY`,
 //   `JEV_ATTRIBUTE_MIN_PROBABILITY`, `JEV_MULTI_VALUE_MIN_PROBABILITY`,
 //   `JEV_PAGE_SINGLE_THRESHOLD`), and the shipped multi-value selection
 //   policy (`evaluateMultiValueSelectionPolicy`).
 //
-// Offline determinism note: without live credentials there is no Jev model to
-// answer the built questions, so per-option probabilities come from a generic
-// evidence-overlap simulator (`simulateOfflineOptionSupport`) applied
-// UNIFORMLY to every entry — never per-entry authored answers. It is an
-// explicitly documented lower-bound stand-in for semantic judgment (it cannot
-// use synonyms the evidence does not contain); live model compatibility is
-// proven separately by the bounded opt-in live-contract check, and production
-// quality by staged canaries. What this path DOES evidence: question
-// construction, threshold/abstention policy, cardinality handling, and the
-// deterministic precedence shared with production.
+// Honesty contract (fail-closed):
+// - Model judgments require explicit live credentials (`TYPESAFE_API_KEY` for
+//   Jev, passed explicitly by the caller — never read implicitly here; the
+//   existing provider credential store for the chat baseline). Captured model
+//   judgments record requested/resolved model identity and token usage on the
+//   immutable artifact (`source: 'live_captured'`).
+// - WITHOUT credentials the affected side is recorded as `source: 'blocked'`
+//   with a coded reason (`blockedCode`) — never simulated, never mocked into
+//   a passing number. Blocked sides also carry their blocked code as
+//   `failureCode`, so the existing evaluator's zero-service-failures gate
+//   treats unevidenced predictions as failures (fail-closed); the precise
+//   reason stays in `blockedCode`/`blockedDetail`.
+// - Deterministic-only execution (`buildQualificationPredictionsFromCode`,
+//   CI-safe, no network) remains available: the baseline side is the real
+//   deterministic matcher labeled `source: 'deterministic_floor'` — a
+//   lower-bound floor, never candidate quality evidence — and the candidate
+//   side is `blocked` (`jev_credentials_absent`). The deterministic report
+//   therefore cannot qualify candidate quality; it fails closed by construction.
 
 import {
   matchKeywordOptions,
   matchAttributeOptions,
-  tokenize as tokenizeEvidenceText,
 } from './curation-target-matcher';
 import {
   buildProductTypeChoiceQuestion,
   JEV_PRODUCT_TYPE_MIN_PROBABILITY,
   PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE,
+  type ProductTypeChoiceQuestionPlan,
 } from './product-type-decision';
 import {
   buildAttributeChoiceQuestion,
   buildAttributeNoulQuestions,
   evaluateMultiValueSelectionPolicy,
   JEV_ATTRIBUTE_MIN_PROBABILITY,
+  type AttributeChoiceQuestionPlan,
+  type AttributeNoulQuestionPlan,
 } from './attribute-decision';
 import {
   buildPageChoiceQuestion,
   JEV_PAGE_SINGLE_THRESHOLD,
+  NO_MATCH_CHOICE_KEY as PAGE_NO_MATCH_CHOICE_KEY,
+  INSUFFICIENT_EVIDENCE_CHOICE_KEY as PAGE_INSUFFICIENT_EVIDENCE_CHOICE_KEY,
+  type PageChoiceQuestionPlan,
 } from './page-decision';
 import type { ResolvedTarget } from './curation-target-resolver';
-import type { ProductAttributeConfig } from '../shared/schemas/classification';
+import type {
+  ProductAttributeConfig,
+  ModelPolicyConfigV2,
+  FrozenTaxonomySnapshot,
+} from '../shared/schemas/classification';
+import { executeSystemOne, TYPESAFE_EVALUATED_MODEL } from '../ai/systemone-transport';
+import type { SystemOneAnswer } from '../shared/schemas/systemone';
+import type { ProviderConnection } from '../ai/provider-connections';
+import {
+  requireChoiceAnswer,
+  requireNoulAnswer,
+  choiceKeyToCanonicalId,
+} from './systemone-decision-core';
+import { llmRankOptions, type LlmRankResult } from './curation-target-ranker';
+import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
+import {
+  buildModelPolicyView,
+  redactTransportText,
+  ModelPolicyDeniedError,
+  type ModelPolicyView,
+  type ProtectedOperation,
+} from './model-policy-gateway';
+import { getLlmConfigForTask, type LlmConfig } from '../onboarding/llm-client';
+import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 
-/** Version of the offline code-executed qualification predictor. */
-export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v1' as const;
+/** Version of the honest-capture qualification predictor (v2: no simulator). */
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v2' as const;
+
+/**
+ * Explicit prediction-source contract for qualification captures.
+ * - `live_captured`: the live path executed against frozen gold evidence and
+ *   its outcome was recorded (requested route always recorded; resolved
+ *   model + usage recorded when a model judgment spoke — null when the
+ *   incumbent path abstained without a judgment).
+ * - `deterministic_floor`: the real deterministic matcher ran with no model
+ *   consulted — a lower-bound floor, never candidate quality evidence.
+ * - `blocked`: no judgment was captured (coded reason in `blockedCode`) —
+ *   never scored as quality evidence; also surfaced as `failureCode` so the
+ *   evaluator's zero-service-failures gate fails closed.
+ */
+export const QUALIFICATION_SOURCE_LIVE_CAPTURED = 'live_captured' as const;
+export const QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR = 'deterministic_floor' as const;
+export const QUALIFICATION_SOURCE_BLOCKED = 'blocked' as const;
+export type QualificationPredictionSource =
+  | typeof QUALIFICATION_SOURCE_LIVE_CAPTURED
+  | typeof QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR
+  | typeof QUALIFICATION_SOURCE_BLOCKED;
+
+/** Coded blocked reasons (never free-form prose in `blockedCode`). */
+export const QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT = 'jev_credentials_absent' as const;
+export const QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT = 'baseline_model_credentials_absent' as const;
+export const QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED = 'live_dispatch_failed' as const;
+export const QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED = 'question_construction_failed' as const;
 
 /** Gold-only entry: adjudicated labels + evidence. Never carries predictions. */
 export interface QualificationGoldOnlyEntry extends QualificationGoldCore {}
 
-/** Executed prediction for one side (baseline or candidate) of one entry. */
+/**
+ * Executed prediction for one side (baseline or candidate) of one entry.
+ *
+ * Additive prediction-source marking (all new fields optional): `source`
+ * distinguishes `live_captured` (real model judgment, identity + usage
+ * recorded) from `deterministic_floor` (real deterministic matcher, no model
+ * consulted) and `blocked` (coded reason in `blockedCode`, never quality
+ * evidence). `failureCode` carries the blocked code for blocked sides so the
+ * existing evaluator's zero-service-failures gate fails closed.
+ */
 export interface ExecutedQualificationPrediction {
   productType: string | null;
   abstained: boolean;
@@ -1172,6 +1249,14 @@ export interface ExecutedQualificationPrediction {
   pageIds: string[];
   confidence: number;
   latencyMs: number;
+  source?: QualificationPredictionSource;
+  blockedCode?: string | null;
+  blockedDetail?: string | null;
+  failureCode?: string | null;
+  requestedModel?: string | null;
+  resolvedModel?: string | null;
+  provider?: string | null;
+  usage?: { inputTokens: number | null; outputTokens: number | null } | null;
 }
 
 /** Closed-world candidate sets derived globally from adjudicated gold labels. */
@@ -1181,12 +1266,32 @@ export interface QualificationTaxonomies {
   pages: Array<{ pageId: string; pageName: string }>;
 }
 
+/**
+ * Capture mode for the whole artifact (additive): `deterministic_floor` when
+ * no live model was attempted for either side (CI-safe sync build), else
+ * `live_captured` when a live attempt was made (per-side `source` fields
+ * carry the per-entry outcome — a live attempt may still record `blocked`
+ * sides when credentials or dispatch fail).
+ */
+export type QualificationCaptureMode = 'deterministic_floor' | 'live_captured';
+
+/**
+ * Where an artifact's candidate option sets came from (additive):
+ * `frozen_snapshot` (production taxonomy — the required contract) or
+ * `gold_union` (legacy fallback deriving the closed world from adjudicated
+ * gold labels; weaker separation, labeled as such).
+ */
+export type QualificationTaxonomySource = 'frozen_snapshot' | 'gold_union';
+
 /** Immutable artifact binding executed predictions to their inputs. */
 export interface QualificationPredictionArtifact {
   predictorVersion: typeof QUALIFICATION_PREDICTOR_VERSION;
   artifactHash: string;
   predictedAt: string;
   entryCount: number;
+  captureMode: QualificationCaptureMode;
+  taxonomySource: QualificationTaxonomySource;
+  frozenTaxonomyHash: string | null;
   predictions: Array<{
     sku: string;
     baseline: ExecutedQualificationPrediction;
@@ -1298,7 +1403,9 @@ function assembleQualificationTaxonomies(collections: RawTaxonomyCollections): Q
 /**
  * Derive closed-world candidate sets from the union of adjudicated gold
  * labels. Global (same options for every entry) so per-entry selection must
- * still be performed by the decision logic; sorted for determinism.
+ * still be performed by the decision logic; sorted for determinism. LEGACY
+ * fallback only — prefer the frozen production taxonomy snapshot (gold
+ * labels are answers and must never define the candidate pool).
  */
 function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): QualificationTaxonomies {
   const collections = emptyTaxonomyCollections();
@@ -1310,42 +1417,78 @@ function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): Q
   return assembleQualificationTaxonomies(collections);
 }
 
+/**
+ * Candidate option sets straight from the frozen production taxonomy
+ * snapshot (the required contract: gold labels are validated WITHIN these
+ * sets but never define them). Sorted copies so artifact construction stays
+ * deterministic regardless of snapshot order.
+ */
+export function qualificationTaxonomiesFromFrozenSnapshot(
+  snapshot: FrozenTaxonomySnapshot,
+): QualificationTaxonomies {
+  return {
+    productTypes: [...snapshot.productTypes]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map(t => ({ id: t.id, label: t.label })),
+    attributeTargets: [...snapshot.attributeTargets]
+      .sort((a, b) => a.targetId.localeCompare(b.targetId))
+      .map(t => ({ targetId: t.targetId, cardinality: t.cardinality, options: [...t.options].sort() })),
+    pages: [...snapshot.pages]
+      .sort((a, b) => a.pageId.localeCompare(b.pageId))
+      .map(p => ({ pageId: p.pageId, pageName: p.pageName })),
+  };
+}
+
+/** Structural check for the frozen-taxonomy snapshot shape (legacy taxonomy inputs lack `snapshotHash`). */
+function isFrozenTaxonomySnapshot(value: unknown): value is FrozenTaxonomySnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.snapshotHash === 'string'
+    && Array.isArray(v.productTypes)
+    && Array.isArray(v.attributeTargets)
+    && Array.isArray(v.pages);
+}
+
+/** Structural check for a caller-built legacy taxonomy input. */
+function isLegacyQualificationTaxonomies(value: unknown): value is QualificationTaxonomies {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Array.isArray(v.productTypes) && Array.isArray(v.attributeTargets) && Array.isArray(v.pages);
+}
+
+/** Taxonomy input for both capture builders: frozen snapshot, legacy sets, or omitted (gold-union fallback). */
+export type QualificationTaxonomyInput = QualificationTaxonomies | FrozenTaxonomySnapshot | null | undefined;
+
+/**
+ * Resolve the candidate option sets for a capture. A frozen snapshot wins
+ * (recorded on the artifact with its hash); an explicit legacy input is used
+ * as-is and labeled `gold_union`; an omitted input falls back to the legacy
+ * gold-union derivation. A present-but-malformed input throws fail-closed —
+ * silently substituting the gold union would launder the candidate pool.
+ */
+function resolveQualificationTaxonomies(
+  input: QualificationTaxonomyInput,
+  entries: QualificationGoldOnlyEntry[],
+): { taxonomies: QualificationTaxonomies; taxonomySource: QualificationTaxonomySource; frozenTaxonomyHash: string | null } {
+  if (input === null || input === undefined) {
+    return { taxonomies: deriveQualificationTaxonomies(entries), taxonomySource: 'gold_union', frozenTaxonomyHash: null };
+  }
+  if (isFrozenTaxonomySnapshot(input)) {
+    return {
+      taxonomies: qualificationTaxonomiesFromFrozenSnapshot(input),
+      taxonomySource: 'frozen_snapshot',
+      frozenTaxonomyHash: input.snapshotHash,
+    };
+  }
+  if (isLegacyQualificationTaxonomies(input)) {
+    return { taxonomies: input, taxonomySource: 'gold_union', frozenTaxonomyHash: null };
+  }
+  throw new Error('Qualification taxonomy input is neither a frozen snapshot nor legacy taxonomies.');
+}
+
 /** Evidence text for one entry (joined snippets, exactly what scoring sees). */
 function qualificationEvidenceText(entry: QualificationGoldOnlyEntry): string {
   return entry.evidence.map(ev => ev.snippet ?? '').join(' ').trim();
-}
-
-/** Plural-tolerant token normalization for the OFFLINE simulator only. */
-function singularizeToken(t: string): string {
-  if (t.endsWith('ies') && t.length > 4) return t.slice(0, -3) + 'y';
-  if (t.endsWith('es') && t.length > 4) return t.slice(0, -2);
-  if (t.endsWith('s') && t.length > 3) return t.slice(0, -1);
-  return t;
-}
-
-/**
- * Generic offline support simulator: token overlap between an option label
- * and the entry evidence, normalized plural-tolerantly. Applied uniformly —
- * the same function scores every option of every entry. Returns a
- * Choice-style top probability in [0.45, 0.95] and a Noul-style P(yes) in
- * [0.05, 0.95]; both derive from the SAME overlap score so single and
- * multi-value judgments stay consistent.
- */
-function simulateOfflineOptionSupport(
-  optionLabel: string,
-  evidenceTokens: Set<string>,
-): { score: number; choiceProb: number; noulProb: number } {
-  const labelTokens = tokenizeEvidenceText(optionLabel);
-  if (labelTokens.length === 0 || evidenceTokens.size === 0) {
-    return { score: 0, choiceProb: 0.45, noulProb: 0.05 };
-  }
-  const normalizedEvidence = new Set([...evidenceTokens].map(singularizeToken));
-  let hits = 0;
-  for (const t of labelTokens) {
-    if (normalizedEvidence.has(t) || normalizedEvidence.has(singularizeToken(t))) hits++;
-  }
-  const score = hits / labelTokens.length;
-  return { score, choiceProb: 0.45 + 0.5 * score, noulProb: 0.05 + 0.9 * score };
 }
 
 function stubAttributeConfig(targetId: string, options: string[]): ProductAttributeConfig {
@@ -1397,21 +1540,6 @@ function isQualificationPredictionEmpty(optionCount: number, evidenceText: strin
   return optionCount === 0 || evidenceText.length < 3;
 }
 
-/**
- * Best offline-simulator Choice option (first-wins ties, deterministic input
- * order). Shared by every candidate Choice selection in this module.
- */
-function selectBestSimulatorLabel(
-  options: Array<{ value: string; label: string }>,
-  evidenceTokens: Set<string>,
-): { bestValue: string | null; bestProb: number } {
-  const { best, bestProb } = selectBestByProbability(
-    options,
-    option => simulateOfflineOptionSupport(option.label, evidenceTokens).choiceProb,
-  );
-  return { bestValue: best ? best.value : null, bestProb };
-}
-
 /** True when the gold fixture adjudicates this field target for the entry. */
 function goldHasFieldTarget(
   entry: QualificationGoldOnlyEntry,
@@ -1459,37 +1587,148 @@ function predictBaselineProductType(
 }
 
 /**
- * Candidate product type: builds the shipped Jev Choice question (exercising
- * criteria/key construction), then selects via the offline simulator under
- * the shipped `JEV_PRODUCT_TYPE_MIN_PROBABILITY` floor. Empty evidence maps
- * to insufficient-evidence abstention; zero support maps to no-match
- * abstention — mirroring the shipped abstention routing without claiming a
- * live judgment occurred.
+ * Shipped Jev Choice abstention literals for product types and single-value
+ * attributes (mirrors the module-private routing constants in
+ * `product-type-decision` and `attribute-decision`; page literals are
+ * imported from `page-decision` because that boundary exports them).
  */
-function predictCandidateProductType(
+const JEV_NO_MATCH_KEY = 'no_match';
+const JEV_INSUFFICIENT_EVIDENCE_KEY = 'insufficient_evidence';
+
+/** Ordinary Choice capacity mirrored from production (255 total − 2 abstention). */
+const JEV_MAX_ORDINARY_CHOICE_CANDIDATES = 253;
+
+/** One entry's full shipped-question construction (pure — no model, no network). */
+export interface QualificationCandidateAttributePlan {
+  targetId: string;
+  cardinality: 'single' | 'multiple';
+  resolved: ResolvedTarget;
+  choicePlan?: AttributeChoiceQuestionPlan;
+  noulPlans?: AttributeNoulQuestionPlan[];
+}
+
+export interface QualificationCandidateQuestionSet {
+  productTypePlan: ProductTypeChoiceQuestionPlan;
+  attributePlans: QualificationCandidateAttributePlan[];
+  pagePlan: PageChoiceQuestionPlan | null;
+}
+
+/**
+ * Build every shipped Jev question for one gold entry (pure construction —
+ * the same builders production dispatches). Exported so wiring/shape tests
+ * can prove criteria/key parity without credentials or network. Throws on
+ * malformed taxonomy input; callers map that to a coded `blocked` side
+ * (fail-closed), never to a guessed judgment.
+ */
+export function buildQualificationCandidateQuestionSet(
   entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
-  evidenceText: string,
-): { productType: string | null; abstained: boolean; confidence: number } {
-  if (isQualificationPredictionEmpty(taxonomies.productTypes.length, evidenceText)) {
-    return { productType: null, abstained: true, confidence: 0 };
-  }
-  // Execute the shipped question builder: criteria/key wiring must match production.
-  const plan = buildProductTypeChoiceQuestion(
+): QualificationCandidateQuestionSet {
+  const productTypePlan = buildProductTypeChoiceQuestion(
     taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
   );
-  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
-  const options = [...plan.keyToIdMap].map(([, canonicalId]) => ({
-    value: canonicalId,
-    label: taxonomies.productTypes.find(t => t.id === canonicalId)?.label ?? canonicalId,
-  }));
-  const { bestValue: bestId, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
-  const bestLabel = taxonomies.productTypes.find(t => t.id === bestId)?.label ?? '';
-  const { score } = simulateOfflineOptionSupport(bestLabel, evidenceTokens);
-  if (!bestId || score <= 0 || bestProb < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
-    return { productType: null, abstained: true, confidence: 0 };
+  const attributePlans: QualificationCandidateAttributePlan[] = [];
+  for (const target of taxonomies.attributeTargets) {
+    if (!goldHasFieldTarget(entry, target.targetId)) continue;
+    const { resolved } = stubAttributeTarget(target);
+    if (target.cardinality === 'multiple') {
+      attributePlans.push({
+        targetId: target.targetId,
+        cardinality: target.cardinality,
+        resolved,
+        noulPlans: buildAttributeNoulQuestions(resolved, entry.sku, {}),
+      });
+    } else {
+      attributePlans.push({
+        targetId: target.targetId,
+        cardinality: target.cardinality,
+        resolved,
+        choicePlan: buildAttributeChoiceQuestion(resolved),
+      });
+    }
   }
-  return { productType: bestId, abstained: false, confidence: bestProb };
+  const pagePlan = taxonomies.pages.length > 0
+    ? buildPageChoiceQuestion(
+      taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+      null,
+    )
+    : null;
+  return { productTypePlan, attributePlans, pagePlan };
+}
+
+/** Null model-identity fields for non-model sides (floor / blocked). */
+function emptyQualificationModelIdentity(): Pick<
+  ExecutedQualificationPrediction,
+  'requestedModel' | 'resolvedModel' | 'provider' | 'usage'
+> {
+  return { requestedModel: null, resolvedModel: null, provider: null, usage: null };
+}
+
+/**
+ * Blocked side: no judgment captured (coded reason, never a passing number).
+ * Carries the blocked code as `failureCode` so the existing evaluator's
+ * zero-service-failures gate treats unevidenced predictions as failures.
+ */
+export function blockedQualificationPrediction(
+  code: string,
+  detail: string,
+): ExecutedQualificationPrediction {
+  return {
+    productType: null,
+    abstained: true,
+    fieldAssignments: [],
+    pageIds: [],
+    confidence: 0,
+    latencyMs: 0,
+    source: QUALIFICATION_SOURCE_BLOCKED,
+    blockedCode: code,
+    blockedDetail: detail,
+    failureCode: code,
+    ...emptyQualificationModelIdentity(),
+  };
+}
+
+/** Deterministic-floor side: the real matcher ran, no model was consulted. */
+function floorQualificationPrediction(input: {
+  productType: string | null;
+  abstained: boolean;
+  fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
+  pageIds: string[];
+  confidence: number;
+  latencyMs: number;
+}): ExecutedQualificationPrediction {
+  return {
+    ...input,
+    source: QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR,
+    blockedCode: null,
+    blockedDetail: null,
+    failureCode: null,
+    ...emptyQualificationModelIdentity(),
+  };
+}
+
+/**
+ * Candidate side without live credentials: exercise the real Jev question
+ * construction (wiring proof — a builder throw becomes a coded blocked side),
+ * but record NO probabilities. There is no deterministic candidate quality
+ * signal; the deterministic floor belongs to the baseline side only.
+ */
+function blockedCandidateWithoutCredentials(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+): ExecutedQualificationPrediction {
+  try {
+    buildQualificationCandidateQuestionSet(entry, taxa);
+  } catch (err) {
+    return blockedQualificationPrediction(
+      QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED,
+      redactTransportText(err instanceof Error ? err.message : String(err)),
+    );
+  }
+  return blockedQualificationPrediction(
+    QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT,
+    'Candidate Jev judgments require explicit live credentials (TYPESAFE_API_KEY); deterministic mode records no candidate probabilities.',
+  );
 }
 
 /** Baseline attributes: shipped word-boundary alias/direct matching only. */
@@ -1514,73 +1753,39 @@ function predictBaselineAttributes(
 }
 
 /**
- * Candidate multi-value attributes: shipped Noul questions + the shipped
- * `evaluateMultiValueSelectionPolicy` (null when the policy does not resolve).
+ * Candidate attributes from LIVE Jev answers: single-value targets use the
+ * shipped Choice floor (`JEV_ATTRIBUTE_MIN_PROBABILITY`) after the shipped
+ * canonical mapping; multi-value targets run the shipped
+ * `evaluateMultiValueSelectionPolicy` over the answered Noul probabilities
+ * (its own `JEV_MULTI_VALUE_MIN_PROBABILITY` gate applies inside).
  */
-function predictCandidateMultiAttributeValues(
-  resolved: ResolvedTarget,
-  entry: QualificationGoldOnlyEntry,
-  evidenceTokens: Set<string>,
-): string[] | null {
-  // Execute the shipped Noul question builder (questionId wiring parity).
-  const plans = buildAttributeNoulQuestions(resolved, entry.sku, {});
-  const candidates = plans.map(p => ({
-    optionValue: p.optionValue,
-    optionLabel: p.optionLabel,
-    optionIndex: p.optionIndex,
-    prob: simulateOfflineOptionSupport(p.optionLabel, evidenceTokens).noulProb,
-  }));
-  const outcome = evaluateMultiValueSelectionPolicy({
-    target: resolved,
-    candidates,
-    permittedEvidence: [],
-    catalogField: null,
-  });
-  return outcome.outcome === 'resolved' ? outcome.selectedValues : null;
-}
-
-/**
- * Candidate single-value attribute: shipped Choice question + simulation
- * under `JEV_ATTRIBUTE_MIN_PROBABILITY` (null when unsupported).
- */
-function predictCandidateSingleAttributeValue(
-  resolved: ResolvedTarget,
-  evidenceTokens: Set<string>,
-): string | null {
-  // Execute the shipped Choice question builder for criteria parity.
-  const plan = buildAttributeChoiceQuestion(resolved);
-  const options = [...plan.keyToIdMap].map(([, canonicalValue]) => ({
-    value: canonicalValue,
-    label: canonicalValue,
-  }));
-  const { bestValue, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
-  const { score } = simulateOfflineOptionSupport(bestValue ?? '', evidenceTokens);
-  return bestValue && score > 0 && bestProb >= JEV_ATTRIBUTE_MIN_PROBABILITY ? bestValue : null;
-}
-
-/**
- * Candidate attributes: shipped Jev question builders + shipped floors and,
- * for multi-value targets, the shipped `evaluateMultiValueSelectionPolicy`.
- * Single-value targets use Choice simulation under
- * `JEV_ATTRIBUTE_MIN_PROBABILITY`; multi-value targets use per-option Noul
- * simulation under the policy's own `JEV_MULTI_VALUE_MIN_PROBABILITY` gate.
- */
-function predictCandidateAttributes(
-  entry: QualificationGoldOnlyEntry,
-  taxonomies: QualificationTaxonomies,
-  evidenceText: string,
+function interpretLiveCandidateAttributes(
+  plans: QualificationCandidateAttributePlan[],
+  answers: Record<string, SystemOneAnswer>,
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
-  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
-  for (const target of taxonomies.attributeTargets) {
-    if (!goldHasFieldTarget(entry, target.targetId)) continue;
-    const { resolved } = stubAttributeTarget(target);
-    if (target.cardinality === 'multiple') {
-      const values = predictCandidateMultiAttributeValues(resolved, entry, evidenceTokens);
-      if (values) out.push({ targetId: target.targetId, values });
+  for (const plan of plans) {
+    if (plan.choicePlan) {
+      const answer = requireChoiceAnswer(answers, plan.choicePlan.questionId);
+      const choiceKey = answer.choice;
+      const prob = answer.probabilities[choiceKey] ?? 0;
+      if (choiceKey === JEV_NO_MATCH_KEY || choiceKey === JEV_INSUFFICIENT_EVIDENCE_KEY) continue;
+      const canonicalValue = choiceKeyToCanonicalId(plan.choicePlan.keyToIdMap, choiceKey, 'option value');
+      if (prob >= JEV_ATTRIBUTE_MIN_PROBABILITY) out.push({ targetId: plan.targetId, value: canonicalValue });
     } else {
-      const value = predictCandidateSingleAttributeValue(resolved, evidenceTokens);
-      if (value) out.push({ targetId: target.targetId, value });
+      const candidates = (plan.noulPlans ?? []).map(p => ({
+        optionValue: p.optionValue,
+        optionLabel: p.optionLabel,
+        optionIndex: p.optionIndex,
+        prob: requireNoulAnswer(answers, p.questionId).noul,
+      }));
+      const outcome = evaluateMultiValueSelectionPolicy({
+        target: plan.resolved,
+        candidates,
+        permittedEvidence: [],
+        catalogField: null,
+      });
+      if (outcome.outcome === 'resolved') out.push({ targetId: plan.targetId, values: outcome.selectedValues });
     }
   }
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
@@ -1603,78 +1808,576 @@ function predictBaselinePages(
   return [top.value];
 }
 
-/**
- * Candidate pages: shipped `buildPageChoiceQuestion` for criteria/key parity,
- * then offline-simulator selection under `JEV_PAGE_SINGLE_THRESHOLD`.
- */
-function predictCandidatePages(
-  entry: QualificationGoldOnlyEntry,
-  taxonomies: QualificationTaxonomies,
-  evidenceText: string,
-): string[] {
-  if (isQualificationPredictionEmpty(taxonomies.pages.length, evidenceText)) return [];
-  const plan = buildPageChoiceQuestion(
-    taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
-    null,
-  );
-  const evidenceTokens = new Set(tokenizeEvidenceText(evidenceText));
-  const options = [...plan.keyToIdMap]
-    .map(([, pageId]) => {
-      const page = taxonomies.pages.find(p => p.pageId === pageId);
-      return { value: pageId, label: page?.pageName ?? pageId };
-    })
-    .filter(option => simulateOfflineOptionSupport(option.label, evidenceTokens).score > 0);
-  const { bestValue: bestId, bestProb } = selectBestSimulatorLabel(options, evidenceTokens);
-  if (!bestId || bestProb < JEV_PAGE_SINGLE_THRESHOLD) return [];
-  return [bestId];
-}
-
 /** Confidence for the artifact (abstained sides carry zero confidence). */
 function artifactConfidence(abstained: boolean, confidence: number): number {
   return abstained ? 0 : Number(confidence.toFixed(4));
 }
 
-/** Execute baseline + candidate paths for one gold entry (latencies measured). */
-function executeEntryPredictions(
+/** Deterministic baseline stages for one entry (unlabeled — callers add the source). */
+function runDeterministicBaselineStages(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+): {
+  type: { productType: string | null; abstained: boolean; confidence: number };
+  fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+  pages: string[];
+} {
+  return {
+    type: predictBaselineProductType(entry, taxa, evidenceText),
+    fields: predictBaselineAttributes(entry, taxa, evidenceText),
+    pages: predictBaselinePages(entry, taxa, evidenceText),
+  };
+}
+
+/** Execute the deterministic baseline + blocked candidate for one gold entry. */
+function executeDeterministicFloorEntryPredictions(
   entry: QualificationGoldOnlyEntry,
   taxa: QualificationTaxonomies,
 ): { sku: string; baseline: ExecutedQualificationPrediction; candidate: ExecutedQualificationPrediction } {
   const evidenceText = qualificationEvidenceText(entry);
-  const startedBaseline = Date.now();
-  const bType = predictBaselineProductType(entry, taxa, evidenceText);
-  const bFields = predictBaselineAttributes(entry, taxa, evidenceText);
-  const bPages = predictBaselinePages(entry, taxa, evidenceText);
-  const baselineLatency = Math.max(0, Date.now() - startedBaseline);
-  const startedCandidate = Date.now();
-  const cType = predictCandidateProductType(entry, taxa, evidenceText);
-  const cFields = predictCandidateAttributes(entry, taxa, evidenceText);
-  const cPages = predictCandidatePages(entry, taxa, evidenceText);
-  const candidateLatency = Math.max(0, Date.now() - startedCandidate);
+  const started = Date.now();
+  const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
+  const baseline = floorQualificationPrediction({
+    productType: stages.type.productType,
+    abstained: stages.type.abstained,
+    fieldAssignments: stages.fields,
+    pageIds: stages.pages,
+    confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
+    latencyMs: Math.max(0, Date.now() - started),
+  });
+  return { sku: entry.sku, baseline, candidate: blockedCandidateWithoutCredentials(entry, taxa) };
+}
+
+// ─── Live capture (opt-in, explicit credentials, real transports) ────────────
+
+export interface QualificationJevLiveCredentials {
+  /** Explicit TypeSafe key (TYPESAFE_API_KEY) — never read implicitly here. */
+  apiKey: string;
+  model?: string;
+  timeoutMs?: number;
+}
+
+export interface QualificationBaselineLiveRoute {
+  /** Chat provider for the incumbent ranker leg (credential from the existing store). */
+  provider: string;
+  model: string;
+}
+
+export interface QualificationLiveCaptureOptions {
+  jev?: QualificationJevLiveCredentials | null;
+  baselineRoute?: QualificationBaselineLiveRoute | null;
+}
+
+interface ResolvedJevLiveTarget {
+  conn: ProviderConnection;
+  model: string;
+  timeoutMs?: number;
+}
+
+/**
+ * Ephemeral Jev connection for qualification capture (mirrors the bounded
+ * live-contract check — no persisted secrets, no DB). The key travels only
+ * in the Authorization header of the live dispatch.
+ */
+function buildQualificationJevConnection(apiKey: string): ProviderConnection {
   return {
-    sku: entry.sku,
-    baseline: {
-      productType: bType.productType,
-      abstained: bType.abstained,
-      fieldAssignments: bFields,
-      pageIds: bPages,
-      confidence: artifactConfidence(bType.abstained, bType.confidence),
-      latencyMs: baselineLatency,
-    },
-    candidate: {
-      productType: cType.productType,
-      abstained: cType.abstained,
-      fieldAssignments: cFields,
-      pageIds: cPages,
-      confidence: artifactConfidence(cType.abstained, cType.confidence),
-      latencyMs: candidateLatency,
-    },
+    id: 'typesafe-qualification-capture',
+    label: 'TypeSafe qualification capture (ephemeral)',
+    transport: 'systemone',
+    baseUrl: 'https://api.typesafe.ai/v1',
+    credential: apiKey,
+    trustZone: 'cloud',
+    approvedHost: 'api.typesafe.ai',
+    approvedPort: 443,
+    enabled: true,
+    connectTimeoutMs: 8000,
+    inferenceTimeoutMs: 30_000,
+  };
+}
+
+/** Resolve explicit Jev credentials (null when absent — the side stays blocked). */
+function resolveJevLiveTarget(jev: QualificationJevLiveCredentials | null | undefined): ResolvedJevLiveTarget | null {
+  const apiKey = jev?.apiKey ?? '';
+  if (apiKey.length < 8) return null;
+  return {
+    conn: buildQualificationJevConnection(apiKey),
+    model: jev?.model && jev.model.length > 0 ? jev.model : TYPESAFE_EVALUATED_MODEL,
+    ...(jev?.timeoutMs !== undefined ? { timeoutMs: jev.timeoutMs } : {}),
   };
 }
 
 /**
- * Hash semantic predictions only: per-entry wall-clock latency is real
- * telemetry recorded on the artifact, but it must not affect identity —
- * the same gold entries always yield the same artifact hash.
+ * Frozen-evidence Jev state for one gold entry: SKU + evidence snippets only.
+ * Gold labels never enter the state — the model judges from evidence alone.
+ */
+function qualificationJevState(entry: QualificationGoldOnlyEntry): {
+  sku: string;
+  snippets: string[];
+  evidenceCount: number;
+} {
+  return {
+    sku: entry.sku,
+    snippets: entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15),
+    evidenceCount: entry.evidence.length,
+  };
+}
+
+type QualificationLiveQuestion =
+  | { type: 'choice'; instructions: string; criteria: Record<string, string> }
+  | { type: 'noul'; instructions: string; criteria: { true: string; false: string } };
+
+/** Assemble one entry's candidate questions into transport records (stable order). */
+function assembleCandidateLiveQuestions(
+  questions: QualificationCandidateQuestionSet,
+): Array<{ questionId: string; question: QualificationLiveQuestion }> {
+  const records: Array<{ questionId: string; question: QualificationLiveQuestion }> = [];
+  records.push({
+    questionId: questions.productTypePlan.questionId,
+    question: {
+      type: 'choice',
+      instructions: questions.productTypePlan.instructions,
+      criteria: questions.productTypePlan.criteria,
+    },
+  });
+  for (const plan of questions.attributePlans) {
+    if (plan.choicePlan) {
+      records.push({
+        questionId: plan.choicePlan.questionId,
+        question: {
+          type: 'choice',
+          instructions: plan.choicePlan.instructions,
+          criteria: plan.choicePlan.criteria,
+        },
+      });
+    }
+    for (const noul of plan.noulPlans ?? []) {
+      records.push({
+        questionId: noul.questionId,
+        question: { type: 'noul', instructions: noul.instructions, criteria: noul.criteria },
+      });
+    }
+  }
+  if (questions.pagePlan) {
+    records.push({
+      questionId: questions.pagePlan.questionId,
+      question: {
+        type: 'choice',
+        instructions: questions.pagePlan.instructions,
+        criteria: questions.pagePlan.criteria,
+      },
+    });
+  }
+  return records;
+}
+
+interface MergedLiveAnswers {
+  answers: Record<string, SystemOneAnswer>;
+  requestedModel: string;
+  resolvedModel: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
+ * Dispatch one entry's candidate questions in transport-sized chunks and
+ * merge the validated answers. Usage sums across chunks; model identity comes
+ * from the first dispatch (a single entry always targets one model).
+ */
+async function dispatchCandidateLiveQuestions(
+  target: ResolvedJevLiveTarget,
+  records: Array<{ questionId: string; question: QualificationLiveQuestion }>,
+  state: unknown,
+): Promise<MergedLiveAnswers> {
+  const CHUNK_SIZE = 32;
+  let merged: Record<string, SystemOneAnswer> | null = null;
+  let requestedModel = target.model;
+  let resolvedModel = target.model;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  for (let offset = 0; offset < records.length; offset += CHUNK_SIZE) {
+    const chunk = records.slice(offset, offset + CHUNK_SIZE);
+    const questions: Record<string, QualificationLiveQuestion> = {};
+    for (const record of chunk) questions[record.questionId] = record.question;
+    const result = await executeSystemOne(
+      target.conn,
+      target.model,
+      questions,
+      state,
+      target.timeoutMs !== undefined ? { timeoutMs: target.timeoutMs } : {},
+    );
+    merged = { ...(merged ?? {}), ...result.answers };
+    requestedModel = result.requestedModel;
+    if (offset === 0) resolvedModel = result.returnedModel;
+    inputTokens += result.usage.inputTokens;
+    outputTokens += result.usage.outputTokens;
+  }
+  return { answers: merged ?? {}, requestedModel, resolvedModel, inputTokens, outputTokens };
+}
+
+/**
+ * Capture one entry's candidate side from LIVE Jev judgments: shipped
+ * question builders → shipped transport → shipped extraction/mapping →
+ * shipped floors + shipped multi-value policy. Any dispatch/validation
+ * failure blocks the side with a coded reason (never a partial guess).
+ */
+async function captureCandidateEntryLive(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+  target: ResolvedJevLiveTarget,
+): Promise<ExecutedQualificationPrediction> {
+  const started = Date.now();
+  const fail = (detail: string): ExecutedQualificationPrediction => ({
+    ...blockedQualificationPrediction(QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED, detail),
+    latencyMs: Math.max(0, Date.now() - started),
+  });
+  try {
+    const questions = buildQualificationCandidateQuestionSet(entry, taxa);
+    const records = assembleCandidateLiveQuestions(questions);
+    // Mirror production's candidate-limit abstention for product types: an
+    // oversized closed world abstains the type stage (no first-N clipping)
+    // while attributes/pages still capture from the live model.
+    const typeOverLimit = taxa.productTypes.length > JEV_MAX_ORDINARY_CHOICE_CANDIDATES;
+    const dispatchRecords = typeOverLimit ? records.slice(1) : records;
+    const merged = await dispatchCandidateLiveQuestions(target, dispatchRecords, qualificationJevState(entry));
+
+    let productType: string | null = null;
+    let typeAbstained = true;
+    let typeProb = 0;
+    if (!typeOverLimit) {
+      const answer = requireChoiceAnswer(merged.answers, questions.productTypePlan.questionId);
+      const choiceKey = answer.choice;
+      typeProb = answer.probabilities[choiceKey] ?? 0;
+      if (choiceKey !== JEV_NO_MATCH_KEY && choiceKey !== JEV_INSUFFICIENT_EVIDENCE_KEY) {
+        const canonicalId = choiceKeyToCanonicalId(questions.productTypePlan.keyToIdMap, choiceKey, 'option ID');
+        if (typeProb >= JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
+          productType = canonicalId;
+          typeAbstained = false;
+        }
+      }
+    }
+
+    const fieldAssignments = interpretLiveCandidateAttributes(questions.attributePlans, merged.answers);
+
+    let pageIds: string[] = [];
+    if (questions.pagePlan) {
+      const answer = requireChoiceAnswer(merged.answers, questions.pagePlan.questionId);
+      const choiceKey = answer.choice;
+      const pageProb = answer.probabilities[choiceKey] ?? 0;
+      if (choiceKey !== PAGE_NO_MATCH_CHOICE_KEY && choiceKey !== PAGE_INSUFFICIENT_EVIDENCE_CHOICE_KEY) {
+        const pageId = choiceKeyToCanonicalId(questions.pagePlan.keyToIdMap, choiceKey, 'option ID');
+        if (pageProb >= JEV_PAGE_SINGLE_THRESHOLD) pageIds = [pageId];
+      }
+    }
+
+    return {
+      productType,
+      abstained: typeAbstained,
+      fieldAssignments,
+      pageIds,
+      confidence: artifactConfidence(typeAbstained, typeProb),
+      latencyMs: Math.max(0, Date.now() - started),
+      source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
+      blockedCode: null,
+      blockedDetail: null,
+      failureCode: null,
+      requestedModel: merged.requestedModel,
+      resolvedModel: merged.resolvedModel,
+      provider: 'typesafe',
+      usage: { inputTokens: merged.inputTokens, outputTokens: merged.outputTokens },
+    };
+  } catch (err) {
+    return fail(redactTransportText(err instanceof Error ? err.message : String(err)));
+  }
+}
+
+// ─── Baseline live leg (incumbent: deterministic first, then chat ranker) ────
+
+type BaselineChatOperation = 'product_type_ranking' | 'attribute_ranking' | 'page_assignment';
+
+/** Stages whose deterministic matcher abstained and that gold adjudicates. */
+interface BaselineLiveNeeds {
+  type: boolean;
+  attrs: string[];
+  pages: boolean;
+}
+
+/** Which baseline stages genuinely need a model judgment (mirrors incumbent precedence). */
+function baselineLiveNeeds(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  stages: ReturnType<typeof runDeterministicBaselineStages>,
+): BaselineLiveNeeds {
+  const typeAttemptable = !isQualificationPredictionEmpty(taxa.productTypes.length, evidenceText);
+  const pagesAttemptable = !isQualificationPredictionEmpty(taxa.pages.length, evidenceText);
+  const matchedAttrTargets = new Set(stages.fields.map(f => f.targetId));
+  return {
+    type: typeAttemptable && stages.type.abstained,
+    attrs: taxa.attributeTargets
+      .filter(t => goldHasFieldTarget(entry, t.targetId) && !matchedAttrTargets.has(t.targetId))
+      .map(t => t.targetId),
+    pages: pagesAttemptable
+      && stages.pages.length === 0
+      && (entry.gold.categoryPages.pageIds.length > 0 || entry.gold.categoryPages.pageAssignments.length > 0),
+  };
+}
+
+/** Operator-supplied chat routing for the baseline leg (names only — credentials stay in the store). */
+function buildBaselineChatPolicyView(route: QualificationBaselineLiveRoute): ModelPolicyView {
+  const locality = route.provider === 'ollama' ? 'local' : 'cloud';
+  const stageOverride = {
+    provider: route.provider,
+    model: route.model,
+    fallbackProvider: null,
+    fallbackModel: null,
+  };
+  const policy: ModelPolicyConfigV2 = {
+    defaultProvider: route.provider,
+    defaultModel: route.model,
+    providerLocalities: { [route.provider]: locality },
+    stageOverrides: {
+      primary_product_type_proposal: stageOverride,
+      product_attribute_proposals: stageOverride,
+      category_page_proposals: stageOverride,
+    },
+    textDataSharing: 'cloud_allowed',
+    imageDataSharing: 'local_only',
+    mlFeatures: {
+      productionRetrieval: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+      pageReranking: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+      confidenceCalibration: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+      productionEmbeddings: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+    },
+  };
+  return buildModelPolicyView(policy);
+}
+
+const BASELINE_CHAT_TASKS: Record<BaselineChatOperation, { task: string; label: string }> = {
+  product_type_ranking: { task: 'product_type_classification', label: 'product type' },
+  attribute_ranking: { task: 'attribute_value_classification', label: 'attribute' },
+  page_assignment: { task: 'category_page_assignment', label: 'category page' },
+};
+
+/**
+ * Resolve the incumbent chat config for one protected operation from the
+ * EXISTING provider store (the same resolution the ranker performs
+ * internally). Null/denial means no usable baseline model exists here — the
+ * caller records `blocked`, never a guessed judgment.
+ */
+function resolveBaselineChatConfig(
+  operation: BaselineChatOperation,
+  view: ModelPolicyView,
+): LlmConfig | null {
+  const { task } = BASELINE_CHAT_TASKS[operation];
+  return getLlmConfigForTask(task as LlmTask, {
+    allowFallback: true,
+    modelPolicy: view,
+    protectedOperation: operation,
+  });
+}
+
+/** Attempt the real legacy chat ranker for one needy baseline stage (null when the model abstains). */
+async function attemptBaselineChatStage(input: {
+  operation: BaselineChatOperation;
+  targetLabel: string;
+  options: Array<{ value: string; label: string }>;
+  selectionMode: 'single' | 'multiple';
+  evidenceText: string;
+  view: ModelPolicyView;
+}): Promise<LlmRankResult | null> {
+  return llmRankOptions({
+    targetLabel: input.targetLabel,
+    options: input.options,
+    selectionMode: input.selectionMode,
+    evidenceText: input.evidenceText,
+    task: BASELINE_CHAT_TASKS[input.operation].task,
+    modelPolicy: input.view,
+    protectedOperation: input.operation,
+  });
+}
+
+/**
+ * Capture one entry's baseline side with the incumbent precedence:
+ * deterministic matcher first; the legacy chat ranker only for stages the
+ * matcher left unresolved AND gold adjudicates. Without an opted-in route
+ * (or when nothing needs a model) the side is the deterministic floor.
+ * Missing credentials block the side; a consulted-but-abstaining ranker
+ * records a live abstention (the incumbent genuinely abstains there —
+ * production maps every ranker null to abstention, whatever its cause).
+ *
+ * Audit-provenance note: the legacy ranker fail-closes to null before any
+ * transport when no run-bound audit context is present (its own design —
+ * model output requires a durable start row). Qualification never fabricates
+ * runs, so the ranker outcome here is its real fail-closed/abstention
+ * outcome for these inputs, recorded with the requested route
+ * (`requestedModel`/`provider`) and null `resolvedModel`/`usage`. A side
+ * whose requested route resolved but no model spoke is still
+ * `live_captured` (the live path executed and its outcome recorded) — the
+ * reading rule is: `resolvedModel === null` means no model judgment spoke.
+ */
+async function captureBaselineEntryLive(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  route: QualificationBaselineLiveRoute | null,
+  view: ModelPolicyView | null,
+): Promise<ExecutedQualificationPrediction> {
+  const started = Date.now();
+  const latency = (): number => Math.max(0, Date.now() - started);
+  const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
+  const asFloor = (): ExecutedQualificationPrediction => floorQualificationPrediction({
+    productType: stages.type.productType,
+    abstained: stages.type.abstained,
+    fieldAssignments: stages.fields,
+    pageIds: stages.pages,
+    confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
+    latencyMs: latency(),
+  });
+  if (!route || !view) return asFloor();
+  const needs = baselineLiveNeeds(entry, taxa, evidenceText, stages);
+  if (!needs.type && needs.attrs.length === 0 && !needs.pages) return asFloor();
+
+  const block = (code: string, detail: string): ExecutedQualificationPrediction => ({
+    ...blockedQualificationPrediction(code, detail),
+    latencyMs: latency(),
+  });
+  // Credential pre-check (same resolution the ranker uses): no usable
+  // baseline model here means the side is blocked — the deterministic values
+  // are discarded fail-closed rather than mixed with a guess. The resolved
+  // config's model is what the ranker will request (factual provenance).
+  let requestedModel: string = route.model;
+  try {
+    const firstOperation: BaselineChatOperation = needs.type
+      ? 'product_type_ranking'
+      : needs.attrs.length > 0 ? 'attribute_ranking' : 'page_assignment';
+    const config = resolveBaselineChatConfig(firstOperation, view);
+    if (!config) {
+      return block(
+        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+        `No usable chat provider for the baseline ranker leg (provider "${route.provider}"); configure existing provider credentials to capture baseline model judgments.`,
+      );
+    }
+    requestedModel = config.model ?? route.model;
+  } catch (err) {
+    if (err instanceof ModelPolicyDeniedError) {
+      return block(
+        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+        `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
+      );
+    }
+    return block(
+      QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+      `Baseline ranker credentials unresolvable here: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
+    );
+  }
+
+  try {
+    let productType = stages.type.productType;
+    let abstained = stages.type.abstained;
+    let confidence = stages.type.confidence;
+    if (needs.type) {
+      const typeOptions = taxa.productTypes.map(t => ({ value: t.id, label: t.label }));
+      const ranked = await attemptBaselineChatStage({
+        operation: 'product_type_ranking',
+        targetLabel: 'product type',
+        options: typeOptions,
+        selectionMode: 'single',
+        evidenceText,
+        view,
+      });
+      // Shipped incumbent mapping: ranker labels → exactly-one option value.
+      const mapped = ranked && ranked.values.length > 0
+        ? mapRankedLabelToOptionExactlyOne(ranked.values[0], typeOptions)
+        : null;
+      if (mapped) {
+        productType = mapped;
+        abstained = false;
+        confidence = ranked?.confidence ?? 0;
+      } else {
+        productType = null;
+        abstained = true;
+        confidence = 0;
+      }
+    }
+
+    const fields = [...stages.fields];
+    for (const targetId of needs.attrs) {
+      const target = taxa.attributeTargets.find(t => t.targetId === targetId);
+      if (!target) continue;
+      const ranked = await attemptBaselineChatStage({
+        operation: 'attribute_ranking',
+        targetLabel: targetId,
+        options: target.options.map(v => ({ value: v, label: v })),
+        selectionMode: target.cardinality,
+        evidenceText,
+        view,
+      });
+      // Shipped incumbent mapping: ranker values are used directly (mirrors
+      // `mapAttributeLlmResult` — single takes values[0], multiple takes values).
+      if (ranked && ranked.values.length > 0) {
+        if (target.cardinality === 'multiple') {
+          fields.push({ targetId, values: ranked.values });
+        } else {
+          fields.push({ targetId, value: ranked.values[0] });
+        }
+      }
+    }
+    fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
+
+    let pages = [...stages.pages];
+    if (needs.pages) {
+      const pageOptions = taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
+      const ranked = await attemptBaselineChatStage({
+        operation: 'page_assignment',
+        targetLabel: 'category page',
+        options: pageOptions,
+        selectionMode: 'single',
+        evidenceText,
+        view,
+      });
+      const mapped = ranked && ranked.values.length > 0
+        ? mapRankedLabelToOptionExactlyOne(ranked.values[0], pageOptions)
+        : null;
+      pages = mapped ? [mapped] : [];
+    }
+
+    return {
+      productType,
+      abstained,
+      fieldAssignments: fields,
+      pageIds: pages,
+      confidence: artifactConfidence(abstained, confidence),
+      latencyMs: latency(),
+      source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
+      blockedCode: null,
+      blockedDetail: null,
+      failureCode: null,
+      requestedModel,
+      resolvedModel: null,
+      provider: route.provider,
+      usage: null,
+    };
+  } catch (err) {
+    if (err instanceof ModelPolicyDeniedError) {
+      return block(
+        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+        `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
+      );
+    }
+    return block(
+      QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+      redactTransportText(err instanceof Error ? err.message : String(err)),
+    );
+  }
+}
+
+/**
+ * Hash semantic predictions only: per-entry wall-clock latency and
+ * diagnostic `blockedDetail` text are real telemetry recorded on the
+ * artifact, but they must not affect identity — the same gold entries always
+ * yield the same artifact hash. Source/identity markers (source, blockedCode,
+ * requested/resolved model, provider, usage) ARE semantic and ARE hashed.
  */
 function hashQualificationPredictions(
   predictions: Array<{
@@ -1682,50 +2385,125 @@ function hashQualificationPredictions(
     baseline: ExecutedQualificationPrediction;
     candidate: ExecutedQualificationPrediction;
   }>,
+  resolved: {
+    taxonomySource: QualificationTaxonomySource;
+    frozenTaxonomyHash: string | null;
+    taxonomies: QualificationTaxonomies;
+  },
 ): string {
+  const hashableSide = (side: ExecutedQualificationPrediction): Record<string, unknown> => ({
+    productType: side.productType,
+    abstained: side.abstained,
+    fieldAssignments: side.fieldAssignments,
+    pageIds: side.pageIds,
+    confidence: side.confidence,
+    source: side.source ?? null,
+    blockedCode: side.blockedCode ?? null,
+    failureCode: side.failureCode ?? null,
+    requestedModel: side.requestedModel ?? null,
+    resolvedModel: side.resolvedModel ?? null,
+    provider: side.provider ?? null,
+    usage: side.usage ?? null,
+  });
   const sorted = [...predictions].sort((a, b) => a.sku.localeCompare(b.sku));
   const hashable = sorted.map(p => ({
     sku: p.sku,
-    baseline: {
-      productType: p.baseline.productType,
-      abstained: p.baseline.abstained,
-      fieldAssignments: p.baseline.fieldAssignments,
-      pageIds: p.baseline.pageIds,
-      confidence: p.baseline.confidence,
-    },
-    candidate: {
-      productType: p.candidate.productType,
-      abstained: p.candidate.abstained,
-      fieldAssignments: p.candidate.fieldAssignments,
-      pageIds: p.candidate.pageIds,
-      confidence: p.candidate.confidence,
-    },
+    baseline: hashableSide(p.baseline),
+    candidate: hashableSide(p.candidate),
   }));
-  return sha256Hex(JSON.stringify(hashable));
+  return sha256Hex(JSON.stringify({ predictions: hashable, taxonomy: hashableTaxonomyProvenance(resolved) }));
+}
+
+/** Hashable taxonomy provenance (same entries + different pool = different artifact). */
+function hashableTaxonomyProvenance(resolved: {
+  taxonomySource: QualificationTaxonomySource;
+  frozenTaxonomyHash: string | null;
+  taxonomies: QualificationTaxonomies;
+}): Record<string, unknown> {
+  return {
+    taxonomySource: resolved.taxonomySource,
+    frozenTaxonomyHash: resolved.frozenTaxonomyHash,
+    taxonomies: resolved.taxonomies,
+  };
 }
 
 /**
- * Execute the current baseline and candidate classification paths over gold
- * evidence to produce an immutable prediction artifact. Deterministic: the
- * same gold entries always yield the same artifact hash. Fail-closed: every
- * entry must produce both predictions (abstention is a valid prediction;
- * throwing is not).
+ * Deterministic-floor capture (CI-safe, no network, no credentials): the
+ * baseline side executes the real deterministic matcher (labeled
+ * `deterministic_floor` — a lower bound, never candidate evidence) and the
+ * candidate side exercises the real Jev question construction but records
+ * `blocked` (`jev_credentials_absent`). Deterministic: the same gold entries
+ * always yield the same artifact hash. Fail-closed: every entry produces both
+ * sides (abstention/blocked are valid predictions; throwing is not).
  */
 export function buildQualificationPredictionsFromCode(
   entries: QualificationGoldOnlyEntry[],
-  taxonomies?: QualificationTaxonomies,
+  taxonomies?: QualificationTaxonomyInput,
 ): QualificationPredictionArtifact {
-  const taxa = taxonomies ?? deriveQualificationTaxonomies(entries);
+  const resolved = resolveQualificationTaxonomies(taxonomies, entries);
   const predictedAt = new Date().toISOString();
-  const predictions = entries.map(entry => executeEntryPredictions(entry, taxa));
+  const predictions = entries.map(entry => executeDeterministicFloorEntryPredictions(entry, resolved.taxonomies));
   if (predictions.length !== entries.length) {
     throw new Error('Qualification prediction artifact incomplete: missing entries.');
   }
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
-    artifactHash: hashQualificationPredictions(predictions),
+    artifactHash: hashQualificationPredictions(predictions, resolved),
     predictedAt,
     entryCount: entries.length,
+    captureMode: 'deterministic_floor',
+    taxonomySource: resolved.taxonomySource,
+    frozenTaxonomyHash: resolved.frozenTaxonomyHash,
+    predictions,
+  };
+}
+
+/**
+ * Honest live capture (opt-in, explicit credentials, real transports):
+ * the candidate side captures real Jev judgments when `options.jev` carries
+ * an explicit key (else `blocked`), and the baseline side follows incumbent
+ * precedence — deterministic first, then the legacy chat ranker for stages
+ * the matcher left unresolved when `options.baselineRoute` is provided (else
+ * the deterministic floor). Without credentials the affected side is
+ * `blocked` with a coded reason — never simulated. Fail-closed like the
+ * deterministic builder; `captureMode` is `live_captured` whenever a live
+ * attempt was made for either side (per-side `source` fields carry the
+ * per-entry outcome).
+ */
+export async function captureQualificationPredictionsLive(
+  entries: QualificationGoldOnlyEntry[],
+  options: QualificationLiveCaptureOptions = {},
+  taxonomies?: QualificationTaxonomyInput,
+): Promise<QualificationPredictionArtifact> {
+  const resolved = resolveQualificationTaxonomies(taxonomies, entries);
+  const taxa = resolved.taxonomies;
+  const predictedAt = new Date().toISOString();
+  const jev = resolveJevLiveTarget(options.jev);
+  const view = options.baselineRoute ? buildBaselineChatPolicyView(options.baselineRoute) : null;
+  const predictions: Array<{
+    sku: string;
+    baseline: ExecutedQualificationPrediction;
+    candidate: ExecutedQualificationPrediction;
+  }> = [];
+  for (const entry of entries) {
+    const evidenceText = qualificationEvidenceText(entry);
+    const baseline = await captureBaselineEntryLive(entry, taxa, evidenceText, options.baselineRoute ?? null, view);
+    const candidate = jev
+      ? await captureCandidateEntryLive(entry, taxa, jev)
+      : blockedCandidateWithoutCredentials(entry, taxa);
+    predictions.push({ sku: entry.sku, baseline, candidate });
+  }
+  if (predictions.length !== entries.length) {
+    throw new Error('Qualification prediction artifact incomplete: missing entries.');
+  }
+  return {
+    predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
+    artifactHash: hashQualificationPredictions(predictions, resolved),
+    predictedAt,
+    entryCount: entries.length,
+    captureMode: jev || view ? 'live_captured' : 'deterministic_floor',
+    taxonomySource: resolved.taxonomySource,
+    frozenTaxonomyHash: resolved.frozenTaxonomyHash,
     predictions,
   };
 }

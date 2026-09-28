@@ -19,6 +19,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { initDb, closeDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertProviderConnection, getProviderConnection } from '../../db/repositories/provider-connection-repo';
@@ -55,6 +56,8 @@ import {
 import {
   evaluateJevOfflineComparison,
   assessProductionQualification,
+  REQUIRED_COMPATIBILITY_SUITE_IDS,
+  OPERATOR_RUNBOOK_PATH,
   type QualificationGoldset,
 } from '../../classification/jev-qualification-service';
 import {
@@ -64,30 +67,52 @@ import {
   PRE_REVIEW_BUNDLE_VERSION,
   parseQualificationGoldOnly,
   buildQualificationPredictionsFromCode,
+  captureQualificationPredictionsLive,
+  buildQualificationCandidateQuestionSet,
+  qualificationTaxonomiesFromFrozenSnapshot,
   QUALIFICATION_PREDICTOR_VERSION,
+  QUALIFICATION_SOURCE_LIVE_CAPTURED,
+  QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR,
+  QUALIFICATION_SOURCE_BLOCKED,
+  QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT,
+  QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
   type QualificationGoldOnlyEntry,
+  type QualificationTaxonomies,
 } from '../../classification/benchmark-prediction';
-import { detectFamilySplitLeakage } from '../../classification/benchmark-exporter';
+import {
+  detectFamilySplitLeakage,
+  detectFamilyDevHoldoutStraddle,
+  verifyFamilySeparation,
+  buildFrozenTaxonomyCandidates,
+  findGoldOutsideFrozenTaxonomy,
+} from '../../classification/benchmark-exporter';
+import {
+  findPredictionsOutsideFrozenTaxonomy,
+  verifyFrozenTaxonomySnapshotShape,
+} from '../../classification/benchmark-evaluator';
 import { runLiveContractCheck } from '../../../scripts/typesafe-live-contract-check';
+import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
 import type { ClassificationEvidence, ModelPolicyConfigV2, BenchmarkPredictionEntry, EvalMetrics } from '../../shared/schemas/classification';
 
 /**
- * Load the frozen GOLD-ONLY fixture and execute the current baseline +
+ * Load the frozen GOLD-ONLY fixture and capture the current baseline +
  * candidate classification paths from code (mirrors
- * scripts/typesafe-curation-qualification.ts). Tests score the executed
- * artifact — never stored predictions.
+ * scripts/typesafe-curation-qualification.ts). Tests score the captured
+ * artifact — never stored predictions. Candidate option sets come from the
+ * fixture's frozen taxonomy snapshot (never the union of gold labels).
  */
 function loadExecutedQualificationGoldset(): QualificationGoldset {
   const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
   const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
   const goldEntries = parseQualificationGoldOnly(raw);
-  const artifact = buildQualificationPredictionsFromCode(goldEntries);
+  const artifact = buildQualificationPredictionsFromCode(goldEntries, raw.frozenTaxonomy ?? undefined);
   return {
     version: raw.version,
     description: raw.description,
     adjudicatedBy: raw.adjudicatedBy,
     verifiedPageImport: raw.verifiedPageImport,
+    frozenTaxonomy: raw.frozenTaxonomy ?? null,
     entries: goldEntries.map(e => {
       const p = artifact.predictions.find(x => x.sku === e.sku);
       if (!p) throw new Error(`Missing executed prediction for "${e.sku}".`);
@@ -548,6 +573,69 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }));
       const leakage = detectFamilySplitLeakage(assignments);
       expect(leakage).toHaveLength(0);
+      // Dev-aware boundary: the shared helper only recognizes train/test as
+      // dev-side, so the dev/holdout goldset vocabulary needs its own check.
+      expect(detectFamilyDevHoldoutStraddle(assignments)).toHaveLength(0);
+
+      // True family split: no split-suffixed ids (`*-dev` / `*-holdout`) as
+      // distinct families — one underlying product owns one family id.
+      for (const e of goldEntries) {
+        expect(e.familyId).not.toMatch(/-dev$/);
+        expect(e.familyId).not.toMatch(/-holdout$/);
+      }
+
+      // Acme kibble variants/sizes share ONE family in ONE split; the Fromm
+      // cohort pair shares ONE family in ONE split; distinct GardenPro pest
+      // products own distinct families.
+      const kibble = goldEntries.filter(e => e.sku.startsWith('QUAL-DOG-KIBBLE-'));
+      expect(kibble.length).toBe(3);
+      expect(new Set(kibble.map(e => e.familyId)).size).toBe(1);
+      expect(new Set(kibble.map(e => e.split)).size).toBe(1);
+      const fromm = goldEntries.filter(e => e.sku.startsWith('QUAL-COHORT-FROMM-'));
+      expect(fromm.length).toBe(2);
+      expect(new Set(fromm.map(e => e.familyId)).size).toBe(1);
+      expect(new Set(fromm.map(e => e.split)).size).toBe(1);
+      const yardInsect = goldEntries.find(e => e.sku === 'QUAL-PEST-01');
+      const waspHornet = goldEntries.find(e => e.sku === 'QUAL-PEST-HOLDOUT-01');
+      expect(yardInsect!.familyId).not.toBe(waspHornet!.familyId);
+
+      // Real family-leakage verification: shared identity plus
+      // near-duplicate detection across splits produces a passing proof.
+      const proof = verifyFamilySeparation(goldEntries);
+      expect(proof.passed).toBe(true);
+      expect(proof.leakedFamilies).toHaveLength(0);
+      expect(proof.nearDuplicatePairs).toHaveLength(0);
+      expect(proof.familiesChecked).toBeGreaterThan(0);
+
+      // Frozen-taxonomy candidates: the option pool comes from the frozen
+      // snapshot, never the union of gold labels.
+      expect(raw.frozenTaxonomy).toBeTruthy();
+      expect(verifyFrozenTaxonomySnapshotShape(raw.frozenTaxonomy)).toHaveLength(0);
+      expect(findGoldOutsideFrozenTaxonomy(goldEntries, raw.frozenTaxonomy)).toHaveLength(0);
+      const candidates = buildFrozenTaxonomyCandidates(raw.frozenTaxonomy);
+      const goldTypeIds = new Set(
+        goldEntries.map(e => e.gold.productType.typeId).filter((id): id is string => !!id),
+      );
+      // Strict superset proves the pool was not derived from gold labels.
+      expect(candidates.productTypes.length).toBeGreaterThan(goldTypeIds.size);
+      for (const typeId of goldTypeIds) {
+        expect(candidates.productTypes.some(t => t.id === typeId)).toBe(true);
+      }
+      // Executed predictions select within the frozen pool.
+      const executed = loadExecutedQualificationGoldset();
+      const checkEntries = executed.entries.flatMap(e => [
+        {
+          productType: e.baseline.productType,
+          fieldAssignments: e.baseline.fieldAssignments,
+          pageIds: e.baseline.pageIds,
+        },
+        {
+          productType: e.candidate.productType,
+          fieldAssignments: e.candidate.fieldAssignments,
+          pageIds: e.candidate.pageIds,
+        },
+      ]);
+      expect(findPredictionsOutsideFrozenTaxonomy(checkEntries, raw.frozenTaxonomy)).toHaveLength(0);
 
       // Verify gold states are adjudicated and not empty catalog defaults
       for (const e of goldEntries) {
@@ -626,17 +714,24 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   // ── Criterion 4: Baseline vs Jev Offline Comparison Report ──────────────────
   describe('Criterion 4: Baseline vs Jev offline comparison report', () => {
     it('produces stage-isolated and end-to-end outcomes with telemetry and disclaimers', () => {
-      // Predictions are executed from the current classification code paths,
-      // then scored — the fixture contributes gold + evidence only.
+      // Predictions are captured from the current classification code paths,
+      // then scored — the fixture contributes gold + evidence + the frozen
+      // taxonomy pool only. Without live credentials the deterministic build
+      // records a real baseline floor and a blocked candidate: the report
+      // shape stays intact but evidences NO candidate quality (fail-closed).
       const goldset = loadExecutedQualificationGoldset();
 
       const report = evaluateJevOfflineComparison(goldset);
 
       expect(report.evaluatedExamples).toBe(16);
-      expect(report.productType.rawCorrectness.candidate).toBeGreaterThanOrEqual(report.productType.rawCorrectness.baseline);
-      expect(report.productType.harmfulRegressions).toBe(0);
-      expect(report.attributes.setMetrics.f1.candidate).toBeGreaterThan(report.attributes.setMetrics.f1.baseline);
-      expect(report.categoryPages.setMetrics.exactMatch.candidate).toBeGreaterThan(report.categoryPages.setMetrics.exactMatch.baseline);
+      for (const entry of goldset.entries) {
+        expect(entry.candidate.failureCode).toBe('jev_credentials_absent');
+        expect(entry.baseline.failureCode).toBeNull();
+      }
+      // Blocked candidate sides count as service failures: the report can
+      // never present an unevidenced candidate as qualified.
+      expect(report.summary.zeroServiceFailures).toBe(false);
+      expect(report.productType.serviceFailures.candidate).toBe(16);
 
       // Telemetry: measured in-process decision latencies are honest compute
       // timings (frequently 0-2ms offline — never presented as model serving
@@ -654,8 +749,6 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
 
       // End-to-end pipeline effects
       expect(report.endToEndPipeline.totalMembers).toBe(16);
-      expect(report.endToEndPipeline.typeResolution.correct).toBeGreaterThanOrEqual(12);
-      expect(report.endToEndPipeline.endToEndCorrectAllStages).toBeGreaterThan(0);
     });
   });
 
@@ -782,6 +875,9 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
   // ── Criterion 10: Blocker Reporting for Production Qualification ───────────
   describe('Criterion 10: Blocker reporting for missing production prerequisites', () => {
     it('accurately identifies and reports incomplete qualification status', () => {
+      // Without live credentials the deterministic capture records a blocked
+      // candidate (never simulated quality), so offline evidence itself is
+      // dirty and the assessment is blocked — never provisionally qualified.
       const offlineReport = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
 
       const assessment = assessProductionQualification({
@@ -794,10 +890,12 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         offlineComparisonReport: offlineReport,
       });
 
-      expect(assessment.status).toBe('provisionally_qualified');
+      expect(assessment.status).toBe('blocked');
       expect(assessment.blockers.length).toBeGreaterThan(0);
-      expect(assessment.summary).toContain('Offline benchmarks and comparison reports are fully qualified');
-      expect(assessment.summary).toContain('production qualification remains incomplete');
+      expect(assessment.blockers.some(b => b.code === 'offline_evaluation_failed')).toBe(true);
+      expect(assessment.blockers.some(b => b.code === 'service_failures_detected')).toBe(true);
+      expect(assessment.blockers.some(b => b.code === 'missing_typesafe_api_key')).toBe(true);
+      expect(assessment.summary).toContain('Production qualification is blocked');
     });
   });
 
@@ -885,31 +983,262 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
     });
   });
 
-  // ── Code-executed qualification predictions (Issue #293 blocker fix) ───────
-  describe('Code-executed qualification predictions', () => {
+  // ── Evidence-driven qualification gates (family, compatibility, docs) ─────
+  describe('Evidence-driven qualification gates', () => {
+    const operationalPass = {
+      hasTypeSafeApiKey: true,
+      liveContractCheckExecuted: true,
+      liveContractCheckSuccess: true,
+      canaryProductTypeReviewed: true,
+      canaryAttributesReviewed: true,
+      canaryCohortPagesReviewed: true,
+    };
+
     function loadGoldEntries(): QualificationGoldOnlyEntry[] {
       const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
       return parseQualificationGoldOnly(JSON.parse(fs.readFileSync(fixturePath, 'utf8')));
     }
 
-    it('produces deterministic immutable artifacts from gold + evidence', () => {
+    function buildValidEvidence() {
+      const familySeparationProof = verifyFamilySeparation(loadGoldEntries());
+      const compatibilityReceipt = {
+        suites: REQUIRED_COMPATIBILITY_SUITE_IDS.map(suiteId => ({
+          suiteId,
+          commit: 'evidence-commit-abc1234',
+          passed: true as const,
+          executedAt: null,
+        })),
+        recordedAt: new Date().toISOString(),
+      };
+      const runbookPath = path.resolve(import.meta.dir, '../../../docs/runbooks/typesafe-jev-curation-rollout.md');
+      const operatorDocsReceipt = {
+        runbookPath: OPERATOR_RUNBOOK_PATH,
+        contentHash: createHash('sha256').update(fs.readFileSync(runbookPath)).digest('hex'),
+        publishedAt: null,
+      };
+      return { familySeparationProof, compatibilityReceipt, operatorDocsReceipt };
+    }
+
+    it('returns qualified when offline evidence is clean and all receipts are valid', () => {
+      // Gate-wiring premise: explicitly clean offline evidence (the executed
+      // candidate quality itself is owned by the predictor workstream; this
+      // test proves the gates clear on clean evidence + valid receipts).
+      const report = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
+      report.summary.candidateOutperformsBaseline = true;
+      report.summary.zeroHarmfulRegressionsOnHoldout = true;
+      report.summary.zeroServiceFailures = true;
+      report.productType.harmfulRegressions = 0;
+      report.attributes.harmfulRegressions = 0;
+      report.categoryPages.harmfulRegressions = 0;
+      report.productType.serviceFailures = { baseline: 0, candidate: 0 };
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: report,
+        ...buildValidEvidence(),
+      });
+
+      expect(assessment.status).toBe('qualified');
+      expect(assessment.blockers).toHaveLength(0);
+      expect(assessment.checklist.offlineEvaluationPassed).toBe(true);
+      expect(assessment.checklist.comparisonReportComplete).toBe(true);
+      expect(assessment.checklist.familySeparationPassed).toBe(true);
+      expect(assessment.checklist.compatibilityVerified).toBe(true);
+      expect(assessment.checklist.operatorDocumentationPublished).toBe(true);
+    });
+
+    it('keeps the family blocker on a failing proof and passes the other receipt gates', () => {
+      const evidence = buildValidEvidence();
+      const assessment = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        familySeparationProof: { ...evidence.familySeparationProof, passed: false },
+      });
+
+      expect(assessment.status).not.toBe('qualified');
+      expect(assessment.blockers.some(b => b.code === 'family_separation_unverified')).toBe(true);
+      expect(assessment.checklist.familySeparationPassed).toBe(false);
+      expect(assessment.checklist.compatibilityVerified).toBe(true);
+      expect(assessment.checklist.operatorDocumentationPublished).toBe(true);
+    });
+
+    it('keeps the compatibility blocker when a required suite is missing or failing', () => {
+      const evidence = buildValidEvidence();
+      const missing = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        compatibilityReceipt: {
+          ...evidence.compatibilityReceipt,
+          suites: evidence.compatibilityReceipt.suites.slice(0, 3),
+        },
+      });
+      expect(missing.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      expect(missing.checklist.compatibilityVerified).toBe(false);
+
+      const failing = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        compatibilityReceipt: {
+          ...evidence.compatibilityReceipt,
+          suites: evidence.compatibilityReceipt.suites.map(suite =>
+            suite.suiteId === 'deterministic-rules' ? { ...suite, passed: false as const } : suite,
+          ),
+        },
+      });
+      expect(failing.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      expect(failing.checklist.compatibilityVerified).toBe(false);
+    });
+
+    it('keeps the operator-docs blocker on a wrong path or malformed hash', () => {
+      const evidence = buildValidEvidence();
+      const wrongPath = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        operatorDocsReceipt: { ...evidence.operatorDocsReceipt, runbookPath: 'docs/runbooks/other.md' },
+      });
+      expect(wrongPath.blockers.some(b => b.code === 'operator_docs_missing')).toBe(true);
+      expect(wrongPath.checklist.operatorDocumentationPublished).toBe(false);
+
+      const badHash = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        operatorDocsReceipt: { ...evidence.operatorDocsReceipt, contentHash: 'not-a-hash' },
+      });
+      expect(badHash.blockers.some(b => b.code === 'operator_docs_missing')).toBe(true);
+      expect(badHash.checklist.operatorDocumentationPublished).toBe(false);
+    });
+
+    it('detects true leakage: shared identity and near-duplicates fail verification', () => {
       const entries = loadGoldEntries();
-      const first = buildQualificationPredictionsFromCode(entries);
-      const second = buildQualificationPredictionsFromCode(entries);
+      const straddling = entries.map(e =>
+        e.sku === 'QUAL-DOG-KIBBLE-03' ? { ...e, split: 'holdout' as const } : e,
+      );
+      const leaked = verifyFamilySeparation(straddling);
+      expect(leaked.passed).toBe(false);
+      expect(leaked.leakedFamilies.some(f => f.familyId === 'fam-acme-kibble')).toBe(true);
+
+      const catTreat = entries.find(e => e.sku === 'QUAL-CAT-TREAT-01');
+      expect(catTreat).toBeTruthy();
+      const duplicated = [
+        ...entries,
+        {
+          ...catTreat!,
+          sku: 'QUAL-CAT-TREAT-COPY-01',
+          familyId: 'fam-beacon-treats-copy',
+          split: 'holdout' as const,
+        },
+      ];
+      const nearDup = verifyFamilySeparation(duplicated);
+      expect(nearDup.passed).toBe(false);
+      expect(nearDup.nearDuplicatePairs.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Honest captured qualification predictions (Issue #293 blocker fix) ─────
+  describe('Honest captured qualification predictions', () => {
+    function loadGoldFixture(): { entries: QualificationGoldOnlyEntry[]; frozenTaxonomy: unknown } {
+      const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
+      const raw = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+      return { entries: parseQualificationGoldOnly(raw), frozenTaxonomy: raw.frozenTaxonomy ?? null };
+    }
+
+    function loadGoldEntries(): QualificationGoldOnlyEntry[] {
+      return loadGoldFixture().entries;
+    }
+
+    /** Tiny synthetic gold set (detector-safe) for live-capture shape tests. */
+    function tinyQualificationEntries(): QualificationGoldOnlyEntry[] {
+      return [
+        {
+          sku: 'TINY-DOG-01',
+          familyId: 'fam-tiny',
+          split: 'dev',
+          assortment: 'food',
+          gold: {
+            productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+            fieldAssignments: [
+              { targetId: 'flavor', value: 'Chicken', state: 'known' },
+              { targetId: 'animal_type', values: ['dog'], state: 'known' },
+            ],
+            categoryPages: {
+              pageIds: ['page-dry-dog-food'],
+              pageAssignments: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+            },
+          },
+          evidence: [
+            { source: 'official_page', snippet: 'Acme Chicken Dry Dog Food for adult dogs', reliability: 'high', attributeId: null },
+          ],
+        },
+        {
+          sku: 'TINY-UNKNOWN-01',
+          familyId: 'fam-tiny-unknown',
+          split: 'dev',
+          assortment: 'food',
+          gold: {
+            productType: { kind: 'known-type', typeId: 'cat_treat' },
+            fieldAssignments: [
+              { targetId: 'flavor', value: 'Beef', state: 'known' },
+            ],
+            categoryPages: {
+              pageIds: ['page-dry-dog-food'],
+              pageAssignments: [],
+            },
+          },
+          evidence: [
+            { source: 'official_page', snippet: 'Mystery kibble bits for small pets', reliability: 'low', attributeId: null },
+          ],
+        },
+      ];
+    }
+
+    function tinyQualificationTaxonomies(): QualificationTaxonomies {
+      return {
+        productTypes: [
+          { id: 'dog_food_dry', label: 'Dry Dog Food' },
+          { id: 'cat_treat', label: 'Cat Treat' },
+        ],
+        attributeTargets: [
+          { targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] },
+          { targetId: 'animal_type', cardinality: 'multiple', options: ['dog', 'cat'] },
+        ],
+        pages: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+      };
+    }
+
+    it('produces deterministic immutable artifacts from gold + evidence', () => {
+      const { entries, frozenTaxonomy } = loadGoldFixture();
+      const first = buildQualificationPredictionsFromCode(entries, frozenTaxonomy as never);
+      const second = buildQualificationPredictionsFromCode(entries, frozenTaxonomy as never);
 
       expect(first.predictorVersion).toBe(QUALIFICATION_PREDICTOR_VERSION);
       expect(first.entryCount).toBe(entries.length);
+      expect(first.captureMode).toBe('deterministic_floor');
+      expect(first.taxonomySource).toBe('frozen_snapshot');
+      expect(first.frozenTaxonomyHash).toBe((frozenTaxonomy as { snapshotHash: string }).snapshotHash);
       expect(first.artifactHash).toBe(second.artifactHash);
       expect(first.artifactHash).toMatch(/^[0-9a-f]{64}$/);
       for (const p of first.predictions) {
         expect(typeof p.baseline.abstained).toBe('boolean');
         expect(typeof p.candidate.abstained).toBe('boolean');
       }
+
+      // Legacy gold-union fallback stays available and is labeled as such.
+      const fallback = buildQualificationPredictionsFromCode(entries);
+      expect(fallback.taxonomySource).toBe('gold_union');
+      expect(fallback.frozenTaxonomyHash).toBeNull();
+      expect(fallback.artifactHash).toBe(buildQualificationPredictionsFromCode(entries).artifactHash);
+
+      // A present-but-malformed taxonomy input fails closed (never a silent substitution).
+      expect(() => buildQualificationPredictionsFromCode(entries, { bogus: true } as never)).toThrow();
     });
 
     it('ignores legacy stored predictions: mutating them cannot change the report', () => {
-      const entries = loadGoldEntries();
-      const baseline = buildQualificationPredictionsFromCode(entries);
+      const { entries, frozenTaxonomy } = loadGoldFixture();
+      const baseline = buildQualificationPredictionsFromCode(entries, frozenTaxonomy as never);
       // Simulate a legacy fixture copy that still embeds authored answers:
       // the loader must strip them and the executed artifact must be identical.
       const legacyCopy = JSON.parse(JSON.stringify(entries)) as Array<Record<string, unknown>>;
@@ -918,16 +1247,274 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         e.candidate = { productType: 'dog_toy', abstained: false, fieldAssignments: [], pageIds: [], confidence: 0.99 };
       }
       const reparsed = parseQualificationGoldOnly({ entries: legacyCopy });
-      const fromLegacy = buildQualificationPredictionsFromCode(reparsed);
+      const fromLegacy = buildQualificationPredictionsFromCode(reparsed, frozenTaxonomy as never);
       expect(fromLegacy.artifactHash).toBe(baseline.artifactHash);
     });
 
-    it('candidate outperforms the deterministic baseline with zero regressions', () => {
+    it('records a blocked candidate without credentials: never simulated into a passing number', () => {
+      const { entries, frozenTaxonomy } = loadGoldFixture();
+      const artifact = buildQualificationPredictionsFromCode(entries, frozenTaxonomy as never);
+
+      expect(artifact.captureMode).toBe('deterministic_floor');
+      for (const p of artifact.predictions) {
+        expect(p.baseline.source).toBe(QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR);
+        expect(p.baseline.failureCode).toBeNull();
+        expect(p.candidate.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(p.candidate.blockedCode).toBe(QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT);
+        expect(p.candidate.failureCode).toBe(QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT);
+        expect(p.candidate.abstained).toBe(true);
+        expect(p.candidate.productType).toBeNull();
+        expect(p.candidate.requestedModel).toBeNull();
+        expect(p.candidate.resolvedModel).toBeNull();
+        expect(p.candidate.usage).toBeNull();
+      }
+
+      // The evaluator counts blocked candidate sides as service failures, so
+      // the deterministic report fails closed and evidences no candidate quality.
       const report = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
-      expect(report.summary.candidateOutperformsBaseline).toBe(true);
-      expect(report.summary.zeroHarmfulRegressionsOnHoldout).toBe(true);
-      expect(report.summary.zeroServiceFailures).toBe(true);
+      expect(report.summary.zeroServiceFailures).toBe(false);
+      expect(report.productType.serviceFailures.candidate).toBe(entries.length);
+
+      const assessment = assessProductionQualification({
+        hasTypeSafeApiKey: false,
+        liveContractCheckExecuted: false,
+        liveContractCheckSuccess: false,
+        canaryProductTypeReviewed: false,
+        canaryAttributesReviewed: false,
+        canaryCohortPagesReviewed: false,
+        offlineComparisonReport: report,
+      });
+      expect(assessment.status).toBe('blocked');
+      expect(assessment.blockers.some(b => b.code === 'service_failures_detected')).toBe(true);
     });
+
+    it('builds shipped Jev questions covering the frozen pool (wiring/shape, no network)', () => {
+      const { entries, frozenTaxonomy } = loadGoldFixture();
+      const taxa = qualificationTaxonomiesFromFrozenSnapshot(frozenTaxonomy as never);
+      const entry = entries[0];
+      const set = buildQualificationCandidateQuestionSet(entry, taxa);
+
+      // Product-type Choice covers every frozen option plus both abstentions.
+      const typeKeys = Object.keys(set.productTypePlan.criteria);
+      for (const t of taxa.productTypes) {
+        expect(set.productTypePlan.keyToIdMap.get(set.productTypePlan.idToKeyMap.get(t.id)!)).toBe(t.id);
+      }
+      expect(typeKeys).toContain('no_match');
+      expect(typeKeys).toContain('insufficient_evidence');
+
+      // Attribute plans exist exactly for gold-adjudicated targets.
+      const goldTargets = new Set((entry.gold.fieldAssignments ?? []).map(f => f.targetId));
+      expect(new Set(set.attributePlans.map(p => p.targetId))).toEqual(goldTargets);
+      for (const plan of set.attributePlans) {
+        if (plan.cardinality === 'multiple') {
+          expect(plan.noulPlans?.length).toBe(plan.resolved.options.length);
+        } else {
+          expect(Object.keys(plan.choicePlan!.criteria).length).toBeGreaterThanOrEqual(plan.resolved.options.length);
+        }
+      }
+
+      // Page Choice covers every frozen page plus both abstentions.
+      expect(set.pagePlan).not.toBeNull();
+      const pageKeys = Object.keys(set.pagePlan!.criteria);
+      for (const p of taxa.pages) {
+        expect(set.pagePlan!.keyToIdMap.get(set.pagePlan!.idToKeyMap.get(p.pageId)!)).toBe(p.pageId);
+      }
+      expect(pageKeys).toContain('abstain_no_match');
+      expect(pageKeys).toContain('abstain_insufficient_evidence');
+    });
+
+    /**
+     * Mocked SystemOne transport answering from the request bodies (complete
+     * distributions over every criteria key, argmax == choice — the shape the
+     * real validator requires). Mocked HTTP is transport-shape only: the
+     * builders, extraction, mapping, floors, and selection policy under test
+     * are the shipped ones.
+     */
+    function mockJevFetchBehavior(behavior: { choiceProb: number; noulProb: number }): { mock: typeof fetch; calls: () => number } {
+      let calls = 0;
+      const mock = (async (_url: unknown, init: { body: string }) => {
+        calls += 1;
+        const body = JSON.parse(init.body) as { questions: Record<string, { type: string; criteria?: Record<string, string> }> };
+        const answers: Record<string, unknown> = {};
+        for (const [qid, q] of Object.entries(body.questions)) {
+          if (q.type === 'choice') {
+            const keys = Object.keys(q.criteria ?? {});
+            const top = keys[0];
+            // Valid-but-below-floor: the winner stays the argmax (pigeonhole
+            // forces 3-option winners above 1/3 — still under every 0.50
+            // shipped floor), so the transport accepts and the floors abstain.
+            let topProb = behavior.choiceProb;
+            let rest = (1 - topProb) / Math.max(1, keys.length - 1);
+            if (rest >= topProb) {
+              topProb = Math.min(0.49, rest + 0.01);
+              rest = (1 - topProb) / Math.max(1, keys.length - 1);
+            }
+            const probabilities: Record<string, number> = {};
+            for (const k of keys) probabilities[k] = k === top ? topProb : rest;
+            answers[qid] = { type: 'choice', choice: top, probabilities, confidence: 0.9 };
+          } else {
+            answers[qid] = { type: 'noul', noul: behavior.noulProb };
+          }
+        }
+        return new Response(
+          JSON.stringify({ model: 'jev-1.13.0', answers, usage: { input_tokens: 50, output_tokens: 10 } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+      return { mock, calls: () => calls };
+    }
+
+    it('captures live Jev judgments through the shipped transport + floors (mocked HTTP, no real network)', async () => {
+      const { mock, calls } = mockJevFetchBehavior({ choiceProb: 0.85, noulProb: 0.95 });
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = mock;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries(),
+          { jev: { apiKey: 'test-key-12345678' } },
+          tinyQualificationTaxonomies(),
+        );
+        expect(calls()).toBeGreaterThan(0);
+        expect(artifact.captureMode).toBe('live_captured');
+        expect(artifact.entryCount).toBe(2);
+        const first = artifact.predictions.find(p => p.sku === 'TINY-DOG-01')!;
+        expect(first.candidate.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(first.candidate.productType).toBe('dog_food_dry');
+        expect(first.candidate.abstained).toBe(false);
+        expect(first.candidate.confidence).toBeCloseTo(0.85, 4);
+        expect(first.candidate.fieldAssignments).toEqual([
+          { targetId: 'animal_type', values: ['dog', 'cat'] },
+          { targetId: 'flavor', value: 'Chicken' },
+        ]);
+        expect(first.candidate.pageIds).toEqual(['page-dry-dog-food']);
+        expect(first.candidate.requestedModel).toBe('jev-1.13.0');
+        expect(first.candidate.resolvedModel).toBe('jev-1.13.0');
+        expect(first.candidate.provider).toBe('typesafe');
+        expect(first.candidate.usage).toEqual({ inputTokens: 50, outputTokens: 10 });
+        expect(first.candidate.failureCode).toBeNull();
+        // The baseline without an opted-in route stays the deterministic floor.
+        expect(first.baseline.source).toBe(QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR);
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('records live floors as abstentions, not failures (mocked HTTP)', async () => {
+      const { mock } = mockJevFetchBehavior({ choiceProb: 0.3, noulProb: 0.1 });
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = mock;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries(),
+          { jev: { apiKey: 'test-key-12345678' } },
+          tinyQualificationTaxonomies(),
+        );
+        const first = artifact.predictions.find(p => p.sku === 'TINY-DOG-01')!;
+        // The live path executed (model spoke: resolvedModel present) and its
+        // outcome — below every shipped floor — is an honest abstention.
+        expect(first.candidate.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(first.candidate.abstained).toBe(true);
+        expect(first.candidate.productType).toBeNull();
+        expect(first.candidate.fieldAssignments).toEqual([]);
+        expect(first.candidate.pageIds).toEqual([]);
+        expect(first.candidate.confidence).toBe(0);
+        expect(first.candidate.failureCode).toBeNull();
+        expect(first.candidate.resolvedModel).toBe('jev-1.13.0');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('blocks the baseline chat leg without provider credentials and never touches the network', async () => {
+      let fetchCalls = 0;
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        throw new Error('network must not be used without credentials');
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries(),
+          { baselineRoute: { provider: 'ollama', model: 'qual-test-model' } },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(0);
+        expect(artifact.captureMode).toBe('live_captured');
+        // The evidence-void entry needs the chat leg and has no credentials:
+        // blocked with a coded reason. Fully matcher-resolved entries (if
+        // any) stay the deterministic floor — never a mixed guess.
+        const unknown = artifact.predictions.find(p => p.sku === 'TINY-UNKNOWN-01')!;
+        expect(unknown.baseline.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(unknown.baseline.blockedCode).toBe(QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT);
+        expect(unknown.baseline.failureCode).toBe(QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT);
+        for (const p of artifact.predictions) {
+          const allowed: Array<string | undefined> = [
+            QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR,
+            QUALIFICATION_SOURCE_BLOCKED,
+          ];
+          expect(allowed).toContain(p.baseline.source);
+          if (p.baseline.source === QUALIFICATION_SOURCE_BLOCKED) {
+            expect(p.baseline.blockedCode).toBe(QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT);
+          }
+          expect(p.candidate.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+          expect(p.candidate.blockedCode).toBe(QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT);
+        }
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('executes the incumbent ranker path when credentials exist and records its real outcome (mocked HTTP, zero transport)', async () => {
+      // Dummy local credential (detector-safe): proves the existing-store
+      // resolution, not a real model account.
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      let fetchCalls = 0;
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        throw new Error('incumbent ranker must not transport without run-bound audit provenance');
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries(),
+          { baselineRoute: { provider: 'ollama', model: 'qual-ollama-model' } },
+          tinyQualificationTaxonomies(),
+        );
+        // The ranker fail-closes before transport without run-bound audit
+        // provenance (its own design — qualification never fabricates runs),
+        // so no HTTP happens; the capture records the executed path outcome.
+        expect(fetchCalls).toBe(0);
+        const unknown = artifact.predictions.find(p => p.sku === 'TINY-UNKNOWN-01')!;
+        expect(unknown.baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(unknown.baseline.abstained).toBe(true);
+        expect(unknown.baseline.productType).toBeNull();
+        expect(unknown.baseline.requestedModel).toBe('qual-ollama-model');
+        expect(unknown.baseline.provider).toBe('ollama');
+        // resolvedModel null is the reading rule: no model judgment spoke —
+        // an abstention recorded from the executed incumbent path.
+        expect(unknown.baseline.resolvedModel).toBeNull();
+        expect(unknown.baseline.usage).toBeNull();
+        expect(unknown.baseline.failureCode).toBeNull();
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    const liveJevKey = process.env.TYPESAFE_API_KEY ?? '';
+    const itLive = liveJevKey.length >= 8 ? it : it.skip;
+    itLive('captures live Jev judgments against frozen gold evidence (opt-in keyed live capture, real network)', async () => {
+      const artifact = await captureQualificationPredictionsLive(
+        tinyQualificationEntries().slice(0, 1),
+        { jev: { apiKey: liveJevKey, timeoutMs: 30_000 } },
+        tinyQualificationTaxonomies(),
+      );
+      expect(artifact.captureMode).toBe('live_captured');
+      const first = artifact.predictions[0].candidate;
+      expect(first.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+      expect(first.requestedModel).toBeTruthy();
+      expect(first.resolvedModel).toBeTruthy();
+      expect(first.usage).not.toBeNull();
+    }, 90_000);
 
     it('live contract check succeeds against a mocked transport and refuses without a key (no network)', async () => {
       const fetchBefore = globalThis.fetch;
@@ -993,14 +1580,29 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         comparisonReport: { evaluatedExamples: number };
         assessment: { status: string };
         predictionArtifact: { artifactHash: string };
-        predictionProvenance: { predictorVersion: string };
+        predictionProvenance: {
+          predictorVersion: string;
+          captureMode: string;
+          taxonomySource: string;
+          sources: { baseline: Record<string, number>; candidate: Record<string, number> };
+        };
         liveCheck: { requested: boolean; executed: boolean; success: boolean };
         canary: { productTypeReviewed: boolean; attributesReviewed: boolean; cohortPagesReviewed: boolean };
       };
-      const local = buildQualificationPredictionsFromCode(loadGoldEntries());
+      const fixtureRaw = JSON.parse(fs.readFileSync(
+        path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json'),
+        'utf8',
+      )) as { frozenTaxonomy: unknown };
+      const local = buildQualificationPredictionsFromCode(loadGoldEntries(), fixtureRaw.frozenTaxonomy as never);
       expect(out.predictionProvenance.predictorVersion).toBe(QUALIFICATION_PREDICTOR_VERSION);
+      expect(out.predictionProvenance.captureMode).toBe('deterministic_floor');
+      expect(out.predictionProvenance.taxonomySource).toBe('frozen_snapshot');
+      expect(out.predictionProvenance.sources.baseline).toEqual({ deterministic_floor: 16 });
+      expect(out.predictionProvenance.sources.candidate).toEqual({ blocked: 16 });
       expect(out.predictionArtifact.artifactHash).toBe(local.artifactHash);
       expect(out.comparisonReport.evaluatedExamples).toBe(16);
+      // Deterministic-only evidence cannot qualify candidate quality.
+      expect(out.assessment.status).toBe('blocked');
       expect(out.liveCheck.executed).toBe(false);
       expect(out.liveCheck.success).toBe(false);
       expect(out.canary.productTypeReviewed).toBe(false);

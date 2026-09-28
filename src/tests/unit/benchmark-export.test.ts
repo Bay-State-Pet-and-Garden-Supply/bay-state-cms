@@ -6,7 +6,13 @@ import { randomUUID } from 'node:crypto';
 import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { createRun } from '../../db/repositories/classification-run-repo';
-import { exportBenchmark } from '../../classification/benchmark-exporter';
+import {
+  exportBenchmark,
+  buildFrozenTaxonomyCandidates,
+  findGoldOutsideFrozenTaxonomy,
+  assertGoldWithinFrozenTaxonomy,
+  verifyFamilySeparation,
+} from '../../classification/benchmark-exporter';
 import * as benchmarkRepo from '../../db/repositories/benchmark-repo';
 
 const workspaceId = 'ws-benchmark-test';
@@ -201,5 +207,78 @@ describe('Benchmark Export', () => {
     expect(result.exported).toBe(0);
     const examples = benchmarkRepo.getExamples(result.datasetId);
     expect(examples).toEqual([]);
+  });
+
+  describe('frozen-taxonomy candidates (never the gold union)', () => {
+    const frozen = {
+      snapshotHash: 'd'.repeat(64),
+      source: 'test frozen snapshot',
+      capturedAt: '2026-09-28T00:00:00.000Z',
+      productTypes: [
+        { id: 'dog_food_dry', label: 'Dry Dog Food' },
+        { id: 'dog_food_wet', label: 'Wet Dog Food' },
+      ],
+      attributeTargets: [
+        { targetId: 'flavor', cardinality: 'single' as const, options: ['Beef', 'Chicken'] },
+      ],
+      pages: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+    };
+
+    function goldEntry(sku: string, typeId: string | null, flavor: string | null) {
+      return {
+        sku,
+        gold: {
+          productType: { kind: typeId ? 'known-type' : 'no-fit', typeId },
+          fieldAssignments: flavor ? [{ targetId: 'flavor', value: flavor }] : [],
+          categoryPages: { pageIds: ['page-dry-dog-food'], pageAssignments: [] },
+        },
+      };
+    }
+
+    it('derives candidate sets from the frozen snapshot only', () => {
+      const candidates = buildFrozenTaxonomyCandidates(frozen);
+      expect(candidates.productTypes.map(t => t.id)).toEqual(['dog_food_dry', 'dog_food_wet']);
+      expect(candidates.attributeTargets[0].options).toEqual(['Beef', 'Chicken']);
+      expect(candidates.pages.map(p => p.pageId)).toEqual(['page-dry-dog-food']);
+    });
+
+    it('accepts gold within the frozen pool and rejects gold outside it', () => {
+      expect(findGoldOutsideFrozenTaxonomy([goldEntry('S1', 'dog_food_dry', 'Chicken')], frozen)).toHaveLength(0);
+      assertGoldWithinFrozenTaxonomy([goldEntry('S1', 'dog_food_dry', 'Chicken')], frozen);
+
+      const findings = findGoldOutsideFrozenTaxonomy([goldEntry('S2', 'novel_type', 'Venison')], frozen);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(() => assertGoldWithinFrozenTaxonomy([goldEntry('S2', 'novel_type', 'Venison')], frozen)).toThrow();
+    });
+  });
+
+  describe('true family separation (shared identity plus near-duplicates)', () => {
+    function entry(sku: string, familyId: string, split: string, snippet: string) {
+      return { sku, familyId, split, evidence: [{ snippet }] };
+    }
+
+    it('passes clean families and fails straddling or near-duplicate splits', () => {
+      const clean = verifyFamilySeparation([
+        entry('A1', 'fam-a', 'dev', 'Acme Organic Chicken Adult Dry Dog Food 5 lb bag'),
+        entry('A2', 'fam-a', 'dev', 'Acme Organic Chicken Adult Dry Dog Food 15 lb bag'),
+        entry('B1', 'fam-b', 'holdout', 'Northland Blend Premium Wild Bird Seed 20 lb bag with sunflower kernels'),
+      ]);
+      expect(clean.passed).toBe(true);
+      expect(clean.familiesChecked).toBe(2);
+
+      const straddle = verifyFamilySeparation([
+        entry('A1', 'fam-a', 'dev', 'Acme Organic Chicken Adult Dry Dog Food 5 lb bag'),
+        entry('A2', 'fam-a', 'holdout', 'Acme Organic Chicken Adult Dry Dog Food 30 lb bag giant breed'),
+      ]);
+      expect(straddle.passed).toBe(false);
+      expect(straddle.leakedFamilies.map(f => f.familyId)).toEqual(['fam-a']);
+
+      const nearDup = verifyFamilySeparation([
+        entry('A1', 'fam-a', 'dev', 'Acme Organic Chicken Adult Dry Dog Food 5 lb bag'),
+        entry('X1', 'fam-x', 'holdout', 'Acme Organic Chicken Adult Dry Dog Food 5 lb bag'),
+      ]);
+      expect(nearDup.passed).toBe(false);
+      expect(nearDup.nearDuplicatePairs.length).toBe(1);
+    });
   });
 });

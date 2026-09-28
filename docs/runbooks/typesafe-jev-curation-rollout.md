@@ -28,7 +28,7 @@ A central architectural requirement of ADR 0033 and Issue #302 is the distinctio
 | **Mechanism** | Derived from calibrated probability models (Noul binary probability $P(\text{yes}) \in [0, 1]$; Choice probability distribution over mutually exclusive candidates summing to 1 within $\pm 0.01$). | Derived from chat token generation log-probabilities, softmax entropy over tokens, or verbalized self-assessment ("I am 95% confident"). |
 | **Calibration** | Statistically calibrated: an evaluated score of 0.85 corresponds to approximately 85% empirical correctness across representative held-out evaluation sets. | Not calibrated: chat models routinely suffer from verbal overconfidence, sycophancy, temperature distortion, and sensitivity to prompt wording. |
 | **Candidate Distribution** | True probability closure: the probabilities across all criteria keys (including explicit abstention options `no_fit` and `insufficient_evidence`) must sum to $1.0 \pm 0.01$, with the selected option matching the distribution argmax. | Pseudo-distribution: output probabilities or rankings reflect language token frequencies, not candidate membership truths. |
-| **System Treatment** | Grounded in decision floors: Single Choice threshold ($\ge 0.70$), Multi-Value Noul threshold ($\ge 0.60$), and development-fitted eligibility ($\ge 0.50$). | **Explicitly rejected** as evidence for automated routing or calibration. Never used to justify reduced human review. |
+| **System Treatment** | Grounded in decision floors: Single Choice selected-probability ($\ge 0.50$), Multi-Value Noul P(yes) ($\ge 0.70$), uncertain band ($0.40$–$0.70$), and development-fitted eligibility ($\ge 0.50$). | **Explicitly rejected** as evidence for automated routing or calibration. Never used to justify reduced human review. |
 
 ---
 
@@ -120,11 +120,11 @@ Canary rollout must proceed in strict order:
 
 | Symptom | Probable Cause | Action |
 |---|---|---|
-| `abstentionCode: service_failure` | HTTP 5xx, network timeout, or TypeSafe API outage. | The model call fails closed; proposal is marked as abstained. Check TypeSafe status. No automatic retry is executed. |
+| `abstentionCode: service_failure` | HTTP 5xx, network timeout, or TypeSafe API outage. | The model call fails closed; proposal is marked as abstained. Check TypeSafe status. At most one bounded transient retry runs inside the operation deadline; persistent failures abstain. |
 | `abstentionCode: candidate_limit_exceeded` | The number of taxonomy options exceeds 253 candidates. | Jev Choice supports up to 253 ordinary options + 2 abstention options. The system fails closed (first-N clipping is forbidden). Prune taxonomy or group into hierarchical sub-types. |
 | `abstentionCode: no_match` | The product does not fit any configured product type or category page (`no_fit`). | Expected semantic abstention. Operator reviews in drawer to either create a new taxonomy node or assign a custom category. |
 | `abstentionCode: insufficient_evidence` | Evidence text or package OCR lacks required differentiating details. | Expected semantic abstention. Supplement evidence in Sourcing or proceed with manual drawer entry. |
-| `abstentionCode: low_probability` | Top candidate probability fell below threshold ($< 0.70$ for PT, $< 0.60$ for Attributes). | Expected guardrail. Prevents low-confidence hallucination. Operator adjudicates in drawer. |
+| `abstentionCode: low_probability` | Top candidate probability fell below threshold ($< 0.50$ for Product Type / single-value Choice, $< 0.70$ for multi-value Noul). | Expected guardrail. Prevents low-confidence hallucination. Operator adjudicates in drawer. |
 | `AiMisconfigurationError: Model mismatch` | Provider returned a model name differing from requested pin `jev-1.13.0`. | Pinned model substitution is forbidden. Check provider connection model settings. |
 | `HeartbeatLostError` | Run execution lease expired during long dispatch. | The run immediately fails closed without writing uncommitted proposals to avoid race conditions. |
 
@@ -169,4 +169,4 @@ Existing and in-flight classification runs are permanently linked to their origi
 ### Modifying Question Prompts or Thresholds
 - Question instructions and criteria are versioned in `src/classification/model-operation-registry.ts` (`RULE_VERSIONS` and `PROMPT_TEMPLATE_VERSIONS`).
 - Changing a question prompt or instructions increments the corresponding rule version, ensuring cache invalidation and immutable audit tracking.
-- Lowering confidence thresholds (e.g. below 0.70 for Choice or 0.60 for Noul) requires written justification, ADR approval, and verification that the Wilson lower bound on precision remains $\ge 0.95$.
+- Lowering confidence thresholds (e.g. below 0.50 for single Choice or 0.70 for multi-value Noul) requires written justification, ADR approval, and verification that the Wilson lower bound on precision remains $\ge 0.95$.
