@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'node:crypto';
-import { initDb, getDb } from '../../db/connection';
+import { initDb, closeDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -70,6 +70,15 @@ describe('Cohort projection performance benchmark', () => {
 
     // Refresh candidate cohorts once to persist them in DB
     refreshCandidateCohorts(workspaceId, batchId);
+  });
+
+  afterAll(() => {
+    closeDb();
+    try {
+      if (workspacePath && fs.existsSync(workspacePath)) {
+        fs.rmSync(workspacePath, { recursive: true, force: true });
+      }
+    } catch { /* ignore */ }
   });
 
   it('measures baseline execution time for buildCohortContext on 1000 items / 200 cohorts', () => {
