@@ -50,6 +50,7 @@ import {
   buildQualificationPredictionsFromCode,
   captureQualificationPredictionsLive,
   QUALIFICATION_PREDICTOR_VERSION,
+  type ExecutedQualificationPrediction,
   type QualificationPredictionArtifact,
 } from '../src/classification/benchmark-prediction';
 import { FrozenTaxonomySnapshotSchema } from '../src/shared/schemas/classification';
@@ -272,6 +273,87 @@ const assessment = assessProductionQualification({
   offlineComparisonReport: comparisonReport,
 });
 
+/** Count one prediction side (baseline/candidate) toward its source rollup. */
+function countPredictionSourceLabel(
+  side: ExecutedQualificationPrediction,
+  counts: Record<string, number>,
+): void {
+  const source = side.source ?? 'unknown';
+  counts[source] = (counts[source] ?? 0) + 1;
+}
+
+/** Count a blocked side toward the blocked-code rollup (no-op when unblocked). */
+function countBlockedCode(
+  side: ExecutedQualificationPrediction,
+  blockedCodes: Record<string, number>,
+): void {
+  if (side.source === 'blocked' && side.blockedCode) {
+    blockedCodes[side.blockedCode] = (blockedCodes[side.blockedCode] ?? 0) + 1;
+  }
+}
+
+/** Count one prediction side (baseline/candidate) toward source + blocked-code rollups. */
+function countPredictionSideSource(
+  side: ExecutedQualificationPrediction,
+  counts: Record<string, number>,
+  blockedCodes: Record<string, number>,
+): void {
+  countPredictionSourceLabel(side, counts);
+  countBlockedCode(side, blockedCodes);
+}
+
+/** Model-identity, usage, and routing accumulators for the source rollup. */
+interface PredictionProvenanceAccumulators {
+  requested: Set<string | null>;
+  resolved: Set<string | null>;
+  routes: Set<string | null>;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** Accumulate candidate model identity (requested/resolved) for one prediction pair. */
+function accumulateCandidateModelIdentity(
+  p: QualificationPredictionArtifact['predictions'][number],
+  acc: PredictionProvenanceAccumulators,
+): void {
+  const pairs: Array<{ value: string | null | undefined; target: Set<string | null> }> = [
+    { value: p.candidate.requestedModel, target: acc.requested },
+    { value: p.candidate.resolvedModel, target: acc.resolved },
+  ];
+  for (const pair of pairs) {
+    if (pair.value !== undefined) pair.target.add(pair.value ?? null);
+  }
+}
+
+/** Accumulate candidate usage for one prediction pair. */
+function accumulateCandidateUsage(
+  p: QualificationPredictionArtifact['predictions'][number],
+  acc: PredictionProvenanceAccumulators,
+): void {
+  if (p.candidate.usage) {
+    acc.inputTokens += p.candidate.usage.inputTokens ?? 0;
+    acc.outputTokens += p.candidate.usage.outputTokens ?? 0;
+  }
+}
+
+/** Accumulate baseline routing for one prediction pair. */
+function accumulateBaselineRoute(
+  p: QualificationPredictionArtifact['predictions'][number],
+  acc: PredictionProvenanceAccumulators,
+): void {
+  if (p.baseline.provider !== undefined) acc.routes.add(p.baseline.provider ?? null);
+}
+
+/** Accumulate model identity + usage + routing for one executed prediction pair. */
+function accumulatePredictionIdentity(
+  p: QualificationPredictionArtifact['predictions'][number],
+  acc: PredictionProvenanceAccumulators,
+): void {
+  accumulateCandidateModelIdentity(p, acc);
+  accumulateCandidateUsage(p, acc);
+  accumulateBaselineRoute(p, acc);
+}
+
 /**
  * Per-side prediction-source rollup (additive): what each source label
  * means — `live_captured` (real model judgment, identity + usage recorded),
@@ -290,34 +372,25 @@ function summarizePredictionSources(): {
   const baseline: Record<string, number> = {};
   const candidate: Record<string, number> = {};
   const blockedCodes: Record<string, number> = {};
-  const requested = new Set<string | null>();
-  const resolved = new Set<string | null>();
-  const routes = new Set<string | null>();
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const acc: PredictionProvenanceAccumulators = {
+    requested: new Set<string | null>(),
+    resolved: new Set<string | null>(),
+    routes: new Set<string | null>(),
+    inputTokens: 0,
+    outputTokens: 0,
+  };
   for (const p of artifact.predictions) {
-    for (const [side, counts] of [[p.baseline, baseline], [p.candidate, candidate]] as const) {
-      const source = side.source ?? 'unknown';
-      counts[source] = (counts[source] ?? 0) + 1;
-      if (side.source === 'blocked' && side.blockedCode) {
-        blockedCodes[side.blockedCode] = (blockedCodes[side.blockedCode] ?? 0) + 1;
-      }
-    }
-    if (p.candidate.requestedModel !== undefined) requested.add(p.candidate.requestedModel ?? null);
-    if (p.candidate.resolvedModel !== undefined) resolved.add(p.candidate.resolvedModel ?? null);
-    if (p.candidate.usage) {
-      inputTokens += p.candidate.usage.inputTokens ?? 0;
-      outputTokens += p.candidate.usage.outputTokens ?? 0;
-    }
-    if (p.baseline.provider !== undefined) routes.add(p.baseline.provider ?? null);
+    countPredictionSideSource(p.baseline, baseline, blockedCodes);
+    countPredictionSideSource(p.candidate, candidate, blockedCodes);
+    accumulatePredictionIdentity(p, acc);
   }
   return {
     baseline,
     candidate,
     blockedCodes,
-    jevModels: { requested: [...requested], resolved: [...resolved] },
-    jevUsage: { inputTokens, outputTokens },
-    baselineRoutes: [...routes],
+    jevModels: { requested: [...acc.requested], resolved: [...acc.resolved] },
+    jevUsage: { inputTokens: acc.inputTokens, outputTokens: acc.outputTokens },
+    baselineRoutes: [...acc.routes],
   };
 }
 const predictionSources = summarizePredictionSources();

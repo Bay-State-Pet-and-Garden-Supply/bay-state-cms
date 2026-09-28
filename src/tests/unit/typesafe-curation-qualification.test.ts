@@ -76,6 +76,9 @@ import {
   QUALIFICATION_SOURCE_BLOCKED,
   QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT,
   QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+  QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+  QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED,
+  blockedQualificationPrediction,
   type QualificationGoldOnlyEntry,
   type QualificationTaxonomies,
 } from '../../classification/benchmark-prediction';
@@ -85,6 +88,7 @@ import {
   verifyFamilySeparation,
   buildFrozenTaxonomyCandidates,
   findGoldOutsideFrozenTaxonomy,
+  FAMILY_SEPARATION_PROOF_VERSION,
 } from '../../classification/benchmark-exporter';
 import {
   findPredictionsOutsideFrozenTaxonomy,
@@ -1623,6 +1627,37 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(canaryOut.canary.productTypeReviewed).toBe(true);
       expect(canaryOut.canary.attributesReviewed).toBe(true);
       expect(canaryOut.canary.cohortPagesReviewed).toBe(true);
+    });
+  });
+
+  describe('Qualification blocked-side contract', () => {
+    it('marks blocked sides with coded reasons mirrored as failure codes', () => {
+      const dispatchBlocked = blockedQualificationPrediction(
+        QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+        'dispatch boom',
+      );
+      expect(dispatchBlocked.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+      expect(dispatchBlocked.blockedCode).toBe(QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED);
+      expect(dispatchBlocked.failureCode).toBe(QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED);
+      expect(dispatchBlocked.blockedDetail).toBe('dispatch boom');
+      expect(dispatchBlocked.abstained).toBe(true);
+      expect(dispatchBlocked.productType).toBeNull();
+
+      const constructionBlocked = blockedQualificationPrediction(
+        QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED,
+        'bad taxonomy',
+      );
+      expect(constructionBlocked.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+      expect(constructionBlocked.blockedCode).toBe(QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED);
+      expect(constructionBlocked.failureCode).toBe(QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED);
+    });
+
+    it('binds live family-separation proofs to the canonical proof version', () => {
+      const fixturePath = path.resolve(import.meta.dir, '../fixtures/benchmark-jev-qualification-goldset.json');
+      const entries = parseQualificationGoldOnly(JSON.parse(fs.readFileSync(fixturePath, 'utf8')));
+      const proof = verifyFamilySeparation(entries);
+      expect(proof.proofVersion).toBe(FAMILY_SEPARATION_PROOF_VERSION);
+      expect(proof.passed).toBe(true);
     });
   });
 });

@@ -1752,6 +1752,42 @@ function predictBaselineAttributes(
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
 }
 
+/** Single-value attribute from a live Choice answer (null when no-match/below floor). */
+function interpretLiveChoiceAttribute(
+  plan: QualificationCandidateAttributePlan,
+  answers: Record<string, SystemOneAnswer>,
+): { targetId: string; value?: string; values?: string[] } | null {
+  if (!plan.choicePlan) return null;
+  const answer = requireChoiceAnswer(answers, plan.choicePlan.questionId);
+  const choiceKey = answer.choice;
+  const prob = answer.probabilities[choiceKey] ?? 0;
+  if (choiceKey === JEV_NO_MATCH_KEY || choiceKey === JEV_INSUFFICIENT_EVIDENCE_KEY) return null;
+  const canonicalValue = choiceKeyToCanonicalId(plan.choicePlan.keyToIdMap, choiceKey, 'option value');
+  if (prob < JEV_ATTRIBUTE_MIN_PROBABILITY) return null;
+  return { targetId: plan.targetId, value: canonicalValue };
+}
+
+/** Multi-value attribute from live Noul answers (null when the shipped policy leaves it unresolved). */
+function interpretLiveNoulAttributes(
+  plan: QualificationCandidateAttributePlan,
+  answers: Record<string, SystemOneAnswer>,
+): { targetId: string; value?: string; values?: string[] } | null {
+  const candidates = (plan.noulPlans ?? []).map(p => ({
+    optionValue: p.optionValue,
+    optionLabel: p.optionLabel,
+    optionIndex: p.optionIndex,
+    prob: requireNoulAnswer(answers, p.questionId).noul,
+  }));
+  const outcome = evaluateMultiValueSelectionPolicy({
+    target: plan.resolved,
+    candidates,
+    permittedEvidence: [],
+    catalogField: null,
+  });
+  if (outcome.outcome !== 'resolved') return null;
+  return { targetId: plan.targetId, values: outcome.selectedValues };
+}
+
 /**
  * Candidate attributes from LIVE Jev answers: single-value targets use the
  * shipped Choice floor (`JEV_ATTRIBUTE_MIN_PROBABILITY`) after the shipped
@@ -1765,28 +1801,10 @@ function interpretLiveCandidateAttributes(
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
   for (const plan of plans) {
-    if (plan.choicePlan) {
-      const answer = requireChoiceAnswer(answers, plan.choicePlan.questionId);
-      const choiceKey = answer.choice;
-      const prob = answer.probabilities[choiceKey] ?? 0;
-      if (choiceKey === JEV_NO_MATCH_KEY || choiceKey === JEV_INSUFFICIENT_EVIDENCE_KEY) continue;
-      const canonicalValue = choiceKeyToCanonicalId(plan.choicePlan.keyToIdMap, choiceKey, 'option value');
-      if (prob >= JEV_ATTRIBUTE_MIN_PROBABILITY) out.push({ targetId: plan.targetId, value: canonicalValue });
-    } else {
-      const candidates = (plan.noulPlans ?? []).map(p => ({
-        optionValue: p.optionValue,
-        optionLabel: p.optionLabel,
-        optionIndex: p.optionIndex,
-        prob: requireNoulAnswer(answers, p.questionId).noul,
-      }));
-      const outcome = evaluateMultiValueSelectionPolicy({
-        target: plan.resolved,
-        candidates,
-        permittedEvidence: [],
-        catalogField: null,
-      });
-      if (outcome.outcome === 'resolved') out.push({ targetId: plan.targetId, values: outcome.selectedValues });
-    }
+    const interpreted = plan.choicePlan
+      ? interpretLiveChoiceAttribute(plan, answers)
+      : interpretLiveNoulAttributes(plan, answers);
+    if (interpreted) out.push(interpreted);
   }
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
 }
@@ -2015,6 +2033,41 @@ async function dispatchCandidateLiveQuestions(
   return { answers: merged ?? {}, requestedModel, resolvedModel, inputTokens, outputTokens };
 }
 
+/** Live candidate product-type stage (typeOverLimit abstains the type stage only). */
+function resolveLiveCandidateProductType(
+  questions: QualificationCandidateQuestionSet,
+  answers: Record<string, SystemOneAnswer>,
+  typeOverLimit: boolean,
+): { productType: string | null; abstained: boolean; typeProb: number } {
+  if (typeOverLimit) return { productType: null, abstained: true, typeProb: 0 };
+  const answer = requireChoiceAnswer(answers, questions.productTypePlan.questionId);
+  const choiceKey = answer.choice;
+  const typeProb = answer.probabilities[choiceKey] ?? 0;
+  if (choiceKey === JEV_NO_MATCH_KEY || choiceKey === JEV_INSUFFICIENT_EVIDENCE_KEY) {
+    return { productType: null, abstained: true, typeProb };
+  }
+  const canonicalId = choiceKeyToCanonicalId(questions.productTypePlan.keyToIdMap, choiceKey, 'option ID');
+  if (typeProb < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
+    return { productType: null, abstained: true, typeProb };
+  }
+  return { productType: canonicalId, abstained: false, typeProb };
+}
+
+/** Live candidate page stage (single-choice page plan). */
+function resolveLiveCandidatePages(
+  questions: QualificationCandidateQuestionSet,
+  answers: Record<string, SystemOneAnswer>,
+): string[] {
+  if (!questions.pagePlan) return [];
+  const answer = requireChoiceAnswer(answers, questions.pagePlan.questionId);
+  const choiceKey = answer.choice;
+  const pageProb = answer.probabilities[choiceKey] ?? 0;
+  if (choiceKey === PAGE_NO_MATCH_CHOICE_KEY || choiceKey === PAGE_INSUFFICIENT_EVIDENCE_CHOICE_KEY) return [];
+  const pageId = choiceKeyToCanonicalId(questions.pagePlan.keyToIdMap, choiceKey, 'option ID');
+  if (pageProb < JEV_PAGE_SINGLE_THRESHOLD) return [];
+  return [pageId];
+}
+
 /**
  * Capture one entry's candidate side from LIVE Jev judgments: shipped
  * question builders → shipped transport → shipped extraction/mapping →
@@ -2041,41 +2094,16 @@ async function captureCandidateEntryLive(
     const dispatchRecords = typeOverLimit ? records.slice(1) : records;
     const merged = await dispatchCandidateLiveQuestions(target, dispatchRecords, qualificationJevState(entry));
 
-    let productType: string | null = null;
-    let typeAbstained = true;
-    let typeProb = 0;
-    if (!typeOverLimit) {
-      const answer = requireChoiceAnswer(merged.answers, questions.productTypePlan.questionId);
-      const choiceKey = answer.choice;
-      typeProb = answer.probabilities[choiceKey] ?? 0;
-      if (choiceKey !== JEV_NO_MATCH_KEY && choiceKey !== JEV_INSUFFICIENT_EVIDENCE_KEY) {
-        const canonicalId = choiceKeyToCanonicalId(questions.productTypePlan.keyToIdMap, choiceKey, 'option ID');
-        if (typeProb >= JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
-          productType = canonicalId;
-          typeAbstained = false;
-        }
-      }
-    }
-
+    const type = resolveLiveCandidateProductType(questions, merged.answers, typeOverLimit);
     const fieldAssignments = interpretLiveCandidateAttributes(questions.attributePlans, merged.answers);
-
-    let pageIds: string[] = [];
-    if (questions.pagePlan) {
-      const answer = requireChoiceAnswer(merged.answers, questions.pagePlan.questionId);
-      const choiceKey = answer.choice;
-      const pageProb = answer.probabilities[choiceKey] ?? 0;
-      if (choiceKey !== PAGE_NO_MATCH_CHOICE_KEY && choiceKey !== PAGE_INSUFFICIENT_EVIDENCE_CHOICE_KEY) {
-        const pageId = choiceKeyToCanonicalId(questions.pagePlan.keyToIdMap, choiceKey, 'option ID');
-        if (pageProb >= JEV_PAGE_SINGLE_THRESHOLD) pageIds = [pageId];
-      }
-    }
+    const pageIds = resolveLiveCandidatePages(questions, merged.answers);
 
     return {
-      productType,
-      abstained: typeAbstained,
+      productType: type.productType,
+      abstained: type.abstained,
       fieldAssignments,
       pageIds,
-      confidence: artifactConfidence(typeAbstained, typeProb),
+      confidence: artifactConfidence(type.abstained, type.typeProb),
       latencyMs: Math.max(0, Date.now() - started),
       source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
       blockedCode: null,
@@ -2197,6 +2225,194 @@ async function attemptBaselineChatStage(input: {
   });
 }
 
+/** Credential gate for the baseline chat leg (same resolution the ranker uses). */
+function checkBaselineChatCredentials(
+  route: QualificationBaselineLiveRoute,
+  view: ModelPolicyView,
+  needs: BaselineLiveNeeds,
+): { ok: true; requestedModel: string } | { ok: false; code: string; detail: string } {
+  const blocked = (detail: string): { ok: false; code: string; detail: string } => ({
+    ok: false,
+    code: QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+    detail,
+  });
+  const firstOperation: BaselineChatOperation = needs.type
+    ? 'product_type_ranking'
+    : needs.attrs.length > 0 ? 'attribute_ranking' : 'page_assignment';
+  try {
+    const config = resolveBaselineChatConfig(firstOperation, view);
+    if (!config) {
+      return blocked(
+        `No usable chat provider for the baseline ranker leg (provider "${route.provider}"); configure existing provider credentials to capture baseline model judgments.`,
+      );
+    }
+    return { ok: true, requestedModel: config.model ?? route.model };
+  } catch (err) {
+    if (err instanceof ModelPolicyDeniedError) {
+      return blocked(
+        `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
+      );
+    }
+    return blocked(
+      `Baseline ranker credentials unresolvable here: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
+    );
+  }
+}
+
+/** Baseline product-type stage via the legacy chat ranker (abstains when the ranker abstains). */
+async function captureBaselineTypeWithChatRanker(
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  view: ModelPolicyView,
+): Promise<{ productType: string | null; abstained: boolean; confidence: number }> {
+  const typeOptions = taxa.productTypes.map(t => ({ value: t.id, label: t.label }));
+  const ranked = await attemptBaselineChatStage({
+    operation: 'product_type_ranking',
+    targetLabel: 'product type',
+    options: typeOptions,
+    selectionMode: 'single',
+    evidenceText,
+    view,
+  });
+  // Shipped incumbent mapping: ranker labels → exactly-one option value.
+  const mapped = ranked && ranked.values.length > 0
+    ? mapRankedLabelToOptionExactlyOne(ranked.values[0], typeOptions)
+    : null;
+  if (!mapped) return { productType: null, abstained: true, confidence: 0 };
+  return { productType: mapped, abstained: false, confidence: ranked?.confidence ?? 0 };
+}
+
+/** Baseline attribute stages via the legacy chat ranker (appends resolved stages). */
+async function captureBaselineAttributesWithChatRanker(
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  view: ModelPolicyView,
+  attrTargetIds: string[],
+  fields: Array<{ targetId: string; value?: string; values?: string[] }>,
+): Promise<void> {
+  for (const targetId of attrTargetIds) {
+    const target = taxa.attributeTargets.find(t => t.targetId === targetId);
+    if (!target) continue;
+    const ranked = await attemptBaselineChatStage({
+      operation: 'attribute_ranking',
+      targetLabel: targetId,
+      options: target.options.map(v => ({ value: v, label: v })),
+      selectionMode: target.cardinality,
+      evidenceText,
+      view,
+    });
+    // Shipped incumbent mapping: ranker values are used directly (mirrors
+    // `mapAttributeLlmResult` — single takes values[0], multiple takes values).
+    if (ranked && ranked.values.length > 0) {
+      if (target.cardinality === 'multiple') {
+        fields.push({ targetId, values: ranked.values });
+      } else {
+        fields.push({ targetId, value: ranked.values[0] });
+      }
+    }
+  }
+}
+
+/** Baseline page stage via the legacy chat ranker. */
+async function captureBaselinePagesWithChatRanker(
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  view: ModelPolicyView,
+): Promise<string[]> {
+  const pageOptions = taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
+  const ranked = await attemptBaselineChatStage({
+    operation: 'page_assignment',
+    targetLabel: 'category page',
+    options: pageOptions,
+    selectionMode: 'single',
+    evidenceText,
+    view,
+  });
+  const mapped = ranked && ranked.values.length > 0
+    ? mapRankedLabelToOptionExactlyOne(ranked.values[0], pageOptions)
+    : null;
+  return mapped ? [mapped] : [];
+}
+
+/** Live baseline stages: deterministic values plus chat-ranker resolutions for needy stages. */
+async function applyBaselineChatStages(
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  view: ModelPolicyView,
+  needs: BaselineLiveNeeds,
+  stages: ReturnType<typeof runDeterministicBaselineStages>,
+): Promise<{
+  productType: string | null;
+  abstained: boolean;
+  confidence: number;
+  fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+  pages: string[];
+}> {
+  let productType = stages.type.productType;
+  let abstained = stages.type.abstained;
+  let confidence = stages.type.confidence;
+  if (needs.type) {
+    const type = await captureBaselineTypeWithChatRanker(taxa, evidenceText, view);
+    productType = type.productType;
+    abstained = type.abstained;
+    confidence = type.confidence;
+  }
+  const fields = [...stages.fields];
+  await captureBaselineAttributesWithChatRanker(taxa, evidenceText, view, needs.attrs, fields);
+  fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
+  let pages = [...stages.pages];
+  if (needs.pages) {
+    pages = await captureBaselinePagesWithChatRanker(taxa, evidenceText, view);
+  }
+  return { productType, abstained, confidence, fields, pages };
+}
+
+/** Assemble the live-captured baseline side (identity recorded, usage null by ranker design). */
+function assembleLiveBaselinePrediction(input: {
+  productType: string | null;
+  abstained: boolean;
+  confidence: number;
+  fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+  pages: string[];
+  requestedModel: string;
+  provider: string;
+  latencyMs: number;
+}): ExecutedQualificationPrediction {
+  return {
+    productType: input.productType,
+    abstained: input.abstained,
+    fieldAssignments: input.fields,
+    pageIds: input.pages,
+    confidence: artifactConfidence(input.abstained, input.confidence),
+    latencyMs: input.latencyMs,
+    source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
+    blockedCode: null,
+    blockedDetail: null,
+    failureCode: null,
+    requestedModel: input.requestedModel,
+    resolvedModel: null,
+    provider: input.provider,
+    usage: null,
+  };
+}
+
+/** Map a live baseline capture throw to its coded blocked side. */
+function blockBaselineCaptureError(
+  err: unknown,
+  block: (code: string, detail: string) => ExecutedQualificationPrediction,
+): ExecutedQualificationPrediction {
+  if (err instanceof ModelPolicyDeniedError) {
+    return block(
+      QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+      `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
+    );
+  }
+  return block(
+    QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+    redactTransportText(err instanceof Error ? err.message : String(err)),
+  );
+}
+
 /**
  * Capture one entry's baseline side with the incumbent precedence:
  * deterministic matcher first; the legacy chat ranker only for stages the
@@ -2246,129 +2462,24 @@ async function captureBaselineEntryLive(
   // baseline model here means the side is blocked — the deterministic values
   // are discarded fail-closed rather than mixed with a guess. The resolved
   // config's model is what the ranker will request (factual provenance).
-  let requestedModel: string = route.model;
-  try {
-    const firstOperation: BaselineChatOperation = needs.type
-      ? 'product_type_ranking'
-      : needs.attrs.length > 0 ? 'attribute_ranking' : 'page_assignment';
-    const config = resolveBaselineChatConfig(firstOperation, view);
-    if (!config) {
-      return block(
-        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
-        `No usable chat provider for the baseline ranker leg (provider "${route.provider}"); configure existing provider credentials to capture baseline model judgments.`,
-      );
-    }
-    requestedModel = config.model ?? route.model;
-  } catch (err) {
-    if (err instanceof ModelPolicyDeniedError) {
-      return block(
-        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
-        `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
-      );
-    }
-    return block(
-      QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
-      `Baseline ranker credentials unresolvable here: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
-    );
-  }
+  const credentials = checkBaselineChatCredentials(route, view, needs);
+  if (!credentials.ok) return block(credentials.code, credentials.detail);
+  const requestedModel = credentials.requestedModel;
 
   try {
-    let productType = stages.type.productType;
-    let abstained = stages.type.abstained;
-    let confidence = stages.type.confidence;
-    if (needs.type) {
-      const typeOptions = taxa.productTypes.map(t => ({ value: t.id, label: t.label }));
-      const ranked = await attemptBaselineChatStage({
-        operation: 'product_type_ranking',
-        targetLabel: 'product type',
-        options: typeOptions,
-        selectionMode: 'single',
-        evidenceText,
-        view,
-      });
-      // Shipped incumbent mapping: ranker labels → exactly-one option value.
-      const mapped = ranked && ranked.values.length > 0
-        ? mapRankedLabelToOptionExactlyOne(ranked.values[0], typeOptions)
-        : null;
-      if (mapped) {
-        productType = mapped;
-        abstained = false;
-        confidence = ranked?.confidence ?? 0;
-      } else {
-        productType = null;
-        abstained = true;
-        confidence = 0;
-      }
-    }
-
-    const fields = [...stages.fields];
-    for (const targetId of needs.attrs) {
-      const target = taxa.attributeTargets.find(t => t.targetId === targetId);
-      if (!target) continue;
-      const ranked = await attemptBaselineChatStage({
-        operation: 'attribute_ranking',
-        targetLabel: targetId,
-        options: target.options.map(v => ({ value: v, label: v })),
-        selectionMode: target.cardinality,
-        evidenceText,
-        view,
-      });
-      // Shipped incumbent mapping: ranker values are used directly (mirrors
-      // `mapAttributeLlmResult` — single takes values[0], multiple takes values).
-      if (ranked && ranked.values.length > 0) {
-        if (target.cardinality === 'multiple') {
-          fields.push({ targetId, values: ranked.values });
-        } else {
-          fields.push({ targetId, value: ranked.values[0] });
-        }
-      }
-    }
-    fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
-
-    let pages = [...stages.pages];
-    if (needs.pages) {
-      const pageOptions = taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
-      const ranked = await attemptBaselineChatStage({
-        operation: 'page_assignment',
-        targetLabel: 'category page',
-        options: pageOptions,
-        selectionMode: 'single',
-        evidenceText,
-        view,
-      });
-      const mapped = ranked && ranked.values.length > 0
-        ? mapRankedLabelToOptionExactlyOne(ranked.values[0], pageOptions)
-        : null;
-      pages = mapped ? [mapped] : [];
-    }
-
-    return {
-      productType,
-      abstained,
-      fieldAssignments: fields,
-      pageIds: pages,
-      confidence: artifactConfidence(abstained, confidence),
-      latencyMs: latency(),
-      source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
-      blockedCode: null,
-      blockedDetail: null,
-      failureCode: null,
+    const applied = await applyBaselineChatStages(taxa, evidenceText, view, needs, stages);
+    return assembleLiveBaselinePrediction({
+      productType: applied.productType,
+      abstained: applied.abstained,
+      confidence: applied.confidence,
+      fields: applied.fields,
+      pages: applied.pages,
       requestedModel,
-      resolvedModel: null,
       provider: route.provider,
-      usage: null,
-    };
+      latencyMs: latency(),
+    });
   } catch (err) {
-    if (err instanceof ModelPolicyDeniedError) {
-      return block(
-        QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
-        `Baseline ranker route denied (${err.code}); configure existing provider credentials to capture baseline model judgments.`,
-      );
-    }
-    return block(
-      QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
-      redactTransportText(err instanceof Error ? err.message : String(err)),
-    );
+    return blockBaselineCaptureError(err, block);
   }
 }
 

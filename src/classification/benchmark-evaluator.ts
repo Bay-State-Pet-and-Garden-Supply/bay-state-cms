@@ -52,6 +52,12 @@ import {
   type PageComparisonCounters,
   type SharedPageComparisonSummary,
 } from './benchmark-scoring-helpers';
+// Pure frozen-taxonomy lookup construction shared with the exporter (no
+// defensive-read concern here — the snapshot type is the shared contract).
+import {
+  buildFrozenTaxonomyLookupSets,
+  type FrozenTaxonomyLookupSets,
+} from './benchmark-exporter';
 
 // ─── Pure metric core ──────────────────────────────────────────────────────────
 
@@ -3546,6 +3552,76 @@ function isConcreteFrozenType(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+/** Product-type containment finding for one prediction (silent when legal/abstained). */
+function checkPredictedProductTypeContainment(
+  pred: FrozenPredictionCheckEntry,
+  where: string,
+  typeIds: Set<string>,
+  findings: string[],
+): void {
+  if (isConcreteFrozenType(pred.productType) && !typeIds.has(pred.productType)) {
+    findings.push('prediction_outside_frozen_taxonomy: ' + where + ' productType "' + pred.productType + '" not in frozen candidates');
+  }
+}
+
+/** Field-target/value containment findings for one prediction. */
+function checkPredictedFieldContainment(
+  pred: FrozenPredictionCheckEntry,
+  where: string,
+  attrOptions: Map<string, Set<string>>,
+  findings: string[],
+): void {
+  for (const field of pred.fieldAssignments ?? []) {
+    const allowed = attrOptions.get(field.targetId);
+    if (!allowed) {
+      findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field target "' + field.targetId + '" not in frozen candidates');
+      continue;
+    }
+    for (const value of frozenPredictedFieldValues(field)) {
+      if (!allowed.has(value)) {
+        findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field "' + field.targetId + '" value "' + value + '" not in frozen candidates');
+      }
+    }
+  }
+}
+
+/** Concrete predicted page ids for one prediction (deduped, first-seen order). */
+function collectPredictedPageIds(pred: FrozenPredictionCheckEntry): string[] {
+  const predictedPages: string[] = [
+    ...(pred.pageIds ?? []),
+    ...(pred.pageAssignments ?? []).map(frozenPredictedPageId).filter((id): id is string => id !== null),
+  ];
+  return [...new Set(predictedPages)];
+}
+
+/** Page containment findings for one prediction. */
+function checkPredictedPageContainment(
+  pred: FrozenPredictionCheckEntry,
+  where: string,
+  pageIds: Set<string>,
+  findings: string[],
+): void {
+  for (const pageId of collectPredictedPageIds(pred)) {
+    if (!pageIds.has(pageId)) {
+      findings.push('prediction_outside_frozen_taxonomy: ' + where + ' page "' + pageId + '" not in frozen candidates');
+    }
+  }
+}
+
+/** Containment findings for one prediction bundle entry. */
+function checkPredictionEntryOutsideFrozenTaxonomy(
+  pred: FrozenPredictionCheckEntry,
+  index: number,
+  lookups: FrozenTaxonomyLookupSets,
+  label: string,
+  findings: string[],
+): void {
+  const where = label + '[' + String(index) + ']';
+  checkPredictedProductTypeContainment(pred, where, lookups.typeIds, findings);
+  checkPredictedFieldContainment(pred, where, lookups.attrOptions, findings);
+  checkPredictedPageContainment(pred, where, lookups.pageIds, findings);
+}
+
 /**
  * List predictions that select outside the frozen candidate pool. Empty means
  * every concrete prediction is a legal frozen selection (abstentions exempt).
@@ -3557,35 +3633,9 @@ export function findPredictionsOutsideFrozenTaxonomy(
   label = 'candidate',
 ): string[] {
   const findings: string[] = [];
-  const typeIds = new Set(frozen.productTypes.map(t => t.id));
-  const attrOptions = new Map(frozen.attributeTargets.map(t => [t.targetId, new Set(t.options)]));
-  const pageIds = new Set(frozen.pages.map(p => p.pageId));
+  const lookups = buildFrozenTaxonomyLookupSets(frozen);
   predictions.forEach((pred, index) => {
-    const where = label + '[' + String(index) + ']';
-    if (isConcreteFrozenType(pred.productType) && !typeIds.has(pred.productType)) {
-      findings.push('prediction_outside_frozen_taxonomy: ' + where + ' productType "' + pred.productType + '" not in frozen candidates');
-    }
-    for (const field of pred.fieldAssignments ?? []) {
-      const allowed = attrOptions.get(field.targetId);
-      if (!allowed) {
-        findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field target "' + field.targetId + '" not in frozen candidates');
-        continue;
-      }
-      for (const value of frozenPredictedFieldValues(field)) {
-        if (!allowed.has(value)) {
-          findings.push('prediction_outside_frozen_taxonomy: ' + where + ' field "' + field.targetId + '" value "' + value + '" not in frozen candidates');
-        }
-      }
-    }
-    const predictedPages: string[] = [
-      ...(pred.pageIds ?? []),
-      ...(pred.pageAssignments ?? []).map(frozenPredictedPageId).filter((id): id is string => id !== null),
-    ];
-    for (const pageId of new Set(predictedPages)) {
-      if (!pageIds.has(pageId)) {
-        findings.push('prediction_outside_frozen_taxonomy: ' + where + ' page "' + pageId + '" not in frozen candidates');
-      }
-    }
+    checkPredictionEntryOutsideFrozenTaxonomy(pred, index, lookups, label, findings);
   });
   return findings;
 }

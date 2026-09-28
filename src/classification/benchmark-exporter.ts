@@ -1099,6 +1099,68 @@ function frozenCheckFieldValues(field: { value?: unknown; values?: unknown }): s
   return out;
 }
 
+/** Shared frozen-taxonomy lookup sets for containment checks. */
+export interface FrozenTaxonomyLookupSets {
+  typeIds: Set<string>;
+  attrOptions: Map<string, Set<string>>;
+  pageIds: Set<string>;
+}
+
+/**
+ * Build lookup sets over a frozen taxonomy snapshot. Single construction
+ * site for every containment check (gold-side here and prediction-side in
+ * the evaluator) so the sets cannot drift apart.
+ */
+export function buildFrozenTaxonomyLookupSets(frozen: FrozenTaxonomySnapshot): FrozenTaxonomyLookupSets {
+  const typeIds = new Set(frozen.productTypes.map(t => t.id));
+  const attrOptions = new Map(frozen.attributeTargets.map(t => [t.targetId, new Set(t.options)]));
+  const pageIds = new Set(frozen.pages.map(p => p.pageId));
+  return { typeIds, attrOptions, pageIds };
+}
+
+/** Product-type containment finding for one gold entry (null when within the frozen pool). */
+function checkGoldProductTypeContainment(entry: FrozenGoldCheckEntry, typeIds: Set<string>): string | null {
+  const typeId = frozenCheckString(entry.gold.productType.typeId);
+  if (typeId !== null && !typeIds.has(typeId)) {
+    return `gold_outside_frozen_taxonomy: SKU "${entry.sku}" productType "${typeId}" not in frozen candidates`;
+  }
+  return null;
+}
+
+/** Field-target/value containment findings for one gold entry. */
+function checkGoldFieldContainment(entry: FrozenGoldCheckEntry, attrOptions: Map<string, Set<string>>): string[] {
+  const findings: string[] = [];
+  for (const field of entry.gold.fieldAssignments ?? []) {
+    const allowed = attrOptions.get(field.targetId);
+    if (!allowed) {
+      findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field target "${field.targetId}" not in frozen candidates`);
+      continue;
+    }
+    for (const value of frozenCheckFieldValues(field)) {
+      if (!allowed.has(value)) {
+        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field "${field.targetId}" value "${value}" not in frozen candidates`);
+      }
+    }
+  }
+  return findings;
+}
+
+/** Category-page containment findings for one gold entry. */
+function checkGoldPageContainment(entry: FrozenGoldCheckEntry, pageIds: Set<string>): string[] {
+  const findings: string[] = [];
+  for (const pageId of entry.gold.categoryPages?.pageIds ?? []) {
+    if (!pageIds.has(pageId)) {
+      findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${pageId}" not in frozen candidates`);
+    }
+  }
+  for (const page of entry.gold.categoryPages?.pageAssignments ?? []) {
+    if (!pageIds.has(page.pageId)) {
+      findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${page.pageId}" not in frozen candidates`);
+    }
+  }
+  return findings;
+}
+
 /**
  * List gold-outside-frozen findings. Empty means every adjudicated answer
  * sits within the frozen candidate pool (gold answers, never the pool).
@@ -1108,36 +1170,12 @@ export function findGoldOutsideFrozenTaxonomy(
   frozen: FrozenTaxonomySnapshot,
 ): string[] {
   const findings: string[] = [];
-  const typeIds = new Set(frozen.productTypes.map(t => t.id));
-  const attrOptions = new Map(frozen.attributeTargets.map(t => [t.targetId, new Set(t.options)]));
-  const pageIds = new Set(frozen.pages.map(p => p.pageId));
+  const { typeIds, attrOptions, pageIds } = buildFrozenTaxonomyLookupSets(frozen);
   for (const entry of entries) {
-    const typeId = frozenCheckString(entry.gold.productType.typeId);
-    if (typeId !== null && !typeIds.has(typeId)) {
-      findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" productType "${typeId}" not in frozen candidates`);
-    }
-    for (const field of entry.gold.fieldAssignments ?? []) {
-      const allowed = attrOptions.get(field.targetId);
-      if (!allowed) {
-        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field target "${field.targetId}" not in frozen candidates`);
-        continue;
-      }
-      for (const value of frozenCheckFieldValues(field)) {
-        if (!allowed.has(value)) {
-          findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" field "${field.targetId}" value "${value}" not in frozen candidates`);
-        }
-      }
-    }
-    for (const pageId of entry.gold.categoryPages?.pageIds ?? []) {
-      if (!pageIds.has(pageId)) {
-        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${pageId}" not in frozen candidates`);
-      }
-    }
-    for (const page of entry.gold.categoryPages?.pageAssignments ?? []) {
-      if (!pageIds.has(page.pageId)) {
-        findings.push(`gold_outside_frozen_taxonomy: SKU "${entry.sku}" page "${page.pageId}" not in frozen candidates`);
-      }
-    }
+    const typeFinding = checkGoldProductTypeContainment(entry, typeIds);
+    if (typeFinding !== null) findings.push(typeFinding);
+    findings.push(...checkGoldFieldContainment(entry, attrOptions));
+    findings.push(...checkGoldPageContainment(entry, pageIds));
   }
   return findings;
 }

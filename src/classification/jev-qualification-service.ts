@@ -27,6 +27,9 @@ import {
   type QualificationGoldCore,
 } from './benchmark-scoring-helpers';
 import type { BenchmarkPredictionEntry, EvalMetrics } from '../shared/schemas/classification';
+// Canonical proof version produced by `verifyFamilySeparation` (single
+// definition site — the exporter owns the proof, this service validates it).
+import { FAMILY_SEPARATION_PROOF_VERSION } from './benchmark-exporter';
 import type {
   CompatibilityReceipt,
   FamilySeparationProof,
@@ -860,10 +863,8 @@ interface ProductionQualificationInputs {
 // ─── Qualification evidence receipts ─────────────────────────────────────────
 // Explicit evidence inputs consumed by the gates below. Every receipt is
 // fail-closed when absent: omitting a receipt reproduces today's blockers
-// byte-for-byte.
-
-/** Proof version bound into every accepted family-separation receipt. */
-export const FAMILY_SEPARATION_PROOF_VERSION = 'family-separation-v1' as const;
+// byte-for-byte. The family-separation proof version is canonical in
+// `benchmark-exporter.ts` (imported above) — never redefined here.
 
 /**
  * Compatibility suites that must each report passed at qualification time:
@@ -883,19 +884,38 @@ export const REQUIRED_COMPATIBILITY_SUITE_IDS = [
 /** Published runbook path accepted by the operator-docs gate. */
 export const OPERATOR_RUNBOOK_PATH = 'docs/runbooks/typesafe-jev-curation-rollout.md' as const;
 
-/** True for a family-separation proof that establishes zero leakage. */
-function isValidFamilySeparationProof(proof: FamilySeparationProof | null | undefined): boolean {
-  if (!proof || typeof proof !== 'object') return false;
+/** Proof version + timestamp identity for a family-separation receipt. */
+function hasFamilyProofIdentity(proof: FamilySeparationProof): boolean {
   return (
     proof.proofVersion === FAMILY_SEPARATION_PROOF_VERSION &&
     typeof proof.verifiedAt === 'string' &&
-    proof.verifiedAt.trim() !== '' &&
-    proof.familiesChecked > 0 &&
+    proof.verifiedAt.trim() !== ''
+  );
+}
+
+/** Non-empty checked population for a family-separation receipt. */
+function hasFamilyProofPopulation(proof: FamilySeparationProof): boolean {
+  return proof.familiesChecked > 0;
+}
+
+/** Zero-leakage outcome for a family-separation receipt. */
+function hasFamilyProofCleanOutcome(proof: FamilySeparationProof): boolean {
+  return (
     proof.passed === true &&
     Array.isArray(proof.leakedFamilies) &&
     proof.leakedFamilies.length === 0 &&
     Array.isArray(proof.nearDuplicatePairs) &&
     proof.nearDuplicatePairs.length === 0
+  );
+}
+
+/** True for a family-separation proof that establishes zero leakage. */
+function isValidFamilySeparationProof(proof: FamilySeparationProof | null | undefined): boolean {
+  if (!proof || typeof proof !== 'object') return false;
+  return (
+    hasFamilyProofIdentity(proof) &&
+    hasFamilyProofPopulation(proof) &&
+    hasFamilyProofCleanOutcome(proof)
   );
 }
 

@@ -599,10 +599,11 @@ export function effectiveReviewedTargetId(
 }
 
 // ─── Generic best-choice selection ──────────────────────────────────────────
-// Offline candidate selection and keyword precedence share one rule: highest
-// probability wins; ties keep the first (deterministic input order).
+// Highest probability wins; ties keep the first (deterministic input order).
+// Module-private: no callers yet (unexported per ADR 0036); export it when a
+// second consumer needs the shared rule.
 
-export function selectBestByProbability<T>(
+function selectBestByProbability<T>(
   items: T[],
   probabilityOf: (item: T) => number,
 ): { best: T | null; bestProb: number } {
