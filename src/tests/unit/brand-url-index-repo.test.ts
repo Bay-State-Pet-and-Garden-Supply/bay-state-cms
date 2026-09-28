@@ -155,6 +155,17 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(skuMatch).not.toBeNull();
       expect(skuMatch?.url).toBe('https://www.kongcompany.com/products/classic-red-medium');
     });
+
+    it('should return null for non-GTIN UPC query (e.g. 5-digit number or SKU string)', () => {
+      reconcileSitemapUrls(
+        'acmepet.com',
+        [{ url: 'https://acmepet.com/products/item-12345' }],
+        'https://acmepet.com/sitemap.xml',
+      );
+
+      const match = lookupByUpc('acmepet.com', '12345');
+      expect(match).toBeNull();
+    });
   });
 
   describe('searchUrlsLexical with FTS5', () => {

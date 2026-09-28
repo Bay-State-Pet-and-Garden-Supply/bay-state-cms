@@ -1,6 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { canonicalGtinMatch, normalizeGtinDigits } from '../../shared/gtin';
+import { canonicalGtinMatch, normalizeGtin } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -261,7 +261,7 @@ export function findUrlsByDomain(
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
   const db = getDb();
   const normDomain = normalizeDomain(domain);
-  const cleanUpc = normalizeGtinDigits(upc);
+  const cleanUpc = normalizeGtin(upc);
   if (!cleanUpc) return null;
 
   const candidateGtins = new Set<string>();
@@ -350,7 +350,7 @@ export function searchUrlsLexical(
       .all(cleanQuery, normDomain, limit) as BrandUrlRecord[];
 
     return ftsRows;
-  } catch (err) {
+    } catch {
     // If FTS fails (e.g. malformed query), fall back to simple LIKE query
     const tokens = query.split(/\s+/).filter((t) => t.length > 2);
     if (tokens.length === 0) return [];
