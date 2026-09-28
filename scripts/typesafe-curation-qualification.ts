@@ -324,46 +324,57 @@ function validateCompatReceiptValue(value: unknown, source: string): Compatibili
   };
 }
 
-/** Read the compat receipt: inline env JSON wins, else the receipts file, else absent. */
-function readCompatibilityReceipt(): CompatibilityInput {
-  const inlineJson = process.env.TYPESAFE_COMPAT_RECEIPT_JSON?.trim();
-  if (inlineJson) {
-    try {
-      return validateCompatReceiptValue(JSON.parse(inlineJson), 'env TYPESAFE_COMPAT_RECEIPT_JSON');
-    } catch (err) {
-      console.error(
-        `Warning: TYPESAFE_COMPAT_RECEIPT_JSON unparseable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
-      );
-      return {
-        receipt: null,
-        source: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON (unverified)',
-        detail: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON; expected suites [other-providers, deterministic-rules, frozen-snapshots, legacy-reads] with commit + pass status',
-      };
-    }
+/** Inline env compat receipt (malformed JSON → coded unverified, never throws). */
+function readInlineCompatibilityReceipt(inlineJson: string): CompatibilityInput {
+  try {
+    return validateCompatReceiptValue(JSON.parse(inlineJson), 'env TYPESAFE_COMPAT_RECEIPT_JSON');
+  } catch (err) {
+    console.error(
+      `Warning: TYPESAFE_COMPAT_RECEIPT_JSON unparseable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
+    );
+    return {
+      receipt: null,
+      source: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON (unverified)',
+      detail: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON; expected suites [other-providers, deterministic-rules, frozen-snapshots, legacy-reads] with commit + pass status',
+    };
   }
-  const receiptsPath = process.env.TYPESAFE_COMPAT_RECEIPTS_PATH;
-  if (receiptsPath) {
-    try {
-      return validateCompatReceiptValue(
-        JSON.parse(fs.readFileSync(receiptsPath, 'utf8')),
-        `file ${receiptsPath}`,
-      );
-    } catch (err) {
-      console.error(
-        `Warning: TYPESAFE_COMPAT_RECEIPTS_PATH unreadable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
-      );
-      return {
-        receipt: null,
-        source: `unreadable file ${receiptsPath} (unverified)`,
-        detail: `unreadable file ${receiptsPath}; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
-      };
-    }
+}
+
+/** File compat receipt (unreadable/malformed → coded unverified, never throws). */
+function readFileCompatibilityReceipt(receiptsPath: string): CompatibilityInput {
+  try {
+    return validateCompatReceiptValue(
+      JSON.parse(fs.readFileSync(receiptsPath, 'utf8')),
+      `file ${receiptsPath}`,
+    );
+  } catch (err) {
+    console.error(
+      `Warning: TYPESAFE_COMPAT_RECEIPTS_PATH unreadable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
+    );
+    return {
+      receipt: null,
+      source: `unreadable file ${receiptsPath} (unverified)`,
+      detail: `unreadable file ${receiptsPath}; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
+    };
   }
+}
+
+/** Absent compat receipt (fail-closed default). */
+function absentCompatibilityReceipt(): CompatibilityInput {
   return {
     receipt: null,
     source: 'none provided (unverified)',
     detail: `none provided; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
   };
+}
+
+/** Read the compat receipt: inline env JSON wins, else the receipts file, else absent. */
+function readCompatibilityReceipt(): CompatibilityInput {
+  const inlineJson = process.env.TYPESAFE_COMPAT_RECEIPT_JSON?.trim();
+  if (inlineJson) return readInlineCompatibilityReceipt(inlineJson);
+  const receiptsPath = process.env.TYPESAFE_COMPAT_RECEIPTS_PATH;
+  if (receiptsPath) return readFileCompatibilityReceipt(receiptsPath);
+  return absentCompatibilityReceipt();
 }
 const compat = readCompatibilityReceipt();
 

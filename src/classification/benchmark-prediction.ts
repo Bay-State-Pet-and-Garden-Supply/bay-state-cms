@@ -1481,6 +1481,46 @@ export function qualificationTaxonomiesFromFrozenSnapshot(
  * frozen attributes (gold-free), never to gold labels. Malformed sidecars
  * fail closed (never a silent substitution).
  */
+/** One attribute id from a type-profile sidecar entry (malformed → throw fail-closed). */
+function sidecarAttributeIdOf(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof record.attributeId === 'string') return record.attributeId;
+    if (typeof record.targetId === 'string') return record.targetId;
+  }
+  throw new Error('Qualification type-profile sidecar is malformed.');
+}
+
+/** Sorted deduped target ids for one sidecar entry's attribute list. */
+function collectSidecarAttributeIds(attrs: unknown[]): string[] {
+  const ids: string[] = [];
+  for (const a of attrs) ids.push(sidecarAttributeIdOf(a));
+  return [...new Set(ids)].sort();
+}
+
+/** One type-profile entry: validated type id plus its sorted target ids. */
+function parseSidecarProfileEntry(entry: unknown): { typeId: string; ids: string[] } {
+  if (!entry || typeof entry !== 'object') throw new Error('Qualification type-profile sidecar is malformed.');
+  const e = entry as Record<string, unknown>;
+  const typeId = e.productTypeId ?? e.product_type_id ?? e.typeId;
+  const attrs = e.attributes ?? e.targets;
+  if (typeof typeId !== 'string' || !Array.isArray(attrs)) {
+    throw new Error('Qualification type-profile sidecar is malformed.');
+  }
+  return { typeId, ids: collectSidecarAttributeIds(attrs) };
+}
+
+/** Type→targets mapping from a v2-style attributeProfiles array. */
+function buildTypeProfilesFromAttributeProfiles(profiles: unknown[]): Record<string, string[]> {
+  const mapped: Record<string, string[]> = {};
+  for (const entry of profiles) {
+    const parsed = parseSidecarProfileEntry(entry);
+    mapped[parsed.typeId] = parsed.ids;
+  }
+  return mapped;
+}
+
 function readQualificationTypeProfilesSidecar(sidecar: {
   typeProfiles?: unknown;
   attributeProfiles?: unknown;
@@ -1489,29 +1529,7 @@ function readQualificationTypeProfilesSidecar(sidecar: {
   const direct = normalizeTypeProfilesRecord(sidecar.typeProfiles ?? sidecar.typeAttributeMap);
   if (direct) return direct;
   if (Array.isArray(sidecar.attributeProfiles)) {
-    const mapped: Record<string, string[]> = {};
-    for (const entry of sidecar.attributeProfiles) {
-      if (!entry || typeof entry !== 'object') throw new Error('Qualification type-profile sidecar is malformed.');
-      const e = entry as Record<string, unknown>;
-      const typeId = e.productTypeId ?? e.product_type_id ?? e.typeId;
-      const attrs = e.attributes ?? e.targets;
-      if (typeof typeId !== 'string' || !Array.isArray(attrs)) {
-        throw new Error('Qualification type-profile sidecar is malformed.');
-      }
-      const ids: string[] = [];
-      for (const a of attrs) {
-        if (typeof a === 'string') ids.push(a);
-        else if (a && typeof a === 'object' && typeof (a as Record<string, unknown>).attributeId === 'string') {
-          ids.push((a as Record<string, unknown>).attributeId as string);
-        } else if (a && typeof a === 'object' && typeof (a as Record<string, unknown>).targetId === 'string') {
-          ids.push((a as Record<string, unknown>).targetId as string);
-        } else {
-          throw new Error('Qualification type-profile sidecar is malformed.');
-        }
-      }
-      mapped[typeId] = [...new Set(ids)].sort();
-    }
-    return mapped;
+    return buildTypeProfilesFromAttributeProfiles(sidecar.attributeProfiles);
   }
   return null;
 }
@@ -2297,6 +2315,108 @@ function resolveLiveCandidatePages(
   return [pageId];
 }
 
+/** Type-phase transport records (empty when the closed world exceeds Choice capacity). */
+function buildCandidateTypeRecords(
+  typeQuestions: QualificationCandidateQuestionSet,
+  typeOverLimit: boolean,
+): Array<{ questionId: string; question: QualificationLiveQuestion }> {
+  if (typeOverLimit) return [];
+  return [{
+    questionId: typeQuestions.productTypePlan.questionId,
+    question: {
+      type: 'choice' as const,
+      instructions: typeQuestions.productTypePlan.instructions,
+      criteria: typeQuestions.productTypePlan.criteria,
+    },
+  }];
+}
+
+/** Placeholder merged answers when the type stage abstains over-limit (no dispatch). */
+function buildCandidateOverLimitPlaceholder(target: ResolvedJevLiveTarget): MergedLiveAnswers {
+  return {
+    answers: {},
+    requestedModel: target.model,
+    resolvedModel: target.model,
+    inputTokens: 0,
+    outputTokens: 0,
+  };
+}
+
+/** Phase-1 type judgment: dispatch unless over-limit (placeholder carries no usage). */
+async function dispatchCandidateTypeMerged(
+  target: ResolvedJevLiveTarget,
+  typeRecords: Array<{ questionId: string; question: QualificationLiveQuestion }>,
+  typeState: ReturnType<typeof buildQualificationTypeState>,
+  typeOverLimit: boolean,
+): Promise<MergedLiveAnswers> {
+  if (typeOverLimit) return buildCandidateOverLimitPlaceholder(target);
+  return dispatchCandidateLiveQuestions(target, typeRecords, typeState);
+}
+
+/** Frozen effective type id (null when the type stage abstained). */
+function resolveCandidateEffectiveTypeId(
+  type: { productType: string | null; abstained: boolean },
+): string | null {
+  return type.abstained ? null : type.productType;
+}
+
+/** Merge phase-1 and phase-2 answers (identity follows the attribute leg). */
+function mergeCandidateLiveAnswers(
+  typeMerged: MergedLiveAnswers,
+  attrMerged: MergedLiveAnswers,
+): MergedLiveAnswers {
+  return {
+    answers: { ...typeMerged.answers, ...attrMerged.answers },
+    requestedModel: typeMerged.requestedModel,
+    resolvedModel: attrMerged.resolvedModel ?? typeMerged.resolvedModel,
+    inputTokens: typeMerged.inputTokens + attrMerged.inputTokens,
+    outputTokens: typeMerged.outputTokens + attrMerged.outputTokens,
+  };
+}
+
+/** True when no model spoke (fail-closed: never live_captured without identity + usage). */
+function isCandidateJudgmentSilent(merged: MergedLiveAnswers, typeOverLimit: boolean): boolean {
+  if (!merged.resolvedModel) return true;
+  return merged.inputTokens === 0 && merged.outputTokens === 0 && !typeOverLimit;
+}
+
+/** Blocked side for a silent live path (same coded reason as the inline branch). */
+function buildCandidateSilentBlocked(latencyMs: number): ExecutedQualificationPrediction {
+  return {
+    ...blockedQualificationPrediction(
+      QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+      'Candidate live path executed but no model judgment spoke (missing resolvedModel/usage).',
+    ),
+    latencyMs,
+  };
+}
+
+/** Live-captured side from a speaking model (same shape as the inline return). */
+function buildCandidateLiveCaptured(
+  type: { productType: string | null; abstained: boolean; typeProb: number },
+  fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>,
+  pageIds: string[],
+  merged: MergedLiveAnswers,
+  latencyMs: number,
+): ExecutedQualificationPrediction {
+  return {
+    productType: type.productType,
+    abstained: type.abstained,
+    fieldAssignments,
+    pageIds,
+    confidence: artifactConfidence(type.abstained, type.typeProb),
+    latencyMs,
+    source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
+    blockedCode: null,
+    blockedDetail: null,
+    failureCode: null,
+    requestedModel: merged.requestedModel,
+    resolvedModel: merged.resolvedModel,
+    provider: 'typesafe',
+    usage: { inputTokens: merged.inputTokens, outputTokens: merged.outputTokens },
+  };
+}
+
 /**
  * Capture one entry's candidate side from LIVE Jev judgments: shipped
  * question builders → shipped transport → shipped extraction/mapping →
@@ -2327,20 +2447,11 @@ async function captureCandidateEntryLive(
     const typeOverLimit = taxa.productTypes.length > JEV_MAX_ORDINARY_CHOICE_CANDIDATES;
     // Phase 1 — Product Type first with the RICH type state.
     const typeQuestions = buildQualificationCandidateQuestionSet(entry, taxa);
-    const typeRecords = typeOverLimit ? [] : [{
-      questionId: typeQuestions.productTypePlan.questionId,
-      question: {
-        type: 'choice' as const,
-        instructions: typeQuestions.productTypePlan.instructions,
-        criteria: typeQuestions.productTypePlan.criteria,
-      },
-    }];
+    const typeRecords = buildCandidateTypeRecords(typeQuestions, typeOverLimit);
     const typeState = buildQualificationTypeState(entry);
-    const typeMerged = typeOverLimit
-      ? { answers: {}, requestedModel: target.model, resolvedModel: target.model, inputTokens: 0, outputTokens: 0 }
-      : await dispatchCandidateLiveQuestions(target, typeRecords, typeState);
+    const typeMerged = await dispatchCandidateTypeMerged(target, typeRecords, typeState, typeOverLimit);
     const type = resolveLiveCandidateProductType(typeQuestions, typeMerged.answers, typeOverLimit);
-    const effectiveTypeId = type.abstained ? null : type.productType;
+    const effectiveTypeId = resolveCandidateEffectiveTypeId(type);
     // Phase 2 — freeze the effective type, then build RICH attribute state and
     // evaluate applicability (never gold). Pages consume the frozen type.
     const applicableQuestions = buildQualificationCandidateQuestionSet(entry, taxa, effectiveTypeId);
@@ -2349,43 +2460,16 @@ async function captureCandidateEntryLive(
     );
     const attrState = buildQualificationAttributeState(entry, effectiveTypeId);
     const attrMerged = await dispatchCandidateLiveQuestions(target, attrPageRecords, attrState);
-    const merged: MergedLiveAnswers = {
-      answers: { ...typeMerged.answers, ...attrMerged.answers },
-      requestedModel: typeMerged.requestedModel,
-      resolvedModel: attrMerged.resolvedModel ?? typeMerged.resolvedModel,
-      inputTokens: typeMerged.inputTokens + attrMerged.inputTokens,
-      outputTokens: typeMerged.outputTokens + attrMerged.outputTokens,
-    };
+    const merged = mergeCandidateLiveAnswers(typeMerged, attrMerged);
     // `live_captured` guarantees a model spoke: without resolvedModel + usage
     // the side is an abstention/failure, never live_captured (fail-closed).
-    if (!merged.resolvedModel || (merged.inputTokens === 0 && merged.outputTokens === 0 && !typeOverLimit)) {
-      return {
-        ...blockedQualificationPrediction(
-          QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
-          'Candidate live path executed but no model judgment spoke (missing resolvedModel/usage).',
-        ),
-        latencyMs: Math.max(0, Date.now() - started),
-      };
+    if (isCandidateJudgmentSilent(merged, typeOverLimit)) {
+      return buildCandidateSilentBlocked(Math.max(0, Date.now() - started));
     }
     const fieldAssignments = interpretLiveCandidateAttributes(applicableQuestions.attributePlans, merged.answers);
     const pageIds = resolveLiveCandidatePages(applicableQuestions, merged.answers);
 
-    return {
-      productType: type.productType,
-      abstained: type.abstained,
-      fieldAssignments,
-      pageIds,
-      confidence: artifactConfidence(type.abstained, type.typeProb),
-      latencyMs: Math.max(0, Date.now() - started),
-      source: QUALIFICATION_SOURCE_LIVE_CAPTURED,
-      blockedCode: null,
-      blockedDetail: null,
-      failureCode: null,
-      requestedModel: merged.requestedModel,
-      resolvedModel: merged.resolvedModel,
-      provider: 'typesafe',
-      usage: { inputTokens: merged.inputTokens, outputTokens: merged.outputTokens },
-    };
+    return buildCandidateLiveCaptured(type, fieldAssignments, pageIds, merged, Math.max(0, Date.now() - started));
   } catch (err) {
     return fail(redactTransportText(err instanceof Error ? err.message : String(err)));
   }
@@ -2847,35 +2931,70 @@ function assembleLiveBaselinePrediction(input: {
  * usage). Returns null when no model judgment spoke — the caller records
  * `blocked`, never `live_captured`.
  */
-function readBaselineAuditProof(runId: string): {
-  requestedModel: string;
-  resolvedModel: string;
-  provider: string;
-  usage: { inputTokens: number | null; outputTokens: number | null };
-} | null {
-  let rows: ReturnType<typeof getModelCallsByRun>;
+/** Load run-bound model-call rows (null when unreadable — caller records blocked). */
+function loadBaselineAuditRows(runId: string): ReturnType<typeof getModelCallsByRun> | null {
   try {
-    rows = getModelCallsByRun(runId);
+    return getModelCallsByRun(runId);
   } catch {
     return null;
   }
-  const successes = rows.filter(r => r.status === 'success');
-  if (successes.length === 0) return null;
-  const first = successes[0];
-  const inputTokens = successes.reduce((sum, r) => sum + (r.prompt_tokens ?? 0), 0);
-  const outputTokens = successes.reduce((sum, r) => sum + (r.completion_tokens ?? 0), 0);
+}
+
+/** Token usage summed over success audit rows. */
+function sumBaselineAuditUsage(
+  successes: ReturnType<typeof getModelCallsByRun>,
+): { inputTokens: number; outputTokens: number } {
+  return {
+    inputTokens: successes.reduce((sum, r) => sum + (r.prompt_tokens ?? 0), 0),
+    outputTokens: successes.reduce((sum, r) => sum + (r.completion_tokens ?? 0), 0),
+  };
+}
+
+/** Model identity from the first success row (null when unresolvable). */
+function resolveBaselineAuditIdentity(
+  first: ReturnType<typeof getModelCallsByRun>[number],
+): { requestedModel: string; resolvedModel: string } | null {
   const requestedModel = first.requested_model ?? first.model ?? null;
   // Legacy chat audit rows terminalize without `resolved_model` (the transport
   // returns model identity but the row keeps it in `model`); the speaking
   // model is the row's model (falling back to the requested route).
   const resolvedModel = first.resolved_model ?? first.model ?? requestedModel;
   if (!requestedModel || !resolvedModel) return null;
+  return { requestedModel, resolvedModel };
+}
+
+/** Audit proof from success rows (null when no model judgment spoke). */
+function buildBaselineAuditProofFromSuccesses(
+  successes: ReturnType<typeof getModelCallsByRun>,
+): {
+  requestedModel: string;
+  resolvedModel: string;
+  provider: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+} | null {
+  if (successes.length === 0) return null;
+  const first = successes[0];
+  const identity = resolveBaselineAuditIdentity(first);
+  if (!identity) return null;
+  const usage = sumBaselineAuditUsage(successes);
   return {
-    requestedModel,
-    resolvedModel,
+    requestedModel: identity.requestedModel,
+    resolvedModel: identity.resolvedModel,
     provider: first.provider ?? 'unknown',
-    usage: { inputTokens, outputTokens },
+    usage,
   };
+}
+
+function readBaselineAuditProof(runId: string): {
+  requestedModel: string;
+  resolvedModel: string;
+  provider: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+} | null {
+  const rows = loadBaselineAuditRows(runId);
+  if (!rows) return null;
+  const successes = rows.filter(r => r.status === 'success');
+  return buildBaselineAuditProofFromSuccesses(successes);
 }
 
 /** Map a live baseline capture throw to its coded blocked side. */
@@ -2893,6 +3012,104 @@ function blockBaselineCaptureError(
     QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
     redactTransportText(err instanceof Error ? err.message : String(err)),
   );
+}
+
+/** True when no live baseline route was opted in (null route or policy view). */
+function hasBaselineLiveRoute(
+  route: QualificationBaselineLiveRoute | null,
+  view: ModelPolicyView | null,
+): boolean {
+  return !!route && !!view;
+}
+
+/** True when the deterministic stages left nothing for the chat ranker to do. */
+function isBaselineLiveNeedsEmpty(needs: BaselineLiveNeeds): boolean {
+  return !needs.type && needs.attrs.length === 0 && !needs.pages;
+}
+
+/** Floor prediction from deterministic stages (same shape as the inline closure). */
+function buildBaselineFloorFromStages(
+  stages: ReturnType<typeof runDeterministicBaselineStages>,
+  latencyMs: number,
+): ExecutedQualificationPrediction {
+  return floorQualificationPrediction({
+    productType: stages.type.productType,
+    abstained: stages.type.abstained,
+    fieldAssignments: stages.fields,
+    pageIds: stages.pages,
+    confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
+    latencyMs,
+  });
+}
+
+/** Ephemeral workspace + frozen snapshot for run-bound audit rows (throws fail-closed). */
+function setupBaselineEphemeralContext(
+  view: ModelPolicyView,
+  taxa: QualificationTaxonomies,
+): { workspaceId: string; snapshot: RuntimeClassificationSnapshot } {
+  const workspaceId = ensureQualificationWorkspaceId();
+  const snapshot = buildQualificationBaselineSnapshot(view, taxa);
+  return { workspaceId, snapshot };
+}
+
+/** Coded detail for an ephemeral-setup throw (same message as the inline branch). */
+function baselineSetupBlockedDetail(err: unknown): string {
+  return `Ephemeral benchmark run setup failed: ${redactTransportText(err instanceof Error ? err.message : String(err))}`;
+}
+
+/** Quiet success completion for an ephemeral run (hygiene only, never throws). */
+function completeBaselineSuccessQuietly(runId: string, abstained: boolean): void {
+  try {
+    completeRun(runId, abstained ? 'completed_with_abstentions' : 'completed');
+  } catch {
+    // Ephemeral run completion is hygiene only — a completion failure never
+    // upgrades a blocked side or downgrades a speaking model.
+  }
+}
+
+/** Live result from applied stages + audit proof (blocked when no model spoke). */
+function resolveBaselineLiveResult(
+  applied: {
+    productType: string | null;
+    abstained: boolean;
+    confidence: number;
+    fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+    pages: string[];
+  },
+  proof: ReturnType<typeof readBaselineAuditProof>,
+  latencyMs: number,
+  block: (code: string, detail: string) => ExecutedQualificationPrediction,
+): ExecutedQualificationPrediction {
+  if (!proof) {
+    return block(
+      QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+      'Baseline live path executed but no model judgment spoke (no success audit row); refusing live_captured.',
+    );
+  }
+  return assembleLiveBaselinePrediction({
+    productType: applied.productType,
+    abstained: applied.abstained,
+    confidence: applied.confidence,
+    fields: applied.fields,
+    pages: applied.pages,
+    requestedModel: proof.requestedModel,
+    resolvedModel: proof.resolvedModel,
+    provider: proof.provider,
+    usage: proof.usage,
+    latencyMs,
+  });
+}
+
+/** Failure path: mark the ephemeral run failed (hygiene) then map to a coded blocked side. */
+function failBaselineLiveRun(
+  runId: string | null,
+  err: unknown,
+  block: (code: string, detail: string) => ExecutedQualificationPrediction,
+): ExecutedQualificationPrediction {
+  if (runId) {
+    try { completeRun(runId, 'failed', err instanceof Error ? err.message : String(err)); } catch { /* hygiene */ }
+  }
+  return blockBaselineCaptureError(err, block);
 }
 
 /**
@@ -2923,17 +3140,10 @@ async function captureBaselineEntryLive(
   const started = Date.now();
   const latency = (): number => Math.max(0, Date.now() - started);
   const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
-  const asFloor = (): ExecutedQualificationPrediction => floorQualificationPrediction({
-    productType: stages.type.productType,
-    abstained: stages.type.abstained,
-    fieldAssignments: stages.fields,
-    pageIds: stages.pages,
-    confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
-    latencyMs: latency(),
-  });
-  if (!route || !view) return asFloor();
+  const asFloor = (): ExecutedQualificationPrediction => buildBaselineFloorFromStages(stages, latency());
+  if (!hasBaselineLiveRoute(route, view)) return asFloor();
   const needs = baselineLiveNeeds(taxa, evidenceText, stages);
-  if (!needs.type && needs.attrs.length === 0 && !needs.pages) return asFloor();
+  if (isBaselineLiveNeedsEmpty(needs)) return asFloor();
 
   const block = (code: string, detail: string): ExecutedQualificationPrediction => ({
     ...blockedQualificationPrediction(code, detail),
@@ -2942,7 +3152,7 @@ async function captureBaselineEntryLive(
   // Credential pre-check (same resolution the ranker uses): no usable
   // baseline model here means the side is blocked — the deterministic values
   // are discarded fail-closed rather than mixed with a guess.
-  const credentials = checkBaselineChatCredentials(route, view, needs);
+  const credentials = checkBaselineChatCredentials(route!, view!, needs);
   if (!credentials.ok) return block(credentials.code, credentials.detail);
 
   // Ephemeral benchmark run with a frozen snapshot carrying a compatible
@@ -2952,12 +3162,11 @@ async function captureBaselineEntryLive(
   let workspaceId: string;
   let snapshot: RuntimeClassificationSnapshot;
   try {
-    workspaceId = ensureQualificationWorkspaceId();
-    snapshot = buildQualificationBaselineSnapshot(view, taxa);
+    ({ workspaceId, snapshot } = setupBaselineEphemeralContext(view!, taxa));
   } catch (err) {
     return block(
       QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
-      `Ephemeral benchmark run setup failed: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
+      baselineSetupBlockedDetail(err),
     );
   }
   let runId: string | null = null;
@@ -2965,38 +3174,13 @@ async function captureBaselineEntryLive(
     const run = createRun(workspaceId, entry.sku, null, snapshot.snapshotHash, { sourceKind: 'catalog_product' });
     runId = run.id;
     const applied = await applyBaselineChatStagesWithRun({
-      entry, taxa, evidenceText, view, snapshot, runId, needs, stages,
+      entry, taxa, evidenceText, view: view!, snapshot, runId, needs, stages,
     });
     const proof = readBaselineAuditProof(runId);
-    try {
-      completeRun(runId, applied.abstained ? 'completed_with_abstentions' : 'completed');
-    } catch {
-      // Ephemeral run completion is hygiene only — a completion failure never
-      // upgrades a blocked side or downgrades a speaking model.
-    }
-    if (!proof) {
-      return block(
-        QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
-        'Baseline live path executed but no model judgment spoke (no success audit row); refusing live_captured.',
-      );
-    }
-    return assembleLiveBaselinePrediction({
-      productType: applied.productType,
-      abstained: applied.abstained,
-      confidence: applied.confidence,
-      fields: applied.fields,
-      pages: applied.pages,
-      requestedModel: proof.requestedModel,
-      resolvedModel: proof.resolvedModel,
-      provider: proof.provider,
-      usage: proof.usage,
-      latencyMs: latency(),
-    });
+    completeBaselineSuccessQuietly(runId, applied.abstained);
+    return resolveBaselineLiveResult(applied, proof, latency(), block);
   } catch (err) {
-    if (runId) {
-      try { completeRun(runId, 'failed', err instanceof Error ? err.message : String(err)); } catch { /* hygiene */ }
-    }
-    return blockBaselineCaptureError(err, block);
+    return failBaselineLiveRun(runId, err, block);
   }
 }
 
