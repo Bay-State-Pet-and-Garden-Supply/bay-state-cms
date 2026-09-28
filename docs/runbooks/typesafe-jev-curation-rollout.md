@@ -15,7 +15,7 @@ Scope:
 2. **Propose-Only Authority (`isBulkAcceptable: false`):** Every Jev proposal is marked with `isBulkAcceptable = false`. Bulk-acceptance in the review drawer or automated promotion is forbidden. Every proposal must be explicitly accepted, rejected, or modified by a human operator (Store Manager).
 3. **Calibrated Fail-Closed Semantics:** Jev emits structured choices and calibrated probabilities or abstains (`no_fit`, `insufficient_evidence`, `candidate_limit_exceeded`). It never invents unconfigured options, off-catalog URLs, or low-probability guesses.
 4. **Frozen Snapshot Discipline:** Classification runs are bound to an immutable runtime snapshot (`RuntimeClassificationSnapshot`). Changing route configuration in workspace settings does not alter running or completed classification runs.
-5. **Honest Qualification Gates:** Live contract checks and canary gates require actual live credentials (`TYPESAFE_API_KEY`) and live store manager approvals. The system refuses to pass qualification based on mocks, stubs, or absence of errors. Missing prerequisites are reported explicitly as blockers, maintaining `PROVISIONALLY_QUALIFIED` status.
+5. **Honest Qualification Gates:** Live contract checks and canary gates require actual live credentials (`TYPESAFE_API_KEY`) and live store manager approvals. The system refuses to pass qualification based on mocks, stubs, or absence of errors. Missing prerequisites are reported explicitly as blockers: `blocked` when offline evidence itself fails (the default no-credential run — the `blocked` candidate side counts as service failures, so candidate quality cannot evidence itself), `provisionally_qualified` only when offline evidence is fully clean and only verification/operational prerequisites remain.
 
 ---
 
@@ -75,26 +75,46 @@ The qualification suite evaluates against `src/tests/fixtures/benchmark-jev-qual
 - **Targets:** Primary Product Types, Controlled Attributes (single & multi-value), and Category Pages with verified ShopSite page identities.
 
 ### B. Running the Offline Comparison
-Run the qualification CLI runner:
+Run the qualification CLI runner (default is CI-safe and offline: the
+baseline side is the deterministic floor, the candidate side is `blocked`
+with code `jev_credentials_absent` — the report fails closed by
+construction and the assessment status is `blocked` for candidate quality,
+NOT `provisionally_qualified`):
 
 ```bash
 bun scripts/typesafe-curation-qualification.ts
 ```
 
-For machine-readable JSON output:
+For machine-readable JSON output (includes `comparisonReport`,
+`assessment`, `predictionArtifact`, `predictionProvenance`, `liveCheck`,
+`canary`, `family`, `compatibility`, and `operatorDocs`):
 
 ```bash
 bun scripts/typesafe-curation-qualification.ts --json
 ```
+
+Runner flags (all `--flag=value` form except the booleans; the usage line
+in `scripts/typesafe-curation-qualification.ts` is authoritative):
+
+| Flag | Effect |
+|---|---|
+| `--split=dev\|holdout` | Score only one split (default: all 16 entries). |
+| `--json` | Machine-readable output; human-readable report otherwise. |
+| `--live-capture` | Capture the candidate side from real Jev judgments. Requires `TYPESAFE_API_KEY` (≥ 8 chars); without it the candidate stays `blocked` (`jev_credentials_absent`) — never simulated. |
+| `--model=jev-1.13.0` | Requested Jev model for live capture (default: `TYPESAFE_EVALUATED_MODEL`, currently `jev-1.13.0` in `src/ai/systemone-transport.ts`). |
+| `--baseline-provider=<p> --baseline-model=<m>` | Capture the baseline side via the incumbent route (deterministic floor first, then the legacy chat ranker). BOTH flags are required; credentials resolve from the existing provider store and unresolvable credentials record `blocked`. |
+| `--live-check` (or `TYPESAFE_LIVE_CHECK=1`) | Run the bounded live contract check as a subprocess (requires `TYPESAFE_API_KEY`); its actual result feeds the assessment. |
+| `--artifact-out=path` | Write the executed prediction artifact JSON to `path`. |
 
 The script reports:
 1. **Product Type Metrics:** Top-1 Accuracy, Coverage, Incorrect Proposals, Regressions against baseline.
 2. **Attribute Set Metrics:** Exact match, Precision, Recall, F1 for single- and multi-value attributes.
 3. **Category Page Set Metrics:** Exact match, Precision, Recall, F1 for ShopSite page assignments.
 4. **Cohort Pipeline Effects:** Stage-isolated accuracy and end-to-end cohort pipeline effects.
-5. **Telemetry & SLOs:** Latency (p50, p95) and cost basis per SKU.
+5. **Telemetry & SLOs:** Latency basis per SKU (mean/p50/p95 in JSON; Mean/P95 in text) and cost basis.
 6. **Time Disclaimer:** *Explicit disclaimer confirming that model execution latency does not claim operator review-time reduction until measured via review drawer time-tracking.*
 7. **Production Qualification Assessment:** Evaluates all 10 criteria and reports specific blockers.
+8. **Receipt Provenance:** Family proof, compatibility receipt, operator-docs receipt, live-check, and canary sources echoed with provenance (see D–G).
 
 ### C. Bounded Live Contract Check
 To run an opt-in live check against the TypeSafe API:
@@ -104,7 +124,28 @@ To run an opt-in live check against the TypeSafe API:
 bun scripts/typesafe-curation-qualification.ts --live-check
 ```
 
-*Note: Without `--live-check` and a valid `TYPESAFE_API_KEY`, the script will intentionally mark live contract checks and canary stages as blocked, keeping production status at `PROVISIONALLY_QUALIFIED`.*
+To capture real candidate quality (not just the contract probe), add
+`--live-capture` — same credential requirement; without the key the
+candidate side is recorded as `blocked` (`jev_credentials_absent`), never
+mocked:
+
+```bash
+TYPESAFE_API_KEY=... bun scripts/typesafe-curation-qualification.ts --live-capture --live-check --json
+```
+
+To capture the incumbent baseline through its real provider path as well,
+add both incumbent flags (credentials resolve from the existing provider
+store):
+
+```bash
+bun scripts/typesafe-curation-qualification.ts --live-capture --baseline-provider=ollama --baseline-model=llama3 --json
+```
+
+*Note: Without `--live-check`/`--live-capture` and a valid
+`TYPESAFE_API_KEY`, the script intentionally marks the candidate side as
+`blocked` (service failures), plus live contract and canary stages as
+unmet — production status is `blocked` for candidate quality, NOT
+`provisionally_qualified` (see H).*
 
 ### D. Staged Canary Verification
 Canary rollout must proceed in strict order:
@@ -113,6 +154,106 @@ Canary rollout must proceed in strict order:
 3. **Canary 3: Multi-Item Cohort** — Validate multi-item category page coordination and cohort review workflow.
 
 **Requirement:** Every canary batch must be explicitly reviewed and approved by the Store Manager in the review drawer before proceeding to broader activation.
+
+**Recording sign-offs** (fail-closed default: absent = unreviewed blockers).
+Following the canary-receipt pattern — a receipts file and/or env flags,
+echoed with provenance in `--json` (`canary.source`) and the text report:
+
+```bash
+# Option 1: receipts file (booleans; unreadable file warns and stays unreviewed)
+export TYPESAFE_CANARY_RECEIPTS_PATH=/tmp/canary-receipts.json
+# {"productTypeReviewed": true, "attributesReviewed": true, "cohortPagesReviewed": true}
+
+# Option 2: env flags (layer on top of the file when both are present)
+export TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED=1
+export TYPESAFE_CANARY_ATTRIBUTES_REVIEWED=1
+export TYPESAFE_CANARY_COHORT_PAGES_REVIEWED=1
+```
+
+### E. Family-Separation Proof (automatic)
+The runner proves dev/holdout isolation live on every run via the shipped
+`verifyFamilySeparation` (`src/classification/benchmark-exporter.ts`) over
+the loaded gold entries — shared family identity plus cross-split
+near-duplicate detection, proof version `family-separation-v1`. No operator
+input is required or accepted; a failing proof (or verifier error) keeps
+the fail-closed `family_separation_unverified` blocker. The `--json`
+`family` section echoes the proof (`proofVersion`, `familiesChecked`,
+`passed`, leak/duplicate counts) and the text report shows a
+`Family proof:` line.
+
+### F. Compatibility Receipt (operator-recorded)
+The runner cannot re-run the already-green seams itself, so compatibility
+is operator-attested: a receipts file the runner reads, validates, and
+echoes with provenance. Absent or malformed input keeps the fail-closed
+`compatibility_unverified` blocker — malformed receipts are never silently
+accepted (a stderr warning names the defect).
+
+Receipt shape (all four suite ids from `REQUIRED_COMPATIBILITY_SUITE_IDS`
+in `src/classification/jev-qualification-service.ts`, each with the commit
+it passed on, plus the time it was recorded):
+
+```json
+{
+  "suites": [
+    {"suiteId": "other-providers", "commit": "<git-sha>", "passed": true, "executedAt": null},
+    {"suiteId": "deterministic-rules", "commit": "<git-sha>", "passed": true, "executedAt": null},
+    {"suiteId": "frozen-snapshots", "commit": "<git-sha>", "passed": true, "executedAt": null},
+    {"suiteId": "legacy-reads", "commit": "<git-sha>", "passed": true, "executedAt": null}
+  ],
+  "recordedAt": "2026-09-28T00:00:00.000Z"
+}
+```
+
+Inputs (inline env JSON wins when set; otherwise the file; otherwise
+absent — an explicitly malformed env value blocks without falling back to
+the file):
+
+```bash
+# Option 1: receipts file
+export TYPESAFE_COMPAT_RECEIPTS_PATH=/tmp/compat-receipts.json
+
+# Option 2: inline JSON (same shape as above)
+export TYPESAFE_COMPAT_RECEIPT_JSON='{"suites": [...], "recordedAt": "..."}'
+```
+
+**Recording / refreshing:** after the four suites pass, write the file with
+the current commit (`git rev-parse HEAD`) and timestamp
+(`date -u +%Y-%m-%dT%H:%M:%SZ`). Refresh on every change under test: a
+receipt records the commit it passed on, so re-qualifying at a newer commit
+with a stale file still echoes the old commit — visibly stale, never
+silently current. The file carries no secrets (suite ids, commit SHAs,
+booleans, timestamps) and is safe to commit alongside the qualification.
+The `--json` `compatibility` section echoes the receipt, source, and
+per-suite `suiteId@commit` detail; the text report shows a
+`Compatibility:` line.
+
+### G. Operator-Docs Receipt (automatic, live-bound)
+The runner binds qualification to the exact published runbook bytes: on
+every run it hashes
+`docs/runbooks/typesafe-jev-curation-rollout.md`
+(`OPERATOR_RUNBOOK_PATH`) with SHA-256 and passes
+`{runbookPath, contentHash, publishedAt}` as the receipt. Any doc edit
+changes the hash, so prior `--json` outputs (which echo the full hash) are
+visibly invalidated. An unreadable runbook keeps the fail-closed
+`operator_docs_missing` blocker with a stderr warning. The `--json`
+`operatorDocs` section echoes the receipt; the text report shows an
+`Operator docs:` line.
+
+### H. Status Semantics: `blocked` vs `provisionally_qualified`
+- `qualified`: zero blockers.
+- `provisionally_qualified`: offline evidence itself is clean
+  (`candidateOutperformsBaseline`, zero harmful regressions in every stage,
+  zero candidate service failures) but verification/operational blockers
+  remain (family, live credentials/contract, canaries, compatibility,
+  operator docs).
+- `blocked`: offline evidence itself is incomplete or failed (missing
+  report, offline failure, regressions, service failures).
+
+Consequence: the default no-credential run is `blocked` — the candidate
+side is `blocked` (`jev_credentials_absent`), which counts as service
+failures, so `offlineEvaluationPassed` is false and
+`provisionally_qualified` is unreachable until real candidate evidence
+(`--live-capture` with `TYPESAFE_API_KEY`) plus clean deltas exist.
 
 ---
 
@@ -154,16 +295,18 @@ Existing and in-flight classification runs are permanently linked to their origi
 ## 7. Model, Question & Threshold Upgrade Procedures
 
 ### Upgrading Jev Model Pins (e.g. `jev-1.13.0` → `jev-1.14.0`)
-1. Add the new versioned pin to `TYPESAFE_KNOWN_MODELS` in `src/shared/schemas/systemone.ts`.
+1. Add the new versioned pin to `TYPESAFE_KNOWN_MODELS` in `src/ai/systemone-transport.ts`.
 2. Run the offline benchmark harness against the held-out gold set:
    ```bash
    bun scripts/typesafe-curation-qualification.ts
    ```
-3. Verify that non-regression floors hold:
-   - Primary Product Type accuracy $\ge$ baseline ($100\%$ on gold holdout).
-   - Attribute F1 $\ge$ baseline ($0.88$).
-   - Category Page F1 $\ge$ baseline ($0.85$).
-4. Update `TYPESAFE_EVALUATED_MODEL` in `src/shared/schemas/systemone.ts`.
+3. Verify that the shipped non-regression gates hold (no absolute
+   percentages — the gates compare candidate vs baseline on the executed
+   artifact):
+   - `candidateOutperformsBaseline` is true (candidate raw correctness $\ge$ baseline on Primary Product Type).
+   - Zero harmful regressions in every stage (Product Type, Attributes, Category Pages).
+   - Zero candidate service failures (`summary.zeroServiceFailures` true — `blocked` sides never evidence quality).
+4. Update `TYPESAFE_EVALUATED_MODEL` in `src/ai/systemone-transport.ts`.
 5. Update tests and documentation.
 
 ### Modifying Question Prompts or Thresholds

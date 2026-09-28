@@ -1157,6 +1157,7 @@ import {
   buildProductTypeChoiceQuestion,
   JEV_PRODUCT_TYPE_MIN_PROBABILITY,
   PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE,
+  resolveProductTypeDecision,
   type ProductTypeChoiceQuestionPlan,
 } from './product-type-decision';
 import {
@@ -1164,6 +1165,7 @@ import {
   buildAttributeNoulQuestions,
   evaluateMultiValueSelectionPolicy,
   JEV_ATTRIBUTE_MIN_PROBABILITY,
+  resolveAttributeDecision,
   type AttributeChoiceQuestionPlan,
   type AttributeNoulQuestionPlan,
 } from './attribute-decision';
@@ -1179,7 +1181,17 @@ import type {
   ProductAttributeConfig,
   ModelPolicyConfigV2,
   FrozenTaxonomySnapshot,
+  ClassificationEvidence,
 } from '../shared/schemas/classification';
+import { createRun, completeRun } from '../db/repositories/classification-run-repo';
+import { getDb } from '../db/connection';
+import {
+  buildModelExecutionPlan,
+  buildRuntimeRuleVersions,
+  PROMPT_TEMPLATE_VERSIONS,
+  RULE_VERSIONS,
+} from './model-operation-registry';
+import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { executeSystemOne, TYPESAFE_EVALUATED_MODEL } from '../ai/systemone-transport';
 import type { SystemOneAnswer } from '../shared/schemas/systemone';
 import type { ProviderConnection } from '../ai/provider-connections';
@@ -1200,15 +1212,19 @@ import {
 import { getLlmConfigForTask, type LlmConfig } from '../onboarding/llm-client';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 
-/** Version of the honest-capture qualification predictor (v2: no simulator). */
-export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v2' as const;
+/** Version of the honest-capture qualification predictor (v3: replay fidelity — PT-first, no gold gating, real incumbent judgments). */
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v3' as const;
 
 /**
  * Explicit prediction-source contract for qualification captures.
- * - `live_captured`: the live path executed against frozen gold evidence and
- *   its outcome was recorded (requested route always recorded; resolved
- *   model + usage recorded when a model judgment spoke — null when the
- *   incumbent path abstained without a judgment).
+ * - `live_captured`: a model SPOKE — the live path executed against frozen
+ *   gold evidence, a run-bound model-call audit row terminalized with
+ *   success, and `resolvedModel` + `usage` are present (never null). An
+ *   abstention with a speaking model is still `live_captured` (abstained=true,
+ *   failureCode null — an honest abstention, not a failure). A
+ *   provider-selected-but-silent outcome (no success audit row, null
+ *   resolvedModel/usage) is NEVER `live_captured` — it is `blocked` (failure)
+ *   or the deterministic floor.
  * - `deterministic_floor`: the real deterministic matcher ran with no model
  *   consulted — a lower-bound floor, never candidate quality evidence.
  * - `blocked`: no judgment was captured (coded reason in `blockedCode`) —
@@ -1264,6 +1280,14 @@ export interface QualificationTaxonomies {
   productTypes: Array<{ id: string; label: string }>;
   attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[] }>;
   pages: Array<{ pageId: string; pageName: string }>;
+  /**
+   * Optional frozen type→profile→attribute mapping (additive): when present,
+   * attribute applicability replays production (effective frozen Product Type
+   * → profile → applicable attributes only). When absent, applicability falls
+   * back to all frozen attributes (gold-free, documented as weaker separation
+   * until the mapping is wired — never derived from gold labels).
+   */
+  typeProfiles?: Record<string, string[]> | null;
 }
 
 /**
@@ -1426,6 +1450,15 @@ function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): Q
 export function qualificationTaxonomiesFromFrozenSnapshot(
   snapshot: FrozenTaxonomySnapshot,
 ): QualificationTaxonomies {
+  // Optional type→profile→attribute mapping (additive plumbing): the Zod
+  // schema stays strict, so the mapping travels as an unknown sidecar field
+  // when present and is ignored otherwise — never derived from gold.
+  const sidecar = snapshot as unknown as {
+    typeProfiles?: unknown;
+    attributeProfiles?: unknown;
+    typeAttributeMap?: unknown;
+  };
+  const typeProfiles = readQualificationTypeProfilesSidecar(sidecar);
   return {
     productTypes: [...snapshot.productTypes]
       .sort((a, b) => a.id.localeCompare(b.id))
@@ -1436,7 +1469,67 @@ export function qualificationTaxonomiesFromFrozenSnapshot(
     pages: [...snapshot.pages]
       .sort((a, b) => a.pageId.localeCompare(b.pageId))
       .map(p => ({ pageId: p.pageId, pageName: p.pageName })),
+    ...(typeProfiles ? { typeProfiles } : {}),
   };
+}
+
+/**
+ * Read an optional frozen type→attribute mapping sidecar without touching the
+ * strict Zod schema. Accepts `typeProfiles` (typeId → targetIds), a v2-style
+ * `attributeProfiles` array ({ productTypeId, attributes: [{ attributeId }] }),
+ * or `typeAttributeMap`. Returns null when absent — callers fall back to all
+ * frozen attributes (gold-free), never to gold labels. Malformed sidecars
+ * fail closed (never a silent substitution).
+ */
+function readQualificationTypeProfilesSidecar(sidecar: {
+  typeProfiles?: unknown;
+  attributeProfiles?: unknown;
+  typeAttributeMap?: unknown;
+}): Record<string, string[]> | null {
+  const direct = normalizeTypeProfilesRecord(sidecar.typeProfiles ?? sidecar.typeAttributeMap);
+  if (direct) return direct;
+  if (Array.isArray(sidecar.attributeProfiles)) {
+    const mapped: Record<string, string[]> = {};
+    for (const entry of sidecar.attributeProfiles) {
+      if (!entry || typeof entry !== 'object') throw new Error('Qualification type-profile sidecar is malformed.');
+      const e = entry as Record<string, unknown>;
+      const typeId = e.productTypeId ?? e.product_type_id ?? e.typeId;
+      const attrs = e.attributes ?? e.targets;
+      if (typeof typeId !== 'string' || !Array.isArray(attrs)) {
+        throw new Error('Qualification type-profile sidecar is malformed.');
+      }
+      const ids: string[] = [];
+      for (const a of attrs) {
+        if (typeof a === 'string') ids.push(a);
+        else if (a && typeof a === 'object' && typeof (a as Record<string, unknown>).attributeId === 'string') {
+          ids.push((a as Record<string, unknown>).attributeId as string);
+        } else if (a && typeof a === 'object' && typeof (a as Record<string, unknown>).targetId === 'string') {
+          ids.push((a as Record<string, unknown>).targetId as string);
+        } else {
+          throw new Error('Qualification type-profile sidecar is malformed.');
+        }
+      }
+      mapped[typeId] = [...new Set(ids)].sort();
+    }
+    return mapped;
+  }
+  return null;
+}
+
+/** Normalize a typeId → targetIds record sidecar (null when absent). */
+function normalizeTypeProfilesRecord(value: unknown): Record<string, string[]> | null {
+  if (value === null || value === undefined) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Qualification type-profile sidecar is malformed.');
+  }
+  const out: Record<string, string[]> = {};
+  for (const [typeId, targets] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(targets) || !targets.every(t => typeof t === 'string')) {
+      throw new Error('Qualification type-profile sidecar is malformed.');
+    }
+    out[typeId] = [...new Set(targets as string[])].sort();
+  }
+  return out;
 }
 
 /** Structural check for the frozen-taxonomy snapshot shape (legacy taxonomy inputs lack `snapshotHash`). */
@@ -1540,12 +1633,123 @@ function isQualificationPredictionEmpty(optionCount: number, evidenceText: strin
   return optionCount === 0 || evidenceText.length < 3;
 }
 
-/** True when the gold fixture adjudicates this field target for the entry. */
-function goldHasFieldTarget(
+/**
+ * Applicable attribute targets for a frozen effective Product Type — the
+ * production replay rule (effective type → Attribute Profile → applicable
+ * attributes only). Uses the frozen taxonomy's type→profile→attribute mapping
+ * when present; otherwise falls back to ALL frozen attributes (gold-free,
+ * documented as weaker separation until the mapping is wired). A null
+ * effective type (abstained/unknown) yields NO applicable attributes —
+ * production blocks type-gated attributes until a type is accepted (universal
+ * attributes cannot be identified from the frozen taxonomy alone, so
+ * fail-closed to none). Gold labels are NEVER consulted.
+ */
+function applicableQualificationAttributeTargets(
+  taxonomies: QualificationTaxonomies,
+  effectiveTypeId: string | null,
+): QualificationTaxonomies['attributeTargets'] {
+  if (!effectiveTypeId) return [];
+  const mapping = taxonomies.typeProfiles ?? null;
+  if (!mapping) return [...taxonomies.attributeTargets];
+  const allowed = mapping[effectiveTypeId];
+  if (!allowed) return [];
+  const allowedSet = new Set(allowed);
+  return taxonomies.attributeTargets.filter(t => allowedSet.has(t.targetId));
+}
+
+/**
+ * Rich product name for Jev state (mirrors production's first-wins name slot:
+ * first evidence snippet, else the SKU fallback). Never a gold label.
+ */
+function qualificationProductName(entry: QualificationGoldOnlyEntry): string {
+  const first = entry.evidence.map(ev => ev.snippet ?? '').find(s => s.trim().length > 0);
+  return first?.slice(0, 200) ?? entry.sku;
+}
+
+/** Rich Jev state for the product-type phase (mirrors BoundedProductTypeState). */
+function buildQualificationTypeState(entry: QualificationGoldOnlyEntry): {
+  sku: string;
+  name: string;
+  brand: string | null;
+  description: string | null;
+  snippets: string[];
+  attributes: Record<string, unknown>;
+  evidenceCount: number;
+} {
+  const snippets = entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
+  const name = qualificationProductName(entry);
+  const description = snippets.length > 1 ? snippets.slice(1).join(' ').slice(0, 4000) : null;
+  return {
+    sku: entry.sku,
+    name: name || entry.sku,
+    brand: null,
+    description,
+    snippets,
+    attributes: {},
+    evidenceCount: entry.evidence.length,
+  };
+}
+
+/**
+ * Rich Jev state for attribute/page phases (mirrors BoundedAttributeState):
+ * name + brand + the FROZEN resolved productType (never run alongside type
+ * resolution — callers resolve PT first, freeze the effective type, then build
+ * this state). Includes target-permitted evidence text (all frozen evidence is
+ * permitted — the frozen taxonomy carries no visual-eligibility policy) plus
+ * the joined evidence text production grounds on.
+ */
+function buildQualificationAttributeState(
   entry: QualificationGoldOnlyEntry,
-  targetId: string,
-): boolean {
-  return (entry.gold.fieldAssignments ?? []).some(field => field.targetId === targetId);
+  effectiveTypeId: string | null,
+): {
+  sku: string;
+  name: string;
+  brand: string | null;
+  productType: string | null;
+  evidenceCount: number;
+  evidenceText: string;
+  snippets: string[];
+} {
+  const snippets = entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
+  return {
+    sku: entry.sku,
+    name: qualificationProductName(entry) || entry.sku,
+    brand: null,
+    productType: effectiveTypeId,
+    evidenceCount: entry.evidence.length,
+    evidenceText: snippets.slice(0, 15).join('; ').slice(0, 4000),
+    snippets,
+  };
+}
+
+/**
+ * Convert frozen gold evidence to production ClassificationEvidence for real
+ * decision-boundary invocation (read-only usage). Source labels map to
+ * production EvidenceSource values (`official_page` → `official_product_page`);
+ * the first snippet seeds the `title` slot (production's name slot), the rest
+ * seed `description` (mirroring the bounded state builders' first-wins
+ * cascade). Gold labels never enter the evidence.
+ */
+function qualificationEvidenceForBoundary(
+  entry: QualificationGoldOnlyEntry,
+  runId: string,
+): ClassificationEvidence[] {
+  const now = new Date().toISOString();
+  return entry.evidence.map((ev, i) => ({
+    id: `qual-ev-${entry.sku}-${i}`,
+    runId,
+    stageName: 'evidence_extraction',
+    productSku: entry.sku,
+    attributeId: (ev as { attributeId?: string | null }).attributeId ?? null,
+    source: ev.source === 'official_page' ? 'official_product_page' : ev.source,
+    reliability: (ev.reliability ?? 'low') as ClassificationEvidence['reliability'],
+    sourceUrl: null,
+    sourceField: i === 0 ? 'title' : 'description',
+    snippet: ev.snippet ?? '',
+    value: ev.snippet ?? '',
+    metadata: null,
+    capturedAt: now,
+  } as unknown as ClassificationEvidence));
 }
 
 /** Stub attribute config + resolved target for one closed-world target. */
@@ -1619,24 +1823,43 @@ export interface QualificationCandidateQuestionSet {
  * can prove criteria/key parity without credentials or network. Throws on
  * malformed taxonomy input; callers map that to a coded `blocked` side
  * (fail-closed), never to a guessed judgment.
+ *
+ * Replay fidelity (no gold leakage): attribute plans cover the APPLICABLE
+ * frozen attributes for `effectiveTypeId` (production: effective type →
+ * profile → applicability), never the gold-adjudicated targets. When
+ * `effectiveTypeId` is omitted (wiring/shape proof without a resolved type),
+ * all frozen attributes are built (gold-free). Page questions consume the
+ * resolved type (never run alongside type resolution — live capture resolves
+ * PT first, then builds pages with the frozen type).
  */
 export function buildQualificationCandidateQuestionSet(
   entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
+  effectiveTypeId?: string | null,
 ): QualificationCandidateQuestionSet {
   const productTypePlan = buildProductTypeChoiceQuestion(
     taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
   );
+  // Pure-construction path has no resolved type yet: build all frozen
+  // attributes (gold-free). Live capture passes the frozen resolved type to
+  // narrow to applicable attributes only.
+  const applicable = effectiveTypeId === undefined
+    ? [...taxonomies.attributeTargets]
+    : applicableQualificationAttributeTargets(taxonomies, effectiveTypeId ?? null);
+  const productContext = {
+    name: qualificationProductName(entry),
+    brand: null,
+    productType: effectiveTypeId ?? null,
+  };
   const attributePlans: QualificationCandidateAttributePlan[] = [];
-  for (const target of taxonomies.attributeTargets) {
-    if (!goldHasFieldTarget(entry, target.targetId)) continue;
+  for (const target of applicable) {
     const { resolved } = stubAttributeTarget(target);
     if (target.cardinality === 'multiple') {
       attributePlans.push({
         targetId: target.targetId,
         cardinality: target.cardinality,
         resolved,
-        noulPlans: buildAttributeNoulQuestions(resolved, entry.sku, {}),
+        noulPlans: buildAttributeNoulQuestions(resolved, entry.sku, productContext),
       });
     } else {
       attributePlans.push({
@@ -1650,7 +1873,7 @@ export function buildQualificationCandidateQuestionSet(
   const pagePlan = taxonomies.pages.length > 0
     ? buildPageChoiceQuestion(
       taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
-      null,
+      effectiveTypeId ?? null,
     )
     : null;
   return { productTypePlan, attributePlans, pagePlan };
@@ -1731,15 +1954,17 @@ function blockedCandidateWithoutCredentials(
   );
 }
 
-/** Baseline attributes: shipped word-boundary alias/direct matching only. */
+/**
+ * Baseline attributes: shipped word-boundary alias/direct matching only, over
+ * the APPLICABLE frozen attributes for the frozen effective type (never gold).
+ * Callers resolve Product Type first and pass the applicable subset.
+ */
 function predictBaselineAttributes(
-  entry: QualificationGoldOnlyEntry,
-  taxonomies: QualificationTaxonomies,
+  applicableTargets: QualificationTaxonomies['attributeTargets'],
   evidenceText: string,
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
-  for (const target of taxonomies.attributeTargets) {
-    if (!goldHasFieldTarget(entry, target.targetId)) continue;
+  for (const target of applicableTargets) {
     const { attribute } = stubAttributeTarget(target);
     const found = matchAttributeOptions(attribute, evidenceText, target.options, target.cardinality);
     if (found.length === 0) continue;
@@ -1831,19 +2056,30 @@ function artifactConfidence(abstained: boolean, confidence: number): number {
   return abstained ? 0 : Number(confidence.toFixed(4));
 }
 
-/** Deterministic baseline stages for one entry (unlabeled — callers add the source). */
+/**
+ * Deterministic baseline stages for one entry (unlabeled — callers add the
+ * source). PRODUCT-TYPE-FIRST replay: resolve Product Type first, freeze the
+ * effective type, then evaluate applicability (effective type → profile →
+ * applicable attributes, never gold) and run type-dependent attributes and
+ * pages. Pages consume the resolved type (never run alongside it).
+ */
 function runDeterministicBaselineStages(
   entry: QualificationGoldOnlyEntry,
   taxa: QualificationTaxonomies,
   evidenceText: string,
 ): {
   type: { productType: string | null; abstained: boolean; confidence: number };
+  effectiveTypeId: string | null;
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
 } {
+  const type = predictBaselineProductType(entry, taxa, evidenceText);
+  const effectiveTypeId = type.abstained ? null : type.productType;
+  const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
   return {
-    type: predictBaselineProductType(entry, taxa, evidenceText),
-    fields: predictBaselineAttributes(entry, taxa, evidenceText),
+    type,
+    effectiveTypeId,
+    fields: predictBaselineAttributes(applicable, evidenceText),
     pages: predictBaselinePages(entry, taxa, evidenceText),
   };
 }
@@ -1926,20 +2162,13 @@ function resolveJevLiveTarget(jev: QualificationJevLiveCredentials | null | unde
 }
 
 /**
- * Frozen-evidence Jev state for one gold entry: SKU + evidence snippets only.
- * Gold labels never enter the state — the model judges from evidence alone.
+ * Frozen-evidence Jev state for one gold entry: RICH production-equivalent
+ * state (name, brand, productType, target-permitted evidence + evidence text),
+ * never the legacy thin `{sku, snippets, evidenceCount}`. Gold labels never
+ * enter the state — the model judges from evidence alone. Product-type phase
+ * uses the type state (no resolved type yet); attribute/page phases use the
+ * attribute state built AFTER freezing the resolved effective type.
  */
-function qualificationJevState(entry: QualificationGoldOnlyEntry): {
-  sku: string;
-  snippets: string[];
-  evidenceCount: number;
-} {
-  return {
-    sku: entry.sku,
-    snippets: entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15),
-    evidenceCount: entry.evidence.length,
-  };
-}
 
 type QualificationLiveQuestion =
   | { type: 'choice'; instructions: string; criteria: Record<string, string> }
@@ -2073,6 +2302,13 @@ function resolveLiveCandidatePages(
  * question builders → shipped transport → shipped extraction/mapping →
  * shipped floors + shipped multi-value policy. Any dispatch/validation
  * failure blocks the side with a coded reason (never a partial guess).
+ *
+ * PRODUCT-TYPE-FIRST replay (never parallel): resolve Product Type first with
+ * the RICH type state, freeze the effective type, then build RICH attribute
+ * state (name, brand, resolved productType, target-permitted evidence +
+ * evidence text), evaluate applicability (effective type → profile → applicable
+ * attributes, never gold), then capture type-dependent attributes and pages.
+ * Page judgments consume the frozen resolved type.
  */
 async function captureCandidateEntryLive(
   entry: QualificationGoldOnlyEntry,
@@ -2085,18 +2321,54 @@ async function captureCandidateEntryLive(
     latencyMs: Math.max(0, Date.now() - started),
   });
   try {
-    const questions = buildQualificationCandidateQuestionSet(entry, taxa);
-    const records = assembleCandidateLiveQuestions(questions);
     // Mirror production's candidate-limit abstention for product types: an
     // oversized closed world abstains the type stage (no first-N clipping)
     // while attributes/pages still capture from the live model.
     const typeOverLimit = taxa.productTypes.length > JEV_MAX_ORDINARY_CHOICE_CANDIDATES;
-    const dispatchRecords = typeOverLimit ? records.slice(1) : records;
-    const merged = await dispatchCandidateLiveQuestions(target, dispatchRecords, qualificationJevState(entry));
-
-    const type = resolveLiveCandidateProductType(questions, merged.answers, typeOverLimit);
-    const fieldAssignments = interpretLiveCandidateAttributes(questions.attributePlans, merged.answers);
-    const pageIds = resolveLiveCandidatePages(questions, merged.answers);
+    // Phase 1 — Product Type first with the RICH type state.
+    const typeQuestions = buildQualificationCandidateQuestionSet(entry, taxa);
+    const typeRecords = typeOverLimit ? [] : [{
+      questionId: typeQuestions.productTypePlan.questionId,
+      question: {
+        type: 'choice' as const,
+        instructions: typeQuestions.productTypePlan.instructions,
+        criteria: typeQuestions.productTypePlan.criteria,
+      },
+    }];
+    const typeState = buildQualificationTypeState(entry);
+    const typeMerged = typeOverLimit
+      ? { answers: {}, requestedModel: target.model, resolvedModel: target.model, inputTokens: 0, outputTokens: 0 }
+      : await dispatchCandidateLiveQuestions(target, typeRecords, typeState);
+    const type = resolveLiveCandidateProductType(typeQuestions, typeMerged.answers, typeOverLimit);
+    const effectiveTypeId = type.abstained ? null : type.productType;
+    // Phase 2 — freeze the effective type, then build RICH attribute state and
+    // evaluate applicability (never gold). Pages consume the frozen type.
+    const applicableQuestions = buildQualificationCandidateQuestionSet(entry, taxa, effectiveTypeId);
+    const attrPageRecords = assembleCandidateLiveQuestions(applicableQuestions).filter(
+      r => r.questionId !== typeQuestions.productTypePlan.questionId,
+    );
+    const attrState = buildQualificationAttributeState(entry, effectiveTypeId);
+    const attrMerged = await dispatchCandidateLiveQuestions(target, attrPageRecords, attrState);
+    const merged: MergedLiveAnswers = {
+      answers: { ...typeMerged.answers, ...attrMerged.answers },
+      requestedModel: typeMerged.requestedModel,
+      resolvedModel: attrMerged.resolvedModel ?? typeMerged.resolvedModel,
+      inputTokens: typeMerged.inputTokens + attrMerged.inputTokens,
+      outputTokens: typeMerged.outputTokens + attrMerged.outputTokens,
+    };
+    // `live_captured` guarantees a model spoke: without resolvedModel + usage
+    // the side is an abstention/failure, never live_captured (fail-closed).
+    if (!merged.resolvedModel || (merged.inputTokens === 0 && merged.outputTokens === 0 && !typeOverLimit)) {
+      return {
+        ...blockedQualificationPrediction(
+          QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+          'Candidate live path executed but no model judgment spoke (missing resolvedModel/usage).',
+        ),
+        latencyMs: Math.max(0, Date.now() - started),
+      };
+    }
+    const fieldAssignments = interpretLiveCandidateAttributes(applicableQuestions.attributePlans, merged.answers);
+    const pageIds = resolveLiveCandidatePages(applicableQuestions, merged.answers);
 
     return {
       productType: type.productType,
@@ -2123,16 +2395,21 @@ async function captureCandidateEntryLive(
 
 type BaselineChatOperation = 'product_type_ranking' | 'attribute_ranking' | 'page_assignment';
 
-/** Stages whose deterministic matcher abstained and that gold adjudicates. */
+/** Stages whose deterministic matcher abstained (gold-free: applicability, never gold). */
 interface BaselineLiveNeeds {
   type: boolean;
   attrs: string[];
   pages: boolean;
 }
 
-/** Which baseline stages genuinely need a model judgment (mirrors incumbent precedence). */
+/**
+ * Which baseline stages genuinely need a model judgment (mirrors incumbent
+ * precedence). Attribute needs are the APPLICABLE frozen attributes for the
+ * frozen effective type that the matcher left unresolved — never
+ * gold-adjudicated targets. Page needs are attemptable + unresolved (gold
+ * never gates whether a page judgment is attempted).
+ */
 function baselineLiveNeeds(
-  entry: QualificationGoldOnlyEntry,
   taxa: QualificationTaxonomies,
   evidenceText: string,
   stages: ReturnType<typeof runDeterministicBaselineStages>,
@@ -2140,14 +2417,13 @@ function baselineLiveNeeds(
   const typeAttemptable = !isQualificationPredictionEmpty(taxa.productTypes.length, evidenceText);
   const pagesAttemptable = !isQualificationPredictionEmpty(taxa.pages.length, evidenceText);
   const matchedAttrTargets = new Set(stages.fields.map(f => f.targetId));
+  const applicable = applicableQualificationAttributeTargets(taxa, stages.effectiveTypeId);
   return {
     type: typeAttemptable && stages.type.abstained,
-    attrs: taxa.attributeTargets
-      .filter(t => goldHasFieldTarget(entry, t.targetId) && !matchedAttrTargets.has(t.targetId))
+    attrs: applicable
+      .filter(t => !matchedAttrTargets.has(t.targetId))
       .map(t => t.targetId),
-    pages: pagesAttemptable
-      && stages.pages.length === 0
-      && (entry.gold.categoryPages.pageIds.length > 0 || entry.gold.categoryPages.pageAssignments.length > 0),
+    pages: pagesAttemptable && stages.pages.length === 0,
   };
 }
 
@@ -2205,7 +2481,91 @@ function resolveBaselineChatConfig(
   });
 }
 
-/** Attempt the real legacy chat ranker for one needy baseline stage (null when the model abstains). */
+/**
+ * Ensure a workspace exists for ephemeral benchmark runs (read-only usage of
+ * the workspace table — never mutates user workspaces beyond inserting a
+ * clearly-labeled ephemeral row when none exists). Throws when no DB is
+ * available — callers map that to a coded `blocked` side (fail-closed).
+ */
+function ensureQualificationWorkspaceId(): string {
+  const db = getDb();
+  const existing = db.query('SELECT id FROM workspace LIMIT 1').get() as { id: string } | undefined;
+  if (existing?.id) return existing.id;
+  const id = `qual-ephemeral-${randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  db.run(
+    `INSERT INTO workspace (id, name, workspace_path, git_path, created_at, updated_at, bootstrap_status)
+     VALUES (?, 'Qualification Ephemeral', ?, '', ?, ?, 'complete')`,
+    [id, `/tmp/${id}`, now, now],
+  );
+  return id;
+}
+
+/**
+ * Minimal frozen runtime snapshot for ephemeral benchmark runs — just enough
+ * for REAL decision-boundary invocation (`resolveProductTypeDecision` /
+ * `resolveAttributeDecision` / audited ranker) with run-bound audit rows.
+ * The plan + rule versions are built from the live policy view so
+ * `assertModelPlanCompatible` passes; the snapshot hash binds the frozen
+ * candidate pool (gold-free). Never reads live config — pure over the frozen
+ * qualification taxonomies + policy view.
+ */
+function buildQualificationBaselineSnapshot(
+  view: ModelPolicyView,
+  taxa: QualificationTaxonomies,
+): RuntimeClassificationSnapshot {
+  const modelExecutionPlan = buildModelExecutionPlan(view);
+  const runtimeRuleVersions = buildRuntimeRuleVersions();
+  const snapshotHash = sha256Hex(JSON.stringify({
+    productTypes: taxa.productTypes,
+    attributeTargets: taxa.attributeTargets,
+    pages: taxa.pages,
+    typeProfiles: taxa.typeProfiles ?? null,
+    policyDigest: view.policyDigest,
+  }));
+  return {
+    schemaVersion: 2,
+    snapshotHash,
+    createdAt: new Date().toISOString(),
+    workspaceId: 'qual-ephemeral',
+    workspacePath: '/tmp/qual-ephemeral',
+    productSku: '',
+    configAuthorityKind: 'v2',
+    sourceCatalogCommit: null,
+    config: {} as RuntimeClassificationSnapshot['config'],
+    configSnapshotRef: { hash: snapshotHash, sourceCommit: null, createdAt: new Date().toISOString() } as RuntimeClassificationSnapshot['configSnapshotRef'],
+    focusedFileHashes: {},
+    catalogEvidenceHash: null,
+    productTypes: [],
+    attributes: [],
+    attributeProfiles: [],
+    attributeMappings: [],
+    guidance: [],
+    brands: [],
+    modelPolicy: {} as RuntimeClassificationSnapshot['modelPolicy'],
+    dataSharing: {} as RuntimeClassificationSnapshot['dataSharing'],
+    curationTargets: [],
+    fieldOptions: {},
+    reviewedFacts: [],
+    pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
+    sourceProductHash: null,
+    searchKeywords: null,
+    productPageNames: [],
+    pageImportId: null,
+    pageImportHash: null,
+    pageContextReliability: 'low',
+    modelExecutionPlan,
+    runtimeRuleVersions,
+  } as unknown as RuntimeClassificationSnapshot;
+}
+
+/**
+ * Attempt the real legacy chat ranker for one needy baseline stage WITH
+ * run-bound audit context (null when the model abstains). The audit context
+ * is what lets the ranker transport — without it the ranker fail-closes
+ * before fetch (its own design). Callers MUST supply a frozen snapshot with
+ * a compatible plan + ephemeral runId, otherwise this throws fail-closed.
+ */
 async function attemptBaselineChatStage(input: {
   operation: BaselineChatOperation;
   targetLabel: string;
@@ -2213,7 +2573,14 @@ async function attemptBaselineChatStage(input: {
   selectionMode: 'single' | 'multiple';
   evidenceText: string;
   view: ModelPolicyView;
+  snapshot: RuntimeClassificationSnapshot;
+  runId: string;
 }): Promise<LlmRankResult | null> {
+  const stage = input.operation === 'product_type_ranking'
+    ? 'primary_product_type_proposal'
+    : input.operation === 'attribute_ranking'
+      ? 'product_attribute_proposals'
+      : 'category_page_proposals';
   return llmRankOptions({
     targetLabel: input.targetLabel,
     options: input.options,
@@ -2222,6 +2589,16 @@ async function attemptBaselineChatStage(input: {
     task: BASELINE_CHAT_TASKS[input.operation].task,
     modelPolicy: input.view,
     protectedOperation: input.operation,
+    modelCall: {
+      runId: input.runId,
+      snapshotHash: input.snapshot.snapshotHash,
+      stage,
+      operation: input.operation,
+      attempt: 1,
+      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS[input.operation],
+      ruleVersion: RULE_VERSIONS[input.operation],
+    },
+    snapshot: input.snapshot,
   });
 }
 
@@ -2259,74 +2636,116 @@ function checkBaselineChatCredentials(
   }
 }
 
-/** Baseline product-type stage via the legacy chat ranker (abstains when the ranker abstains). */
-async function captureBaselineTypeWithChatRanker(
-  taxa: QualificationTaxonomies,
-  evidenceText: string,
-  view: ModelPolicyView,
-): Promise<{ productType: string | null; abstained: boolean; confidence: number }> {
-  const typeOptions = taxa.productTypes.map(t => ({ value: t.id, label: t.label }));
-  const ranked = await attemptBaselineChatStage({
-    operation: 'product_type_ranking',
-    targetLabel: 'product type',
-    options: typeOptions,
-    selectionMode: 'single',
-    evidenceText,
-    view,
+/**
+ * Baseline product-type stage via the REAL decision boundary
+ * (`resolveProductTypeDecision` — read-only usage): deterministic precedence
+ * first, then the legacy chat ranker with run-bound audit rows (so the ranker
+ * transports when provider credentials exist). Returns the boundary outcome
+ * directly (resolved/abstained/failed — callers map failures to blocked).
+ */
+async function captureBaselineTypeWithRealBoundary(input: {
+  entry: QualificationGoldOnlyEntry;
+  taxa: QualificationTaxonomies;
+  evidenceText: string;
+  view: ModelPolicyView;
+  snapshot: RuntimeClassificationSnapshot;
+  runId: string;
+}): Promise<{ productType: string | null; abstained: boolean; confidence: number }> {
+  const { entry, taxa, view, snapshot, runId } = input;
+  const evidence = qualificationEvidenceForBoundary(entry, runId);
+  const target = stubResolvedTarget(
+    'primary_product_type',
+    'Primary Product Type',
+    'product_type',
+    'single',
+    null,
+    taxa.productTypes.map(t => ({ value: t.id, label: t.label })),
+  );
+  const decision = await resolveProductTypeDecision({
+    target,
+    evidence,
+    sku: entry.sku,
+    runId,
+    snapshot,
+    modelPolicy: view,
   });
-  // Shipped incumbent mapping: ranker labels → exactly-one option value.
-  const mapped = ranked && ranked.values.length > 0
-    ? mapRankedLabelToOptionExactlyOne(ranked.values[0], typeOptions)
-    : null;
-  if (!mapped) return { productType: null, abstained: true, confidence: 0 };
-  return { productType: mapped, abstained: false, confidence: ranked?.confidence ?? 0 };
+  if (decision.status === 'resolved' && decision.productTypeId) {
+    return { productType: decision.productTypeId, abstained: false, confidence: decision.confidence };
+  }
+  return { productType: null, abstained: true, confidence: 0 };
 }
 
-/** Baseline attribute stages via the legacy chat ranker (appends resolved stages). */
-async function captureBaselineAttributesWithChatRanker(
-  taxa: QualificationTaxonomies,
-  evidenceText: string,
-  view: ModelPolicyView,
-  attrTargetIds: string[],
-  fields: Array<{ targetId: string; value?: string; values?: string[] }>,
-): Promise<void> {
+/**
+ * Baseline attribute stages via the REAL decision boundary
+ * (`resolveAttributeDecision` — read-only usage) for each needy applicable
+ * target, with RICH product context (name, brand, frozen resolved
+ * productType). Appends resolved stages (abstentions append nothing — the
+ * incumbent genuinely abstains there).
+ */
+async function captureBaselineAttributesWithRealBoundary(input: {
+  entry: QualificationGoldOnlyEntry;
+  taxa: QualificationTaxonomies;
+  view: ModelPolicyView;
+  snapshot: RuntimeClassificationSnapshot;
+  runId: string;
+  effectiveTypeId: string | null;
+  attrTargetIds: string[];
+  fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+}): Promise<void> {
+  const { entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds, fields } = input;
+  const evidence = qualificationEvidenceForBoundary(entry, runId);
+  const productContext = {
+    name: qualificationProductName(entry),
+    brand: null,
+    productType: effectiveTypeId,
+  };
   for (const targetId of attrTargetIds) {
     const target = taxa.attributeTargets.find(t => t.targetId === targetId);
     if (!target) continue;
-    const ranked = await attemptBaselineChatStage({
-      operation: 'attribute_ranking',
-      targetLabel: targetId,
-      options: target.options.map(v => ({ value: v, label: v })),
-      selectionMode: target.cardinality,
-      evidenceText,
-      view,
+    const { resolved } = stubAttributeTarget(target);
+    const decision = await resolveAttributeDecision({
+      target: resolved,
+      cardinality: target.cardinality,
+      evidence,
+      sku: entry.sku,
+      runId,
+      snapshot,
+      modelPolicy: view,
+      productContext,
     });
-    // Shipped incumbent mapping: ranker values are used directly (mirrors
-    // `mapAttributeLlmResult` — single takes values[0], multiple takes values).
-    if (ranked && ranked.values.length > 0) {
-      if (target.cardinality === 'multiple') {
-        fields.push({ targetId, values: ranked.values });
-      } else {
-        fields.push({ targetId, value: ranked.values[0] });
-      }
+    if (decision.status !== 'resolved') continue;
+    if (target.cardinality === 'multiple') {
+      const values = decision.values ?? (decision.value ? [decision.value] : []);
+      if (values.length > 0) fields.push({ targetId, values });
+    } else if (decision.value) {
+      fields.push({ targetId, value: decision.value });
     }
   }
 }
 
-/** Baseline page stage via the legacy chat ranker. */
-async function captureBaselinePagesWithChatRanker(
-  taxa: QualificationTaxonomies,
-  evidenceText: string,
-  view: ModelPolicyView,
-): Promise<string[]> {
-  const pageOptions = taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
+/**
+ * Baseline page stage via the REAL legacy chat ranker WITH run-bound audit
+ * context (the same transport the decision boundaries use internally). Pages
+ * are attempted AFTER freezing the resolved type (type-dependent sequencing),
+ * even though the ranker prompt itself is type-agnostic.
+ */
+async function captureBaselinePagesWithRealRanker(input: {
+  taxa: QualificationTaxonomies;
+  evidenceText: string;
+  view: ModelPolicyView;
+  snapshot: RuntimeClassificationSnapshot;
+  runId: string;
+}): Promise<string[]> {
+  const pageOptions = input.taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
   const ranked = await attemptBaselineChatStage({
     operation: 'page_assignment',
     targetLabel: 'category page',
     options: pageOptions,
     selectionMode: 'single',
-    evidenceText,
-    view,
+    evidenceText: input.evidenceText,
+    view: input.view,
+    snapshot: input.snapshot,
+    runId: input.runId,
   });
   const mapped = ranked && ranked.values.length > 0
     ? mapRankedLabelToOptionExactlyOne(ranked.values[0], pageOptions)
@@ -2334,40 +2753,65 @@ async function captureBaselinePagesWithChatRanker(
   return mapped ? [mapped] : [];
 }
 
-/** Live baseline stages: deterministic values plus chat-ranker resolutions for needy stages. */
-async function applyBaselineChatStages(
-  taxa: QualificationTaxonomies,
-  evidenceText: string,
-  view: ModelPolicyView,
-  needs: BaselineLiveNeeds,
-  stages: ReturnType<typeof runDeterministicBaselineStages>,
-): Promise<{
+/**
+ * Live baseline stages with PRODUCT-TYPE-FIRST sequencing: resolve type first
+ * (deterministic, then real boundary when needed), freeze the effective type,
+ * recompute applicable attributes for the FROZEN type, then capture
+ * type-dependent attributes and pages. Deterministic values are kept for
+ * stages that needed no model; live outcomes replace only needy stages.
+ */
+async function applyBaselineChatStagesWithRun(input: {
+  entry: QualificationGoldOnlyEntry;
+  taxa: QualificationTaxonomies;
+  evidenceText: string;
+  view: ModelPolicyView;
+  snapshot: RuntimeClassificationSnapshot;
+  runId: string;
+  needs: BaselineLiveNeeds;
+  stages: ReturnType<typeof runDeterministicBaselineStages>;
+}): Promise<{
   productType: string | null;
   abstained: boolean;
   confidence: number;
+  effectiveTypeId: string | null;
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
 }> {
+  const { entry, taxa, evidenceText, view, snapshot, runId, needs, stages } = input;
   let productType = stages.type.productType;
   let abstained = stages.type.abstained;
   let confidence = stages.type.confidence;
   if (needs.type) {
-    const type = await captureBaselineTypeWithChatRanker(taxa, evidenceText, view);
+    const type = await captureBaselineTypeWithRealBoundary({ entry, taxa, evidenceText, view, snapshot, runId });
     productType = type.productType;
     abstained = type.abstained;
     confidence = type.confidence;
   }
+  const effectiveTypeId = abstained ? null : productType;
+  // Recompute applicable attributes for the FROZEN resolved type (the
+  // pre-computed `needs.attrs` was based on the deterministic type; a live
+  // type resolution may have unlocked a new applicable set — never gold).
+  const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
+  const matched = new Set(stages.fields.map(f => f.targetId));
+  const liveAttrIds = applicable.filter(t => !matched.has(t.targetId)).map(t => t.targetId);
   const fields = [...stages.fields];
-  await captureBaselineAttributesWithChatRanker(taxa, evidenceText, view, needs.attrs, fields);
+  await captureBaselineAttributesWithRealBoundary({
+    entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds: liveAttrIds, fields,
+  });
   fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
   let pages = [...stages.pages];
   if (needs.pages) {
-    pages = await captureBaselinePagesWithChatRanker(taxa, evidenceText, view);
+    pages = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId });
   }
-  return { productType, abstained, confidence, fields, pages };
+  return { productType, abstained, confidence, effectiveTypeId, fields, pages };
 }
 
-/** Assemble the live-captured baseline side (identity recorded, usage null by ranker design). */
+/**
+ * Assemble the live-captured baseline side. `live_captured` GUARANTEES a model
+ * spoke: `resolvedModel` + `usage` are always present (read from the run-bound
+ * audit rows). Callers MUST NOT label a provider-selected-but-silent outcome
+ * as live_captured — without a success audit row the side is `blocked`.
+ */
 function assembleLiveBaselinePrediction(input: {
   productType: string | null;
   abstained: boolean;
@@ -2375,7 +2819,9 @@ function assembleLiveBaselinePrediction(input: {
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
   requestedModel: string;
+  resolvedModel: string;
   provider: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
   latencyMs: number;
 }): ExecutedQualificationPrediction {
   return {
@@ -2390,9 +2836,45 @@ function assembleLiveBaselinePrediction(input: {
     blockedDetail: null,
     failureCode: null,
     requestedModel: input.requestedModel,
-    resolvedModel: null,
+    resolvedModel: input.resolvedModel,
     provider: input.provider,
-    usage: null,
+    usage: input.usage,
+  };
+}
+
+/**
+ * Read run-bound audit proof that a model spoke (success rows with token
+ * usage). Returns null when no model judgment spoke — the caller records
+ * `blocked`, never `live_captured`.
+ */
+function readBaselineAuditProof(runId: string): {
+  requestedModel: string;
+  resolvedModel: string;
+  provider: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+} | null {
+  let rows: ReturnType<typeof getModelCallsByRun>;
+  try {
+    rows = getModelCallsByRun(runId);
+  } catch {
+    return null;
+  }
+  const successes = rows.filter(r => r.status === 'success');
+  if (successes.length === 0) return null;
+  const first = successes[0];
+  const inputTokens = successes.reduce((sum, r) => sum + (r.prompt_tokens ?? 0), 0);
+  const outputTokens = successes.reduce((sum, r) => sum + (r.completion_tokens ?? 0), 0);
+  const requestedModel = first.requested_model ?? first.model ?? null;
+  // Legacy chat audit rows terminalize without `resolved_model` (the transport
+  // returns model identity but the row keeps it in `model`); the speaking
+  // model is the row's model (falling back to the requested route).
+  const resolvedModel = first.resolved_model ?? first.model ?? requestedModel;
+  if (!requestedModel || !resolvedModel) return null;
+  return {
+    requestedModel,
+    resolvedModel,
+    provider: first.provider ?? 'unknown',
+    usage: { inputTokens, outputTokens },
   };
 }
 
@@ -2415,22 +2897,21 @@ function blockBaselineCaptureError(
 
 /**
  * Capture one entry's baseline side with the incumbent precedence:
- * deterministic matcher first; the legacy chat ranker only for stages the
- * matcher left unresolved AND gold adjudicates. Without an opted-in route
- * (or when nothing needs a model) the side is the deterministic floor.
- * Missing credentials block the side; a consulted-but-abstaining ranker
- * records a live abstention (the incumbent genuinely abstains there —
- * production maps every ranker null to abstention, whatever its cause).
+ * deterministic matcher first; REAL decision boundaries
+ * (`resolveProductTypeDecision` / `resolveAttributeDecision` / audited legacy
+ * ranker for pages) only for stages the matcher left unresolved. Without an
+ * opted-in route (or when nothing needs a model) the side is the
+ * deterministic floor. Missing credentials block the side (coded reason,
+ * never a guess).
  *
- * Audit-provenance note: the legacy ranker fail-closes to null before any
- * transport when no run-bound audit context is present (its own design —
- * model output requires a durable start row). Qualification never fabricates
- * runs, so the ranker outcome here is its real fail-closed/abstention
- * outcome for these inputs, recorded with the requested route
- * (`requestedModel`/`provider`) and null `resolvedModel`/`usage`. A side
- * whose requested route resolved but no model spoke is still
- * `live_captured` (the live path executed and its outcome recorded) — the
- * reading rule is: `resolvedModel === null` means no model judgment spoke.
+ * Ephemeral benchmark runs: each live entry creates a proper ephemeral run
+ * with run-bound model-call audit rows, so the legacy chat ranker path
+ * transports when provider credentials exist (mocked HTTP in CI tests, never
+ * real network). `live_captured` GUARANTEES a model spoke (success audit row
+ * with `resolvedModel` + `usage` present); a provider-selected-but-silent
+ * outcome (no success row) is `blocked` (`live_dispatch_failed`), never
+ * live_captured. An abstention WITH a speaking model stays `live_captured`
+ * (abstained=true, failureCode null — an honest abstention, not a failure).
  */
 async function captureBaselineEntryLive(
   entry: QualificationGoldOnlyEntry,
@@ -2451,7 +2932,7 @@ async function captureBaselineEntryLive(
     latencyMs: latency(),
   });
   if (!route || !view) return asFloor();
-  const needs = baselineLiveNeeds(entry, taxa, evidenceText, stages);
+  const needs = baselineLiveNeeds(taxa, evidenceText, stages);
   if (!needs.type && needs.attrs.length === 0 && !needs.pages) return asFloor();
 
   const block = (code: string, detail: string): ExecutedQualificationPrediction => ({
@@ -2460,25 +2941,61 @@ async function captureBaselineEntryLive(
   });
   // Credential pre-check (same resolution the ranker uses): no usable
   // baseline model here means the side is blocked — the deterministic values
-  // are discarded fail-closed rather than mixed with a guess. The resolved
-  // config's model is what the ranker will request (factual provenance).
+  // are discarded fail-closed rather than mixed with a guess.
   const credentials = checkBaselineChatCredentials(route, view, needs);
   if (!credentials.ok) return block(credentials.code, credentials.detail);
-  const requestedModel = credentials.requestedModel;
 
+  // Ephemeral benchmark run with a frozen snapshot carrying a compatible
+  // model-execution plan — the REAL boundaries require both for run-bound
+  // audit rows (their own fail-closed design). Any setup failure blocks the
+  // side (never a partial guess, never live_captured).
+  let workspaceId: string;
+  let snapshot: RuntimeClassificationSnapshot;
   try {
-    const applied = await applyBaselineChatStages(taxa, evidenceText, view, needs, stages);
+    workspaceId = ensureQualificationWorkspaceId();
+    snapshot = buildQualificationBaselineSnapshot(view, taxa);
+  } catch (err) {
+    return block(
+      QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+      `Ephemeral benchmark run setup failed: ${redactTransportText(err instanceof Error ? err.message : String(err))}`,
+    );
+  }
+  let runId: string | null = null;
+  try {
+    const run = createRun(workspaceId, entry.sku, null, snapshot.snapshotHash, { sourceKind: 'catalog_product' });
+    runId = run.id;
+    const applied = await applyBaselineChatStagesWithRun({
+      entry, taxa, evidenceText, view, snapshot, runId, needs, stages,
+    });
+    const proof = readBaselineAuditProof(runId);
+    try {
+      completeRun(runId, applied.abstained ? 'completed_with_abstentions' : 'completed');
+    } catch {
+      // Ephemeral run completion is hygiene only — a completion failure never
+      // upgrades a blocked side or downgrades a speaking model.
+    }
+    if (!proof) {
+      return block(
+        QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
+        'Baseline live path executed but no model judgment spoke (no success audit row); refusing live_captured.',
+      );
+    }
     return assembleLiveBaselinePrediction({
       productType: applied.productType,
       abstained: applied.abstained,
       confidence: applied.confidence,
       fields: applied.fields,
       pages: applied.pages,
-      requestedModel,
-      provider: route.provider,
+      requestedModel: proof.requestedModel,
+      resolvedModel: proof.resolvedModel,
+      provider: proof.provider,
+      usage: proof.usage,
       latencyMs: latency(),
     });
   } catch (err) {
+    if (runId) {
+      try { completeRun(runId, 'failed', err instanceof Error ? err.message : String(err)); } catch { /* hygiene */ }
+    }
     return blockBaselineCaptureError(err, block);
   }
 }

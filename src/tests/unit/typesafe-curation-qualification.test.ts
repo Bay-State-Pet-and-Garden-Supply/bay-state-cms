@@ -1306,9 +1306,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(typeKeys).toContain('no_match');
       expect(typeKeys).toContain('insufficient_evidence');
 
-      // Attribute plans exist exactly for gold-adjudicated targets.
-      const goldTargets = new Set((entry.gold.fieldAssignments ?? []).map(f => f.targetId));
-      expect(new Set(set.attributePlans.map(p => p.targetId))).toEqual(goldTargets);
+      // Replay fidelity (no gold leakage): attribute plans cover the APPLICABLE
+      // frozen attributes for the frozen effective type — never the
+      // gold-adjudicated targets. Without a resolved type (pure wiring proof)
+      // all frozen attributes are built (gold-free); live capture narrows to
+      // the applicable set after resolving Product Type first.
+      const frozenTargets = new Set(taxa.attributeTargets.map(t => t.targetId));
+      expect(new Set(set.attributePlans.map(p => p.targetId))).toEqual(frozenTargets);
+      // With an explicit frozen type, applicability narrows (still gold-free):
+      // TINY-style mapping would filter here; without a mapping all apply.
+      const withType = buildQualificationCandidateQuestionSet(entry, taxa, 'dog_food_dry');
+      expect(new Set(withType.attributePlans.map(p => p.targetId))).toEqual(frozenTargets);
       for (const plan of set.attributePlans) {
         if (plan.cardinality === 'multiple') {
           expect(plan.noulPlans?.length).toBe(plan.resolved.options.length);
@@ -1394,8 +1402,14 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         expect(first.candidate.requestedModel).toBe('jev-1.13.0');
         expect(first.candidate.resolvedModel).toBe('jev-1.13.0');
         expect(first.candidate.provider).toBe('typesafe');
-        expect(first.candidate.usage).toEqual({ inputTokens: 50, outputTokens: 10 });
+        // PRODUCT-TYPE-FIRST replay dispatches in two phases (type first with
+        // the rich type state, then applicable attributes/pages with the rich
+        // attribute state): usage sums across both live dispatches.
+        expect(first.candidate.usage).toEqual({ inputTokens: 100, outputTokens: 20 });
         expect(first.candidate.failureCode).toBeNull();
+        // `live_captured` guarantees a model spoke (resolvedModel + usage present).
+        expect(first.candidate.resolvedModel).toBeTruthy();
+        expect(first.candidate.usage).not.toBeNull();
         // The baseline without an opted-in route stays the deterministic floor.
         expect(first.baseline.source).toBe(QUALIFICATION_SOURCE_DETERMINISTIC_FLOOR);
       } finally {
@@ -1468,15 +1482,33 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }
     });
 
-    it('executes the incumbent ranker path when credentials exist and records its real outcome (mocked HTTP, zero transport)', async () => {
+    it('executes the incumbent ranker path when credentials exist and records its real outcome (mocked HTTP, real transport)', async () => {
       // Dummy local credential (detector-safe): proves the existing-store
       // resolution, not a real model account.
       upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
       let fetchCalls = 0;
       const fetchBefore = globalThis.fetch;
-      globalThis.fetch = (async () => {
+      // Mocked OpenAI-compatible chat transport (shape only — the decision
+      // boundaries, audit rows, mapping, and floors under test are the
+      // shipped ones). Returns a confident single pick for every stage so the
+      // incumbent genuinely speaks; usage proves the model spoke.
+      globalThis.fetch = (async (_url: unknown, init: { body: string }) => {
         fetchCalls += 1;
-        throw new Error('incumbent ranker must not transport without run-bound audit provenance');
+        const body = JSON.parse(init.body) as { messages: Array<{ content: string }> };
+        const prompt = body.messages.map(m => m.content).join('\n');
+        // Pick the first allowed option visible in the prompt (labels are the
+        // frozen option values for tiny taxonomies).
+        const pick = prompt.includes('Dry Dog Food') ? 'Dry Dog Food'
+          : prompt.includes('Chicken') ? 'Chicken'
+          : prompt.includes('dog') ? 'dog'
+          : 'Dry Dog Food';
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({ values: [pick], confidence: 0.85, scores: [0.85] }) } }],
+            usage: { prompt_tokens: 40, completion_tokens: 8 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
       }) as unknown as typeof fetch;
       try {
         const artifact = await captureQualificationPredictionsLive(
@@ -1484,20 +1516,19 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
           { baselineRoute: { provider: 'ollama', model: 'qual-ollama-model' } },
           tinyQualificationTaxonomies(),
         );
-        // The ranker fail-closes before transport without run-bound audit
-        // provenance (its own design — qualification never fabricates runs),
-        // so no HTTP happens; the capture records the executed path outcome.
-        expect(fetchCalls).toBe(0);
+        // REAL transport with run-bound audit rows: the ephemeral benchmark
+        // run lets the legacy chat ranker path speak (mocked HTTP, no real
+        // network), so fetch happens and the audit rows terminalize.
+        expect(fetchCalls).toBeGreaterThan(0);
         const unknown = artifact.predictions.find(p => p.sku === 'TINY-UNKNOWN-01')!;
+        // `live_captured` guarantees a model spoke (resolvedModel + usage
+        // present) — a provider-selected-but-silent outcome would be `blocked`,
+        // never live_captured.
         expect(unknown.baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
-        expect(unknown.baseline.abstained).toBe(true);
-        expect(unknown.baseline.productType).toBeNull();
-        expect(unknown.baseline.requestedModel).toBe('qual-ollama-model');
+        expect(unknown.baseline.requestedModel).toBeTruthy();
+        expect(unknown.baseline.resolvedModel).toBeTruthy();
+        expect(unknown.baseline.usage).not.toBeNull();
         expect(unknown.baseline.provider).toBe('ollama');
-        // resolvedModel null is the reading rule: no model judgment spoke —
-        // an abstention recorded from the executed incumbent path.
-        expect(unknown.baseline.resolvedModel).toBeNull();
-        expect(unknown.baseline.usage).toBeNull();
         expect(unknown.baseline.failureCode).toBeNull();
       } finally {
         globalThis.fetch = fetchBefore;
@@ -1627,6 +1658,121 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(canaryOut.canary.productTypeReviewed).toBe(true);
       expect(canaryOut.canary.attributesReviewed).toBe(true);
       expect(canaryOut.canary.cohortPagesReviewed).toBe(true);
+    });
+
+    it('runner --json wires family/compat/docs receipts (no network)', () => {
+      const runnerPath = path.resolve(import.meta.dir, '../../../scripts/typesafe-curation-qualification.ts');
+      const cleanEnv: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined) cleanEnv[k] = v;
+      }
+      cleanEnv.TYPESAFE_API_KEY = '';
+      cleanEnv.TYPESAFE_LIVE_CHECK = '0';
+      delete cleanEnv.TYPESAFE_CANARY_RECEIPTS_PATH;
+      delete cleanEnv.TYPESAFE_CANARY_PRODUCT_TYPE_REVIEWED;
+      delete cleanEnv.TYPESAFE_CANARY_ATTRIBUTES_REVIEWED;
+      delete cleanEnv.TYPESAFE_CANARY_COHORT_PAGES_REVIEWED;
+      delete cleanEnv.TYPESAFE_COMPAT_RECEIPTS_PATH;
+      delete cleanEnv.TYPESAFE_COMPAT_RECEIPT_JSON;
+
+      type ReceiptOut = {
+        assessment: {
+          status: string;
+          blockers: Array<{ code: string }>;
+          checklist: {
+            familySeparationPassed: boolean;
+            compatibilityVerified: boolean;
+            operatorDocumentationPublished: boolean;
+          };
+        };
+        family: { proof: { proofVersion: string; passed: boolean } | null };
+        compatibility: { receipt: { suites: Array<{ suiteId: string }> } | null; source: string };
+        operatorDocs: { receipt: { runbookPath: string; contentHash: string } | null };
+      };
+
+      // Default offline: family + docs verified live, compat absent-blocker,
+      // overall still blocked on candidate quality (deterministic floor only).
+      const proc = Bun.spawnSync(['bun', runnerPath, '--json'], {
+        env: cleanEnv,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(proc.exitCode).toBe(0);
+      const out = JSON.parse(proc.stdout.toString()) as ReceiptOut;
+      expect(out.family.proof?.proofVersion).toBe(FAMILY_SEPARATION_PROOF_VERSION);
+      expect(out.family.proof?.passed).toBe(true);
+      expect(out.assessment.checklist.familySeparationPassed).toBe(true);
+      expect(out.operatorDocs.receipt?.runbookPath).toBe(OPERATOR_RUNBOOK_PATH);
+      expect(out.operatorDocs.receipt?.contentHash).toMatch(/^[a-f0-9]{64}$/);
+      const runbookBytes = fs.readFileSync(
+        path.resolve(import.meta.dir, '../../../docs/runbooks/typesafe-jev-curation-rollout.md'),
+      );
+      expect(out.operatorDocs.receipt?.contentHash).toBe(
+        createHash('sha256').update(runbookBytes).digest('hex'),
+      );
+      expect(out.assessment.checklist.operatorDocumentationPublished).toBe(true);
+      expect(out.compatibility.receipt).toBeNull();
+      expect(out.assessment.checklist.compatibilityVerified).toBe(false);
+      expect(out.assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      expect(out.assessment.status).toBe('blocked');
+
+      // Valid compat receipts file clears the compat gate (only that gate).
+      const receiptsPath = path.join(os.tmpdir(), `compat-receipts-${Date.now()}.json`);
+      fs.writeFileSync(
+        receiptsPath,
+        JSON.stringify({
+          suites: REQUIRED_COMPATIBILITY_SUITE_IDS.map(suiteId => ({
+            suiteId,
+            commit: 'test-commit-abc1234',
+            passed: true,
+            executedAt: null,
+          })),
+          recordedAt: new Date().toISOString(),
+        }),
+      );
+      try {
+        const withCompat = Bun.spawnSync(['bun', runnerPath, '--json'], {
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPTS_PATH: receiptsPath },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(withCompat.exitCode).toBe(0);
+        const compatOut = JSON.parse(withCompat.stdout.toString()) as ReceiptOut;
+        expect(compatOut.assessment.checklist.compatibilityVerified).toBe(true);
+        expect(compatOut.assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(false);
+        expect(compatOut.compatibility.receipt?.suites).toHaveLength(4);
+
+        // Inline env JSON receipt works the same way.
+        const withEnv = Bun.spawnSync(['bun', runnerPath, '--json'], {
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPT_JSON: fs.readFileSync(receiptsPath, 'utf8') },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(withEnv.exitCode).toBe(0);
+        const envOut = JSON.parse(withEnv.stdout.toString()) as ReceiptOut;
+        expect(envOut.assessment.checklist.compatibilityVerified).toBe(true);
+        expect(envOut.compatibility.source).toBe('env TYPESAFE_COMPAT_RECEIPT_JSON');
+      } finally {
+        fs.rmSync(receiptsPath, { force: true });
+      }
+
+      // Malformed compat file retains the blocker instead of crashing or passing.
+      const badPath = path.join(os.tmpdir(), `compat-receipts-bad-${Date.now()}.json`);
+      fs.writeFileSync(badPath, '{not valid json');
+      try {
+        const bad = Bun.spawnSync(['bun', runnerPath, '--json'], {
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPTS_PATH: badPath },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(bad.exitCode).toBe(0);
+        const badOut = JSON.parse(bad.stdout.toString()) as ReceiptOut;
+        expect(badOut.compatibility.receipt).toBeNull();
+        expect(badOut.assessment.checklist.compatibilityVerified).toBe(false);
+        expect(badOut.assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      } finally {
+        fs.rmSync(badPath, { force: true });
+      }
     });
   });
 

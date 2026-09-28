@@ -31,20 +31,37 @@
  * into the qualification assessment. Staged-canary sign-offs are read from
  * an explicit receipts file (TYPESAFE_CANARY_RECEIPTS_PATH) or
  * TYPESAFE_CANARY_*_REVIEWED env flags — defaulting to unreviewed
- * (fail-closed) when absent.
+ * (fail-closed) when absent. Family separation is proven live via the
+ * shipped `verifyFamilySeparation` over the loaded gold entries (never
+ * rebuilt here). Compatibility is attested by an operator-kept receipts
+ * file (TYPESAFE_COMPAT_RECEIPTS_PATH) or inline
+ * TYPESAFE_COMPAT_RECEIPT_JSON — absent or malformed keeps the fail-closed
+ * blocker. Operator docs are bound live by hashing the published runbook
+ * bytes, so doc edits change the receipt hash and invalidate prior outputs.
  *
  * Usage:
- *   bun scripts/typesafe-curation-qualification.ts [--split dev|holdout] [--json] [--live-check] [--live-capture] [--model jev-1.13.0] [--baseline-provider ollama] [--baseline-model llama3] [--artifact-out path]
+ *   bun scripts/typesafe-curation-qualification.ts [--split=dev|holdout] [--json] [--live-check] [--live-capture] [--model=jev-1.13.0] [--baseline-provider=ollama] [--baseline-model=llama3] [--artifact-out=path]
  *   TYPESAFE_LIVE_CHECK=1 TYPESAFE_API_KEY=... bun scripts/typesafe-curation-qualification.ts --live-capture --live-check
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import {
   evaluateJevOfflineComparison,
   assessProductionQualification,
+  REQUIRED_COMPATIBILITY_SUITE_IDS,
+  OPERATOR_RUNBOOK_PATH,
   type QualificationGoldset,
 } from '../src/classification/jev-qualification-service';
+import { verifyFamilySeparation } from '../src/classification/benchmark-exporter';
+import {
+  CompatibilityReceiptSchema,
+  OperatorDocsReceiptSchema,
+  type CompatibilityReceipt,
+  type FamilySeparationProof,
+  type OperatorDocsReceipt,
+} from '../src/shared/schemas/classification';
 import {
   parseQualificationGoldOnly,
   buildQualificationPredictionsFromCode,
@@ -263,6 +280,119 @@ function readCanaryReceipts(): CanaryReceipts {
 }
 const canary = readCanaryReceipts();
 
+// 5. Family-separation proof computed live via the shipped verifier over the
+// loaded gold entries (no operator input — deterministic, never rebuilt
+// here). Verification failure keeps the fail-closed blocker below.
+let familySeparationProof: FamilySeparationProof | null = null;
+let familyProofDetail: string;
+try {
+  const proof = verifyFamilySeparation(goldEntries);
+  familySeparationProof = proof;
+  familyProofDetail = proof.passed
+    ? `${proof.proofVersion} over ${proof.familiesChecked} families: passed (zero leakage, verified live)`
+    : `${proof.proofVersion} over ${proof.familiesChecked} families: FAILED (${proof.leakedFamilies.length} leaked, ${proof.nearDuplicatePairs.length} near-duplicates)`;
+} catch (err) {
+  familyProofDetail = `verification failed (${err instanceof Error ? err.message : String(err)}); treating as unverified`;
+  console.error(`Warning: family-separation verification failed; keeping the fail-closed blocker.`);
+}
+
+// 6. Compatibility receipt from explicit operator records (fail-closed default).
+interface CompatibilityInput {
+  receipt: CompatibilityReceipt | null;
+  source: string;
+  detail: string;
+}
+
+/** Validate a parsed compat receipt value (malformed → null, never silently accepted). */
+function validateCompatReceiptValue(value: unknown, source: string): CompatibilityInput {
+  const parsed = CompatibilityReceiptSchema.safeParse(value);
+  if (!parsed.success) {
+    console.error(
+      `Warning: compatibility receipt ${source} malformed (${parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}); treating as unverified.`,
+    );
+    return {
+      receipt: null,
+      source: `malformed ${source} (unverified)`,
+      detail: `malformed ${source}; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
+    };
+  }
+  const suites = parsed.data.suites.map(s => `${s.suiteId}@${s.commit.slice(0, 12)}${s.passed ? '' : ':FAILED'}`).join(', ');
+  return {
+    receipt: parsed.data,
+    source,
+    detail: `${source}: ${parsed.data.suites.length} suites (${suites}) recorded ${parsed.data.recordedAt}`,
+  };
+}
+
+/** Read the compat receipt: inline env JSON wins, else the receipts file, else absent. */
+function readCompatibilityReceipt(): CompatibilityInput {
+  const inlineJson = process.env.TYPESAFE_COMPAT_RECEIPT_JSON?.trim();
+  if (inlineJson) {
+    try {
+      return validateCompatReceiptValue(JSON.parse(inlineJson), 'env TYPESAFE_COMPAT_RECEIPT_JSON');
+    } catch (err) {
+      console.error(
+        `Warning: TYPESAFE_COMPAT_RECEIPT_JSON unparseable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
+      );
+      return {
+        receipt: null,
+        source: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON (unverified)',
+        detail: 'malformed env TYPESAFE_COMPAT_RECEIPT_JSON; expected suites [other-providers, deterministic-rules, frozen-snapshots, legacy-reads] with commit + pass status',
+      };
+    }
+  }
+  const receiptsPath = process.env.TYPESAFE_COMPAT_RECEIPTS_PATH;
+  if (receiptsPath) {
+    try {
+      return validateCompatReceiptValue(
+        JSON.parse(fs.readFileSync(receiptsPath, 'utf8')),
+        `file ${receiptsPath}`,
+      );
+    } catch (err) {
+      console.error(
+        `Warning: TYPESAFE_COMPAT_RECEIPTS_PATH unreadable (${err instanceof Error ? err.message : String(err)}); treating as unverified.`,
+      );
+      return {
+        receipt: null,
+        source: `unreadable file ${receiptsPath} (unverified)`,
+        detail: `unreadable file ${receiptsPath}; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
+      };
+    }
+  }
+  return {
+    receipt: null,
+    source: 'none provided (unverified)',
+    detail: `none provided; expected suites [${REQUIRED_COMPATIBILITY_SUITE_IDS.join(', ')}] with commit + pass status`,
+  };
+}
+const compat = readCompatibilityReceipt();
+
+// 7. Operator-docs receipt bound live to the published runbook bytes: the
+// content hash is computed at runtime, so any doc edit changes the receipt
+// and visibly invalidates prior qualification outputs. Unreadable runbook
+// keeps the fail-closed blocker.
+let operatorDocsReceipt: OperatorDocsReceipt | null = null;
+let operatorDocsDetail: string;
+try {
+  const runbookAbsPath = path.resolve(import.meta.dir, '..', OPERATOR_RUNBOOK_PATH);
+  const bytes = fs.readFileSync(runbookAbsPath);
+  const contentHash = createHash('sha256').update(bytes).digest('hex');
+  const publishedAt = fs.statSync(runbookAbsPath).mtime.toISOString();
+  const parsed = OperatorDocsReceiptSchema.safeParse({
+    runbookPath: OPERATOR_RUNBOOK_PATH,
+    contentHash,
+    publishedAt,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.slice(0, 3).map(i => `${i.path.join('.')}: ${i.message}`).join('; '));
+  }
+  operatorDocsReceipt = parsed.data;
+  operatorDocsDetail = `${OPERATOR_RUNBOOK_PATH} sha256:${contentHash.slice(0, 12)}… (computed live)`;
+} catch (err) {
+  operatorDocsDetail = `runbook unreadable (${err instanceof Error ? err.message : String(err)}); treating as unpublished`;
+  console.error(`Warning: operator runbook unreadable; keeping the fail-closed blocker.`);
+}
+
 const assessment = assessProductionQualification({
   hasTypeSafeApiKey: hasKey,
   liveContractCheckExecuted,
@@ -270,6 +400,9 @@ const assessment = assessProductionQualification({
   canaryProductTypeReviewed: canary.productType,
   canaryAttributesReviewed: canary.attributes,
   canaryCohortPagesReviewed: canary.cohortPages,
+  familySeparationProof,
+  compatibilityReceipt: compat.receipt,
+  operatorDocsReceipt,
   offlineComparisonReport: comparisonReport,
 });
 
@@ -425,6 +558,21 @@ const canaryProvenance = {
   cohortPagesReviewed: canary.cohortPages,
   source: canary.source,
 };
+const familyProvenance = {
+  proof: familySeparationProof,
+  detail: familyProofDetail,
+  source: 'computed live via verifyFamilySeparation over goldset familyIds',
+};
+const compatibilityProvenance = {
+  receipt: compat.receipt,
+  source: compat.source,
+  detail: compat.detail,
+};
+const operatorDocsProvenance = {
+  receipt: operatorDocsReceipt,
+  detail: operatorDocsDetail,
+  source: 'computed live by hashing the published runbook bytes',
+};
 
 if (isJson) {
   console.log(JSON.stringify({
@@ -434,6 +582,9 @@ if (isJson) {
     predictionProvenance,
     liveCheck: liveCheckProvenance,
     canary: canaryProvenance,
+    family: familyProvenance,
+    compatibility: compatibilityProvenance,
+    operatorDocs: operatorDocsProvenance,
   }, null, 2));
   process.exit(0);
 }
@@ -449,7 +600,10 @@ if (Object.keys(predictionSources.blockedCodes).length > 0) {
   console.log(`Blocked codes:    ${JSON.stringify(predictionSources.blockedCodes)} (counted as service failures, fail-closed)`);
 }
 console.log(`Live check:       ${liveCheckDetail}`);
-console.log(`Canary receipts:  ${canary.source} (PT=${canary.productType} Attr=${canary.attributes} Pages=${canary.cohortPages})\n`);
+console.log(`Canary receipts:  ${canary.source} (PT=${canary.productType} Attr=${canary.attributes} Pages=${canary.cohortPages})`);
+console.log(`Family proof:     ${familyProofDetail}`);
+console.log(`Compatibility:    ${compat.detail}`);
+console.log(`Operator docs:    ${operatorDocsDetail}\n`);
 
 console.log(`Evaluated Examples: ${comparisonReport.evaluatedExamples} (Dev: ${comparisonReport.devCount}, Holdout: ${comparisonReport.holdoutCount})`);
 console.log(`Adjudicated By:     ${goldset.adjudicatedBy}\n`);
