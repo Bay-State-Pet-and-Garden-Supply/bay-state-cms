@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -131,6 +131,7 @@ describe('LLM Client — task-specific routing', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Clean up task configs between tests
     for (const task of [
       'product_name_consolidation',
@@ -1703,6 +1704,7 @@ describe('AI Compute authority — configured routing never consults the legacy 
   beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (!isDbInitialized()) return;
     // Route cleanup: a route row makes the DB 'configured', which would leak
     // into the pristine-install tests below and the sibling describes.
     getDb().run('DELETE FROM ai_workload_routes');
