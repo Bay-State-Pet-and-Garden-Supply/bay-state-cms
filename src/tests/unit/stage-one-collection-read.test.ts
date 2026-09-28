@@ -493,7 +493,12 @@ class StaticRegistry implements ConnectorRegistry {
   }
 }
 
+import { isDbInitialized } from '../../db/connection';
+
 function ensureWs2(): void {
+  if (!isDbInitialized()) {
+    ensureFollowupDb();
+  }
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +705,9 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  if (!isDbInitialized()) {
+    ensureFollowupDb();
+  }
   const now = new Date().toISOString();
   try {
     insertWorkspace({
