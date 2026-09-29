@@ -1,6 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { canonicalGtinMatch, normalizeGtinDigits } from '../../shared/gtin';
+import { canonicalGtinMatch, normalizeGtin, normalizeGtinDigits } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -259,6 +259,7 @@ export function findUrlsByDomain(
  * Checks both the enriched `upc` column and UPC digits appearing in the URL path/slug.
  */
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
+  if (normalizeGtin(upc) === null) return null;
   const db = getDb();
   const normDomain = normalizeDomain(domain);
   const cleanUpc = normalizeGtinDigits(upc);
