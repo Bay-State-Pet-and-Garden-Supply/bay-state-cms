@@ -164,6 +164,7 @@ describe('container posture denies egress (live daemon when available)', () => {
     let daemon: boolean;
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      await execFileAsync('docker', ['run', '--rm', 'node:22-bookworm', 'node', '-e', ''], { timeout: 15_000 });
       daemon = true;
     } catch {
       daemon = false;
