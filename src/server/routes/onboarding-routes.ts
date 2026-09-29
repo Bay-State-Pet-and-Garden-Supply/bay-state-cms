@@ -6,7 +6,10 @@
 // remaining clones are baselined in .fallow-baselines/dupes.json. Revisit only with a response-preserving
 // contract change, never as a drive-by refactor.
 import { Hono, type Context } from 'hono';
-import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
+import { isPrivateOrLinkLocalHost } from '../../shared/ssrf';
+import { DeterministicNetworkGate } from '../../onboarding/image-verification/network-gate';
+
+const onboardingGate = new DeterministicNetworkGate();
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
 import { OLLAMA_VLM_SERVICE_NAME, DEFAULT_LOCAL_VISION_MODEL } from '../../ai/vision-model-defaults';
 import { streamSSE } from 'hono/streaming';
@@ -4718,7 +4721,7 @@ route.post('/onboarding/settings/profile-generations/:id/revisions', async (c) =
     const currentSelectors = revision.selectors;
 
     // Fetch the source page HTML.
-    const response = await fetch(pageUrl, {
+    const response = await onboardingGate.fetch(pageUrl, {
       headers: HTTP_EXTRACTION_HEADERS,
       signal: AbortSignal.timeout(15000),
     });
