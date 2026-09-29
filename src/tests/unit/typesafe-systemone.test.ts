@@ -58,7 +58,7 @@ const TYPESAFE_CONN: ProviderConnection = {
   label: 'TypeSafe Jev (Cloud)',
   transport: 'systemone',
   baseUrl: 'https://api.typesafe.ai/v1',
-  credential: 'ts-test-key',
+  credential: 'fixturekey',
   trustZone: 'cloud',
   approvedHost: 'api.typesafe.ai',
   approvedPort: 443,
@@ -174,7 +174,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     expect(row?.model).toBe('jev-1.13.0');
     expect(row?.prompt_tokens).toBe(318);
     expect(row?.cost_basis).toBe('published_rate');
-    expect(JSON.stringify(row)).not.toContain('ts-test-key');
+    expect(JSON.stringify(row)).not.toContain('fixturekey');
   });
 
   it('Noul round-trip validates P(yes) and usage identity', async () => {
@@ -223,10 +223,10 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     expect(error).toBeInstanceOf(AiPolicyDeniedError);
     expect(String(error.message)).toMatch(/trust zone|approved host|does not match/i);
     expect(calls).toBe(0);
-    expect(String(error.message)).not.toContain('ts-test-key');
+    expect(String(error.message)).not.toContain('fixturekey');
 
     const row = getAiModelCallById(callId);
-    expect(JSON.stringify(row)).not.toContain('ts-test-key');
+    expect(JSON.stringify(row)).not.toContain('fixturekey');
     expect(JSON.stringify(row)).not.toContain('evil.example');
   });
 
@@ -611,7 +611,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
         label: 'TypeSafe Jev (Cloud)',
         transport: 'carrier-pigeon',
         baseUrl: 'https://api.typesafe.ai/v1',
-        credential: 'test-fake-credential-1',
+        credential: 'fixture1',
         trustZone: 'cloud',
         approvedHost: 'api.typesafe.ai',
         approvedPort: 443,
@@ -650,7 +650,7 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
         label: 'TypeSafe Jev (Cloud)',
         transport: 'systemone',
         baseUrl: 'https://api.typesafe.ai/v1',
-        credential: 'ts-test-fake-credential',
+        credential: 'fixturecred',
         trustZone: 'cloud',
         approvedHost: 'api.typesafe.ai',
         approvedPort: 443,
@@ -683,6 +683,6 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     const { getProviderConnection } = await import(
       '../../db/repositories/provider-connection-repo'
     );
-    expect(getProviderConnection('typesafe-jev')?.credential).toBe('ts-test-fake-credential');
+    expect(getProviderConnection('typesafe-jev')?.credential).toBe('fixturecred');
   });
 });

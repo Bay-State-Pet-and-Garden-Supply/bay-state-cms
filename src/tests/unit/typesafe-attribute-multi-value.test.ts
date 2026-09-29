@@ -238,7 +238,7 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
       transport: 'systemone',
       baseUrl: 'https://api.typesafe.ai/v1',
       trustZone: 'cloud',
-      credential: 'test-fake-credential-300',
+      credential: 'fixture300',
       enabled: true,
       lastProbedAt: new Date().toISOString(),
       lastProbeStatus: 'healthy',
@@ -786,7 +786,7 @@ describe('TypeSafe Jev Multi-Value Attribute Verification (Issue #300)', () => {
       transport: 'systemone',
       baseUrl: 'https://api.typesafe.ai/v1',
       trustZone: 'cloud',
-      credential: 'test-fake-credential-300',
+      credential: 'fixture300',
       enabled: false, // disabled
       lastProbedAt: new Date().toISOString(),
       lastProbeStatus: 'disabled',

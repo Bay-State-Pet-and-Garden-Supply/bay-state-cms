@@ -47,7 +47,7 @@ describe('canonical product type decision (issue #297)', () => {
       transport: 'systemone',
       baseUrl: 'https://api.typesafe.ai/v1',
       trustZone: 'cloud',
-      credential: 'test-fake-credential-297',
+      credential: 'fixture297',
       enabled: true,
       lastProbedAt: new Date().toISOString(),
       lastProbeStatus: 'healthy',
