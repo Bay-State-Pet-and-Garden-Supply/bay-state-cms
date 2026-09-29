@@ -136,6 +136,7 @@ export default defineConfig({
       'src/tests/unit/classification-policy-routes.test.ts',
       'src/tests/unit/vlm-client.test.ts',
       'src/tests/unit/profile-governance-service.test.ts',
+      'src/tests/unit/profile-governance-ssrf.test.ts',
       'src/tests/unit/domain-diagnostics-service.test.ts',
       'src/tests/unit/packaging-ocr.test.ts',
       // P1-T1 structured OCR attempt results — transitively imports bun:sqlite
