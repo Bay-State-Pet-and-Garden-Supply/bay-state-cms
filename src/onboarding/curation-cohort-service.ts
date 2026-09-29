@@ -407,8 +407,9 @@ export function evaluateCohortReadiness(
   members: CurationCohortMember[],
   items: OnboardingItem[],
   extractionSourcesByItemId?: Map<string, ExtractionBinding>,
-): CohortReadinessEvaluation {
-  const itemsById = new Map(items.map(item => [item.id, item]));
+  itemsByIdMap?: Map<string, OnboardingItem>,
+): CohortReadinessEvaluation & { readinessByMember: Map<string, ItemExtractionReadiness> } {
+  const itemsById = itemsByIdMap ?? new Map(items.map(item => [item.id, item]));
   // Single batched load of the latest extraction source per item (round-3 R4)
   // — one query per evaluation, passed through to every member so no per-item
   // provenance lookup runs.
@@ -463,6 +464,7 @@ export function evaluateCohortReadiness(
     waitingOn,
     readyCount: members.length - notReady.length,
     memberCount: members.length,
+    readinessByMember,
   };
 }
 
@@ -591,18 +593,19 @@ export function buildCohortView(
   membersByCohortId?: Map<string, CurationCohortMember[]>,
   extractionSourcesByItemId?: Map<string, ExtractionBinding>,
   currentRunsByCohortId?: Map<string, CohortRun>,
+  itemsByIdMap?: Map<string, OnboardingItem>,
 ): CurationCohortView {
   const members = membersByCohortId?.get(cohort.id) ?? getCohortMembers(cohort.id);
-  const itemsById = new Map(items.map(item => [item.id, item]));
+  const itemsById = itemsByIdMap ?? new Map(items.map(item => [item.id, item]));
   // Single batched extraction-source load shared by cohort + member readiness.
   const extractionSources = extractionSourcesByItemId ?? getLatestExtractionBindingsByItemIds(items.map(item => item.id));
-  const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources);
+  const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources, itemsById);
 
   const memberViews = members.map(member => {
     const item = itemsById.get(member.onboardingItemId);
-    const readiness = item
+    const readiness = evaluation.readinessByMember.get(member.onboardingItemId) ?? (item
       ? evaluateItemReadiness(item, extractionSources)
-      : { ready: false, state: 'waiting' as const, blockedReason: 'member item not found' };
+      : { ready: false, state: 'waiting' as const, blockedReason: 'member item not found' });
     return {
       onboardingItemId: member.onboardingItemId,
       productSku: member.productSku,
@@ -649,9 +652,10 @@ export function buildCohortView(
  */
 export function listCandidateCohortViews(batchId: string): CurationCohortView[] {
   const items = listItemsByBatch(batchId);
+  const itemsById = new Map(items.map(item => [item.id, item]));
   const cohorts = listCohortsByBatch(batchId);
   const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
   const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
   const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
-  return cohorts.map(cohort => buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId));
+  return cohorts.map(cohort => buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId, itemsById));
 }

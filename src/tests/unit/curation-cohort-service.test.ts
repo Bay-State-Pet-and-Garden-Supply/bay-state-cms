@@ -25,6 +25,7 @@ import {
   transitionCohortToReadyIfComplete,
   getDerivedCohortStateForItem,
   listCandidateCohortViews,
+  buildCohortView,
 } from '../../onboarding/curation-cohort-service';
 import type { CurationCohort } from '../../shared/schemas/cohorts';
 
@@ -445,6 +446,26 @@ describe('curation cohort service (issue #30, PR2)', () => {
     expect(empty.state).toBe('ready');
     expect(empty.memberCount).toBe(0);
     expect(empty.readyCount).toBe(0);
+  });
+
+  it('buildCohortView and evaluateCohortReadiness produce identical output with pre-built itemsByIdMap', () => {
+    const batchId = newBatch();
+    const items = insertFamilyItems(batchId);
+    makeItemExtractionReady(items[0].id, makeExtractionData());
+
+    const cohorts = refreshCandidateCohorts(workspaceId, batchId);
+    const purina = cohorts.find(c => c.groupKey.includes('purina'))!;
+    const members = getCohortMembers(purina.id);
+    const loadedItems = listItemsByBatch(batchId);
+    const itemsById = new Map(loadedItems.map(i => [i.id, i]));
+
+    const viewWithoutMap = buildCohortView(purina, loadedItems);
+    const viewWithMap = buildCohortView(purina, loadedItems, undefined, undefined, undefined, itemsById);
+
+    expect(viewWithMap).toEqual(viewWithoutMap);
+    expect(viewWithMap.members.length).toBe(2);
+    expect(viewWithMap.members[0].ready).toBe(true);
+    expect(viewWithMap.members[1].ready).toBe(false);
   });
 
   it('blocks pre-Curation barrier failures and never blocks on a Curation failure (round-3 R1)', () => {

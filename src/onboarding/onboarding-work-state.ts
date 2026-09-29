@@ -157,11 +157,12 @@ function normalizeHost(url: string | null | undefined): string | null {
  */
 export function buildCohortContext(batchId: string, items: OnboardingItem[]): Map<string, FamilyCohortState> {
   const cohorts = listCohortsByBatch(batchId, { includeSuperseded: true });
+  const itemsById = new Map(items.map(item => [item.id, item]));
   const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
   const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
   const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
   const views: CurationCohortView[] = cohorts.map(cohort =>
-    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId),
+    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId, itemsById),
   );
   const map = new Map<string, FamilyCohortState>();
   for (const view of views) {
