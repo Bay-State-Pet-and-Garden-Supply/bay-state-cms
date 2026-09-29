@@ -277,6 +277,7 @@ export default defineConfig({
       // Issue #30 cohort curation (bun:sqlite DB tests)
       'src/tests/unit/curation-cohort-repo.test.ts',
       'src/tests/unit/curation-cohort-service.test.ts',
+      'src/tests/unit/curation-cohort-performance.test.ts',
       'src/tests/unit/cohort-freeze.test.ts',
       'src/tests/unit/cohort-worker.test.ts',
       'src/tests/unit/cohort-shadow-observations.test.ts',
