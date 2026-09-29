@@ -1211,6 +1211,8 @@ import {
 } from './model-policy-gateway';
 import { getLlmConfigForTask, type LlmConfig } from '../onboarding/llm-client';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
+import { evaluateAttributeApplicability } from './applicability-evaluator';
+import { buildFrozenTaxonomyCandidates } from './benchmark-exporter';
 
 /** Version of the honest-capture qualification predictor (v3: replay fidelity — PT-first, no gold gating, real incumbent judgments). */
 export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v3' as const;
@@ -1244,6 +1246,13 @@ export const QUALIFICATION_BLOCKED_JEV_CREDENTIALS_ABSENT = 'jev_credentials_abs
 export const QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT = 'baseline_model_credentials_absent' as const;
 export const QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED = 'live_dispatch_failed' as const;
 export const QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED = 'question_construction_failed' as const;
+/**
+ * Fail-closed applicability block (issue #302): the frozen Product Type →
+ * profile → attribute mapping is absent or unresolvable for an entry, so no
+ * attribute judgment can be grounded. Never silently broadened to all frozen
+ * attributes.
+ */
+export const QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE = 'qualification_applicability_unresolvable' as const;
 
 /** Gold-only entry: adjudicated labels + evidence. Never carries predictions. */
 export interface QualificationGoldOnlyEntry extends QualificationGoldCore {}
@@ -1275,17 +1284,60 @@ export interface ExecutedQualificationPrediction {
   usage?: { inputTokens: number | null; outputTokens: number | null } | null;
 }
 
+/** One frozen profile attribute entry carried in qualification taxonomies. */
+export interface QualificationFrozenProfileAttribute {
+  attributeId: string;
+  cardinality: 'single' | 'multiple';
+  required: boolean;
+  applicabilityConditions: unknown[];
+}
+
+/** One frozen Attribute Profile carried in qualification taxonomies. */
+export interface QualificationFrozenAttributeProfile {
+  id: string;
+  productTypeId: string;
+  attributes: QualificationFrozenProfileAttribute[];
+}
+
 /** Closed-world candidate sets derived globally from adjudicated gold labels. */
 export interface QualificationTaxonomies {
-  productTypes: Array<{ id: string; label: string }>;
-  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[] }>;
+  productTypes: Array<{ id: string; label: string; attributeProfileId?: string | null; invariantAttributes?: Record<string, string | string[]> }>;
+  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[]; isUniversal?: boolean }>;
   pages: Array<{ pageId: string; pageName: string }>;
   /**
-   * Optional frozen type→profile→attribute mapping (additive): when present,
-   * attribute applicability replays production (effective frozen Product Type
-   * → profile → applicable attributes only). When absent, applicability falls
-   * back to all frozen attributes (gold-free, documented as weaker separation
-   * until the mapping is wired — never derived from gold labels).
+   * REAL frozen Product Type → attributeProfileId pointer (additive, issue
+   * #302): typeId → profileId (`null` = legitimately EMPTY profile,
+   * universal-only, never "all fields"). Absent means the mapping was never
+   * captured — callers fail closed (blocked with
+   * `qualification_applicability_unresolvable`), never broaden to all frozen
+   * attributes. Gold labels never decide WHAT is predicted.
+   */
+  typeAttributeProfiles?: Record<string, string | null> | null;
+  /**
+   * REAL frozen Attribute Profiles (additive): profile members carry
+   * per-profile cardinality (wins over the global target mode) plus
+   * applicabilityConditions evaluated by the shipped
+   * `evaluateAttributeApplicability` helper (missing reviewed facts →
+   * `unknown` → withheld, production parity).
+   */
+  attributeProfiles?: QualificationFrozenAttributeProfile[] | null;
+  /**
+   * REAL frozen universal tier (additive): attribute ids that proceed without
+   * a Product Type (production parity via the shipped `isUniversalAttribute`
+   * helper + this explicit list). Null-type entries yield universals only.
+   */
+  universalAttributeIds?: string[] | null;
+  /**
+   * REAL frozen invariant values by Product Type (additive): deterministic
+   * values implied by the effective type, resolved before the variable-field
+   * loop (production parity — zero model calls, excluded from Jev questions).
+   */
+  invariantAttributesByType?: Record<string, Record<string, string | string[]>> | null;
+  /**
+   * Legacy frozen type→targets mapping (deprecated, read-only compat): when
+   * the REAL mapping above is present it wins; a legacy-only input without
+   * the REAL mapping still fails closed (it lacks conditions/universals/
+   * cardinality/invariants and cannot evidence production parity).
    */
   typeProfiles?: Record<string, string[]> | null;
 }
@@ -1446,92 +1498,201 @@ function deriveQualificationTaxonomies(entries: QualificationGoldOnlyEntry[]): Q
  * snapshot (the required contract: gold labels are validated WITHIN these
  * sets but never define them). Sorted copies so artifact construction stays
  * deterministic regardless of snapshot order.
+ *
+ * REAL mapping (issue #302): carries the frozen Product Type →
+ * attributeProfileId pointer, the frozen Attribute Profiles (per-profile
+ * cardinality + applicabilityConditions), the frozen universal tier, and the
+ * frozen invariant values — never derived from gold. The artifact hash covers
+ * all of it (extended, never weakened).
  */
 export function qualificationTaxonomiesFromFrozenSnapshot(
   snapshot: FrozenTaxonomySnapshot,
 ): QualificationTaxonomies {
-  // Optional type→profile→attribute mapping (additive plumbing): the Zod
-  // schema stays strict, so the mapping travels as an unknown sidecar field
-  // when present and is ignored otherwise — never derived from gold.
-  const sidecar = snapshot as unknown as {
+  // Base candidate pools come from the exporter's single construction site
+  // (no drift between gold-containment and prediction pools); the REAL
+  // applicability mapping rides along from the same snapshot (never gold).
+  const candidates = buildFrozenTaxonomyCandidates(snapshot);
+  const legacySidecar = snapshot as unknown as {
     typeProfiles?: unknown;
-    attributeProfiles?: unknown;
     typeAttributeMap?: unknown;
   };
-  const typeProfiles = readQualificationTypeProfilesSidecar(sidecar);
+  const legacyTypeProfiles = readQualificationLegacyTypeProfiles(legacySidecar);
+  const { typeAttributeProfiles, attributeProfiles, universalAttributeIds, invariantAttributesByType } =
+    readQualificationFrozenApplicability(snapshot);
+  const productTypes = candidates.productTypes.map(t => {
+    const frozen = snapshot.productTypes.find(p => p.id === t.id);
+    return {
+      ...t,
+      ...(frozen?.invariantAttributes !== undefined ? { invariantAttributes: frozen.invariantAttributes } : {}),
+    };
+  });
   return {
-    productTypes: [...snapshot.productTypes]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map(t => ({ id: t.id, label: t.label })),
-    attributeTargets: [...snapshot.attributeTargets]
-      .sort((a, b) => a.targetId.localeCompare(b.targetId))
-      .map(t => ({ targetId: t.targetId, cardinality: t.cardinality, options: [...t.options].sort() })),
-    pages: [...snapshot.pages]
-      .sort((a, b) => a.pageId.localeCompare(b.pageId))
-      .map(p => ({ pageId: p.pageId, pageName: p.pageName })),
-    ...(typeProfiles ? { typeProfiles } : {}),
+    productTypes,
+    attributeTargets: candidates.attributeTargets,
+    pages: candidates.pages,
+    ...(legacyTypeProfiles ? { typeProfiles: legacyTypeProfiles } : {}),
+    ...(typeAttributeProfiles ? { typeAttributeProfiles } : {}),
+    ...(attributeProfiles ?? candidates.attributeProfiles
+      ? { attributeProfiles: (attributeProfiles ?? candidates.attributeProfiles) as QualificationFrozenAttributeProfile[] }
+      : {}),
+    ...(universalAttributeIds ?? candidates.universalAttributeIds
+      ? { universalAttributeIds: (universalAttributeIds ?? candidates.universalAttributeIds) as string[] }
+      : {}),
+    ...(invariantAttributesByType ?? candidates.invariantAttributesByType
+      ? {
+        invariantAttributesByType: (invariantAttributesByType ??
+          candidates.invariantAttributesByType) as Record<string, Record<string, string | string[]>>,
+      }
+      : {}),
   };
 }
 
 /**
- * Read an optional frozen type→attribute mapping sidecar without touching the
- * strict Zod schema. Accepts `typeProfiles` (typeId → targetIds), a v2-style
- * `attributeProfiles` array ({ productTypeId, attributes: [{ attributeId }] }),
- * or `typeAttributeMap`. Returns null when absent — callers fall back to all
- * frozen attributes (gold-free), never to gold labels. Malformed sidecars
- * fail closed (never a silent substitution).
+ * Read the REAL frozen applicability mapping from a validated snapshot.
+ * Returns null fields when the snapshot predates the mapping (legacy) —
+ * callers fail closed (blocked), never broaden. Malformed mappings throw
+ * fail-closed (never a silent substitution). Gold labels are never read.
  */
-/** One attribute id from a type-profile sidecar entry (malformed → throw fail-closed). */
-function sidecarAttributeIdOf(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    if (typeof record.attributeId === 'string') return record.attributeId;
-    if (typeof record.targetId === 'string') return record.targetId;
+/** True when a snapshot carries any REAL mapping signal (else legacy, unresolvable). */
+function hasQualificationMappingSignal(snapshot: FrozenTaxonomySnapshot): boolean {
+  return (
+    Array.isArray((snapshot as { attributeProfiles?: unknown }).attributeProfiles) ||
+    Array.isArray((snapshot as { universalAttributeIds?: unknown }).universalAttributeIds) ||
+    snapshot.productTypes.some(t => (t as { attributeProfileId?: unknown }).attributeProfileId !== undefined) ||
+    snapshot.productTypes.some(t => (t as { invariantAttributes?: unknown }).invariantAttributes !== undefined) ||
+    snapshot.attributeTargets.some(t => (t as { isUniversal?: unknown }).isUniversal !== undefined)
+  );
+}
+
+/** Empty (legacy) applicability mapping — callers fail closed, never broaden. */
+function emptyQualificationApplicability(): {
+  typeAttributeProfiles: Record<string, string | null> | null;
+  attributeProfiles: QualificationFrozenAttributeProfile[] | null;
+  universalAttributeIds: string[] | null;
+  invariantAttributesByType: Record<string, Record<string, string | string[]>> | null;
+} {
+  return {
+    typeAttributeProfiles: null,
+    attributeProfiles: null,
+    universalAttributeIds: null,
+    invariantAttributesByType: null,
+  };
+}
+
+/** Type→profile pointers for a snapshot (malformed → throw fail-closed). */
+function readQualificationTypePointers(snapshot: FrozenTaxonomySnapshot): Record<string, string | null> {
+  const pointers: Record<string, string | null> = {};
+  for (const t of snapshot.productTypes) {
+    const pointer = (t as { attributeProfileId?: unknown }).attributeProfileId;
+    if (pointer === undefined) {
+      throw new Error(`Qualification frozen applicability mapping is malformed: type "${t.id}" lacks attributeProfileId.`);
+    }
+    if (pointer !== null && typeof pointer !== 'string') {
+      throw new Error(`Qualification frozen applicability mapping is malformed: type "${t.id}" pointer.`);
+    }
+    pointers[t.id] = pointer;
   }
-  throw new Error('Qualification type-profile sidecar is malformed.');
+  return pointers;
 }
 
-/** Sorted deduped target ids for one sidecar entry's attribute list. */
-function collectSidecarAttributeIds(attrs: unknown[]): string[] {
-  const ids: string[] = [];
-  for (const a of attrs) ids.push(sidecarAttributeIdOf(a));
-  return [...new Set(ids)].sort();
+/** Universal attribute ids for a snapshot (malformed → throw fail-closed). */
+function readQualificationUniversals(snapshot: FrozenTaxonomySnapshot): string[] {
+  const universalSet = new Set<string>();
+  for (const t of snapshot.attributeTargets) {
+    if ((t as { isUniversal?: unknown }).isUniversal === true) universalSet.add(t.targetId);
+  }
+  const listed = (snapshot as { universalAttributeIds?: unknown }).universalAttributeIds;
+  if (Array.isArray(listed)) {
+    for (const id of listed) {
+      if (typeof id !== 'string' || id.length === 0) {
+        throw new Error('Qualification frozen applicability mapping is malformed: universalAttributeIds.');
+      }
+      universalSet.add(id);
+    }
+  }
+  return [...universalSet].sort();
 }
 
-/** One type-profile entry: validated type id plus its sorted target ids. */
-function parseSidecarProfileEntry(entry: unknown): { typeId: string; ids: string[] } {
-  if (!entry || typeof entry !== 'object') throw new Error('Qualification type-profile sidecar is malformed.');
+/** Invariant values by type for a snapshot (malformed → throw fail-closed). */
+function readQualificationInvariants(
+  snapshot: FrozenTaxonomySnapshot,
+): Record<string, Record<string, string | string[]>> {
+  const byType: Record<string, Record<string, string | string[]>> = {};
+  for (const t of snapshot.productTypes) {
+    const inv = (t as { invariantAttributes?: unknown }).invariantAttributes;
+    if (inv === undefined) continue;
+    if (!inv || typeof inv !== 'object' || Array.isArray(inv)) {
+      throw new Error(`Qualification frozen applicability mapping is malformed: type "${t.id}" invariants.`);
+    }
+    byType[t.id] = inv as Record<string, string | string[]>;
+  }
+  return byType;
+}
+
+function readQualificationFrozenApplicability(snapshot: FrozenTaxonomySnapshot): {
+  typeAttributeProfiles: Record<string, string | null> | null;
+  attributeProfiles: QualificationFrozenAttributeProfile[] | null;
+  universalAttributeIds: string[] | null;
+  invariantAttributesByType: Record<string, Record<string, string | string[]>> | null;
+} {
+  if (!hasQualificationMappingSignal(snapshot)) return emptyQualificationApplicability();
+  // Partial mapping is malformed (fail closed): a real snapshot carries the
+  // full pipeline (type pointers + profiles + universals), never a fragment.
+  const rawProfiles = (snapshot as { attributeProfiles?: unknown }).attributeProfiles;
+  if (!Array.isArray(rawProfiles)) {
+    throw new Error('Qualification frozen applicability mapping is malformed: attributeProfiles missing.');
+  }
+  return {
+    typeAttributeProfiles: readQualificationTypePointers(snapshot),
+    attributeProfiles: rawProfiles.map(parseQualificationFrozenProfile),
+    universalAttributeIds: readQualificationUniversals(snapshot),
+    invariantAttributesByType: readQualificationInvariants(snapshot),
+  };
+}
+
+/** Parse one frozen profile entry (malformed → throw fail-closed). */
+function parseQualificationFrozenProfile(entry: unknown): QualificationFrozenAttributeProfile {
+  if (!entry || typeof entry !== 'object') {
+    throw new Error('Qualification frozen applicability mapping is malformed: profile entry.');
+  }
   const e = entry as Record<string, unknown>;
-  const typeId = e.productTypeId ?? e.product_type_id ?? e.typeId;
-  const attrs = e.attributes ?? e.targets;
-  if (typeof typeId !== 'string' || !Array.isArray(attrs)) {
-    throw new Error('Qualification type-profile sidecar is malformed.');
+  if (typeof e.id !== 'string' || typeof e.productTypeId !== 'string' || !Array.isArray(e.attributes)) {
+    throw new Error('Qualification frozen applicability mapping is malformed: profile shape.');
   }
-  return { typeId, ids: collectSidecarAttributeIds(attrs) };
+  return {
+    id: e.id,
+    productTypeId: e.productTypeId,
+    attributes: (e.attributes as unknown[]).map(parseQualificationFrozenProfileAttribute),
+  };
 }
 
-/** Type→targets mapping from a v2-style attributeProfiles array. */
-function buildTypeProfilesFromAttributeProfiles(profiles: unknown[]): Record<string, string[]> {
-  const mapped: Record<string, string[]> = {};
-  for (const entry of profiles) {
-    const parsed = parseSidecarProfileEntry(entry);
-    mapped[parsed.typeId] = parsed.ids;
+/** Parse one frozen profile attribute (malformed → throw fail-closed). */
+function parseQualificationFrozenProfileAttribute(entry: unknown): QualificationFrozenProfileAttribute {
+  if (!entry || typeof entry !== 'object') {
+    throw new Error('Qualification frozen applicability mapping is malformed: profile attribute.');
   }
-  return mapped;
+  const e = entry as Record<string, unknown>;
+  if (typeof e.attributeId !== 'string' || (e.cardinality !== 'single' && e.cardinality !== 'multiple')) {
+    throw new Error('Qualification frozen applicability mapping is malformed: profile attribute shape.');
+  }
+  const conditions = e.applicabilityConditions ?? [];
+  if (!Array.isArray(conditions)) {
+    throw new Error('Qualification frozen applicability mapping is malformed: applicabilityConditions.');
+  }
+  return {
+    attributeId: e.attributeId,
+    cardinality: e.cardinality,
+    required: e.required === true,
+    applicabilityConditions: conditions,
+  };
 }
 
-function readQualificationTypeProfilesSidecar(sidecar: {
+/** Legacy type→targets sidecar (read-only compat, never satisfies the REAL mapping). */
+function readQualificationLegacyTypeProfiles(sidecar: {
   typeProfiles?: unknown;
-  attributeProfiles?: unknown;
   typeAttributeMap?: unknown;
 }): Record<string, string[]> | null {
-  const direct = normalizeTypeProfilesRecord(sidecar.typeProfiles ?? sidecar.typeAttributeMap);
-  if (direct) return direct;
-  if (Array.isArray(sidecar.attributeProfiles)) {
-    return buildTypeProfilesFromAttributeProfiles(sidecar.attributeProfiles);
-  }
-  return null;
+  return normalizeTypeProfilesRecord(sidecar.typeProfiles ?? sidecar.typeAttributeMap);
 }
 
 /** Normalize a typeId → targetIds record sidecar (null when absent). */
@@ -1652,27 +1813,261 @@ function isQualificationPredictionEmpty(optionCount: number, evidenceText: strin
 }
 
 /**
- * Applicable attribute targets for a frozen effective Product Type — the
- * production replay rule (effective type → Attribute Profile → applicable
- * attributes only). Uses the frozen taxonomy's type→profile→attribute mapping
- * when present; otherwise falls back to ALL frozen attributes (gold-free,
- * documented as weaker separation until the mapping is wired). A null
- * effective type (abstained/unknown) yields NO applicable attributes —
- * production blocks type-gated attributes until a type is accepted (universal
- * attributes cannot be identified from the frozen taxonomy alone, so
- * fail-closed to none). Gold labels are NEVER consulted.
+ * Production Product-Type authority for Category Pages (issue #302, parity
+ * with `checkProductTypeAuthority` in `page-decision.ts`): page proposals
+ * require a reviewed/effective Primary Product Type whenever product_type is
+ * an enabled target. Qualification always enables the PT target (frozen
+ * taxonomy), so a null effective type (abstained/unknown) MUST abstain pages
+ * — never construct a page Choice. Production code/reason, quoted verbatim:
+ * `no_reviewed_product_type` /
+ * 'No reviewed Primary Product Type. Page assignment requires an accepted
+ * Product Type and a verified Page catalog.'
  */
+export const QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE = 'no_reviewed_product_type' as const;
+export const QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_REASON =
+  'No reviewed Primary Product Type. Page assignment requires an accepted Product Type and a verified Page catalog.' as const;
+
+/** True when pages must abstain for a missing effective type (production parity). */
+function isQualificationPageAbstainedForMissingType(effectiveTypeId: string | null): boolean {
+  return effectiveTypeId === null;
+}
+
+/** Universal attribute ids for a taxonomy (explicit list ∪ per-target flags, sorted). */
+function qualificationUniversalIds(taxonomies: QualificationTaxonomies): string[] {
+  const set = new Set<string>(taxonomies.universalAttributeIds ?? []);
+  for (const t of taxonomies.attributeTargets) {
+    if (t.isUniversal === true) set.add(t.targetId);
+  }
+  return [...set].sort();
+}
+
+/** True when the REAL frozen applicability mapping is present (profiles + type pointers). */
+function hasQualificationApplicabilityMapping(taxonomies: QualificationTaxonomies): boolean {
+  return (
+    taxonomies.attributeProfiles !== null &&
+    taxonomies.attributeProfiles !== undefined &&
+    taxonomies.typeAttributeProfiles !== null &&
+    taxonomies.typeAttributeProfiles !== undefined
+  );
+}
+
+/** Frozen profile for an effective type (null = legitimately EMPTY profile, universal-only). */
+function qualificationProfileForType(
+  taxonomies: QualificationTaxonomies,
+  effectiveTypeId: string,
+): { profileId: string | null; profile: QualificationFrozenAttributeProfile | null } {
+  const pointer = taxonomies.typeAttributeProfiles?.[effectiveTypeId];
+  if (pointer === undefined) {
+    throw new Error(
+      `${QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE}: effective type "${effectiveTypeId}" has no frozen profile pointer.`,
+    );
+  }
+  if (pointer === null) return { profileId: null, profile: null };
+  const profile = taxonomies.attributeProfiles?.find(p => p.id === pointer) ?? null;
+  if (!profile) {
+    throw new Error(
+      `${QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE}: effective type "${effectiveTypeId}" declares profile "${pointer}" missing from the frozen snapshot.`,
+    );
+  }
+  return { profileId: pointer, profile };
+}
+
+/** Stub ProductAttributeConfig for one frozen target (carries the universal flag for the shipped helper). */
+function qualificationAttributeStub(
+  target: QualificationTaxonomies['attributeTargets'][number],
+  universalIds: Set<string>,
+): ProductAttributeConfig {
+  const stub = stubAttributeConfig(target.targetId, target.options);
+  (stub as { isUniversal?: boolean }).isUniversal =
+    target.isUniversal === true || universalIds.has(target.targetId);
+  return stub;
+}
+
+/**
+ * Applicable attribute targets for a frozen effective Product Type — the
+ * production replay rule (effective type → Attribute Profile → applicability
+ * → invariants pipeline) via the SHIPPED `evaluateAttributeApplicability`
+ * helper (never reimplemented).
+ *
+ * DELIBERATE metric impact (issue #302): replacing the legacy
+ * all-attributes fallback NARROWS the predicted attribute pool to the
+ * applicable set, so fixed-population precision/recall now penalize extra
+ * proposals to inapplicable targets (false positives lower precision) and
+ * uncovered applicable targets count as misses (lower recall/coverage).
+ * Reported attribute precision/recall/F1 move DOWN vs the legacy inflated
+ * numbers by design — the legacy numbers hid inapplicable extras.
+ *
+ * - Null effective type (abstained/unknown) yields UNIVERSALS only
+ *   (production parity: universals proceed without a type; type-gated
+ *   attributes stay `unknown` → withheld).
+ * - Missing mapping (legacy snapshot without the REAL profile pool) throws
+ *   with `qualification_applicability_unresolvable` — callers map it to a
+ *   coded `blocked` side, never silently broaden to all frozen attributes.
+ * - Unknown effective type / missing declared profile throws the same coded
+ *   error (frozen snapshot inconsistency; never live-config fallback).
+ * - Per-profile cardinality wins over the global target mode; profile-entry
+ *   applicabilityConditions run against empty reviewed facts (no accepted
+ *   facts in replay → conditional attributes stay `unknown` → withheld,
+ *   production parity). Gold labels are NEVER consulted.
+ */
+/** Universals-only applicable set for a null effective type (production parity). */
+function qualificationUniversalsOnly(
+  taxonomies: QualificationTaxonomies,
+  universalIds: Set<string>,
+): QualificationTaxonomies['attributeTargets'] {
+  const byTargetId = new Map(taxonomies.attributeTargets.map(t => [t.targetId, t]));
+  return [...universalIds]
+    .map(id => byTargetId.get(id))
+    .filter((t): t is QualificationTaxonomies['attributeTargets'][number] => !!t)
+    .sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
+/** Profile lookup maps for one effective type (ids + conditions + cardinality). */
+function qualificationProfileLookups(
+  profile: QualificationFrozenAttributeProfile | null,
+): {
+  profileIds: Set<string>;
+  conditionsById: Map<string, unknown[]>;
+  cardinalityById: Map<string, 'single' | 'multiple'>;
+} {
+  return {
+    profileIds: new Set((profile?.attributes ?? []).map(a => a.attributeId)),
+    conditionsById: new Map((profile?.attributes ?? []).map(a => [a.attributeId, a.applicabilityConditions ?? []])),
+    cardinalityById: new Map((profile?.attributes ?? []).map(a => [a.attributeId, a.cardinality])),
+  };
+}
+
+/** True for one target under the shipped applicability helper (production parity). */
+function isQualificationTargetApplicable(
+  target: QualificationTaxonomies['attributeTargets'][number],
+  universalIds: Set<string>,
+  profile: QualificationFrozenAttributeProfile | null,
+  profileIds: Set<string>,
+  conditionsById: Map<string, unknown[]>,
+  effectiveTypeId: string,
+): boolean {
+  const attribute = qualificationAttributeStub(target, universalIds);
+  return evaluateAttributeApplicability({
+    attribute,
+    profileAttributeIds: profile ? profileIds : new Set<string>(),
+    conditions: conditionsById.get(target.targetId) ?? [],
+    acceptedTypeId: effectiveTypeId,
+    typeTargetEnabled: true,
+    reviewedFacts: [],
+    widenedUniversal: false,
+  }).state === 'applicable';
+}
+
+/** Applicable set for a non-null effective type (profile-gated, cardinality-adjusted). */
+function qualificationApplicableForType(
+  taxonomies: QualificationTaxonomies,
+  universalIds: Set<string>,
+  effectiveTypeId: string,
+): QualificationTaxonomies['attributeTargets'] {
+  const { profile } = qualificationProfileForType(taxonomies, effectiveTypeId);
+  const { profileIds, conditionsById, cardinalityById } = qualificationProfileLookups(profile);
+  const applicable: QualificationTaxonomies['attributeTargets'][number][] = [];
+  for (const target of taxonomies.attributeTargets) {
+    if (!isQualificationTargetApplicable(target, universalIds, profile, profileIds, conditionsById, effectiveTypeId)) {
+      continue;
+    }
+    const profileCardinality = cardinalityById.get(target.targetId);
+    applicable.push(
+      profileCardinality && profileCardinality !== target.cardinality
+        ? { ...target, cardinality: profileCardinality }
+        : target,
+    );
+  }
+  return applicable.sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
 function applicableQualificationAttributeTargets(
   taxonomies: QualificationTaxonomies,
   effectiveTypeId: string | null,
 ): QualificationTaxonomies['attributeTargets'] {
-  if (!effectiveTypeId) return [];
-  const mapping = taxonomies.typeProfiles ?? null;
-  if (!mapping) return [...taxonomies.attributeTargets];
-  const allowed = mapping[effectiveTypeId];
-  if (!allowed) return [];
-  const allowedSet = new Set(allowed);
-  return taxonomies.attributeTargets.filter(t => allowedSet.has(t.targetId));
+  if (!hasQualificationApplicabilityMapping(taxonomies)) {
+    throw new Error(
+      `${QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE}: frozen applicability mapping absent; refusing to broaden to all frozen attributes.`,
+    );
+  }
+  const universalIds = new Set(qualificationUniversalIds(taxonomies));
+  if (effectiveTypeId === null) return qualificationUniversalsOnly(taxonomies, universalIds);
+  return qualificationApplicableForType(taxonomies, universalIds, effectiveTypeId);
+}
+
+/**
+ * Deterministic invariant field assignments for a frozen effective type
+ * (production parity with `resolveProductTypeInvariants`: zero model calls,
+ * excluded from the variable loop / Jev questions). Returns sorted
+ * assignments for invariant targets that are APPLICABLE (in-profile or
+ * universal); invariants for inapplicable targets are skipped (frozen
+ * inconsistency is surfaced by applicability, never silently proposed).
+ * Null effective type yields none. Gold labels are NEVER consulted.
+ */
+/** One invariant entry as a field assignment (null when empty/unusable). */
+function qualificationInvariantAssignment(
+  targetId: string,
+  raw: string | string[],
+  cardinality: 'single' | 'multiple' | undefined,
+): { targetId: string; value?: string; values?: string[] } | null {
+  if (Array.isArray(raw)) {
+    const values = [...new Set(raw.map(String))].sort().filter(v => v.length > 0);
+    return values.length > 0 ? { targetId, values } : null;
+  }
+  const value = String(raw);
+  if (value.length === 0) return null;
+  return cardinality === 'multiple' ? { targetId, values: [value] } : { targetId, value };
+}
+
+function qualificationInvariantFieldAssignments(
+  taxonomies: QualificationTaxonomies,
+  effectiveTypeId: string | null,
+  applicableTargets: QualificationTaxonomies['attributeTargets'],
+): Array<{ targetId: string; value?: string; values?: string[] }> {
+  if (effectiveTypeId === null) return [];
+  const invariants = taxonomies.invariantAttributesByType?.[effectiveTypeId];
+  if (!invariants) return [];
+  const applicableIds = new Set(applicableTargets.map(t => t.targetId));
+  const cardinalityById = new Map(applicableTargets.map(t => [t.targetId, t.cardinality]));
+  const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
+  for (const [targetId, raw] of Object.entries(invariants)) {
+    if (!applicableIds.has(targetId)) continue;
+    const assignment = qualificationInvariantAssignment(targetId, raw, cardinalityById.get(targetId));
+    if (assignment) out.push(assignment);
+  }
+  return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
+}
+
+/**
+ * Split applicable targets into invariants + variable sets (production
+ * parity: invariants resolve first, excluded from matchers/Jev). Shared by
+ * the deterministic and live baseline legs so the split cannot drift.
+ */
+function splitQualificationApplicableAndInvariants(
+  taxa: QualificationTaxonomies,
+  effectiveTypeId: string | null,
+  applicable: QualificationTaxonomies['attributeTargets'],
+): {
+  invariants: Array<{ targetId: string; value?: string; values?: string[] }>;
+  variableApplicable: QualificationTaxonomies['attributeTargets'];
+} {
+  const invariants = qualificationInvariantFieldAssignments(taxa, effectiveTypeId, applicable);
+  const invariantIds = new Set(invariants.map(f => f.targetId));
+  return { invariants, variableApplicable: applicable.filter(t => !invariantIds.has(t.targetId)) };
+}
+
+/**
+ * Applicable target ids for scoring/reporting (exported for the evaluator
+ * workstream): the same REAL mapping as prediction (never gold). Throws the
+ * coded unresolvable error when the mapping is absent — scoring callers fall
+ * back to their legacy pool only when they explicitly opt out of the frozen
+ * contract (documented weaker separation).
+ */
+export function qualificationApplicableTargetIds(
+  taxonomies: QualificationTaxonomies,
+  effectiveTypeId: string | null,
+): string[] {
+  return applicableQualificationAttributeTargets(taxonomies, effectiveTypeId).map(t => t.targetId);
 }
 
 /**
@@ -1844,11 +2239,15 @@ export interface QualificationCandidateQuestionSet {
  *
  * Replay fidelity (no gold leakage): attribute plans cover the APPLICABLE
  * frozen attributes for `effectiveTypeId` (production: effective type →
- * profile → applicability), never the gold-adjudicated targets. When
- * `effectiveTypeId` is omitted (wiring/shape proof without a resolved type),
- * all frozen attributes are built (gold-free). Page questions consume the
- * resolved type (never run alongside type resolution — live capture resolves
- * PT first, then builds pages with the frozen type).
+ * profile → applicability → invariants, via the shipped helper), never the
+ * gold-adjudicated targets. Invariant targets resolve deterministically and
+ * are EXCLUDED from Jev questions (production parity — zero model calls).
+ * When `effectiveTypeId` is omitted (wiring/shape proof without a resolved
+ * type), all frozen attributes are built (gold-free, wiring-only — never
+ * scoring). Page questions consume the frozen type (never run alongside type
+ * resolution — live capture resolves PT first, then builds pages); an
+ * explicit null type abstains pages exactly like production
+ * (`no_reviewed_product_type`, never a constructed Choice).
  */
 export function buildQualificationCandidateQuestionSet(
   entry: QualificationGoldOnlyEntry,
@@ -1859,18 +2258,29 @@ export function buildQualificationCandidateQuestionSet(
     taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
   );
   // Pure-construction path has no resolved type yet: build all frozen
-  // attributes (gold-free). Live capture passes the frozen resolved type to
-  // narrow to applicable attributes only.
+  // attributes (gold-free, wiring-only). Live capture passes the frozen
+  // resolved type to narrow to applicable attributes only (fail-closed when
+  // the REAL mapping is absent — never gold).
   const applicable = effectiveTypeId === undefined
     ? [...taxonomies.attributeTargets]
     : applicableQualificationAttributeTargets(taxonomies, effectiveTypeId ?? null);
+  const invariantIds = effectiveTypeId === undefined || effectiveTypeId === null
+    ? new Set<string>()
+    : new Set(
+      qualificationInvariantFieldAssignments(
+        taxonomies,
+        effectiveTypeId,
+        applicable,
+      ).map(f => f.targetId),
+    );
+  const variableApplicable = applicable.filter(t => !invariantIds.has(t.targetId));
   const productContext = {
     name: qualificationProductName(entry),
     brand: null,
     productType: effectiveTypeId ?? null,
   };
   const attributePlans: QualificationCandidateAttributePlan[] = [];
-  for (const target of applicable) {
+  for (const target of variableApplicable) {
     const { resolved } = stubAttributeTarget(target);
     if (target.cardinality === 'multiple') {
       attributePlans.push({
@@ -1888,12 +2298,19 @@ export function buildQualificationCandidateQuestionSet(
       });
     }
   }
-  const pagePlan = taxonomies.pages.length > 0
-    ? buildPageChoiceQuestion(
-      taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
-      effectiveTypeId ?? null,
-    )
-    : null;
+  // PAGE ABSTENTION PARITY (issue #302): an explicit null effective type
+  // (no reviewed/effective Product Type) abstains pages exactly like
+  // production (`no_reviewed_product_type`) — never a constructed Choice.
+  // The wiring-proof path (undefined, no resolved type yet) still builds the
+  // Choice for shape coverage; live capture always passes an explicit type.
+  const pagePlan = taxonomies.pages.length === 0
+    ? null
+    : effectiveTypeId === null
+      ? null
+      : buildPageChoiceQuestion(
+        taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+        effectiveTypeId ?? null,
+      );
   return { productTypePlan, attributePlans, pagePlan };
 }
 
@@ -2052,12 +2469,19 @@ function interpretLiveCandidateAttributes(
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
 }
 
-/** Baseline pages: shipped deterministic keyword matching + floor. */
+/**
+ * Baseline pages: shipped deterministic keyword matching + floor, gated by
+ * Product-Type authority (production parity): a null effective type abstains
+ * (`no_reviewed_product_type`) — never a matcher guess. Callers pass the
+ * FROZEN effective type (null when the PT stage abstained).
+ */
 function predictBaselinePages(
   entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
+  effectiveTypeId: string | null,
 ): string[] {
+  if (isQualificationPageAbstainedForMissingType(effectiveTypeId)) return [];
   if (isQualificationPredictionEmpty(taxonomies.pages.length, evidenceText)) return [];
   const matches = matchKeywordOptions({
     options: taxonomies.pages.map(p => ({ value: p.pageId, label: p.pageName })),
@@ -2093,12 +2517,35 @@ function runDeterministicBaselineStages(
 } {
   const type = predictBaselineProductType(entry, taxa, evidenceText);
   const effectiveTypeId = type.abstained ? null : type.productType;
+  // REAL applicability (fail-closed): throws with the coded unresolvable
+  // reason when the frozen mapping is absent — callers map it to blocked.
+  // Invariants resolve first (shared split helper), matcher runs on variables.
   const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
+  const { invariants, variableApplicable } = splitQualificationApplicableAndInvariants(taxa, effectiveTypeId, applicable);
+  const matched = predictBaselineAttributes(variableApplicable, evidenceText);
+  const fields = [...invariants, ...matched].sort((a, b) => a.targetId.localeCompare(b.targetId));
   return {
     type,
     effectiveTypeId,
-    fields: predictBaselineAttributes(applicable, evidenceText),
-    pages: predictBaselinePages(entry, taxa, evidenceText),
+    fields,
+    pages: predictBaselinePages(entry, taxa, evidenceText, effectiveTypeId),
+  };
+}
+
+/** True for the coded applicability-unresolvable throw (fail-closed, never broadened). */
+function isApplicabilityUnresolvableError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.startsWith(QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE);
+}
+
+/** Map an applicability throw to its coded blocked side (fail-closed). */
+function blockForApplicabilityError(latencyMs: number): ExecutedQualificationPrediction {
+  return {
+    ...blockedQualificationPrediction(
+      QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+      'Frozen Product Type → profile → attribute mapping is absent/unresolvable for this entry; refusing to broaden to all frozen attributes.',
+    ),
+    latencyMs,
   };
 }
 
@@ -2109,16 +2556,24 @@ function executeDeterministicFloorEntryPredictions(
 ): { sku: string; baseline: ExecutedQualificationPrediction; candidate: ExecutedQualificationPrediction } {
   const evidenceText = qualificationEvidenceText(entry);
   const started = Date.now();
-  const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
-  const baseline = floorQualificationPrediction({
-    productType: stages.type.productType,
-    abstained: stages.type.abstained,
-    fieldAssignments: stages.fields,
-    pageIds: stages.pages,
-    confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
-    latencyMs: Math.max(0, Date.now() - started),
-  });
-  return { sku: entry.sku, baseline, candidate: blockedCandidateWithoutCredentials(entry, taxa) };
+  const latency = (): number => Math.max(0, Date.now() - started);
+  try {
+    const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
+    const baseline = floorQualificationPrediction({
+      productType: stages.type.productType,
+      abstained: stages.type.abstained,
+      fieldAssignments: stages.fields,
+      pageIds: stages.pages,
+      confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
+      latencyMs: latency(),
+    });
+    return { sku: entry.sku, baseline, candidate: blockedCandidateWithoutCredentials(entry, taxa) };
+  } catch (err) {
+    if (isApplicabilityUnresolvableError(err)) {
+      return { sku: entry.sku, baseline: blockForApplicabilityError(latency()), candidate: blockedCandidateWithoutCredentials(entry, taxa) };
+    }
+    throw err;
+  }
 }
 
 // ─── Live capture (opt-in, explicit credentials, real transports) ────────────
@@ -2466,11 +2921,28 @@ async function captureCandidateEntryLive(
     if (isCandidateJudgmentSilent(merged, typeOverLimit)) {
       return buildCandidateSilentBlocked(Math.max(0, Date.now() - started));
     }
-    const fieldAssignments = interpretLiveCandidateAttributes(applicableQuestions.attributePlans, merged.answers);
+    const variableFields = interpretLiveCandidateAttributes(applicableQuestions.attributePlans, merged.answers);
+    // Invariants merge deterministically (production parity — never via Jev).
+    const applicableForInvariants = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
+    const invariants = qualificationInvariantFieldAssignments(taxa, effectiveTypeId, applicableForInvariants);
+    const invariantIds = new Set(invariants.map(f => f.targetId));
+    const fieldAssignments = [...invariants, ...variableFields.filter(f => !invariantIds.has(f.targetId))]
+      .sort((a, b) => a.targetId.localeCompare(b.targetId));
+    // Page abstention parity: null effective type yields no pages (the plan
+    // is null above, so the resolver returns [] — never a constructed Choice).
     const pageIds = resolveLiveCandidatePages(applicableQuestions, merged.answers);
 
     return buildCandidateLiveCaptured(type, fieldAssignments, pageIds, merged, Math.max(0, Date.now() - started));
   } catch (err) {
+    if (isApplicabilityUnresolvableError(err)) {
+      return {
+        ...blockedQualificationPrediction(
+          QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+          'Frozen Product Type → profile → attribute mapping is absent/unresolvable for this entry; refusing to broaden.',
+        ),
+        latencyMs: Math.max(0, Date.now() - started),
+      };
+    }
     return fail(redactTransportText(err instanceof Error ? err.message : String(err)));
   }
 }
@@ -2502,12 +2974,17 @@ function baselineLiveNeeds(
   const pagesAttemptable = !isQualificationPredictionEmpty(taxa.pages.length, evidenceText);
   const matchedAttrTargets = new Set(stages.fields.map(f => f.targetId));
   const applicable = applicableQualificationAttributeTargets(taxa, stages.effectiveTypeId);
+  // PAGE ABSTENTION PARITY: a null effective type never attempts a live page
+  // judgment (production `no_reviewed_product_type` abstains before dispatch).
+  const pagesNeed = stages.effectiveTypeId === null
+    ? false
+    : pagesAttemptable && stages.pages.length === 0;
   return {
     type: typeAttemptable && stages.type.abstained,
     attrs: applicable
       .filter(t => !matchedAttrTargets.has(t.targetId))
       .map(t => t.targetId),
-    pages: pagesAttemptable && stages.pages.length === 0,
+    pages: pagesNeed,
   };
 }
 
@@ -2605,6 +3082,10 @@ function buildQualificationBaselineSnapshot(
     attributeTargets: taxa.attributeTargets,
     pages: taxa.pages,
     typeProfiles: taxa.typeProfiles ?? null,
+    typeAttributeProfiles: taxa.typeAttributeProfiles ?? null,
+    attributeProfiles: taxa.attributeProfiles ?? null,
+    universalAttributeIds: taxa.universalAttributeIds ?? null,
+    invariantAttributesByType: taxa.invariantAttributesByType ?? null,
     policyDigest: view.policyDigest,
   }));
   return {
@@ -2875,16 +3356,26 @@ async function applyBaselineChatStagesWithRun(input: {
   // Recompute applicable attributes for the FROZEN resolved type (the
   // pre-computed `needs.attrs` was based on the deterministic type; a live
   // type resolution may have unlocked a new applicable set — never gold).
+  // Shared split helper keeps the invariant/variable division identical to
+  // the deterministic leg; deterministic fields for the OLD type that are
+  // inapplicable under the NEW type are dropped (never carried across).
   const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
-  const matched = new Set(stages.fields.map(f => f.targetId));
-  const liveAttrIds = applicable.filter(t => !matched.has(t.targetId)).map(t => t.targetId);
-  const fields = [...stages.fields];
+  const { invariants, variableApplicable } = splitQualificationApplicableAndInvariants(taxa, effectiveTypeId, applicable);
+  const invariantIds = new Set(invariants.map(f => f.targetId));
+  const applicableIds = new Set(applicable.map(t => t.targetId));
+  const retainedDeterministic = stages.fields.filter(
+    f => applicableIds.has(f.targetId) && !invariantIds.has(f.targetId),
+  );
+  const matched = new Set([...retainedDeterministic.map(f => f.targetId), ...invariantIds]);
+  const liveAttrIds = variableApplicable.filter(t => !matched.has(t.targetId)).map(t => t.targetId);
+  const fields = [...invariants, ...retainedDeterministic];
   await captureBaselineAttributesWithRealBoundary({
     entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds: liveAttrIds, fields,
   });
   fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
-  let pages = [...stages.pages];
-  if (needs.pages) {
+  // PAGE ABSTENTION PARITY: null effective type never attempts pages.
+  let pages = effectiveTypeId === null ? [] : [...stages.pages];
+  if (needs.pages && effectiveTypeId !== null) {
     pages = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId });
   }
   return { productType, abstained, confidence, effectiveTypeId, fields, pages };
@@ -3002,6 +3493,12 @@ function blockBaselineCaptureError(
   err: unknown,
   block: (code: string, detail: string) => ExecutedQualificationPrediction,
 ): ExecutedQualificationPrediction {
+  if (isApplicabilityUnresolvableError(err)) {
+    return block(
+      QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+      'Frozen Product Type → profile → attribute mapping is absent/unresolvable for this entry; refusing to broaden.',
+    );
+  }
   if (err instanceof ModelPolicyDeniedError) {
     return block(
       QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
@@ -3112,6 +3609,34 @@ function failBaselineLiveRun(
   return blockBaselineCaptureError(err, block);
 }
 
+/** Deterministic stages or null when applicability is unresolvable (fail-closed). */
+function loadBaselineDeterministicStages(
+  entry: QualificationGoldOnlyEntry,
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+): ReturnType<typeof runDeterministicBaselineStages> | null {
+  try {
+    return runDeterministicBaselineStages(entry, taxa, evidenceText);
+  } catch (err) {
+    if (isApplicabilityUnresolvableError(err)) return null;
+    throw err;
+  }
+}
+
+/** Live needs or null when applicability is unresolvable (fail-closed). */
+function loadBaselineLiveNeeds(
+  taxa: QualificationTaxonomies,
+  evidenceText: string,
+  stages: ReturnType<typeof runDeterministicBaselineStages>,
+): BaselineLiveNeeds | null {
+  try {
+    return baselineLiveNeeds(taxa, evidenceText, stages);
+  } catch (err) {
+    if (isApplicabilityUnresolvableError(err)) return null;
+    throw err;
+  }
+}
+
 /**
  * Capture one entry's baseline side with the incumbent precedence:
  * deterministic matcher first; REAL decision boundaries
@@ -3139,10 +3664,19 @@ async function captureBaselineEntryLive(
 ): Promise<ExecutedQualificationPrediction> {
   const started = Date.now();
   const latency = (): number => Math.max(0, Date.now() - started);
-  const stages = runDeterministicBaselineStages(entry, taxa, evidenceText);
+  const blockedForApplicability = (): ExecutedQualificationPrediction => ({
+    ...blockedQualificationPrediction(
+      QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+      'Frozen Product Type → profile → attribute mapping is absent/unresolvable for this entry; refusing to broaden.',
+    ),
+    latencyMs: latency(),
+  });
+  const stages = loadBaselineDeterministicStages(entry, taxa, evidenceText);
+  if (!stages) return blockedForApplicability();
   const asFloor = (): ExecutedQualificationPrediction => buildBaselineFloorFromStages(stages, latency());
   if (!hasBaselineLiveRoute(route, view)) return asFloor();
-  const needs = baselineLiveNeeds(taxa, evidenceText, stages);
+  const needs = loadBaselineLiveNeeds(taxa, evidenceText, stages);
+  if (!needs) return blockedForApplicability();
   if (isBaselineLiveNeedsEmpty(needs)) return asFloor();
 
   const block = (code: string, detail: string): ExecutedQualificationPrediction => ({

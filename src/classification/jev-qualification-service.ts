@@ -30,6 +30,13 @@ import type { BenchmarkPredictionEntry, EvalMetrics } from '../shared/schemas/cl
 // Canonical proof version produced by `verifyFamilySeparation` (single
 // definition site — the exporter owns the proof, this service validates it).
 import { FAMILY_SEPARATION_PROOF_VERSION } from './benchmark-exporter';
+// REAL applicability for fixed-population attribute scoring (issue #302):
+// the shipped frozen-mapping helpers live in benchmark-prediction (single
+// definition site — this service reuses them, never reimplements).
+import {
+  qualificationTaxonomiesFromFrozenSnapshot,
+  qualificationApplicableTargetIds,
+} from './benchmark-prediction';
 import type {
   CompatibilityReceipt,
   FamilySeparationProof,
@@ -371,19 +378,74 @@ function tallyJevAttributeOutcome(
   tallyJevAttributeCorrectness(acc, baseAllCorrect, candAllCorrect, baseAnswered, candAnswered);
 }
 
-/** Score the attributes comparison for one entry (skipped without gold fields). */
+/**
+ * Resolve the FIXED-POPULATION applicable attribute set for one entry
+ * (issue #302, from item 1's REAL mapping — never gold-gated prediction).
+ *
+ * - `unlabeled` gold → null (excluded from the eligible denominator, matching
+ *   benchmark-evaluator's `excluded` verdict — never counted correct/incorrect).
+ * - Frozen mapping present → applicable ids for the GOLD effective type
+ *   (`known-type` typeId, else null → universals only). Throws in prediction;
+ *   scoring falls back to the union (weaker, still penalizes extras) rather
+ *   than blocking the report.
+ * - Frozen absent (legacy script runs) → union of gold + predicted target ids
+ *   (gold-free denominator for extras: extra proposals to inapplicable targets
+ *   are still visible as false positives, though uncovered applicable misses
+ *   beyond gold cannot be seen — documented weaker separation).
+ */
+function resolveJevAttributeApplicableIds(
+  entry: QualificationGoldEntry,
+  frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null,
+): string[] | null {
+  if (entry.gold.productType.kind === 'unlabeled') return null;
+  const predictedIds = new Set<string>();
+  for (const f of entry.baseline.fieldAssignments) predictedIds.add(f.targetId);
+  for (const f of entry.candidate.fieldAssignments) predictedIds.add(f.targetId);
+  if (frozenTaxonomies) {
+    try {
+      const goldEffectiveTypeId = entry.gold.productType.kind === 'known-type'
+        ? entry.gold.productType.typeId
+        : null;
+      const applicable = qualificationApplicableTargetIds(frozenTaxonomies, goldEffectiveTypeId);
+      return [...new Set([...applicable, ...predictedIds])].sort();
+    } catch {
+      // Scoring never blocks on mapping gaps — fall through to union.
+    }
+  }
+  const goldIds = new Set(entry.gold.fieldAssignments.map(f => f.targetId));
+  return [...new Set([...goldIds, ...predictedIds])].sort();
+}
+
+/**
+ * Score the attributes comparison for one entry over the FIXED-POPULATION
+ * applicable set (issue #302).
+ *
+ * DELIBERATE metric impact: replacing the legacy gold-only loop NARROWS the
+ * denominator to the applicable set PLUS extra predicted targets, so extra
+ * proposals to inapplicable targets (`organic`/`material`/`life_stage` when
+ * outside the profile) now count as false positives (precision/recall/F1 move
+ * DOWN vs the legacy inflated numbers by design) and uncovered applicable
+ * targets count as misses (recall/coverage down). Abstention stays honest:
+ * an entry with no predictions and all applicable uncovered counts as a miss
+ * (not correct, not an incorrect proposal); an abstention on
+ * no-fit/insufficient-evidence with no predictions counts as correct.
+ */
 function accumulateJevAttributeStage(
   acc: JevComparisonAccumulator,
   entry: QualificationGoldEntry,
+  frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null = null,
 ): void {
-  if (entry.gold.fieldAssignments.length === 0) return;
+  const applicableIds = resolveJevAttributeApplicableIds(entry, frozenTaxonomies);
+  if (applicableIds === null) return;
+  if (applicableIds.length === 0) return;
   acc.attrEvaluatedCount++;
   const goldAttrMap = attributeValueSetsOf(entry.gold.fieldAssignments);
   const baseAttrMap = attributeValueSetsOf(entry.baseline.fieldAssignments);
   const candAttrMap = attributeValueSetsOf(entry.candidate.fieldAssignments);
   let allBaseFieldsCorrect = true;
   let allCandFieldsCorrect = true;
-  for (const [targetId, goldSet] of goldAttrMap) {
+  for (const targetId of applicableIds) {
+    const goldSet = goldAttrMap.get(targetId) ?? new Set<string>();
     const { baseExact, candExact } = scoreJevAttributeTarget(
       acc,
       goldSet,
@@ -473,10 +535,11 @@ function accumulateJevTelemetry(
 function accumulateJevComparisonEntry(
   acc: JevComparisonAccumulator,
   entry: QualificationGoldEntry,
+  frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null = null,
 ): void {
   accumulateJevTelemetry(acc, entry);
   accumulateJevProductTypeStage(acc, entry);
-  accumulateJevAttributeStage(acc, entry);
+  accumulateJevAttributeStage(acc, entry, frozenTaxonomies);
   accumulateJevPageStage(acc, entry);
 }
 
@@ -762,10 +825,23 @@ export function evaluateJevOfflineComparison(
   const devEntries = goldset.entries.filter(e => e.split === 'dev');
   const holdoutEntries = goldset.entries.filter(e => e.split === 'holdout');
 
+  // Fixed-population applicability (issue #302): when the goldset carries the
+  // frozen taxonomy, attribute scoring uses the REAL applicable set per entry
+  // (gold type's profile + predicted extras); otherwise it falls back to the
+  // gold+predicted union (still penalizes extras, weaker on uncovered misses).
+  let frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null = null;
+  if (goldset.frozenTaxonomy) {
+    try {
+      frozenTaxonomies = qualificationTaxonomiesFromFrozenSnapshot(goldset.frozenTaxonomy);
+    } catch {
+      frozenTaxonomies = null;
+    }
+  }
+
   const acc = emptyJevComparisonAccumulator();
 
   for (const entry of entries) {
-    accumulateJevComparisonEntry(acc, entry);
+    accumulateJevComparisonEntry(acc, entry, frozenTaxonomies);
   }
 
   const total = entries.length;
@@ -853,6 +929,17 @@ interface ProductionQualificationInputs {
    */
   compatibilityReceipt?: CompatibilityReceipt | null;
   /**
+   * Commit the compatibility receipt must be bound to (issue #302): the
+   * current HEAD (or the explicitly qualified commit/digest recorded with the
+   * run). Every suite's `commit` must equal this value — an old green receipt
+   * cannot qualify later changed code. Null/undefined means the caller did
+   * not bind (fail-closed when a receipt is present but unbound? No — legacy
+   * callers without binding keep the prior non-empty-commit check; binding is
+   * enforced whenever an expected commit is supplied, and the qualification
+   * runner always supplies HEAD).
+   */
+  compatibilityExpectedCommit?: string | null;
+  /**
    * Operator-documentation receipt (published runbook path + content hash
    * recorded at qualification time). Absent or failing receipt keeps the
    * fail-closed blocker below.
@@ -919,20 +1006,49 @@ function isValidFamilySeparationProof(proof: FamilySeparationProof | null | unde
   );
 }
 
-/** True for a compatibility receipt with every required suite passing. */
-function isValidCompatibilityReceipt(receipt: CompatibilityReceipt | null | undefined): boolean {
+/**
+ * True for a compatibility receipt with every required suite passing AND
+ * commit-bound to the code being qualified (issue #302).
+ *
+ * DELIBERATE gate tightening: when `expectedCommit` is supplied (the runner
+ * always supplies HEAD), every suite's `commit` must equal it — an old green
+ * receipt for a different commit FAILS (blocker retained), even when every
+ * suite passed. When `expectedCommit` is absent (legacy direct callers), the
+ * prior non-empty-commit check applies (documented weaker binding — the
+ * runner never uses this path).
+ */
+function isValidCompatibilityReceipt(
+  receipt: CompatibilityReceipt | null | undefined,
+  expectedCommit?: string | null,
+): boolean {
   if (!receipt || typeof receipt !== 'object' || !Array.isArray(receipt.suites)) return false;
   if (typeof receipt.recordedAt !== 'string' || receipt.recordedAt.trim() === '') return false;
   const byId = new Map(receipt.suites.map(suite => [suite?.suiteId, suite]));
+  const bound = typeof expectedCommit === 'string' && expectedCommit.trim() !== '';
   return (REQUIRED_COMPATIBILITY_SUITE_IDS as readonly string[]).every(suiteId => {
     const result = byId.get(suiteId);
-    return (
-      !!result &&
-      result.passed === true &&
-      typeof result.commit === 'string' &&
-      result.commit.trim() !== ''
-    );
+    if (!result || result.passed !== true) return false;
+    if (typeof result.commit !== 'string' || result.commit.trim() === '') return false;
+    if (bound && result.commit !== expectedCommit) return false;
+    return true;
   });
+}
+
+/**
+ * Commit-mismatch detail for a receipt that passes structurally but is bound
+ * to a different commit (fail-closed — blocker retained, never silently
+ * current). Null when structurally invalid or fully bound.
+ */
+function compatibilityCommitMismatchDetail(
+  receipt: CompatibilityReceipt | null | undefined,
+  expectedCommit?: string | null,
+): string | null {
+  if (!receipt || typeof expectedCommit !== 'string' || expectedCommit.trim() === '') return null;
+  const mismatched = (receipt.suites ?? [])
+    .filter(s => typeof s?.commit === 'string' && s.commit !== expectedCommit)
+    .map(s => `${s.suiteId}@${s.commit.slice(0, 12)}`);
+  if (mismatched.length === 0) return null;
+  return `compatibility receipt bound to ${mismatched.join(', ')}; expected ${expectedCommit.slice(0, 12)}… (refresh after the suites pass at the qualified commit)`;
 }
 
 /** True for an operator-docs receipt bound to the published runbook bytes. */
@@ -1089,24 +1205,31 @@ function assessFamilySeparationGates(
  * the already-green suites (other providers, deterministic rules, frozen
  * snapshots, legacy reads) with suite identifiers + commit + pass status at
  * qualification time, the gate fails closed with the blocker below. A valid
- * receipt sets `compatibilityVerified` and clears the blocker.
+ * receipt sets `compatibilityVerified` and clears the blocker. Commit-bound
+ * (issue #302): when `expectedCommit` is supplied, every suite commit must
+ * match it — a stale green receipt for an older commit retains the blocker.
  */
 function assessCompatibilityGates(
   blockers: ProductionQualificationBlocker[],
   checklist: ProductionChecklist,
   receipt: CompatibilityReceipt | null | undefined,
+  expectedCommit?: string | null,
 ): void {
-  if (isValidCompatibilityReceipt(receipt)) {
+  if (isValidCompatibilityReceipt(receipt, expectedCommit ?? null)) {
     checklist.compatibilityVerified = true;
     return;
   }
   checklist.compatibilityVerified = false;
+  const mismatch = compatibilityCommitMismatchDetail(receipt, expectedCommit ?? null);
   blockers.push({
     criterion: 8,
     area: 'compatibility',
     code: 'compatibility_unverified',
-    message: 'Compatibility with other providers, deterministic rules, frozen snapshots, and legacy reads is unverified.',
-    actionRequired: 'Run compatibility verification (other providers, deterministic rules, frozen snapshots, legacy reads) and wire its result into qualification.',
+    message: mismatch
+      ?? 'Compatibility with other providers, deterministic rules, frozen snapshots, and legacy reads is unverified.',
+    actionRequired: mismatch
+      ? `Re-run the four compatibility suites at ${String(expectedCommit).slice(0, 12)}… and refresh the receipt (receipt records the commit it passed on).`
+      : 'Run compatibility verification (other providers, deterministic rules, frozen snapshots, legacy reads) and wire its result into qualification.',
   });
 }
 
@@ -1277,7 +1400,7 @@ export function assessProductionQualification(
   }
 
   assessFamilySeparationGates(blockers, checklist, options.familySeparationProof);
-  assessCompatibilityGates(blockers, checklist, options.compatibilityReceipt);
+  assessCompatibilityGates(blockers, checklist, options.compatibilityReceipt, options.compatibilityExpectedCommit ?? null);
   assessOperatorDocumentationGates(blockers, checklist, options.operatorDocsReceipt);
   assessLiveContractGates(blockers, options);
   assessCanaryGates(blockers, options);

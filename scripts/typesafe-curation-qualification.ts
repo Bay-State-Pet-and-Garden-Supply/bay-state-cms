@@ -378,6 +378,47 @@ function readCompatibilityReceipt(): CompatibilityInput {
 }
 const compat = readCompatibilityReceipt();
 
+/**
+ * Commit the compatibility receipt must be bound to (issue #302): the
+ * current HEAD, or the explicitly qualified commit/digest recorded with the
+ * run (`TYPESAFE_QUALIFIED_COMMIT`). Every suite commit must equal it — an
+ * old green receipt cannot qualify later changed code (fail-closed on
+ * mismatch, blocker retained). Receipt/compat wiring only — the
+ * prediction-capture invocation above is untouched.
+ */
+/** Explicit qualified commit from the environment (null when absent). */
+function readExplicitQualifiedCommit(): { commit: string; source: string } | null {
+  const explicit = process.env.TYPESAFE_QUALIFIED_COMMIT?.trim();
+  return explicit ? { commit: explicit, source: 'env TYPESAFE_QUALIFIED_COMMIT' } : null;
+}
+
+/** Current HEAD or null when git is unavailable (fail-closed downstream). */
+function readGitHeadCommit(): { commit: string; source: string } | null {
+  try {
+    const proc = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { stdout: 'pipe', stderr: 'pipe' });
+    const head = proc.stdout.toString().trim();
+    if (proc.exitCode === 0 && /^[0-9a-f]{4,64}$/i.test(head)) return { commit: head, source: 'git HEAD' };
+  } catch {
+    // Fall through to unresolvable below (fail-closed).
+  }
+  return null;
+}
+
+function resolveCompatibilityExpectedCommit(): { commit: string | null; source: string } {
+  return readExplicitQualifiedCommit()
+    ?? readGitHeadCommit()
+    ?? warnUnresolvableCompatibilityCommit();
+}
+
+/** Warn once when no commit binding is available (fail-closed: nothing clears). */
+function warnUnresolvableCompatibilityCommit(): { commit: null; source: string } {
+  console.error(
+    'Warning: cannot resolve current HEAD for compatibility binding (not a git repo or git unavailable); no compatibility receipt can clear while unbound.',
+  );
+  return { commit: null, source: 'unresolvable (unverified)' };
+}
+const compatExpected = resolveCompatibilityExpectedCommit();
+
 // 7. Operator-docs receipt bound live to the published runbook bytes: the
 // content hash is computed at runtime, so any doc edit changes the receipt
 // and visibly invalidates prior qualification outputs. Unreadable runbook
@@ -413,6 +454,7 @@ const assessment = assessProductionQualification({
   canaryCohortPagesReviewed: canary.cohortPages,
   familySeparationProof,
   compatibilityReceipt: compat.receipt,
+  compatibilityExpectedCommit: compatExpected.commit,
   operatorDocsReceipt,
   offlineComparisonReport: comparisonReport,
 });
@@ -578,6 +620,8 @@ const compatibilityProvenance = {
   receipt: compat.receipt,
   source: compat.source,
   detail: compat.detail,
+  expectedCommit: compatExpected.commit,
+  expectedCommitSource: compatExpected.source,
 };
 const operatorDocsProvenance = {
   receipt: operatorDocsReceipt,
@@ -613,7 +657,7 @@ if (Object.keys(predictionSources.blockedCodes).length > 0) {
 console.log(`Live check:       ${liveCheckDetail}`);
 console.log(`Canary receipts:  ${canary.source} (PT=${canary.productType} Attr=${canary.attributes} Pages=${canary.cohortPages})`);
 console.log(`Family proof:     ${familyProofDetail}`);
-console.log(`Compatibility:    ${compat.detail}`);
+console.log(`Compatibility:    ${compat.detail} (expected ${compatExpected.commit ? compatExpected.commit.slice(0, 12) + '…' : 'unresolvable'} via ${compatExpected.source})`);
 console.log(`Operator docs:    ${operatorDocsDetail}\n`);
 
 console.log(`Evaluated Examples: ${comparisonReport.evaluatedExamples} (Dev: ${comparisonReport.devCount}, Holdout: ${comparisonReport.holdoutCount})`);

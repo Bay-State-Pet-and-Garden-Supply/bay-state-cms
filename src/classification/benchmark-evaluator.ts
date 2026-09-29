@@ -2257,24 +2257,73 @@ function fieldPredictionMap(
   return new Map((pred?.fieldAssignments ?? []).map(field => [field.targetId, field.value]));
 }
 
-/** Score per-target field support/accuracy over non-null gold values. */
+/** Fixed-population target ids for one example (gold ∪ predicted, sorted). */
+function fixedPopulationTargetIdsForExample(
+  example: GoldExampleForEvaluation,
+  predFields: Map<string, string | null | undefined>,
+): string[] {
+  const goldIds = example.goldLabels.fieldAssignments.map(f => f.targetId);
+  return [...new Set([...goldIds, ...predFields.keys()])].sort();
+}
+
+/** Gold value for one target (null when absent). */
+function fixedPopulationGoldValueOf(
+  example: GoldExampleForEvaluation,
+  targetId: string,
+): string | null {
+  return example.goldLabels.fieldAssignments.find(f => f.targetId === targetId)?.value ?? null;
+}
+
+/** Score one fixed-population slot into field stats (extras = support + incorrect). */
+function scoreFixedPopulationFieldSlot(
+  fieldStats: Record<string, { support: number; correct: number }>,
+  targetId: string,
+  goldValue: string | null,
+  predictedValue: string | null | undefined,
+): void {
+  if (goldValue === null && (predictedValue === null || predictedValue === undefined)) return;
+  const stats = fieldStats[targetId] ?? { support: 0, correct: 0 };
+  fieldStats[targetId] = stats;
+  stats.support++;
+  if (goldValue !== null && predictedValue === goldValue) stats.correct++;
+}
+
+/**
+ * Score per-target field support/accuracy over the FIXED-POPULATION
+ * applicable set (issue #302).
+ *
+ * DELIBERATE metric impact: the legacy gold-only loop hid extra proposals to
+ * inapplicable targets. Extras now count as support + incorrect (accuracy DOWN
+ * by design) so incorrect `organic`/`material`/`life_stage` extras are visible
+ * in `targetAccuracy`/`targetSupport`. Uncovered applicable targets were and
+ * remain misses (accuracy down, honest: abstained ≠ wrong).
+ */
 function scoreMetricsFieldSection(
   gold: GoldExampleForEvaluation[],
   predictions: BenchmarkPredictionEntry[],
 ): Record<string, { support: number; correct: number }> {
   const fieldStats: Record<string, { support: number; correct: number }> = {};
   for (const example of gold) {
-    const predFields = fieldPredictionMap(predictions, example.id);
-    for (const goldField of example.goldLabels.fieldAssignments) {
-      if (goldField.value === null) continue;
-      fieldStats[goldField.targetId] = fieldStats[goldField.targetId] ?? { support: 0, correct: 0 };
-      fieldStats[goldField.targetId].support++;
-      if (predFields.get(goldField.targetId) === goldField.value) {
-        fieldStats[goldField.targetId].correct++;
-      }
-    }
+    scoreMetricsFieldExample(fieldStats, example, predictions);
   }
   return fieldStats;
+}
+
+/** Score one example's fixed-population slots into field stats. */
+function scoreMetricsFieldExample(
+  fieldStats: Record<string, { support: number; correct: number }>,
+  example: GoldExampleForEvaluation,
+  predictions: BenchmarkPredictionEntry[],
+): void {
+  const predFields = fieldPredictionMap(predictions, example.id);
+  for (const targetId of fixedPopulationTargetIdsForExample(example, predFields)) {
+    scoreFixedPopulationFieldSlot(
+      fieldStats,
+      targetId,
+      fixedPopulationGoldValueOf(example, targetId),
+      predFields.get(targetId) ?? null,
+    );
+  }
 }
 
 /** Apply per-target field support/accuracy to the metrics. */
@@ -2290,25 +2339,56 @@ function applyFieldSection(
   );
 }
 
-/** Score corrections-per-hundred over non-null gold field values. */
+/**
+ * Score corrections-per-hundred over the fixed population (issue #302).
+ *
+ * DELIBERATE metric impact: extras (predicted value with no gold value)
+ * now count as corrections (numerator AND denominator grow, rate moves UP by
+ * design — the legacy rate hid inapplicable extras). Double-absent slots
+ * stay unscored (abstained ≠ wrong).
+ */
+/** Accumulate one fixed-population slot into corrections totals. */
+function accumulateOperationsSlot(
+  totals: { corrections: number; proposals: number },
+  goldValue: string | null,
+  predicted: string | null | undefined,
+): void {
+  if (goldValue === null && (predicted === null || predicted === undefined)) return;
+  totals.proposals++;
+  if (goldValue === null) {
+    totals.corrections++;
+    return;
+  }
+  if (predicted !== null && predicted !== undefined && predicted !== goldValue) {
+    totals.corrections++;
+  }
+}
+
+/** Accumulate one example's fixed-population slots into corrections totals. */
+function accumulateOperationsExample(
+  totals: { corrections: number; proposals: number },
+  example: GoldExampleForEvaluation,
+  predictions: BenchmarkPredictionEntry[],
+): void {
+  const predFields = fieldPredictionMap(predictions, example.id);
+  for (const targetId of fixedPopulationTargetIdsForExample(example, predFields)) {
+    accumulateOperationsSlot(
+      totals,
+      fixedPopulationGoldValueOf(example, targetId),
+      predFields.get(targetId),
+    );
+  }
+}
+
 function scoreMetricsOperationsSection(
   gold: GoldExampleForEvaluation[],
   predictions: BenchmarkPredictionEntry[],
 ): number {
-  let totalCorrections = 0;
-  let totalFieldProposals = 0;
+  const totals = { corrections: 0, proposals: 0 };
   for (const example of gold) {
-    const predFields = fieldPredictionMap(predictions, example.id);
-    for (const goldField of example.goldLabels.fieldAssignments) {
-      if (goldField.value === null) continue;
-      totalFieldProposals++;
-      const predicted = predFields.get(goldField.targetId);
-      if (predicted !== null && predicted !== undefined && predicted !== goldField.value) {
-        totalCorrections++;
-      }
-    }
+    accumulateOperationsExample(totals, example, predictions);
   }
-  return totalFieldProposals > 0 ? (totalCorrections / totalFieldProposals) * 100 : 0;
+  return totals.proposals > 0 ? (totals.corrections / totals.proposals) * 100 : 0;
 }
 
 /** Cross-species violation text for one page (null when consistent). */
@@ -3642,11 +3722,16 @@ export function findPredictionsOutsideFrozenTaxonomy(
 
 /**
  * List structural problems in a frozen snapshot (duplicate ids, empty option
- * sets). Empty means well-formed. Complements the zod schema for plain-JS
- * callers that never parse through it.
+ * sets, plus the REAL profile mapping when present). Empty means well-formed.
+ * Complements the zod schema for plain-JS callers that never parse through
+ * it. Additive only (issue #302): legacy snapshots without the mapping stay
+ * valid; present mappings are validated (dangling pointers fail).
  */
-export function verifyFrozenTaxonomySnapshotShape(frozen: FrozenTaxonomySnapshot): string[] {
-  const findings: string[] = [];
+/** Duplicate-id findings for the core frozen pools (types/targets/pages). */
+function checkFrozenCoreDuplicates(
+  frozen: FrozenTaxonomySnapshot,
+  findings: string[],
+): { typeIds: string[]; targetIds: string[] } {
   const typeIds = frozen.productTypes.map(t => t.id);
   if (new Set(typeIds).size !== typeIds.length) {
     findings.push('frozen_taxonomy_shape: duplicate product type ids');
@@ -3664,5 +3749,87 @@ export function verifyFrozenTaxonomySnapshotShape(frozen: FrozenTaxonomySnapshot
   if (new Set(pageIds).size !== pageIds.length) {
     findings.push('frozen_taxonomy_shape: duplicate page ids');
   }
+  return { typeIds, targetIds };
+}
+
+/** Profile-reference findings for one raw profile entry. */
+function checkFrozenProfileReferences(
+  raw: { id?: unknown; productTypeId?: unknown; attributes?: unknown },
+  typeIdSet: Set<string>,
+  targetIdSet: Set<string>,
+  findings: string[],
+): void {
+  if (typeof raw.productTypeId !== 'string' || !typeIdSet.has(raw.productTypeId)) {
+    findings.push('frozen_taxonomy_shape: profile "' + String(raw.id) + '" references unknown product type');
+  }
+  for (const attr of (Array.isArray(raw.attributes) ? raw.attributes : []) as Array<{ attributeId?: unknown }>) {
+    if (typeof attr.attributeId !== 'string' || !targetIdSet.has(attr.attributeId)) {
+      findings.push('frozen_taxonomy_shape: profile "' + String(raw.id) + '" references unknown attribute target');
+    }
+  }
+}
+
+/** Type→profile pointer findings (declared profiles must exist). */
+function checkFrozenTypeProfilePointers(
+  frozen: FrozenTaxonomySnapshot,
+  profiles: unknown[],
+  findings: string[],
+): void {
+  const profileIds = new Set(profiles.map(p => (p as { id?: unknown }).id));
+  for (const t of frozen.productTypes) {
+    const pointer = (t as { attributeProfileId?: unknown }).attributeProfileId;
+    if (pointer !== undefined && pointer !== null && typeof pointer === 'string' && !profileIds.has(pointer)) {
+      findings.push('frozen_taxonomy_shape: type "' + t.id + '" declares missing profile "' + pointer + '"');
+    }
+  }
+}
+
+/** Attribute-profile mapping findings (additive: absent mapping stays valid). */
+function checkFrozenAttributeProfiles(
+  frozen: FrozenTaxonomySnapshot,
+  typeIdSet: Set<string>,
+  targetIdSet: Set<string>,
+  findings: string[],
+): void {
+  const profiles = (frozen as { attributeProfiles?: unknown }).attributeProfiles;
+  if (profiles === undefined) return;
+  if (!Array.isArray(profiles)) {
+    findings.push('frozen_taxonomy_shape: attributeProfiles must be an array');
+    return;
+  }
+  const profileIds = profiles.map((p: unknown) => (p as { id?: unknown }).id);
+  if (new Set(profileIds).size !== profileIds.length) {
+    findings.push('frozen_taxonomy_shape: duplicate attribute profile ids');
+  }
+  for (const raw of profiles as Array<{ id?: unknown; productTypeId?: unknown; attributes?: unknown }>) {
+    checkFrozenProfileReferences(raw, typeIdSet, targetIdSet, findings);
+  }
+  checkFrozenTypeProfilePointers(frozen, profiles, findings);
+}
+
+/** Universal-attribute findings (additive: absent list stays valid). */
+function checkFrozenUniversals(
+  frozen: FrozenTaxonomySnapshot,
+  targetIdSet: Set<string>,
+  findings: string[],
+): void {
+  const universals = (frozen as { universalAttributeIds?: unknown }).universalAttributeIds;
+  if (universals === undefined) return;
+  if (!Array.isArray(universals)) {
+    findings.push('frozen_taxonomy_shape: universalAttributeIds must be an array');
+    return;
+  }
+  for (const id of universals as unknown[]) {
+    if (typeof id !== 'string' || !targetIdSet.has(id)) {
+      findings.push('frozen_taxonomy_shape: universal attribute "' + String(id) + '" not in attribute targets');
+    }
+  }
+}
+
+export function verifyFrozenTaxonomySnapshotShape(frozen: FrozenTaxonomySnapshot): string[] {
+  const findings: string[] = [];
+  const { typeIds, targetIds } = checkFrozenCoreDuplicates(frozen, findings);
+  checkFrozenAttributeProfiles(frozen, new Set(typeIds), new Set(targetIds), findings);
+  checkFrozenUniversals(frozen, new Set(targetIds), findings);
   return findings;
 }

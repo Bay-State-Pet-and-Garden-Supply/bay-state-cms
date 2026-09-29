@@ -78,6 +78,9 @@ import {
   QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
   QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
   QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED,
+  QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+  QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE,
+  QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_REASON,
   blockedQualificationPrediction,
   type QualificationGoldOnlyEntry,
   type QualificationTaxonomies,
@@ -1003,12 +1006,26 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       return parseQualificationGoldOnly(JSON.parse(fs.readFileSync(fixturePath, 'utf8')));
     }
 
+    function qualificationHeadCommit(): string {
+      try {
+        const proc = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { stdout: 'pipe', stderr: 'pipe' });
+        const head = proc.stdout.toString().trim();
+        if (proc.exitCode === 0 && /^[0-9a-f]{4,64}$/i.test(head)) return head;
+      } catch {
+        // Fall through to explicit test binding below.
+      }
+      return 'test-qualified-commit-head';
+    }
+
     function buildValidEvidence() {
       const familySeparationProof = verifyFamilySeparation(loadGoldEntries());
+      // Commit-bound (issue #302): the receipt commit MUST equal the
+      // explicitly qualified commit — never a placeholder that clears gates.
+      const compatibilityExpectedCommit = qualificationHeadCommit();
       const compatibilityReceipt = {
         suites: REQUIRED_COMPATIBILITY_SUITE_IDS.map(suiteId => ({
           suiteId,
-          commit: 'evidence-commit-abc1234',
+          commit: compatibilityExpectedCommit,
           passed: true as const,
           executedAt: null,
         })),
@@ -1020,7 +1037,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         contentHash: createHash('sha256').update(fs.readFileSync(runbookPath)).digest('hex'),
         publishedAt: null,
       };
-      return { familySeparationProof, compatibilityReceipt, operatorDocsReceipt };
+      return { familySeparationProof, compatibilityReceipt, compatibilityExpectedCommit, operatorDocsReceipt };
     }
 
     it('returns qualified when offline evidence is clean and all receipts are valid', () => {
@@ -1093,6 +1110,25 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       });
       expect(failing.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
       expect(failing.checklist.compatibilityVerified).toBe(false);
+    });
+
+    it('keeps the compatibility blocker on commit mismatch (stale green receipt cannot qualify new code)', () => {
+      const evidence = buildValidEvidence();
+      const stale = assessProductionQualification({
+        ...operationalPass,
+        offlineComparisonReport: evaluateJevOfflineComparison(loadExecutedQualificationGoldset()),
+        ...evidence,
+        compatibilityReceipt: {
+          ...evidence.compatibilityReceipt,
+          suites: evidence.compatibilityReceipt.suites.map(suite => ({
+            ...suite,
+            commit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+          })),
+        },
+      });
+      expect(stale.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
+      expect(stale.checklist.compatibilityVerified).toBe(false);
+      expect(stale.blockers.find(b => b.code === 'compatibility_unverified')?.message).toContain('expected');
     });
 
     it('keeps the operator-docs blocker on a wrong path or malformed hash', () => {
@@ -1200,16 +1236,43 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
     }
 
     function tinyQualificationTaxonomies(): QualificationTaxonomies {
+      // REAL frozen mapping (issue #302): type → profile → applicable
+      // attributes (no invariants here so the live-transport tests exercise
+      // Jev Noul/Choice for both targets; universals proceed without a type).
       return {
         productTypes: [
-          { id: 'dog_food_dry', label: 'Dry Dog Food' },
-          { id: 'cat_treat', label: 'Cat Treat' },
+          { id: 'dog_food_dry', label: 'Dry Dog Food', attributeProfileId: 'dog_food_dry-profile' },
+          { id: 'cat_treat', label: 'Cat Treat', attributeProfileId: 'cat_treat-profile' },
         ],
         attributeTargets: [
           { targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] },
-          { targetId: 'animal_type', cardinality: 'multiple', options: ['dog', 'cat'] },
+          { targetId: 'animal_type', cardinality: 'multiple', options: ['dog', 'cat'], isUniversal: true },
         ],
         pages: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+        typeAttributeProfiles: {
+          dog_food_dry: 'dog_food_dry-profile',
+          cat_treat: 'cat_treat-profile',
+        },
+        attributeProfiles: [
+          {
+            id: 'dog_food_dry-profile',
+            productTypeId: 'dog_food_dry',
+            attributes: [
+              { attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] },
+              { attributeId: 'animal_type', cardinality: 'multiple', required: false, applicabilityConditions: [] },
+            ],
+          },
+          {
+            id: 'cat_treat-profile',
+            productTypeId: 'cat_treat',
+            attributes: [
+              { attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] },
+              { attributeId: 'animal_type', cardinality: 'multiple', required: false, applicabilityConditions: [] },
+            ],
+          },
+        ],
+        universalAttributeIds: ['animal_type'],
+        invariantAttributesByType: {},
       };
     }
 
@@ -1309,14 +1372,37 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       // Replay fidelity (no gold leakage): attribute plans cover the APPLICABLE
       // frozen attributes for the frozen effective type — never the
       // gold-adjudicated targets. Without a resolved type (pure wiring proof)
-      // all frozen attributes are built (gold-free); live capture narrows to
-      // the applicable set after resolving Product Type first.
+      // all frozen attributes are built (gold-free, wiring-only); live capture
+      // narrows to the applicable set after resolving Product Type first.
       const frozenTargets = new Set(taxa.attributeTargets.map(t => t.targetId));
       expect(new Set(set.attributePlans.map(p => p.targetId))).toEqual(frozenTargets);
-      // With an explicit frozen type, applicability narrows (still gold-free):
-      // TINY-style mapping would filter here; without a mapping all apply.
+      // With an explicit frozen type, applicability narrows via the REAL
+      // frozen mapping (still gold-free): dog_food_dry admits flavor +
+      // life_stage + animal_type, and the animal_type invariant resolves
+      // deterministically (excluded from Jev questions) — never all frozen.
       const withType = buildQualificationCandidateQuestionSet(entry, taxa, 'dog_food_dry');
-      expect(new Set(withType.attributePlans.map(p => p.targetId))).toEqual(frozenTargets);
+      expect(new Set(withType.attributePlans.map(p => p.targetId))).toEqual(new Set(['flavor', 'life_stage']));
+      // Missing mapping fails closed (blocked, never broadened to all).
+      const taxaWithoutMapping = { ...taxa, attributeProfiles: null, typeAttributeProfiles: null } as never;
+      expect(() => buildQualificationCandidateQuestionSet(entry, taxaWithoutMapping, 'dog_food_dry')).toThrow(
+        new RegExp(QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE),
+      );
+      // PAGE ABSTENTION PARITY: explicit null type abstains pages exactly like
+      // production — never a constructed Choice. Constants mirror
+      // page-decision.ts checkProductTypeAuthority verbatim.
+      expect(QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE).toBe('no_reviewed_product_type');
+      expect(QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_REASON).toBe(
+        'No reviewed Primary Product Type. Page assignment requires an accepted Product Type and a verified Page catalog.',
+      );
+      const nullType = buildQualificationCandidateQuestionSet(entry, taxa, null);
+      expect(nullType.pagePlan).toBeNull();
+      expect(new Set(nullType.attributePlans.map(p => p.targetId))).toEqual(new Set(['animal_type']));
+      // Applicability fail-closed at capture: a mapping-absent taxonomy blocks
+      // the deterministic baseline (coded reason, never floor guesses).
+      const blockedArtifact = buildQualificationPredictionsFromCode([entry], taxaWithoutMapping);
+      expect(blockedArtifact.predictions[0].baseline.blockedCode).toBe(
+        QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
+      );
       for (const plan of set.attributePlans) {
         if (plan.cardinality === 'multiple') {
           expect(plan.noulPlans?.length).toBe(plan.resolved.options.length);
@@ -1333,6 +1419,42 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }
       expect(pageKeys).toContain('abstain_no_match');
       expect(pageKeys).toContain('abstain_insufficient_evidence');
+    });
+
+    it('scores fixed-population attributes over the applicable set: inapplicable extras lower precision', () => {
+      // dog_food_dry admits flavor + life_stage (+ invariant animal_type);
+      // organic/material are inapplicable. An extra organic proposal must be
+      // visible as a false positive (precision down by design), while an
+      // abstention with uncovered applicable targets counts as a miss (not wrong).
+      const goldset = loadExecutedQualificationGoldset();
+      const clean = evaluateJevOfflineComparison(goldset);
+      const withExtra = evaluateJevOfflineComparison({
+        ...goldset,
+        entries: goldset.entries.map(e =>
+          e.sku === 'QUAL-DOG-KIBBLE-01'
+            ? {
+              ...e,
+              candidate: {
+                ...e.candidate,
+                fieldAssignments: [
+                  ...e.candidate.fieldAssignments,
+                  { targetId: 'organic', value: 'Yes' },
+                  { targetId: 'material', value: 'Rubber' },
+                ],
+              },
+            }
+            : e,
+        ),
+      });
+      expect(withExtra.attributes.setMetrics.precision.candidate).toBeLessThan(
+        clean.attributes.setMetrics.precision.candidate,
+      );
+      expect(withExtra.attributes.setMetrics.f1.candidate).toBeLessThanOrEqual(
+        clean.attributes.setMetrics.f1.candidate,
+      );
+      expect(withExtra.attributes.incorrectProposals.candidate).toBeGreaterThanOrEqual(
+        clean.attributes.incorrectProposals.candidate,
+      );
     });
 
     /**
@@ -1717,13 +1839,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(out.assessment.status).toBe('blocked');
 
       // Valid compat receipts file clears the compat gate (only that gate).
+      // Commit-bound (issue #302): the receipt commit must equal the
+      // explicitly qualified commit (TYPESAFE_QUALIFIED_COMMIT) — never a
+      // placeholder. A stale commit retains the blocker.
+      const qualifiedCommit = `test-qualified-${Date.now().toString(36)}`;
       const receiptsPath = path.join(os.tmpdir(), `compat-receipts-${Date.now()}.json`);
       fs.writeFileSync(
         receiptsPath,
         JSON.stringify({
           suites: REQUIRED_COMPATIBILITY_SUITE_IDS.map(suiteId => ({
             suiteId,
-            commit: 'test-commit-abc1234',
+            commit: qualifiedCommit,
             passed: true,
             executedAt: null,
           })),
@@ -1732,7 +1858,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       );
       try {
         const withCompat = Bun.spawnSync(['bun', runnerPath, '--json'], {
-          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPTS_PATH: receiptsPath },
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPTS_PATH: receiptsPath, TYPESAFE_QUALIFIED_COMMIT: qualifiedCommit },
           stdout: 'pipe',
           stderr: 'pipe',
         });
@@ -1744,7 +1870,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
 
         // Inline env JSON receipt works the same way.
         const withEnv = Bun.spawnSync(['bun', runnerPath, '--json'], {
-          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPT_JSON: fs.readFileSync(receiptsPath, 'utf8') },
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPT_JSON: fs.readFileSync(receiptsPath, 'utf8'), TYPESAFE_QUALIFIED_COMMIT: qualifiedCommit },
           stdout: 'pipe',
           stderr: 'pipe',
         });
@@ -1752,6 +1878,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         const envOut = JSON.parse(withEnv.stdout.toString()) as ReceiptOut;
         expect(envOut.assessment.checklist.compatibilityVerified).toBe(true);
         expect(envOut.compatibility.source).toBe('env TYPESAFE_COMPAT_RECEIPT_JSON');
+
+        // Stale commit (receipt bound to an older commit than qualified) retains the blocker.
+        const staleEnv = Bun.spawnSync(['bun', runnerPath, '--json'], {
+          env: { ...cleanEnv, TYPESAFE_COMPAT_RECEIPT_JSON: fs.readFileSync(receiptsPath, 'utf8'), TYPESAFE_QUALIFIED_COMMIT: `${qualifiedCommit}-newer` },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(staleEnv.exitCode).toBe(0);
+        const staleOut = JSON.parse(staleEnv.stdout.toString()) as ReceiptOut;
+        expect(staleOut.assessment.checklist.compatibilityVerified).toBe(false);
+        expect(staleOut.assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(true);
       } finally {
         fs.rmSync(receiptsPath, { force: true });
       }

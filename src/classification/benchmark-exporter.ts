@@ -1039,32 +1039,73 @@ function exportFixtureDataset(
 
 /** Closed-world candidate sets derived from a frozen taxonomy snapshot. */
 export interface FrozenCandidateSets {
-  productTypes: Array<{ id: string; label: string }>;
-  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[] }>;
+  productTypes: Array<{ id: string; label: string; attributeProfileId?: string | null }>;
+  attributeTargets: Array<{ targetId: string; cardinality: 'single' | 'multiple'; options: string[]; isUniversal?: boolean }>;
   pages: Array<{ pageId: string; pageName: string }>;
+  /**
+   * REAL frozen applicability mapping (additive, issue #302): carried through
+   * so the code-executed predictor replays production's effective-type →
+   * profile → applicability → invariants pipeline. Gold labels never define it.
+   */
+  attributeProfiles?: Array<{ id: string; productTypeId: string; attributes: Array<{ attributeId: string; cardinality: 'single' | 'multiple'; required: boolean; applicabilityConditions: unknown[] }> }>;
+  universalAttributeIds?: string[];
+  invariantAttributesByType?: Record<string, Record<string, string | string[]>>;
 }
 
 /**
  * Derive closed-world candidate sets from the frozen taxonomy snapshot.
  * Sorted for determinism. Reads ONLY the snapshot — gold labels are never an
  * input, so a gold-only type/value/page can never widen or narrow the pool.
+ * The REAL profile mapping rides along (snapshot hash covers it).
  */
 export function buildFrozenTaxonomyCandidates(snapshot: FrozenTaxonomySnapshot): FrozenCandidateSets {
-  return {
+  const sets: FrozenCandidateSets = {
     productTypes: [...snapshot.productTypes]
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-      .map(t => ({ id: t.id, label: t.label })),
+      .map(t => ({
+        id: t.id,
+        label: t.label,
+        ...(t.attributeProfileId !== undefined ? { attributeProfileId: t.attributeProfileId } : {}),
+      })),
     attributeTargets: [...snapshot.attributeTargets]
       .sort((a, b) => (a.targetId < b.targetId ? -1 : a.targetId > b.targetId ? 1 : 0))
       .map(t => ({
         targetId: t.targetId,
         cardinality: t.cardinality,
         options: [...t.options].sort(),
+        ...(t.isUniversal !== undefined ? { isUniversal: t.isUniversal } : {}),
       })),
     pages: [...snapshot.pages]
       .sort((a, b) => (a.pageId < b.pageId ? -1 : a.pageId > b.pageId ? 1 : 0))
       .map(p => ({ pageId: p.pageId, pageName: p.pageName })),
   };
+  const rawProfiles = (snapshot as { attributeProfiles?: unknown }).attributeProfiles;
+  if (Array.isArray(rawProfiles)) {
+    sets.attributeProfiles = rawProfiles.map(p => {
+      const profile = p as { id: string; productTypeId: string; attributes: Array<{ attributeId: string; cardinality: 'single' | 'multiple'; required?: boolean; applicabilityConditions?: unknown[] }> };
+      return {
+        id: profile.id,
+        productTypeId: profile.productTypeId,
+        attributes: (profile.attributes ?? []).map(a => ({
+          attributeId: a.attributeId,
+          cardinality: a.cardinality,
+          required: a.required === true,
+          applicabilityConditions: Array.isArray(a.applicabilityConditions) ? a.applicabilityConditions : [],
+        })),
+      };
+    });
+  }
+  const universals = (snapshot as { universalAttributeIds?: unknown }).universalAttributeIds;
+  if (Array.isArray(universals)) {
+    sets.universalAttributeIds = [...universals as string[]].sort();
+  }
+  const invariants: Record<string, Record<string, string | string[]>> = {};
+  for (const t of snapshot.productTypes) {
+    const inv = (t as { invariantAttributes?: unknown }).invariantAttributes;
+    if (inv !== undefined) invariants[t.id] = inv as Record<string, string | string[]>;
+  }
+  if (Object.keys(invariants).length > 0) sets.invariantAttributesByType = invariants;
+  return sets;
 }
 
 /** Minimal adjudicated-gold view for frozen-taxonomy containment checks. */

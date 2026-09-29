@@ -218,14 +218,20 @@ export TYPESAFE_COMPAT_RECEIPT_JSON='{"suites": [...], "recordedAt": "..."}'
 
 **Recording / refreshing:** after the four suites pass, write the file with
 the current commit (`git rev-parse HEAD`) and timestamp
-(`date -u +%Y-%m-%dT%H:%M:%SZ`). Refresh on every change under test: a
-receipt records the commit it passed on, so re-qualifying at a newer commit
-with a stale file still echoes the old commit — visibly stale, never
-silently current. The file carries no secrets (suite ids, commit SHAs,
-booleans, timestamps) and is safe to commit alongside the qualification.
-The `--json` `compatibility` section echoes the receipt, source, and
-per-suite `suiteId@commit` detail; the text report shows a
-`Compatibility:` line.
+(`date -u +%Y-%m-%dT%H:%M:%SZ`). Refresh on every change under test.
+Commit-bound (fail-closed): the runner resolves the expected commit as the
+current HEAD (or `TYPESAFE_QUALIFIED_COMMIT` when explicitly qualifying a
+recorded digest) and requires EVERY suite commit to equal it — a stale green
+receipt for an older commit retains the `compatibility_unverified` blocker
+with a mismatch message (`compatibility receipt bound to …; expected …`),
+never silently current. Re-qualifying at a newer commit with a stale file
+still echoes the old commit and stays blocked until the suites re-pass at the
+new commit. The file carries no secrets (suite ids, commit SHAs, booleans,
+timestamps) and is safe to commit alongside the qualification.
+The `--json` `compatibility` section echoes the receipt, source,
+`expectedCommit`/`expectedCommitSource`, and per-suite `suiteId@commit`
+detail; the text report shows a `Compatibility:` line with the expected
+commit.
 
 ### G. Operator-Docs Receipt (automatic, live-bound)
 The runner binds qualification to the exact published runbook bytes: on

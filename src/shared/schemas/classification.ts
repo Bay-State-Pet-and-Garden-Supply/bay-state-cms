@@ -1468,6 +1468,20 @@ export type ClassificationReadinessReportDto = z.infer<typeof ClassificationRead
 export const FrozenTaxonomyProductTypeSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
+  /**
+   * Frozen Product Type → Attribute Profile pointer (additive, issue #302).
+   * Mirrors production's authoritative direction (Product Type →
+   * `attributeProfileId` → profile). `null` is a legitimately EMPTY profile
+   * (universal-only, never "all fields"); `undefined` (legacy snapshots) means
+   * the mapping was never captured.
+   */
+  attributeProfileId: z.string().min(1).nullable().optional(),
+  /**
+   * Deterministic invariant values implied by this Product Type (additive).
+   * Mirrors `ProductTypeConfigV2.invariantAttributes`; resolved before the
+   * variable-field loop in production and in qualification replay.
+   */
+  invariantAttributes: z.record(z.string(), z.union([z.string(), z.array(z.string()).min(1)])).optional(),
 }).strict();
 export type FrozenTaxonomyProductType = z.infer<typeof FrozenTaxonomyProductTypeSchema>;
 
@@ -1476,8 +1490,42 @@ export const FrozenTaxonomyAttributeTargetSchema = z.object({
   targetId: z.string().min(1),
   cardinality: CardinalityEnum,
   options: z.array(z.string().min(1)),
+  /**
+   * Universal tier flag (additive, issue #302). Mirrors
+   * `ProductAttributeConfigV2.isUniversal`: universal attributes proceed
+   * without a Product Type; profile attributes require an effective type.
+   */
+  isUniversal: z.boolean().optional(),
 }).strict();
 export type FrozenTaxonomyAttributeTarget = z.infer<typeof FrozenTaxonomyAttributeTargetSchema>;
+
+/**
+ * One frozen profile attribute entry (additive, issue #302). Carries the
+ * per-profile cardinality (wins over the global target mode when present)
+ * plus the profile-entry applicability conditions evaluated by the shipped
+ * `evaluateAttributeApplicability` helper (conditions run against
+ * accepted/reviewed facts; missing facts → `unknown` → withheld).
+ */
+export const FrozenTaxonomyProfileAttributeSchema = z.object({
+  attributeId: z.string().min(1),
+  cardinality: CardinalityEnum,
+  required: z.boolean().default(false),
+  applicabilityConditions: z.array(z.unknown()).default([]),
+}).strict();
+export type FrozenTaxonomyProfileAttribute = z.infer<typeof FrozenTaxonomyProfileAttributeSchema>;
+
+/**
+ * One frozen Attribute Profile (additive, issue #302). Mirrors
+ * `AttributeProfileConfigV2` (id + productTypeId + attributes) so
+ * qualification replay follows production's effective-type → profile →
+ * applicability → invariants pipeline via the shipped helpers.
+ */
+export const FrozenTaxonomyAttributeProfileSchema = z.object({
+  id: z.string().min(1),
+  productTypeId: z.string().min(1),
+  attributes: z.array(FrozenTaxonomyProfileAttributeSchema).default([]),
+}).strict();
+export type FrozenTaxonomyAttributeProfile = z.infer<typeof FrozenTaxonomyAttributeProfileSchema>;
 
 /** One frozen category-page candidate (stable id + display name). */
 export const FrozenTaxonomyPageSchema = z.object({
@@ -1499,6 +1547,20 @@ export const FrozenTaxonomySnapshotSchema = z.object({
   productTypes: z.array(FrozenTaxonomyProductTypeSchema).min(1),
   attributeTargets: z.array(FrozenTaxonomyAttributeTargetSchema).min(1),
   pages: z.array(FrozenTaxonomyPageSchema).min(1),
+  /**
+   * REAL frozen Product Type → profile → attribute mapping (additive, issue
+   * #302). `snapshotHash` covers these bytes: the same entries with a
+   * different profile pool yield a different hash (extended, never weakened).
+   * Absent (legacy snapshots) means applicability is unresolvable — callers
+   * fail closed (blocked), never broaden to all frozen attributes.
+   */
+  attributeProfiles: z.array(FrozenTaxonomyAttributeProfileSchema).optional(),
+  /**
+   * Explicit universal attribute ids (additive). Complements per-target
+   * `isUniversal` flags; the union is authoritative. Universals proceed
+   * without a Product Type (production parity).
+   */
+  universalAttributeIds: z.array(z.string().min(1)).optional(),
 }).strict();
 export type FrozenTaxonomySnapshot = z.infer<typeof FrozenTaxonomySnapshotSchema>;
 

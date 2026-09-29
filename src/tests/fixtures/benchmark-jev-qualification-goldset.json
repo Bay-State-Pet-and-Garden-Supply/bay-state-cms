@@ -8,24 +8,24 @@
     "provenance": "prov-active-import-001"
   },
   "frozenTaxonomy": {
-    "snapshotHash": "f8136c9820f0ddac2bb77abb0240d4b6ca1d5ba0a7e21adfe8852a74aab8125d",
+    "snapshotHash": "900904c44979264215607291f72c82933b9000ae16ca2144de2a94b9b7cb3f72",
     "source": "frozen production taxonomy snapshot for Jev qualification evidence: candidate option sets (product types, allowed attribute values, pages) derive from this snapshot, never the union of gold labels",
     "capturedAt": "2026-09-28T00:00:00.000Z",
     "productTypes": [
-      { "id": "bird_seed_food", "label": "Bird Seed Food" },
-      { "id": "cat_food_dry", "label": "Dry Cat Food" },
-      { "id": "cat_treat", "label": "Cat Treat" },
-      { "id": "dog_food_dry", "label": "Dry Dog Food" },
-      { "id": "dog_food_wet", "label": "Wet Dog Food" },
-      { "id": "dog_toy", "label": "Dog Toy" },
-      { "id": "flea_tick_control", "label": "Flea Tick Control" },
-      { "id": "garden_fertilizer", "label": "Garden Fertilizer" },
-      { "id": "insect_pest_control", "label": "Insect Pest Control" },
-      { "id": "potting_soil", "label": "Potting Soil" },
-      { "id": "suet_cakes", "label": "Suet Cakes" }
+      { "id": "bird_seed_food", "label": "Bird Seed Food", "attributeProfileId": "bird_seed_food-profile", "invariantAttributes": { "animal_type": ["bird"] } },
+      { "id": "cat_food_dry", "label": "Dry Cat Food", "attributeProfileId": "cat_food_dry-profile", "invariantAttributes": { "animal_type": ["cat"] } },
+      { "id": "cat_treat", "label": "Cat Treat", "attributeProfileId": "cat_treat-profile", "invariantAttributes": { "animal_type": ["cat"] } },
+      { "id": "dog_food_dry", "label": "Dry Dog Food", "attributeProfileId": "dog_food_dry-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "dog_food_wet", "label": "Wet Dog Food", "attributeProfileId": "dog_food_wet-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "dog_toy", "label": "Dog Toy", "attributeProfileId": "dog_toy-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "flea_tick_control", "label": "Flea Tick Control", "attributeProfileId": "flea_tick_control-profile" },
+      { "id": "garden_fertilizer", "label": "Garden Fertilizer", "attributeProfileId": "garden_fertilizer-profile" },
+      { "id": "insect_pest_control", "label": "Insect Pest Control", "attributeProfileId": "insect_pest_control-profile" },
+      { "id": "potting_soil", "label": "Potting Soil", "attributeProfileId": "potting_soil-profile" },
+      { "id": "suet_cakes", "label": "Suet Cakes", "attributeProfileId": "suet_cakes-profile", "invariantAttributes": { "animal_type": ["bird"] } }
     ],
     "attributeTargets": [
-      { "targetId": "animal_type", "cardinality": "multiple", "options": ["bird", "cat", "dog", "fish"] },
+      { "targetId": "animal_type", "cardinality": "multiple", "options": ["bird", "cat", "dog", "fish"], "isUniversal": true },
       { "targetId": "application_method", "cardinality": "single", "options": ["Bait", "Granular", "Spray"] },
       { "targetId": "flavor", "cardinality": "single", "options": ["Beef", "Berry", "Chicken", "Duck", "Lamb", "Salmon"] },
       { "targetId": "life_stage", "cardinality": "single", "options": ["Adult", "Puppy", "Senior"] },
@@ -35,6 +35,20 @@
       { "targetId": "target_pest", "cardinality": "multiple", "options": ["ant", "fly", "hornet", "mosquito", "roach", "spider", "wasp"] },
       { "targetId": "volume", "cardinality": "single", "options": ["1 cu ft", "2 cu ft", "8 qt"] }
     ],
+    "attributeProfiles": [
+      { "id": "bird_seed_food-profile", "productTypeId": "bird_seed_food", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "package_type", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "cat_food_dry-profile", "productTypeId": "cat_food_dry", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "cat_treat-profile", "productTypeId": "cat_treat", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_food_dry-profile", "productTypeId": "dog_food_dry", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_food_wet-profile", "productTypeId": "dog_food_wet", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_toy-profile", "productTypeId": "dog_toy", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "material", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "flea_tick_control-profile", "productTypeId": "flea_tick_control", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "garden_fertilizer-profile", "productTypeId": "garden_fertilizer", "attributes": [{ "attributeId": "application_method", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "volume", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "insect_pest_control-profile", "productTypeId": "insect_pest_control", "attributes": [{ "attributeId": "application_method", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "target_pest", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }] },
+      { "id": "potting_soil-profile", "productTypeId": "potting_soil", "attributes": [{ "attributeId": "organic", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "volume", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "suet_cakes-profile", "productTypeId": "suet_cakes", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }] }
+    ],
+    "universalAttributeIds": ["animal_type"],
     "pages": [
       { "pageId": "page-cat-food", "pageName": "Cat Food" },
       { "pageId": "page-cat-treats", "pageName": "Cat Treats" },
