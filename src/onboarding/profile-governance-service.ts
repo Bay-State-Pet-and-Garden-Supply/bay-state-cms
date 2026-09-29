@@ -83,6 +83,9 @@ import {
   collectImageSourcesFromElement,
 } from './image-utils';
 import { isSupportedSelectorSyntax } from '../shared/selector-utils';
+import { DeterministicNetworkGate } from './image-verification/network-gate';
+
+const governanceGate = new DeterministicNetworkGate();
 import type { GeneratedSelectorProfile } from './profile-generator';
 import type {
   ProfileGenerationGeneration,
@@ -278,7 +281,7 @@ export function createInitialRevisionForGeneration(
  */
 async function fetchSampleHtml(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url, {
+    const response = await governanceGate.fetch(url, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
