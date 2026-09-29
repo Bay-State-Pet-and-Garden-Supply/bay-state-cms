@@ -15,7 +15,7 @@
 
 import { describe, test, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -50,6 +50,16 @@ describe('Sitemap Matcher', () => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+    // AI Compute isolation: a stale DB file (e.g. left by a killed `bun
+    // test` process whose afterAll unlink never ran) may carry
+    // provider_connections rows, workload routes, or routing defaults that
+    // flip isAiComputeConfigured() on. AI Compute is authoritative once
+    // configured, so reset to the pristine-install state — the seeded
+    // builtins/defaults re-seed lazily via ensureSeededDefaults() and the
+    // legacy api_keys chain below only resolves on pristine installs.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
     // Seed at least one provider credential so the LLM call has a config.
     upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'llama3');
   });

@@ -88,7 +88,6 @@ export function buildEvidenceText(
 /**
  * Tokenize text into lowercase word tokens, filtering out stop words and short tokens.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export function tokenize(text: string, stopWords?: Set<string>): string[] {
   const stop = stopWords ?? DEFAULT_STOP_WORDS;
   return text
@@ -194,7 +193,7 @@ export function matchAttributeOptions(
 
   // 2. Alias matching (also word-boundary)
   if (selectionMode === 'multiple' || found.length === 0) {
-    for (const alias of attribute.valueAliases) {
+    for (const alias of attribute.valueAliases ?? []) {
       if (seen.has(alias.mapsTo)) continue;
       if (new RegExp('\\b' + escapeRegex(alias.alias.toLowerCase()) + '\\b', 'i').test(textLower)) {
         // Fail closed: the alias target must be one of the exact allowed

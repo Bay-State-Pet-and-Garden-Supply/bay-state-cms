@@ -17,8 +17,36 @@ import { evaluateClassificationReadiness } from '../../classification/config-val
 import { normalizeClassificationReadinessReport } from '../../classification/readiness';
 import { QUALITY_REPORT_MAX_RANGE_DAYS } from '../../shared/schemas/classification-metrics';
 import { buildQualityReport } from '../../db/repositories/classification-metrics-repo';
+import {
+  getClassificationPolicySettings,
+  previewClassificationPolicy,
+  applyClassificationPolicy,
+  ClassificationPolicyServiceError,
+} from '../../classification/classification-policy-service';
 
 const router = new Hono();
+
+/**
+ * Shared guards for the policy-settings clone family (3 introduced groups).
+ * Error strings, codes, and status codes are preserved verbatim so route
+ * paths/status codes/error codes/auth behavior is unchanged. Settings
+ * preview/apply semantics are unchanged — these helpers only hoist the
+ * identical workspace guard and policy-service error mapping.
+ */
+function requireClassificationWorkspace(c: any) {
+  const ws = getCurrentWorkspace();
+  if (!ws) {
+    return { ws: null, error: c.json({ error: 'No active workspace' }, 400) } as const;
+  }
+  return { ws, error: null } as const;
+}
+
+function handlePolicyServiceError(c: any, err: unknown) {
+  if (err instanceof ClassificationPolicyServiceError) {
+    return c.json({ error: err.message, code: err.code }, err.statusCode as any);
+  }
+  return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+}
 
 /**
  * P0 taxonomy freeze (set-in-stone taxonomy).
@@ -469,6 +497,64 @@ router.post('/classification/process-refresh-queue', async (c) => {
   } catch (err) {
     console.error('[ClassificationRoutes] Refresh queue failed:', err);
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+});
+
+/**
+ * GET /api/classification/settings/policy
+ * Returns classification provider settings, effective routes, and available connections.
+ */
+router.get('/classification/settings/policy', (c) => {
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
+
+  try {
+    const settings = getClassificationPolicySettings(ws.workspacePath, ws.id);
+    return c.json({ settings });
+  } catch (err) {
+    return handlePolicyServiceError(c, err);
+  }
+});
+
+/**
+ * POST /api/classification/settings/policy/preview
+ * Previews classification provider policy changes and computes deterministic previewToken and diff.
+ */
+router.post('/classification/settings/policy/preview', async (c) => {
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
+
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || !body.expectedBaseBundleHash || !body.stageOverrides) {
+      return c.json({ error: 'Invalid preview payload: expectedBaseBundleHash and stageOverrides are required.' }, 400);
+    }
+
+    const preview = previewClassificationPolicy(ws.workspacePath, body, ws.id);
+    return c.json({ preview });
+  } catch (err) {
+    return handlePolicyServiceError(c, err);
+  }
+});
+
+/**
+ * POST /api/classification/settings/policy/apply
+ * Applies a previewed classification provider policy under CAS and configuration locking.
+ */
+router.post('/classification/settings/policy/apply', async (c) => {
+  const { ws, error } = requireClassificationWorkspace(c);
+  if (!ws) return error;
+
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || !body.previewToken || !body.expectedBaseBundleHash || !body.stageOverrides) {
+      return c.json({ error: 'Invalid apply payload: previewToken, expectedBaseBundleHash, and stageOverrides are required.' }, 400);
+    }
+
+    const result = await applyClassificationPolicy(ws.workspacePath, ws.id, body);
+    return c.json({ result });
+  } catch (err) {
+    return handlePolicyServiceError(c, err);
   }
 });
 

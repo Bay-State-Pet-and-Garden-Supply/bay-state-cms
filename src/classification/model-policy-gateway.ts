@@ -170,11 +170,11 @@ export function buildModelPolicyView(
   options: ModelPolicyViewOptions = {},
 ): ModelPolicyView {
   const providerLocalities: Record<string, ProviderLocality> = {};
-  for (const [provider, locality] of Object.entries(policy.providerLocalities)) {
+  for (const [provider, locality] of Object.entries(policy.providerLocalities ?? {})) {
     providerLocalities[provider] = locality;
   }
   const stageOverrides: Record<string, StageOverrideView> = {};
-  for (const [stageName, override] of Object.entries(policy.stageOverrides)) {
+  for (const [stageName, override] of Object.entries(policy.stageOverrides ?? {})) {
     stageOverrides[stageName] = {
       provider: override.provider,
       model: override.model,
@@ -214,7 +214,7 @@ export function buildModelPolicyView(
  * matches the frozen digest (policy tampering between snapshot and transport).
  */
 export function assertModelPolicyIntact(view: ModelPolicyView): void {
-  if (!view) return;
+  if (!view || !view.policyDigest) return;
   const recomputed = buildModelPolicyView(
     view as unknown as ModelPolicyConfigV2,
     view.snapshotHash ? { snapshotHash: view.snapshotHash } : {},

@@ -13,9 +13,17 @@ import {
   loadActiveClassificationConfigBundleV2,
   loadClassificationConfigBundleV2Preview,
   loadLegacyV1ConfigForMigration,
+  loadRuntimeConfigAuthority,
   loadStrictLegacyV1RuntimeConfig,
   saveClassificationConfig,
 } from '../../classification/config-loader';
+import {
+  ClassificationManifestV2Schema,
+  ModelPolicyFileV2Schema,
+  DataSharingFileV2Schema,
+} from '../../shared/schemas/classification';
+import { writeWorkspaceState } from '../../classification/workspace-state';
+import { V5_TAXONOMY_REVISION } from '../../classification/release-compiler';
 import {
   LegacyClassificationConfigV1Schema,
   migrateClassificationConfigV1,
@@ -411,5 +419,163 @@ describe('classification config loader fail-closed reads', () => {
     expect(() => saveClassificationConfig(writeRoot, v1Config()))
       .toThrowError(expect.objectContaining({ code: 'read_error' }));
     expect(fs.existsSync(path.join(emptyExternalStore, 'classification'))).toBe(false);
+  });
+
+  describe('workspace overlay policy loading (issue #296)', () => {
+    function setupV5Workspace(): string {
+      const root = tempRoot();
+      const dir = classificationDir(root);
+      fs.mkdirSync(dir, { recursive: true });
+      writeWorkspaceState(root, { activeTaxonomyRevision: V5_TAXONOMY_REVISION, updatedAt: '2026-09-01T12:00:00.000Z' });
+      const manifest = {
+        schemaVersion: 2,
+        compatibilityVersion: 2,
+        createdAt: '2026-09-01T12:00:00.000Z',
+        updatedAt: '2026-09-01T12:00:00.000Z',
+        activeRevision: V5_TAXONOMY_REVISION,
+        lifecycle: 'active',
+        bundleHash: '0000000000000000000000000000000000000000000000000000000000000000',
+        hasUnresolvedSafetyFindings: false,
+        migrationProvenance: { kind: 'reviewed_generation' },
+        sourceCatalogCommit: null,
+        catalogEvidenceHash: null,
+        fileVersions: {},
+      };
+      fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+      return root;
+    }
+
+    it('overlays valid workspace model-policies.json and data-sharing.json onto pinned release', () => {
+      const root = setupV5Workspace();
+      const dir = classificationDir(root);
+
+      const customPolicy = {
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'reviewed_generation' },
+        policy: {
+          defaultProvider: 'ollama',
+          defaultModel: 'qwen2.5:7b',
+          providerLocalities: { ollama: 'local' },
+          stageOverrides: {
+            primary_product_type_proposal: {
+              provider: 'ollama',
+              model: 'qwen2.5:14b',
+              fallbackProvider: null,
+              fallbackModel: null,
+            },
+          },
+          imageDataSharing: 'local_only',
+          textDataSharing: 'local_only',
+          mlFeatures: {
+            productionRetrieval: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+            pageReranking: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+            confidenceCalibration: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+            productionEmbeddings: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+          },
+        },
+      };
+
+      const customDataSharing = {
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'reviewed_generation' },
+        policy: {
+          imagePolicy: 'local_only',
+          textPolicy: 'local_only',
+          sensitiveDataFiltering: true,
+          retentionDays: 60,
+        },
+      };
+
+      fs.writeFileSync(path.join(dir, 'model-policies.json'), JSON.stringify(customPolicy, null, 2));
+      fs.writeFileSync(path.join(dir, 'data-sharing.json'), JSON.stringify(customDataSharing, null, 2));
+
+      const authority = loadRuntimeConfigAuthority(root);
+      expect(authority.kind).toBe('v2');
+      if (authority.kind !== 'v2') throw new Error('Expected v2 authority');
+
+      expect(authority.bundle.modelPolicy.defaultModel).toBe('qwen2.5:7b');
+      expect(authority.bundle.modelPolicy.stageOverrides.primary_product_type_proposal?.model).toBe('qwen2.5:14b');
+      expect(authority.bundle.dataSharing.retentionDays).toBe(60);
+    });
+
+    it('fails closed when workspace model-policies.json is present but invalid JSON', () => {
+      const root = setupV5Workspace();
+      const dir = classificationDir(root);
+      fs.writeFileSync(path.join(dir, 'model-policies.json'), '{"broken json');
+      fs.writeFileSync(path.join(dir, 'data-sharing.json'), JSON.stringify({
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'seed', name: 'bay-state' },
+        policy: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
+      }));
+
+      expect(() => loadRuntimeConfigAuthority(root)).toThrowError(
+        expect.objectContaining({ code: 'invalid_json' }),
+      );
+    });
+
+    it('fails closed when workspace model-policies.json is present but schema-invalid', () => {
+      const root = setupV5Workspace();
+      const dir = classificationDir(root);
+      fs.writeFileSync(path.join(dir, 'model-policies.json'), JSON.stringify({
+        schemaVersion: 2,
+        policy: { defaultProvider: 123 }, // invalid type
+      }));
+      fs.writeFileSync(path.join(dir, 'data-sharing.json'), JSON.stringify({
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'seed', name: 'bay-state' },
+        policy: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
+      }));
+
+      expect(() => loadRuntimeConfigAuthority(root)).toThrowError(
+        expect.objectContaining({ code: 'invalid_config' }),
+      );
+    });
+
+    it('fails closed when workspace data-sharing.json is present but schema-invalid', () => {
+      const root = setupV5Workspace();
+      const dir = classificationDir(root);
+      fs.writeFileSync(path.join(dir, 'model-policies.json'), JSON.stringify({
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'seed', name: 'bay-state' },
+        policy: {
+          defaultProvider: 'ollama',
+          defaultModel: 'qwen2.5:7b',
+          providerLocalities: { ollama: 'local' },
+          stageOverrides: {},
+          imageDataSharing: 'local_only',
+          textDataSharing: 'local_only',
+        },
+      }));
+      fs.writeFileSync(path.join(dir, 'data-sharing.json'), JSON.stringify({
+        schemaVersion: 2,
+        policy: { retentionDays: -5 }, // invalid retentionDays
+      }));
+
+      expect(() => loadRuntimeConfigAuthority(root)).toThrowError(
+        expect.objectContaining({ code: 'invalid_config' }),
+      );
+    });
+
+    it('fails closed when workspace overlay has mixed policy files (only one present)', () => {
+      const root = setupV5Workspace();
+      const dir = classificationDir(root);
+      fs.writeFileSync(path.join(dir, 'model-policies.json'), JSON.stringify({
+        schemaVersion: 2,
+        bundleOrigin: { kind: 'seed', name: 'bay-state' },
+        policy: {
+          defaultProvider: 'ollama',
+          defaultModel: 'qwen2.5:7b',
+          providerLocalities: { ollama: 'local' },
+          stageOverrides: {},
+          imageDataSharing: 'local_only',
+          textDataSharing: 'local_only',
+        },
+      }));
+      // data-sharing.json NOT created
+
+      expect(() => loadRuntimeConfigAuthority(root)).toThrowError(
+        expect.objectContaining({ code: 'invalid_config' }),
+      );
+    });
   });
 });

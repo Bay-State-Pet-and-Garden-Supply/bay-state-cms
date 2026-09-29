@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, mock } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, mock } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -48,21 +48,34 @@ const mocks = {
  *  prompt (review R1 B2/T5). */
 let capturedTransportPrompts: string[] = [];
 
-// Scoped to THIS file; auto-restored after it completes (PR6 review round 2
-// pattern) so co-running with llm-client suites never leaks.
-mock.module('../../onboarding/llm-client', () => ({
-  getLlmConfigForTask: () => mocks.getLlmConfigForTask(),
-  callLlmForTaskWithProvenance: (_task: string, prompt: string) => {
-    capturedTransportPrompts.push(prompt);
-    return Promise.resolve({
-      content: '{}',
-      callId: 'permuted-call',
-      provider: 'ollama',
-      model: 'qwen2.5vl',
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-    });
-  },
-}));
+// Registered per-test (not top-level): bun's mock.module is process-global,
+// so a top-level registration leaks into co-running suites in the same
+// `bun test` invocation (observed: llm-client routing suites resolving this
+// mock). beforeEach/afterEach pairs registration with a full restore, which
+// rebinds the engine's static import for the duration of each test only.
+function registerLlmClientMock(): void {
+  mock.module('../../onboarding/llm-client', () => ({
+    getLlmConfigForTask: () => mocks.getLlmConfigForTask(),
+    callLlmForTaskWithProvenance: (_task: string, prompt: string) => {
+      capturedTransportPrompts.push(prompt);
+      return Promise.resolve({
+        content: '{}',
+        callId: 'permuted-call',
+        provider: 'ollama',
+        model: 'qwen2.5vl',
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      });
+    },
+  }));
+}
+
+beforeEach(() => {
+  registerLlmClientMock();
+});
+
+afterEach(() => {
+  mock.restore();
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

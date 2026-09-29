@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -17,6 +17,19 @@ describe('General Task Fallback & Telemetry Integration', () => {
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+
+    // AI Compute isolation: a stale DB file (e.g. left by a killed `bun
+    // test` process whose afterAll unlink never ran) may carry
+    // provider_connections rows, workload routes, or routing defaults that
+    // flip isAiComputeConfigured() on. AI Compute is authoritative once
+    // configured and would divert this live task into the dispatcher, so
+    // reset to the pristine-install state — the seeded builtins/defaults
+    // re-seed lazily via ensureSeededDefaults() and the legacy
+    // llm_task_configs/api_keys chain below only resolves on pristine
+    // installs.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
 
     upsertApiKey('ollama', 'ollama-key', 'http://127.0.0.1:59999/v1', 'gemma4:12b-mlx');
     upsertApiKey('deepseek', 'sk-test-fallback-key', 'http://127.0.0.1:59998/v1', 'deepseek-v4-flash');

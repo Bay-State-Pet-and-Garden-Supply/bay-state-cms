@@ -48,6 +48,10 @@ vi.mock('@/classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: vi.fn(),
 }));
 
+vi.mock('@/classification/product-type-decision', () => ({
+  resolveProductTypeDecision: vi.fn(),
+}));
+
 // Import after mocks
 import { processPageTarget, processProductFieldTarget } from '../../classification/curation-target-processor';
 import {

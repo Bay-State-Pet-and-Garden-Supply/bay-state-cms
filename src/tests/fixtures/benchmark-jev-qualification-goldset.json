@@ -1,0 +1,373 @@
+{
+  "version": 2,
+  "description": "Representative family-separated GOLD evaluation dataset for Jev Curation qualification (Issue #302). Adjudicated gold labels + evidence only (no stored predictions). Predictions are executed from the current classification code paths at report time via buildQualificationPredictionsFromCode; legacy baseline/candidate keys in older copies are ignored by the loader and never scored. Covers food/treats, toys, animal-care, garden/pest-control, ambiguous neighbors, unknown/no-fit types, incomplete evidence, and mixed cohorts. Candidate option sets derive from the frozen production taxonomy snapshot in `frozenTaxonomy` — never the union of gold labels. Real product families (variants/sizes of the same underlying product) share ONE familyId and never cross the dev/holdout boundary.",
+  "adjudicatedBy": "store-manager-adjudication-panel",
+  "verifiedPageImport": {
+    "importId": "import-active-2026",
+    "importHash": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890",
+    "provenance": "prov-active-import-001"
+  },
+  "frozenTaxonomy": {
+    "snapshotHash": "900904c44979264215607291f72c82933b9000ae16ca2144de2a94b9b7cb3f72",
+    "source": "frozen production taxonomy snapshot for Jev qualification evidence: candidate option sets (product types, allowed attribute values, pages) derive from this snapshot, never the union of gold labels",
+    "capturedAt": "2026-09-28T00:00:00.000Z",
+    "productTypes": [
+      { "id": "bird_seed_food", "label": "Bird Seed Food", "attributeProfileId": "bird_seed_food-profile", "invariantAttributes": { "animal_type": ["bird"] } },
+      { "id": "cat_food_dry", "label": "Dry Cat Food", "attributeProfileId": "cat_food_dry-profile", "invariantAttributes": { "animal_type": ["cat"] } },
+      { "id": "cat_treat", "label": "Cat Treat", "attributeProfileId": "cat_treat-profile", "invariantAttributes": { "animal_type": ["cat"] } },
+      { "id": "dog_food_dry", "label": "Dry Dog Food", "attributeProfileId": "dog_food_dry-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "dog_food_wet", "label": "Wet Dog Food", "attributeProfileId": "dog_food_wet-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "dog_toy", "label": "Dog Toy", "attributeProfileId": "dog_toy-profile", "invariantAttributes": { "animal_type": ["dog"] } },
+      { "id": "flea_tick_control", "label": "Flea Tick Control", "attributeProfileId": "flea_tick_control-profile" },
+      { "id": "garden_fertilizer", "label": "Garden Fertilizer", "attributeProfileId": "garden_fertilizer-profile" },
+      { "id": "insect_pest_control", "label": "Insect Pest Control", "attributeProfileId": "insect_pest_control-profile" },
+      { "id": "potting_soil", "label": "Potting Soil", "attributeProfileId": "potting_soil-profile" },
+      { "id": "suet_cakes", "label": "Suet Cakes", "attributeProfileId": "suet_cakes-profile", "invariantAttributes": { "animal_type": ["bird"] } }
+    ],
+    "attributeTargets": [
+      { "targetId": "animal_type", "cardinality": "multiple", "options": ["bird", "cat", "dog", "fish"], "isUniversal": true },
+      { "targetId": "application_method", "cardinality": "single", "options": ["Bait", "Granular", "Spray"] },
+      { "targetId": "flavor", "cardinality": "single", "options": ["Beef", "Berry", "Chicken", "Duck", "Lamb", "Salmon"] },
+      { "targetId": "life_stage", "cardinality": "single", "options": ["Adult", "Puppy", "Senior"] },
+      { "targetId": "material", "cardinality": "single", "options": ["Nylon", "Rope", "Rubber"] },
+      { "targetId": "organic", "cardinality": "single", "options": ["No", "Yes"] },
+      { "targetId": "package_type", "cardinality": "single", "options": ["Bag", "Box", "Tub"] },
+      { "targetId": "target_pest", "cardinality": "multiple", "options": ["ant", "fly", "hornet", "mosquito", "roach", "spider", "wasp"] },
+      { "targetId": "volume", "cardinality": "single", "options": ["1 cu ft", "2 cu ft", "8 qt"] }
+    ],
+    "attributeProfiles": [
+      { "id": "bird_seed_food-profile", "productTypeId": "bird_seed_food", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "package_type", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "cat_food_dry-profile", "productTypeId": "cat_food_dry", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "cat_treat-profile", "productTypeId": "cat_treat", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_food_dry-profile", "productTypeId": "dog_food_dry", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_food_wet-profile", "productTypeId": "dog_food_wet", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "dog_toy-profile", "productTypeId": "dog_toy", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "material", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "flea_tick_control-profile", "productTypeId": "flea_tick_control", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "life_stage", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "garden_fertilizer-profile", "productTypeId": "garden_fertilizer", "attributes": [{ "attributeId": "application_method", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "volume", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "insect_pest_control-profile", "productTypeId": "insect_pest_control", "attributes": [{ "attributeId": "application_method", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "target_pest", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }] },
+      { "id": "potting_soil-profile", "productTypeId": "potting_soil", "attributes": [{ "attributeId": "organic", "cardinality": "single", "required": false, "applicabilityConditions": [] }, { "attributeId": "volume", "cardinality": "single", "required": false, "applicabilityConditions": [] }] },
+      { "id": "suet_cakes-profile", "productTypeId": "suet_cakes", "attributes": [{ "attributeId": "animal_type", "cardinality": "multiple", "required": false, "applicabilityConditions": [] }, { "attributeId": "flavor", "cardinality": "single", "required": false, "applicabilityConditions": [] }] }
+    ],
+    "universalAttributeIds": ["animal_type"],
+    "pages": [
+      { "pageId": "page-cat-food", "pageName": "Cat Food" },
+      { "pageId": "page-cat-treats", "pageName": "Cat Treats" },
+      { "pageId": "page-dog-toys", "pageName": "Dog Toys" },
+      { "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" },
+      { "pageId": "page-flea-tick", "pageName": "Flea & Tick Prevention" },
+      { "pageId": "page-garden-fertilizer", "pageName": "Garden Fertilizer" },
+      { "pageId": "page-lawn-garden", "pageName": "Lawn & Garden Soil" },
+      { "pageId": "page-pest-control", "pageName": "Insect & Pest Control" },
+      { "pageId": "page-wet-dog-food", "pageName": "Wet Dog Food" },
+      { "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }
+    ]
+  },
+  "entries": [
+    {
+      "sku": "QUAL-DOG-KIBBLE-01",
+      "familyId": "fam-acme-kibble",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 5 lb bag", "reliability": "high", "attributeId": null },
+        { "source": "official_page", "snippet": "Formulated for adult canines with real chicken and wholesome grains.", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-02",
+      "familyId": "fam-acme-kibble",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 15 lb bag", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-03",
+      "familyId": "fam-acme-kibble",
+      "split": "dev",
+      "assortment": "food",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Chicken", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Acme Organic Chicken Adult Dry Dog Food 30 lb bag giant breed", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-CAT-TREAT-01",
+      "familyId": "fam-beacon-treats",
+      "split": "dev",
+      "assortment": "treats",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "cat_treat" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Salmon", "state": "known" },
+          { "targetId": "animal_type", "values": ["cat"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-cat-treats"],
+          "pageAssignments": [{ "pageId": "page-cat-treats", "pageName": "Cat Treats" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Beacon Crunchy Salmon Treats for Cats 3 oz", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-DOG-CHEW-TOY-01",
+      "familyId": "fam-cowyard-chew",
+      "split": "dev",
+      "assortment": "toys",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_toy" },
+        "fieldAssignments": [
+          { "targetId": "material", "value": "Rubber", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dog-toys"],
+          "pageAssignments": [{ "pageId": "page-dog-toys", "pageName": "Dog Toys" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Cowyard Durable Rubber Chew Toy for Aggressive Chewers", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-FLEA-01",
+      "familyId": "fam-beacon-flea",
+      "split": "dev",
+      "assortment": "animal-care",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "flea_tick_control" },
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-flea-tick"],
+          "pageAssignments": [{ "pageId": "page-flea-tick", "pageName": "Flea & Tick Prevention" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Beacon Topical Flea and Tick Treatment for Adult Dogs over 40 lbs", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-PEST-01",
+      "familyId": "fam-gardenpro-yard-insect",
+      "split": "dev",
+      "assortment": "pest-control",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "insect_pest_control" },
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["ant", "roach", "spider"], "state": "known" },
+          { "targetId": "application_method", "value": "Spray", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-pest-control"],
+          "pageAssignments": [{ "pageId": "page-pest-control", "pageName": "Insect & Pest Control" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Yard Insect Spray kills ants, roaches, and spiders on contact 32 oz", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-SOIL-01",
+      "familyId": "fam-gardenpro-soil",
+      "split": "dev",
+      "assortment": "garden",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "potting_soil" },
+        "fieldAssignments": [
+          { "targetId": "organic", "value": "Yes", "state": "known" },
+          { "targetId": "volume", "value": "1 cu ft", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-lawn-garden"],
+          "pageAssignments": [{ "pageId": "page-lawn-garden", "pageName": "Lawn & Garden Soil" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Organic Potting Soil Mix for Indoor and Outdoor Planters 1 cu ft", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-NEIGHBOR-SUET-01",
+      "familyId": "fam-suet-neighbor",
+      "split": "dev",
+      "assortment": "confusing-neighbor",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "suet_cakes" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Berry", "state": "known" },
+          { "targetId": "animal_type", "values": ["bird"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-wild-bird-feed"],
+          "pageAssignments": [{ "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "High-Energy Berry Suet Cake for Wild Birds 11 oz rendered beef suet", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-UNKNOWN-FOGGER-01",
+      "familyId": "fam-reptile-fogger",
+      "split": "dev",
+      "assortment": "unknown-type",
+      "gold": {
+        "productType": { "kind": "no-fit", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "MisterFog Ultrasonic Reptile Terrarium Humidifier and Fogger System", "reliability": "medium", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-THIN-EVIDENCE-01",
+      "familyId": "fam-thin-evidence",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": {
+        "productType": { "kind": "insufficient-evidence", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": []
+    },
+    {
+      "sku": "QUAL-UNLABELED-PENDING-01",
+      "familyId": "fam-pending-review",
+      "split": "dev",
+      "assortment": "incomplete-evidence",
+      "gold": {
+        "productType": { "kind": "unlabeled", "typeId": null },
+        "fieldAssignments": [],
+        "categoryPages": { "pageIds": [], "pageAssignments": [] }
+      },
+      "evidence": [
+        { "source": "spreadsheet", "snippet": "Unconfirmed mystery SKU 9942", "reliability": "low", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-PEST-HOLDOUT-01",
+      "familyId": "fam-gardenpro-wasp-hornet",
+      "split": "holdout",
+      "assortment": "pest-control",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "insect_pest_control" },
+        "fieldAssignments": [
+          { "targetId": "target_pest", "values": ["wasp", "hornet"], "state": "known" },
+          { "targetId": "application_method", "value": "Spray", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-pest-control"],
+          "pageAssignments": [{ "pageId": "page-pest-control", "pageName": "Insect & Pest Control" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "GardenPro Wasp and Hornet Jet Spray kills nests up to 20 feet away 16 oz", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-NEIGHBOR-SEED-HOLDOUT-01",
+      "familyId": "fam-northland-seed",
+      "split": "holdout",
+      "assortment": "confusing-neighbor",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "bird_seed_food" },
+        "fieldAssignments": [
+          { "targetId": "animal_type", "values": ["bird"], "state": "known" },
+          { "targetId": "package_type", "value": "Bag", "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-wild-bird-feed"],
+          "pageAssignments": [{ "pageId": "page-wild-bird-feed", "pageName": "Wild Bird Feed" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Northland Blend Premium Wild Bird Seed 20 lb bag with sunflower kernels and millet", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-COHORT-FROMM-ADULT-01",
+      "familyId": "fam-fromm-gold",
+      "split": "holdout",
+      "assortment": "mixed-cohort",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck", "state": "known" },
+          { "targetId": "life_stage", "value": "Adult", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Fromm Gold Adult Dog Food Duck & Sweet Potato 15 lb", "reliability": "high", "attributeId": null }
+      ]
+    },
+    {
+      "sku": "QUAL-COHORT-FROMM-PUPPY-02",
+      "familyId": "fam-fromm-gold",
+      "split": "holdout",
+      "assortment": "mixed-cohort",
+      "gold": {
+        "productType": { "kind": "known-type", "typeId": "dog_food_dry" },
+        "fieldAssignments": [
+          { "targetId": "flavor", "value": "Duck", "state": "known" },
+          { "targetId": "life_stage", "value": "Puppy", "state": "known" },
+          { "targetId": "animal_type", "values": ["dog"], "state": "known" }
+        ],
+        "categoryPages": {
+          "pageIds": ["page-dry-dog-food"],
+          "pageAssignments": [{ "pageId": "page-dry-dog-food", "pageName": "Dry Dog Food" }]
+        }
+      },
+      "evidence": [
+        { "source": "official_page", "snippet": "Fromm Gold Puppy Formula Dry Dog Food 15 lb", "reliability": "high", "attributeId": null }
+      ]
+    }
+  ]
+}

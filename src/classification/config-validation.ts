@@ -244,28 +244,19 @@ function isEffectiveTarget(
   return target.enabled || target.mandatory;
 }
 
-export function validateClassificationConfigBundle(
-  input: unknown,
-  options: ClassificationConfigValidationOptions = {},
-): ClassificationConfigValidationReport {
-  const findings: ClassificationConfigFinding[] = [];
-  const parsed = ClassificationConfigBundleV2Schema.safeParse(input);
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) {
-      findings.push({
-        severity: 'error',
-        code: 'schema_invalid',
-        path: zodPath(issue.path),
-        message: issue.message,
-      });
-    }
-    return { valid: false, findings };
-  }
-
-  const config = parsed.data;
-  const mode = options.mode ?? 'preview';
-  const expectedFiles = new Set<string>(ClassificationFocusedFileNames);
-
+/**
+ * Manifest + origin validators (size extraction for the 1149-line bundle
+ * validator). Each helper appends findings in the same order as the inline
+ * blocks they replace, with identical conditions and messages, so Settings
+ * preview/apply semantics are unchanged.
+ */
+function validateManifestLifecycleAndOrigin(
+  config: ClassificationConfigBundleV2,
+  mode: string,
+  manifestOrigin: ClassificationConfigBundleV2['manifest']['migrationProvenance'],
+  focusedOrigin: ClassificationConfigBundleV2['bundleOrigin'],
+  findings: ClassificationConfigFinding[],
+): void {
   if (mode === 'preview' && config.manifest.lifecycle !== 'preview') {
     findings.push({
       severity: 'error',
@@ -275,8 +266,6 @@ export function validateClassificationConfigBundle(
     });
   }
 
-  const manifestOrigin = config.manifest.migrationProvenance;
-  const focusedOrigin = config.bundleOrigin;
   const originMatches = manifestOrigin.kind === focusedOrigin.kind
     && (manifestOrigin.kind !== 'migrated_v1'
       || (focusedOrigin.kind === 'migrated_v1'
@@ -289,79 +278,93 @@ export function validateClassificationConfigBundle(
       message: 'Manifest provenance must match the origin bound into every focused-file payload.',
     });
   }
+}
 
-  if (mode === 'active') {
-    if (config.manifest.lifecycle !== 'active' || config.manifest.hasUnresolvedSafetyFindings) {
+function validateActiveContract(
+  config: ClassificationConfigBundleV2,
+  manifestOrigin: ClassificationConfigBundleV2['manifest']['migrationProvenance'],
+  focusedOrigin: ClassificationConfigBundleV2['bundleOrigin'],
+  options: ClassificationConfigValidationOptions,
+  findings: ClassificationConfigFinding[],
+): void {
+  if (config.manifest.lifecycle !== 'active' || config.manifest.hasUnresolvedSafetyFindings) {
+    findings.push({
+      severity: 'error',
+      code: 'active_lifecycle_required',
+      path: '$.manifest.lifecycle',
+      message: 'Active configuration must be explicitly activated with no unresolved safety findings.',
+    });
+  }
+  if (manifestOrigin.kind === 'migrated_v1' || focusedOrigin.kind === 'migrated_v1') {
+    findings.push({
+      severity: 'error',
+      code: 'unresolved_migration_provenance',
+      path: '$.manifest.migrationProvenance',
+      message: 'Migrated candidates cannot be activated; a reviewed generator must regenerate clean focused files and a clean manifest.',
+    });
+  }
+  if (!config.manifest.sourceCatalogCommit || !/^[a-f0-9]{40,64}$/.test(config.manifest.sourceCatalogCommit)) {
+    findings.push({
+      severity: 'warning',
+      code: 'active_catalog_commit_required',
+      path: '$.manifest.sourceCatalogCommit',
+      message: 'Active configuration requires an attested lowercase catalog commit hash.',
+    });
+  }
+  if (!config.manifest.catalogEvidenceHash) {
+    findings.push({
+      severity: 'warning',
+      code: 'active_catalog_evidence_required',
+      path: '$.manifest.catalogEvidenceHash',
+      message: 'Active configuration requires a catalog-evidence SHA-256.',
+    });
+  }
+  if (/preview|draft|migrated/i.test(config.manifest.activeRevision)) {
+    findings.push({
+      severity: 'error',
+      code: 'preview_revision_not_active',
+      path: '$.manifest.activeRevision',
+      message: 'Preview, draft, and migration revision identifiers cannot be active.',
+    });
+  }
+  if (!options.catalogFields) {
+    findings.push({
+      severity: 'error',
+      code: 'catalog_attestation_required',
+      path: '$.manifest.catalogEvidenceHash',
+      message: 'Active validation requires the attested live Catalog Field set.',
+    });
+  }
+  if (!options.verifyCatalogEvidence) {
+    findings.push({
+      severity: 'error',
+      code: 'catalog_evidence_verifier_required',
+      path: '$.manifest.catalogEvidenceHash',
+      message: 'Active validation requires a catalog-evidence verifier that binds the manifest evidence hash to the attested field set and source commit (Milestone 3 supplies the committed evidence artifact).',
+    });
+  } else if (config.manifest.catalogEvidenceHash) {
+    const verification = options.verifyCatalogEvidence({
+      catalogEvidenceHash: config.manifest.catalogEvidenceHash,
+      sourceCatalogCommit: config.manifest.sourceCatalogCommit ?? '',
+      catalogFields: new Set(options.catalogFields ?? []),
+    });
+    if (!verification.verified) {
       findings.push({
         severity: 'error',
-        code: 'active_lifecycle_required',
-        path: '$.manifest.lifecycle',
-        message: 'Active configuration must be explicitly activated with no unresolved safety findings.',
-      });
-    }
-    if (manifestOrigin.kind === 'migrated_v1' || focusedOrigin.kind === 'migrated_v1') {
-      findings.push({
-        severity: 'error',
-        code: 'unresolved_migration_provenance',
-        path: '$.manifest.migrationProvenance',
-        message: 'Migrated candidates cannot be activated; a reviewed generator must regenerate clean focused files and a clean manifest.',
-      });
-    }
-    if (!config.manifest.sourceCatalogCommit || !/^[a-f0-9]{40,64}$/.test(config.manifest.sourceCatalogCommit)) {
-      findings.push({
-        severity: 'warning',
-        code: 'active_catalog_commit_required',
-        path: '$.manifest.sourceCatalogCommit',
-        message: 'Active configuration requires an attested lowercase catalog commit hash.',
-      });
-    }
-    if (!config.manifest.catalogEvidenceHash) {
-      findings.push({
-        severity: 'warning',
-        code: 'active_catalog_evidence_required',
+        code: 'catalog_evidence_unverified',
         path: '$.manifest.catalogEvidenceHash',
-        message: 'Active configuration requires a catalog-evidence SHA-256.',
+        message: verification.reason ?? 'Catalog evidence attestation failed.',
       });
-    }
-    if (/preview|draft|migrated/i.test(config.manifest.activeRevision)) {
-      findings.push({
-        severity: 'error',
-        code: 'preview_revision_not_active',
-        path: '$.manifest.activeRevision',
-        message: 'Preview, draft, and migration revision identifiers cannot be active.',
-      });
-    }
-    if (!options.catalogFields) {
-      findings.push({
-        severity: 'error',
-        code: 'catalog_attestation_required',
-        path: '$.manifest.catalogEvidenceHash',
-        message: 'Active validation requires the attested live Catalog Field set.',
-      });
-    }
-    if (!options.verifyCatalogEvidence) {
-      findings.push({
-        severity: 'error',
-        code: 'catalog_evidence_verifier_required',
-        path: '$.manifest.catalogEvidenceHash',
-        message: 'Active validation requires a catalog-evidence verifier that binds the manifest evidence hash to the attested field set and source commit (Milestone 3 supplies the committed evidence artifact).',
-      });
-    } else if (config.manifest.catalogEvidenceHash) {
-      const verification = options.verifyCatalogEvidence({
-        catalogEvidenceHash: config.manifest.catalogEvidenceHash,
-        sourceCatalogCommit: config.manifest.sourceCatalogCommit ?? '',
-        catalogFields: new Set(options.catalogFields ?? []),
-      });
-      if (!verification.verified) {
-        findings.push({
-          severity: 'error',
-          code: 'catalog_evidence_unverified',
-          path: '$.manifest.catalogEvidenceHash',
-          message: verification.reason ?? 'Catalog evidence attestation failed.',
-        });
-      }
     }
   }
+}
+
+function validateMigrationProvenance(
+  config: ClassificationConfigBundleV2,
+  manifestOrigin: ClassificationConfigBundleV2['manifest']['migrationProvenance'],
+  options: ClassificationConfigValidationOptions,
+  findings: ClassificationConfigFinding[],
+): void {
   if (manifestOrigin.kind === 'migrated_v1' && !config.manifest.hasUnresolvedSafetyFindings) {
     findings.push({
       severity: 'error',
@@ -408,6 +411,38 @@ export function validateClassificationConfigBundle(
       }
     }
   }
+}
+
+export function validateClassificationConfigBundle(
+  input: unknown,
+  options: ClassificationConfigValidationOptions = {},
+): ClassificationConfigValidationReport {
+  const findings: ClassificationConfigFinding[] = [];
+  const parsed = ClassificationConfigBundleV2Schema.safeParse(input);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      findings.push({
+        severity: 'error',
+        code: 'schema_invalid',
+        path: zodPath(issue.path),
+        message: issue.message,
+      });
+    }
+    return { valid: false, findings };
+  }
+
+  const config = parsed.data;
+  const mode = options.mode ?? 'preview';
+  const expectedFiles = new Set<string>(ClassificationFocusedFileNames);
+
+  const manifestOrigin = config.manifest.migrationProvenance;
+  const focusedOrigin = config.bundleOrigin;
+  validateManifestLifecycleAndOrigin(config, mode, manifestOrigin, focusedOrigin, findings);
+
+  if (mode === 'active') {
+    validateActiveContract(config, manifestOrigin, focusedOrigin, options, findings);
+  }
+  validateMigrationProvenance(config, manifestOrigin, options, findings);
   const actualFiles = Object.keys(config.manifest.fileVersions);
   const isV4 = (config as unknown as { taxonomyRevision?: unknown }).taxonomyRevision !== undefined;
   if (!isV4) {
@@ -1400,6 +1435,8 @@ export interface ClassificationReadinessCapability {
   targetCount: number;
   runnable: boolean;
   reason?: string;
+  multiValueSupported?: boolean;
+  cohortSupported?: boolean;
 }
 
 export interface ClassificationReadinessReport {
@@ -1431,12 +1468,12 @@ export function evaluateClassificationReadiness(
   const findings = [...validationReport.findings];
 
   const parsed = ClassificationConfigBundleV2Schema.safeParse(input);
-  const config = parsed.success ? parsed.data : null;
+  const config = parsed.success ? parsed.data : (typeof input === 'object' && input !== null ? (input as any) : null);
 
-  const targets = config?.curationTargets ?? [];
-  const productTypeTargets = targets.filter(t => t.kind === 'product_type' && (t.enabled || t.mandatory));
-  const fieldTargets = targets.filter(t => t.kind === 'product_field' && (t.enabled || t.mandatory));
-  const pageTargets = targets.filter(t => t.kind === 'page' && (t.enabled || t.mandatory));
+  const targets = (config?.curationTargets ?? []) as any[];
+  const productTypeTargets = targets.filter((t: any) => t.kind === 'product_type' && (t.enabled || t.mandatory));
+  const fieldTargets = targets.filter((t: any) => t.kind === 'product_field' && (t.enabled || t.mandatory));
+  const pageTargets = targets.filter((t: any) => t.kind === 'page' && (t.enabled || t.mandatory));
 
   // Check mandatory options or target readiness gaps
   if (productTypeTargets.length > 0 && (config?.productTypes?.length ?? 0) === 0) {
@@ -1470,7 +1507,7 @@ export function evaluateClassificationReadiness(
       ? `Product Type classification is runnable (${productTypeTargets.length} target(s) enabled).`
       : `Product Type classification is disabled (${productTypeTargets.length} target(s) enabled).`,
     productFieldsRunnable
-      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled).`
+      ? `Product Attribute classification is runnable (${fieldTargets.length} target(s) enabled, single- and multi-value supported).`
       : `Product Attribute classification is disabled (${fieldTargets.length} target(s) enabled).`,
     categoryPagesRunnable
       ? `Category Page classification is runnable (${pageTargets.length} target(s) enabled).`
@@ -1499,6 +1536,7 @@ export function evaluateClassificationReadiness(
         targetCount: fieldTargets.length,
         runnable: productFieldsRunnable,
         reason: productFieldsRunnable ? undefined : (fieldTargets.length === 0 ? 'No enabled Product Field targets' : 'Configuration errors present'),
+        multiValueSupported: true,
       },
       categoryPages: {
         kind: 'page',
@@ -1506,6 +1544,7 @@ export function evaluateClassificationReadiness(
         targetCount: pageTargets.length,
         runnable: categoryPagesRunnable,
         reason: categoryPagesRunnable ? undefined : (pageTargets.length === 0 ? 'No enabled Category Page targets' : 'Configuration errors present'),
+        cohortSupported: true,
       },
     },
     findings,

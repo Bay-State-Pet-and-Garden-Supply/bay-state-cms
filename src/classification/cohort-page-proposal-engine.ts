@@ -13,6 +13,12 @@ import {
   type PageAssignmentResult,
 } from './page-assignment-llm';
 import { validateCategoryPageAssignment } from './category-page-correctness';
+import {
+  resolveModelRoute,
+  assertModelPolicyIntact,
+  ModelPolicyDeniedError,
+} from './model-policy-gateway';
+import { HeartbeatLostError } from './heartbeat-errors';
 
 export interface CohortPageOption {
   id: string;
@@ -21,8 +27,8 @@ export interface CohortPageOption {
 }
 
 export type CohortPageMemberResult =
-  | { status: 'assigned'; pages: PageAssignmentResult['pages']; modelCallIds?: string[] }
-  | { status: 'abstained'; reason: string };
+  | { status: 'assigned'; pages: PageAssignmentResult['pages']; modelCallIds?: string[]; source?: 'llm_cohort' | 'typesafe' }
+  | { status: 'abstained'; reason: string; failureCode?: string };
 
 export interface CohortPageCoordinationParams {
   groupId: string;
@@ -303,6 +309,43 @@ export async function coordinateCohortPagesCore(
       `Cohort page coordination provenance mismatch: model-call context operation "${params.modelCall.operation}" ` +
         `differs from the effective protected operation "${operation}".`, );
   }
+
+  // Check if routed to System One / TypeSafe Jev
+  const rawPolicy = params.modelPolicy ?? (params.snapshot ? params.snapshot.modelPolicy : null);
+  const effectivePolicy =
+    rawPolicy && typeof rawPolicy === 'object' && 'policyDigest' in rawPolicy && 'providerLocalities' in rawPolicy
+      ? (rawPolicy as ModelPolicyView)
+      : null;
+
+  let isSystemOne = false;
+  if (effectivePolicy) {
+    const stageOverride =
+      effectivePolicy.stageOverrides[operation] ??
+      effectivePolicy.stageOverrides.category_page_proposals ??
+      effectivePolicy.stageOverrides.cohort_page_assignment;
+    const configuredProvider = stageOverride?.provider ?? effectivePolicy.defaultProvider;
+    if (configuredProvider === 'typesafe') {
+      isSystemOne = true;
+    } else {
+      try {
+        // Lazy-loaded so the bun:sqlite-backed repo never enters the Vitest
+        // module graph (see the repo mocks in cohort-page-coordinator tests).
+        const { getFullAiRoutingConfig } = await import('../db/repositories/provider-connection-repo');
+        const aiConfig = getFullAiRoutingConfig();
+        const conn =
+          aiConfig.connections[configuredProvider] ||
+          Object.values(aiConfig.connections).find(c => c.id === configuredProvider);
+        isSystemOne = conn?.transport === 'systemone';
+      } catch {
+        isSystemOne = false;
+      }
+    }
+  }
+
+  if (isSystemOne) {
+    const { coordinateCohortPagesWithJev } = await import('./page-decision');
+    return coordinateCohortPagesWithJev(params, opts);
+  }
   let llmConfigured: boolean;
   try {
     llmConfigured = Boolean(getLlmConfigForTask('category_page_assignment', {
@@ -486,7 +529,6 @@ export function coordinateCohortPagesOnce(
   return promise;
 }
 
-// fallow-ignore-next-line unused-export — used by tests
 export function clearCohortPageCoordinationCache(): void {
   cache.clear();
 }

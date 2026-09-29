@@ -31,6 +31,7 @@ export interface ModelCallStartInput {
   attempt: number;
   provider: string;
   model: string;
+  requestedModel?: string | null;
   locality: string | null;
   snapshotHash: string;
   modelPolicyDigest: string;
@@ -51,6 +52,8 @@ export interface ModelCallTerminalUpdate {
   errorMessage?: string | null;
   estimatedCostUsd?: number | null;
   costBasis?: CostBasis | null;
+  resolvedModel?: string | null;
+  typedResultMetadata?: Record<string, unknown> | null;
 }
 
 export interface ModelCallRow {
@@ -61,6 +64,9 @@ export interface ModelCallRow {
   attempt: number;
   provider: string | null;
   model: string | null;
+  requested_model: string | null;
+  resolved_model: string | null;
+  typed_result_json: string | null;
   locality: string | null;
   snapshot_hash: string | null;
   model_policy_digest: string | null;
@@ -103,12 +109,13 @@ export function computeModelCallCost(
 export function insertModelCallStart(input: ModelCallStartInput): string {
   const id = randomUUID();
   const db = getDb();
+  const requestedModel = input.requestedModel ?? input.model;
   db.run(
     `INSERT INTO classification_model_calls
-     (id, run_id, stage_name, operation, attempt, provider, model, locality, snapshot_hash,
+     (id, run_id, stage_name, operation, attempt, provider, model, requested_model, locality, snapshot_hash,
       model_policy_digest, prompt_template_version, rule_version, system_prompt_hash, user_prompt_hash,
       started_at, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       input.runId,
@@ -117,6 +124,7 @@ export function insertModelCallStart(input: ModelCallStartInput): string {
       input.attempt,
       input.provider,
       input.model,
+      requestedModel,
       input.locality,
       input.snapshotHash,
       input.modelPolicyDigest,
@@ -139,10 +147,13 @@ export function insertModelCallStart(input: ModelCallStartInput): string {
  */
 export function completeModelCall(callId: string, update: ModelCallTerminalUpdate): boolean {
   const db = getDb();
+  const typedResultJson = update.typedResultMetadata != null ? JSON.stringify(update.typedResultMetadata) : null;
   const result = db.run(
     `UPDATE classification_model_calls SET
        status = ?, ended_at = ?, duration_ms = ?, prompt_tokens = ?, completion_tokens = ?,
-       error_message = ?, estimated_cost_usd = ?, cost_basis = ?
+       error_message = ?, estimated_cost_usd = ?, cost_basis = ?,
+       resolved_model = COALESCE(?, resolved_model),
+       typed_result_json = COALESCE(?, typed_result_json)
      WHERE id = ? AND status = 'started'`,
     [
       update.status,
@@ -153,6 +164,8 @@ export function completeModelCall(callId: string, update: ModelCallTerminalUpdat
       update.errorMessage != null ? redactTransportText(String(update.errorMessage)) : null,
       update.estimatedCostUsd ?? null,
       update.costBasis ?? null,
+      update.resolvedModel ?? null,
+      typedResultJson,
       callId,
     ],
   );
@@ -168,19 +181,25 @@ export function insertTerminalModelCall(
   input: Omit<ModelCallStartInput, 'provider' | 'model'> & {
     provider: string | null;
     model: string | null;
-    status: 'policy_denied' | 'unavailable';
+    requestedModel?: string | null;
+    resolvedModel?: string | null;
+    typedResultMetadata?: Record<string, unknown> | null;
+    status: 'policy_denied' | 'unavailable' | 'failed';
     errorMessage?: string | null;
     costBasis?: CostBasis | null;
   },
 ): string {
   const id = randomUUID();
   const db = getDb();
+  const requestedModel = input.requestedModel ?? input.model;
+  const resolvedModel = input.resolvedModel ?? input.model;
+  const typedResultJson = input.typedResultMetadata != null ? JSON.stringify(input.typedResultMetadata) : null;
   db.run(
     `INSERT INTO classification_model_calls
-     (id, run_id, stage_name, operation, attempt, provider, model, locality, snapshot_hash,
+     (id, run_id, stage_name, operation, attempt, provider, model, requested_model, resolved_model, typed_result_json, locality, snapshot_hash,
       model_policy_digest, prompt_template_version, rule_version, system_prompt_hash, user_prompt_hash,
       started_at, ended_at, duration_ms, status, error_message, estimated_cost_usd, cost_basis, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       input.runId,
@@ -189,6 +208,9 @@ export function insertTerminalModelCall(
       input.attempt,
       input.provider,
       input.model,
+      requestedModel,
+      resolvedModel,
+      typedResultJson,
       input.locality,
       input.snapshotHash,
       input.modelPolicyDigest,

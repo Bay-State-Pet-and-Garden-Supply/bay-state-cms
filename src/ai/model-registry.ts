@@ -103,6 +103,19 @@ const MODEL_PROFILES: Record<string, ModelProfile> = {
     },
     recommendedContext: 128000,
   },
+  'jev-1.13.0': {
+    id: 'jev-1.13.0',
+    provider: 'typesafe',
+    capabilities: {
+      modalities: ['text'],
+      toolCalling: 'none',
+      structuredOutput: 'json_schema',
+      reasoning: 'none',
+      maxContextTokens: 65536,
+      recommendedContextTokens: 32768,
+    },
+    recommendedContext: 32768,
+  },
   'qwen2.5vl:latest': {
     id: 'qwen2.5vl:latest',
     provider: 'ollama',

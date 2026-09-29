@@ -855,6 +855,16 @@ export const ProposalDerivationSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('llm'),
   }).strict(),
+  z.object({
+    kind: z.literal('systemone_judgment'),
+    primitive: z.enum(['choice', 'noul']),
+    questionId: z.string(),
+    selectedProbability: z.number().min(0).max(1).nullable().optional(),
+    vendorConfidence: z.number().min(0).max(1).nullable().optional(),
+    probabilityBasis: z.string().optional(),
+    abstentionCode: z.string().optional(),
+    candidateProbabilities: z.record(z.string(), z.number()).optional(),
+  }).strict(),
 ]);
 export type ProposalDerivation = z.infer<typeof ProposalDerivationSchema>;
 
@@ -1134,9 +1144,12 @@ export const BenchmarkGoldLabelsSchema = z.object({
     pageName: z.string(),
     pageId: z.string().nullable().default(null),
   })).default([]),
+  categoryPageIds: z.array(z.string()).optional(),
+  verifiedImportProvenance: z.string().nullable().optional(),
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
+    values: z.array(z.string()).optional(),
   })).default([]),
 });
 export type BenchmarkGoldLabels = z.infer<typeof BenchmarkGoldLabelsSchema>;
@@ -1167,6 +1180,13 @@ export const BenchmarkDatasetSchema = z.object({
   retiredAt: z.string().nullable().default(null),
   /** Source config snapshot hash captured at export time (drift exclusion). */
   sourceConfigHash: z.string().nullable().default(null),
+  /**
+   * Frozen production taxonomy snapshot hash the candidate option sets were
+   * derived from (candidates come from the frozen taxonomy, never the union
+   * of gold labels). Null for legacy datasets exported before the
+   * frozen-taxonomy contract. Additive: existing rows parse with null.
+   */
+  frozenTaxonomyHash: Sha256HexSchema.nullable().default(null),
   createdAt: IsoDateTimeStringSchema,
 });
 export type BenchmarkDataset = z.infer<typeof BenchmarkDatasetSchema>;
@@ -1205,14 +1225,17 @@ export const BenchmarkPredictionEntrySchema = z.object({
   productSku: z.string(),
   productType: z.string().nullable(),
   pageAssignments: z.array(z.string()).default([]),
+  pageIds: z.array(z.string()).optional(),
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
+    values: z.array(z.string()).optional(),
   })).default([]),
   abstained: z.boolean().default(false),
   confidence: z.number().min(0).max(1).nullable().default(null),
   /** Target IDs whose attributes are claim-sensitive in the active config. */
   claimTargets: z.array(z.string()).default([]),
+  verifiedImportProvenance: z.string().nullable().optional(),
 });
 export type BenchmarkPredictionEntry = z.infer<typeof BenchmarkPredictionEntrySchema>;
 
@@ -1251,6 +1274,9 @@ export const EvalMetricsSchema = z.object({
     /** True when Page gold exists but verified Page identity is unavailable. */
     blocked: z.boolean().default(false),
     blockedReason: z.string().nullable().default(null),
+    evaluatedByIdentity: z.boolean().optional(),
+    eligibleToQualifyJev: z.boolean().optional(),
+    verifiedImportProvenance: z.string().nullable().optional(),
   }),
   fields: z.object({
     targetAccuracy: z.record(z.string(), z.number()).default({}),
@@ -1321,6 +1347,15 @@ export const BenchmarkQualificationReceiptSchema = z.object({
   nonRegressionFloorsMet: z.boolean(),
   qualified: z.boolean(),
   reasons: z.array(z.string()).default([]),
+  /**
+   * Evidence-receipt digests bound at qualification time (additive: legacy
+   * receipts parse with null). Null means the corresponding evidence was not
+   * recorded — downstream gates treat null as unverified (fail closed).
+   */
+  frozenTaxonomyHash: Sha256HexSchema.nullable().default(null),
+  familySeparationDigest: Sha256HexSchema.nullable().default(null),
+  compatibilityDigest: Sha256HexSchema.nullable().default(null),
+  operatorDocsDigest: Sha256HexSchema.nullable().default(null),
   /** sha256 of the canonical receipt payload. */
   digest: Sha256HexSchema,
   generatedAt: StrictIsoDateTimeStringSchema,
@@ -1397,6 +1432,8 @@ export const ClassificationReadinessCapabilitySchema = z.object({
   targetCount: z.number().int().nonnegative(),
   runnable: z.boolean(),
   reason: z.string().nullable(),
+  multiValueSupported: z.boolean().optional(),
+  cohortSupported: z.boolean().optional(),
 }).strict();
 export type ClassificationReadinessCapability = z.infer<typeof ClassificationReadinessCapabilitySchema>;
 
@@ -1420,3 +1457,173 @@ export const ClassificationReadinessReportSchema = z.object({
   summary: z.array(z.string()),
 }).strict();
 export type ClassificationReadinessReportDto = z.infer<typeof ClassificationReadinessReportSchema>;
+
+// ─── Qualification evidence receipts ─────────────────────────────────────────
+// Additive contracts for qualification EVIDENCE (frozen taxonomy candidates,
+// family separation, compatibility suites, operator docs). All fields are new
+// or optional-with-default: no existing schema shape changes, and
+// prediction/bundle schemas (BenchmarkPredictionEntry/Bundle) are untouched.
+
+/** One frozen production product-type candidate (id + display label). */
+export const FrozenTaxonomyProductTypeSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  /**
+   * Frozen Product Type → Attribute Profile pointer (additive, issue #302).
+   * Mirrors production's authoritative direction (Product Type →
+   * `attributeProfileId` → profile). `null` is a legitimately EMPTY profile
+   * (universal-only, never "all fields"); `undefined` (legacy snapshots) means
+   * the mapping was never captured.
+   */
+  attributeProfileId: z.string().min(1).nullable().optional(),
+  /**
+   * Deterministic invariant values implied by this Product Type (additive).
+   * Mirrors `ProductTypeConfigV2.invariantAttributes`; resolved before the
+   * variable-field loop in production and in qualification replay.
+   */
+  invariantAttributes: z.record(z.string(), z.union([z.string(), z.array(z.string()).min(1)])).optional(),
+}).strict();
+export type FrozenTaxonomyProductType = z.infer<typeof FrozenTaxonomyProductTypeSchema>;
+
+/** One frozen controlled-attribute target with its allowed values. */
+export const FrozenTaxonomyAttributeTargetSchema = z.object({
+  targetId: z.string().min(1),
+  cardinality: CardinalityEnum,
+  options: z.array(z.string().min(1)),
+  /**
+   * Universal tier flag (additive, issue #302). Mirrors
+   * `ProductAttributeConfigV2.isUniversal`: universal attributes proceed
+   * without a Product Type; profile attributes require an effective type.
+   */
+  isUniversal: z.boolean().optional(),
+}).strict();
+export type FrozenTaxonomyAttributeTarget = z.infer<typeof FrozenTaxonomyAttributeTargetSchema>;
+
+/**
+ * One frozen profile attribute entry (additive, issue #302). Carries the
+ * per-profile cardinality (wins over the global target mode when present)
+ * plus the profile-entry applicability conditions evaluated by the shipped
+ * `evaluateAttributeApplicability` helper (conditions run against
+ * accepted/reviewed facts; missing facts → `unknown` → withheld).
+ */
+export const FrozenTaxonomyProfileAttributeSchema = z.object({
+  attributeId: z.string().min(1),
+  cardinality: CardinalityEnum,
+  required: z.boolean().default(false),
+  applicabilityConditions: z.array(z.unknown()).default([]),
+}).strict();
+export type FrozenTaxonomyProfileAttribute = z.infer<typeof FrozenTaxonomyProfileAttributeSchema>;
+
+/**
+ * One frozen Attribute Profile (additive, issue #302). Mirrors
+ * `AttributeProfileConfigV2` (id + productTypeId + attributes) so
+ * qualification replay follows production's effective-type → profile →
+ * applicability → invariants pipeline via the shipped helpers.
+ */
+export const FrozenTaxonomyAttributeProfileSchema = z.object({
+  id: z.string().min(1),
+  productTypeId: z.string().min(1),
+  attributes: z.array(FrozenTaxonomyProfileAttributeSchema).default([]),
+}).strict();
+export type FrozenTaxonomyAttributeProfile = z.infer<typeof FrozenTaxonomyAttributeProfileSchema>;
+
+/** One frozen category-page candidate (stable id + display name). */
+export const FrozenTaxonomyPageSchema = z.object({
+  pageId: z.string().min(1),
+  pageName: z.string().min(1),
+}).strict();
+export type FrozenTaxonomyPage = z.infer<typeof FrozenTaxonomyPageSchema>;
+
+/**
+ * Frozen production taxonomy/config snapshot. Candidate option sets for
+ * qualification MUST be derived from this snapshot — never from the union of
+ * adjudicated gold labels. Gold labels remain the answers; they are validated
+ * to sit WITHIN these sets but never define them.
+ */
+export const FrozenTaxonomySnapshotSchema = z.object({
+  snapshotHash: Sha256HexSchema,
+  source: z.string().min(1),
+  capturedAt: StrictIsoDateTimeStringSchema,
+  productTypes: z.array(FrozenTaxonomyProductTypeSchema).min(1),
+  attributeTargets: z.array(FrozenTaxonomyAttributeTargetSchema).min(1),
+  pages: z.array(FrozenTaxonomyPageSchema).min(1),
+  /**
+   * REAL frozen Product Type → profile → attribute mapping (additive, issue
+   * #302). `snapshotHash` covers these bytes: the same entries with a
+   * different profile pool yield a different hash (extended, never weakened).
+   * Absent (legacy snapshots) means applicability is unresolvable — callers
+   * fail closed (blocked), never broaden to all frozen attributes.
+   */
+  attributeProfiles: z.array(FrozenTaxonomyAttributeProfileSchema).optional(),
+  /**
+   * Explicit universal attribute ids (additive). Complements per-target
+   * `isUniversal` flags; the union is authoritative. Universals proceed
+   * without a Product Type (production parity).
+   */
+  universalAttributeIds: z.array(z.string().min(1)).optional(),
+}).strict();
+export type FrozenTaxonomySnapshot = z.infer<typeof FrozenTaxonomySnapshotSchema>;
+
+/** One family straddling splits (shared family identity across a boundary). */
+export const FamilySeparationLeakSchema = z.object({
+  familyId: z.string().min(1),
+  groups: z.array(z.string().min(1)).min(1),
+}).strict();
+export type FamilySeparationLeak = z.infer<typeof FamilySeparationLeakSchema>;
+
+/** One cross-split near-duplicate pair under distinct family ids. */
+export const FamilyNearDuplicatePairSchema = z.object({
+  skuA: z.string().min(1),
+  skuB: z.string().min(1),
+  familyA: z.string().min(1),
+  familyB: z.string().min(1),
+  reason: z.string().min(1),
+  similarity: z.number().min(0).max(1).nullable().default(null),
+}).strict();
+export type FamilyNearDuplicatePair = z.infer<typeof FamilyNearDuplicatePairSchema>;
+
+/**
+ * Family-separation proof: shared-identity leakage plus cross-split
+ * near-duplicate detection over the qualification goldset. `passed` is true
+ * only when both lists are empty over a non-empty family population.
+ */
+export const FamilySeparationProofSchema = z.object({
+  proofVersion: z.literal('family-separation-v1'),
+  verifiedAt: StrictIsoDateTimeStringSchema,
+  familiesChecked: z.number().int().nonnegative(),
+  leakedFamilies: z.array(FamilySeparationLeakSchema).default([]),
+  nearDuplicatePairs: z.array(FamilyNearDuplicatePairSchema).default([]),
+  passed: z.boolean(),
+}).strict();
+export type FamilySeparationProof = z.infer<typeof FamilySeparationProofSchema>;
+
+/** One compatibility suite result recorded at qualification time. */
+export const CompatibilitySuiteResultSchema = z.object({
+  suiteId: z.string().min(1),
+  commit: z.string().min(1),
+  passed: z.boolean(),
+  executedAt: StrictIsoDateTimeStringSchema.nullable().default(null),
+}).strict();
+export type CompatibilitySuiteResult = z.infer<typeof CompatibilitySuiteResultSchema>;
+
+/**
+ * Compatibility receipt: the already-green suites (other providers,
+ * deterministic rules, frozen snapshots, legacy reads) identified by suite,
+ * recorded at qualification time with the commit they passed on.
+ */
+export const CompatibilityReceiptSchema = z.object({
+  suites: z.array(CompatibilitySuiteResultSchema).min(1),
+  recordedAt: StrictIsoDateTimeStringSchema,
+}).strict();
+export type CompatibilityReceipt = z.infer<typeof CompatibilityReceiptSchema>;
+
+/**
+ * Operator-documentation receipt: the published runbook path plus the content
+ * hash of the exact published bytes recorded at qualification time.
+ */
+export const OperatorDocsReceiptSchema = z.object({
+  runbookPath: z.string().min(1),
+  contentHash: Sha256HexSchema,
+  publishedAt: StrictIsoDateTimeStringSchema.nullable().default(null),
+}).strict();
+export type OperatorDocsReceipt = z.infer<typeof OperatorDocsReceiptSchema>;

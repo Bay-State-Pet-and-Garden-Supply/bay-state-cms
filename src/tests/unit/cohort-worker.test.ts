@@ -1882,6 +1882,10 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     const rawBefore = getDb().query(
       'SELECT * FROM classification_cohort_runs WHERE id = ?',
     ).get(run.id) as Record<string, unknown>;
+    // Model-call writes are workspace/owner-agnostic rows: sibling tests in
+    // this file legitimately persist audited calls, so assert a delta of zero
+    // (shadow writes nothing) rather than a global zero.
+    const modelCallsBefore = (getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number }).cnt;
     const observations = observeCohortShadowTypeResolution(workspaceId, wsPath);
     expect(observations).toHaveLength(1);
     const observation = observations[0];
@@ -1909,7 +1913,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(after.finalMembershipHash).toBeNull();
     expect(dependencyRowCount(workspaceId)).toBe(0);
     const modelCalls = getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number };
-    expect(Number(modelCalls.cnt)).toBe(0);
+    expect(Number(modelCalls.cnt)).toBe(Number(modelCallsBefore));
   });
 
   it('shadow: worker poll runs the deterministic-only observer and logs one cohort_product_type_shadow line (no runs, no deps, no model calls)', async () => {
@@ -1921,6 +1925,9 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     });
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: true });
 
+    // Same delta rationale as the resolver test above: sibling tests persist
+    // audited model calls, so the shadow's no-write property is a delta.
+    const modelCallsBefore = (getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number }).cnt;
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const capturedLogs: string[] = [];
@@ -1951,7 +1958,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(cohortRunCount(workspaceId)).toBe(0);
     expect(dependencyRowCount(workspaceId)).toBe(0);
     const modelCalls = getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number };
-    expect(Number(modelCalls.cnt)).toBe(0);
+    expect(Number(modelCalls.cnt)).toBe(Number(modelCallsBefore));
   });
 
   it('PR12 R1: shadow REJECTS stale persisted OCR — a non-null OLD execution digest never influences the shadow resolution (read-only, byte-equivalent extraction); a MATCHING digest may participate read-only', async () => {
@@ -1989,6 +1996,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: true });
 
     const before = getDb().query('SELECT extraction_data_json FROM onboarding_items WHERE id = ?').get(items[0].id) as { extraction_data_json: string };
+    const modelCallsBefore = (getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number }).cnt;
     const observations = observeCohortShadowTypeResolution(workspaceId, wsPath);
 
     // The stale OCR must NOT influence the shadow resolution: the member's
@@ -2001,7 +2009,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     const after = getDb().query('SELECT extraction_data_json FROM onboarding_items WHERE id = ?').get(items[0].id) as { extraction_data_json: string };
     expect(after.extraction_data_json).toBe(before.extraction_data_json);
     const modelCalls = getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number };
-    expect(Number(modelCalls.cnt)).toBe(0);
+    expect(Number(modelCalls.cnt)).toBe(Number(modelCallsBefore));
 
     // CONTROL: the SAME OCR with a MATCHING execution digest may participate
     // READ-ONLY — the shadow resolution then sees the cat OCR evidence.

@@ -42,8 +42,16 @@ export function normalizeClassificationReadinessReport(
     ...report,
     capabilities: {
       productType: { ...report.capabilities.productType, reason: report.capabilities.productType.reason ?? null },
-      productFields: { ...report.capabilities.productFields, reason: report.capabilities.productFields.reason ?? null },
-      categoryPages: { ...report.capabilities.categoryPages, reason: report.capabilities.categoryPages.reason ?? null },
+      productFields: {
+        ...report.capabilities.productFields,
+        reason: report.capabilities.productFields.reason ?? null,
+        multiValueSupported: report.capabilities.productFields.multiValueSupported ?? true,
+      },
+      categoryPages: {
+        ...report.capabilities.categoryPages,
+        reason: report.capabilities.categoryPages.reason ?? null,
+        cohortSupported: report.capabilities.categoryPages.cohortSupported ?? true,
+      },
     },
   });
   if (!parsed.success) {

@@ -880,7 +880,7 @@ export const CohortPageOutputSchema = z.union([
     // fails the affected member closed (see `CohortPageOutputCorruptError`;
     // `materializeCoordinatedPages` also keeps a defensive throw).
     pages: z.array(CohortPageAssignmentSchema).min(1),
-    source: z.literal('llm_cohort'),
+    source: z.union([z.literal('llm_cohort'), z.literal('typesafe')]),
   }),
   z.object({
     status: z.literal('abstained'),

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { unlinkSync } from 'node:fs';
-import { initDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import {
@@ -17,6 +17,18 @@ describe('Zero-Deployment Rollback & End-to-End Route Resolution (PR 6)', () => 
     try { resetDb(); } catch { /* ok */ }
     initDb(testDbPath);
     runMigrations();
+
+    // AI Compute isolation: a stale DB file (e.g. left by a killed `bun
+    // test` process whose afterAll unlink never ran) may carry
+    // provider_connections rows, workload routes, or routing defaults that
+    // flip isAiComputeConfigured() on. AI Compute is authoritative once
+    // configured, so reset to the pristine-install state — the seeded
+    // builtins/defaults re-seed lazily via ensureSeededDefaults() and the
+    // legacy api_keys/llm_task_configs chain below only resolves on
+    // pristine installs.
+    getDb().run('DELETE FROM ai_workload_routes');
+    getDb().run('DELETE FROM provider_connections');
+    getDb().run('DELETE FROM ai_routing_defaults');
 
     // Seed credentials for providers
     upsertApiKey('ollama', 'ollama-key', 'http://localhost:11434/v1', 'gemma4:12b-mlx');

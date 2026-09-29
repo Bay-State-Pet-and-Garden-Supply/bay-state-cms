@@ -643,80 +643,127 @@ function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: strin
   let dataSharing = compiled.dataSharing;
   let curationTargets = compiled.curationTargets;
 
+  let manifest: ReturnType<typeof readManifest> | null = null;
   try {
-    const manifest = readManifest(workspacePath);
-    const version = manifestVersion(manifest.file.value, manifest.file.path);
-    if (version === 1) {
-      const legacy = loadLegacyV1ConfigForMigration(workspacePath);
-      if (Array.isArray(legacy.brands) && legacy.brands.length > 0) {
-        brands = legacy.brands as typeof compiled.brands;
-      }
-      if (legacy.modelPolicy) {
-        const parsed = ModelPolicyConfigV2Schema.safeParse(legacy.modelPolicy);
-        if (parsed.success) modelPolicy = parsed.data;
-      }
-      if (legacy.dataSharing) {
-        const parsed = DataSharingConfigV2Schema.safeParse(legacy.dataSharing);
-        if (parsed.success) dataSharing = parsed.data;
-      }
-      if (Array.isArray(legacy.curationTargets) && legacy.curationTargets.length > 0) {
-        const parsed = z.array(CurationTargetConfigV2Schema).safeParse(legacy.curationTargets);
-        if (parsed.success) curationTargets = parsed.data;
-      }
-    } else if (version === 2) {
-      const dir = manifest.dir;
-      if (fs.existsSync(path.join(dir.path, 'brands.json'))) {
-        try {
-          const raw = readRequiredFile(dir, 'brands.json');
-          const env = BrandsFileV2Schema.safeParse(raw.value);
-          if (env.success && env.data.entries.length > 0) {
-            brands = env.data.entries;
-          } else {
-            const bare = z.array(BrandConfigV2Schema).safeParse(raw.value);
-            if (bare.success && bare.data.length > 0) brands = bare.data;
-          }
-        } catch { /* keep compiled default */ }
-      }
-      if (fs.existsSync(path.join(dir.path, 'model-policies.json'))) {
-        try {
-          const raw = readRequiredFile(dir, 'model-policies.json');
-          const env = ModelPolicyFileV2Schema.safeParse(raw.value);
-          if (env.success) {
-            modelPolicy = env.data.policy;
-          } else {
-            const bare = ModelPolicyConfigV2Schema.safeParse(raw.value);
-            if (bare.success) modelPolicy = bare.data;
-          }
-        } catch { /* keep compiled default */ }
-      }
-      if (fs.existsSync(path.join(dir.path, 'data-sharing.json'))) {
-        try {
-          const raw = readRequiredFile(dir, 'data-sharing.json');
-          const env = DataSharingFileV2Schema.safeParse(raw.value);
-          if (env.success) {
-            dataSharing = env.data.policy;
-          } else {
-            const bare = DataSharingConfigV2Schema.safeParse(raw.value);
-            if (bare.success) dataSharing = bare.data;
-          }
-        } catch { /* keep compiled default */ }
-      }
-      if (fs.existsSync(path.join(dir.path, 'curation-targets.json'))) {
-        try {
-          const raw = readRequiredFile(dir, 'curation-targets.json');
-          const env = CurationTargetsFileV2Schema.safeParse(raw.value);
-          if (env.success && env.data.entries.length > 0) {
-            curationTargets = env.data.entries;
-          } else {
-            const bare = z.array(CurationTargetConfigV2Schema).safeParse(raw.value);
-            if (bare.success && bare.data.length > 0) curationTargets = bare.data;
-          }
-        } catch { /* keep compiled default */ }
+    manifest = readManifest(workspacePath);
+  } catch {
+    // No workspace bundle or manifest: keep release defaults.
+    return { kind: 'v2', bundle: Object.freeze({ ...compiled, brands, modelPolicy, dataSharing, curationTargets }) };
+  }
+
+  const version = manifestVersion(manifest.file.value, manifest.file.path);
+  if (version === 1) {
+    const legacy = loadLegacyV1ConfigForMigration(workspacePath);
+    if (Array.isArray(legacy.brands) && legacy.brands.length > 0) {
+      brands = legacy.brands as typeof compiled.brands;
+    }
+    if (legacy.modelPolicy) {
+      const parsed = ModelPolicyConfigV2Schema.safeParse(legacy.modelPolicy);
+      if (parsed.success) modelPolicy = parsed.data;
+    }
+    if (legacy.dataSharing) {
+      const parsed = DataSharingConfigV2Schema.safeParse(legacy.dataSharing);
+      if (parsed.success) dataSharing = parsed.data;
+    }
+    if (Array.isArray(legacy.curationTargets) && legacy.curationTargets.length > 0) {
+      const parsed = z.array(CurationTargetConfigV2Schema).safeParse(legacy.curationTargets);
+      if (parsed.success) curationTargets = parsed.data;
+    }
+  } else if (version === 2) {
+    const dir = manifest.dir;
+    if (fs.existsSync(path.join(dir.path, 'brands.json'))) {
+      const raw = readRequiredFile(dir, 'brands.json');
+      const env = BrandsFileV2Schema.safeParse(raw.value);
+      if (env.success && env.data.entries.length > 0) {
+        brands = env.data.entries;
+      } else {
+        const bare = z.array(BrandConfigV2Schema).safeParse(raw.value);
+        if (bare.success && bare.data.length > 0) {
+          brands = bare.data;
+        } else {
+          throw new ClassificationConfigLoadError(
+            'invalid_config',
+            `Present workspace brands.json is invalid.`,
+            path.join(dir.path, 'brands.json'),
+            !env.success ? env.error.issues : (!bare.success ? bare.error.issues : undefined),
+          );
+        }
       }
     }
-  } catch {
-    // No legacy workspace bundle or manifest: keep release defaults.
+
+    const hasModelPolicy = fs.existsSync(path.join(dir.path, 'model-policies.json'));
+    const hasDataSharing = fs.existsSync(path.join(dir.path, 'data-sharing.json'));
+
+    // Readers cannot observe a mixed policy/data-sharing revision (issue #296 AC 6)
+    if (hasModelPolicy !== hasDataSharing) {
+      throw new ClassificationConfigLoadError(
+        'invalid_config',
+        `Workspace policy overlay is incomplete: model-policies.json and data-sharing.json must be present together.`,
+        path.join(dir.path, hasModelPolicy ? 'data-sharing.json' : 'model-policies.json'),
+      );
+    }
+
+    if (hasModelPolicy) {
+      const raw = readRequiredFile(dir, 'model-policies.json');
+      const env = ModelPolicyFileV2Schema.safeParse(raw.value);
+      if (env.success) {
+        modelPolicy = env.data.policy;
+      } else {
+        const bare = ModelPolicyConfigV2Schema.safeParse(raw.value);
+        if (bare.success) {
+          modelPolicy = bare.data;
+        } else {
+          throw new ClassificationConfigLoadError(
+            'invalid_config',
+            `Present workspace model-policies.json is invalid.`,
+            path.join(dir.path, 'model-policies.json'),
+            env.error.issues,
+          );
+        }
+      }
+    }
+
+    if (hasDataSharing) {
+      const raw = readRequiredFile(dir, 'data-sharing.json');
+      const env = DataSharingFileV2Schema.safeParse(raw.value);
+      if (env.success) {
+        dataSharing = env.data.policy;
+      } else {
+        const bare = DataSharingConfigV2Schema.safeParse(raw.value);
+        if (bare.success) {
+          dataSharing = bare.data;
+        } else {
+          throw new ClassificationConfigLoadError(
+            'invalid_config',
+            `Present workspace data-sharing.json is invalid.`,
+            path.join(dir.path, 'data-sharing.json'),
+            env.error.issues,
+          );
+        }
+      }
+    }
+
+    if (fs.existsSync(path.join(dir.path, 'curation-targets.json'))) {
+      const raw = readRequiredFile(dir, 'curation-targets.json');
+      const env = CurationTargetsFileV2Schema.safeParse(raw.value);
+      if (env.success && env.data.entries.length > 0) {
+        curationTargets = env.data.entries;
+      } else {
+        const bare = z.array(CurationTargetConfigV2Schema).safeParse(raw.value);
+        if (bare.success && bare.data.length > 0) {
+          curationTargets = bare.data;
+        } else {
+          throw new ClassificationConfigLoadError(
+            'invalid_config',
+            `Present workspace curation-targets.json is invalid.`,
+            path.join(dir.path, 'curation-targets.json'),
+            !env.success ? env.error.issues : (!bare.success ? bare.error.issues : undefined),
+          );
+        }
+      }
+    }
   }
+
   return { kind: 'v2', bundle: Object.freeze({ ...compiled, brands, modelPolicy, dataSharing, curationTargets }) };
 }
 

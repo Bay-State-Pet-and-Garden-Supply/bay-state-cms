@@ -41,6 +41,20 @@ vi.mock('@/classification/page-assignment-llm', () => ({
   llmAssignCategoryPages: vi.fn(),
 }));
 
+vi.mock('@/db/repositories/provider-connection-repo', () => ({
+  getFullAiRoutingConfig: vi.fn(() => ({ connections: {}, defaultProvider: 'openai', defaultModel: 'gpt-4o' })),
+}));
+
+vi.mock('@/db/repositories/api-key-repo', () => ({
+  getApiKey: vi.fn(() => null),
+}));
+
+vi.mock('@/db/repositories/classification-model-call-repo', () => ({
+  insertModelCallStart: vi.fn(() => 'call-1'),
+  completeModelCall: vi.fn(),
+  insertTerminalModelCall: vi.fn(),
+}));
+
 vi.mock('@/classification/evidence-targeting', () => ({
   buildEvidenceTargetPacket: vi.fn(() => ({
     promptText: 'Premium chicken recipe for adult dogs. Complete and balanced nutrition.',

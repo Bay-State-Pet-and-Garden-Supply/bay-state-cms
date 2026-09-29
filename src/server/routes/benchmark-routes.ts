@@ -16,19 +16,60 @@ import { getCurrentWorkspace } from '../services/workspace-service';
 import * as benchmarkRepo from '../../db/repositories/benchmark-repo';
 import { exportBenchmark } from '../../classification/benchmark-exporter';
 import { evaluateBenchmark } from '../../classification/benchmark-evaluator';
-import { buildPredictionBundle } from '../../classification/benchmark-prediction';
+import {
+  buildPredictionBundle,
+  buildPreReviewPredictionBundle,
+  describeStoredBundleSource,
+  PRE_REVIEW_PREDICTION_SOURCE,
+  REVIEWED_OUTCOME_PREDICTION_SOURCE,
+  PRE_REVIEW_BUNDLE_VERSION,
+  LEGACY_BUNDLE_VERSION,
+} from '../../classification/benchmark-prediction';
+import {
+  assessPredictionSourceEligibility,
+  reportRawAccuracyQualification,
+} from '../../classification/benchmark-qualification';
 
 const route = new Hono();
+
+/**
+ * Shared route guards (extraction for the 4-group/70-line clone family).
+ * Error strings, codes, and status codes are preserved verbatim so route
+ * paths/status codes/error codes/auth behavior is unchanged.
+ */
+function requireBenchmarkWorkspace(c: any) {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return { workspace: null, error: c.json({ error: 'No workspace loaded.' }, 400) } as const;
+  return { workspace, error: null } as const;
+}
+
+function requireWorkspaceDataset(c: any) {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return { workspace: null, datasetId: null, dataset: null, error: c.json({ error: 'No workspace loaded.' }, 400) } as const;
+  const datasetId = c.req.param('id');
+  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
+  if (!dataset) return { workspace, datasetId, dataset: null, error: c.json({ error: 'Dataset not found.' }, 404) } as const;
+  return { workspace, datasetId, dataset, error: null } as const;
+}
+
+async function readBenchmarkBody(c: any): Promise<Record<string, any>> {
+  return c.req.json().catch(() => ({}));
+}
+
+function benchmarkFailure(c: any, err: unknown, status: 409 | 500 = 409) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return c.json({ error: msg }, status);
+}
 
 /**
  * POST /api/benchmark/export
  * Export reviewed classification decisions into a draft benchmark dataset.
  */
 route.post('/benchmark/export', async (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, error } = requireBenchmarkWorkspace(c);
+  if (!workspace) return error;
 
-  const body = await c.req.json().catch(() => ({}));
+  const body = await readBenchmarkBody(c);
   const name = typeof body.name === 'string' && body.name.length > 0 ? body.name : undefined;
   if (!name) return c.json({ error: 'name is required.' }, 400);
   const holdoutPercent = typeof body.holdoutPercent === 'number' ? body.holdoutPercent : 20;
@@ -44,8 +85,7 @@ route.post('/benchmark/export', async (c) => {
     });
     return c.json(result);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: msg }, 500);
+    return benchmarkFailure(c, err, 500);
   }
 });
 
@@ -54,8 +94,8 @@ route.post('/benchmark/export', async (c) => {
  * List benchmark datasets for the active workspace.
  */
 route.get('/benchmark/datasets', (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, error } = requireBenchmarkWorkspace(c);
+  if (!workspace) return error;
   return c.json({ datasets: benchmarkRepo.listDatasets(workspace.id) });
 });
 
@@ -64,14 +104,8 @@ route.get('/benchmark/datasets', (c) => {
  * Workspace-scoped dataset detail with split distribution and eval runs.
  */
 route.get('/benchmark/datasets/:id', (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
-
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) {
-    return c.json({ error: 'Dataset not found.' }, 404);
-  }
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
   const examples = benchmarkRepo.getExamples(datasetId);
   const trainCount = examples.filter(e => e.split_group === 'train').length;
@@ -86,7 +120,29 @@ route.get('/benchmark/datasets/:id', (c) => {
     dataset,
     splitDistribution: { train: trainCount, test: testCount, holdout: holdoutCount },
     evalRuns,
-    predictionBundles: predictionBundles.map(b => ({ id: b.id, runLabel: b.run_label, splitGroup: b.split_group, bundleHash: b.bundle_hash, createdAt: b.created_at })),
+    predictionBundles: predictionBundles.map(b => {
+      let source: string = REVIEWED_OUTCOME_PREDICTION_SOURCE;
+      let bundleVersion: number = LEGACY_BUNDLE_VERSION;
+      try {
+        const parsed = JSON.parse(b.predictions_json);
+        const desc = describeStoredBundleSource(parsed);
+        source = desc.source;
+        bundleVersion = desc.bundleVersion;
+      } catch {
+        /* best-effort fallback to legacy reviewed-outcome */
+      }
+      const eligibility = assessPredictionSourceEligibility(source, bundleVersion);
+      return {
+        id: b.id,
+        runLabel: b.run_label,
+        splitGroup: b.split_group,
+        bundleHash: b.bundle_hash,
+        source,
+        bundleVersion,
+        eligibleForRawAccuracyQualification: eligibility.eligible,
+        createdAt: b.created_at,
+      };
+    }),
     qualificationReceipts: receipts.map(r => ({
       id: r.id,
       digest: r.digest,
@@ -103,22 +159,17 @@ route.get('/benchmark/datasets/:id', (c) => {
  * Record reviewed family grouping (required before freeze).
  */
 route.post('/benchmark/datasets/:id/family-review', async (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
-
-  const body = await c.req.json().catch(() => ({}));
+  const body = await readBenchmarkBody(c);
   const reviewerId = typeof body.reviewerId === 'string' && body.reviewerId.length > 0 ? body.reviewerId : 'reviewer';
 
   try {
     benchmarkRepo.markFamilyReviewComplete(datasetId, reviewerId);
     return c.json({ ok: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: msg }, 409);
+    return benchmarkFailure(c, err);
   }
 });
 
@@ -127,22 +178,17 @@ route.post('/benchmark/datasets/:id/family-review', async (c) => {
  * Freeze the dataset (immutable, content-addressed). Requires family review.
  */
 route.post('/benchmark/datasets/:id/freeze', async (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
-
-  const body = await c.req.json().catch(() => ({}));
+  const body = await readBenchmarkBody(c);
   const reviewerId = typeof body.reviewerId === 'string' && body.reviewerId.length > 0 ? body.reviewerId : 'reviewer';
 
   try {
     const frozen = benchmarkRepo.freezeDataset(datasetId, reviewerId);
     return c.json({ ok: true, dataset: frozen });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: msg }, 409);
+    return benchmarkFailure(c, err);
   }
 });
 
@@ -151,31 +197,40 @@ route.post('/benchmark/datasets/:id/freeze', async (c) => {
  * Build and persist a complete prediction bundle from the exact reviewed runs.
  */
 route.post('/benchmark/datasets/:id/predict', async (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
-
-  const body = await c.req.json().catch(() => ({}));
+  const body = await readBenchmarkBody(c);
   const runLabel = typeof body.runLabel === 'string' && body.runLabel.length > 0
     ? body.runLabel
     : `Predictions ${new Date().toISOString().slice(0, 19)}`;
   const splitGroup = body.splitGroup === 'test' ? 'test' : 'holdout';
 
+  const isPreReview = body.source === PRE_REVIEW_PREDICTION_SOURCE;
+
   try {
-    const bundle = buildPredictionBundle(workspace.id, datasetId, { runLabel, splitGroup });
+    const bundle = isPreReview
+      ? buildPreReviewPredictionBundle(workspace.id, datasetId, {
+          runLabel,
+          splitGroup,
+          claimTargets: Array.isArray(body.claimTargets) ? body.claimTargets : undefined,
+        })
+      : buildPredictionBundle(workspace.id, datasetId, {
+          runLabel,
+          splitGroup,
+          claimTargets: Array.isArray(body.claimTargets) ? body.claimTargets : undefined,
+        });
     return c.json({
       bundleId: bundle.id,
       datasetId: bundle.datasetId,
       splitGroup: bundle.splitGroup,
       predictionCount: bundle.predictions.length,
       bundleHash: bundle.bundleHash,
+      source: isPreReview ? PRE_REVIEW_PREDICTION_SOURCE : REVIEWED_OUTCOME_PREDICTION_SOURCE,
+      bundleVersion: isPreReview ? PRE_REVIEW_BUNDLE_VERSION : LEGACY_BUNDLE_VERSION,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: msg }, 409);
+    return benchmarkFailure(c, err);
   }
 });
 
@@ -187,14 +242,10 @@ route.post('/benchmark/datasets/:id/predict', async (c) => {
  * Page identity.
  */
 route.post('/benchmark/datasets/:id/eval', async (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
-
-  const body = await c.req.json().catch(() => ({}));
+  const body = await readBenchmarkBody(c);
   const runLabel = typeof body.runLabel === 'string' && body.runLabel.length > 0
     ? body.runLabel
     : `Eval ${new Date().toISOString().slice(0, 19)}`;
@@ -209,6 +260,17 @@ route.post('/benchmark/datasets/:id/eval', async (c) => {
       predictionBundleId,
       baselineBundleId,
     }, workspace.id);
+    const rawAccuracyReport = reportRawAccuracyQualification({
+      datasetId,
+      datasetHash: dataset.dataset_hash ?? '',
+      predictionBundleId: result.predictionBundleId,
+      bundleHash: result.bundleHash,
+      holdoutSize: result.holdoutSize,
+      metrics: result.metrics,
+      qualification: result.qualification,
+      source: result.bundleProvenance.source,
+      bundleVersion: result.bundleProvenance.bundleVersion,
+    });
     return c.json({
       evalRunId: result.evalRunId,
       metrics: result.metrics,
@@ -217,12 +279,15 @@ route.post('/benchmark/datasets/:id/eval', async (c) => {
       predictionBundleId: result.predictionBundleId,
       bundleHash: result.bundleHash,
       receiptDigest: result.receiptDigest,
+      bundleProvenance: result.bundleProvenance,
+      baselineBundleProvenance: result.baselineBundleProvenance,
+      attribution: result.attribution,
+      rawAccuracyReport,
       insufficientSample: result.qualification.reasons.some(r => r.startsWith('insufficient_sample')),
       pageGoldBlocked: result.metrics.pages.blocked,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: msg }, 409);
+    return benchmarkFailure(c, err);
   }
 });
 
@@ -231,14 +296,34 @@ route.post('/benchmark/datasets/:id/eval', async (c) => {
  * List evaluation results for a workspace-owned dataset.
  */
 route.get('/benchmark/datasets/:id/results', (c) => {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const { workspace, datasetId, dataset, error } = requireWorkspaceDataset(c);
+  if (!workspace || !dataset) return error;
 
-  const datasetId = c.req.param('id');
-  const dataset = benchmarkRepo.getDatasetForWorkspace(datasetId, workspace.id);
-  if (!dataset) return c.json({ error: 'Dataset not found.' }, 404);
-
-  const evalRuns = benchmarkRepo.getEvalRuns(datasetId);
+  const evalRuns = benchmarkRepo.getEvalRuns(datasetId).map(run => {
+    let source: string | null = null;
+    let bundleVersion: number | null = null;
+    let eligibleForRawAccuracyQualification = false;
+    if (run.prediction_bundle_id) {
+      const bundle = benchmarkRepo.getPredictionBundle(run.prediction_bundle_id);
+      if (bundle) {
+        try {
+          const parsed = JSON.parse(bundle.predictions_json);
+          const desc = describeStoredBundleSource(parsed);
+          source = desc.source;
+          bundleVersion = desc.bundleVersion;
+          eligibleForRawAccuracyQualification = assessPredictionSourceEligibility(source as any, bundleVersion).eligible;
+        } catch {
+          /* best-effort fallback when bundle is not parseable */
+        }
+      }
+    }
+    return {
+      ...run,
+      source,
+      bundleVersion,
+      eligibleForRawAccuracyQualification,
+    };
+  });
   return c.json({ evalRuns });
 });
 
