@@ -948,6 +948,9 @@ describe('Tier 1 container-level egress denial (live, daemon-gated)', () => {
   async function dockerAvailable(): Promise<boolean> {
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      const { stdout } = await execFileAsync('docker', ['images', '-q', 'node:22-bookworm'], { timeout: 15_000 });
+      if (!stdout.trim()) return false;
+      await execFileAsync('docker', ['run', '--rm', 'node:22-bookworm', 'node', '-e', ''], { timeout: 15_000 });
       return true;
     } catch {
       return false;
