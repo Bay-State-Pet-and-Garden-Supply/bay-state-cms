@@ -282,9 +282,10 @@ function buildV2ChunkContext(
       const cohorts = loadV2Cohorts(batchId);
       const membersByCohort = loadV2CohortMembers(cohorts.map(c => c.id));
       const extractionSources = loadV2ExtractionBindings(items.map(i => i.id));
+      const itemsByIdMap = new Map(items.map(i => [i.id, i]));
       for (const cohort of cohorts) {
       const members = membersByCohort.get(cohort.id) ?? [];
-      const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources);
+      const evaluation = evaluateCohortReadiness(cohort, members, items, extractionSources, itemsByIdMap);
       // NOTE: per-member evaluateItemReadiness is intentionally not run here:
       // buildCohortContext's downstream projection (deriveItemWorkState via
       // FamilyCohortState) consumes only waitingOn/member counts per member.
