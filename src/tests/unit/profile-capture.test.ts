@@ -51,6 +51,7 @@ describe('profile-capture // story: e07s03', () => {
               evaluate: vi.fn(async () => ({ dom, elements: mockElements, viewport: { w: 1280, h: 720, deviceScaleFactor: 1 } })),
               screenshot: vi.fn(async () => Buffer.from('pngdata')),
               close: vi.fn(async () => {}),
+              route: vi.fn(async () => {}),
               on: vi.fn(),
             }),
             close: vi.fn(async () => {}),
@@ -112,5 +113,67 @@ describe('profile-capture // story: e07s03', () => {
     const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
     const res = await captureProfilePage({ url: 'http://172.67.182.1/p/1', runtime: 'static' });
     expect(res.dom).toBe(html);
+  });
+
+  it('blocks domain suffix spoofing (e.g. attacker-example.com resolving to private IP)', async () => {
+    vi.doMock('node:dns/promises', () => ({
+      lookup: vi.fn(async (host: string) => {
+        if (host === 'attacker-example.com' || host === 'spoof.example.com') {
+          return [{ address: '127.0.0.1', family: 4 }];
+        }
+        return [{ address: '93.184.216.34', family: 4 }];
+      }),
+    }));
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    await expect(captureProfilePage({ url: 'http://attacker-example.com/secret', runtime: 'static' }))
+      .rejects.toThrow(/blocked private destination/);
+    await expect(captureProfilePage({ url: 'http://spoof.example.com/secret', runtime: 'static' }))
+      .rejects.toThrow(/blocked private destination/);
+  });
+
+  it('rendered capture sets up page.route to intercept and abort disallowed/private requests', async () => {
+    let registeredRouteHandler: ((route: any) => Promise<void>) | null = null;
+    let pageRouteCalled = false;
+
+    vi.doMock('playwright', () => ({
+      chromium: {
+        launch: vi.fn(async () => ({
+          newContext: async () => ({
+            newPage: async () => ({
+              goto: vi.fn(async () => {}),
+              waitForTimeout: vi.fn(async () => {}),
+              evaluate: vi.fn(async () => ({ dom: '<html></html>', elements: [], viewport: { w: 1280, h: 720, deviceScaleFactor: 1 } })),
+              screenshot: vi.fn(async () => Buffer.from('pngdata')),
+              close: vi.fn(async () => {}),
+              route: vi.fn(async (pattern: string, handler: any) => {
+                if (pattern === '**/*') {
+                  pageRouteCalled = true;
+                  registeredRouteHandler = handler;
+                }
+              }),
+            }),
+            close: vi.fn(async () => {}),
+          }),
+          close: vi.fn(async () => {}),
+        })),
+      },
+    }));
+
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    await captureProfilePage({ url: 'https://example.com/p/2', runtime: 'rendered' });
+
+    expect(pageRouteCalled).toBe(true);
+    expect(registeredRouteHandler).not.toBeNull();
+
+    let aborted = false;
+    let continued = false;
+    const mockRoutePrivate = {
+      request: () => ({ url: () => 'http://169.254.169.254/latest/meta-data/', resourceType: () => 'document' }),
+      abort: vi.fn(async () => { aborted = true; }),
+      continue: vi.fn(async () => { continued = true; }),
+    };
+    await registeredRouteHandler!(mockRoutePrivate);
+    expect(aborted).toBe(true);
+    expect(continued).toBe(false);
   });
 });
