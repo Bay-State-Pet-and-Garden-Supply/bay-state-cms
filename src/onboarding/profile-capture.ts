@@ -50,7 +50,6 @@ function isAllowedProtocol(url: string): boolean {
 async function isPrivateHost(url: string): Promise<boolean> {
   try {
     const host = new URL(url).hostname;
-    if (host.endsWith('example.com') || host.endsWith('example.org') || host.endsWith('example.net')) return false;
     return await isPrivateOrLinkLocalHost(host);
   } catch { return true; }
 }
@@ -138,21 +137,22 @@ async function captureRendered(url: string): Promise<CaptureResult> {
       viewport: { width: 1280, height: 900 },
     });
     const page = await context.newPage();
-    page.on('request', async (req: any) => {
+    await page.route('**/*', async (route: any) => {
       try {
-        const u = req.url();
+        const u = route.request().url();
         if (u !== url) await assertAllowedUrl(u);
-        const resourceType = req.resourceType();
+        const resourceType = route.request().resourceType();
         // Abort non-essential tracking scripts and streaming media to accelerate capture
         if (
           resourceType === 'media' ||
           /google-analytics|googletagmanager|facebook\.net|clarity\.ms|hotjar|privy|klaviyo|doubleclick|tiktok\.com|sentry\.io/i.test(u)
         ) {
-          await req.abort().catch(() => {});
+          await route.abort().catch(() => {});
           return;
         }
+        await route.continue();
       } catch (_e) {
-        // Non-fatal
+        await route.abort().catch(() => {});
       }
     });
 
