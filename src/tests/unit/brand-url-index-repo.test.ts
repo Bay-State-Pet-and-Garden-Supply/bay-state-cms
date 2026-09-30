@@ -116,6 +116,19 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(match?.url).toBe('https://www.kongcompany.com/products/classic-dog-toy-035585111116');
     });
 
+    it('should return null when searching with a non-GTIN short number', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [
+          { url: 'https://www.kongcompany.com/products/classic-dog-toy-12345' },
+        ],
+        'https://www.kongcompany.com/sitemap.xml',
+      );
+
+      const match = lookupByUpc('kongcompany.com', '12345');
+      expect(match).toBeNull();
+    });
+
     it('should find candidate by canonical GTIN equivalence when padded with leading zeros', () => {
       reconcileSitemapUrls(
         'kongcompany.com',

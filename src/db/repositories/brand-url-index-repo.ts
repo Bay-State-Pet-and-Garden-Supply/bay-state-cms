@@ -1,6 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { canonicalGtinMatch, normalizeGtinDigits } from '../../shared/gtin';
+import { canonicalGtinMatch, normalizeGtin, normalizeGtinDigits } from '../../shared/gtin';
 
 export type BrandUrlPageType = 'product' | 'category' | 'article' | 'other' | 'unknown';
 
@@ -261,7 +261,7 @@ export function findUrlsByDomain(
 export function lookupByUpc(domain: string, upc: string): BrandUrlRecord | null {
   const db = getDb();
   const normDomain = normalizeDomain(domain);
-  const cleanUpc = normalizeGtinDigits(upc);
+  const cleanUpc = normalizeGtin(upc);
   if (!cleanUpc) return null;
 
   const candidateGtins = new Set<string>();

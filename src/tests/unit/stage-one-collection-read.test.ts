@@ -50,13 +50,15 @@ import app from '../../server/app';
 
 const WS = 'ws-collection-read';
 
-// File DB path owned by the first suite's beforeAll. Bun runs
-// describe-level afterAll (closeDb + rm) before later describes, so the
-// follow-up suites below re-open + re-migrate the same file first.
+// Shared temp directory and DB path across describe blocks
+let globalTempDir = '';
 let followupDbPath = '';
 
 function ensureFollowupDb(): void {
-  if (!followupDbPath) throw new Error('collection-read file DB path not set');
+  if (!followupDbPath) {
+    globalTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collection-read-test-'));
+    followupDbPath = path.join(globalTempDir, 'test.db');
+  }
   initDb(followupDbPath);
   runMigrations();
 }
@@ -95,14 +97,9 @@ function makeItem(batchId: string, overrides: { upc?: string; brandHint?: string
 }
 
 describe('stage-one collection read', () => {
-  let tempDir: string;
-
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collection-read-test-'));
-    followupDbPath = path.join(tempDir, 'test.db');
-    initDb(followupDbPath);
-    runMigrations();
+    ensureFollowupDb();
     const now = new Date().toISOString();
     insertWorkspace({
       id: WS, name: 'Collection WS', workspacePath: '/tmp/coll-ws', gitPath: '/tmp/coll-ws/.git',
@@ -117,8 +114,7 @@ describe('stage-one collection read', () => {
   });
 
   afterAll(() => {
-    closeDb();
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+    // DB cleanup moved to top-level or final describe block to keep tempDb alive across all describes
   });
 
   beforeEach(() => {
@@ -757,6 +753,11 @@ function ws3Read(batchId: string) {
 describe('stage-one activation follow-ups II (isolated workspace)', () => {
   beforeAll(() => {
     ensureFollowupDb();
+  });
+
+  afterAll(() => {
+    closeDb();
+    if (globalTempDir && fs.existsSync(globalTempDir)) fs.rmSync(globalTempDir, { recursive: true, force: true });
   });
 
   it('connection repair flips setup_attention to ready with zero new collection work (F5)', () => {
