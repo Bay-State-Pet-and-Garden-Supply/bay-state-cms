@@ -945,9 +945,12 @@ describe('containment: Tier 1 network surface stays authorized', () => {
 describe('Tier 1 container-level egress denial (live, daemon-gated)', () => {
   const DOCKER_TIMEOUT = 120_000;
 
-  async function dockerAvailable(): Promise<boolean> {
+  async function dockerAvailable(image = 'node:22-bookworm'): Promise<boolean> {
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      const { stdout } = await execFileAsync('docker', ['images', '-q', image], { timeout: 15_000 });
+      if (!stdout.trim()) return false;
+      await execFileAsync('docker', ['run', '--rm', image, 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
       return true;
     } catch {
       return false;
