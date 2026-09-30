@@ -164,6 +164,7 @@ describe('container posture denies egress (live daemon when available)', () => {
     let daemon: boolean;
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      await execFileAsync('docker', ['run', '--rm', 'node:22-bookworm', 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
       daemon = true;
     } catch {
       daemon = false;
@@ -184,6 +185,12 @@ describe('container posture denies egress (live daemon when available)', () => {
     }
     if (!image) {
       console.warn('SKIP: no probe image — live container egress probe skipped (argv posture still asserted)');
+      return;
+    }
+    try {
+      await execFileAsync('docker', ['run', '--rm', image, 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
+    } catch {
+      console.warn('SKIP: container execution failed — live container egress probe skipped (argv posture still asserted)');
       return;
     }
 
