@@ -32,6 +32,7 @@ import {
   resolveReleaseDir,
   type ReleaseValidationReport,
 } from './release-validation';
+import { validateCanonicalValue } from './controlled-value-identity';
 
 // ─── Change-set shape ──────────────────────────────────────────────────────────
 
@@ -72,6 +73,17 @@ export interface HierarchyNodeEditChange {
 }
 
 /**
+ * Append a value alias onto an EXISTING controlled attribute (issue #328).
+ * `alias` must not already exist on the attribute and `mapsTo` must be an
+ * exact `allowedValues` entry. Never renames or deletes — append-only.
+ */
+export interface ValueAliasAddChange {
+  attributeId: string;
+  alias: string;
+  mapsTo: string;
+}
+
+/**
  * Declarative change-set for authoring a new immutable release from a source
  * release. Every operation either edits existing entries in place or appends
  * new ones — no id ever disappears.
@@ -89,6 +101,8 @@ export interface ReleaseChangeSet {
   profileMembershipGrants?: ProfileMembershipGrantChange[];
   profileMembershipRevocations?: ProfileMembershipRevocationChange[];
   hierarchyNodeEdits?: HierarchyNodeEditChange[];
+  /** Append-only value-alias additions (issue #328 governed alias flow). */
+  valueAliasAdds?: ValueAliasAddChange[];
 }
 
 export interface AuthorCandidateOptions {
@@ -197,6 +211,35 @@ export function applyChangeSetToFiles(
       serialization: add.serialization ?? { kind: 'scalar', prefix: '', suffix: '' },
     };
     (mappingsEnvelope.entries as Array<JsonRecord>).push(entry);
+  }
+
+  // ── Value-alias adds (append-only; issue #328 governed alias flow) ──
+  for (const aliasAdd of changeSet.valueAliasAdds ?? []) {
+    const attr = attributes.find(a => a.id === aliasAdd.attributeId) as
+      | (JsonRecord & { id: string; allowedValues?: unknown; valueAliases?: Array<{ alias: string; mapsTo: string }> })
+      | undefined;
+    if (!attr) {
+      throw new Error(`valueAliasAdds: unknown attribute id "${aliasAdd.attributeId}".`);
+    }
+    const allowed = Array.isArray(attr.allowedValues) ? (attr.allowedValues as unknown[]) : [];
+    if (!allowed.includes(aliasAdd.mapsTo)) {
+      throw new Error(`valueAliasAdds: mapsTo "${aliasAdd.mapsTo}" is not an allowed value of "${aliasAdd.attributeId}".`);
+    }
+    // ADR 0012 canonical identity: aliases are stored verbatim (never
+    // silently rewritten), so a non-canonical alias is refused here rather
+    // than normalized — repair the change-set before authoring.
+    const canonical = validateCanonicalValue(aliasAdd.alias);
+    if (!canonical.ok) {
+      throw new Error(`valueAliasAdds: alias "${aliasAdd.alias}" is not canonical (${canonical.reason}); store the NFC-normalized, trimmed form.`);
+    }
+    if ((allowed as unknown[]).includes(aliasAdd.alias)) {
+      throw new Error(`valueAliasAdds: alias "${aliasAdd.alias}" collides with an allowed value of "${aliasAdd.attributeId}".`);
+    }
+    const existing = (attr.valueAliases ?? []).map(a => a.alias);
+    if (existing.includes(aliasAdd.alias)) {
+      throw new Error(`valueAliasAdds: alias "${aliasAdd.alias}" already exists on "${aliasAdd.attributeId}".`);
+    }
+    attr.valueAliases = [...(attr.valueAliases ?? []), { alias: aliasAdd.alias, mapsTo: aliasAdd.mapsTo }];
   }
 
   // ── Facet-profile membership grants/revocations ──

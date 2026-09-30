@@ -7,7 +7,7 @@
   "lifecycle": "release",
   "sourceBaseline": "bay-state-v4",
   "fileVersions": {
-    "attributes.json": "0caa989d5486c9fcc2937589930bd395796ef402013f03360ee920ac9e17fba0",
+    "attributes.json": "7ad92278b007d3fc98eba5d58b8d9f3e268e40c698e282113af8b80ad7aea3d8",
     "facet-profiles.json": "087fdc83a9fd489ecca8373bcca631cc0230858b7c631e611e1f2fa10cb09f84",
     "hierarchy.json": "adb2560b8a368d749c46d09b6145a32e16b3bf8a3db046662b27e38ff691692f",
     "export-mappings.json": "f380cfeb70cdf3ae52c14948953028ca083b92c7309423d955609df64612e25f",

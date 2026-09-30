@@ -320,7 +320,32 @@
         "Tub",
         "Supplement"
       ],
-      "valueAliases": [],
+      "valueAliases": [
+        {
+          "alias": "Dry Dog Food",
+          "mapsTo": "Dry Food"
+        },
+        {
+          "alias": "Dry Cat Food",
+          "mapsTo": "Dry Food"
+        },
+        {
+          "alias": "Wet Dog Food",
+          "mapsTo": "Wet Food"
+        },
+        {
+          "alias": "Wet Cat Food",
+          "mapsTo": "Wet Food"
+        },
+        {
+          "alias": "Dog Treats",
+          "mapsTo": "Treat"
+        },
+        {
+          "alias": "Cat Treats",
+          "mapsTo": "Treat"
+        }
+      ],
       "canonicalUnit": null,
       "isUniversal": false,
       "isClaim": false,

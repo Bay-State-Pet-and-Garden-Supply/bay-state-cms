@@ -236,7 +236,19 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       valueMode: 'controlled',
       canonicalUnit: null,
       allowedValues: ['Dry Food', 'Wet Food', 'Treat', 'Freeze-Dried Raw', 'Frozen Raw', 'Seed Blend', 'Pellets', 'Crumble', 'Mash', 'Sweet Feed', 'Block', 'Tub', 'Supplement'],
-      valueAliases: [],
+      valueAliases: [
+        // Issue #328: species-prefixed product-type names leak into the
+        // llm_productForm field (e.g. "Dry Dog Food" for a Dry Food proposal).
+        // Without aliases, supportive evidence lands in contradictingEvidenceIds
+        // and raises false Type-conflict banners. Sibling audit covers the
+        // feline + wet + treat product-type names with the same gap.
+        { alias: 'Dry Dog Food', mapsTo: 'Dry Food' },
+        { alias: 'Dry Cat Food', mapsTo: 'Dry Food' },
+        { alias: 'Wet Dog Food', mapsTo: 'Wet Food' },
+        { alias: 'Wet Cat Food', mapsTo: 'Wet Food' },
+        { alias: 'Dog Treats', mapsTo: 'Treat' },
+        { alias: 'Cat Treats', mapsTo: 'Treat' },
+      ],
       visualEvidenceEligibility: 'eligible',
       isClaim: false,
       isCompositionAttribute: false,

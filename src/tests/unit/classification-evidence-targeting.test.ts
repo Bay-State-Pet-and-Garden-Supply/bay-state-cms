@@ -344,4 +344,85 @@ describe('evidence-targeting (issue #17 H)', () => {
     expect(ptPacket.promptText).toContain('ADULT DOG FOOD');
     expect(ptPacket.promptText).not.toContain('Red');
   });
+
+  it('reconciles the Dry Dog Food → Dry Food value alias instead of flagging a false conflict (issue #328)', () => {
+    // Canary shape: Jev proposes Dry Food; the llm_productForm snippet carries
+    // the species-prefixed product-type name "Dry Dog Food".
+    const FOOD_FORM_ALIASES = [
+      { alias: 'Dry Dog Food', mapsTo: 'Dry Food' },
+      { alias: 'Dry Cat Food', mapsTo: 'Dry Food' },
+      { alias: 'Wet Dog Food', mapsTo: 'Wet Food' },
+      { alias: 'Wet Cat Food', mapsTo: 'Wet Food' },
+      { alias: 'Dog Treats', mapsTo: 'Treat' },
+      { alias: 'Cat Treats', mapsTo: 'Treat' },
+    ];
+    const canary = [
+      ev({ id: 'llm-form', attributeId: 'food-form', sourceField: 'llm_productForm', value: 'Dry Dog Food', snippet: 'Dry Dog Food' }),
+    ];
+    // Without the alias the supportive snippet lands in contradicting (the
+    // false-conflict banner in the issue).
+    const withoutAlias = buildEvidenceTargetPacket(canary, {
+      attributeId: 'food-form',
+      sourceField: 'llm_productForm',
+      selectionMode: 'single',
+      proposedValue: 'Dry Food',
+      aliases: [],
+    });
+    expect(withoutAlias.contradictingEvidenceIds).toEqual(['llm-form']);
+    expect(withoutAlias.supportingEvidenceIds).toEqual([]);
+    // With the governed alias the same snippet supports the proposal.
+    const withAlias = buildEvidenceTargetPacket(canary, {
+      attributeId: 'food-form',
+      sourceField: 'llm_productForm',
+      selectionMode: 'single',
+      proposedValue: 'Dry Food',
+      aliases: FOOD_FORM_ALIASES,
+    });
+    expect(withAlias.contradictingEvidenceIds).toEqual([]);
+    expect(withAlias.supportingEvidenceIds).toEqual(['llm-form']);
+    expect(withAlias.hasConflict).toBe(false);
+  });
+
+  it('still raises a genuine food-form conflict when evidence asserts a truly different value (issue #328)', () => {
+    const FOOD_FORM_ALIASES = [
+      { alias: 'Dry Dog Food', mapsTo: 'Dry Food' },
+      { alias: 'Dry Cat Food', mapsTo: 'Dry Food' },
+      { alias: 'Wet Dog Food', mapsTo: 'Wet Food' },
+      { alias: 'Wet Cat Food', mapsTo: 'Wet Food' },
+      { alias: 'Dog Treats', mapsTo: 'Treat' },
+      { alias: 'Cat Treats', mapsTo: 'Treat' },
+    ];
+    // Feline sibling audit: Dry Cat Food reconciles to Dry Food too.
+    const feline = buildEvidenceTargetPacket(
+      [ev({ id: 'feline-form', attributeId: 'food-form', sourceField: 'llm_productForm', value: 'Dry Cat Food', snippet: 'Dry Cat Food' })],
+      {
+        attributeId: 'food-form',
+        sourceField: 'llm_productForm',
+        selectionMode: 'single',
+        proposedValue: 'Dry Food',
+        aliases: FOOD_FORM_ALIASES,
+      },
+    );
+    expect(feline.supportingEvidenceIds).toEqual(['feline-form']);
+    expect(feline.contradictingEvidenceIds).toEqual([]);
+    // Genuine conflict: Wet Food evidence against a Dry Food proposal still
+    // lands in contradicting (banner preserved).
+    const genuine = buildEvidenceTargetPacket(
+      [
+        ev({ id: 'dry', attributeId: 'food-form', sourceField: 'llm_productForm', value: 'Dry Food' }),
+        ev({ id: 'wet', attributeId: 'food-form', sourceField: 'llm_productForm', value: 'Wet Food' }),
+      ],
+      {
+        attributeId: 'food-form',
+        sourceField: 'llm_productForm',
+        selectionMode: 'single',
+        proposedValue: 'Dry Food',
+        aliases: FOOD_FORM_ALIASES,
+      },
+    );
+    expect(genuine.supportingEvidenceIds).toEqual(['dry']);
+    expect(genuine.contradictingEvidenceIds).toEqual(['wet']);
+    expect(genuine.hasConflict).toBe(true);
+    expect(genuine.conflicts[0].values.sort()).toEqual(['Dry Food', 'Wet Food'].sort());
+  });
 });
