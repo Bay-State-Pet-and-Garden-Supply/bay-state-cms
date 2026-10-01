@@ -1,23 +1,8 @@
-/**
- * Ticket #125 — server-owned collection projection + activation seams.
- *
- * DB-backed (file DB + migrations; bun:sqlite convention). Covers:
- * - buildCollectionByItem through the pure gate: distributor-only ready,
- *   mixed partial with exact copy, unapproved awaiting, marker-v0
- *   compatibility, retired/corrupt pins, query-all stability, pin-wins.
- * - getStageReadItems wires collectionByItem (schema-valid, bounded
- *   statements, no writes during reads).
- * - assign-brand generation guards: in_progress 409, epoch-mismatch 409,
- *   bulk skippedBrandConflicts reporting.
- * - Worker activation blockers: brand-mismatch parks, zero-identifier
- *   approved items park inside the boundary, terminal generations never
- *   replay.
- */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initDb, closeDb, resetDb, getDb } from '../../db/connection';
+import { initDb, closeDb, resetDb, getDb, isDbInitialized } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -50,14 +35,11 @@ import app from '../../server/app';
 
 const WS = 'ws-collection-read';
 
-// File DB path owned by the first suite's beforeAll. Bun runs
-// describe-level afterAll (closeDb + rm) before later describes, so the
-// follow-up suites below re-open + re-migrate the same file first.
-let followupDbPath = '';
-
 function ensureFollowupDb(): void {
-  if (!followupDbPath) throw new Error('collection-read file DB path not set');
-  initDb(followupDbPath);
+  if (isDbInitialized()) return;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collection-read-test-'));
+  const dbPath = path.join(tempDir, 'test.db');
+  initDb(dbPath);
   runMigrations();
 }
 
@@ -100,7 +82,7 @@ describe('stage-one collection read', () => {
   beforeAll(() => {
     try { resetDb(); } catch { /* ok */ }
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collection-read-test-'));
-    followupDbPath = path.join(tempDir, 'test.db');
+    const followupDbPath = path.join(tempDir, 'test.db');
     initDb(followupDbPath);
     runMigrations();
     const now = new Date().toISOString();
@@ -114,11 +96,6 @@ describe('stage-one collection read', () => {
       const conn = createConnection({ workspaceId: WS, distributorId: dist, connectorType: 'api', configuration: {} });
       updateConnection(conn.id, WS, { enabled: true, secretRef: 'TEST_COLL_SECRET' });
     }
-  });
-
-  afterAll(() => {
-    closeDb();
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -494,6 +471,7 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +678,7 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
