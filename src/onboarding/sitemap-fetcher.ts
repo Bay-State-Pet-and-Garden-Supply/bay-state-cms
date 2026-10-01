@@ -541,6 +541,16 @@ async function parseRobotsSitemaps(
   fetchFn: NetworkFetch = fetch,
   tracker?: FetchAttemptTracker,
 ): Promise<string[]> {
+  try {
+    const host = new URL(robotsUrl).hostname.replace(/^\[|\]$/g, '');
+    if (await isPrivateOrLinkLocalHost(host)) {
+      console.warn(`[SitemapFetcher] SSRF block: denied private/link-local hostname "${host}" for robots.txt ${robotsUrl}`);
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
   let body: string | null = null;
   try {
     const response = await fetchFn(robotsUrl, {
