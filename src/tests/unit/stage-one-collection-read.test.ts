@@ -56,7 +56,10 @@ const WS = 'ws-collection-read';
 let followupDbPath = '';
 
 function ensureFollowupDb(): void {
-  if (!followupDbPath) throw new Error('collection-read file DB path not set');
+  if (!followupDbPath || !fs.existsSync(path.dirname(followupDbPath))) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collection-read-test-followup-'));
+    followupDbPath = path.join(tempDir, 'test.db');
+  }
   initDb(followupDbPath);
   runMigrations();
 }
@@ -494,6 +497,7 @@ class StaticRegistry implements ConnectorRegistry {
 }
 
 function ensureWs2(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({
@@ -700,6 +704,7 @@ class NamedConnector implements DistributorConnector {
 }
 
 function ensureWs3(): void {
+  ensureFollowupDb();
   const now = new Date().toISOString();
   try {
     insertWorkspace({

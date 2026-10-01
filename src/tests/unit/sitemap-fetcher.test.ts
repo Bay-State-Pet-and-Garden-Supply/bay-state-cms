@@ -565,4 +565,35 @@ describe('sitemap-fetcher.fetchAndParseSitemap', () => {
     expect(blockedFetch).toHaveBeenCalled();
     void camMock;
   });
+
+  it('blocks private, link-local, and loopback destinations directly in fetchAndParseSitemap (SSRF guard)', async () => {
+    const { fetch: f, calls } = stubFetch([]);
+    globalThis.fetch = f;
+
+    const blockedDomains = ['127.0.0.1', '169.254.169.254', 'localhost', '10.0.0.1', '192.168.1.1', '0.0.0.0'];
+    for (const domain of blockedDomains) {
+      const result = await fetchAndParseSitemap(domain);
+      expect(result).toEqual({ urls: [], sourceUrl: '' });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('blocks child sitemap URLs declared in robots.txt or index that point to private/link-local destinations', async () => {
+    const indexXml = `<?xml version="1.0"?>
+      <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <sitemap><loc>http://169.254.169.254/latest/meta-data/</loc></sitemap>
+        <sitemap><loc>http://127.0.0.1/internal.xml</loc></sitemap>
+      </sitemapindex>`;
+
+    const { fetch: f, calls } = stubFetch([
+      { match: (u) => u === 'https://x.com/sitemap.xml', respond: () => makeResponse(indexXml, { contentType: 'application/xml' }) },
+      { match: (u) => u === 'http://169.254.169.254/latest/meta-data/', respond: () => makeResponse('<urlset></urlset>', { contentType: 'application/xml' }) },
+      { match: (u) => u === 'http://127.0.0.1/internal.xml', respond: () => makeResponse('<urlset></urlset>', { contentType: 'application/xml' }) },
+    ]);
+    globalThis.fetch = f;
+
+    const result = await fetchAndParseSitemap('x.com');
+    expect(result.urls).toEqual([]);
+    expect(calls).toEqual(['https://x.com/sitemap.xml']);
+  });
 });
