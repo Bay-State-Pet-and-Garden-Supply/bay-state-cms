@@ -252,11 +252,11 @@ describe('stage-one collection read', () => {
     const readyPage = getStageReadItems(batch.id, { stage: 'route_sources', collectionReadiness: 'ready' }, 50, scope);
     expect(readyPage.items.map((i) => i.itemId)).toEqual([ready.id]);
     expect(Object.keys(readyPage.collectionByItem ?? {}).sort()).toEqual([ready.id]);
-    expect(readyPage.collectionByItem?.[ready.id].label).toBe('Ready · 2 sources available');
+    expect(readyPage.collectionByItem?.[ready.id]!.label as any).toBe('Ready · 2 sources available');
     // Path filter: both approved-boundary rows (ready + setup_attention).
     const approvedPage = getStageReadItems(batch.id, { stage: 'route_sources', collectionPath: 'approved_strategy' }, 50, scope);
     expect(approvedPage.items.map((i) => i.itemId).sort()).toEqual([ready.id, setup.id].sort());
-    expect(approvedPage.collectionByItem?.[setup.id].readiness).toBe('setup_attention');
+    expect(approvedPage.collectionByItem?.[setup.id]!.readiness as any).toBe('setup_attention');
     // Non-route rows never match a present collection filter (fail closed).
     const awaitingPage = getStageReadItems(batch.id, { collectionReadiness: 'awaiting_approval' }, 50, scope);
     expect(awaitingPage.items.map((i) => i.itemId)).toEqual([awaiting.id]);
@@ -379,8 +379,8 @@ describe('stage-one collection read', () => {
     })(WS, '/tmp/coll-ws');
     await (worker as unknown as { processSourcing: (item: unknown) => Promise<void> }).processSourcing(findItemById(item.id));
     const after = findItemById(item.id);
-    expect(after?.stageStatus).toBe('needs_input');
-    expect(['sourcing', 'route_sources']).toContain(after?.stage);
+    expect(after!.stageStatus).toBe('needs_input');
+    expect(['sourcing', 'route_sources']).toContain(after!.stage);
   });
 
   it('zero-identifier approved items park inside the boundary; terminal generations never replay', async () => {
@@ -395,8 +395,8 @@ describe('stage-one collection read', () => {
     await api.processSourcing(findItemById(noId.id));
     const parked = findItemById(noId.id);
     // Parked inside the approved boundary — never fallback_to_discovery.
-    expect(parked?.stageStatus).toBe('needs_input');
-    expect(['sourcing', 'route_sources']).toContain(parked?.stage);
+    expect(parked!.stageStatus).toBe('needs_input');
+    expect(['sourcing', 'route_sources']).toContain(parked!.stage);
     // Terminal generation: no replay, no new attempts.
     const done = makeItem(batch.id, { upc: '012345678912', brandHint: 'Acana' });
     const gen = startSourcingGeneration(done.id);
@@ -542,7 +542,7 @@ describe('stage-one activation follow-ups (isolated workspace)', () => {
       // website setup issue, collection allowed on usable distributors.
       const projected = getStageReadItems(batch.id, { stage: 'route_sources' }, 50, { workspaceId: WS2, batchId: batch.id });
       const view = projected.collectionByItem?.[item.id];
-      expect(view?.readiness).toBe('ready_partial');
+      expect(view!.readiness as any).toBe('ready_partial');
       expect(view?.canCollect).toBe(true);
       expect(view?.sourceAvailability.find((s) => s.kind === 'official_page')?.usable).toBe(false);
       // No extractor profile for the domain: the official leg is
@@ -584,14 +584,14 @@ describe('stage-one activation follow-ups (isolated workspace)', () => {
       const generation = getDb().query('SELECT id FROM sourcing_generations WHERE item_id = ? ORDER BY rowid DESC LIMIT 1').get(item.id) as { id: string };
       const result = getStrategyCollectionResult(generation.id);
       const contribution = result.envelope.contributions.find((c) => c.kind === 'official_page');
-      expect(contribution?.outcome).toBe('unavailable');
+      expect(contribution!.outcome).toBe('unavailable');
       expect(typeof contribution?.reasonCode === 'string' && contribution.reasonCode.length > 0).toBe(true);
       const after = findItemById(item.id);
       expect((after?.sourcingDecision as { route?: string } | null)?.route).toBe('completed_strategy_collection');
       // Sourcing completed inside the boundary and the item continued
       // toward preparation (the worker chains extraction inline, so the
       // recorded stage may already be extraction — never a fallback).
-      expect(['collect_details', 'extraction']).toContain(after?.stage);
+      expect(['collect_details', 'extraction']).toContain(after!.stage);
     } finally {
       resetSourcingFlagsOverride();
     }
@@ -834,7 +834,7 @@ describe('stage-one activation follow-ups II (isolated workspace)', () => {
     overrideSourcingFlags({ sourcingEngineEnabled: true, mode: 'manual' });
     try {
       const manual = ws3Read(batch.id).collectionByItem?.[item.id];
-      expect(manual?.readiness).toBe('ready');
+      expect(manual!.readiness as any).toBe('ready');
       expect(manual?.canCollect).toBe(true);
       expect(manual?.canExecuteNow).toBe(false);
       expect(manual?.reasons.join(' ')).toMatch(/Manual mode/);
@@ -906,8 +906,8 @@ describe('stage-one activation follow-ups II (isolated workspace)', () => {
       await (worker as unknown as { processSourcing: (item: unknown) => Promise<void> }).processSourcing(findItemById(item.id));
       const after = findItemById(item.id);
       expect((after?.sourcingDecision as { route?: string } | null)?.route).toBe('needs_input_conflict');
-      expect(after?.stageStatus).toBe('needs_input');
-      expect(['sourcing', 'route_sources']).toContain(after?.stage);
+      expect(after!.stageStatus).toBe('needs_input');
+      expect(['sourcing', 'route_sources']).toContain(after!.stage);
     } finally {
       resetSourcingFlagsOverride();
     }
