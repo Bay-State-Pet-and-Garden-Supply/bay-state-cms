@@ -6,7 +6,7 @@ describe('profile-capture // story: e07s03', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    vi.resetModules();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
@@ -34,13 +34,14 @@ describe('profile-capture // story: e07s03', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('rendered capture uses playwright and returns elements+viewport+hash 16', async () => {
+  it('rendered capture uses playwright and intercepts requests via page.route', async () => {
     const dom = '<html><body><h1>Rendered</h1></body></html>';
     const fakeScreenshot = Buffer.from('pngdata').toString('base64');
     const mockElements = [
       { id: 'bs-0', tag: 'h1', text: 'Rendered', x: 20, y: 80, w: 400, h: 36, dataAttrs: [] },
       { id: 'bs-1', tag: 'div', text: 'Rendered extra', x: 10, y: 70, w: 500, h: 480, dataAttrs: [] },
     ];
+    const routeFn = vi.fn();
     vi.doMock('playwright', () => ({
       chromium: {
         launch: vi.fn(async () => ({
@@ -48,6 +49,8 @@ describe('profile-capture // story: e07s03', () => {
             newPage: async () => ({
               goto: vi.fn(async () => {}),
               waitForTimeout: vi.fn(async () => {}),
+              waitForLoadState: vi.fn(async () => {}),
+              route: routeFn,
               evaluate: vi.fn(async () => ({ dom, elements: mockElements, viewport: { w: 1280, h: 720, deviceScaleFactor: 1 } })),
               screenshot: vi.fn(async () => Buffer.from('pngdata')),
               close: vi.fn(async () => {}),
@@ -68,6 +71,7 @@ describe('profile-capture // story: e07s03', () => {
     expect(res.hash).toBe(expectedHash(dom, fakeScreenshot, 'rendered', 'https://example.com/p/2', mockElements.length));
     expect(res.hash).toMatch(/^[a-f0-9]{16}$/);
     expect(res.screenshotRef).toMatch(/baystate-captures/);
+    expect(routeFn).toHaveBeenCalledWith('**/*', expect.any(Function));
   });
 
   it('hitTest returns smallest-area element containing point', async () => {
@@ -97,6 +101,18 @@ describe('profile-capture // story: e07s03', () => {
       'http://2130706433/internal',
     ];
     for (const url of blockedUrls) {
+      await expect(captureProfilePage({ url, runtime: 'static' })).rejects.toThrow(/blocked private destination/);
+    }
+  });
+
+  it('rejects domain suffix bypass attempts without false-positive pass-through', async () => {
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    const bypassUrls = [
+      'http://127.0.0.1.nip.io/p/1',
+      'http://169.254.169.254.nip.io/p/1',
+      'http://invalid-suffix-bypass.invalid/p/1',
+    ];
+    for (const url of bypassUrls) {
       await expect(captureProfilePage({ url, runtime: 'static' })).rejects.toThrow(/blocked private destination/);
     }
   });

@@ -63,6 +63,7 @@ import {
   type ReconcileResult,
 } from '../db/repositories/brand-url-index-repo';
 import { recordRefreshRun } from '../db/repositories/sitemap-telemetry-repo';
+import { isPrivateOrLinkLocalHost } from '../shared/ssrf';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -414,6 +415,23 @@ async function fetchSitemapBody(
   fetchFn: NetworkFetch = fetch,
   tracker?: FetchAttemptTracker,
 ): Promise<string | null> {
+  let hostname = '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      console.warn(`[SitemapFetcher] Denied non-HTTP(S) URL ${url}`);
+      return null;
+    }
+    hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return null;
+  }
+
+  if (await isPrivateOrLinkLocalHost(hostname)) {
+    console.warn(`[SitemapFetcher] SSRF block: denied private/link-local hostname "${hostname}" for ${url}`);
+    return null;
+  }
+
   let response: Response;
   try {
     response = await fetchFn(url, {
@@ -523,6 +541,16 @@ async function parseRobotsSitemaps(
   fetchFn: NetworkFetch = fetch,
   tracker?: FetchAttemptTracker,
 ): Promise<string[]> {
+  try {
+    const host = new URL(robotsUrl).hostname.replace(/^\[|\]$/g, '');
+    if (await isPrivateOrLinkLocalHost(host)) {
+      console.warn(`[SitemapFetcher] SSRF block: denied private/link-local hostname "${host}" for robots.txt ${robotsUrl}`);
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
   let body: string | null = null;
   try {
     const response = await fetchFn(robotsUrl, {
@@ -969,6 +997,8 @@ async function tryFetchSitemapRendered(
 
       const targetUrl = normOrigin + path;
       try {
+        const targetHost = new URL(targetUrl).hostname.replace(/^\[|\]$/g, '');
+        if (await isPrivateOrLinkLocalHost(targetHost)) continue;
         console.log(`[SitemapFetcher] [Camoufox] Navigating to ${targetUrl}...`);
         const resp = await page.goto(targetUrl, {
           waitUntil: 'commit',
@@ -996,6 +1026,10 @@ async function tryFetchSitemapRendered(
           for (const sitemapUrl of robotsSitemaps.slice(0, 2)) {
             if (Date.now() >= overallDeadline) break;
             const normSitemap = decodeXmlEntities(sitemapUrl);
+            try {
+              const smHost = new URL(normSitemap).hostname.replace(/^\[|\]$/g, '');
+              if (await isPrivateOrLinkLocalHost(smHost)) continue;
+            } catch { continue; }
             console.log(`[SitemapFetcher] [Camoufox] Navigating to robots sitemap ${normSitemap}...`);
             const sResp = await page.goto(normSitemap, { waitUntil: 'commit', timeout: 8000 });
             await page.waitForTimeout(1500);
@@ -1021,6 +1055,8 @@ async function tryFetchSitemapRendered(
             if (Date.now() >= overallDeadline) break;
             const normChild = childUrl.startsWith('http://') ? childUrl.replace('http://', 'https://') : childUrl;
             try {
+              const childHost = new URL(normChild).hostname.replace(/^\[|\]$/g, '');
+              if (await isPrivateOrLinkLocalHost(childHost)) continue;
               console.log(`[SitemapFetcher] [Camoufox] Fetching child sitemap ${normChild}...`);
               const cResp = await page.goto(normChild, { waitUntil: 'commit', timeout: 8000 });
               await page.waitForTimeout(1500);
