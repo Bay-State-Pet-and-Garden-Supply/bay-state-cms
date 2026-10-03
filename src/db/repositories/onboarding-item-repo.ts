@@ -747,7 +747,6 @@ export function listItemsByBatchStaged(batchId: string): Record<PipelineStage, O
  * Get items that are pending within a specific stage — used by the worker.
  * Optionally filtered by workspaceId for multi-workspace support.
  */
-// fallow-ignore-next-line unused-export — used by tests
 export function getPendingItemsByStage(
   // Slice 5a bridge: accepts v1 stored OR canonical v2 input (dual read).
   stage: StageInput | StageV2,

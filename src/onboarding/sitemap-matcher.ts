@@ -239,7 +239,7 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
-export function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
+function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   const needle = upc.trim();
   if (!needle) return null;
   const stripped = needle.replace(/\D+/g, '');

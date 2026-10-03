@@ -150,64 +150,7 @@ function normalizeHost(url: string | null | undefined): string | null {
   }
 }
 
-/**
- * Build single-item cohort map for a target item without full O(N) batch item loading.
- * Queries active cohort for target item and loads only cohort members (~2-10 items).
- */
-export function buildSingleCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
-  const map = new Map<string, FamilyCohortState>();
-  const cohort = getActiveCohortForItem(item.id);
-  if (!cohort) return map;
-
-  const members = getCohortMembers(cohort.id);
-  const memberItemIds = members.map(m => m.onboardingItemId);
-  if (!memberItemIds.includes(item.id)) {
-    memberItemIds.push(item.id);
-  }
-  const memberItems = findItemsByIds(memberItemIds);
-  const membersByCohortId = new Map([[cohort.id, members]]);
-  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(memberItemIds);
-  const currentRunsByCohortId = getCurrentCohortRunsForCohorts([cohort.id]);
-
-  const view = buildCohortView(
-    cohort,
-    memberItems,
-    membersByCohortId,
-    extractionSourcesByItemId,
-    currentRunsByCohortId,
-  );
-  const blockedCount = Math.max(0, view.memberCount - view.readyCount - view.waitingOn.length);
-  for (const member of view.members) {
-    map.set(member.onboardingItemId, {
-      cohortId: view.cohort.id,
-      label: view.cohort.groupLabel,
-      memberCount: view.memberCount,
-      readyCount: view.readyCount,
-      blockedCount,
-      waitingOnItemIds: view.waitingOn
-        .filter(entry => entry.itemId !== member.onboardingItemId)
-        .map(entry => entry.itemId),
-      cohortStatus: view.cohort.status,
-      cohortState: view.state,
-      blockedReason: view.blockedReason,
-    });
-  }
-  return map;
-}
-
-/**
- * Build the per-item cohort map from the batch's ACTIVE candidate cohorts.
- * Reuses the caller's loaded items (one batch load, one extraction-binding
- * load inside `buildCohortView`).
- */
-export function buildCohortContext(batchId: string, items: OnboardingItem[]): Map<string, FamilyCohortState> {
-  const cohorts = listCohortsByBatch(batchId, { includeSuperseded: true });
-  const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
-  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
-  const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
-  const views: CurationCohortView[] = cohorts.map(cohort =>
-    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId),
-  );
+function buildFamilyCohortStateMap(views: CurationCohortView[]): Map<string, FamilyCohortState> {
   const map = new Map<string, FamilyCohortState>();
   for (const view of views) {
     const blockedCount = Math.max(0, view.memberCount - view.readyCount - view.waitingOn.length);
@@ -228,6 +171,50 @@ export function buildCohortContext(batchId: string, items: OnboardingItem[]): Ma
     }
   }
   return map;
+}
+
+/**
+ * Build single-item cohort map for a target item without full O(N) batch item loading.
+ * Queries active cohort for target item and loads only cohort members (~2-10 items).
+ */
+export function buildSingleCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
+  const cohort = getActiveCohortForItem(item.id);
+  if (!cohort) return new Map();
+
+  const members = getCohortMembers(cohort.id);
+  const memberItemIds = members.map(m => m.onboardingItemId);
+  if (!memberItemIds.includes(item.id)) {
+    memberItemIds.push(item.id);
+  }
+  const memberItems = findItemsByIds(memberItemIds);
+  const membersByCohortId = new Map([[cohort.id, members]]);
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(memberItemIds);
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts([cohort.id]);
+
+  const view = buildCohortView(
+    cohort,
+    memberItems,
+    membersByCohortId,
+    extractionSourcesByItemId,
+    currentRunsByCohortId,
+  );
+  return buildFamilyCohortStateMap([view]);
+}
+
+/**
+ * Build the per-item cohort map from the batch's ACTIVE candidate cohorts.
+ * Reuses the caller's loaded items (one batch load, one extraction-binding
+ * load inside `buildCohortView`).
+ */
+export function buildCohortContext(batchId: string, items: OnboardingItem[]): Map<string, FamilyCohortState> {
+  const cohorts = listCohortsByBatch(batchId, { includeSuperseded: true });
+  const membersByCohortId = getCohortMembersForCohorts(cohorts.map(c => c.id));
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(items.map(item => item.id));
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts(cohorts.map(c => c.id));
+  const views: CurationCohortView[] = cohorts.map(cohort =>
+    buildCohortView(cohort, items, membersByCohortId, extractionSourcesByItemId, currentRunsByCohortId),
+  );
+  return buildFamilyCohortStateMap(views);
 }
 
 /** Build the full batch projection context (one batch-level load per source). */
