@@ -275,7 +275,13 @@ describe('Tier 0 container runner: real container per run, teardown on every exi
     try {
       const { execFile } = await import('node:child_process');
       const { promisify } = await import('node:util');
-      await promisify(execFile)('docker', ['info'], { timeout: 15_000 });
+      const run = promisify(execFile);
+      await run('docker', ['info'], { timeout: 15_000 });
+      const { stdout } = await run('docker', ['images', '-q'], { timeout: 15_000 });
+      const image = stdout.trim().split('\n')[0];
+      if (image) {
+        await run('docker', ['run', '--rm', '--network=none', image, 'true'], { timeout: 15_000 });
+      }
       return true;
     } catch {
       return false;
