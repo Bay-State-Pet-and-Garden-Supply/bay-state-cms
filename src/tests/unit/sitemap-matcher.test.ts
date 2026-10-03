@@ -167,6 +167,16 @@ describe('Sitemap Matcher', () => {
       expect(res[0].url).toBe('https://example.com/products/850067859598-dog-chew');
     });
 
+    test('non-GTIN short code or internal ID does not trigger UPC exact match', async () => {
+      const nonGtin = '123';
+      const sitemaps = [
+        'https://example.com/products/item-123.html',
+        'https://example.com/products/other-product',
+      ];
+      const res = await matchSitemapUrls(sitemaps, 'Widget Item', null, nonGtin, 'example.com');
+      expect(res.some(r => r.matchType === 'upc_exact')).toBe(false);
+    });
+
   // ── Pass 2: product URL filter ────────────────────────────────────────
 
   test('generic filter keeps /products/, /p/, /shop/, /item/, /dp/ paths only', async () => {
@@ -661,10 +671,10 @@ describe('Sitemap Matcher', () => {
     });
 
     test('findUpcExactHit fast path does not change semantics: stripped includes still hits', async () => {
-      const upc = '850067859598';
+      const upcWithDashes = '850-0678-59598';
       // UPC with dashes should match stripped digits via includes fast path
       const urls = ['https://mywoof.com/p/850067859598.html', 'https://mywoof.com/products/other'];
-      const result = await matchSitemapUrls(urls, 'Other Product', null, '850-0678-59598', 'mywoof.com');
+      const result = await matchSitemapUrls(urls, 'Other Product', null, upcWithDashes, 'mywoof.com');
       expect(result.some(r => r.url === urls[0])).toBe(true);
     });
   });
