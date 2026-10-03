@@ -6,12 +6,16 @@ describe('profile-capture // story: e07s03', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    vi.resetModules();
+    if (typeof vi !== 'undefined' && vi.resetModules) {
+      vi.resetModules();
+    }
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    vi.restoreAllMocks();
+    if (typeof vi !== 'undefined' && vi.restoreAllMocks) {
+      vi.restoreAllMocks();
+    }
   });
 
   function expectedHash(dom: string, screenshot: string, runtime: string, url: string, elementsCount = 0): string {
@@ -95,6 +99,10 @@ describe('profile-capture // story: e07s03', () => {
       'http://127.0.0.1/secret',
       'http://10.0.0.1/admin',
       'http://2130706433/internal',
+      'http://spoof-example.com/secret',
+      'http://spoof-example.org/admin',
+      'http://spoof-example.net/internal',
+      'http://127.0.0.1.nip.io/secret',
     ];
     for (const url of blockedUrls) {
       await expect(captureProfilePage({ url, runtime: 'static' })).rejects.toThrow(/blocked private destination/);

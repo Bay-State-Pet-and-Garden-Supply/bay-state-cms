@@ -49,8 +49,14 @@ function isAllowedProtocol(url: string): boolean {
 
 async function isPrivateHost(url: string): Promise<boolean> {
   try {
-    const host = new URL(url).hostname;
-    if (host.endsWith('example.com') || host.endsWith('example.org') || host.endsWith('example.net')) return false;
+    const host = new URL(url).hostname.toLowerCase();
+    if (
+      host === 'example.com' || host.endsWith('.example.com') ||
+      host === 'example.org' || host.endsWith('.example.org') ||
+      host === 'example.net' || host.endsWith('.example.net')
+    ) {
+      return false;
+    }
     return await isPrivateOrLinkLocalHost(host);
   } catch { return true; }
 }
