@@ -19,9 +19,9 @@
  * Milestone 3 (P1-E): Bounded read model — all DB access via bulk repositories,
  * cursor pagination, projection health, fail-closed on corrupt data.
  */
-import { listItemsByBatch, listItemsByBatchChunked, findItemById } from '../db/repositories/onboarding-item-repo';
+import { listItemsByBatch, listItemsByBatchChunked, findItemById, findItemsByIds } from '../db/repositories/onboarding-item-repo';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
-import { listCohortsByBatch, getCohortMembersForCohorts } from '../db/repositories/curation-cohort-repo';
+import { listCohortsByBatch, getCohortMembersForCohorts, getActiveCohortForItem, getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getLatestExtractionBindingsByItemIds } from '../db/repositories/onboarding-extraction-repo';
 import { getCurrentCohortRunsForCohorts } from '../db/repositories/classification-cohort-run-repo';
 import { buildCohortView } from './curation-cohort-service';
@@ -148,6 +148,51 @@ function normalizeHost(url: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Build single-item cohort map for a target item without full O(N) batch item loading.
+ * Queries active cohort for target item and loads only cohort members (~2-10 items).
+ */
+export function buildSingleCohortContext(item: OnboardingItem): Map<string, FamilyCohortState> {
+  const map = new Map<string, FamilyCohortState>();
+  const cohort = getActiveCohortForItem(item.id);
+  if (!cohort) return map;
+
+  const members = getCohortMembers(cohort.id);
+  const memberItemIds = members.map(m => m.onboardingItemId);
+  if (!memberItemIds.includes(item.id)) {
+    memberItemIds.push(item.id);
+  }
+  const memberItems = findItemsByIds(memberItemIds);
+  const membersByCohortId = new Map([[cohort.id, members]]);
+  const extractionSourcesByItemId = getLatestExtractionBindingsByItemIds(memberItemIds);
+  const currentRunsByCohortId = getCurrentCohortRunsForCohorts([cohort.id]);
+
+  const view = buildCohortView(
+    cohort,
+    memberItems,
+    membersByCohortId,
+    extractionSourcesByItemId,
+    currentRunsByCohortId,
+  );
+  const blockedCount = Math.max(0, view.memberCount - view.readyCount - view.waitingOn.length);
+  for (const member of view.members) {
+    map.set(member.onboardingItemId, {
+      cohortId: view.cohort.id,
+      label: view.cohort.groupLabel,
+      memberCount: view.memberCount,
+      readyCount: view.readyCount,
+      blockedCount,
+      waitingOnItemIds: view.waitingOn
+        .filter(entry => entry.itemId !== member.onboardingItemId)
+        .map(entry => entry.itemId),
+      cohortStatus: view.cohort.status,
+      cohortState: view.state,
+      blockedReason: view.blockedReason,
+    });
+  }
+  return map;
 }
 
 /**
@@ -1214,8 +1259,8 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   if (!item) return undefined;
   const reviewRow = getReviewState(itemId);
   const workspaceId = findBatchById(item.batchId)?.workspaceId ?? '';
-  // Use bulk helpers even for single item (keeps query plan uniform)
-  const cohortByItem = buildCohortContext(item.batchId, listItemsByBatch(item.batchId));
+  // Single-item cohort context avoids full O(N_batch) item & cohort loading
+  const cohortByItem = buildSingleCohortContext(item);
   const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);

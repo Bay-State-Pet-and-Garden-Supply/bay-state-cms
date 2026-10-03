@@ -40,6 +40,8 @@ import {
   deriveItemWorkState,
   buildBatchWorkStateContext,
   getBatchWorkState,
+  getItemWorkState,
+  buildSingleCohortContext,
 } from '../../onboarding/onboarding-work-state';
 
 let workspaceId: string;
@@ -665,3 +667,25 @@ describe('brand assignment work-state projection', () => {
   });
 });
 
+describe('single-item work-state projection parity (O(1) cohort context)', () => {
+  it('getItemWorkState matches full-batch deriveItemWorkState output exactly for every item in cohort', () => {
+    const batchId = makeBatch('Parity Batch');
+    const m1 = createItem(batchId, { upc: 'P1', name: 'Acana Grasslands Grain Free 25 lb', brandHint: 'Acana', stage: 'discovery', stageStatus: 'pending' });
+    const m2 = createItem(batchId, { upc: 'P2', name: 'Acana Grasslands Grain Free 13 lb', brandHint: 'Acana', stage: 'discovery', stageStatus: 'pending' });
+    makeItemExtractionReady(m1, `https://acana.example.com/p/${m1}`);
+    makeItemExtractionReady(m2, `https://acana.example.com/p/${m2}`);
+    refreshCandidateCohorts(workspaceId, batchId);
+    advanceItemsToNextStage([m1, m2]); // curation/pending
+
+    const batchItems = listItemsByBatch(batchId);
+    const fullCtx = buildBatchWorkStateContext(batchId, batchItems);
+
+    for (const item of batchItems) {
+      const fullBatchState = deriveItemWorkState(item, fullCtx);
+      const singleItemState = getItemWorkState(item.id);
+      expect(singleItemState).toEqual(fullBatchState);
+      const singleCohortCtx = buildSingleCohortContext(item);
+      expect(singleCohortCtx.get(item.id)).toEqual(fullCtx.cohortByItem.get(item.id));
+    }
+  });
+});
