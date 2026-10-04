@@ -45,6 +45,7 @@ export interface SitemapMatchResult {
  * When available, the prompt becomes much more specific about
  * the product identity, helping the LLM reject near-misses.
  */
+// fallow-ignore-next-line unused-type
 export interface SitemapLlmContext {
   /** Raw register/row name (pre-consolidation). */
   itemName?: string;
@@ -239,6 +240,7 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
+// fallow-ignore-next-line complexity
 function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   const needle = upc.trim();
   if (!needle) return null;
