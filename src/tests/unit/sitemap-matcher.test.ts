@@ -125,6 +125,16 @@ describe('Sitemap Matcher', () => {
 
   // ── Pass 1: UPC exact match ───────────────────────────────────────────
 
+  test('non-GTIN short code or internal ID does not trigger UPC exact match', async () => {
+    const nonGtin = '123';
+    const sitemaps = [
+      'https://example.com/products/item-123.html',
+      'https://example.com/products/other-product',
+    ];
+    const res = await matchSitemapUrls(sitemaps, 'Widget Item', null, nonGtin, 'example.com');
+    expect(res.some(r => r.matchType === 'upc_exact')).toBe(false);
+  });
+
   test('UPC exact match short-circuits with 0.95 confidence', async () => {
     const upc = '850067859598';
     const urls = [
