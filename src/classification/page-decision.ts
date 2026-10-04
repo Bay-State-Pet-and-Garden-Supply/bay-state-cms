@@ -96,6 +96,7 @@ import {
   insertPolicyDeniedTerminalCall,
   openDecisionModelCall,
   openSingleChoiceRequest,
+  protectedSystemOneDispatchOptions,
   sanitizeQuestionIdSegment,
   sortCandidatesByProbability,
 } from './systemone-decision-core';
@@ -103,8 +104,9 @@ import type { ProtectedOperation } from './model-operation-registry';
 
 // ─── Versioned Constants ──────────────────────────────────────────────────────
 
-export const PAGE_JUDGMENT_VERSION = 'jev-page-v1';
-export const PAGE_QUESTION_VERSION = 'page-question-v1';
+export const PAGE_JUDGMENT_VERSION = 'jev-page-v2-provenance';
+export const PAGE_QUESTION_VERSION = 'page-question-v2';
+const PAGE_MEMBERSHIP_RULE = 'Assign a product only to a page that should directly list this product. Mere navigation, editorial relevance, or a generic brand directory is not product membership. Brand assignment requires the matching brand-specific page; a generic brand hub is not a substitute for a missing brand page.';
 
 export const JEV_PAGE_QUESTION_ID = 'category_page_assignment';
 const MAX_ORDINARY_PAGE_CANDIDATES = MAX_ORDINARY_CHOICE_CANDIDATES; // 253
@@ -320,7 +322,7 @@ export function buildPageChoiceQuestion(
 
   const typeDesc = productType ? `"${productType}"` : 'product';
   const instructions =
-    `Select the single most specific and appropriate store category page for this ${typeDesc} from the eligible catalog choices based strictly on the provided product evidence. If none of the specific options apply, select "${NO_MATCH_CHOICE_KEY}". If the evidence does not provide enough information to determine the page with confidence, select "${INSUFFICIENT_EVIDENCE_CHOICE_KEY}".`;
+    `Select the single most specific and appropriate store category page for this ${typeDesc} from the eligible catalog choices based strictly on the provided product evidence. ${PAGE_MEMBERSHIP_RULE} If none of the specific options apply, select "${NO_MATCH_CHOICE_KEY}". If the evidence does not provide enough information to determine the page with confidence, select "${INSUFFICIENT_EVIDENCE_CHOICE_KEY}".`;
 
   return {
     questionId: JEV_PAGE_QUESTION_ID,
@@ -350,7 +352,7 @@ function buildPageNoulQuestions(
   return candidates.map((cand, i) => {
     const cleanId = sanitizeQuestionIdSegment(cand.pageId);
     const questionId = `page_${cleanId}__${i}`;
-    const instructions = `Does the product "${name}" (SKU ${sku}) belong on the store category page "${cand.pageName}" (Path: "${cand.path}") based directly on the provided evidence?`;
+    const instructions = `Does the product "${name}" (SKU ${sku}) belong on the store category page "${cand.pageName}" (Path: "${cand.path}") based directly on the provided evidence? ${PAGE_MEMBERSHIP_RULE}`;
     const criteria = {
       true: `The product evidence directly and clearly indicates that the product belongs on the "${cand.pageName}" category page according to store taxonomy, assortment, and species rules.`,
       false: `The product does not belong on the "${cand.pageName}" page, or a different category page is more specific or appropriate.`,
@@ -494,7 +496,7 @@ async function dispatchPageSingleChoiceQuestion(input: {
 
     try {
       assertHeld?.();
-      result = await dispatchSystemOne(jevConn as any, request);
+      result = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn, request.model, assertHeld));
       assertHeld?.();
 
       assertSystemOneModelMatch(request.model, result.returnedModel);
@@ -1219,7 +1221,7 @@ async function collectPageMultiBatch(input: {
 
     try {
       assertHeld?.();
-      result = await dispatchSystemOne(jevConn as any, request);
+      result = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn, request.model, assertHeld));
       assertHeld?.();
 
       assertSystemOneModelMatch(request.model, result.returnedModel);
@@ -2579,6 +2581,7 @@ function buildCohortPageQuestions(input: {
       const instructions =
         `For product variant SKU "${product.sku}" (${product.name}), select the single most specific and appropriate store category page for this ${typeDesc} from the eligible catalog choices based strictly on this SKU's own evidence. ` +
         `Every product variant must be judged independently from its own evidence; do not copy, union, or rely on other products in the cohort. ` +
+        `${PAGE_MEMBERSHIP_RULE} ` +
         `If none of the specific options apply to SKU "${product.sku}", select "${NO_MATCH_CHOICE_KEY}". ` +
         `If the evidence for SKU "${product.sku}" does not provide enough information to determine the page with confidence, select "${INSUFFICIENT_EVIDENCE_CHOICE_KEY}".`;
 
@@ -2606,7 +2609,7 @@ function buildCohortPageQuestions(input: {
         const questionId = `page_noul_${sanitizedSku}_${sanitizedPageId}`;
         const instructions =
           `Does the store category page "${cand.pageName}" (Path: "${cand.path}") apply to product variant SKU "${product.sku}" (${product.name})? ` +
-          `Evaluate SKU "${product.sku}" strictly from its own product evidence; do not rely on or copy assignments from sibling products in the cohort.`;
+          `Evaluate SKU "${product.sku}" strictly from its own product evidence; do not rely on or copy assignments from sibling products in the cohort. ${PAGE_MEMBERSHIP_RULE}`;
         const criteria = {
           true: `The product SKU "${product.sku}" belongs in the category page "${cand.pageName}" based strictly on its own evidence.`,
           false: `The product SKU "${product.sku}" does NOT belong in the category page "${cand.pageName}".`,
@@ -2782,7 +2785,7 @@ async function runCohortBatchDispatch(input: {
 
   try {
     opts?.assertHeld?.();
-    dispatchRes = await dispatchSystemOne(jevConn as any, request);
+    dispatchRes = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn, request.model, opts?.assertHeld));
     opts?.assertHeld?.();
 
     assertSystemOneModelMatch(request.model, dispatchRes.returnedModel);
@@ -2932,6 +2935,8 @@ function finalizeCohortSingleAssignment(input: {
   snapshotHash: string;
   typeLabel: string | null;
   modelCallIds: string[];
+  questionId: string;
+  vendorConfidence: number | null;
 }): CohortPageMemberResult {
   const { product, normalizedPages, candidates, snapshotHash, typeLabel, modelCallIds } = input;
   // Category correctness validation
@@ -2975,6 +2980,8 @@ function finalizeCohortSingleAssignment(input: {
       pageName: p.pageName,
       confidence: p.confidence,
       isBrandShortcut: p.isBrandShortcut,
+      derivation: p.isBrandShortcut ? { kind: 'evidence_match' as const }
+        : buildChoiceJudgmentDerivation(input.questionId, p.confidence, input.vendorConfidence),
     })),
     modelCallIds,
     source: 'typesafe',
@@ -3042,6 +3049,8 @@ function evaluateCohortSingleMember(input: {
         snapshotHash,
         typeLabel,
         modelCallIds,
+        questionId: q.questionId,
+        vendorConfidence: allAnswers[q.questionId]?.confidence ?? null,
       });
 }
 
@@ -3239,6 +3248,8 @@ function evaluateCohortMultiMember(input: {
           pageName: p.pageName,
           confidence: p.confidence,
           isBrandShortcut: p.isBrandShortcut,
+          derivation: p.isBrandShortcut ? { kind: 'evidence_match' as const }
+            : buildNoulJudgmentDerivation(entries.find(entry => entry.candidate.pageId === p.pageId)!.questionId, p.confidence),
         })),
         modelCallIds,
         source: 'typesafe',

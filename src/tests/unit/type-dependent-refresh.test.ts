@@ -9,6 +9,9 @@ import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classificati
 import { enqueueRefreshItem, claimRefreshBatch } from '../../db/repositories/classification-refresh-repo';
 import { processRefreshItem } from '../../classification/type-dependent-refresh';
 import { overrideTypeFirstCurationFlags, resetTypeFirstCurationFlagsOverride } from '../../classification/flags';
+import { refreshReviewedDependents } from '../../classification/refresh-reviewed-dependents';
+import { findItemById } from '../../db/repositories/onboarding-item-repo';
+import { capturePreReviewPrediction } from '../../classification/benchmark-prediction';
 
 describe('type-dependent-refresh (P1.4)', () => {
   const dbPath = `/tmp/test-refresh-${randomUUID()}.db`;
@@ -187,5 +190,60 @@ describe('type-dependent-refresh (P1.4)', () => {
     expect(finishedQueueItem.status).toBe('completed');
     expect(finishedQueueItem.outcome_run_id).toBe(runId);
     expect(finishedQueueItem.completed_at).not.toBeNull();
+  });
+
+  it('refreshes gated attributes from persisted evidence without rerunning OCR, name or type or losing accepted universals', async () => {
+    const db = getDb();
+    const batchId = randomUUID();
+    const itemId = randomUUID();
+    const runId = randomUUID();
+    const sku = 'SKU-ACCEPT-UNCHANGED';
+    const config = loadConfigFixture();
+    const ref = createConfigSnapshot(wsId, config);
+    const snapshot = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/refresh', productSku: sku, sourceProductHash: '',
+      config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() } });
+    persistRuntimeSnapshot(snapshot);
+    db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
+      VALUES (?, ?, 'Accept unchanged', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
+    db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
+      VALUES (?, ?, 1, ?, 'Fixture', 'review', 'pending', ?, datetime('now'), datetime('now'))`,
+    [itemId, batchId, sku, JSON.stringify({ classificationRunId: runId, curatedTitle: 'Keep this name' })]);
+    db.run(`INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, config_snapshot_hash, started_at)
+      VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))`, [runId, wsId, itemId, sku, snapshot.snapshotHash]);
+    const typeId = randomUUID();
+    const brandId = randomUUID();
+    for (const [id, proposalType, targetId, value] of [[typeId, 'primary_product_type', 'dog_food', { productTypeId: 'dog_food' }], [brandId, 'field_assignment', 'brand', 'Acme']] as const) {
+      db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 'accepted', datetime('now'))`, [id, runId, sku, proposalType, targetId, JSON.stringify(value)]);
+      db.run(`INSERT INTO classification_proposal_decisions (id, proposal_id, decision, reviewer_id, decision_origin, created_at)
+        VALUES (?, ?, 'accepted', 'nick', 'human_review', datetime('now'))`, [randomUUID(), id]);
+    }
+    db.run(`INSERT INTO classification_evidence (id, run_id, onboarding_item_id, product_sku, stage_name, source, reliability, attribute_id, source_field, snippet, value_json, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, 'evidence_extraction', 'official_product_page', 'high', 'dog_breed_size', 'BreedSize', 'Small', '"Small"', '{}', datetime('now'))`, [randomUUID(), runId, itemId, sku]);
+    const oldDependentId = randomUUID();
+    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES (?, ?, ?, 'field_assignment', 'dog_breed_size', '"Large"', 0.8, 'pending', datetime('now'))`, [oldDependentId, runId, sku]);
+    const originalPrediction = capturePreReviewPrediction({ runId, workspaceId: wsId, productSku: sku });
+    expect(originalPrediction.fieldAssignments.find(field => field.targetId === 'dog_breed_size')?.value).toBe('Large');
+    db.exec(`CREATE TRIGGER reject_refresh_value BEFORE INSERT ON classification_proposals
+      WHEN NEW.target_id = 'dog_breed_size' BEGIN SELECT RAISE(ABORT, 'fixture refresh commit failure'); END`);
+    await expect(refreshReviewedDependents({ runId, workspaceId: wsId, itemId })).rejects.toThrow('fixture refresh commit failure');
+    expect(db.query('SELECT superseded_at, status FROM classification_proposals WHERE id = ?').get(oldDependentId)).toEqual({ superseded_at: null, status: 'pending' });
+    db.exec('DROP TRIGGER reject_refresh_value');
+    const beforeCalls = db.query('SELECT COUNT(*) AS n FROM classification_model_calls WHERE run_id = ?').get(runId) as { n: number };
+    const pendingRefresh = refreshReviewedDependents({ runId, workspaceId: wsId, itemId });
+    await expect(refreshReviewedDependents({ runId, workspaceId: wsId, itemId })).rejects.toThrow('already in progress');
+    const result = await pendingRefresh;
+    expect(result.runId).toBe(runId);
+    const afterCalls = db.query('SELECT COUNT(*) AS n FROM classification_model_calls WHERE run_id = ?').get(runId) as { n: number };
+    expect(afterCalls.n).toBe(beforeCalls.n);
+    expect(findItemById(itemId)?.curationData?.curatedTitle).toBe('Keep this name');
+    expect(findItemById(itemId)?.curationData?.classificationRunId).toBe(runId);
+    const newValue = db.query(`SELECT proposed_value_json, status FROM classification_proposals WHERE run_id = ? AND target_id = 'dog_breed_size' AND superseded_at IS NULL`).get(runId) as { proposed_value_json: string; status: string };
+    expect(JSON.parse(newValue.proposed_value_json)).toBe('Small');
+    expect(newValue.status).toBe('pending');
+    expect(db.query('SELECT superseded_at, status FROM classification_proposals WHERE id = ?').get(brandId)).toEqual({ superseded_at: null, status: 'accepted' });
+    expect(db.query(`SELECT COUNT(*) AS n FROM classification_proposals WHERE run_id = ? AND proposal_type = 'primary_product_type'`).get(runId)).toEqual({ n: 1 });
+    expect(capturePreReviewPrediction({ runId, workspaceId: wsId, productSku: sku }).failureCode).toBe('post_review_refresh');
   });
 });

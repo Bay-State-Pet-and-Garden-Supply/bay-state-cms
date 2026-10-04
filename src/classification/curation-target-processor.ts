@@ -263,12 +263,18 @@ function findFreeTextGroundedValue(
   attrId: string,
   targetSourceFields: string[],
 ): string | null {
-  const grounded = evidence.find(
+  const candidates = evidence.filter(
     e =>
       evidenceMatchesTarget(e, { attributeId: attrId, sourceField: null, sourceFields: targetSourceFields }) &&
       typeof e.value === 'string' &&
       e.value.trim().length > 0,
   );
+  // The user supplied the brand at intake. Preserve that identity input when
+  // extraction disagrees; the packet still surfaces the disagreement for
+  // review. Other free-text fields keep their existing evidence precedence.
+  const grounded = attrId === 'brand'
+    ? candidates.find(e => e.source === 'spreadsheet' && e.sourceField === 'brand') ?? candidates[0]
+    : candidates[0];
   return grounded ? String(grounded.value) : null;
 }
 
@@ -291,6 +297,7 @@ function proposeFreeTextValue(input: {
     evidenceIds: fieldPacket.evidenceIds,
     supportingEvidenceIds: fieldPacket.supportingEvidenceIds,
     contradictingEvidenceIds: fieldPacket.contradictingEvidenceIds,
+    derivation: { kind: 'evidence_match' },
     isMultiple: selectionMode === 'multiple',
     snapshotHash,
   });
@@ -316,6 +323,7 @@ function proposeMeasuredValue(input: {
     evidenceIds: fieldPacket.evidenceIds,
     supportingEvidenceIds: fieldPacket.supportingEvidenceIds,
     contradictingEvidenceIds: fieldPacket.contradictingEvidenceIds,
+    derivation: { kind: 'evidence_match' },
     isMultiple: false,
     snapshotHash,
   });
@@ -335,14 +343,15 @@ async function processFreeTextMeasuredTarget(input: {
   const attrId = targetConfig.attributeId ?? targetConfig.id;
   const catalogField = targetConfig.catalogField ?? null;
   const targetSourceFields = [catalogField, attrId].filter((f): f is string => Boolean(f));
-  const fieldPacket = buildEvidenceTargetPacket(stageInput.evidence, {
+  const packetOptions = {
     attributeId: attrId,
     sourceField: null,
     sourceFields: targetSourceFields,
     selectionMode,
     aliases: attribute?.valueAliases ?? [],
     isGroundingSupport: tokenGroundingSupport,
-  });
+  };
+  let fieldPacket = buildEvidenceTargetPacket(stageInput.evidence, packetOptions);
   const text = fieldPacket.promptText;
   if (!text || text.trim().length === 0) {
     return { proposals: [], message: `No evidence text for "${targetConfig.label}".` };
@@ -354,6 +363,7 @@ async function processFreeTextMeasuredTarget(input: {
       message: `No ${targetConfig.label} evidence on ${catalogField ?? attrId} — abstaining rather than inventing a value.`,
     };
   }
+  fieldPacket = buildEvidenceTargetPacket(stageInput.evidence, { ...packetOptions, proposedValue: groundedValue });
   if (attribute.valueMode === 'freeText') {
     return proposeFreeTextValue({ context, stageInput, targetConfig, groundedValue, fieldPacket, selectionMode, snapshotHash });
   }
@@ -423,6 +433,7 @@ function tryBrandShortcut(input: {
       confidence: 0.9,
       evidenceIds: allBrandIds,
       supportingEvidenceIds: allBrandIds,
+      derivation: { kind: 'evidence_match' },
       isMultiple: false,
       isBulkAcceptable: false,
       snapshotHash,
@@ -1173,6 +1184,7 @@ export async function processPageTarget(
         ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
         : {}),
       verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
+      derivation: p.derivation ?? (isSystemOne ? undefined : { kind: 'llm' }),
       isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -') || isSystemOne) ? false : undefined,
       snapshotHash,
       ...(llmResult.modelCallIds?.length ? { modelCallIds: llmResult.modelCallIds } : {}),
@@ -1301,6 +1313,7 @@ export async function materializeCoordinatedPages(
         ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
         : {}),
       verifiedPageIdentity: verifiedPageIdSet.has(page.pageId),
+      derivation: page.derivation ?? (isJev ? undefined : { kind: 'llm' }),
       snapshotHash,
       ...(modelCallIds?.length ? { modelCallIds } : {}),
       ...(isJev ? { isBulkAcceptable: false } : {}),

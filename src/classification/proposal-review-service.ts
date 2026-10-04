@@ -1,7 +1,12 @@
 import { getDb } from '../db/connection';
-import { DecisionConflictError, enqueueClassificationRefresh, insertDecisionRow, recordHistoryEvent } from '../db/repositories/classification-run-repo';
+import { DecisionConflictError, getProposalsByRun, getLiveDecisionsByRun, insertDecisionRow, recordHistoryEvent, assertProposalReviewLiveness } from '../db/repositories/classification-run-repo';
+import { enqueueRefreshItem } from '../db/repositories/classification-refresh-repo';
 import type { ClassificationProposalDecision } from '../shared/types';
 import { getProductTypeIdFromValue } from './assignment-projection';
+import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getRuntimeSnapshotByHash } from './runtime-snapshot';
+import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
+import { validateFrozenReviewCorrection } from './review-correction';
 
 export interface ProposalReviewInput {
   workspaceId: string;
@@ -32,10 +37,12 @@ export interface ProposalReviewInput {
   }>;
   /** Required for onboarding; null for catalog */
   onboardingItemId?: string;
+  /** Internal evaluator attribution; HTTP review retains human_review. */
+  reviewOrigin?: 'human_review' | 'agent_review';
 }
 
 export type ProposalReviewResult =
-  | { ok: true; decisions: ClassificationProposalDecision[] }
+  | { ok: true; decisions: ClassificationProposalDecision[]; refreshRequired?: boolean }
   | { ok: false; code: string; reason: string };
 
 function hasOwn(object: object, key: string): boolean {
@@ -147,6 +154,7 @@ function resolveCorrection(
  * - For onboarding: run must be linked to the correct onboarding item
  */
 export function submitProposalDecisions(input: ProposalReviewInput): ProposalReviewResult {
+  let refreshRequired = false;
   const db = getDb();
   if (input.decisions.length === 0) {
     return { ok: false, code: 'invalid_decisions', reason: 'At least one decision is required.' };
@@ -166,11 +174,12 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
     }
   }
   const run = db.query(
-    `SELECT id, status, workspace_id, product_sku, source_kind, onboarding_item_id
+    `SELECT id, status, workspace_id, product_sku, source_kind, onboarding_item_id, config_snapshot_hash
      FROM classification_runs WHERE id = ?`,
   ).get(input.runId) as {
     id: string; status: string; workspace_id: string; product_sku: string;
     source_kind: string; onboarding_item_id: string | null;
+    config_snapshot_hash: string | null;
   } | undefined;
 
   if (!run) {
@@ -197,18 +206,25 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
   const proposalIds = input.decisions.map(d => d.proposalId);
   const placeholders = proposalIds.map(() => '?').join(',');
   const proposalRows = db.query(
-    `SELECT id, proposal_type FROM classification_proposals
+    `SELECT id, proposal_type, status, is_stale, superseded_at FROM classification_proposals
      WHERE id IN (${placeholders}) AND run_id = ? AND product_sku = ?`,
   ).all(...proposalIds, input.runId, input.productSku) as Array<{
     id: string;
     proposal_type: string;
+    status: string;
+    is_stale: number;
+    superseded_at: string | null;
   }>;
 
   if (proposalRows.length !== proposalIds.length) {
     return { ok: false, code: 'invalid_proposals', reason: 'One or more proposal IDs do not belong to this run and SKU.' };
   }
+  const invalid = proposalRows.find(row => row.status === 'stale' || row.is_stale || row.superseded_at);
+  if (invalid) return { ok: false, code: 'decision_conflict', reason: `Proposal ${invalid.id} is ${invalid.superseded_at ? 'superseded' : 'stale'}; review its current replacement.` };
 
   const proposalTypeById = new Map(proposalRows.map(row => [row.id, row.proposal_type]));
+  const reviewSnapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
+  const originalProposals = getProposalsByRun(input.runId);
 
   // Issue #17 I: validate evidence citations BEFORE any decision or history
   // row is written. A cited evidence id must exist, belong to the same
@@ -253,13 +269,18 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
     if (!resolved.ok) {
       return { ok: false, code: 'invalid_decisions', reason: resolved.reason };
     }
-    corrections.set(decision.proposalId, resolved.correction);
+    try {
+      corrections.set(decision.proposalId, validateFrozenReviewCorrection(originalProposals.find(proposal => proposal.id === decision.proposalId)!, resolved.correction, reviewSnapshot));
+    } catch (error) {
+      return { ok: false, code: 'invalid_decisions', reason: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   const decisions: ClassificationProposalDecision[] = [];
 
   try {
     db.transaction(() => {
+      assertProposalReviewLiveness(input.runId, proposalIds);
       const insertedDecisions: Array<{
         decisionId: string;
         proposalId: string;
@@ -267,6 +288,9 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
       }> = [];
 
       for (const d of input.decisions) {
+        // An earlier type correction in this same request may have invalidated
+        // a later dependent. Recheck each write, not only the initial batch.
+        assertProposalReviewLiveness(input.runId, [d.proposalId]);
         const hasCanonicalExpected = hasOwn(d, 'expectedRevisionId');
         const hasLegacyExpected = hasOwn(d, 'revisedFromId');
         const correction = corrections.get(d.proposalId);
@@ -277,7 +301,7 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           decision: d.decision,
           reviewerId: d.reviewerId ?? null,
           reviewerNote: d.reviewerNote ?? null,
-          decisionOrigin: 'human_review',
+          decisionOrigin: input.reviewOrigin ?? 'human_review',
           ...(correction.hasRevisedValue ? { revisedValue: correction.revisedValue } : {}),
           ...(correction.hasRevisedTargetId ? { revisedTargetId: correction.revisedTargetId ?? null } : {}),
           ...(d.actionToken ? { actionToken: d.actionToken } : {}),
@@ -288,7 +312,32 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
               : {}),
           ...(d.evidenceIds && d.evidenceIds.length > 0 ? { evidenceIds: d.evidenceIds } : {}),
         };
+        const priorProposal = getProposalsByRun(input.runId).find(proposal => proposal.id === d.proposalId);
+        const priorType = proposalTypeById.get(d.proposalId) === 'primary_product_type' ? priorProposal : null;
+        const priorDecision = priorType ? getLiveDecisionsByRun(input.runId).find(decision => decision.id === priorType.currentDecisionId) : null;
+        const hadHumanReviewedType = priorType?.status === 'accepted' && priorDecision?.decision === 'accepted' && priorDecision.decisionOrigin === 'human_review';
         const { decision, inserted, decisionId } = insertDecisionRow(db, rowInput);
+        if (inserted && input.reviewOrigin === 'agent_review'
+          && (!priorProposal || priorProposal.status !== 'pending' || priorProposal.currentDecisionId)) {
+          throw new DecisionConflictError('Agent evaluation cannot replace an existing review decision.');
+        }
+        if (inserted && priorType) {
+          const previousTypeId = hadHumanReviewedType ? getEffectivePrimaryProductTypeId(priorType) : getProductTypeIdFromValue(priorType.proposedValue);
+          const nextType = getProposalsByRun(input.runId).find(proposal => proposal.id === priorType.id)!;
+          const nextTypeId = d.decision !== 'accepted' ? null : getEffectivePrimaryProductTypeId(nextType);
+          const snapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
+          const currentProposals = listCurrentRunProposals(input.runId);
+          const hasWithheldDependents = currentProposals.some(proposal => proposal.proposalType === 'reviewable_abstention'
+            && ['product_attribute_proposals', 'category_page_proposals'].includes(proposal.targetId ?? '')
+            && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Primary Product Type'));
+          const needsInitialDependents = !hadHumanReviewedType
+            && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot)));
+          refreshRequired = input.reviewOrigin !== 'agent_review' && nextTypeId !== null
+            && (nextTypeId !== previousTypeId || hasWithheldDependents || needsInitialDependents);
+          if (input.reviewOrigin !== 'agent_review' && nextTypeId !== previousTypeId) {
+            invalidateDependentTypeReview(input.runId, snapshot, input.onboardingItemId, nextTypeId === null ? 'product_type_cleared' : 'product_type_changed');
+          }
+        }
         decisions.push(decision);
         if (inserted) {
           insertedDecisions.push({ decisionId, proposalId: d.proposalId, decision: d.decision });
@@ -326,13 +375,17 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
       // A Primary Product Type decision change invalidates type-gated
       // proposals: queue a dependent refresh so the next run's snapshot cites
       // the accepted decision as a reviewed fact and re-evaluates gating.
-      const typeDecisionInserted = insertedDecisions.some(
+      const typeDecisionInserted = insertedDecisions.find(
         inserted => proposalTypeById.get(inserted.proposalId) === 'primary_product_type',
       );
-      if (typeDecisionInserted) {
-        enqueueClassificationRefresh({
+      if (typeDecisionInserted && refreshRequired) {
+        enqueueRefreshItem({
           workspaceId: input.workspaceId,
           productSku: input.productSku,
+          sourceKind: input.sourceKind,
+          onboardingItemId: input.onboardingItemId,
+          expectedRunId: input.runId,
+          triggerDecisionId: typeDecisionInserted.decisionId,
           triggerType: 'primary_product_type_change',
           refreshScope: {
             sourceKind: input.sourceKind,
@@ -350,5 +403,5 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
     throw error;
   }
 
-  return { ok: true, decisions };
+  return { ok: true, decisions, refreshRequired };
 }

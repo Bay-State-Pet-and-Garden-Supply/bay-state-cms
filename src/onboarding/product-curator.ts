@@ -371,7 +371,9 @@ export async function curateItemWithPipeline(
   workspacePath: string,
   workspaceId: string,
   correctionOverlay?: GapCorrectionOverlay | null,
+  executionOptions?: { assertHeld?: () => void },
 ): Promise<CurationData> {
+  executionOptions?.assertHeld?.();
   const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
 
   // ADR 0014 / PI-6: distributor images are DISPLAY-ONLY. The non-cohort
@@ -525,6 +527,7 @@ export async function curateItemWithPipeline(
     // Create a classification run bound to the immutable runtime snapshot.
     // The onboarding source hash is null (no product source identity), matching
     // the snapshot's normalized representation so reviewed facts carry forward.
+    executionOptions?.assertHeld?.();
     run = createRun(workspaceId, item.upc, runtimeSnapId, runtimeSnapHash, {
       onboardingItemId: item.id,
       sourceKind: 'onboarding',
@@ -544,6 +547,7 @@ export async function curateItemWithPipeline(
     legacyPageSnapshot,
     memberExtractionMethod: null,
     prepared: null,
+    assertHeld: executionOptions?.assertHeld,
   });
 }
 
@@ -569,6 +573,7 @@ async function executeCurationPipeline(args: {
   legacyPageSnapshot: { pageImportId: string | null; verifiedPageIds: string[] } | null;
   memberExtractionMethod: string | null;
   prepared: ResolvedPreparedInputs | null;
+  assertHeld?: () => void;
 }): Promise<CurationData> {
   const {
     item,
@@ -766,7 +771,7 @@ async function executeCurationPipeline(args: {
       // update (evidence/proposals/links/stage completion). A rejected
       // assertion throws `HeartbeatLostError` and the persistence is skipped.
       // Absent in legacy mode — zero behavior change.
-      assertHeld: prepared?.assertOwnershipHeld,
+      assertHeld: prepared?.assertOwnershipHeld ?? args.assertHeld,
       // Prepared-cohort mode: the evidence stage consumes the frozen member
       // projection instead of reading onboarding_items (amendment 4). Current
       // freezes always write V2; historical V1 members normalize via the
@@ -850,6 +855,7 @@ async function executeCurationPipeline(args: {
       // prepared-cohort mode the member's terminal write only proceeds while
       // the parent claim is still held — a sibling reclaim during the pipeline
       // leaves the child untouched (the new owner re-executes the member).
+      args.assertHeld?.();
       completeRun(run.id, finalStatus);
     }
 
@@ -1193,6 +1199,7 @@ async function executeCurationPipeline(args: {
     // write from the stale owner — `assertOwnershipHeld` throws
     // `HeartbeatLostError` first and the child stays untouched.
     prepared?.assertOwnershipHeld?.();
+    args.assertHeld?.();
     completeRun(run.id, 'failed', redactTransportText(err instanceof Error ? err.message : String(err)));
     throw err;
   }

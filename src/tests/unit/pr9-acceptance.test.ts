@@ -482,8 +482,8 @@ function seedReviewedTypeDecision(
   );
   getDb().run(
     `INSERT INTO classification_proposal_decisions
-     (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at)
-     VALUES (?, ?, 'accepted', ?, ?, ?, NULL)`,
+     (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
+     VALUES (?, ?, 'accepted', ?, ?, ?, NULL, 'human_review')`,
     [`prior-type-decision-${itemId}`, proposalId, JSON.stringify({ productTypeId: typeId }), typeId, now],
   );
 }

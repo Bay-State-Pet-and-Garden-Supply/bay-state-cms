@@ -49,6 +49,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'node:crypto';
+import { PROMPT_TEMPLATE_VERSIONS, RULE_VERSIONS } from '../../classification/model-operation-registry';
 import { execFileSync } from 'node:child_process';
 import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
@@ -1222,8 +1223,8 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
         );
         getDb().run(
           `INSERT INTO classification_proposal_decisions
-           (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at)
-           VALUES (?, ?, 'accepted', ?, ?, ?, NULL)`,
+           (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
+           VALUES (?, ?, 'accepted', ?, ?, ?, NULL, 'human_review')`,
           [`legacy-type-decision-${item.id}`, proposalId, JSON.stringify({ productTypeId: 'dog-food-dry' }), 'dog-food-dry', now],
         );
       }
@@ -1303,8 +1304,8 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       expect(legacyGroupRows.length).toBeGreaterThan(0);
       for (const row of legacyGroupRows) {
         expect(row.operation).toBe('cohort_page_assignment');
-        expect(row.prompt_template_version).toBe('cohort-page-assignment-prompt-v1');
-        expect(row.rule_version).toBe('cohort-page-assignment-rules-v1');
+        expect(row.prompt_template_version).toBe(PROMPT_TEMPLATE_VERSIONS.cohort_page_assignment);
+        expect(row.rule_version).toBe(RULE_VERSIONS.cohort_page_assignment);
       }
       const legacySingletonRows = getDb().query(
         `SELECT operation, prompt_template_version, rule_version FROM classification_model_calls
@@ -1314,8 +1315,8 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
       expect(legacySingletonRows.length).toBeGreaterThan(0);
       for (const row of legacySingletonRows) {
         expect(row.operation).toBe('page_assignment');
-        expect(row.prompt_template_version).toBe('page-assignment-prompt-v1');
-        expect(row.rule_version).toBe('page-assignment-rules-v1');
+        expect(row.prompt_template_version).toBe(PROMPT_TEMPLATE_VERSIONS.page_assignment);
+        expect(row.rule_version).toBe(RULE_VERSIONS.page_assignment);
       }
       // NO parent operation ever appears on the legacy path (this workspace).
       const parentOperationRows = getDb().query(
@@ -1349,8 +1350,8 @@ describe('PR7 acceptance — durable parent page coordination, replay-safe after
     expect(rows.length).toBe(4);
     for (const row of rows) {
       expect(row.operation).toBe('cohort_page_assignment_parent');
-      expect(row.prompt_template_version).toBe('cohort-page-assignment-parent-prompt-v2');
-      expect(row.rule_version).toBe('cohort-page-assignment-parent-rules-v2');
+      expect(row.prompt_template_version).toBe(PROMPT_TEMPLATE_VERSIONS.cohort_page_assignment_parent);
+      expect(row.rule_version).toBe(RULE_VERSIONS.cohort_page_assignment_parent);
     }
     // The legacy child operations are NOT used by the active parent path.
     const legacyRows = getDb().query(

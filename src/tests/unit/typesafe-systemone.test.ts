@@ -52,6 +52,8 @@ import {
   getAiModelCallById,
 } from '../../db/repositories/ai-model-call-repo';
 import { computeApiCost } from '../../ai/model-pricing';
+import { upsertProviderConnection } from '../../db/repositories/provider-connection-repo';
+import { protectedSystemOneDispatchOptions } from '../../classification/systemone-decision-core';
 
 const TYPESAFE_CONN: ProviderConnection = {
   id: 'typesafe-jev',
@@ -469,6 +471,43 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     );
     expect(calls).toBe(0);
     expect(isConnectionUsable(disabled)).toBe(false);
+  });
+
+  it('a stored disablement blocks a captured enabled route before initial dispatch', async () => {
+    upsertProviderConnection({ ...TYPESAFE_CONN, enabled: false });
+    let calls = 0;
+    stubFetch(() => { calls += 1; return jsonResponse(validChoiceBody()); });
+    await expect(executeSystemOne(TYPESAFE_CONN, 'jev-1.13.0', CHOICE_QUESTION, 'Hi',
+      protectedSystemOneDispatchOptions(TYPESAFE_CONN, 'jev-1.13.0'))).rejects.toThrow(AiPolicyDeniedError);
+    expect(calls).toBe(0);
+  });
+
+  it('rechecks stored disablement before retry instead of trusting a captured enabled object', async () => {
+    upsertProviderConnection(TYPESAFE_CONN);
+    let calls = 0;
+    stubFetch(() => {
+      calls += 1;
+      upsertProviderConnection({ ...TYPESAFE_CONN, enabled: false });
+      return new Response('controlled overload', { status: 429, headers: { 'retry-after': '0' } });
+    });
+    await expect(executeSystemOne(TYPESAFE_CONN, 'jev-1.13.0', CHOICE_QUESTION, 'Hi',
+      protectedSystemOneDispatchOptions(TYPESAFE_CONN, 'jev-1.13.0'))).rejects.toThrow(AiPolicyDeniedError);
+    expect(calls).toBe(1);
+    expect(TYPESAFE_CONN.enabled).toBe(true);
+  });
+
+  it('does not make a transport-internal retry after ownership is lost', async () => {
+    let held = true;
+    let calls = 0;
+    const leaseLost = new Error('fixture lease lost');
+    stubFetch(() => {
+      calls += 1;
+      held = false;
+      return new Response('controlled overload', { status: 429, headers: { 'retry-after': '0' } });
+    });
+    await expect(executeSystemOne(TYPESAFE_CONN, 'jev-1.13.0', CHOICE_QUESTION, 'Hi',
+      { assertHeld: () => { if (!held) throw leaseLost; } })).rejects.toThrow(leaseLost);
+    expect(calls).toBe(1);
   });
 
   it('non-System One transports are unsupported for typed judgments', async () => {

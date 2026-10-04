@@ -783,6 +783,10 @@ describe('classification v2 structural and semantic validation', () => {
     cloudApproved.dataSharing.imagePolicy = 'cloud_allowed';
     cloudApproved.dataSharing.textPolicy = 'cloud_allowed';
     expect(validateClassificationConfigBundle(cloudApproved).valid).toBe(true);
+    const textOnlyCloud = structuredClone(cloudApproved);
+    textOnlyCloud.modelPolicy.imageDataSharing = 'local_only';
+    textOnlyCloud.dataSharing.imagePolicy = 'local_only';
+    expect(validateClassificationConfigBundle(textOnlyCloud).valid).toBe(true);
 
     const partialOverride = structuredClone(migrated().bundle);
     partialOverride.modelPolicy.stageOverrides.evidence_extraction = {

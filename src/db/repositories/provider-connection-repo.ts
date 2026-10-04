@@ -236,6 +236,12 @@ export function getProviderConnection(id: string): ProviderConnection | null {
   }
 }
 
+/** Dispatch kill switch: read current state without credentials or seeded-default fallback. */
+export function isStoredProviderConnectionEnabled(id: string): boolean {
+  const row = getDb().query('SELECT enabled FROM provider_connections WHERE id = ?').get(id) as { enabled: number } | null;
+  return row?.enabled === 1;
+}
+
 export function listProviderConnections(): ProviderConnection[] {
   const db = getDb();
   try {

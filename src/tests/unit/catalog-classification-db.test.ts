@@ -4,12 +4,12 @@ import fs from 'fs';
 import os from 'os';
 import { initDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
-import { createRun, completeRun, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun, insertDecisionRow, supersedeDecisionsForProposals } from '../../db/repositories/classification-run-repo';
+import { createRun as createRepositoryRun, completeRun, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun, insertDecisionRow, supersedeDecisionsForProposals, getRun } from '../../db/repositories/classification-run-repo';
 import { getDb } from '../../db/connection';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
 import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot, getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
 import type { ClassificationConfig } from '../../shared/types';
 
 function loadClassificationConfigFixture(): ClassificationConfig {
@@ -41,6 +41,23 @@ function loadClassificationConfigFixture(): ClassificationConfig {
 
 const workspaceId = 'ws-catalog-class-db-test';
 
+// Review correction now needs actual frozen options, not the old fake-hash
+// placeholder. Keep the protocol/transaction tests at their existing seam.
+function createRun(...args: Parameters<typeof createRepositoryRun>) {
+  const run = createRepositoryRun(...args);
+  if (run.configSnapshotHash && getRuntimeSnapshotByHash(run.workspaceId, run.configSnapshotHash)) return run;
+  const config = loadClassificationConfigFixture();
+  config.attributes[0].allowedValues.push('Salmon');
+  config.productTypes.push(...['dog-food-dry', 'cat-food-wet', 'bird-food'].map(id => ({ id, name: id, description: null, attributeProfileId: null, oldIdAliases: [] })));
+  config.curationTargets = config.curationTargets?.map(target => target.kind === 'product_type' ? { ...target, enabled: false } : target);
+  const ref = createConfigSnapshot(run.workspaceId, config);
+  const snapshot = buildRuntimeSnapshot({ workspaceId: run.workspaceId, workspacePath: '/tmp/catalog-review-fixture', productSku: run.productSku,
+    config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: run.sourceProductHash });
+  persistRuntimeSnapshot(snapshot);
+  getDb().run('UPDATE classification_runs SET config_snapshot_hash = ? WHERE id = ?', [snapshot.snapshotHash, run.id]);
+  return getRun(run.id)!;
+}
+
 describe('proposal-review-service (catalog product)', () => {
   beforeEach(() => {
     // Fresh in-memory database before each test
@@ -49,6 +66,11 @@ describe('proposal-review-service (catalog product)', () => {
     const dbPath = path.join(wsPath, '.baystate-cms', 'app.db');
     initDb(dbPath);
     runMigrations();
+    // Protocol fixtures historically omitted their field identity. Supply the
+    // actual closed fixture field before exercising correction validation.
+    getDb().exec(`CREATE TRIGGER review_fixture_field AFTER INSERT ON classification_proposals
+      WHEN NEW.proposal_type = 'field_assignment' AND NEW.target_id IS NULL
+      BEGIN UPDATE classification_proposals SET target_id = 'flavor' WHERE id = NEW.id; END`);
   });
 
   it('rejects decisions for a non-existent run', () => {
@@ -777,10 +799,10 @@ describe('proposal-review-service (catalog product)', () => {
 
     completeRun(run.id, 'completed');
 
-    // A non-serializable revised value forces the second insert to fail inside
-    // the transaction, after the first insert already succeeded.
-    const circular: Record<string, unknown> = {};
-    circular.self = circular;
+    // Invalid values are rejected before writes. Exercise an actual second
+    // INSERT failure to prove the transaction still rolls the first back.
+    getDb().exec(`CREATE TRIGGER reject_second_review BEFORE INSERT ON classification_proposal_decisions
+      WHEN NEW.proposal_id = 'prop-b' BEGIN SELECT RAISE(ABORT, 'fixture second review insert failed'); END`);
 
     expect(() =>
       submitProposalDecisions({
@@ -790,7 +812,7 @@ describe('proposal-review-service (catalog product)', () => {
         sourceKind: 'catalog_product',
         decisions: [
           { proposalId: 'prop-a', decision: 'accepted' },
-          { proposalId: 'prop-b', decision: 'accepted', revisedValue: circular },
+          { proposalId: 'prop-b', decision: 'accepted' },
         ],
       }),
     ).toThrow();
@@ -804,6 +826,17 @@ describe('proposal-review-service (catalog product)', () => {
       "SELECT status FROM classification_proposals WHERE id IN ('prop-a', 'prop-b')",
     ).all() as Array<{ status: string }>;
     expect(statuses.every(s => s.status === 'pending')).toBe(true);
+  });
+
+  it('rejects new corrections on historical runs without a frozen runtime snapshot', () => {
+    const run = createRepositoryRun(workspaceId, 'LEGACY-CORRECTION', null, null, { sourceKind: 'catalog_product' });
+    getDb().run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES ('legacy-field', ?, 'LEGACY-CORRECTION', 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', datetime('now'))`, [run.id]);
+    completeRun(run.id, 'completed');
+    const result = submitProposalDecisions({ workspaceId, productSku: 'LEGACY-CORRECTION', runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'legacy-field', decision: 'accepted', revisedValue: 'Chicken' }] });
+    expect(result.ok).toBe(false);
+    expect(getLiveDecisionsByRun(run.id)).toHaveLength(0);
   });
 
   it('superseded decisions no longer satisfy the catalog review gate', () => {

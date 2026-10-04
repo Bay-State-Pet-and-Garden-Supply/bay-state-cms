@@ -54,7 +54,9 @@ export function collectReviewedFacts(input: CollectReviewedFactsInput): Reviewed
      JOIN classification_runs r ON r.id = p.run_id
      JOIN classification_proposal_decisions d ON d.proposal_id = p.id
      WHERE p.product_sku = ? AND r.workspace_id = ?
-       AND d.decision = 'accepted' AND d.superseded_at IS NULL
+        AND d.decision = 'accepted' AND d.superseded_at IS NULL
+        AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
+        AND COALESCE(d.decision_origin, 'unknown') = 'human_review'
      ORDER BY d.created_at DESC, d.rowid DESC`,
   ).all(input.productSku, input.workspaceId) as Array<Record<string, unknown>>;
 

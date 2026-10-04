@@ -21,6 +21,20 @@ const FAILED_FETCHER = {
 };
 
 describe('downloadPagesFromShopSite', () => {
+  it('explicitly requests identity fields rather than inheriting an incomplete ShopSite field map', async () => {
+    const result = await downloadPagesFromShopSite({
+      fetchPagesXml: async options => options?.version === '14.0' && ['Name', 'File name', 'Page ID', 'Title'].every(field => options.fields?.includes(field))
+        ? { success: true, data: fixtureText(), errors: [] }
+        : { success: true, data: '<ShopSitePages><Pages><Page><Name>First page</Name></Page><Page><Name/></Page></Pages></ShopSitePages>', errors: [] },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.counts).toEqual({ total: 12, verified: 12, nameOnly: 0, withParent: 0 });
+  });
+
+  it('rejects nameless exported records rather than inventing an unnamed assignment page', async () => {
+    const result = await downloadPagesFromShopSite(okFetcher('<ShopSitePages><Pages><Page><PageID>1</PageID><Name/></Page></Pages></ShopSitePages>'));
+    expect(result.ok).toBe(false);
+  });
   it('normalizes a successful ShopSite Pages download into an activation-ready preview', async () => {
     const xml = fixtureText();
     const result = await downloadPagesFromShopSite(okFetcher(xml));

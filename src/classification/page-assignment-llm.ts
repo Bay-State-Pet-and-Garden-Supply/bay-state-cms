@@ -51,7 +51,8 @@ export interface PageAssignmentParams {
 }
 
 export interface PageAssignmentResult {
-  pages: Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut?: boolean }>;
+  pages: Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut?: boolean;
+    derivation?: import('../shared/schemas/classification').ProposalDerivation }>;
   /** Durable model-call IDs that produced this assignment (issue #17 E). */
   modelCallIds?: string[];
 }

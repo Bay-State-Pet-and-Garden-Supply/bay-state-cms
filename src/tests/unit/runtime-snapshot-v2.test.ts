@@ -21,7 +21,7 @@ import {
 import type { RuntimeSnapshotInput } from '../../classification/runtime-snapshot';
 import type { RuntimeConfigAuthority } from '../../classification/config-loader';
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
-import { buildModelExecutionPlan, buildRuntimeRuleVersions, MODEL_OPERATION_REGISTRY_VERSION } from '../../classification/model-operation-registry';
+import { buildModelExecutionPlan, buildRuntimeRuleVersions, MODEL_OPERATION_REGISTRY_VERSION, RULE_VERSIONS, PROMPT_TEMPLATE_VERSIONS } from '../../classification/model-operation-registry';
 import { hashCanonicalJson } from '../../shared/stable-id';
 
 let workspacePath: string;
@@ -152,7 +152,7 @@ describe('runtime snapshot with ACTIVE v2 config authority (Milestone 7)', () =>
     expect(entry!.locality).toBe('local');
     expect(entry!.stage).toBe('product_attribute_proposals');
     expect(entry!.promptTemplateVersion).toBe('attribute-ranking-prompt-v1');
-    expect(entry!.ruleVersion).toBe('attribute-ranking-rules-v1');
+    expect(entry!.ruleVersion).toBe(RULE_VERSIONS.attribute_ranking);
   });
 
   it('plan is immutable and included in the snapshot hash', () => {
@@ -170,7 +170,7 @@ describe('runtime snapshot with ACTIVE v2 config authority (Milestone 7)', () =>
     // Simulate a registry bump by rewriting the frozen plan entry and digest.
     const raw = JSON.parse(JSON.stringify(mutated)) as typeof mutated;
     const rawEntry = raw.modelExecutionPlan!.entries.find(e => e.operation === 'attribute_ranking')!;
-    rawEntry.ruleVersion = 'attribute-ranking-rules-v2';
+    rawEntry.ruleVersion = 'fixture-different-rule-version';
     expect(snapshotHash(raw)).not.toBe(snapshotHash(a));
     // Task-config mutation does not change the snapshot (config is frozen at
     // build time and the plan comes from the policy, not llm_task_configs).
@@ -253,13 +253,13 @@ describe('runtime snapshot with ACTIVE v2 config authority (Milestone 7)', () =>
 });
 
 describe('PR7 review R2 (F1) — frozen cohort_page_assignment_parent operation (issue #30)', () => {
-  it('buildModelExecutionPlan over a v2 view yields a plan entry for the new parent operation with the v2 prompt/rule versions', () => {
+  it('buildModelExecutionPlan freezes the current parent-operation prompt/rule versions', () => {
     const v2 = buildRuntimeSnapshot(buildV2Input());
     const entry = v2.modelExecutionPlan!.entries.find(e => e.operation === 'cohort_page_assignment_parent');
     expect(entry).toBeDefined();
     expect(entry!.stage).toBe('category_page_proposals');
-    expect(entry!.promptTemplateVersion).toBe('cohort-page-assignment-parent-prompt-v2');
-    expect(entry!.ruleVersion).toBe('cohort-page-assignment-parent-rules-v2');
+    expect(entry!.promptTemplateVersion).toBe(PROMPT_TEMPLATE_VERSIONS.cohort_page_assignment_parent);
+    expect(entry!.ruleVersion).toBe(RULE_VERSIONS.cohort_page_assignment_parent);
   });
 
   it('the registry version bump (1 → 2 → current) is reflected in the frozen plan and rule versions', () => {
@@ -270,12 +270,12 @@ describe('PR7 review R2 (F1) — frozen cohort_page_assignment_parent operation 
     expect(buildRuntimeRuleVersions().registryVersion).toBe(MODEL_OPERATION_REGISTRY_VERSION);
   });
 
-  it('the legacy cohort_page_assignment entry keeps its v1 prompt/rule versions', () => {
+  it('freezes the legacy cohort operation separately from its parent operation', () => {
     const v2 = buildRuntimeSnapshot(buildV2Input());
     const legacyEntry = v2.modelExecutionPlan!.entries.find(e => e.operation === 'cohort_page_assignment');
     expect(legacyEntry).toBeDefined();
-    expect(legacyEntry!.promptTemplateVersion).toBe('cohort-page-assignment-prompt-v1');
-    expect(legacyEntry!.ruleVersion).toBe('cohort-page-assignment-rules-v1');
+    expect(legacyEntry!.promptTemplateVersion).toBe(PROMPT_TEMPLATE_VERSIONS.cohort_page_assignment);
+    expect(legacyEntry!.ruleVersion).toBe(RULE_VERSIONS.cohort_page_assignment);
     // The parent and legacy child entries share the stage but carry distinct
     // frozen versions — truthful provenance for two different prompts.
     const parentEntry = v2.modelExecutionPlan!.entries.find(e => e.operation === 'cohort_page_assignment_parent')!;

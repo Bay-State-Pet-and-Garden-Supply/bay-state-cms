@@ -531,6 +531,10 @@ export interface SystemOneDispatchOptions {
   signal?: AbortSignal;
   /** Honor the Retry-After/overload backoff before the single retry. */
   retryAfterMs?: number;
+  /** Protected callers recheck the live kill switch without coupling this shared transport to storage. */
+  assertConnectionEnabled?: () => void;
+  /** Ownership is rechecked before every attempt, including transport-internal retries. */
+  assertHeld?: () => void;
 }
 
 export interface SystemOneDispatchResult extends ValidatedSystemOneResponse {
@@ -797,7 +801,9 @@ export async function executeSystemOne(
     }
     // Disablement is checked before dispatch AND before the retry: an
     // operator disabling the connection mid-flight halts further attempts.
+    options.assertHeld?.();
     assertConnectionEnabledForDispatch(conn, modelId);
+    options.assertConnectionEnabled?.();
 
     let response: Response;
     try {
@@ -855,5 +861,3 @@ async function readErrorDetail(response: Response): Promise<string> {
     return `HTTP ${response.status}`;
   }
 }
-
-

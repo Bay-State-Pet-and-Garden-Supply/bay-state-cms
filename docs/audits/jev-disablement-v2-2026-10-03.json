@@ -1,0 +1,23 @@
+{
+  "kind": "controlled_live_http_boundary_exercise",
+  "recordedAt": "2026-10-03T15:03:49.481Z",
+  "networkMocksUsed": false,
+  "database": ":memory:",
+  "endpointTrustZone": "this_device",
+  "vendorInferencePerformed": false,
+  "productionConnectionModified": false,
+  "model": "jev-1.13.0",
+  "results": [
+    { "boundary": "disabled_before_dispatch_with_captured_enabled_object", "requests": 0, "denied": true },
+    { "boundary": "stored_disablement_after_first_http_response", "requests": 1, "denied": true },
+    { "boundary": "lease_loss_after_first_http_response", "requests": 1, "denied": true }
+  ],
+  "totalHttpRequests": 2,
+  "sourceHashes": {
+    "src/ai/systemone-transport.ts": "808cbda03fce6f5773b75a219ce9bf24923803e49e45adcc2c22da0f43cfac4d",
+    "src/db/repositories/provider-connection-repo.ts": "7eeb2cbcd03cf3d4497b588295c328b8d21858cd97233a547964e7afa5aa771a",
+    "src/classification/systemone-decision-core.ts": "400eb4bc572d530c8b76c8a47b8e335a0963c6479bf1eba873549033e9160d82",
+    "src/classification/attribute-decision.ts": "4c719a4152f0521ed749ac06371fdd4b97fea7d6232fe16efe512100cf5ce216",
+    "src/classification/page-decision.ts": "ed198092f291e5111f238cf187dd225192566e8b844d2c653eb8b8f38eadad73"
+  }
+}

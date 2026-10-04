@@ -78,7 +78,9 @@ function defaultModelForConnection(connId: string, healthMap: Record<string, Con
 function NonSystemOneConnectionOptions({ connections }: { connections: ProviderConnection[] }) {
   return (
     <>
-      <NonSystemOneConnectionOptions connections={connections} />
+      {connections.filter(connection => connection.transport !== 'systemone').map(connection => (
+        <option key={connection.id} value={connection.id}>{connection.label}</option>
+      ))}
     </>
   );
 }

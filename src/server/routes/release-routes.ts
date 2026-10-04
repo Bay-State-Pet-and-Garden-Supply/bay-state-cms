@@ -10,10 +10,11 @@ import {
 import {
   assertReleaseValid,
   assertReleaseValidV4,
+  assertReleaseValidV5,
   isValidReleaseId,
   ReleaseValidationError,
 } from '../../classification/release-validation';
-import { V4_TAXONOMY_REVISION } from '../../classification/release-compiler';
+import { V4_TAXONOMY_REVISION, V5_TAXONOMY_REVISION } from '../../classification/release-compiler';
 import { timingSafeCompare } from '../../shared/timing-safe';
 
 /**
@@ -101,7 +102,8 @@ function inspectRevision(revision: string): AvailableRevision | null {
   const schemaVersion = typeof manifest.schemaVersion === 'number' ? manifest.schemaVersion : null;
   try {
     const report =
-      schemaVersion === 3 ? assertReleaseValidV4(revision)
+      revision === V5_TAXONOMY_REVISION ? assertReleaseValidV5(revision)
+        : schemaVersion === 3 ? assertReleaseValidV4(revision)
         : schemaVersion === 2 ? assertReleaseValid(revision)
           : null;
     if (!report) throw new Error('unsupported_release_schema');
@@ -163,6 +165,7 @@ admin.get('/settings/taxonomy-release', (c) => {
     updatedAt: pin?.updatedAt ?? null,
     defaultRevision: DEFAULT_TAXONOMY_REVISION,
     v4Revision: V4_TAXONOMY_REVISION,
+    v5Revision: V5_TAXONOMY_REVISION,
     adminEnabled: releaseAdminEnabled(),
     availableRevisions: listAvailableRevisions(),
   });
@@ -204,7 +207,9 @@ admin.post('/settings/taxonomy-release/pin', async (c) => {
 
   // Gate 3: full validation BEFORE touching state.json (never partial writes).
   try {
-    if (revision === V4_TAXONOMY_REVISION) {
+    if (revision === V5_TAXONOMY_REVISION) {
+      assertReleaseValidV5(revision);
+    } else if (revision === V4_TAXONOMY_REVISION) {
       assertReleaseValidV4(revision);
     } else {
       assertReleaseValid(revision);

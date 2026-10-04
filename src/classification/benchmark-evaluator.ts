@@ -480,7 +480,7 @@ function computePerExamplePrimaryMetric(
  * bundle digest (plus an optional extra digest) so identical inputs produce
  * identical intervals.
  */
-function computePairedBootstrap(
+export function computePairedBootstrap(
   pairs: PerExamplePrimaryMetric[],
   seedDigest: string,
   bootstrapRuns = 2000,

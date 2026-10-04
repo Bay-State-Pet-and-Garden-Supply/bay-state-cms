@@ -45,9 +45,9 @@ export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, strin
   evidence_extraction: 'evidence-extraction-prompt-v1',
   product_type_ranking: 'product-type-ranking-prompt-v1',
   attribute_ranking: 'attribute-ranking-prompt-v1',
-  page_assignment: 'page-assignment-prompt-v1',
-  cohort_page_assignment: 'cohort-page-assignment-prompt-v1',
-  cohort_page_assignment_parent: 'cohort-page-assignment-parent-prompt-v2',
+  page_assignment: 'page-assignment-prompt-v2',
+  cohort_page_assignment: 'cohort-page-assignment-prompt-v2',
+  cohort_page_assignment_parent: 'cohort-page-assignment-parent-prompt-v3',
   title_consolidation: 'title-consolidation-prompt-v1',
   cohort_title_consolidation: 'cohort-title-consolidation-prompt-v1',
   distributor_copy_consolidation: 'distributor-copy-consolidation-prompt-v1',
@@ -62,12 +62,12 @@ export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, strin
  * token guards, abstention rules) for that operation change.
  */
 export const RULE_VERSIONS: Readonly<Record<ProtectedOperation, string>> = {
-  evidence_extraction: 'evidence-extraction-rules-v1',
+  evidence_extraction: 'evidence-extraction-rules-v2',
   product_type_ranking: 'product-type-ranking-rules-v1',
-  attribute_ranking: 'attribute-ranking-rules-v1',
-  page_assignment: 'page-assignment-rules-v1',
-  cohort_page_assignment: 'cohort-page-assignment-rules-v1',
-  cohort_page_assignment_parent: 'cohort-page-assignment-parent-rules-v2',
+  attribute_ranking: 'attribute-ranking-rules-v2',
+  page_assignment: 'page-assignment-rules-v2',
+  cohort_page_assignment: 'cohort-page-assignment-rules-v2',
+  cohort_page_assignment_parent: 'cohort-page-assignment-parent-rules-v3',
   title_consolidation: 'title-consolidation-rules-v1',
   cohort_title_consolidation: 'cohort-title-consolidation-rules-v2', // B1 family-title consistency (T2-T7) + title-lint — FAMILY_TITLE_CONSISTENCY_VERSION v2
   distributor_copy_consolidation: 'distributor-copy-consolidation-rules-v1',

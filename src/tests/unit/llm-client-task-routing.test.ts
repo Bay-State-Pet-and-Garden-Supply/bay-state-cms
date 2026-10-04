@@ -35,7 +35,7 @@ import {
   type LlmConfig,
 } from '../../onboarding/llm-client';
 import { ModelPolicyDeniedError, buildModelPolicyView } from '../../classification/model-policy-gateway';
-import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
+import { buildModelExecutionPlan, buildRuntimeRuleVersions, RULE_VERSIONS } from '../../classification/model-operation-registry';
 
 // Offline-safe DNS for the DeterministicNetworkGate. The cloud-VLM tests below
 // stub globalThis.fetch, but image fetching goes through
@@ -1166,7 +1166,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1215,7 +1215,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1270,7 +1270,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1308,7 +1308,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: legacy,
       },
@@ -1337,7 +1337,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1371,7 +1371,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1418,7 +1418,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
           operation: 'attribute_ranking',
           attempt: 1,
           promptTemplateVersion: 'attribute-ranking-prompt-v1',
-          ruleVersion: 'attribute-ranking-rules-v1',
+          ruleVersion: RULE_VERSIONS.attribute_ranking,
         },
         snapshot: compatibleSnapshot(snapshotHash),
       },
@@ -1457,7 +1457,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: compatibleSnapshot(snapshotHash),
     });
@@ -1495,7 +1495,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: compatibleSnapshot(snapshotHash),
     });
@@ -1534,7 +1534,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: compatibleSnapshot(snapshotHash),
     });
@@ -1572,7 +1572,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: compatibleSnapshot(snapshotHash, { baseUrl: 'http://127.0.0.1:11434', model: 'qwen2.5vl:latest' }),
     });
@@ -1615,7 +1615,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: { schemaVersion: 1, snapshotHash } as any,
     })).rejects.toThrow(/Model plan incompatible/i);
@@ -1653,7 +1653,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
       snapshot: compatibleSnapshot(snapshotHash, { baseUrl: 'http://127.0.0.1:11888', model: 'frozen-at-build' }),
     });
@@ -1691,7 +1691,7 @@ describe('Model-call provenance wrapper (issue #17 E)', () => {
         operation: 'evidence_extraction',
         attempt: 1,
         promptTemplateVersion: 'evidence-extraction-prompt-v1',
-        ruleVersion: 'evidence-extraction-rules-v1',
+        ruleVersion: RULE_VERSIONS.evidence_extraction,
       },
     })).rejects.toThrow(/audit context without a runtime snapshot/i);
     expect(fetches).toBe(0);

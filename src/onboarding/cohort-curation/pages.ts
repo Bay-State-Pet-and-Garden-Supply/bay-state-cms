@@ -109,6 +109,8 @@ function toMemberValue(result: CohortPageMemberResult): CoordinatedPageMemberVal
           pageId: page.pageId,
           pageName: page.pageName,
           confidence: page.confidence,
+          ...(page.isBrandShortcut !== undefined ? { isBrandShortcut: page.isBrandShortcut } : {}),
+          ...(page.derivation ? { derivation: page.derivation } : {}),
         })),
         source: result.source ?? 'llm_cohort',
       },

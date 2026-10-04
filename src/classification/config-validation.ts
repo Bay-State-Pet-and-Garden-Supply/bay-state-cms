@@ -1362,8 +1362,10 @@ export function validateClassificationConfigBundle(
     if (override.provider) referencedProviders.add(override.provider);
     if (override.fallbackProvider) referencedProviders.add(override.fallbackProvider);
   }
-  const anyLocalOnly = config.modelPolicy.imageDataSharing === 'local_only'
-    || config.modelPolicy.textDataSharing === 'local_only';
+  // Text-only classification may use cloud Jev while package images remain
+  // local. Image-bearing transports enforce imageDataSharing independently;
+  // their permission must not be inferred from text provider locality.
+  const textLocalOnly = config.modelPolicy.textDataSharing === 'local_only';
   for (const provider of [...referencedProviders].sort()) {
     const hasLocality = Object.prototype.hasOwnProperty.call(config.modelPolicy.providerLocalities, provider);
     const locality = hasLocality ? config.modelPolicy.providerLocalities[provider] : undefined;
@@ -1374,12 +1376,12 @@ export function validateClassificationConfigBundle(
         path: `$.modelPolicy.providerLocalities.${provider}`,
         message: `Provider "${provider}" is referenced by the model policy but has no explicit locality declaration; locality is never guessed from provider names.`,
       });
-    } else if (anyLocalOnly && locality !== 'local') {
+    } else if (textLocalOnly && locality !== 'local') {
       findings.push({
         severity: 'error',
         code: 'provider_locality_conflict',
         path: `$.modelPolicy.providerLocalities.${provider}`,
-        message: `Provider "${provider}" is declared "${locality}" but the policy requires local-only data processing.`,
+        message: `Provider "${provider}" is declared "${locality}" but the policy requires local-only text processing.`,
       });
     }
   }

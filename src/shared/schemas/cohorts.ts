@@ -12,6 +12,7 @@
  */
 
 import { z } from 'zod';
+import { ProposalDerivationSchema } from './classification';
 import {
   SourcingDecisionReadSchema,
   OcrAttemptOutcomeSchema,
@@ -856,6 +857,8 @@ export const CohortPageAssignmentSchema = z.object({
   pageId: z.string(),
   pageName: z.string(),
   confidence: z.number(),
+  isBrandShortcut: z.boolean().optional(),
+  derivation: ProposalDerivationSchema.optional(),
 });
 
 export type CohortPageAssignment = z.infer<typeof CohortPageAssignmentSchema>;

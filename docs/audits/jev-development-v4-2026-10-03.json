@@ -1,0 +1,728 @@
+{
+  "predictorVersion": "code-executed-v4",
+  "artifactHash": "459e5a91d8e16213c0741bfa879a05dd08a6338f4c3933c20f913edfee59a5c1",
+  "decisionPolicyHash": "32614ac2d9206c7689a8bd4a426aed73693dde6c546bf0df9ac065d12f021cb2",
+  "predictedAt": "2026-10-03T14:47:54.501Z",
+  "entryCount": 12,
+  "captureMode": "live_captured",
+  "taxonomySource": "frozen_snapshot",
+  "frozenTaxonomyHash": "900904c44979264215607291f72c82933b9000ae16ca2144de2a94b9b7cb3f72",
+  "predictions": [
+    {
+      "sku": "QUAL-DOG-KIBBLE-01",
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 1,
+        "latencyMs": 388,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1991,
+          "outputTokens": 451
+        }
+      }
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-02",
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 1,
+        "latencyMs": 281,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1936,
+          "outputTokens": 451
+        }
+      }
+    },
+    {
+      "sku": "QUAL-DOG-KIBBLE-03",
+      "baseline": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog_food_dry",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-dry-dog-food"
+        ],
+        "confidence": 1,
+        "latencyMs": 353,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1946,
+          "outputTokens": 451
+        }
+      }
+    },
+    {
+      "sku": "QUAL-CAT-TREAT-01",
+      "baseline": {
+        "productType": "cat_treat",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "cat"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Salmon"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.85,
+        "latencyMs": 7488,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 277,
+          "outputTokens": 693
+        }
+      },
+      "candidate": {
+        "productType": "cat_treat",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "cat"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Salmon"
+          }
+        ],
+        "pageIds": [
+          "page-cat-treats"
+        ],
+        "confidence": 1,
+        "latencyMs": 314,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1750,
+          "outputTokens": 384
+        }
+      }
+    },
+    {
+      "sku": "QUAL-DOG-CHEW-TOY-01",
+      "baseline": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 9272,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 522,
+          "outputTokens": 685
+        }
+      },
+      "candidate": {
+        "productType": "dog_toy",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "material",
+            "value": "Rubber"
+          }
+        ],
+        "pageIds": [
+          "page-dog-toys"
+        ],
+        "confidence": 1,
+        "latencyMs": 271,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1716,
+          "outputTokens": 356
+        }
+      }
+    },
+    {
+      "sku": "QUAL-FLEA-01",
+      "baseline": {
+        "productType": "flea_tick_control",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.85,
+        "latencyMs": 5055,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 524,
+          "outputTokens": 265
+        }
+      },
+      "candidate": {
+        "productType": "flea_tick_control",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "dog"
+            ]
+          },
+          {
+            "targetId": "life_stage",
+            "value": "Adult"
+          }
+        ],
+        "pageIds": [
+          "page-flea-tick"
+        ],
+        "confidence": 1,
+        "latencyMs": 290,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 2172,
+          "outputTokens": 450
+        }
+      }
+    },
+    {
+      "sku": "QUAL-PEST-01",
+      "baseline": {
+        "productType": "insect_pest_control",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "application_method",
+            "value": "Spray"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.85,
+        "latencyMs": 6903,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 789,
+          "outputTokens": 470
+        }
+      },
+      "candidate": {
+        "productType": "insect_pest_control",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "application_method",
+            "value": "Spray"
+          },
+          {
+            "targetId": "target_pest",
+            "values": [
+              "spider",
+              "ant",
+              "roach"
+            ]
+          }
+        ],
+        "pageIds": [
+          "page-pest-control"
+        ],
+        "confidence": 1,
+        "latencyMs": 316,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 3049,
+          "outputTokens": 610
+        }
+      }
+    },
+    {
+      "sku": "QUAL-SOIL-01",
+      "baseline": {
+        "productType": "potting_soil",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "organic",
+            "value": "Yes"
+          },
+          {
+            "targetId": "volume",
+            "value": "1 cu ft"
+          }
+        ],
+        "pageIds": [
+          "page-lawn-garden"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 9713,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 764,
+          "outputTokens": 728
+        }
+      },
+      "candidate": {
+        "productType": "potting_soil",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "organic",
+            "value": "Yes"
+          },
+          {
+            "targetId": "volume",
+            "value": "1 cu ft"
+          }
+        ],
+        "pageIds": [
+          "page-lawn-garden"
+        ],
+        "confidence": 1,
+        "latencyMs": 349,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 2349,
+          "outputTokens": 505
+        }
+      }
+    },
+    {
+      "sku": "QUAL-NEIGHBOR-SUET-01",
+      "baseline": {
+        "productType": "suet_cakes",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "bird"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Beef"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.85,
+        "latencyMs": 3185,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 281,
+          "outputTokens": 187
+        }
+      },
+      "candidate": {
+        "productType": "suet_cakes",
+        "abstained": false,
+        "fieldAssignments": [
+          {
+            "targetId": "animal_type",
+            "values": [
+              "bird"
+            ]
+          },
+          {
+            "targetId": "flavor",
+            "value": "Berry"
+          }
+        ],
+        "pageIds": [
+          "page-wild-bird-feed"
+        ],
+        "confidence": 1,
+        "latencyMs": 293,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1778,
+          "outputTokens": 385
+        }
+      }
+    },
+    {
+      "sku": "QUAL-UNKNOWN-FOGGER-01",
+      "baseline": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 4269,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 526,
+          "outputTokens": 239
+        }
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 299,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1549,
+          "outputTokens": 237
+        }
+      }
+    },
+    {
+      "sku": "QUAL-THIN-EVIDENCE-01",
+      "baseline": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 4,
+        "source": "blocked",
+        "blockedCode": "live_dispatch_failed",
+        "blockedDetail": "Baseline live path executed but no model judgment spoke (no success audit row); refusing live_captured.",
+        "failureCode": "live_dispatch_failed",
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 424,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1422,
+          "outputTokens": 242
+        }
+      }
+    },
+    {
+      "sku": "QUAL-UNLABELED-PENDING-01",
+      "baseline": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 3583,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "deepseek-v4-pro",
+        "resolvedModel": "deepseek-v4-pro",
+        "provider": "deepseek-cloud",
+        "usage": {
+          "inputTokens": 508,
+          "outputTokens": 155
+        }
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 287,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1477,
+          "outputTokens": 242
+        }
+      }
+    }
+  ]
+}

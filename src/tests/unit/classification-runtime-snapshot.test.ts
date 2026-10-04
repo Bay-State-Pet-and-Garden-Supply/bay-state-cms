@@ -237,6 +237,9 @@ describe('classification runtime snapshot', () => {
     );
 
     // Compatible snapshot: same config + same source hash → fact carried.
+    const unattributed = buildRuntimeSnapshot(buildInput({ productSku: 'FACT-SKU', sourceProductHash: 'src-hash-1' }));
+    expect(unattributed.reviewedFacts.some(fact => fact.decisionId === 'fact-decision')).toBe(false);
+    db.run(`UPDATE classification_proposal_decisions SET decision_origin = 'human_review' WHERE id = 'fact-decision'`);
     const compatible = buildRuntimeSnapshot(buildInput({
       productSku: 'FACT-SKU',
       sourceProductHash: 'src-hash-1',
@@ -269,8 +272,8 @@ describe('classification runtime snapshot', () => {
     );
     db.run(
       `INSERT INTO classification_proposal_decisions
-       (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at)
-       VALUES (?, ?, 'accepted', '{"productTypeId":"dry-dog-food"}', 'dry-dog-food', ?, NULL)`,
+        (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
+        VALUES (?, ?, 'accepted', '{"productTypeId":"dry-dog-food"}', 'dry-dog-food', ?, NULL, 'human_review')`,
       ['onb-decision', 'onb-proposal', now],
     );
 

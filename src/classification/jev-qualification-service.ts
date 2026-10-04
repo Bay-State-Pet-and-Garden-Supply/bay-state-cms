@@ -14,10 +14,13 @@ import {
   evaluateQualificationGate,
   reportRawAccuracyQualification,
   type QualificationResult,
+  type QualificationGateOptions,
   type RawAccuracyQualificationReport,
 } from './benchmark-qualification';
 import {
   computeSetMetrics,
+  computeMetrics,
+  computePairedBootstrap,
   parseValueSet,
   evaluateCohortPipelineEffects,
   type CohortPipelineEffectsReport,
@@ -48,24 +51,26 @@ export interface QualificationGoldEntry extends QualificationGoldCore {
   baseline: {
     productType: string | null;
     abstained: boolean;
+    abstentionCode?: string | null;
     fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
     pageIds: string[];
     confidence: number;
     /** Blocked-side code carried from executed predictions (null when unblocked). */
     failureCode?: string | null;
     latencyMs?: number;
-    costUsd?: number;
+    costUsd?: number | null;
   };
   candidate: {
     productType: string | null;
     abstained: boolean;
+    abstentionCode?: string | null;
     fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
     pageIds: string[];
     confidence: number;
     /** Blocked-side code carried from executed predictions (null when unblocked). */
     failureCode?: string | null;
     latencyMs?: number;
-    costUsd?: number;
+    costUsd?: number | null;
   };
 }
 
@@ -115,12 +120,12 @@ export interface JevOfflineComparisonReport {
   categoryPages: StageMetricComparison & { setMetrics: SetMetricComparison };
   telemetry: {
     latency: {
-      baseline: { meanMs: number; p50Ms: number; p95Ms: number };
-      candidate: { meanMs: number; p50Ms: number; p95Ms: number };
+      baseline: { meanMs: number | null; p50Ms: number | null; p95Ms: number | null };
+      candidate: { meanMs: number | null; p50Ms: number | null; p95Ms: number | null };
     };
     estimatedCostUsd: {
-      baseline: number;
-      candidate: number;
+      baseline: number | null;
+      candidate: number | null;
     };
     operatorTimeNote: string;
   };
@@ -191,6 +196,8 @@ interface JevComparisonAccumulator {
   candLatencies: number[];
   baseTotalCost: number;
   candTotalCost: number;
+  baseUnknownCost: boolean;
+  candUnknownCost: boolean;
 }
 
 function emptyJevComparisonAccumulator(): JevComparisonAccumulator {
@@ -238,6 +245,8 @@ function emptyJevComparisonAccumulator(): JevComparisonAccumulator {
     candLatencies: [],
     baseTotalCost: 0,
     candTotalCost: 0,
+    baseUnknownCost: false,
+    candUnknownCost: false,
   };
 }
 
@@ -245,16 +254,16 @@ type JevSidePrediction = QualificationGoldEntry['baseline'];
 
 type JevGoldProductType = QualificationGoldEntry['gold']['productType'];
 
-/** Product-type correctness under adjudicated gold (unlabeled always true). */
+/** Only the matching coded semantic abstention is correct; unlabeled rows earn no accuracy credit. */
 function isJevProductTypeCorrect(
   goldPt: JevGoldProductType,
   prediction: JevSidePrediction,
 ): boolean {
-  if (goldPt.kind === 'known-type') return prediction.productType === goldPt.typeId;
-  if (goldPt.kind === 'no-fit' || goldPt.kind === 'insufficient-evidence') {
-    return prediction.abstained;
-  }
-  return true;
+  if (prediction.failureCode) return false;
+  if (goldPt.kind === 'known-type') return !prediction.abstained && prediction.productType === goldPt.typeId;
+  if (goldPt.kind === 'no-fit') return prediction.abstained && prediction.abstentionCode === 'no_match';
+  if (goldPt.kind === 'insufficient-evidence') return prediction.abstained && prediction.abstentionCode === 'insufficient_evidence';
+  return false;
 }
 
 /** Tally correctness/incorrectness for one side of the product-type stage. */
@@ -304,6 +313,7 @@ function accumulateJevProductTypeStage(
   const cand = entry.candidate;
   if (base.failureCode) acc.ptBaseFailures++;
   if (cand.failureCode) acc.ptCandFailures++;
+  if (goldPt.kind === 'unlabeled') return;
   const isBaseAnswered = !base.abstained && base.productType !== null;
   const isCandAnswered = !cand.abstained && cand.productType !== null;
   tallyJevProductTypeAnswered(acc, isBaseAnswered, isCandAnswered);
@@ -311,7 +321,7 @@ function accumulateJevProductTypeStage(
   const candCorrect = isJevProductTypeCorrect(goldPt, cand);
   tallyJevProductTypeSide(acc, baseCorrect, isBaseAnswered, true);
   tallyJevProductTypeSide(acc, candCorrect, isCandAnswered, false);
-  tallyJevProductTypeTransitions(acc, baseCorrect, candCorrect, base.abstained);
+  tallyJevProductTypeTransitions(acc, baseCorrect, candCorrect, base.abstained && !base.failureCode);
 }
 
 /** Value sets by target id for one attribute side. */
@@ -525,10 +535,12 @@ function accumulateJevTelemetry(
   acc: JevComparisonAccumulator,
   entry: QualificationGoldEntry,
 ): void {
-  acc.baseLatencies.push(entry.baseline.latencyMs ?? 250);
-  acc.candLatencies.push(entry.candidate.latencyMs ?? 180);
-  acc.baseTotalCost += entry.baseline.costUsd ?? 0.002;
-  acc.candTotalCost += entry.candidate.costUsd ?? 0.0015;
+  if (typeof entry.baseline.latencyMs === 'number') acc.baseLatencies.push(entry.baseline.latencyMs);
+  if (typeof entry.candidate.latencyMs === 'number') acc.candLatencies.push(entry.candidate.latencyMs);
+  if (typeof entry.baseline.costUsd === 'number') acc.baseTotalCost += entry.baseline.costUsd;
+  else acc.baseUnknownCost = true;
+  if (typeof entry.candidate.costUsd === 'number') acc.candTotalCost += entry.candidate.costUsd;
+  else acc.candUnknownCost = true;
 }
 
 /** Score one gold entry across every comparison stage. */
@@ -553,7 +565,8 @@ function latencyMean(samples: number[]): number {
 }
 
 /** Latency summary (mean/p50/p95) for one side. */
-function summarizeJevLatencies(samples: number[]): { meanMs: number; p50Ms: number; p95Ms: number } {
+function summarizeJevLatencies(samples: number[]): { meanMs: number | null; p50Ms: number | null; p95Ms: number | null } {
+  if (samples.length === 0) return { meanMs: null, p50Ms: null, p95Ms: null };
   const sorted = [...samples].sort((a, b) => a - b);
   return {
     meanMs: Math.round(latencyMean(sorted)),
@@ -741,8 +754,8 @@ function buildJevTelemetryReport(
       candidate: summarizeJevLatencies(acc.candLatencies),
     },
     estimatedCostUsd: {
-      baseline: Number(acc.baseTotalCost.toFixed(4)),
-      candidate: Number(acc.candTotalCost.toFixed(4)),
+      baseline: acc.baseUnknownCost ? null : Number(acc.baseTotalCost.toFixed(4)),
+      candidate: acc.candUnknownCost ? null : Number(acc.candTotalCost.toFixed(4)),
     },
     operatorTimeNote:
       'Pipeline and model run duration metrics reflect computational latency and do not constitute measured operator-time gains.',
@@ -845,7 +858,8 @@ export function evaluateJevOfflineComparison(
   }
 
   const total = entries.length;
-  const { base: ptBaseAccuracy, candidate: ptCandAccuracy } = jevProductTypeAccuracies(acc, total);
+  const typeEligibleCount = entries.filter(entry => entry.gold.productType.kind !== 'unlabeled').length;
+  const { base: ptBaseAccuracy, candidate: ptCandAccuracy } = jevProductTypeAccuracies(acc, typeEligibleCount);
 
   // Prepare entries for evaluateCohortPipelineEffects
   const pipelineInputs = buildJevPipelineInputs(entries, goldset);
@@ -861,7 +875,7 @@ export function evaluateJevOfflineComparison(
     evaluatedExamples: total,
     devCount: devEntries.length,
     holdoutCount: holdoutEntries.length,
-    productType: buildJevProductTypeReport(acc, total),
+    productType: buildJevProductTypeReport(acc, typeEligibleCount),
     attributes: buildJevAttributesReport(acc),
     categoryPages: buildJevCategoryPagesReport(acc),
     telemetry: buildJevTelemetryReport(acc),
@@ -872,6 +886,38 @@ export function evaluateJevOfflineComparison(
       zeroServiceFailures: acc.ptCandFailures === 0,
     },
   };
+}
+
+/** Reuse the conservative raw benchmark gate; operational sign-offs cannot replace statistical support. */
+export function evaluateJevQualificationGate(goldset: QualificationGoldset, options: Pick<QualificationGateOptions,
+  'predictionSource' | 'bundleVersion' | 'snapshotMatched'> & { pairedSeedDigest?: string } = {}): QualificationResult {
+  const entries = goldset.entries.filter(entry => entry.split === 'holdout' && entry.gold.productType.kind !== 'unlabeled');
+  const inputs = buildJevPipelineInputs(entries, goldset);
+  const gold = inputs.goldForEffects.map((example, index) => ({ ...example,
+    goldState: entries[index].gold.productType.kind === 'known-type' ? 'known' as const : entries[index].gold.productType.kind as 'no-fit' | 'insufficient-evidence',
+  }));
+  const predictions = inputs.typePreds.map((prediction, index) => ({ ...prediction,
+    fieldAssignments: inputs.attrPreds[index].fieldAssignments, pageIds: inputs.pagePreds[index].pageIds,
+    pageAssignments: inputs.pagePreds[index].pageAssignments, failureCode: entries[index].candidate.failureCode ?? null,
+  }));
+  const baselinePredictions: BenchmarkPredictionEntry[] = entries.map(entry => ({ exampleId: `ex-${entry.sku}`, productSku: entry.sku,
+    productType: entry.baseline.productType, abstained: entry.baseline.abstained, confidence: entry.baseline.confidence,
+    fieldAssignments: entry.baseline.fieldAssignments.map(field => ({ targetId: field.targetId, value: field.value ?? null, values: field.values ?? (field.value ? [field.value] : []) })),
+    pageIds: entry.baseline.pageIds, pageAssignments: entry.baseline.pageIds, claimTargets: [], failureCode: entry.baseline.failureCode ?? null,
+  }));
+  const controlledValues = Object.fromEntries((goldset.frozenTaxonomy?.attributeTargets ?? [])
+    .map(target => [target.targetId, target.options]));
+  const metrics = computeMetrics(gold, predictions, { baselinePredictions, controlledValues, pairedSeedDigest: options.pairedSeedDigest });
+  // Bootstrap the same labeled fixed population as the raw report. The legacy
+  // overlap-only interval drops abstentions and cannot certify abstention recovery.
+  const primaryMetric = 'productType.rawCorrectness';
+  metrics.pairedDelta = { primaryMetric, ...computePairedBootstrap(entries.map(entry => ({ exampleId: `ex-${entry.sku}`,
+    candidate: isJevProductTypeCorrect(entry.gold.productType, entry.candidate) ? 1 : 0,
+    baseline: isJevProductTypeCorrect(entry.gold.productType, entry.baseline) ? 1 : 0,
+  })), options.pairedSeedDigest ?? goldset.frozenTaxonomy?.snapshotHash ?? 'jev-raw-holdout') };
+  return evaluateQualificationGate(metrics, entries.length, { predictionSource: options.predictionSource,
+    bundleVersion: options.bundleVersion, snapshotMatched: options.snapshotMatched ?? false, labeledSupport: entries.length,
+    primaryMetric, failureCount: entries.filter(entry => entry.candidate.failureCode || entry.baseline.failureCode).length });
 }
 
 export interface ProductionQualificationBlocker {
@@ -909,6 +955,9 @@ export interface ProductionQualificationAssessment {
 type ProductionChecklist = ProductionQualificationAssessment['checklist'];
 
 interface ProductionQualificationInputs {
+  /** Explicit operator evidence; implemented code is not proof of either operation. */
+  policiesPublishedBeforeHoldout?: boolean;
+  connectionDisablementVerified?: boolean;
   hasTypeSafeApiKey: boolean;
   liveContractCheckExecuted: boolean;
   liveContractCheckSuccess: boolean;
@@ -916,6 +965,8 @@ interface ProductionQualificationInputs {
   canaryAttributesReviewed: boolean;
   canaryCohortPagesReviewed: boolean;
   offlineComparisonReport?: JevOfflineComparisonReport;
+  /** Computed by the existing conservative benchmark gate over the same raw holdout. */
+  offlineQualificationGate?: QualificationResult | null;
   /**
    * Family-separation proof (shared-identity + near-duplicate verification
    * over the qualification goldset, e.g. via `verifyFamilySeparation`).
@@ -939,6 +990,8 @@ interface ProductionQualificationInputs {
    * runner always supplies HEAD).
    */
   compatibilityExpectedCommit?: string | null;
+  /** The CLI supplies this; a HEAD receipt cannot certify uncommitted runtime changes. */
+  compatibilityWorktreeClean?: boolean;
   /**
    * Operator-documentation receipt (published runbook path + content hash
    * recorded at qualification time). Absent or failing receipt keeps the
@@ -1068,7 +1121,7 @@ function emptyProductionChecklist(
   return {
     offlineEvaluationPassed: false,
     familySeparationPassed: false,
-    policiesPublished: true,
+    policiesPublished: inputs.policiesPublishedBeforeHoldout === true,
     comparisonReportComplete: false,
     liveCredentialsProvisioned: inputs.hasTypeSafeApiKey,
     liveContractCheckPassed: inputs.liveContractCheckExecuted && inputs.liveContractCheckSuccess,
@@ -1076,7 +1129,7 @@ function emptyProductionChecklist(
       inputs.canaryProductTypeReviewed &&
       inputs.canaryAttributesReviewed &&
       inputs.canaryCohortPagesReviewed,
-    connectionDisablementVerified: true,
+    connectionDisablementVerified: inputs.connectionDisablementVerified === true,
     compatibilityVerified: false,
     operatorDocumentationPublished: false,
   };
@@ -1142,7 +1195,12 @@ function assessOfflineComparisonGates(
   checklist.comparisonReportComplete = true;
   const detail = offlinePassDetail(report);
   checklist.offlineEvaluationPassed =
-    detail.outperforms && detail.zeroRegressions && detail.zeroServiceFailures;
+    detail.outperforms && detail.zeroRegressions && detail.zeroServiceFailures && report.holdoutCount > 0;
+  if (report.holdoutCount === 0) {
+    blockers.push({ criterion: 4, area: 'offline_holdout', code: 'holdout_evaluation_missing',
+      message: 'Development-only results cannot qualify production.',
+      actionRequired: 'Publish the development-fitted acceptance policy, then evaluate a family-separated holdout.' });
+  }
   if (!detail.outperforms) {
     blockers.push({
       criterion: 4,
@@ -1327,15 +1385,6 @@ function resolveProductionQualificationStatus(
   blockers: ProductionQualificationBlocker[],
 ): ProductionQualificationAssessment['status'] {
   const isBlocked = blockers.length > 0;
-  // Note (genuinely not gating here): policiesPublished and
-  // connectionDisablementVerified remain true without adding blockers. They
-  // are owned by other seams (Criterion 3 qualification gates via
-  // evaluateQualificationGate; Criterion 7 disablement dispatch guarantees)
-  // and this function's signature carries no evidence input that could
-  // fail-closed on them without making every assessment trivially blocked
-  // for reasons outside its remit. All eight required gates above
-  // (offline, report, family, service, compatibility, docs, live, canaries)
-  // independently block 'qualified'.
   const isOfflineClean =
     checklist.offlineEvaluationPassed && checklist.comparisonReportComplete;
   const isProvisionallyQualified = isOfflineClean && isBlocked;
@@ -1384,11 +1433,14 @@ export function assessProductionQualification(
   options: ProductionQualificationInputs,
 ): ProductionQualificationAssessment {
   const blockers: ProductionQualificationBlocker[] = [];
-  // Fail-closed defaults: every verification flag starts false (or is set
-  // from direct evidence below). The two exceptions documented at the end
-  // (policiesPublished, connectionDisablementVerified) are owned by other
-  // seams and are genuinely not gating here — see note before status.
+  // Every verification starts false unless supported by its evidence input.
   const checklist = emptyProductionChecklist(options);
+  if (!checklist.policiesPublished) blockers.push({ criterion: 3, area: 'acceptance_policy', code: 'policy_publication_unverified',
+    message: 'There is no attestation that development-fitted acceptance policies were published before holdout inspection.',
+    actionRequired: 'Record the policy, development evidence and publication timing in the operations receipt.' });
+  if (!checklist.connectionDisablementVerified) blockers.push({ criterion: 7, area: 'connection_disablement', code: 'connection_disablement_unverified',
+    message: 'Connection disablement has not been attested against dispatch and retry.',
+    actionRequired: 'Exercise both boundaries and record the actual result in the operations receipt.' });
 
   // Criterion 4: offline comparison report must exist. A missing report is
   // independently blocking (comparisonReportComplete stays false) and also
@@ -1397,10 +1449,25 @@ export function assessProductionQualification(
     blockMissingComparisonReport(blockers);
   } else {
     assessOfflineComparisonGates(blockers, checklist, options.offlineComparisonReport);
+    const gate = options.offlineQualificationGate;
+    if (!gate || !gate.qualified || !gate.gate.sourceEligible || gate.gate.snapshotMatched !== true
+      || gate.gate.holdoutSize > options.offlineComparisonReport.holdoutCount) {
+      checklist.offlineEvaluationPassed = false;
+      blockers.push({ criterion: 4, area: 'offline_statistics', code: gate ? 'statistical_gate_failed' : 'statistical_gate_unverified',
+        message: gate ? `Conservative raw benchmark gate did not qualify this holdout: ${gate.reasons.join('; ') || 'source, snapshot or population does not match'}`
+          : 'No conservative raw benchmark qualification result was supplied for the holdout.',
+        actionRequired: 'Evaluate the immutable holdout with the existing sample, class-support, coverage, safety and paired-confidence gates; inadequate support remains unqualified.' });
+    }
   }
 
   assessFamilySeparationGates(blockers, checklist, options.familySeparationProof);
   assessCompatibilityGates(blockers, checklist, options.compatibilityReceipt, options.compatibilityExpectedCommit ?? null);
+  if (options.compatibilityWorktreeClean === false) {
+    checklist.compatibilityVerified = false;
+    blockers.push({ criterion: 8, area: 'compatibility', code: 'qualified_code_uncommitted',
+      message: 'The tested runtime worktree differs from the commit named by compatibility receipts.',
+      actionRequired: 'Commit the reviewed implementation with only intended files, then rerun and bind compatibility evidence to that commit.' });
+  }
   assessOperatorDocumentationGates(blockers, checklist, options.operatorDocsReceipt);
   assessLiveContractGates(blockers, options);
   assessCanaryGates(blockers, options);

@@ -29,6 +29,8 @@ import { loadAndValidateProductTypeCurrentness } from './classification-currentn
 import { analyzeProductTypeImpact } from './type-change-impact';
 import { isUniversalAttribute } from './applicability-evaluator';
 import { onboardingEvents } from '../onboarding/sse-emitter';
+import { getEvidenceByRun } from '../db/repositories/classification-run-repo';
+import { refreshReviewedDependents } from './refresh-reviewed-dependents';
 
 export interface TypeDependentRefreshResult {
   ok: boolean;
@@ -164,6 +166,24 @@ export async function processRefreshItem(item: RefreshQueueItem): Promise<boolea
   }
 
   const reviewedTypeId = currentness.effectiveTypeId;
+
+  // Evidence-bearing onboarding runs use the actual dependent stages. The
+  // old invalidation-only fallback below remains for historical rows lacking
+  // reusable evidence; it cannot fabricate a classification from absence.
+  if (item.onboardingItemId && getEvidenceByRun(run.id).length > 0 && !run.cohort_run_id) {
+    try {
+      await refreshReviewedDependents({
+        workspaceId: item.workspaceId, runId: run.id,
+        itemId: item.onboardingItemId, refreshId: item.id,
+        claimedBy: item.claimedBy,
+      });
+      return true;
+    } catch {
+      // The shared service owns its lease-scoped failure write. Never let an
+      // old worker overwrite a reclaimed owner's queue row here.
+      return false;
+    }
+  }
 
   const activeProposals = getActiveProposalsByRun(run.id);
   const deps = db.query(

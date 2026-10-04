@@ -56,9 +56,11 @@ import {
 import {
   evaluateJevOfflineComparison,
   assessProductionQualification,
+  evaluateJevQualificationGate,
   REQUIRED_COMPATIBILITY_SUITE_IDS,
   OPERATOR_RUNBOOK_PATH,
   type QualificationGoldset,
+  type QualificationGoldEntry,
 } from '../../classification/jev-qualification-service';
 import {
   buildPreReviewPredictionBundle,
@@ -742,20 +744,37 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
 
       // Telemetry: measured in-process decision latencies are honest compute
       // timings (frequently 0-2ms offline — never presented as model serving
-      // latency), and cost estimates stay present via evaluator defaults.
+      // latency). Missing pricing stays unknown; no synthetic defaults.
       for (const side of [report.telemetry.latency.baseline, report.telemetry.latency.candidate]) {
         expect(Number.isFinite(side.meanMs)).toBe(true);
         expect(Number.isFinite(side.p50Ms)).toBe(true);
         expect(Number.isFinite(side.p95Ms)).toBe(true);
-        expect(side.p95Ms).toBeGreaterThanOrEqual(side.meanMs);
+        expect(side.p95Ms!).toBeGreaterThanOrEqual(side.meanMs!);
       }
-      expect(report.telemetry.estimatedCostUsd.candidate).toBeGreaterThan(0);
+      expect(report.telemetry.estimatedCostUsd.candidate).toBeNull();
 
       // Operator time disclaimer must be explicit
       expect(report.telemetry.operatorTimeNote).toContain('do not constitute measured operator-time gains');
 
       // End-to-end pipeline effects
       expect(report.endToEndPipeline.totalMembers).toBe(16);
+    });
+
+    it('keeps missing telemetry unknown and separates provider outages from semantic abstention recovery', () => {
+      const goldset = loadExecutedQualificationGoldset();
+      const entry = goldset.entries.find(entry => entry.gold.productType.kind === 'no-fit')!;
+      entry.baseline.failureCode = 'provider_unavailable';
+      entry.baseline.abstained = true;
+      entry.baseline.productType = null;
+      entry.candidate = { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0, failureCode: null };
+      delete entry.baseline.latencyMs;
+      delete entry.baseline.costUsd;
+      const report = evaluateJevOfflineComparison({ ...goldset, entries: [entry] });
+      expect(report.productType.rawCorrectness.baseline).toBe(0);
+      expect(report.productType.serviceFailures.baseline).toBe(1);
+      expect(report.productType.recoveredAbstentions).toBe(0);
+      expect(report.telemetry.estimatedCostUsd.baseline).toBeNull();
+      expect(report.telemetry.latency.baseline.meanMs).toBeNull();
     });
   });
 
@@ -906,6 +925,27 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
     });
   });
 
+  it('scores only the matching semantic abstention and excludes unlabeled rows from type accuracy', () => {
+    const goldset = loadExecutedQualificationGoldset();
+    const template = goldset.entries[0];
+    const semantic: QualificationGoldEntry = { ...template, gold: { ...template.gold, productType: { kind: 'no-fit', typeId: null } },
+      baseline: { ...template.baseline, productType: null, abstained: true, failureCode: null, abstentionCode: 'insufficient_evidence' },
+      candidate: { ...template.candidate, productType: null, abstained: true, failureCode: null, abstentionCode: 'low_probability' } };
+    goldset.entries = [semantic];
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness).toEqual({ baseline: 0, candidate: 0, delta: 0 });
+    semantic.candidate.abstentionCode = 'no_match';
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness.candidate).toBe(1);
+    goldset.entries.push({ ...semantic, sku: 'UNLABELED-FIXTURE', gold: { ...semantic.gold, productType: { kind: 'unlabeled', typeId: null } },
+      candidate: { ...semantic.candidate, productType: 'unsupported', abstained: false } });
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness.candidate).toBe(1);
+    goldset.entries[0] = { ...semantic, gold: { ...semantic.gold, productType: { kind: 'insufficient-evidence', typeId: null } } };
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness.candidate).toBe(0);
+    goldset.entries[0].candidate.abstentionCode = 'insufficient_evidence';
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness.candidate).toBe(1);
+    goldset.entries[0].candidate.abstentionCode = undefined;
+    expect(evaluateJevOfflineComparison(goldset).productType.rawCorrectness.candidate).toBe(0);
+  });
+
   // ── Fail-closed qualification gates (assessProductionQualification blocker fix) ──
   describe('Fail-closed production qualification gates', () => {
     const operationalPass = {
@@ -1037,24 +1077,27 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         contentHash: createHash('sha256').update(fs.readFileSync(runbookPath)).digest('hex'),
         publishedAt: null,
       };
-      return { familySeparationProof, compatibilityReceipt, compatibilityExpectedCommit, operatorDocsReceipt };
+      return { familySeparationProof, compatibilityReceipt, compatibilityExpectedCommit, operatorDocsReceipt,
+        policiesPublishedBeforeHoldout: true, connectionDisablementVerified: true };
     }
 
     it('returns qualified when offline evidence is clean and all receipts are valid', () => {
-      // Gate-wiring premise: explicitly clean offline evidence (the executed
-      // candidate quality itself is owned by the predictor workstream; this
-      // test proves the gates clear on clean evidence + valid receipts).
-      const report = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
-      report.summary.candidateOutperformsBaseline = true;
-      report.summary.zeroHarmfulRegressionsOnHoldout = true;
-      report.summary.zeroServiceFailures = true;
-      report.productType.harmfulRegressions = 0;
-      report.attributes.harmfulRegressions = 0;
-      report.categoryPages.harmfulRegressions = 0;
-      report.productType.serviceFailures = { baseline: 0, candidate: 0 };
+      // Artificial gate-wiring population only; never a retained live qualification artifact.
+      const goldset = loadExecutedQualificationGoldset();
+      const template = goldset.entries.find(entry => entry.gold.productType.kind === 'known-type')!;
+      goldset.entries = Array.from({ length: 220 }, (_, index) => ({ ...template, sku: `STAT-FIXTURE-${index}`, familyId: `stat-fixture-${index}`, split: 'holdout' as const,
+        baseline: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0, failureCode: null },
+        candidate: { productType: template.gold.productType.typeId, abstained: false,
+          fieldAssignments: template.gold.fieldAssignments, pageIds: template.gold.categoryPages.pageIds, confidence: 0.9, failureCode: null },
+      }));
+      const report = evaluateJevOfflineComparison(goldset);
+      const statisticalGate = evaluateJevQualificationGate(goldset, { predictionSource: 'prereview_raw', bundleVersion: 1, snapshotMatched: true });
+      expect(statisticalGate.reasons).toEqual([]);
+      expect(statisticalGate.qualified).toBe(true);
       const assessment = assessProductionQualification({
         ...operationalPass,
         offlineComparisonReport: report,
+        offlineQualificationGate: statisticalGate,
         ...buildValidEvidence(),
       });
 
@@ -1065,6 +1108,38 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(assessment.checklist.familySeparationPassed).toBe(true);
       expect(assessment.checklist.compatibilityVerified).toBe(true);
       expect(assessment.checklist.operatorDocumentationPublished).toBe(true);
+    });
+
+    it('cannot qualify a tiny holdout by supplying all operational sign-offs', () => {
+      const goldset = loadExecutedQualificationGoldset();
+      const gate = evaluateJevQualificationGate(goldset, { predictionSource: 'prereview_raw', bundleVersion: 1, snapshotMatched: true });
+      expect(gate.qualified).toBe(false);
+      expect(gate.reasons.some(reason => reason.startsWith('insufficient_sample'))).toBe(true);
+      const report = evaluateJevOfflineComparison(goldset);
+      report.summary.candidateOutperformsBaseline = true;
+      report.summary.zeroHarmfulRegressionsOnHoldout = true;
+      report.summary.zeroServiceFailures = true;
+      report.productType.harmfulRegressions = report.attributes.harmfulRegressions = report.categoryPages.harmfulRegressions = 0;
+      report.productType.serviceFailures = report.attributes.serviceFailures = report.categoryPages.serviceFailures = { baseline: 0, candidate: 0 };
+      for (const offlineQualificationGate of [undefined, gate]) {
+        const assessment = assessProductionQualification({ ...operationalPass, ...buildValidEvidence(), offlineComparisonReport: report, offlineQualificationGate });
+        expect(assessment.status).toBe('blocked');
+        expect(assessment.checklist.offlineEvaluationPassed).toBe(false);
+        expect(assessment.blockers.some(blocker => blocker.code.startsWith('statistical_gate_'))).toBe(true);
+      }
+    });
+
+    it('does not infer policy publication, disablement or holdout evaluation from implemented code', () => {
+      const report = evaluateJevOfflineComparison(loadExecutedQualificationGoldset());
+      report.holdoutCount = 0;
+      const assessment = assessProductionQualification({ ...operationalPass, ...buildValidEvidence(),
+        policiesPublishedBeforeHoldout: undefined, connectionDisablementVerified: undefined, offlineComparisonReport: report });
+      expect(assessment.checklist.policiesPublished).toBe(false);
+      expect(assessment.checklist.connectionDisablementVerified).toBe(false);
+      expect(assessment.blockers.map(b => b.code)).toContain('policy_publication_unverified');
+      expect(assessment.blockers.map(b => b.code)).toContain('connection_disablement_unverified');
+      expect(assessment.blockers.map(b => b.code)).toContain('holdout_evaluation_missing');
+      expect(assessment.status).not.toBe('qualified');
     });
 
     it('keeps the family blocker on a failing proof and passes the other receipt gates', () => {
@@ -1657,8 +1732,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }
     });
 
+    it('development CLI execution excludes holdout predictions before inference', () => {
+      const command = Bun.spawnSync(['bun', 'scripts/typesafe-curation-qualification.ts', '--split=dev', '--json'], {
+        cwd: process.cwd(), stdout: 'pipe', stderr: 'pipe',
+      });
+      const report = JSON.parse(command.stdout.toString()) as { predictionArtifact: { predictions: Array<{ sku: string }> } };
+      expect(report.predictionArtifact.predictions.length).toBeGreaterThan(0);
+      expect(report.predictionArtifact.predictions.some(prediction => /HOLDOUT|COHORT-FROMM/.test(prediction.sku))).toBe(false);
+    });
+
     const liveJevKey = process.env.TYPESAFE_API_KEY ?? '';
-    const itLive = liveJevKey.length >= 8 ? it : it.skip;
+    const itLive = process.env.TYPESAFE_LIVE_CAPTURE_TEST === '1' && liveJevKey.length >= 8 ? it : it.skip;
     itLive('captures live Jev judgments against frozen gold evidence (opt-in keyed live capture, real network)', async () => {
       const artifact = await captureQualificationPredictionsLive(
         tinyQualificationEntries().slice(0, 1),
@@ -1808,7 +1892,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
           };
         };
         family: { proof: { proofVersion: string; passed: boolean } | null };
-        compatibility: { receipt: { suites: Array<{ suiteId: string }> } | null; source: string };
+        compatibility: { receipt: { suites: Array<{ suiteId: string }> } | null; source: string; runtimeWorktreeClean: boolean };
         operatorDocs: { receipt: { runbookPath: string; contentHash: string } | null };
       };
 
@@ -1864,7 +1948,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         });
         expect(withCompat.exitCode).toBe(0);
         const compatOut = JSON.parse(withCompat.stdout.toString()) as ReceiptOut;
-        expect(compatOut.assessment.checklist.compatibilityVerified).toBe(true);
+        expect(compatOut.assessment.checklist.compatibilityVerified).toBe(compatOut.compatibility.runtimeWorktreeClean);
         expect(compatOut.assessment.blockers.some(b => b.code === 'compatibility_unverified')).toBe(false);
         expect(compatOut.compatibility.receipt?.suites).toHaveLength(4);
 
@@ -1876,7 +1960,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         });
         expect(withEnv.exitCode).toBe(0);
         const envOut = JSON.parse(withEnv.stdout.toString()) as ReceiptOut;
-        expect(envOut.assessment.checklist.compatibilityVerified).toBe(true);
+        expect(envOut.assessment.checklist.compatibilityVerified).toBe(envOut.compatibility.runtimeWorktreeClean);
         expect(envOut.compatibility.source).toBe('env TYPESAFE_COMPAT_RECEIPT_JSON');
 
         // Stale commit (receipt bound to an older commit than qualified) retains the blocker.

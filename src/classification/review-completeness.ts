@@ -35,7 +35,9 @@ export type {
   ReviewCompletenessWarningCode,
 } from '../shared/schemas/onboarding';
 import { listVerifiedPageOptions, getProductPageAssignments, getActivePageImportHash } from '../db/repositories/page-repo';
-import { getProposalsByRun } from '../db/repositories/classification-run-repo';
+import { getLiveDecisionsByRun, getProposalsByRun } from '../db/repositories/classification-run-repo';
+import { listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
+import { hasUnconfirmedAgentDecisions } from '../onboarding/canary-review';
 import { getCachedBrands, getCachedAttributeMappings } from '../db/repositories/classification-config-repo';
 import { resolveBrand } from './brand-resolution';
 import {
@@ -618,9 +620,11 @@ export function buildReviewCompletenessContext(
   const runId = classificationRunIdOf(item);
   if (runId) {
     try {
-      hasPendingProposals = getProposalsByRun(runId).some((p) => p.status === 'pending');
+      const proposals = listCurrentRunProposals(runId);
+      hasPendingProposals = proposals.some(p => p.status === 'pending' || p.isStale)
+        || hasUnconfirmedAgentDecisions(proposals, getLiveDecisionsByRun(runId));
     } catch {
-      /* treat as decided; the run decision gate reports corruption separately */
+      hasPendingProposals = true;
     }
   }
 

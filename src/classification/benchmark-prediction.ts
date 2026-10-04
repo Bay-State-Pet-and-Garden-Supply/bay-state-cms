@@ -28,7 +28,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { sha256Hex } from '../shared/stable-id';
+import { hashCanonicalJson, sha256Hex } from '../shared/stable-id';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import * as benchmarkRepo from '../db/repositories/benchmark-repo';
 import * as classRunRepo from '../db/repositories/classification-run-repo';
@@ -535,7 +535,8 @@ function isProductTypeStageFailed(runId: string): boolean {
 
 /** True when any model call for the run failed or was cancelled. */
 function hasFailedModelCall(runId: string): boolean {
-  return getModelCallsByRun(runId).some(call => call.status === 'failed' || call.status === 'cancelled');
+  return getModelCallsByRun(runId).some(call => call.status === 'failed' || call.status === 'cancelled'
+    || (call.operation === 'product_type_ranking' && call.status === 'policy_denied'));
 }
 
 /**
@@ -739,6 +740,10 @@ function resolvePreReviewAbstention(
 ): PreReviewPredictionEntry {
   const abstention = proposals.find(isProductTypeAbstention);
   if (abstention) {
+    const code = codeFromValue(abstention.proposedValue);
+    if (code && !['no_fit', 'no_match', 'insufficient_evidence'].includes(code)) {
+      return { ...failPreReviewPrediction(base, code), provenance };
+    }
     return {
       ...base,
       productType: null,
@@ -769,7 +774,16 @@ export function capturePreReviewPrediction(input: PreReviewCaptureInput): PreRev
   const healthFailure = assessPreReviewRunHealth(run, terminalOk);
   if (healthFailure) return { ...failPreReviewPrediction(base, healthFailure), provenance };
 
-  const proposals = classRunRepo.getProposalsByRun(run.id).filter(p => !p.isStale);
+  // Dependent refreshes intentionally consume human type review. They are not
+  // uncorrected model predictions. An original immutable artifact remains
+  // readable, but recapturing this changed run cannot qualify raw accuracy.
+  if (classRunRepo.runHasDependentRefreshOutputs(run.id)) {
+    return { ...failPreReviewPrediction(base, 'post_review_refresh'), provenance };
+  }
+  const proposals = classRunRepo.getProposalsByRun(run.id);
+  if (proposals.some(proposal => proposal.isStale || proposal.status === 'stale' || proposal.supersededAt)) {
+    return { ...failPreReviewPrediction(base, 'post_review_invalidation'), provenance };
+  }
   base.fieldAssignments = collectPreReviewFieldAssignments(proposals);
   const { pageNames, pageIds } = collectPreReviewPages(proposals);
   base.pageAssignments = pageNames;
@@ -1172,6 +1186,8 @@ import {
 import {
   buildPageChoiceQuestion,
   JEV_PAGE_SINGLE_THRESHOLD,
+  PAGE_QUESTION_VERSION,
+  PAGE_JUDGMENT_VERSION,
   NO_MATCH_CHOICE_KEY as PAGE_NO_MATCH_CHOICE_KEY,
   INSUFFICIENT_EVIDENCE_CHOICE_KEY as PAGE_INSUFFICIENT_EVIDENCE_CHOICE_KEY,
   type PageChoiceQuestionPlan,
@@ -1199,6 +1215,8 @@ import {
   requireChoiceAnswer,
   requireNoulAnswer,
   choiceKeyToCanonicalId,
+  SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY,
+  SYSTEMONE_MULTI_MIN_PROBABILITY,
 } from './systemone-decision-core';
 import { llmRankOptions, type LlmRankResult } from './curation-target-ranker';
 import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
@@ -1214,8 +1232,8 @@ import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 import { evaluateAttributeApplicability } from './applicability-evaluator';
 import { buildFrozenTaxonomyCandidates } from './benchmark-exporter';
 
-/** Version of the honest-capture qualification predictor (v3: replay fidelity — PT-first, no gold gating, real incumbent judgments). */
-export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v3' as const;
+/** Honest capture v5: PT-first replay, coded semantic abstentions, and frozen decision-policy identity. */
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v5' as const;
 
 /**
  * Explicit prediction-source contract for qualification captures.
@@ -1270,6 +1288,7 @@ export interface QualificationGoldOnlyEntry extends QualificationGoldCore {}
 export interface ExecutedQualificationPrediction {
   productType: string | null;
   abstained: boolean;
+  abstentionCode?: string | null;
   fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
   pageIds: string[];
   confidence: number;
@@ -1283,6 +1302,8 @@ export interface ExecutedQualificationPrediction {
   provider?: string | null;
   usage?: { inputTokens: number | null; outputTokens: number | null } | null;
 }
+
+type QualificationProductTypePrediction = Pick<ExecutedQualificationPrediction, 'productType' | 'abstained' | 'abstentionCode' | 'confidence'>;
 
 /** One frozen profile attribute entry carried in qualification taxonomies. */
 export interface QualificationFrozenProfileAttribute {
@@ -1363,6 +1384,7 @@ export type QualificationTaxonomySource = 'frozen_snapshot' | 'gold_union';
 export interface QualificationPredictionArtifact {
   predictorVersion: typeof QUALIFICATION_PREDICTOR_VERSION;
   artifactHash: string;
+  decisionPolicyHash: string;
   predictedAt: string;
   entryCount: number;
   captureMode: QualificationCaptureMode;
@@ -2187,9 +2209,9 @@ function predictBaselineProductType(
   entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
   evidenceText: string,
-): { productType: string | null; abstained: boolean; confidence: number } {
+): QualificationProductTypePrediction {
   if (isQualificationPredictionEmpty(taxonomies.productTypes.length, evidenceText)) {
-    return { productType: null, abstained: true, confidence: 0 };
+    return { productType: null, abstained: true, confidence: 0, abstentionCode: taxonomies.productTypes.length ? 'insufficient_evidence' : 'missing_configuration' };
   }
   const matches = matchKeywordOptions({
     options: taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
@@ -2198,7 +2220,7 @@ function predictBaselineProductType(
   });
   const top = matches[0];
   if (!top || top.confidence < PRODUCT_TYPE_KEYWORD_MATCH_MIN_CONFIDENCE) {
-    return { productType: null, abstained: true, confidence: 0 };
+    return { productType: null, abstained: true, confidence: 0, abstentionCode: top ? 'low_probability' : 'unresolved' };
   }
   return { productType: top.value, abstained: false, confidence: top.confidence };
 }
@@ -2350,6 +2372,7 @@ export function blockedQualificationPrediction(
 function floorQualificationPrediction(input: {
   productType: string | null;
   abstained: boolean;
+  abstentionCode?: string | null;
   fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
   pageIds: string[];
   confidence: number;
@@ -2510,7 +2533,7 @@ function runDeterministicBaselineStages(
   taxa: QualificationTaxonomies,
   evidenceText: string,
 ): {
-  type: { productType: string | null; abstained: boolean; confidence: number };
+  type: QualificationProductTypePrediction;
   effectiveTypeId: string | null;
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
@@ -2562,6 +2585,7 @@ function executeDeterministicFloorEntryPredictions(
     const baseline = floorQualificationPrediction({
       productType: stages.type.productType,
       abstained: stages.type.abstained,
+      abstentionCode: stages.type.abstentionCode ?? null,
       fieldAssignments: stages.fields,
       pageIds: stages.pages,
       confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
@@ -2740,17 +2764,17 @@ function resolveLiveCandidateProductType(
   questions: QualificationCandidateQuestionSet,
   answers: Record<string, SystemOneAnswer>,
   typeOverLimit: boolean,
-): { productType: string | null; abstained: boolean; typeProb: number } {
-  if (typeOverLimit) return { productType: null, abstained: true, typeProb: 0 };
+): { productType: string | null; abstained: boolean; typeProb: number; abstentionCode?: string | null } {
+  if (typeOverLimit) return { productType: null, abstained: true, typeProb: 0, abstentionCode: 'candidate_limit_exceeded' };
   const answer = requireChoiceAnswer(answers, questions.productTypePlan.questionId);
   const choiceKey = answer.choice;
   const typeProb = answer.probabilities[choiceKey] ?? 0;
   if (choiceKey === JEV_NO_MATCH_KEY || choiceKey === JEV_INSUFFICIENT_EVIDENCE_KEY) {
-    return { productType: null, abstained: true, typeProb };
+    return { productType: null, abstained: true, typeProb, abstentionCode: choiceKey };
   }
   const canonicalId = choiceKeyToCanonicalId(questions.productTypePlan.keyToIdMap, choiceKey, 'option ID');
   if (typeProb < JEV_PRODUCT_TYPE_MIN_PROBABILITY) {
-    return { productType: null, abstained: true, typeProb };
+    return { productType: null, abstained: true, typeProb, abstentionCode: 'low_probability' };
   }
   return { productType: canonicalId, abstained: false, typeProb };
 }
@@ -2848,7 +2872,7 @@ function buildCandidateSilentBlocked(latencyMs: number): ExecutedQualificationPr
 
 /** Live-captured side from a speaking model (same shape as the inline return). */
 function buildCandidateLiveCaptured(
-  type: { productType: string | null; abstained: boolean; typeProb: number },
+  type: { productType: string | null; abstained: boolean; typeProb: number; abstentionCode?: string | null },
   fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>,
   pageIds: string[],
   merged: MergedLiveAnswers,
@@ -2857,6 +2881,7 @@ function buildCandidateLiveCaptured(
   return {
     productType: type.productType,
     abstained: type.abstained,
+    abstentionCode: type.abstentionCode ?? null,
     fieldAssignments,
     pageIds,
     confidence: artifactConfidence(type.abstained, type.typeProb),
@@ -3215,7 +3240,7 @@ async function captureBaselineTypeWithRealBoundary(input: {
   view: ModelPolicyView;
   snapshot: RuntimeClassificationSnapshot;
   runId: string;
-}): Promise<{ productType: string | null; abstained: boolean; confidence: number }> {
+}): Promise<QualificationProductTypePrediction> {
   const { entry, taxa, view, snapshot, runId } = input;
   const evidence = qualificationEvidenceForBoundary(entry, runId);
   const target = stubResolvedTarget(
@@ -3237,7 +3262,7 @@ async function captureBaselineTypeWithRealBoundary(input: {
   if (decision.status === 'resolved' && decision.productTypeId) {
     return { productType: decision.productTypeId, abstained: false, confidence: decision.confidence };
   }
-  return { productType: null, abstained: true, confidence: 0 };
+  return { productType: null, abstained: true, confidence: 0, abstentionCode: decision.abstentionCode ?? 'unresolved' };
 }
 
 /**
@@ -3339,6 +3364,7 @@ async function applyBaselineChatStagesWithRun(input: {
   abstained: boolean;
   confidence: number;
   effectiveTypeId: string | null;
+  abstentionCode?: string | null;
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
 }> {
@@ -3346,11 +3372,13 @@ async function applyBaselineChatStagesWithRun(input: {
   let productType = stages.type.productType;
   let abstained = stages.type.abstained;
   let confidence = stages.type.confidence;
+  let abstentionCode = stages.type.abstentionCode ?? null;
   if (needs.type) {
     const type = await captureBaselineTypeWithRealBoundary({ entry, taxa, evidenceText, view, snapshot, runId });
     productType = type.productType;
     abstained = type.abstained;
     confidence = type.confidence;
+    abstentionCode = type.abstentionCode ?? null;
   }
   const effectiveTypeId = abstained ? null : productType;
   // Recompute applicable attributes for the FROZEN resolved type (the
@@ -3378,7 +3406,7 @@ async function applyBaselineChatStagesWithRun(input: {
   if (needs.pages && effectiveTypeId !== null) {
     pages = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId });
   }
-  return { productType, abstained, confidence, effectiveTypeId, fields, pages };
+  return { productType, abstained, abstentionCode, confidence, effectiveTypeId, fields, pages };
 }
 
 /**
@@ -3390,6 +3418,7 @@ async function applyBaselineChatStagesWithRun(input: {
 function assembleLiveBaselinePrediction(input: {
   productType: string | null;
   abstained: boolean;
+  abstentionCode?: string | null;
   confidence: number;
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
   pages: string[];
@@ -3402,6 +3431,7 @@ function assembleLiveBaselinePrediction(input: {
   return {
     productType: input.productType,
     abstained: input.abstained,
+    abstentionCode: input.abstentionCode ?? null,
     fieldAssignments: input.fields,
     pageIds: input.pages,
     confidence: artifactConfidence(input.abstained, input.confidence),
@@ -3532,6 +3562,7 @@ function buildBaselineFloorFromStages(
   return floorQualificationPrediction({
     productType: stages.type.productType,
     abstained: stages.type.abstained,
+    abstentionCode: stages.type.abstentionCode ?? null,
     fieldAssignments: stages.fields,
     pageIds: stages.pages,
     confidence: artifactConfidence(stages.type.abstained, stages.type.confidence),
@@ -3569,6 +3600,7 @@ function resolveBaselineLiveResult(
   applied: {
     productType: string | null;
     abstained: boolean;
+    abstentionCode?: string | null;
     confidence: number;
     fields: Array<{ targetId: string; value?: string; values?: string[] }>;
     pages: string[];
@@ -3586,6 +3618,7 @@ function resolveBaselineLiveResult(
   return assembleLiveBaselinePrediction({
     productType: applied.productType,
     abstained: applied.abstained,
+    abstentionCode: applied.abstentionCode ?? null,
     confidence: applied.confidence,
     fields: applied.fields,
     pages: applied.pages,
@@ -3740,6 +3773,7 @@ function hashQualificationPredictions(
   const hashableSide = (side: ExecutedQualificationPrediction): Record<string, unknown> => ({
     productType: side.productType,
     abstained: side.abstained,
+    abstentionCode: side.abstentionCode ?? null,
     fieldAssignments: side.fieldAssignments,
     pageIds: side.pageIds,
     confidence: side.confidence,
@@ -3757,7 +3791,16 @@ function hashQualificationPredictions(
     baseline: hashableSide(p.baseline),
     candidate: hashableSide(p.candidate),
   }));
-  return sha256Hex(JSON.stringify({ predictions: hashable, taxonomy: hashableTaxonomyProvenance(resolved) }));
+  return sha256Hex(JSON.stringify({ predictions: hashable, taxonomy: hashableTaxonomyProvenance(resolved), decisionPolicyHash: qualificationDecisionPolicyHash() }));
+}
+
+function qualificationDecisionPolicyHash(): string {
+  return hashCanonicalJson({ predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
+    runtimeRules: buildRuntimeRuleVersions().digest,
+    pageQuestionVersion: PAGE_QUESTION_VERSION,
+    pageJudgmentVersion: PAGE_JUDGMENT_VERSION,
+    choiceFloor: SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY,
+    noulFloor: SYSTEMONE_MULTI_MIN_PROBABILITY });
 }
 
 /** Hashable taxonomy provenance (same entries + different pool = different artifact). */
@@ -3795,6 +3838,7 @@ export function buildQualificationPredictionsFromCode(
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
     artifactHash: hashQualificationPredictions(predictions, resolved),
+    decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
     entryCount: entries.length,
     captureMode: 'deterministic_floor',
@@ -3845,6 +3889,7 @@ export async function captureQualificationPredictionsLive(
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
     artifactHash: hashQualificationPredictions(predictions, resolved),
+    decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
     entryCount: entries.length,
     captureMode: jev || view ? 'live_captured' : 'deterministic_floor',
@@ -3853,6 +3898,3 @@ export async function captureQualificationPredictionsLive(
     predictions,
   };
 }
-
-
-

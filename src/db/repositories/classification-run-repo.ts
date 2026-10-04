@@ -286,7 +286,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
           WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
           ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
         FROM classification_proposals p
-        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ?
+        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
           AND (SELECT d.decision FROM classification_proposal_decisions d
                WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
                ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -312,7 +312,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
         WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
         ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
       FROM classification_proposals p
-      WHERE p.product_sku = ? AND p.status = ?
+      WHERE p.product_sku = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
         AND (SELECT d.decision FROM classification_proposal_decisions d
              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
              ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -330,6 +330,42 @@ export class DecisionConflictError extends Error {
     super(message);
     this.name = 'DecisionConflictError';
   }
+}
+
+/** Recheck immediately inside the decision transaction, after any competing refresh. */
+export function assertProposalReviewLiveness(runId: string, proposalIds: string[]): void {
+  const db = getDb();
+  const run = getRun(runId);
+  if (!run || !['completed', 'completed_with_abstentions'].includes(run.status)) throw new DecisionConflictError('Classification run is no longer reviewable.');
+  if (run.onboardingItemId) {
+    const item = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(run.onboardingItemId) as { curation_data_json: string | null } | null;
+    let pointer: string | null = null;
+    if (item?.curation_data_json) {
+      try {
+        const data = JSON.parse(item.curation_data_json) as unknown;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid item curation projection.');
+        const runId = (data as { classificationRunId?: unknown }).classificationRunId;
+        if (runId != null && typeof runId !== 'string') throw new Error('Invalid item run pointer.');
+        pointer = runId ?? null;
+      } catch {
+        throw new DecisionConflictError('Item classification provenance is unreadable; repair or rerun before review.');
+      }
+    }
+    if (pointer && pointer !== run.id) throw new DecisionConflictError('Classification run was superseded by a newer item run.');
+  }
+  if (run.cohortRunId) {
+    const parent = db.query('SELECT status FROM classification_cohort_runs WHERE id = ?').get(run.cohortRunId) as { status: string } | null;
+    if (!parent || parent.status === 'superseded') throw new DecisionConflictError('Cohort run is no longer current.');
+  }
+  const read = db.prepare('SELECT status, is_stale, superseded_at FROM classification_proposals WHERE id = ? AND run_id = ?');
+  for (const id of proposalIds) {
+    const row = read.get(id, runId) as { status: string; is_stale: number; superseded_at: string | null } | null;
+    if (!row || row.is_stale || row.status === 'stale' || row.superseded_at) throw new DecisionConflictError(`Proposal ${id} is stale or superseded; reload review.`);
+  }
+}
+
+export function runHasDependentRefreshOutputs(runId: string): boolean {
+  return Boolean(getDb().query('SELECT 1 FROM classification_proposals WHERE run_id = ? AND refresh_queue_id IS NOT NULL LIMIT 1').get(runId));
 }
 
 export interface DecisionRowInput {
@@ -733,6 +769,7 @@ function mapProposal(row: Record<string, any>): ClassificationProposal {
     status: String(row.status) as ClassificationProposal['status'],
     isBulkAcceptable: Number(row.is_bulk_acceptable) === 1,
     isStale: Number(row.is_stale) === 1,
+    ...(row.superseded_at ? { supersededAt: String(row.superseded_at) } : {}),
     stalenessReason: row.staleness_reason ? String(row.staleness_reason) : null,
     ...(hasRevisedValue ? { revisedValue: JSON.parse(String(row.revised_value_json)) } : {}),
     hasRevisedValue,

@@ -7,6 +7,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../connection';
+import { findItemById, updateItemCurationData } from './onboarding-item-repo';
+import type { CurationData } from '../../shared/schemas/onboarding';
 
 export interface RefreshQueueItem {
   id: string;
@@ -188,7 +190,7 @@ export function claimRefreshBatch(
 /**
  * Mark a refresh item as completed with the outcome run ID.
  */
-export function completeRefreshItem(id: string, outcomeRunId?: string | null): boolean {
+export function completeRefreshItem(id: string, outcomeRunId?: string | null, expectedOwner?: string | null): boolean {
   const db = getDb();
   const now = new Date().toISOString();
   const res = db.run(
@@ -197,8 +199,8 @@ export function completeRefreshItem(id: string, outcomeRunId?: string | null): b
          outcome_run_id = ?,
          completed_at = ?,
          error_message = NULL
-     WHERE id = ?`,
-    [outcomeRunId ?? null, now, id],
+      WHERE id = ? ${expectedOwner ? "AND status = 'claimed' AND claimed_by = ?" : ''}`,
+    [outcomeRunId ?? null, now, id, ...(expectedOwner ? [expectedOwner] : [])],
   );
   return res.changes > 0;
 }
@@ -211,6 +213,7 @@ export function failRefreshItem(
   error: string,
   retryable = true,
   maxAttempts = 3,
+  expectedOwner?: string | null,
 ): boolean {
   const db = getDb();
   const now = new Date().toISOString();
@@ -230,8 +233,8 @@ export function failRefreshItem(
          claimed_at = NULL,
          error_message = ?,
          completed_at = ?
-     WHERE id = ?`,
-    [nextStatus, error, shouldRetry ? null : now, id],
+      WHERE id = ? ${expectedOwner ? "AND status = 'claimed' AND claimed_by = ?" : ''}`,
+    [nextStatus, error, shouldRetry ? null : now, id, ...(expectedOwner ? [expectedOwner] : [])],
   );
 
   return res.changes > 0;
@@ -248,4 +251,42 @@ export function getPendingRefreshCount(workspaceId: string): number {
      WHERE workspace_id = ? AND status IN ('queued', 'claimed')`,
   ).get(workspaceId) as { count: number } | undefined;
   return row ? row.count : 0;
+}
+
+/** Legacy processor may terminalize only a row it still observes queued. */
+export function bindClaimedLegacyRefresh(item: RefreshQueueItem, runId: string): RefreshQueueItem {
+  const db = getDb();
+  return db.transaction(() => {
+    const run = db.query('SELECT workspace_id, product_sku, onboarding_item_id, source_kind FROM classification_runs WHERE id = ?').get(runId) as {
+      workspace_id: string; product_sku: string; onboarding_item_id: string | null; source_kind: string;
+    } | null;
+    if (!run || run.workspace_id !== item.workspaceId || run.product_sku !== item.productSku) throw new Error('Legacy refresh has no matching run scope.');
+    const result = db.run(`UPDATE classification_refresh_queue SET expected_run_id = ?, onboarding_item_id = ?, source_kind = ?
+      WHERE id = ? AND status = 'claimed' AND claimed_by = ? AND (expected_run_id IS NULL OR expected_run_id = ?)`,
+      [runId, run.onboarding_item_id, run.source_kind, item.id, item.claimedBy, runId]);
+    if (result.changes !== 1) throw new Error('Legacy refresh lost ownership or changed run scope.');
+    return mapRowToItem(db.query('SELECT * FROM classification_refresh_queue WHERE id = ?').get(item.id) as Record<string, unknown>);
+  })();
+}
+
+export function assertClaimedRefresh(item: RefreshQueueItem): void {
+  const result = getDb().run(`UPDATE classification_refresh_queue SET claimed_at = ? WHERE id = ? AND status = 'claimed' AND claimed_by = ?`,
+    [new Date().toISOString(), item.id, item.claimedBy]);
+  if (result.changes !== 1) throw new Error('Refresh lost its queue lease.');
+}
+
+export function findRefreshOnboardingItemId(workspaceId: string, sku: string): string | null {
+  const row = getDb().query(`SELECT i.id FROM onboarding_items i JOIN onboarding_batches b ON b.id = i.batch_id
+    WHERE b.workspace_id = ? AND i.upc = ? AND i.status NOT IN ('promoted','skipped') ORDER BY i.created_at DESC LIMIT 1`)
+    .get(workspaceId, sku) as { id: string } | null;
+  return row?.id ?? null;
+}
+
+export function publishConfigurationRefresh(item: RefreshQueueItem, itemId: string, originalRunId: string | null, data: CurationData): void {
+  getDb().transaction(() => {
+    assertClaimedRefresh(item);
+    if ((findItemById(itemId)?.curationData?.classificationRunId ?? null) !== originalRunId) throw new Error('Item run changed before refresh publication.');
+    updateItemCurationData(itemId, JSON.stringify(data));
+    if (!completeRefreshItem(item.id, data.classificationRunId, item.claimedBy)) throw new Error('Refresh lost ownership before publication.');
+  })();
 }

@@ -297,7 +297,13 @@ function persistStageCompletion(options: {
   })();
 }
 
-export async function runPipeline(stages: StageDefinition[], context: StageContext, input: StageInput): Promise<PipelineRunResult> {
+export async function runPipeline(stages: StageDefinition[], context: StageContext, input: StageInput,
+  options: { prepareOnly?: boolean } = {}): Promise<PipelineRunResult> {
+  const preparedStages: Array<() => void> = [];
+  const publishCompletion = (completion: Parameters<typeof persistStageCompletion>[0]): void => {
+    if (options.prepareOnly) preparedStages.push(() => persistStageCompletion(completion));
+    else persistStageCompletion(completion);
+  };
   // Fail closed if the frozen snapshot was tampered with since build.
   if (context.snapshot) {
     const recomputed = snapshotHash(context.snapshot);
@@ -352,7 +358,7 @@ export async function runPipeline(stages: StageDefinition[], context: StageConte
         });
 
         assertOwnership();
-        persistStageCompletion({
+        publishCompletion({
           runId: context.runId,
           sku: input.sku,
           stageName,
@@ -400,7 +406,7 @@ export async function runPipeline(stages: StageDefinition[], context: StageConte
           snapshotHash: context.snapshot?.snapshotHash,
         });
         assertOwnership();
-        persistStageCompletion({
+        publishCompletion({
           runId: context.runId,
           sku: input.sku,
           stageName,
@@ -454,7 +460,8 @@ export async function runPipeline(stages: StageDefinition[], context: StageConte
     throw new Error(`Proposal safety validation failed: ${finding.code} — ${finding.message}`);
   }
 
-  return { evidence: allEvidence, proposals: allProposals, stageOutputs };
+  return { evidence: allEvidence, proposals: allProposals, stageOutputs,
+    ...(options.prepareOnly ? { commitPreparedStages: () => { assertOwnership(); for (const commit of preparedStages) commit(); } } : {}) };
 }
 
 export function resolveStageOrder(stages: StageDefinition[]): ClassificationStageName[] {

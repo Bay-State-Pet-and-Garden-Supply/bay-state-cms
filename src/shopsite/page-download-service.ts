@@ -56,7 +56,14 @@ export type PageDownloadResult = PageDownloadFailure | PageDownloadPreview;
  * Download and normalize the ShopSite Pages database. No DB effect.
  */
 export async function downloadPagesFromShopSite(fetcher: PagesXmlFetcher): Promise<PageDownloadResult> {
-  const result = await fetcher.fetchPagesXml();
+  // Do not inherit a merchant's saved/default field selection. The live
+  // store can return hundreds of empty Page records without these fields.
+  // 14.0 is a documented XML compatibility version (the store may declare
+  // its running 15.0 version in the response). Page ID is an export field,
+  // not a Name/position-derived identity.
+  const result = await fetcher.fetchPagesXml({
+    version: '14.0', fields: ['Name', 'File name', 'Page ID', 'Title'],
+  });
   if (!result.success || !result.data) {
     return {
       ok: false,
@@ -75,6 +82,9 @@ export async function downloadPagesFromShopSite(fetcher: PagesXmlFetcher): Promi
   }
 
   const records = toPageRecords(document);
+  if (document.pages.some(page => !page.name.trim())) {
+    return { ok: false, error: 'ShopSite Pages download contains unnamed records. Export Name, File name and Page ID explicitly; no assignment pages were imported.' };
+  }
   if (records.length === 0) {
     return { ok: false, error: 'ShopSite Pages download contained no pages.' };
   }

@@ -94,6 +94,7 @@ import {
   insertPolicyDeniedTerminalCall,
   openDecisionModelCall,
   openSingleChoiceRequest,
+  protectedSystemOneDispatchOptions,
   sanitizeQuestionIdSegment,
   sourceFieldOf,
   sortCandidatesByProbability,
@@ -1012,7 +1013,7 @@ async function dispatchAttributeNoulChunk(input: {
       const startedAt = Date.now();
       try {
         assertHeld?.();
-        const result = await dispatchSystemOne(jevConn as any, request);
+        const result = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn, request.model, assertHeld));
         assertHeld?.();
 
         assertSystemOneModelMatch(request.model, result.returnedModel);
@@ -2849,7 +2850,7 @@ async function runBatchAttributeChunk(input: {
       const startedAt = Date.now();
       try {
         assertHeld?.();
-        const dispatchRes = await dispatchSystemOne(jevConn as any, request);
+        const dispatchRes = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn, request.model, assertHeld));
         assertHeld?.();
 
         assertSystemOneModelMatch(request.model, dispatchRes.returnedModel);

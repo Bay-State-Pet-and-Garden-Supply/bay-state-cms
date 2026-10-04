@@ -118,6 +118,8 @@ export interface StageContext {
    * stage transports. Prod callers omit it — zero behavior change.
    */
   modelFetchFn?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+  /** Review-triggered refresh reuses upstream evidence and preserves universal assignments. */
+  dependentReviewRefresh?: boolean;
   /**
    * Optional product-line group context for sibling-aware processing.
    * Populated before name_consolidation when the item belongs to a
@@ -267,4 +269,6 @@ export interface PipelineRunResult {
   proposals: ClassificationProposal[];
   /** Per-stage output metadata, keyed by stage name */
   stageOutputs: Partial<Record<ClassificationStageName, StageOutput>>;
+  /** Internal review refresh: publish prepared outputs inside the owning transaction. */
+  commitPreparedStages?: () => void;
 }

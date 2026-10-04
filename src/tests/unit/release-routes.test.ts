@@ -107,6 +107,15 @@ describe('GET /api/settings/taxonomy-release', () => {
 });
 
 describe('POST /api/settings/taxonomy-release/pin gates', () => {
+  it('activates the valid v5 release containing the food-form aliases through the sanctioned route', async () => {
+    process.env.BAYSTATE_CMS_RELEASE_ADMIN_ENABLED = '1';
+    process.env.BAYSTATE_CMS_API_TOKEN = 'fixture-release-token';
+    const res = await post('/api/settings/taxonomy-release/pin', { revision: 'bay-state-v5' }, { Authorization: 'Bearer fixture-release-token' });
+    expect(res.status).toBe(200);
+    expect(readWorkspaceState(root)?.activeTaxonomyRevision).toBe('bay-state-v5');
+    const status = await (await get('/api/settings/taxonomy-release')).json() as { availableRevisions: Array<{ revision: string; errorCount: number }> };
+    expect(status.availableRevisions.find(release => release.revision === 'bay-state-v5')?.errorCount).toBe(0);
+  });
   function pinFileSnapshot(): { existed: boolean; content: string | null } {
     const filePath = workspaceStatePath(root);
     if (!fs.existsSync(filePath)) return { existed: false, content: null };

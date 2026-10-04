@@ -38,6 +38,7 @@ import { getUniversalTierFlags } from '../flags';
 import { getCachedAttributeProfiles, getCachedProductTypes } from '../../db/repositories/classification-config-repo';
 import { evaluateAttributeApplicability } from './attribute-applicability';
 import { resolveProductTypeInvariants } from '../product-type-invariants';
+import { isUniversalAttribute } from '../applicability-evaluator';
 
 export const productAttributeProposalsStage: StageDefinition = {
   name: 'product_attribute_proposals',
@@ -100,6 +101,7 @@ export const productAttributeProposalsStage: StageDefinition = {
     for (const target of resolved.productFields) {
       if (!target.attribute) continue;
       const attribute = target.attribute;
+      if (context.dependentReviewRefresh && isUniversalAttribute(attribute)) continue;
       const profileEntry = profile?.attributes.find(entry => entry.attributeId === attribute.id);
       const evaluation = evaluateAttributeApplicability({
         attribute,

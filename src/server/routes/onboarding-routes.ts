@@ -2414,12 +2414,30 @@ route.post('/onboarding/items/:id/decisions', async (c) => {
     return c.json({ error: result.reason, code: result.code }, status);
   }
 
+  // Type review should reveal dependent proposals without replaying extraction
+  // or requiring the operator to manually restart Curation. The shared refresh
+  // keeps the accepted type and naming authority in this exact frozen run.
+  const currentTypeDecision = result.decisions.find(decision => decision.decision === 'accepted'
+    && getProposalsByRun(activeRunId).some(proposal => proposal.id === decision.proposalId && proposal.proposalType === 'primary_product_type'));
+  let dependentRefresh: { status: 'completed' | 'blocked'; message?: string } | undefined;
+  if (currentTypeDecision && result.refreshRequired) {
+    try {
+      const { refreshReviewedDependents } = await import('../../classification/refresh-reviewed-dependents');
+      await refreshReviewedDependents({ workspaceId: workspace.id, runId: activeRunId, itemId });
+      dependentRefresh = { status: 'completed' };
+    } catch (error) {
+      const { redactTransportText } = await import('../../classification/model-policy-gateway');
+      dependentRefresh = { status: 'blocked', message: redactTransportText(error instanceof Error ? error.message : String(error)) };
+    }
+  }
+
   // This endpoint deliberately does not complete Review. The caller must
   // drain all writes and invoke /review-complete separately.
   return c.json({
     success: true,
     count: result.decisions.length,
     decisions: result.decisions,
+    ...(dependentRefresh ? { dependentRefresh } : {}),
   });
 });
 

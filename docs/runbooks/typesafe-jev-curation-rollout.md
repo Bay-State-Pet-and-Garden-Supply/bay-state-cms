@@ -21,14 +21,20 @@ Scope:
 
 ## 2. Confidence Concepts: Probability vs. Concentration Confidence
 
-A central architectural requirement of ADR 0033 and Issue #302 is the distinction between **Probability Confidence** and **Concentration Confidence**:
+Choice returns a probability distribution over configured outcomes and a separate
+**concentration confidence** describing that distribution. Noul returns P(yes),
+without a separate confidence. Neither measure grants approval authority.
 
-| Dimension | Probability Confidence (System One / Jev) | Concentration Confidence (Chat LLM / Verbalization) |
+| Measure | Meaning | Operator use |
 |---|---|---|
-| **Mechanism** | Derived from calibrated probability models (Noul binary probability $P(\text{yes}) \in [0, 1]$; Choice probability distribution over mutually exclusive candidates summing to 1 within $\pm 0.01$). | Derived from chat token generation log-probabilities, softmax entropy over tokens, or verbalized self-assessment ("I am 95% confident"). |
-| **Calibration** | Statistically calibrated: an evaluated score of 0.85 corresponds to approximately 85% empirical correctness across representative held-out evaluation sets. | Not calibrated: chat models routinely suffer from verbal overconfidence, sycophancy, temperature distortion, and sensitivity to prompt wording. |
-| **Candidate Distribution** | True probability closure: the probabilities across all criteria keys (including explicit abstention options `no_fit` and `insufficient_evidence`) must sum to $1.0 \pm 0.01$, with the selected option matching the distribution argmax. | Pseudo-distribution: output probabilities or rankings reflect language token frequencies, not candidate membership truths. |
-| **System Treatment** | Grounded in decision floors: Single Choice selected-probability ($\ge 0.50$), Multi-Value Noul P(yes) ($\ge 0.70$), uncertain band ($0.40$–$0.70$), and development-fitted eligibility ($\ge 0.50$). | **Explicitly rejected** as evidence for automated routing or calibration. Never used to justify reduced human review. |
+| Choice selected probability | Probability assigned to the selected option, including an abstention option | A 0.90 insufficient-evidence answer is confidence in abstaining, not confidence in a product value |
+| Choice concentration confidence | How concentrated the answer distribution is | Inspect alongside probability; it is not whole-workflow correctness |
+| Noul P(yes) | Probability that one candidate value/page applies | Evaluate labels independently; current floor is 0.70 |
+| Legacy chat/keyword support | Generated or heuristic support from the comparison implementation | Keep labeled separately; it is not Jev concentration confidence |
+
+Current Choice floor is 0.50. Store-specific calibration and acceptance must be
+established from development evidence and a separately qualified holdout. Vendor
+probability is not proof of empirical correctness for this store's assortment.
 
 ---
 
@@ -98,13 +104,14 @@ in `scripts/typesafe-curation-qualification.ts` is authoritative):
 
 | Flag | Effect |
 |---|---|
-| `--split=dev\|holdout` | Score only one split (default: all 16 entries). |
+| `--split=dev\|holdout` | Dispatch and score only that split; development execution never sends holdout inputs to providers. Family verification still checks the whole population. |
 | `--json` | Machine-readable output; human-readable report otherwise. |
 | `--live-capture` | Capture the candidate side from real Jev judgments. Requires `TYPESAFE_API_KEY` (≥ 8 chars); without it the candidate stays `blocked` (`jev_credentials_absent`) — never simulated. |
 | `--model=jev-1.13.0` | Requested Jev model for live capture (default: `TYPESAFE_EVALUATED_MODEL`, currently `jev-1.13.0` in `src/ai/systemone-transport.ts`). |
 | `--baseline-provider=<p> --baseline-model=<m>` | Capture the baseline side via the incumbent route (deterministic floor first, then the legacy chat ranker). BOTH flags are required; credentials resolve from the existing provider store and unresolvable credentials record `blocked`. |
 | `--live-check` (or `TYPESAFE_LIVE_CHECK=1`) | Run the bounded live contract check as a subprocess (requires `TYPESAFE_API_KEY`); its actual result feeds the assessment. |
 | `--artifact-out=path` | Write the executed prediction artifact JSON to `path`. |
+| `--db=path` | Existing initialized workspace database for live incumbent credentials and run/audit persistence. |
 
 The script reports:
 1. **Product Type Metrics:** Top-1 Accuracy, Coverage, Incorrect Proposals, Regressions against baseline.
@@ -149,11 +156,36 @@ unmet — production status is `blocked` for candidate quality, NOT
 
 ### D. Staged Canary Verification
 Canary rollout must proceed in strict order:
-1. **Canary 1: Single SKU** — Validate single product classification, attribute extraction, and drawer presentation.
-2. **Canary 2: Variant Family** — Validate variant family consistency, attribute inheritance, and independent variant evaluation.
-3. **Canary 3: Multi-Item Cohort** — Validate multi-item category page coordination and cohort review workflow.
+1. **Product Types** — representative types, no-fit and insufficient-evidence outcomes.
+2. **Controlled attributes** — applicable single/multiple values and variants.
+3. **Category Pages/cohorts** — verified singleton assignments and actual frozen multi-item coordination.
 
-**Requirement:** Every canary batch must be explicitly reviewed and approved by the Store Manager in the review drawer before proceeding to broader activation.
+Final Store Manager review/approval is retained. Terminal review can replace the
+drawer for proposal decisions, with the same review service and attribution:
+
+```zsh
+bun scripts/review-canary.ts --batch "Jev Canary — goldset-16" --reviewer nick
+```
+
+The command shows field names, mapped ShopSite slots, evidence, conflicts and
+existing accepted pages. Corrections preserve identity/cardinality. Type review
+refreshes dependent attributes/pages from frozen evidence without replaying OCR,
+naming or Product Type. Failed/concurrent refreshes do not erase valid proposals.
+Incompatible historical plans require a fresh run.
+
+An agent can apply explicitly enumerated decisions. These are stamped
+`agent_review`, never impersonate the operator, and require final human
+confirmation. They do not qualify human receipts or item approval:
+
+```zsh
+bun scripts/review-canary.ts --decisions-file docs/audits/jev-agent-review-decisions-2026-10-02.json --list-only
+```
+
+Receipts require actual attributed human decisions, including abstentions.
+Empty/no-run queues cannot pass; singleton pages do not certify a cohort canary.
+Hand-seeded synthetic items lack real extraction bindings and cannot qualify the
+worker. Seeders hold new fixtures and never disable freeze/provenance guards,
+replace pins or reconfigure credentials.
 
 **Recording sign-offs** (fail-closed default: absent = unreviewed blockers).
 Following the canary-receipt pattern — a receipts file and/or env flags,
@@ -245,7 +277,57 @@ visibly invalidated. An unreadable runbook keeps the fail-closed
 `operatorDocs` section echoes the receipt; the text report shows an
 `Operator docs:` line.
 
-### H. Status Semantics: `blocked` vs `provisionally_qualified`
+### H. Operational evidence and release identity
+
+Policy publication and disablement are fail-closed evidence inputs. They are not
+assumed passed because the implementation or a test file exists. Record actual
+results and supporting artifact references, then provide
+`TYPESAFE_OPERATIONS_RECEIPTS_PATH` with booleans
+`policiesPublishedBeforeHoldout` and `connectionDisablementVerified`.
+Do not set either true without performing and retaining the corresponding work.
+The published acceptance policy is
+`docs/audits/jev-onboarding-acceptance-policy-2026-10-02.md`.
+
+The CLI also executes the existing conservative raw benchmark gate on the labeled
+holdout: at least 200 holdout examples, at least 20 per evaluated class, coverage
+at least 0.80, zero safety/controlled-value violations, and a positive lower 95%
+bound on the paired primary-metric improvement. Raw source and frozen snapshot
+must match; provider failures keep the gate unqualified. These existing floors
+are a necessary statistical gate, not proof of every capability's fitted policy
+or of representative assortment coverage. Tiny fixture success and operational
+checkboxes cannot clear `statistical_gate_failed` / `statistical_gate_unverified`.
+
+Predictor `code-executed-v5` binds coded semantic abstentions into the immutable
+artifact hash. A low-probability refusal is not a correct no-fit answer, and an
+insufficient-evidence answer is not a no-match answer. Unlabeled rows earn no
+accuracy credit. The paired primary metric is `productType.rawCorrectness` over
+the labeled fixed population, including abstentions, rather than only the subset
+answered by both providers. Older artifacts stay readable and retain their bytes.
+
+A development-only comparison cannot qualify release. A dirty runtime worktree
+cannot be certified by a receipt naming HEAD: the CLI reports
+`qualified_code_uncommitted` until reviewed code is committed and tested there.
+Dependent review refreshes consume human review, so their outputs cannot be
+recaptured as raw pre-review predictions (`post_review_refresh`). Original
+immutable prediction artifacts remain readable.
+
+### I. Page sync and local OCR
+
+Page download explicitly requests `Name`, `File name`, `Page ID`, and `Title`
+using documented XML compatibility version 14.0. Merchant default field
+selection can return hundreds of empty/name-only records; unnamed records are
+rejected instead of inventing assignment pages. Preview/activate a fully verified
+download through the existing import workflow. No page upload or publishing is
+performed by this procedure.
+
+The local workspace's `visionOcr` route is now explicit local-only
+`onboarding-ocr-local` / `qwen2.5vl:latest`, with no cloud fallback. Default OCR
+was verified on a real package image without route/transport overrides, including
+materialization as `visual_product_evidence`. Old frozen routes remain frozen.
+Transport success proves plumbing, not perfect transcription or interpretation.
+Review raw visible text and unsupported structured claims independently.
+
+### J. Status Semantics: `blocked` vs `provisionally_qualified`
 - `qualified`: zero blockers.
 - `provisionally_qualified`: offline evidence itself is clean
   (`candidateOutperformsBaseline`, zero harmful regressions in every stage,
@@ -281,17 +363,29 @@ failures, so `offlineEvaluationPassed` is false and
 
 ### Instant Route Rollback
 If Jev Curation needs to be deactivated for any stage:
-1. Navigate to **Settings → AI Routing**.
+1. Navigate to **Settings → AI Compute → Classification Stage Providers**.
 2. Select the stage (e.g. `primary_product_type_proposal`) and switch provider to `ollama` or `openai`.
-3. Click **Apply Policy**.
+3. Click **Preview Changes**, inspect the effective routes and sharing effects,
+   then **Apply Classification Policy**.
 4. Future runs immediately dispatch to the newly selected provider.
 
 ### Emergency Connection Disablement
-To immediately halt all TypeSafe traffic:
+To immediately halt protected TypeSafe Curation dispatches:
 1. Navigate to **Settings → AI Compute**.
 2. Toggle the **TypeSafe** connection to **Disabled**.
-3. Any subsequent classification dispatch to TypeSafe immediately throws `AiConnectionUnavailableError` without attempting network requests.
-4. **Zero Retry & No Implicit Fallback:** The system fails closed into an audited abstention; it will *never* silently fall back to an unconfigured or unapproved provider.
+3. Every protected classification attempt reads the current stored enabled state,
+   including a retry after backoff. A captured enabled connection cannot bypass
+   a later disablement. Disabled/missing/unreadable authority fails closed before
+   further network use; an already dispatched request cannot be recalled.
+4. **No further retry or implicit fallback:** The system records an actionable
+   unavailable/policy-denied outcome. It never substitutes an unconfigured or
+   unapproved provider. The same attempt boundary rechecks the execution lease.
+
+`docs/audits/jev-disablement-v2-2026-10-03.json` records a controlled live HTTP
+exercise with an isolated database: zero requests when disabled initially, one
+request followed by a denied retry after stored disablement, and one request
+followed by a denied retry after lease loss. This exercise uses no network mocks
+and performs no vendor inference or production-connection mutation.
 
 ### Provenance Guarantee
 Existing and in-flight classification runs are permanently linked to their original `config_snapshot_hash` and `classification_model_calls` audit rows. Changing route settings or disabling connections never alters or rewrites the provenance of historical runs.
@@ -302,20 +396,21 @@ Existing and in-flight classification runs are permanently linked to their origi
 
 ### Upgrading Jev Model Pins (e.g. `jev-1.13.0` → `jev-1.14.0`)
 1. Add the new versioned pin to `TYPESAFE_KNOWN_MODELS` in `src/ai/systemone-transport.ts`.
-2. Run the offline benchmark harness against the held-out gold set:
+2. Fit the proposed model/question/probability policy on development examples:
    ```bash
-   bun scripts/typesafe-curation-qualification.ts
+    bun scripts/typesafe-curation-qualification.ts --split=dev
    ```
-3. Verify that the shipped non-regression gates hold (no absolute
-   percentages — the gates compare candidate vs baseline on the executed
-   artifact):
+3. Publish the proposed acceptance policy before inspecting a new family-separated
+   holdout. Evaluate that holdout with the conservative statistical gate and
+   stage-specific non-regression checks:
    - `candidateOutperformsBaseline` is true (candidate raw correctness $\ge$ baseline on Primary Product Type).
    - Zero harmful regressions in every stage (Product Type, Attributes, Category Pages).
    - Zero candidate service failures (`summary.zeroServiceFailures` true — `blocked` sides never evidence quality).
-4. Update `TYPESAFE_EVALUATED_MODEL` in `src/ai/systemone-transport.ts`.
-5. Update tests and documentation.
+4. Activate the new pin only after reviewed qualification, compatibility checks
+   and canaries pass. Do not use an already inspected fixture as a new sealed holdout.
+5. Update version/hash tests and operating documentation; old runs remain attributable.
 
 ### Modifying Question Prompts or Thresholds
 - Question instructions and criteria are versioned in `src/classification/model-operation-registry.ts` (`RULE_VERSIONS` and `PROMPT_TEMPLATE_VERSIONS`).
 - Changing a question prompt or instructions increments the corresponding rule version, ensuring cache invalidation and immutable audit tracking.
-- Lowering confidence thresholds (e.g. below 0.50 for single Choice or 0.70 for multi-value Noul) requires written justification, ADR approval, and verification that the Wilson lower bound on precision remains $\ge 0.95$.
+- Lowering outcome-probability floors (e.g. below 0.50 for single Choice or 0.70 for multi-value Noul) requires written justification, ADR approval, and verification that the Wilson lower bound on precision remains $\ge 0.95$.

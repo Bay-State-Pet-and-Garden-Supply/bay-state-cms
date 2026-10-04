@@ -16,6 +16,8 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
   beforeAll(() => {
     initDb(dbPath);
     runMigrations();
+    insertWorkspace({ id: wsId, name: 'Test WS', workspacePath: '/tmp/test', gitPath: '/tmp/test/.git',
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), bootstrapStatus: 'complete', baselineCommit: null });
   });
 
   afterAll(() => {
@@ -68,16 +70,6 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     const runId = randomUUID();
     const sku = 'SKU-INVAL-1';
 
-    insertWorkspace({
-      id: wsId,
-      name: 'Test WS',
-      workspacePath: '/tmp/test',
-      gitPath: '/tmp/test/.git',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      bootstrapStatus: 'complete',
-      baselineCommit: null,
-    });
     db.run(
       `INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
        VALUES (?, ?, 'Batch 1', 'test.csv', datetime('now'), datetime('now'))`,
@@ -282,5 +274,106 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     expect(refreshItem).toBeDefined();
     expect(refreshItem.trigger_type).toBe('primary_product_type_change');
     expect(refreshItem.status).toBe('queued');
+  });
+
+  function createReviewFixture(dependentAccepted = true) {
+    const db = getDb();
+    const runId = randomUUID();
+    const batchId = randomUUID();
+    const itemId = randomUUID();
+    const typeProposalId = randomUUID();
+    const fieldProposalId = randomUUID();
+    const fieldDecisionId = randomUUID();
+    const sku = `REVIEW-${randomUUID()}`;
+    const config = loadConfigFixture();
+    const ref = createConfigSnapshot(wsId, config);
+    const snapshot = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/test', productSku: sku,
+      config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: sku });
+    persistRuntimeSnapshot(snapshot);
+    db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
+      VALUES (?, ?, 'Review fixture', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
+    db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
+      VALUES (?, ?, 1, ?, 'Fixture', 'review', 'pending', ?, datetime('now'), datetime('now'))`,
+    [itemId, batchId, sku, JSON.stringify({ classificationRunId: runId })]);
+    db.run(`INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, config_snapshot_hash, started_at)
+      VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))`, [runId, wsId, itemId, sku, snapshot.snapshotHash]);
+    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES (?, ?, ?, 'primary_product_type', 'dog_food', '{"productTypeId":"dog_food"}', 0.9, 'pending', datetime('now'))`, [typeProposalId, runId, sku]);
+    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Chicken"', 0.9, ?, datetime('now'))`, [fieldProposalId, runId, sku, dependentAccepted ? 'accepted' : 'pending']);
+    if (dependentAccepted) {
+      db.run(`INSERT INTO classification_proposal_decisions (id, proposal_id, decision, reviewer_id, decision_origin, created_at)
+        VALUES (?, ?, 'accepted', 'nick', 'human_review', datetime('now'))`, [fieldDecisionId, fieldProposalId]);
+      markReviewed({ itemId, batchId, reviewedBy: 'nick' });
+    }
+    return { runId, itemId, sku, typeProposalId, fieldProposalId, fieldDecisionId };
+  }
+
+  it('agent type evaluation leaves human dependents and durable review untouched without claiming refresh authority', () => {
+    const fixture = createReviewFixture();
+    const input = { workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId, reviewOrigin: 'agent_review',
+      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { productTypeId: 'cat_food' }, reviewerId: 'opencode', actionToken: randomUUID(), expectedRevisionId: null }] } as const;
+    const result = submitProposalDecisions({ ...input, decisions: [...input.decisions] });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.refreshRequired).toBe(false);
+    const retry = submitProposalDecisions({ ...input, decisions: [...input.decisions] });
+    expect(retry.ok).toBe(true);
+    if (result.ok && retry.ok) expect(retry.decisions[0].id).toBe(result.decisions[0].id);
+    expect(getDb().query('SELECT status, is_stale FROM classification_proposals WHERE id = ?').get(fixture.fieldProposalId)).toEqual({ status: 'accepted', is_stale: 0 });
+    expect(getDb().query('SELECT superseded_at FROM classification_proposal_decisions WHERE id = ?').get(fixture.fieldDecisionId)).toEqual({ superseded_at: null });
+    expect(getReviewState(fixture.itemId)?.reviewInvalidatedAt).toBeNull();
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_refresh_queue WHERE expected_run_id = ?').get(fixture.runId)).toEqual({ n: 0 });
+    const overwrite = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId, reviewOrigin: 'agent_review',
+      decisions: [{ proposalId: fixture.fieldProposalId, decision: 'rejected', reviewerId: 'opencode' }] });
+    expect(overwrite.ok).toBe(false);
+    if (!overwrite.ok) expect(overwrite.code).toBe('decision_conflict');
+    const confirmation = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId,
+      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', reviewerId: 'nick', revisedValue: { productTypeId: 'cat_food' },
+        expectedRevisionId: result.ok ? result.decisions[0].id : null }] });
+    expect(confirmation.ok).toBe(true);
+    if (confirmation.ok) expect(confirmation.refreshRequired).toBe(true);
+    expect(getDb().query('SELECT status, is_stale FROM classification_proposals WHERE id = ?').get(fixture.fieldProposalId)).toEqual({ status: 'stale', is_stale: 1 });
+    expect(getReviewState(fixture.itemId)?.reviewInvalidatedAt).not.toBeNull();
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_refresh_queue WHERE expected_run_id = ?').get(fixture.runId)).toEqual({ n: 1 });
+  });
+
+  it('rejects target-only field injection before writing any revision or history', () => {
+    const fixture = createReviewFixture();
+    const beforeHistory = getDb().query('SELECT COUNT(*) AS n FROM classification_history_events WHERE run_id = ?').get(fixture.runId);
+    const result = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId,
+      decisions: [{ proposalId: fixture.fieldProposalId, decision: 'accepted', revisedTargetId: 'invented', reviewerId: 'nick' }] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('invalid_decisions');
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_proposal_decisions WHERE proposal_id = ?').get(fixture.fieldProposalId)).toEqual({ n: 1 });
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_history_events WHERE run_id = ?').get(fixture.runId)).toEqual(beforeHistory);
+  });
+
+  it('returns a review conflict for corrupt item provenance without saving a decision', () => {
+    const fixture = createReviewFixture();
+    getDb().run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', ['{invalid', fixture.itemId]);
+    const result = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId,
+      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', reviewerId: 'nick' }] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('decision_conflict');
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_proposal_decisions WHERE proposal_id = ?').get(fixture.typeProposalId)).toEqual({ n: 0 });
+  });
+
+  it('rolls back a mixed request that accepts a dependent invalidated by its earlier type correction', () => {
+    const fixture = createReviewFixture(false);
+    const result = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
+      sourceKind: 'onboarding', onboardingItemId: fixture.itemId, decisions: [
+        { proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { productTypeId: 'cat_food' }, reviewerId: 'nick', expectedRevisionId: null },
+        { proposalId: fixture.fieldProposalId, decision: 'accepted', reviewerId: 'nick', expectedRevisionId: null },
+      ] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('decision_conflict');
+    expect(getDb().query('SELECT status, is_stale FROM classification_proposals WHERE id = ?').get(fixture.fieldProposalId)).toEqual({ status: 'pending', is_stale: 0 });
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_proposal_decisions WHERE proposal_id IN (?, ?)').get(fixture.typeProposalId, fixture.fieldProposalId)).toEqual({ n: 0 });
+    expect(getDb().query('SELECT COUNT(*) AS n FROM classification_refresh_queue WHERE expected_run_id = ?').get(fixture.runId)).toEqual({ n: 0 });
   });
 });

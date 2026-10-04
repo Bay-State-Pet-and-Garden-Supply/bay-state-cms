@@ -1,0 +1,480 @@
+{
+  "productTypeReviewed": false,
+  "attributesReviewed": false,
+  "pagesReviewed": false,
+  "cohortPagesReviewed": false,
+  "runs": [
+    {
+      "itemId": "eeead80c-2adb-4fff-ae45-6535ef9be278",
+      "runId": "cb95a44c-edbe-4497-85a7-10e114dc6d08",
+      "cohortRunId": null,
+      "snapshotHash": "1c58bce39121465c37a8a3594fee86680a0e4325b37e372a34b0e867195df6e1",
+      "decisions": [
+        {
+          "id": "23608fa3-5392-409c-a535-ff0c6e43107b",
+          "proposalId": "06719603-77c9-428c-a7e5-adcbaf1e6c71",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "625034f7-538d-41cc-993f-1ca869ec07c2",
+          "proposalId": "2a015021-e9a0-418c-8153-6676b4b908d6",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "772e739f-5a2f-4afa-b95b-f211951108e7",
+          "proposalId": "af1a3862-f409-45e8-a35f-9ee3498bd215",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "da62e47f-4865-4e77-91c1-c4c106c3fa1d",
+          "proposalId": "299a5010-a810-48bd-a4e2-4da84fdaa955",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "8ffcc022-a11b-4627-9a16-c7438e2fd375",
+          "proposalId": "acd05abc-8aff-473c-ba03-359ef2abcafa",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "e112aeec-f56b-4d87-be96-433925047379",
+          "proposalId": "8fbbb2a8-b888-409a-86e8-7fb5a78e625a",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "92d5ac35-bbea-405c-90c3-b56a46cddef0",
+          "proposalId": "2cc4ecf9-ac25-4a4e-b9d4-611971c4c86c",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "b89216f2-bdc9-4d22-8cb5-e8b25382cfc7",
+          "proposalId": "66e0a42b-df31-4595-a259-4d736a64d754",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        },
+        {
+          "id": "6ae7e272-6667-4f7a-a6dd-5c5c8009c204",
+          "proposalId": "44cc2a91-b1b8-47e5-977a-5dfbd802e4bd",
+          "reviewerId": "nick",
+          "origin": "human_review"
+        }
+      ]
+    },
+    {
+      "itemId": "93f073cd-3d62-4f7e-aae5-fafb6802b973",
+      "runId": "3c6a7d33-c2b2-4141-8746-315e47e18dd6",
+      "cohortRunId": null,
+      "snapshotHash": "b828772338fa09c24642a65c256be1a8db28a3463fdc34871bbc0deecc9b7deb",
+      "decisions": [
+        {
+          "id": "40d6ce30-af85-411f-8759-1e69d62fee84",
+          "proposalId": "204a5043-5f01-4e2c-8f4e-1f53e9d1adfa",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "ddc42223-9929-4bbd-9184-a0b5dedc94c9",
+          "proposalId": "f3d9f6e2-9069-4cf8-9668-c5d321ec5cb7",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "86d053fc-0acd-4c60-bea6-e147364c372c",
+          "proposalId": "05b3545f-1b80-432d-9ac8-4631ca58053c",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "62482481-1bea-42c1-a2b7-f7065e200efe",
+          "proposalId": "926a4cb4-532b-433b-87e8-aa0595f57903",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "46111f21-4424-4b8a-a5bb-593c060d179c",
+          "proposalId": "c095d353-da2f-44ae-b561-2d44a4d0b076",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "d869d60a-539d-4abf-bb35-bafda0ed4427",
+          "proposalId": "4084640a-521d-42ab-b487-16b4579cb9ab",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "4b970d19-eeef-4d25-a518-bf5d6fb7090b",
+          "proposalId": "d173e4e0-8e44-4ad1-9731-87052a250f12",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "8cd7a42f-01de-4ee5-927f-dab7d9841c17",
+          "proposalId": "f5ab557d-b0a9-429c-b9a1-22ad6724c5cd",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "e7162f7e-07e8-44f4-8674-d8fde30e0be0",
+          "proposalId": "c9facbe1-5f05-4174-986c-b0010ebd5bf1",
+          "reviewerId": null,
+          "origin": "human_review"
+        }
+      ]
+    },
+    {
+      "itemId": "dccdd623-5f63-4a7d-83c9-a51ede6920a5",
+      "runId": "031f7ff5-878e-43b3-91e5-aca3c94670bb",
+      "cohortRunId": null,
+      "snapshotHash": "22c8c8dac424eeb3e1b3ff9ccb33aef71ab4e51862adb3071b8b24fe95be902c",
+      "decisions": [
+        {
+          "id": "89d12ff1-5807-4730-a88d-0a9b8765911a",
+          "proposalId": "95297a3f-ecbc-46b6-a9e6-e946590838f4",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "c53a17cf-35c4-4d03-bc5e-06be94e4e7c2",
+          "proposalId": "70fd33ce-1e10-4f4e-ac22-c6818fe21d12",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "74a843b5-6096-49a8-85ad-e84267ec4560",
+          "proposalId": "9f0702e6-78e5-44b5-9bc3-5b727ad7fcf4",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "6352caa8-ec3b-4b30-a877-7c8b523024d9",
+          "proposalId": "2a3eab03-a19e-4fe9-b9e6-18eda80f9a64",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "8944f7d7-ebca-452c-a867-fc0bb06d458d",
+          "proposalId": "ac277148-4d19-4acf-8fd8-7bd6f6a1fdd7",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "4c36210a-81cc-4514-a0d9-38d07a6a213e",
+          "proposalId": "4efeae40-0aae-465d-b883-18fa93fca2cb",
+          "reviewerId": null,
+          "origin": "human_review"
+        },
+        {
+          "id": "cc531e6b-29bf-4415-8d29-dc7ed3aa8757",
+          "proposalId": "bd58d61b-b944-413e-b639-744e156cbd46",
+          "reviewerId": null,
+          "origin": "human_review"
+        }
+      ]
+    },
+    {
+      "itemId": "f0178037-ba81-4b91-a1fb-46922550e9ae",
+      "runId": "1fac628f-1712-4ffc-a9ca-f065787c1fed",
+      "cohortRunId": null,
+      "snapshotHash": "12fdfa02a3caeb22b7cbd767c762e5cecc97af4ff5f51263cff33df97acc7ba6",
+      "decisions": [
+        {
+          "id": "5b446d37-8c1b-4b09-9892-6ae0b91bbb7a",
+          "proposalId": "1b776500-2793-4e3a-8dcf-693afffa625d",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "a6e773be-20b9-420b-b6ed-a727f0bd353a",
+          "proposalId": "34dcd01a-f930-489a-bd2f-2d1d703c6f8d",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "b939553c-2d74-4f51-8889-2b76df613a50",
+          "proposalId": "1ba896a3-7c2e-47cf-a040-265ae7397ebd",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "de935e25-18b2-4c71-9477-8ca4834cdf80",
+          "proposalId": "c04c5ffc-d451-4a87-8d22-5f4ec006b5bc",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "ed42b772-85a8-474e-92c2-c96beee53d40",
+          "proposalId": "2a9a8ca0-ae82-4330-aeec-99821fd08742",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "300c125b-224d-4d06-8817-f8cf9e1c592b",
+          "proposalId": "c1af0e0c-42f4-4190-9a9c-7777ecc7cbe0",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "91792978-b237-4de6-a3a4-1106f3abefc6",
+          "proposalId": "88cb1b30-c005-4fb2-9599-9624dfc9abb1",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "da60132e-223d-435f-959a-c524b700ce46",
+      "runId": "8dccdf0e-aaeb-42c7-8de9-658153bfa44b",
+      "cohortRunId": null,
+      "snapshotHash": "f5b7beeb2cfd347c8f66552304d805accb1c43bf275061da97492098f74b6eca",
+      "decisions": [
+        {
+          "id": "cbfb600c-b0dc-428a-9ec1-dcd07b176fe5",
+          "proposalId": "6a190338-be5c-4840-b1ec-f46feeed38c2",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "3f469252-7d48-4489-a92e-cb0dc54aea43",
+          "proposalId": "c60a4154-2f78-4b38-be64-e9e91d5ddc00",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "2765a305-7325-44e7-9701-28006381a608",
+          "proposalId": "71be85f3-db2d-468a-98a5-b57aa9747d4e",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "f9f2b798-17aa-4c07-b6e5-c700f401afc4",
+          "proposalId": "0b21eda4-82c2-46b8-aaba-93d1f17c83bf",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "942ff9c9-a762-4a24-8544-68aa6e3487db",
+      "runId": "598a62b9-87da-46e1-b6eb-6a1bc304dde6",
+      "cohortRunId": null,
+      "snapshotHash": "5a33d11b423737d641e23b4b809781e7f1c68511e0ff4a91193388bc039a7c82",
+      "decisions": [
+        {
+          "id": "66dde9ba-5d1c-4a33-9fbd-20548d3f30fc",
+          "proposalId": "81c48eee-c0df-4bf7-b9f2-a19d2334cde7",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "e85e81a7-0ce6-48cf-95d8-75b348682715",
+          "proposalId": "d09b9f8c-d973-4463-bd08-1d2d6345130c",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "ef2443ab-5dac-41c8-8013-07d3e87524dc",
+          "proposalId": "65db7f01-78c2-472d-9e5b-83f743d69227",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "54158182-3cab-478a-b077-d903edf6c427",
+      "runId": "e093c983-9b2a-46f8-81a5-f5030405d62d",
+      "cohortRunId": null,
+      "snapshotHash": "a70c97fb7dc203f8cf9be1880674ece3830cd45593bbb5798ca27b81871bea73",
+      "decisions": [
+        {
+          "id": "9fe55aa8-213b-48be-9bc6-9c5e7b0b6539",
+          "proposalId": "9337ba71-4d38-4e98-b714-d23e97244560",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "17c10c33-a7b2-4633-8d4b-4d466803be73",
+          "proposalId": "94275917-916d-4517-a485-04b780592478",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "8023fac4-f3fa-4b00-ae2c-e988fcaa4eac",
+          "proposalId": "565a6fa2-43ea-4d0b-ac67-bea3a0a6f959",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "60d7ebd2-a617-47f0-95b2-0a90606c5d2b",
+      "runId": "3887419f-ee54-4116-b3dd-3fa9b438967c",
+      "cohortRunId": null,
+      "snapshotHash": "15c2f4252e188c975dc69755d4105ce1d1ff2ce3a43846d12a66a4d632f2232c",
+      "decisions": [
+        {
+          "id": "5f9882a5-9f3f-4955-b15a-367597b826eb",
+          "proposalId": "a22daba1-d250-46bc-8acb-851cb33b40b3",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "867001eb-eb75-4c68-aa06-495b8f6a21c9",
+          "proposalId": "a9787242-647c-4764-8882-1b6e21fab263",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "d2ccde1a-4acc-4227-afed-535918a27d83",
+          "proposalId": "c0b889b9-3d2e-4e8c-8043-7c87865b5aba",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "d1b8e9e6-8b55-479d-ab4c-d592a64a1a20",
+          "proposalId": "8d838478-96fd-4732-9f5d-73c7be119512",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "02fb36ee-7b7c-4bc1-9c8b-19174f99d1d1",
+      "runId": "bacc9c74-b59a-4b7b-9007-a9a96b3b01db",
+      "cohortRunId": null,
+      "snapshotHash": "34480f0c3aa3f4ace76d3ea5c568398749a31bc6ab6f17ac5fe3e406015a50f1",
+      "decisions": [
+        {
+          "id": "59fc988a-8204-466f-9297-66499025a60b",
+          "proposalId": "7e07cb5f-82e1-4587-8f1c-f23a986b0e2a",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "424ba5be-6f31-496d-b877-6f810a95b701",
+          "proposalId": "a96dfa70-c8dd-426c-8f48-bf6afdf7c64c",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "07e5bbe8-87ce-4ecf-9a1a-536c7d12c180",
+          "proposalId": "c36f63f7-4da3-4429-99bb-78ab6e84a095",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "f72d9ea7-f8ed-4a87-ada1-45a2c4691537",
+          "proposalId": "d74cfea4-7551-4492-8fc7-0b90dd6f4daa",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "dcc90d89-9c4d-43d4-a451-73b2b03d6bf7",
+      "runId": "7af75a37-a8ac-49a9-a651-8d8ff2f677a3",
+      "cohortRunId": null,
+      "snapshotHash": "270608452c7b3cc34bf75c063bf95c0806b13e96d15e8a1ef3682c25cce8ca20",
+      "decisions": [
+        {
+          "id": "99b39306-561c-4299-a7e6-d113330639a3",
+          "proposalId": "3e9261ba-e8a9-426e-8c96-56069e046c2d",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "a07c2e98-d5b2-4ad7-b402-2acb54c70164",
+          "proposalId": "518c3582-7f49-45f2-89b0-1275aadb6060",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "53651eeb-64ea-4b7c-b526-f17b53ee160a",
+          "proposalId": "261a5d24-953d-42e3-8f69-1dc36751e94a",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "8c43ab73-7114-473e-bd09-ab1e34ee85e9",
+          "proposalId": "aa6d44ab-afcd-4852-9785-11e5480edba2",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "7d685443-e26c-4d9b-a1e1-74534d5997ef",
+      "runId": "3ba85b7f-1d35-4066-bac5-7523ff59e348",
+      "cohortRunId": null,
+      "snapshotHash": "1c1720aba51c72fd2a62210b4c6d4bc5d3ba5f1bd98414dbef3a9e927d781115",
+      "decisions": [
+        {
+          "id": "188a71b8-8d45-4340-8775-8deb206e358b",
+          "proposalId": "9f4a0022-2380-4812-8d41-850a9d83d74b",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "d4a66249-0d64-4dc3-9104-7e0f950128a5",
+          "proposalId": "d9933dbe-4ce0-45bf-8dd8-eee63ffe11f5",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "d658f04f-4bac-4604-9971-162d6346e947",
+          "proposalId": "225b70eb-4b2e-4577-942d-775d9a075574",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "99a6bd3d-1004-4b00-b37c-6124253a88ec",
+          "proposalId": "57f3b498-436d-478b-995c-d456dcc71a88",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    },
+    {
+      "itemId": "efad537d-4bb3-4859-beb6-2d6872824b64",
+      "runId": "ced008bf-c6f2-4396-80ab-50d9f69dc416",
+      "cohortRunId": null,
+      "snapshotHash": "a05fc4f528d358b330580a7f850a808e66d34a6d34d17a9a1fc809fa945fc68e",
+      "decisions": [
+        {
+          "id": "b8ac9f71-8a19-4b62-8974-2182c312d56f",
+          "proposalId": "763cafe7-3481-428a-9657-9c213195d52c",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "7dd4ed53-cc80-4aed-be5b-34d1c81d0eb2",
+          "proposalId": "17022e37-103d-43f4-af48-f3b956648d02",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "0792173c-0cca-40cb-895b-d62610307c8e",
+          "proposalId": "0e4bffcb-81bf-4f17-ac08-3574979c8138",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        },
+        {
+          "id": "e0319ca9-3656-49bf-8dac-37a0a6459c2f",
+          "proposalId": "130b76b3-1f72-48f1-8749-276e6e5d7a4e",
+          "reviewerId": "opencode:jev-canary-evaluation",
+          "origin": "agent_review"
+        }
+      ]
+    }
+  ],
+  "batch": "Jev Canary — goldset-16",
+  "reviewedBy": "opencode:jev-canary-evaluation",
+  "reviewedAt": "2026-10-03T00:50:02.013Z",
+  "decisionsThisSession": 39
+}

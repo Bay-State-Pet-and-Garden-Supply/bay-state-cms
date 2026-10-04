@@ -35,7 +35,7 @@ vi.mock('@/classification/page-assignment-llm', () => ({
 }));
 
 vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
-import { processPageTarget, materializeCoordinatedPages } from '../../classification/curation-target-processor';
+import { processPageTarget, materializeCoordinatedPages, processProductFieldTarget } from '../../classification/curation-target-processor';
 import { categoryPageProposalsStage } from '../../classification/stages/category-page-proposals';
 
 const products = [
@@ -88,6 +88,33 @@ describe('grouped page target processing', () => {
     const result = await processPageTarget(target as any, input, context);
     expect(result.proposals).toEqual([]);
     expect(result.message).toContain('Cohort page coordination abstained');
+    expect(mocks.perItem).not.toHaveBeenCalled();
+  });
+
+  it('retains the actual Jev judgment derivation from coordinated results', async () => {
+    const derivation = { kind: 'systemone_judgment', primitive: 'noul', questionId: 'cohort_page_SKU1_cat_wet', selectedProbability: 0.8, vendorConfidence: null, probabilityBasis: 'noul_probability' };
+    mocks.coordinate.mockResolvedValue(new Map([
+      ['SKU1', { status: 'assigned', source: 'typesafe', pages: [{ pageId: 'cat-wet', pageName: 'Cat Food Wet', confidence: 0.8, derivation }] }],
+    ]));
+    const result = await processPageTarget(target as any, input, context);
+    expect(result.proposals[0].derivation).toEqual(derivation);
+    expect(result.proposals[0].isBulkAcceptable).toBe(false);
+  });
+});
+
+describe('supplied brand provenance', () => {
+  it('preserves the supplied brand and shows opposing extraction without sending it to a model', async () => {
+    const evidence = [
+      { id: 'web-brand', source: 'official_product_page', sourceField: 'brand', value: 'Other', snippet: 'Other' },
+      { id: 'input-brand', source: 'spreadsheet', sourceField: 'brand', value: 'Acme', snippet: 'Acme' },
+    ].map(e => ({ ...e, runId: 'run-SKU1', productSku: 'SKU1', stageName: 'evidence_extraction', attributeId: null, reliability: 'high', sourceUrl: null, metadata: null, capturedAt: '' }));
+    const brandTarget = { config: { id: 'brand-target', kind: 'product_field', label: 'Brand', attributeId: 'brand', catalogField: 'ProductField16', selectionMode: 'single' },
+      attribute: { id: 'brand', name: 'Brand', valueMode: 'freeText', valueAliases: [] }, options: [] };
+    const result = await processProductFieldTarget(brandTarget as any, { ...input, evidence: evidence as any }, context);
+    expect(result.proposals[0].proposedValue).toBe('Acme');
+    expect(result.proposals[0].derivation).toEqual({ kind: 'evidence_match' });
+    expect(result.proposals[0].supportingEvidenceIds).toContain('input-brand');
+    expect(result.proposals[0].contradictingEvidenceIds).toContain('web-brand');
     expect(mocks.perItem).not.toHaveBeenCalled();
   });
 });

@@ -189,7 +189,7 @@ export function buildCategoryPageProposal(params: CategoryPageProposalParams): C
       : {}),
     derivation: params.derivation,
     status: 'pending',
-    isBulkAcceptable: params.isBulkAcceptable ?? false,
+    isBulkAcceptable: params.derivation?.kind === 'systemone_judgment' ? false : (params.isBulkAcceptable ?? false),
     isStale: false,
     stalenessReason: null,
     snapshotHash: params.snapshotHash ?? null,

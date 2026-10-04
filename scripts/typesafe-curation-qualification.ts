@@ -46,9 +46,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { initDb } from '../src/db/connection';
 import { createHash } from 'node:crypto';
 import {
   evaluateJevOfflineComparison,
+  evaluateJevQualificationGate,
   assessProductionQualification,
   REQUIRED_COMPATIBILITY_SUITE_IDS,
   OPERATOR_RUNBOOK_PATH,
@@ -86,6 +88,9 @@ const modelArg = process.argv.find(a => a.startsWith('--model='))?.split('=')[1]
 const baselineProviderArg = process.argv.find(a => a.startsWith('--baseline-provider='))?.split('=')[1];
 const baselineModelArg = process.argv.find(a => a.startsWith('--baseline-model='))?.split('=')[1];
 const artifactOutArg = process.argv.find(a => a.startsWith('--artifact-out='))?.split('=')[1];
+const dbArg = process.argv.find(a => a.startsWith('--db='))?.slice('--db='.length);
+if (splitArg && !['dev', 'holdout'].includes(splitArg)) throw new Error('--split must be dev or holdout.');
+if (Boolean(baselineProviderArg) !== Boolean(baselineModelArg)) throw new Error('Provide both baseline provider and model.');
 
 if (!fs.existsSync(GOLDSET_PATH)) {
   console.error(`Goldset fixture not found at ${GOLDSET_PATH}`);
@@ -104,7 +109,10 @@ if (Array.isArray(raw.entries) && raw.entries.some((e: unknown) => {
     'Note: fixture copy embeds legacy baseline/candidate predictions; ignoring them — predictions will be executed from code.',
   );
 }
-const goldEntries = parseQualificationGoldOnly(raw);
+const allGoldEntries = parseQualificationGoldOnly(raw);
+// Split before inference. A development run must never send sealed holdout
+// evidence to either provider merely to discard it later during scoring.
+const goldEntries = splitArg ? allGoldEntries.filter(entry => entry.split === splitArg) : allGoldEntries;
 
 // Candidate option sets come from the frozen taxonomy snapshot — never the
 // union of gold labels. A present-but-malformed snapshot fails closed;
@@ -127,6 +135,11 @@ const hasKey = apiKey.length >= 8;
 const baselineRoute = baselineProviderArg && baselineModelArg
   ? { provider: baselineProviderArg, model: baselineModelArg }
   : null;
+if (baselineRoute) {
+  const databasePath = dbArg ?? process.env.BAYSTATE_CMS_DB ?? path.resolve(import.meta.dir, '../storage/catalog/.shopsite-cms/app.db');
+  if (!fs.existsSync(databasePath)) throw new Error('Live incumbent capture requires an initialized workspace database (--db=path).');
+  initDb(databasePath);
+}
 if (isLiveCaptureFlag && !hasKey) {
   console.error(
     'Note: --live-capture requested without a provisioned TYPESAFE_API_KEY; the candidate side will be recorded as blocked (jev_credentials_absent), never simulated.',
@@ -152,6 +165,7 @@ const goldset: QualificationGoldset = {
   description: raw.description,
   adjudicatedBy: raw.adjudicatedBy,
   verifiedPageImport: raw.verifiedPageImport,
+  frozenTaxonomy,
   entries: goldEntries.map(e => {
     const p = artifact.predictions.find(x => x.sku === e.sku);
     if (!p) throw new Error(`Missing executed prediction for gold entry "${e.sku}".`);
@@ -169,6 +183,9 @@ const goldset: QualificationGoldset = {
 };
 
 const comparisonReport = evaluateJevOfflineComparison(goldset, splitArg);
+const statisticalGate = evaluateJevQualificationGate(goldset, { predictionSource: 'prereview_raw', bundleVersion: 1,
+  snapshotMatched: artifact.taxonomySource === 'frozen_snapshot' && artifact.frozenTaxonomyHash === frozenTaxonomy?.snapshotHash,
+  pairedSeedDigest: artifact.artifactHash });
 
 if (artifactOutArg) {
   fs.writeFileSync(artifactOutArg, JSON.stringify(artifact, null, 2));
@@ -279,6 +296,21 @@ function readCanaryReceipts(): CanaryReceipts {
   return receipts;
 }
 const canary = readCanaryReceipts();
+// Policies and disablement are operational evidence, not constants inferred
+// from the existence of unit tests. Absent receipts keep both gates false.
+let operations: { policiesPublishedBeforeHoldout?: boolean; connectionDisablementVerified?: boolean } = {};
+const operationsPath = process.env.TYPESAFE_OPERATIONS_RECEIPTS_PATH;
+if (operationsPath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(operationsPath, 'utf8'));
+    operations = {
+      policiesPublishedBeforeHoldout: parsed.policiesPublishedBeforeHoldout === true,
+      connectionDisablementVerified: parsed.connectionDisablementVerified === true,
+    };
+  } catch {
+    console.error('Operations receipt is unreadable; policy and disablement verification remain incomplete.');
+  }
+}
 
 // 5. Family-separation proof computed live via the shipped verifier over the
 // loaded gold entries (no operator input — deterministic, never rebuilt
@@ -286,7 +318,7 @@ const canary = readCanaryReceipts();
 let familySeparationProof: FamilySeparationProof | null = null;
 let familyProofDetail: string;
 try {
-  const proof = verifyFamilySeparation(goldEntries);
+  const proof = verifyFamilySeparation(allGoldEntries);
   familySeparationProof = proof;
   familyProofDetail = proof.passed
     ? `${proof.proofVersion} over ${proof.familiesChecked} families: passed (zero leakage, verified live)`
@@ -418,6 +450,9 @@ function warnUnresolvableCompatibilityCommit(): { commit: null; source: string }
   return { commit: null, source: 'unresolvable (unverified)' };
 }
 const compatExpected = resolveCompatibilityExpectedCommit();
+const runtimeStatus = Bun.spawnSync(['git', 'status', '--porcelain', '--', 'src', 'scripts', 'package.json', 'vitest.config.ts'],
+  { cwd: path.resolve(import.meta.dir, '..'), stdout: 'pipe', stderr: 'pipe' });
+const compatibilityWorktreeClean = runtimeStatus.exitCode === 0 && runtimeStatus.stdout.toString().trim() === '';
 
 // 7. Operator-docs receipt bound live to the published runbook bytes: the
 // content hash is computed at runtime, so any doc edit changes the receipt
@@ -446,6 +481,8 @@ try {
 }
 
 const assessment = assessProductionQualification({
+  ...operations,
+  compatibilityWorktreeClean,
   hasTypeSafeApiKey: hasKey,
   liveContractCheckExecuted,
   liveContractCheckSuccess,
@@ -457,6 +494,7 @@ const assessment = assessProductionQualification({
   compatibilityExpectedCommit: compatExpected.commit,
   operatorDocsReceipt,
   offlineComparisonReport: comparisonReport,
+  offlineQualificationGate: statisticalGate,
 });
 
 /** Count one prediction side (baseline/candidate) toward its source rollup. */
@@ -582,6 +620,7 @@ function summarizePredictionSources(): {
 const predictionSources = summarizePredictionSources();
 
 const predictionProvenance = {
+  decisionPolicyHash: artifact.decisionPolicyHash,
   predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
   artifactHash: artifact.artifactHash,
   predictedAt: artifact.predictedAt,
@@ -622,6 +661,7 @@ const compatibilityProvenance = {
   detail: compat.detail,
   expectedCommit: compatExpected.commit,
   expectedCommitSource: compatExpected.source,
+  runtimeWorktreeClean: compatibilityWorktreeClean,
 };
 const operatorDocsProvenance = {
   receipt: operatorDocsReceipt,
@@ -632,6 +672,7 @@ const operatorDocsProvenance = {
 if (isJson) {
   console.log(JSON.stringify({
     comparisonReport,
+    statisticalGate,
     assessment,
     predictionArtifact: artifact,
     predictionProvenance,
@@ -661,6 +702,7 @@ console.log(`Compatibility:    ${compat.detail} (expected ${compatExpected.commi
 console.log(`Operator docs:    ${operatorDocsDetail}\n`);
 
 console.log(`Evaluated Examples: ${comparisonReport.evaluatedExamples} (Dev: ${comparisonReport.devCount}, Holdout: ${comparisonReport.holdoutCount})`);
+console.log(`Statistical gate:   ${statisticalGate.qualified ? 'passed' : `unqualified (${statisticalGate.reasons.join('; ')})`}`);
 console.log(`Adjudicated By:     ${goldset.adjudicatedBy}\n`);
 
 console.log('--- 1. PRIMARY PRODUCT TYPE COMPARISON ---');
@@ -692,9 +734,11 @@ console.log(`  Pages Match:     ${comparisonReport.endToEndPipeline.pageEffects.
 console.log(`  All Stages OK:   ${comparisonReport.endToEndPipeline.endToEndCorrectAllStages}\n`);
 
 console.log('--- 5. LATENCY & COST TELEMETRY ---');
-console.log(`  Mean Latency:    Baseline ${comparisonReport.telemetry.latency.baseline.meanMs}ms | Jev ${comparisonReport.telemetry.latency.candidate.meanMs}ms`);
-console.log(`  P95 Latency:     Baseline ${comparisonReport.telemetry.latency.baseline.p95Ms}ms | Jev ${comparisonReport.telemetry.latency.candidate.p95Ms}ms`);
-console.log(`  Estimated Cost:  Baseline $${comparisonReport.telemetry.estimatedCostUsd.baseline.toFixed(4)} | Jev $${comparisonReport.telemetry.estimatedCostUsd.candidate.toFixed(4)}`);
+const formatLatency = (value: number | null) => value === null ? 'unknown' : `${value}ms`;
+const formatCost = (value: number | null) => value === null ? 'unknown' : `$${value.toFixed(4)}`;
+console.log(`  Mean Latency:    Baseline ${formatLatency(comparisonReport.telemetry.latency.baseline.meanMs)} | Jev ${formatLatency(comparisonReport.telemetry.latency.candidate.meanMs)}`);
+console.log(`  P95 Latency:     Baseline ${formatLatency(comparisonReport.telemetry.latency.baseline.p95Ms)} | Jev ${formatLatency(comparisonReport.telemetry.latency.candidate.p95Ms)}`);
+console.log(`  Estimated Cost:  Baseline ${formatCost(comparisonReport.telemetry.estimatedCostUsd.baseline)} | Jev ${formatCost(comparisonReport.telemetry.estimatedCostUsd.candidate)}`);
 console.log(`  Note: ${comparisonReport.telemetry.operatorTimeNote}`);
 console.log(`  Note: ${predictionProvenance.offlineLatencyNote}\n`);
 

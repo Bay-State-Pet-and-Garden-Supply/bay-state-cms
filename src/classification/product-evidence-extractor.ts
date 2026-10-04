@@ -8,7 +8,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getVlmConfig } from '../onboarding/vlm-client';
-import { runPackagingOcrAttempt, mergeOcrResults } from '../onboarding/packaging-ocr';
+import { runPackagingOcrAttempt, mergeOcrResults, parseJsonFromVlmResponse } from '../onboarding/packaging-ocr';
 import { getLlmConfigForTask, callLlmForTaskWithProvenance } from '../onboarding/llm-client';
 import { redactTransportText } from './model-policy-gateway';
 import { MODEL_CALL_STATUS } from './model-operation-registry';
@@ -666,7 +666,8 @@ export async function extractProductEvidence(
           if (response == null) {
             throw new Error('LLM call returned null');
           }
-          const parsed = JSON.parse(response.content.trim());
+          const parsed = parseJsonFromVlmResponse(response.content);
+          if (!parsed) throw new Error('Evidence extraction returned no valid JSON object.');
           let addedLlmEvidence = false;
           for (const [key, val] of Object.entries(parsed)) {
             if (val === null || val === undefined) continue;

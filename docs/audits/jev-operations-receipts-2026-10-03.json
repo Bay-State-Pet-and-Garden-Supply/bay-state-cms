@@ -1,0 +1,15 @@
+{
+  "policiesPublishedBeforeHoldout": false,
+  "connectionDisablementVerified": true,
+  "connectionDisablementEvidence": {
+    "path": "docs/audits/jev-disablement-v2-2026-10-03.json",
+    "recordedAt": "2026-10-03T15:03:49.481Z",
+    "scope": "Protected System One dispatch against a real loopback HTTP endpoint and isolated stored connection; no network mocks or vendor inference",
+    "boundaries": ["before_dispatch", "before_retry", "lease_loss_before_retry"]
+  },
+  "policyPublicationEvidence": {
+    "path": "docs/audits/jev-onboarding-acceptance-policy-2026-10-02.md",
+    "qualificationRevision": "2026-10-03",
+    "limitation": "The September fixture holdout was already inspected. No newly sealed representative holdout or fitted per-capability policy is certified."
+  }
+}

@@ -10,6 +10,10 @@ import { insertItems } from '../../db/repositories/onboarding-item-repo';
 import { createRun, completeRun } from '../../db/repositories/classification-run-repo';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import onboardingRoutes from '../../server/routes/onboarding-routes';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { generateCandidate } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 
 const workspaceId = 'ws-onboarding-decision-routes';
 const tempPaths: string[] = [];
@@ -29,7 +33,16 @@ function seedReviewItem(sku = 'SKU-ROUTE-1') {
     totalItems: 1,
   });
   const [item] = insertItems(batch.id, [{ upc: sku, name: 'Original item', rowNumber: 1 }]);
-  const run = createRun(workspaceId, sku, null, 'snapshot-hash', {
+  const config = generateCandidate(BayStatePetGardenSeed, { schemaVersion: 1, sourceTreeHash: '0'.repeat(64), productFileCount: 0,
+    parseFailureCount: 0, parseFailures: [], fieldRegistry: { entryCount: 0, xmlFields: [] }, fields: [], pages: [] }).bundle;
+  const ref = createConfigSnapshot(workspaceId, config as any);
+  const snapshot = buildRuntimeSnapshot({ workspaceId, workspacePath: '/tmp/route-review-fixture', productSku: sku, config: config as any,
+    configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: null,
+    pageImportId: 'fixture-import', pageImportHash: 'a'.repeat(64),
+    pages: { state: 'verified', records: [{ pageId: 'page-2', pageName: 'Toys',
+      parentPageId: null, parentPageName: null, verified: true, identityKind: 'exported_guid', identityKey: '2', sourceHash: 'a'.repeat(64) }] } });
+  persistRuntimeSnapshot(snapshot);
+  const run = createRun(workspaceId, sku, null, snapshot.snapshotHash, {
     onboardingItemId: item.id,
     sourceKind: 'onboarding',
   });

@@ -894,6 +894,7 @@ export const ClassificationProposalSchema = z.object({
   status: ProposalStatusEnum.default('pending'),
   isBulkAcceptable: z.boolean().default(false),
   isStale: z.boolean().default(false),
+  supersededAt: z.string().nullable().optional(),
   stalenessReason: z.string().nullable().default(null),
   /** Effective reviewer-corrected value from the latest live decision (immutable original stays in proposedValue). */
   revisedValue: z.unknown().optional(),

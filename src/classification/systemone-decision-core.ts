@@ -37,12 +37,14 @@ import {
   TYPESAFE_EVALUATED_MODEL,
   assertSystemOneModelMatch,
   dispatchSystemOne,
+  type SystemOneDispatchOptions,
 } from '../ai/systemone-transport';
 // Canonical `assertSystemOneModelMatch` lives in `../ai/systemone-transport`;
 // re-exported here so existing decision-boundary callers keep working.
 export { assertSystemOneModelMatch };
 import { hashCanonicalJson } from '../shared/stable-id';
-import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
+import { getFullAiRoutingConfig, isStoredProviderConnectionEnabled } from '../db/repositories/provider-connection-repo';
+import { AiPolicyDeniedError } from '../ai/network-transport';
 import { getApiKey } from '../db/repositories/api-key-repo';
 import {
   assertModelPolicyIntact,
@@ -62,6 +64,18 @@ import type { SystemOneAnswer } from '../shared/schemas/systemone';
 
 export type SystemOneChoiceAnswer = Extract<SystemOneAnswer, { type: 'choice' }>;
 export type SystemOneNoulAnswer = Extract<SystemOneAnswer, { type: 'noul' }>;
+
+/** Live disablement and ownership guard every attempt; the frozen route remains unchanged. */
+export function protectedSystemOneDispatchOptions(connection: { id: string }, modelId: string, assertHeld?: () => void): SystemOneDispatchOptions {
+  return { assertHeld, assertConnectionEnabled: () => {
+    let enabled = false;
+    try { enabled = isStoredProviderConnectionEnabled(connection.id); } catch { /* Unreadable authority denies dispatch. */ }
+    if (!enabled) throw new AiPolicyDeniedError(
+      `Connection "${connection.id}" is disabled or unavailable in AI Compute; dispatch of model "${modelId}" is halted.`,
+      connection.id, modelId,
+    );
+  } };
+}
 
 // ─── Shared thresholds & capacities ──────────────────────────────────────────
 
@@ -575,7 +589,7 @@ export async function runSingleChoiceDispatch<TPlan extends ChoicePlanLike, TRes
   const { jevConn, request, questionPlan, callId, assertHeld, startedAt, interpret, fail } = input;
   try {
     assertHeld?.();
-    const result = await dispatchSystemOne(jevConn as any, request);
+    const result = await dispatchSystemOne(jevConn as any, request, protectedSystemOneDispatchOptions(jevConn as { id: string }, request.model, assertHeld));
     assertHeld?.();
 
     assertSystemOneModelMatch(request.model, result.returnedModel);
