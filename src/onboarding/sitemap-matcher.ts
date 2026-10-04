@@ -30,6 +30,7 @@
  */
 
 import { callLlmForTask, getLlmConfigForTask } from './llm-client';
+import { normalizeGtin } from '../shared/gtin';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -242,7 +243,9 @@ export async function matchSitemapUrls(
 function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   const needle = upc.trim();
   if (!needle) return null;
-  const stripped = needle.replace(/\D+/g, '');
+  const normGtin = normalizeGtin(needle);
+  if (!normGtin) return null;
+  const stripped = normGtin;
 
   const candidateGtins = new Set<string>();
   if (needle) candidateGtins.add(needle);
