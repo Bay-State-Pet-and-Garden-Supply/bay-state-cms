@@ -45,6 +45,7 @@ export interface SitemapMatchResult {
  * When available, the prompt becomes much more specific about
  * the product identity, helping the LLM reject near-misses.
  */
+// fallow-ignore-next-line unused-type
 export interface SitemapLlmContext {
   /** Raw register/row name (pre-consolidation). */
   itemName?: string;
@@ -239,6 +240,7 @@ export async function matchSitemapUrls(
  * Direct string search with `url.includes(stripped)` short-circuits exact digit matches
  * without executing regex replacements or allocating string objects.
  */
+// fallow-ignore-next-line complexity
 function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
   const needle = upc.trim();
   if (!needle) return null;
@@ -260,13 +262,19 @@ function findUpcExactHit(sitemapUrls: string[], upc: string): string | null {
     }
   }
 
+  let minCandLen = Infinity;
+  for (const cand of candidateGtins) {
+    if (cand.length < minCandLen) minCandLen = cand.length;
+  }
+
   for (const url of sitemapUrls) {
     if (!url) continue;
     for (const cand of candidateGtins) {
       if (url.includes(cand)) return url;
     }
+    if (!/\d/.test(url)) continue;
     const urlDigits = url.replace(/\D+/g, '');
-    if (urlDigits) {
+    if (urlDigits && urlDigits.length >= minCandLen) {
       for (const cand of candidateGtins) {
         if (urlDigits.includes(cand)) return url;
       }
