@@ -106,6 +106,20 @@ describe('profile-capture // story: e07s03', () => {
     await expect(captureProfilePage({ url: 'http://invalid-nonexistent-domain-xyz987.invalid/p/1', runtime: 'static' })).rejects.toThrow(/blocked private destination/);
   });
 
+  it('blocks domain suffix bypass attempts targeting test domain suffixes (SSRF guard)', async () => {
+    const { captureProfilePage } = await import('../../onboarding/profile-capture.ts');
+    const bypassUrls = [
+      'http://invalid-spoof-example.com/p/1',
+      'http://invalid-spoof-example.org/p/1',
+      'http://invalid-spoof-example.net/p/1',
+      'http://invalid-evil-example.com/admin',
+      'http://invalid-attacker-example.com/secret',
+    ];
+    for (const url of bypassUrls) {
+      await expect(captureProfilePage({ url, runtime: 'static' })).rejects.toThrow(/blocked private destination/);
+    }
+  });
+
   it('allows public 172.x Cloudflare IP addresses without false-positive blocking', async () => {
     const html = '<html><body><h1>Public Cloudflare Host</h1></body></html>';
     global.fetch = vi.fn(async () => new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })) as unknown as typeof fetch;
