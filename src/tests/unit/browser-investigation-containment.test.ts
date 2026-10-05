@@ -161,9 +161,14 @@ describe('container posture denies egress (live daemon when available)', () => {
   // is unavailable the test skips loudly (warn) WITHOUT passing silently:
   // the static argv assertions above still run.
   it('proves no DNS / HTTPS / TCP egress and no non-loopback interfaces', { timeout: 120_000 }, async () => {
+    if (process.env.SKIP_DOCKER_TESTS) {
+      console.warn('SKIP: SKIP_DOCKER_TESTS set — live container egress probe skipped');
+      return;
+    }
     let daemon: boolean;
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      await execFileAsync('docker', ['run', '--rm', '--network=none', 'node:22-bookworm', 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
       daemon = true;
     } catch {
       daemon = false;
