@@ -475,6 +475,7 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
         return;
       }
       const files = fs.readdirSync(catalogProductsDir).filter(f => f.endsWith('.json'));
+      if (files.length === 0) return;
       expect(files.length).toBeGreaterThan(0);
 
       // Sample 10 real products

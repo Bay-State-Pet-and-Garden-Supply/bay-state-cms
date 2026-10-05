@@ -579,7 +579,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   it('returns non-empty identity that compiles, with Tier 0 usage when no model is configured', async () => {
     // #246 opt-in: Shopify JSON carries no DOM signals, so the default path
     // would defer; this Tier 0 identity test exercises the #237 gap path.
-    const { provider } = harness({ allowTier1Render: true }, shopifyTransport());
+    const { provider } = harness({ allowTier1Render: true, renderRunner: stubRenderRunner() }, shopifyTransport());
     const completion = await provider.invoke(requestFor(['https://brand.example/products/alpha.js']));
     const result = completion.result as unknown as {
       identityRequirements?: { productIdentity: string[]; variantIdentity: string[]; optionAxes: string[] };
@@ -609,7 +609,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
     const seen: Tier1ModelContext[] = [];
     const { provider } = harness(
       // #246 opt-in (Shopify JSON has no DOM; default would defer).
-      { allowTier1Render: true, modelReasoner: stubReasoner({}, seen) },
+      { allowTier1Render: true, renderRunner: stubRenderRunner(), modelReasoner: stubReasoner({}, seen) },
       shopifyTransport(),
     );
     const req = requestFor(['https://brand.example/products/alpha.js'], {
@@ -650,7 +650,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
   it('still compiles when the reasoner returns junk (advisory-only output)', async () => {
     const { provider } = harness(
       // #246 opt-in (Shopify JSON has no DOM; default would defer).
-      { allowTier1Render: true, modelReasoner: stubReasoner({ strategy: 'x'.repeat(5000), gaps: Array.from({ length: 25 }, (_, i) => `junk-${i}`) }) },
+      { allowTier1Render: true, renderRunner: stubRenderRunner(), modelReasoner: stubReasoner({ strategy: 'x'.repeat(5000), gaps: Array.from({ length: 25 }, (_, i) => `junk-${i}`) }) },
       shopifyTransport(),
     );
     const completion = await provider.invoke(
@@ -679,7 +679,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
 
   it('records a gap (not a call) when the operator opts in but no model is configured', async () => {
     // #246 opt-in: preserves the #237 no-model gap path for Shopify JSON.
-    const { provider } = harness({ allowTier1Render: true }, shopifyTransport());
+    const { provider } = harness({ allowTier1Render: true, renderRunner: stubRenderRunner() }, shopifyTransport());
     const completion = await provider.invoke(
       requestFor(['https://brand.example/products/alpha.js'], { modelPolicy: { allowCloudTextAnalysis: true } }),
     );
@@ -732,6 +732,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
       {
         // #246 opt-in (Shopify JSON has no DOM; default would defer).
         allowTier1Render: true,
+        renderRunner: stubRenderRunner(),
         modelReasoner: stubReasoner({
           outputTokens: resolveInvestigationBudget({}).maxModelOutputTokensPerCall + 1,
         }),
@@ -746,7 +747,7 @@ describe('harness Tier 1: Shopify identity compiles, usage truthful', () => {
 
     const hanging: Tier1ModelReasoner = { reason: () => new Promise(() => {}) };
     // #246 opt-in for the same Shopify-JSON reason as above.
-    const slow = harness({ allowTier1Render: true, modelReasoner: hanging }, shopifyTransport());
+    const slow = harness({ allowTier1Render: true, renderRunner: stubRenderRunner(), modelReasoner: hanging }, shopifyTransport());
     await expect(
       slow.provider.invoke(
         requestFor(['https://brand.example/products/alpha.js'], {
@@ -946,8 +947,12 @@ describe('Tier 1 container-level egress denial (live, daemon-gated)', () => {
   const DOCKER_TIMEOUT = 120_000;
 
   async function dockerAvailable(): Promise<boolean> {
+    if (process.env.SKIP_DOCKER_TESTS === '1' || process.env.SKIP_DOCKER_TESTS === 'true') {
+      return false;
+    }
     try {
       await execFileAsync('docker', ['info'], { timeout: 15_000 });
+      await execFileAsync('docker', ['run', '--rm', '--network=none', 'node:22-bookworm', 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
       return true;
     } catch {
       return false;
