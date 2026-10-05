@@ -272,15 +272,10 @@ describe('Tier 0 container runner: real container per run, teardown on every exi
   const DOCKER_TIMEOUT = 120_000;
 
   async function dockerAvailable(): Promise<boolean> {
-    if (process.env.SKIP_DOCKER_TESTS === '1' || process.env.SKIP_DOCKER_TESTS === 'true') {
-      return false;
-    }
     try {
       const { execFile } = await import('node:child_process');
       const { promisify } = await import('node:util');
-      const run = promisify(execFile);
-      await run('docker', ['info'], { timeout: 15_000 });
-      await run('docker', ['run', '--rm', '--network=none', 'node:22-bookworm', 'node', '-e', 'process.exit(0)'], { timeout: 15_000 });
+      await promisify(execFile)('docker', ['info'], { timeout: 15_000 });
       return true;
     } catch {
       return false;
