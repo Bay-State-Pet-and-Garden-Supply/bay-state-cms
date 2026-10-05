@@ -47,10 +47,16 @@ function isAllowedProtocol(url: string): boolean {
   try { const p = new URL(url).protocol; return p === 'http:' || p === 'https:'; } catch { return false; }
 }
 
+function isTestDomainHost(host: string): boolean {
+  const normalized = host.toLowerCase().trim();
+  const testDomains = ['example.com', 'example.org', 'example.net'];
+  return testDomains.some((d) => normalized === d || normalized.endsWith('.' + d));
+}
+
 async function isPrivateHost(url: string): Promise<boolean> {
   try {
     const host = new URL(url).hostname;
-    if (host.endsWith('example.com') || host.endsWith('example.org') || host.endsWith('example.net')) return false;
+    if (isTestDomainHost(host)) return false;
     return await isPrivateOrLinkLocalHost(host);
   } catch { return true; }
 }
