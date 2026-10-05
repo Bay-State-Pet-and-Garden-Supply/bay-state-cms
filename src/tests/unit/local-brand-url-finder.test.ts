@@ -98,6 +98,24 @@ describe('Local Brand URL Finder (Tiered Retrieval Ladder)', () => {
     expect(matches[0].matchType).toBe('upc_exact');
   });
 
+  it('Tier 1: should not produce a upc_exact hit for non-GTIN upc (e.g. "123")', async () => {
+    reconcileSitemapUrls(
+      'purina.com',
+      [
+        { url: 'https://purina.com/pro-plan/item-123' },
+      ],
+      'https://purina.com/sitemap.xml',
+    );
+
+    const matches = await findLocalBrandCandidates('purina.com', {
+      upc: '123',
+      name: 'Purina Item 123',
+      brandHint: 'Purina',
+    });
+
+    expect(matches.some(m => m.matchType === 'upc_exact')).toBe(false);
+  });
+
   it('Tier 2: should find exact SKU match with 0.92 confidence', async () => {
     reconcileSitemapUrls(
       'kongcompany.com',

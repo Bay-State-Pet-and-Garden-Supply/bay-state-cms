@@ -155,6 +155,19 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
       expect(skuMatch).not.toBeNull();
       expect(skuMatch?.url).toBe('https://www.kongcompany.com/products/classic-red-medium');
     });
+
+    it('should return null for non-GTIN inputs (e.g. "123") even if URL path/slug contains digits', () => {
+      reconcileSitemapUrls(
+        'kongcompany.com',
+        [
+          { url: 'https://www.kongcompany.com/products/classic-dog-toy-123' },
+        ],
+        'https://www.kongcompany.com/sitemap.xml',
+      );
+
+      const match = lookupByUpc('kongcompany.com', '123');
+      expect(match).toBeNull();
+    });
   });
 
   describe('searchUrlsLexical with FTS5', () => {
