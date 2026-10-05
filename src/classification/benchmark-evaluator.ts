@@ -58,6 +58,9 @@ import {
   buildFrozenTaxonomyLookupSets,
   type FrozenTaxonomyLookupSets,
 } from './benchmark-exporter';
+// Shipped single-Choice probability floor (single definition site — the
+// pipeline abstention-proof check reuses it, never reimplements).
+import { JEV_ATTRIBUTE_MIN_PROBABILITY } from './attribute-decision';
 
 // ─── Pure metric core ──────────────────────────────────────────────────────────
 
@@ -76,6 +79,9 @@ export interface GoldExampleForEvaluation {
    * Adjudicated gold states for product field targets (`fieldStates` in goldLabelsJson).
    */
   fieldGoldStates?: Record<string, EvaluatorFieldGoldState> | null;
+  /** Page adjudication state/completeness (unknown/partial never known-empty). */
+  pageGoldState?: string | null;
+  pageCompleteness?: string | null;
   /** Product family id (split-leakage detection). */
   familyId?: string | null;
   /** Split the example belongs to. */
@@ -168,6 +174,7 @@ const EVALUATOR_FIELD_GOLD_STATE_ALIASES: Record<string, EvaluatorFieldGoldState
   insufficientevidence: EVALUATOR_FIELD_GOLD_STATE_INSUFFICIENT_EVIDENCE,
   inapplicable: EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
   'not-applicable': EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
+  notapplicable: EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
   na: EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE,
   unlabeled: EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
   unlabelled: EVALUATOR_FIELD_GOLD_STATE_UNLABELED,
@@ -1865,6 +1872,40 @@ function tallyPageBaselineMatch(
   tallyPageBaselineTransitions(acc, example, outcome.status, isExactMatch, isBaseExactMatch);
 }
 
+/** True when page gold is explicitly known-empty (state known + complete, zero ids). */
+function isKnownEmptyPageExample(example: GoldExampleForEvaluation, goldSize: number): boolean {
+  if (goldSize > 0) return false;
+  const state = typeof example.pageGoldState === 'string' ? example.pageGoldState.trim().toLowerCase().replace(/_/g, '-') : null;
+  const completeness = typeof example.pageCompleteness === 'string' ? example.pageCompleteness.trim().toLowerCase().replace(/_/g, '-') : null;
+  if (state === null && completeness === null) return false;
+  if (state !== null && state !== 'known') return false;
+  if (completeness !== null && completeness !== 'complete') return false;
+  return true;
+}
+
+/** True when page gold is eligible (known-complete labels or known-empty; never unknown/partial). */
+function isPageExampleEligible(example: GoldExampleForEvaluation, goldSize: number): boolean {
+  const state = typeof example.pageGoldState === 'string' ? example.pageGoldState.trim().toLowerCase().replace(/_/g, '-') : null;
+  const completeness = typeof example.pageCompleteness === 'string' ? example.pageCompleteness.trim().toLowerCase().replace(/_/g, '-') : null;
+  if (state === 'unknown' || state === 'partial' || state === 'unlabeled') return false;
+  if (completeness === 'partial' || completeness === 'unknown') return false;
+  if (goldSize > 0) return true;
+  return isKnownEmptyPageExample(example, goldSize);
+}
+
+/** Read page state/completeness markers from gold labels JSON (null when absent). */
+export function readEvaluatorPageStates(goldLabelsJson: string): { pageState: string | null; pageCompleteness: string | null } {
+  try {
+    const parsed = JSON.parse(goldLabelsJson) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { pageState: null, pageCompleteness: null };
+    const state = typeof parsed.pageState === 'string' ? parsed.pageState : (typeof (parsed as Record<string, unknown>).pageGoldState === 'string' ? (parsed as Record<string, unknown>).pageGoldState as string : null);
+    const completeness = typeof parsed.pageCompleteness === 'string' ? parsed.pageCompleteness : null;
+    return { pageState: state, pageCompleteness: completeness };
+  } catch {
+    return { pageState: null, pageCompleteness: null };
+  }
+}
+
 /** Score one gold example's page attribution into the accumulator. */
 function scorePageAttributionExample(
   acc: PageAttributionAccumulator,
@@ -1874,16 +1915,21 @@ function scorePageAttributionExample(
 ): void {
   const pred = firstIndexedEntry(index.entriesById, example.id);
   const predStatus = resolveAttributionPageStatus(pred);
-  tallyPageCandidateStatus(acc, predStatus);
   const targetGoldSet = pageTargetGoldSet(example, byIdentity);
+  if (!isPageExampleEligible(example, targetGoldSet.size)) {
+    acc.unlabeled++;
+    return;
+  }
+  tallyPageCandidateStatus(acc, predStatus);
   const hasGoldLabels = targetGoldSet.size > 0;
-  if (hasGoldLabels) acc.known++;
+  const knownEmpty = isKnownEmptyPageExample(example, targetGoldSet.size);
+  if (hasGoldLabels || knownEmpty) acc.known++;
   else acc.unlabeled++;
   let isExactMatch = false;
-  if (hasGoldLabels && predStatus === 'predicted') {
+  if ((hasGoldLabels || knownEmpty) && (predStatus === 'predicted' || (knownEmpty && predStatus === 'abstained'))) {
     isExactMatch = scorePageCandidateMatch(acc, new Set(pageItemsOf(pred, byIdentity)), targetGoldSet);
   }
-  if (index.hasBaseline && hasGoldLabels) {
+  if (index.hasBaseline && (hasGoldLabels || knownEmpty)) {
     tallyPageBaselineMatch(acc, example, index, byIdentity, targetGoldSet, predStatus, isExactMatch);
   }
 }
@@ -2070,6 +2116,9 @@ function accumulateProductTypeExample(
   example: GoldExampleForEvaluation,
   predictions: BenchmarkPredictionEntry[],
 ): void {
+  // Explicitly unlabeled gold never contributes support — even when a stale
+  // label string is present on the legacy bytes.
+  if (example.goldState === EVALUATOR_GOLD_STATE_UNLABELED) return;
   const goldType = example.goldLabels.productType;
   const pred = predictionForExample(predictions, example.id);
   if (!pred || isAbstainedTypePrediction(pred)) {
@@ -2201,7 +2250,8 @@ function scoreMetricsPageSection(
   for (const example of gold) {
     const pred = predictionForExample(predictions, example.id);
     const { goldPages, predPages } = metricsPageSetsForExample(example, pred, canEvaluateByIdentity);
-    if (goldPages.size === 0 && predPages.size === 0) continue;
+    if (!isPageExampleEligible(example, goldPages.size)) continue;
+    if (goldPages.size === 0 && predPages.size === 0 && !isKnownEmptyPageExample(example, goldPages.size)) continue;
     evaluated++;
     const { precision, recall, exactMatch } = scorePageSet(goldPages, predPages);
     precisionSum += precision;
@@ -2309,6 +2359,15 @@ function scoreMetricsFieldSection(
   return fieldStats;
 }
 
+/** True for metrics-path field slots excluded from support (never correct/incorrect). */
+function isExcludedMetricsFieldSlot(
+  example: GoldExampleForEvaluation,
+  targetId: string,
+): boolean {
+  const state = example.fieldGoldStates?.[targetId] ?? null;
+  return state === EVALUATOR_FIELD_GOLD_STATE_UNLABELED || state === EVALUATOR_FIELD_GOLD_STATE_INAPPLICABLE;
+}
+
 /** Score one example's fixed-population slots into field stats. */
 function scoreMetricsFieldExample(
   fieldStats: Record<string, { support: number; correct: number }>,
@@ -2317,6 +2376,10 @@ function scoreMetricsFieldExample(
 ): void {
   const predFields = fieldPredictionMap(predictions, example.id);
   for (const targetId of fixedPopulationTargetIdsForExample(example, predFields)) {
+    // Unlabeled/inapplicable targets contribute no support — attribute gold
+    // stays usable per-target (a type-unlabeled example still scores its
+    // known attribute targets).
+    if (isExcludedMetricsFieldSlot(example, targetId)) continue;
     scoreFixedPopulationFieldSlot(
       fieldStats,
       targetId,
@@ -2372,6 +2435,7 @@ function accumulateOperationsExample(
 ): void {
   const predFields = fieldPredictionMap(predictions, example.id);
   for (const targetId of fixedPopulationTargetIdsForExample(example, predFields)) {
+    if (isExcludedMetricsFieldSlot(example, targetId)) continue;
     accumulateOperationsSlot(
       totals,
       fixedPopulationGoldValueOf(example, targetId),
@@ -2606,6 +2670,9 @@ export async function evaluateBenchmark(
       goldLabels,
       evidenceText,
       goldState: readEvaluatorGoldState(example.gold_labels_json),
+      fieldGoldStates: readEvaluatorFieldStates(example.gold_labels_json),
+      pageGoldState: readEvaluatorPageStates(example.gold_labels_json).pageState,
+      pageCompleteness: readEvaluatorPageStates(example.gold_labels_json).pageCompleteness,
       familyId: example.product_family_id ?? null,
       splitGroup: example.split_group ?? null,
       sourceRunId: example.source_run_id ?? null,
@@ -3298,14 +3365,30 @@ export interface CohortPipelineEffectsReport {
     correct: number;
     abstained: number;
     incorrect: number;
+    /** Explicitly unlabeled type gold: never correct/incorrect/abstained (0 gold != 0% wrong). */
+    unevaluated: number;
+    /** Failed prediction sides: counted separately, never correct. */
+    failed: number;
   };
   attributeEffects: {
     totalEvaluated: number;
+    /** Slots scored for correctness (unlabeled/inapplicable excluded). */
+    eligible: number;
+    /** Slots skipped as unlabeled/inapplicable (never correct/incorrect). */
+    unevaluated: number;
+    /** Failed prediction sides: counted separately, never correct. */
+    failed: number;
     correctWhenTypeCorrect: number;
     abstainedWhenTypeAbstained: number;
   };
   pageEffects: {
     totalEvaluated: number;
+    /** Examples scored for exact-match (partial/unknown/unlabeled excluded). */
+    eligible: number;
+    /** Examples skipped as partial/unknown/unlabeled (never exact-match). */
+    unevaluated: number;
+    /** Failed prediction sides: counted separately, never exact-match. */
+    failed: number;
     exactMatchWhenTypeCorrect: number;
     abstainedWhenTypeAbstained: number;
   };
@@ -3344,17 +3427,33 @@ function indexPipelinePredictionsBySku(
 interface PipelineTypeStatus {
   isTypeCorrect: boolean;
   isTypeAbstained: boolean;
+  isTypeFailed: boolean;
+  isTypeUnevaluated: boolean;
 }
 
-/** Resolve type correctness/abstention for one SKU (legacy id shapes included). */
+/**
+ * Resolve type correctness/abstention for one SKU (legacy id shapes included).
+ * Explicitly unlabeled type gold is unevaluated (never correct/incorrect);
+ * legacy rows without a marker keep the old label-presence semantics. A
+ * failed side is failed, never correct or abstained.
+ */
 function resolvePipelineTypeStatus(
   typePred: BenchmarkPredictionEntry | undefined,
   goldType: string | null,
+  goldState?: string | null,
 ): PipelineTypeStatus {
+  if (goldState === 'unlabeled') {
+    return { isTypeCorrect: false, isTypeAbstained: false, isTypeFailed: false, isTypeUnevaluated: true };
+  }
+  if (extractFailureCode(typePred) !== null) {
+    return { isTypeCorrect: false, isTypeAbstained: false, isTypeFailed: true, isTypeUnevaluated: false };
+  }
   const predType = typePred?.productType ?? (typePred as unknown as { predictedProductTypeId?: string })?.predictedProductTypeId;
   return {
     isTypeCorrect: Boolean(goldType && predType === goldType),
     isTypeAbstained: Boolean(typePred?.abstained || !predType),
+    isTypeFailed: false,
+    isTypeUnevaluated: false,
   };
 }
 
@@ -3362,12 +3461,20 @@ interface PipelineCounters {
   typeCorrect: number;
   typeAbstained: number;
   typeIncorrect: number;
+  typeUnevaluated: number;
+  typeFailed: number;
   attrCorrectWhenTypeCorrect: number;
   attrAbstainedWhenTypeAbstained: number;
   totalAttrEvaluated: number;
+  attrEligible: number;
+  attrUnevaluated: number;
+  attrFailed: number;
   pageExactMatchWhenTypeCorrect: number;
   pageAbstainedWhenTypeAbstained: number;
   totalPageEvaluated: number;
+  pageEligible: number;
+  pageUnevaluated: number;
+  pageFailed: number;
   endToEndCorrect: number;
 }
 
@@ -3376,22 +3483,32 @@ function emptyPipelineCounters(): PipelineCounters {
     typeCorrect: 0,
     typeAbstained: 0,
     typeIncorrect: 0,
+    typeUnevaluated: 0,
+    typeFailed: 0,
     attrCorrectWhenTypeCorrect: 0,
     attrAbstainedWhenTypeAbstained: 0,
     totalAttrEvaluated: 0,
+    attrEligible: 0,
+    attrUnevaluated: 0,
+    attrFailed: 0,
     pageExactMatchWhenTypeCorrect: 0,
     pageAbstainedWhenTypeAbstained: 0,
     totalPageEvaluated: 0,
+    pageEligible: 0,
+    pageUnevaluated: 0,
+    pageFailed: 0,
     endToEndCorrect: 0,
   };
 }
 
-/** Tally type resolution for one example. */
+/** Tally type resolution for one example (failed/unevaluated never correct). */
 function tallyPipelineTypeResolution(
   counters: PipelineCounters,
   status: PipelineTypeStatus,
 ): void {
-  if (status.isTypeCorrect) counters.typeCorrect++;
+  if (status.isTypeFailed) counters.typeFailed++;
+  else if (status.isTypeUnevaluated) counters.typeUnevaluated++;
+  else if (status.isTypeCorrect) counters.typeCorrect++;
   else if (status.isTypeAbstained) counters.typeAbstained++;
   else counters.typeIncorrect++;
 }
@@ -3450,7 +3567,48 @@ function tallyPipelineAttributeJudgment(
   if (status.isTypeAbstained && judgment.abstained) counters.attrAbstainedWhenTypeAbstained++;
 }
 
-/** Score one attribute field for the pipeline effects (conditioned on type status). */
+/** Expected semantic-abstention code for a pipeline no-fit / insufficient-evidence target. */
+function pipelineFieldAbstentionCode(state: string): string | null {
+  if (state === 'no-fit') return 'no_match';
+  if (state === 'insufficient-evidence') return 'insufficient_evidence';
+  return null;
+}
+
+/**
+ * Coded abstention proof read structurally off a pipeline field assignment
+ * (empty sets alone prove nothing; wrong/uncoded/low-probability/refusal and
+ * failures are never correct).
+ */
+function pipelineFieldAbstentionProof(
+  field: { targetId: string; value: string | null },
+  expectedCode: string,
+): boolean {
+  const raw = field as unknown as { outcome?: unknown; abstentionCode?: unknown; probability?: unknown };
+  if (raw.outcome !== 'abstained-semantic') return false;
+  if (raw.abstentionCode !== expectedCode) return false;
+  return typeof raw.probability === 'number' && raw.probability >= JEV_ATTRIBUTE_MIN_PROBABILITY;
+}
+
+/** Score one no-fit / insufficient-evidence field from its carried proof. */
+function scorePipelineAbstentionField(
+  counters: PipelineCounters,
+  field: { targetId: string; value: string | null },
+  state: string,
+  status: PipelineTypeStatus,
+): boolean {
+  counters.totalAttrEvaluated++;
+  counters.attrEligible++;
+  const correct = pipelineFieldAbstentionProof(field, pipelineFieldAbstentionCode(state)!);
+  tallyPipelineAttributeJudgment(counters, { correct, abstained: !correct }, status);
+  return correct;
+}
+
+/**
+ * Score one attribute field for the pipeline effects (conditioned on type
+ * status). Unlabeled/inapplicable targets are unevaluated (neutral for
+ * all-correct); legacy rows without markers keep the old value-match
+ * semantics. Failed sides never earn correctness.
+ */
 function scorePipelineAttributeField(
   counters: PipelineCounters,
   example: GoldExampleForEvaluation,
@@ -3459,7 +3617,19 @@ function scorePipelineAttributeField(
   field: { targetId: string; value: string | null },
   status: PipelineTypeStatus,
 ): boolean {
+  const state = example.fieldGoldStates?.[field.targetId] ?? null;
+  if (state === 'unlabeled' || state === 'inapplicable') {
+    counters.attrUnevaluated++;
+    return true;
+  }
+  if (extractFailureCode(prediction) !== null) {
+    return false;
+  }
+  if (state === 'no-fit' || state === 'insufficient-evidence') {
+    return scorePipelineAbstentionField(counters, field, state, status);
+  }
   counters.totalAttrEvaluated++;
+  counters.attrEligible++;
   const goldAttrVal = pipelineGoldFieldValueOf(example, goldFieldMap, field.targetId);
   const predVal = field.value ?? (field as { values?: string[] }).values?.[0] ?? null;
   const judgment = judgePipelineAttributeField(goldAttrVal, predVal, prediction.abstained);
@@ -3475,6 +3645,11 @@ function scorePipelineAttributeExample(
   status: PipelineTypeStatus,
 ): boolean {
   const attrs = index.attrBySku.get(example.productSku) ?? [];
+  // A failed side is counted once per example and never earns correctness.
+  if (attrs.some(prediction => extractFailureCode(prediction) !== null)) {
+    counters.attrFailed++;
+    return false;
+  }
   let allAttrsCorrectForSku = attrs.length > 0;
   const goldFieldMap = new Map(
     example.goldLabels.fieldAssignments?.map(field => [field.targetId, field.value ?? field.values?.[0] ?? null]) ?? [],
@@ -3517,7 +3692,32 @@ function tallyPipelinePageOutcome(
   if (status.isTypeAbstained && isPageAbstained) counters.pageAbstainedWhenTypeAbstained++;
 }
 
-/** Score page effects for one example; returns exact-match for end-to-end. */
+/** Page-gold eligibility for pipeline scoring (legacy rows stay legacy). */
+function pipelinePageEligibility(
+  example: GoldExampleForEvaluation,
+): 'eligible' | 'ineligible' | 'legacy' {
+  const norm = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() !== '' ? value.trim().toLowerCase().replace(/_/g, '-') : null;
+  const state = norm(example.pageGoldState);
+  const completeness = norm(example.pageCompleteness);
+  if (state === null && completeness === null) return 'legacy';
+  if (state === 'unknown' || state === 'partial' || state === 'unlabeled') return 'ineligible';
+  if (completeness === 'partial' || completeness === 'unknown') return 'ineligible';
+  return 'eligible';
+}
+
+/** Exact set match shared by legacy and eligible page gold (known-empty counts when predicted empty). */
+function pipelinePageSetsMatch(goldPages: Set<string>, predPages: Set<string>): boolean {
+  if (goldPages.size === 0) return predPages.size === 0;
+  return goldPages.size === predPages.size && [...goldPages].every(page => predPages.has(page));
+}
+
+/**
+ * Score page effects for one example; returns exact-match for end-to-end.
+ * Partial/unknown/unlabeled page gold NEVER earns exact-match (unevaluated,
+ * never correct); legacy rows without markers keep the old semantics (empty
+ * gold never exact). Failed sides never earn exact-match.
+ */
 function scorePipelinePageExample(
   counters: PipelineCounters,
   example: GoldExampleForEvaluation,
@@ -3525,11 +3725,21 @@ function scorePipelinePageExample(
   status: PipelineTypeStatus,
 ): boolean {
   const pagePred = index.pageBySku.get(example.productSku);
-  const { goldPages, predPages } = pipelinePageSetsOf(example, pagePred);
+  const eligibility = pipelinePageEligibility(example);
   counters.totalPageEvaluated++;
-  const isPageExactMatch = goldPages.size > 0 &&
-    goldPages.size === predPages.size &&
-    [...goldPages].every(page => predPages.has(page));
+  if (eligibility === 'ineligible') {
+    counters.pageUnevaluated++;
+    return false;
+  }
+  if (extractFailureCode(pagePred) !== null) {
+    counters.pageFailed++;
+    return false;
+  }
+  const { goldPages, predPages } = pipelinePageSetsOf(example, pagePred);
+  counters.pageEligible++;
+  const isPageExactMatch = eligibility === 'legacy'
+    ? goldPages.size > 0 && pipelinePageSetsMatch(goldPages, predPages)
+    : pipelinePageSetsMatch(goldPages, predPages);
   tallyPipelinePageOutcome(
     counters,
     status,
@@ -3548,6 +3758,7 @@ function scorePipelineEffectsExample(
   const status = resolvePipelineTypeStatus(
     index.typeBySku.get(example.productSku),
     example.goldLabels.productType,
+    example.goldState ?? null,
   );
   tallyPipelineTypeResolution(counters, status);
   const allAttrsCorrect = scorePipelineAttributeExample(counters, example, index, status);
@@ -3574,14 +3785,22 @@ export function evaluateCohortPipelineEffects(
       correct: counters.typeCorrect,
       abstained: counters.typeAbstained,
       incorrect: counters.typeIncorrect,
+      unevaluated: counters.typeUnevaluated,
+      failed: counters.typeFailed,
     },
     attributeEffects: {
       totalEvaluated: counters.totalAttrEvaluated,
+      eligible: counters.attrEligible,
+      unevaluated: counters.attrUnevaluated,
+      failed: counters.attrFailed,
       correctWhenTypeCorrect: counters.attrCorrectWhenTypeCorrect,
       abstainedWhenTypeAbstained: counters.attrAbstainedWhenTypeAbstained,
     },
     pageEffects: {
       totalEvaluated: counters.totalPageEvaluated,
+      eligible: counters.pageEligible,
+      unevaluated: counters.pageUnevaluated,
+      failed: counters.pageFailed,
       exactMatchWhenTypeCorrect: counters.pageExactMatchWhenTypeCorrect,
       abstainedWhenTypeAbstained: counters.pageAbstainedWhenTypeAbstained,
     },

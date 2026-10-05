@@ -82,6 +82,8 @@ export type PageAssignmentPolicyV2 = z.infer<typeof PageAssignmentPolicyV2Schema
 export const V4HierarchyNodeSchema = z.object({
   id: ClassificationSlugSchema,
   label: z.string().min(1),
+  /** Owner-curated type definition (v8+; absent on older releases). */
+  description: z.string().min(1).max(500).nullable().optional(),
   parentId: ClassificationSlugSchema.nullable(),
   classifiable: z.boolean(),
   facetProfileId: ClassificationSlugSchema.nullable(),
@@ -105,6 +107,8 @@ export const V4HierarchySchema = z.object({
 export const V5HierarchyNodeSchema = z.object({
   id: ClassificationSlugSchema,
   label: z.string().min(1),
+  /** Owner-curated type definition (v8+; absent on older releases). */
+  description: z.string().min(1).max(500).nullable().optional(),
   parentId: ClassificationSlugSchema.nullable(),
   classifiable: z.boolean(),
   facetProfileId: ClassificationSlugSchema.nullable(),
@@ -319,6 +323,71 @@ export interface TaxonomyReleaseBundleV5 {
  */
 export function isValidReleaseId(id: string): boolean {
   return SLUG_RELEASE_ID_RE.test(id);
+}
+
+/** Taxonomy release generation: V5 descendants carry hierarchy invariants. */
+export type TaxonomyReleaseGeneration = 'v5' | 'v4' | 'legacy';
+
+/**
+ * Detect a release's generation WITHOUT fragile exact-revision name checks.
+ * Precedence is strict: (1) direct valid-hierarchy evidence (V5-generation
+ * nodes carry `invariantAttributes`, mirroring the release-compiler dispatch
+ * convention); (2) `sourceBaseline` lineage walk over anchors and ancestor
+ * hierarchy evidence with a bounded cycle guard; (3) ONLY after the walk,
+ * self/known `schemaVersion` fallback. In particular the walk never returns
+ * v4 on SELF schemaVersion 3 before reaching a V5 parent, and broken lineage
+ * (cycles, unreadable or invalid links) falls through to fail-closed callers
+ * without ever widening to v5. Throws on path-traversal violations.
+ */
+export function detectReleaseGeneration(releaseDirArg: string): TaxonomyReleaseGeneration {
+  const dir = resolveReleaseDir(releaseDirArg);
+  // (1) Direct valid-hierarchy evidence.
+  if (directoryHasInvariantEvidence(dir)) return 'v5';
+  // (2) sourceBaseline lineage walk with bounded cycle guard.
+  try {
+    let cursor: string | null = dir;
+    const seen = new Set<string>();
+    for (let depth = 0; depth < 10 && cursor !== null && !seen.has(cursor); depth += 1) {
+      seen.add(cursor);
+      const manifest = JSON.parse(fs.readFileSync(path.join(cursor, 'manifest.json'), 'utf8')) as {
+        sourceBaseline?: unknown;
+      };
+      const baseName = path.basename(cursor);
+      if (baseName === 'bay-state-v5') return 'v5';
+      if (baseName === 'bay-state-v4') return 'v4';
+      if (baseName === 'bay-state-v3') return 'legacy';
+      if (directoryHasInvariantEvidence(cursor)) return 'v5';
+      cursor = typeof manifest.sourceBaseline === 'string' ? resolveReleaseDir(manifest.sourceBaseline) : null;
+    }
+  } catch {
+    // Broken link mid-walk: fall through to the schema fallback below.
+  }
+  // (3) Self/known schema fallback — reached only after the full walk.
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')) as {
+      schemaVersion?: unknown;
+    };
+    if (manifest.schemaVersion === 3) return 'v4';
+    if (manifest.schemaVersion === 2) return 'legacy';
+  } catch {
+    // Unreadable release: callers fail closed on their own terms.
+  }
+  return 'legacy';
+}
+
+/** Best-effort read-only probe: true when a directory's hierarchy carries V5 invariant evidence. */
+function directoryHasInvariantEvidence(dir: string): boolean {
+  try {
+    const hierarchy = JSON.parse(fs.readFileSync(path.join(dir, 'hierarchy.json'), 'utf8')) as {
+      entries?: unknown;
+    };
+    return (
+      Array.isArray(hierarchy.entries) &&
+      hierarchy.entries.some(entry => entry !== null && typeof entry === 'object' && 'invariantAttributes' in entry)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -1021,8 +1090,14 @@ function computeEffectiveFacetDescriptor(
   });
 }
 
-/** Recompute the v3-side fingerprint from immutable sibling release inputs. */
-function computeV3ProfileFingerprint(
+/**
+ * Recompute a profile behavior fingerprint from immutable sibling release
+ * inputs. Exported so release authoring can stamp deterministically-derived
+ * fingerprints on cloned facet profiles (same algorithm, same inputs ⇒ same
+ * fingerprint); validation only requires presence/plausibility for profiles
+ * without a legacy profile_map, and exact match for mapped ones.
+ */
+export function computeV3ProfileFingerprint(
   profile: AttributeProfileConfigV2,
   attributes: ProductAttributeConfigV2[],
 ): string {

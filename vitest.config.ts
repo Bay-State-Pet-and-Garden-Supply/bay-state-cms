@@ -449,6 +449,9 @@ export default defineConfig({
       // Type-first refresh suite (their workstream) — bun:test/bun:sqlite;
       // run under bun test via test:db (dual-runner gate §6.1).
       'src/tests/unit/type-dependent-refresh.test.ts',
+      'src/tests/unit/jev-benchmark-preparation.test.ts',
+      'src/tests/unit/jev-benchmark-replay.test.ts',
+      'src/tests/unit/jev-source-collection.test.ts',
       // Type-first curation / accuracy guardrails suites — bun:test/bun:sqlite
       'src/tests/unit/classification-currentness.test.ts',
       'src/tests/unit/classification-refresh-repo.test.ts',

@@ -1,0 +1,32 @@
+{
+ "authorityHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v7",
+  "catalogGitCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b",
+  "configHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+  "capturedAt": "2026-10-04T15:04:21.533Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "entries": [],
+ "calibration": "v7 calibration input manifest; locked collection provenance/split/family commitments copied unchanged from manifest.json",
+ "declaredInputs": {
+  "devGold": {
+   "path": "development-gold-calibration-v7.json",
+   "sha256": "4359ff49df4eef0433b595184a9618adc36e62d3705da880b53198999fea6d5b"
+  },
+  "taxonomy": {
+   "path": "taxonomy.json",
+   "sha256": "66557f40c2f86e099f69c79230e37b71926acdbbfb64329c941f1392d565e105"
+  },
+  "pilotGold": {
+   "path": "development-gold.json",
+   "sha256": "5bd7f5b7f90a0ff402d5817b4f2295a15c791af97b4b3cab7796c70d39d64994"
+  },
+  "expansionGold": {
+   "path": "development-gold-expansion-v7.json",
+   "sha256": "7b177dee7d7042208b3990795cc906666185b17c3095f86f8493d7a249957eda"
+  }
+ }
+}

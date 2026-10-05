@@ -1,0 +1,35 @@
+{
+ "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v8",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "capturedAt": "2026-10-05T11:51:49.560Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "entries": [],
+ "declaredInputs": {
+  "devGold": {
+   "path": "development-gold-v8.json",
+   "sha256": "3d4d1bc4158a921924daf5a09fa7bb689d82b4863ebb0c4650a802ae096b118c"
+  },
+  "devAdjudication": {
+   "path": "development-adjudication-v8.json",
+   "sha256": "6f00b37c8d4dc3a5cddabdaf4d7c42d61928ab373d7705d39cf2cd09660031b9"
+  },
+  "devSupport": {
+   "path": "development-support-v8.json",
+   "sha256": "63e2d1dfbd002fcf58f6fd0c81aae655c08a3da5950076b7c8d0412194710164"
+  },
+  "taxonomy": {
+   "path": "taxonomy.json",
+   "sha256": "7f622d890ad3cb88178000d96e271ee3dfc9f2c6a4bb0fc323c30f2dbeea6ec9"
+  },
+  "sourceBank": {
+   "path": "../jev-representative-v2/source-development.json",
+   "sha256": "4e957c46d91aa0bd16d39c61e4c3c1e29dd14d5487907257881b52587c2ffb4d"
+  }
+ }
+}

@@ -335,6 +335,21 @@ describe('TypeSafe System One protocol (HTTP boundary)', () => {
     expect(SYSTEMONE_CHOICE_SUM_TOLERANCE).toBe(0.01);
   });
 
+  it('accepts decimal closure boundaries without accepting distributions outside the documented tolerance', () => {
+    const request = { model: 'jev-1.13.0', questions: CHOICE_QUESTION };
+    const base = validChoiceBody().answers.department;
+    const response = (billing: number, technical: number) => ({
+      model: 'jev-1.13.0',
+      answers: { department: { ...base, probabilities: { billing, technical, sales: 0 } } },
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    expect(() => validateSystemOneResponse(request, response(0.99, 0))).not.toThrow();
+    expect(() => validateSystemOneResponse(request, response(1, 0.01))).not.toThrow();
+    expect(() => validateSystemOneResponse(request, response(0.9899, 0))).toThrow(/tolerance/);
+    expect(() => validateSystemOneResponse(request, response(1, 0.0101))).toThrow(/tolerance/);
+    expect(SYSTEMONE_CHOICE_SUM_TOLERANCE).toBe(0.01);
+  });
+
   it('rejects non-finite Noul probabilities and missing model identity', () => {
     const request = { model: 'jev-1.13.0', questions: NOUL_QUESTION };
     for (const bad of [1.5, -0.1]) {

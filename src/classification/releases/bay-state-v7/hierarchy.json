@@ -1,0 +1,1380 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v7",
+    "createdAt": "2026-10-04T12:00:00.000Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "id": "air-compressors-hoses",
+      "label": "Air Compressors & Hoses",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "air-compressors-hoses"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "apparel-workwear",
+      "label": "Apparel & Workwear",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "apparel-workwear",
+      "legacyTypeIds": [
+        "work-boots",
+        "work-gloves",
+        "workwear-outerwear",
+        "overalls-coveralls"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "bee-supplies",
+      "label": "Bee Supplies & Apiary",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "bee-supplies"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "bird-food",
+      "label": "Wild Bird Food & Seed",
+      "parentId": "wild-bird",
+      "classifiable": true,
+      "facetProfileId": "profile-wild-bird",
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "bird-food"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "wild_bird"
+      },
+      "invariantAttributes": {
+        "species": "Bird",
+        "food-form": "Seed Blend"
+      }
+    },
+    {
+      "id": "bird-houses-baths",
+      "label": "Bird Houses & Baths",
+      "parentId": "wild-bird",
+      "classifiable": true,
+      "facetProfileId": "profile-wild-bird",
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "bird-houses-baths"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "wild_bird"
+      },
+      "invariantAttributes": {
+        "species": "Bird"
+      }
+    },
+    {
+      "id": "cat",
+      "label": "Cat",
+      "parentId": "pet-supplies",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-litter",
+        "cat-toys",
+        "cat-treats"
+      ],
+      "derivation": "group",
+      "scope": {
+        "animalDomain": "cat"
+      }
+    },
+    {
+      "id": "cat-food",
+      "label": "Cat Food",
+      "parentId": "cat",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-food-dry",
+        "cat-food-wet"
+      ],
+      "derivation": "family",
+      "scope": {
+        "animalDomain": "cat"
+      }
+    },
+    {
+      "id": "cat-food-dry",
+      "label": "Dry Cat Food",
+      "parentId": "cat-food",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-food-dry"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "cat"
+      },
+      "invariantAttributes": {
+        "species": "Cat",
+        "food-form": "Dry Food"
+      }
+    },
+    {
+      "id": "cat-food-wet",
+      "label": "Wet Cat Food",
+      "parentId": "cat-food",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-food-wet"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "cat"
+      },
+      "invariantAttributes": {
+        "species": "Cat",
+        "food-form": "Wet Food"
+      }
+    },
+    {
+      "id": "cat-litter",
+      "label": "Cat Litter",
+      "parentId": "cat",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-litter"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "cat"
+      },
+      "invariantAttributes": {
+        "species": "Cat"
+      }
+    },
+    {
+      "id": "cat-toys",
+      "label": "Cat Toys",
+      "parentId": "cat",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-toys"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "cat"
+      },
+      "invariantAttributes": {
+        "species": "Cat"
+      }
+    },
+    {
+      "id": "cat-treats",
+      "label": "Cat Treats",
+      "parentId": "cat",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "cat-treats"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "cat"
+      },
+      "invariantAttributes": {
+        "species": "Cat",
+        "food-form": "Treat"
+      }
+    },
+    {
+      "id": "cattle-feed",
+      "label": "Cattle Feed",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "cattle-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Cattle"
+      }
+    },
+    {
+      "id": "chainsaws-log-splitters",
+      "label": "Chainsaws & Log Splitters",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "chainsaws-log-splitters"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "collars-leashes",
+      "label": "Collars & Leashes",
+      "parentId": "pet-supplies",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "collars-leashes"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "coop-barn-heat-lamps",
+      "label": "Coop & Barn Heat Lamps",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "coop-barn-heat-lamps"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "corral-panels-gates",
+      "label": "Corral Panels & Farm Gates",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "corral-panels-gates"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "deer-wildlife-feed",
+      "label": "Deer & Wildlife Feed",
+      "parentId": "wild-bird-wildlife",
+      "classifiable": true,
+      "facetProfileId": "profile-wild-bird",
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "deer-wildlife-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Wildlife"
+      }
+    },
+    {
+      "id": "dog",
+      "label": "Dog",
+      "parentId": "pet-supplies",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-crates-kennels",
+        "dog-toys",
+        "dog-treats",
+        "dog-waste-bags"
+      ],
+      "derivation": "group",
+      "scope": {
+        "animalDomain": "dog"
+      }
+    },
+    {
+      "id": "dog-crates-kennels",
+      "label": "Dog Crates & Kennels",
+      "parentId": "dog",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-crates-kennels"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog"
+      }
+    },
+    {
+      "id": "dog-food",
+      "label": "Dog Food",
+      "parentId": "dog",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-food-dry",
+        "dog-food-wet"
+      ],
+      "derivation": "family",
+      "scope": {
+        "animalDomain": "dog"
+      }
+    },
+    {
+      "id": "dog-food-dry",
+      "label": "Dry Dog Food",
+      "parentId": "dog-food",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-food-dry"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog",
+        "food-form": "Dry Food"
+      }
+    },
+    {
+      "id": "dog-food-wet",
+      "label": "Wet Dog Food",
+      "parentId": "dog-food",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-food-wet"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog",
+        "food-form": "Wet Food"
+      }
+    },
+    {
+      "id": "dog-toys",
+      "label": "Dog Toys",
+      "parentId": "dog",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-toys"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog"
+      }
+    },
+    {
+      "id": "dog-treats",
+      "label": "Dog Treats",
+      "parentId": "dog",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-treats"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog",
+        "food-form": "Treat"
+      }
+    },
+    {
+      "id": "dog-waste-bags",
+      "label": "Dog Waste Bags",
+      "parentId": "dog",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-waste-bags"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "dog"
+      },
+      "invariantAttributes": {
+        "species": "Dog"
+      }
+    },
+    {
+      "id": "electric-fence-chargers",
+      "label": "Electric Fence Chargers",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "electric-fence-chargers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "electric-fence-insulators",
+      "label": "Electric Fence Insulators",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "electric-fence-insulators"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "equine-grooming-hoof",
+      "label": "Equine Grooming & Hoof Care",
+      "parentId": "equine-horse-care",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "equine-grooming-hoof"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Horse"
+      }
+    },
+    {
+      "id": "equine-horse-care",
+      "label": "Equine / Horse Care",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "horse-feed",
+        "horse-treats-supplements",
+        "fly-control-equine",
+        "equine-grooming-hoof",
+        "horse-blankets-tack"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "fence-wire-mesh",
+      "label": "Fence Wire & Mesh",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "fence-wire-mesh"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "fencing-agriculture-containment",
+      "label": "Fencing & Agriculture Containment",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "electric-fence-chargers",
+        "fence-wire-mesh",
+        "t-posts-wooden-posts",
+        "corral-panels-gates",
+        "electric-fence-insulators",
+        "fencing-tools"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "fencing-tools",
+      "label": "Fencing Tools & Accessories",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "fencing-tools"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "firewood-kindling",
+      "label": "Firewood & Kindling",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "firewood-kindling"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "fuel-type": "Firewood"
+      }
+    },
+    {
+      "id": "fish",
+      "label": "Fish",
+      "parentId": "pet-supplies",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [],
+      "derivation": "group",
+      "scope": {
+        "animalDomain": "fish"
+      }
+    },
+    {
+      "id": "fish-food",
+      "label": "Fish Food",
+      "parentId": "fish",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [],
+      "derivation": "type_native",
+      "scope": {
+        "animalDomain": "fish"
+      },
+      "invariantAttributes": {
+        "species": "Fish"
+      }
+    },
+    {
+      "id": "flea-tick-treatment",
+      "label": "Flea & Tick Treatment",
+      "parentId": "pet-health-wellness",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "flea-tick-treatment"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "fly-control-equine",
+      "label": "Equine Fly & Pest Control",
+      "parentId": "equine-horse-care",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "fly-control-equine"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Horse"
+      }
+    },
+    {
+      "id": "fly-insect-control-livestock",
+      "label": "Fly & Pest Control for Livestock",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "fly-insect-control-livestock"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "garage-barn-heaters",
+      "label": "Garage & Barn Heaters",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "garage-barn-heaters"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "garden-hoses-reels",
+      "label": "Garden Hoses & Reels",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "garden-hoses-reels"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "goat-sheep-feed",
+      "label": "Goat & Sheep Feed",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "goat-sheep-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "grass-seed",
+      "label": "Grass Seed",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "grass-seed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "grooming",
+      "label": "Grooming",
+      "parentId": "pet-supplies",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories-grooming",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "grooming"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "hand-tools",
+      "label": "Hand Garden Tools",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "hand-tools"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "heating-fuel-climate-control",
+      "label": "Heating, Fuel & Climate Control",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "heating-pellets-wood",
+        "firewood-kindling",
+        "propane-heaters",
+        "garage-barn-heaters",
+        "coop-barn-heat-lamps",
+        "stove-pipe-chimney-care"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "heating-pellets-wood",
+      "label": "Heating Wood Pellets",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "heating-pellets-wood"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "fuel-type": "Wood Pellets"
+      }
+    },
+    {
+      "id": "horse-blankets-tack",
+      "label": "Horse Blankets & Tack",
+      "parentId": "equine-horse-care",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "horse-blankets-tack"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Horse"
+      }
+    },
+    {
+      "id": "horse-feed",
+      "label": "Horse Feed",
+      "parentId": "equine-horse-care",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "horse-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Horse"
+      }
+    },
+    {
+      "id": "horse-treats-supplements",
+      "label": "Horse Treats & Supplements",
+      "parentId": "equine-horse-care",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "equine-horse-care",
+      "legacyTypeIds": [
+        "horse-treats-supplements"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Horse"
+      }
+    },
+    {
+      "id": "insect-control",
+      "label": "Insect & Pest Control",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "insect-control"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "lawn-fertilizer",
+      "label": "Lawn Fertilizer",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "lawn-fertilizer"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "lawn-garden-landscaping",
+      "label": "Lawn, Garden & Landscaping",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "lawn-fertilizer",
+        "grass-seed",
+        "weed-control",
+        "insect-control",
+        "potting-soil",
+        "hand-tools",
+        "garden-hoses-reels",
+        "sprinklers-nozzles",
+        "plant-food-fertilizer"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "lawn-mowers",
+      "label": "Lawn Mowers",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "lawn-mowers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "livestock-farm-animals",
+      "label": "Livestock & Farm Animals",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "poultry-feed",
+        "bee-supplies",
+        "poultry-coops-equipment",
+        "cattle-feed",
+        "goat-sheep-feed",
+        "pig-swine-feed",
+        "stock-tanks-waterers",
+        "livestock-feeders",
+        "livestock-health-dewormers",
+        "fly-insect-control-livestock",
+        "stall-mats-bedding"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "livestock-feeders",
+      "label": "Livestock Feeders",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "livestock-feeders"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "livestock-health-dewormers",
+      "label": "Livestock Health & Dewormers",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "livestock-health-dewormers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "overalls-coveralls",
+      "label": "Overalls & Coveralls",
+      "parentId": "apparel-workwear",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "apparel-workwear",
+      "legacyTypeIds": [
+        "overalls-coveralls"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "pet-beds",
+      "label": "Pet Beds",
+      "parentId": "pet-supplies",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "pet-beds"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "pet-health-wellness",
+      "label": "Pet Health & Wellness",
+      "parentId": "pet-supplies",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "flea-tick-treatment",
+        "supplements"
+      ],
+      "derivation": "group"
+    },
+    {
+      "id": "pet-supplies",
+      "label": "Pet Supplies",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "dog-food-dry",
+        "dog-food-wet",
+        "dog-treats",
+        "dog-toys",
+        "dog-crates-kennels",
+        "dog-waste-bags",
+        "cat-food-dry",
+        "cat-food-wet",
+        "cat-treats",
+        "cat-toys",
+        "cat-litter",
+        "pet-beds",
+        "grooming",
+        "supplements",
+        "collars-leashes",
+        "flea-tick-treatment",
+        "small-animal-feed-bedding"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "pig-swine-feed",
+      "label": "Pig & Swine Feed",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "pig-swine-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Swine"
+      }
+    },
+    {
+      "id": "plant-food-fertilizer",
+      "label": "Plant Food & Garden Fertilizer",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "plant-food-fertilizer"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "potting-soil",
+      "label": "Potting Soil & Mulch",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "potting-soil"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "poultry-coops-equipment",
+      "label": "Poultry Coops & Equipment",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "poultry-coops-equipment"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Poultry"
+      }
+    },
+    {
+      "id": "poultry-feed",
+      "label": "Poultry Feed",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "poultry-feed"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Poultry"
+      }
+    },
+    {
+      "id": "power-equipment-tools",
+      "label": "Power Equipment & Tools",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "lawn-mowers",
+        "string-trimmers-edgers",
+        "chainsaws-log-splitters",
+        "pressure-washers",
+        "power-tool-accessories",
+        "air-compressors-hoses"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "power-tool-accessories",
+      "label": "Power Tool Accessories",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "power-tool-accessories"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "pressure-washers",
+      "label": "Pressure Washers",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "pressure-washers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "propane-heaters",
+      "label": "Propane Heaters",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "propane-heaters"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "fuel-type": "Propane"
+      }
+    },
+    {
+      "id": "small-animal-feed-bedding",
+      "label": "Small Animal Feed & Bedding",
+      "parentId": "pet-supplies",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-feed",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "small-animal-feed-bedding"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {
+        "species": "Small Animal"
+      }
+    },
+    {
+      "id": "sprinklers-nozzles",
+      "label": "Sprinklers & Hose Nozzles",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "sprinklers-nozzles"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "stall-mats-bedding",
+      "label": "Stall Mats & Bedding",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "stall-mats-bedding"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "stock-tanks-waterers",
+      "label": "Stock Tanks & Waterers",
+      "parentId": "livestock-farm-animals",
+      "classifiable": true,
+      "facetProfileId": "profile-livestock-equipment",
+      "departmentId": "livestock-farm-animals",
+      "legacyTypeIds": [
+        "stock-tanks-waterers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "stove-pipe-chimney-care",
+      "label": "Stove Pipe & Chimney Care",
+      "parentId": "heating-fuel-climate-control",
+      "classifiable": true,
+      "facetProfileId": "profile-heating",
+      "departmentId": "heating-fuel-climate-control",
+      "legacyTypeIds": [
+        "stove-pipe-chimney-care"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "string-trimmers-edgers",
+      "label": "String Trimmers & Edgers",
+      "parentId": "power-equipment-tools",
+      "classifiable": true,
+      "facetProfileId": "profile-power-equipment",
+      "departmentId": "power-equipment-tools",
+      "legacyTypeIds": [
+        "string-trimmers-edgers"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "suet-cakes",
+      "label": "Suet Cakes",
+      "parentId": "wild-bird",
+      "classifiable": true,
+      "facetProfileId": "profile-wild-bird",
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "suet-cakes"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "wild_bird"
+      },
+      "invariantAttributes": {
+        "species": "Bird",
+        "food-form": "Block"
+      }
+    },
+    {
+      "id": "supplements",
+      "label": "Supplements",
+      "parentId": "pet-health-wellness",
+      "classifiable": true,
+      "facetProfileId": "profile-pet-food-supplements",
+      "departmentId": "pet-supplies",
+      "legacyTypeIds": [
+        "supplements"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "t-posts-wooden-posts",
+      "label": "T-Posts & Wooden Fence Posts",
+      "parentId": "fencing-agriculture-containment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "fencing-agriculture-containment",
+      "legacyTypeIds": [
+        "t-posts-wooden-posts"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "tie-down-straps-chains",
+      "label": "Tie-Down Straps & Chains",
+      "parentId": "trailer-towing-equipment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "trailer-towing-equipment",
+      "legacyTypeIds": [
+        "tie-down-straps-chains"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "towing-couplers-jacks",
+      "label": "Trailer Couplers & Jacks",
+      "parentId": "trailer-towing-equipment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "trailer-towing-equipment",
+      "legacyTypeIds": [
+        "towing-couplers-jacks"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "trailer-hitches-balls",
+      "label": "Trailer Hitches & Hitch Balls",
+      "parentId": "trailer-towing-equipment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "trailer-towing-equipment",
+      "legacyTypeIds": [
+        "trailer-hitches-balls"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "trailer-lights-wiring",
+      "label": "Trailer Lights & Wiring",
+      "parentId": "trailer-towing-equipment",
+      "classifiable": true,
+      "facetProfileId": "profile-fencing-towing",
+      "departmentId": "trailer-towing-equipment",
+      "legacyTypeIds": [
+        "trailer-lights-wiring"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "trailer-towing-equipment",
+      "label": "Trailer & Towing Equipment",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "trailer-towing-equipment",
+      "legacyTypeIds": [
+        "trailer-hitches-balls",
+        "towing-couplers-jacks",
+        "trailer-lights-wiring",
+        "tie-down-straps-chains"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "weed-control",
+      "label": "Weed Control",
+      "parentId": "lawn-garden-landscaping",
+      "classifiable": true,
+      "facetProfileId": "profile-garden",
+      "departmentId": "lawn-garden-landscaping",
+      "legacyTypeIds": [
+        "weed-control"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "wild-bird",
+      "label": "Wild Bird",
+      "parentId": "wild-bird-wildlife",
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "bird-food",
+        "bird-houses-baths",
+        "suet-cakes",
+        "wild-bird-feeders"
+      ],
+      "derivation": "family",
+      "scope": {
+        "animalDomain": "wild_bird"
+      }
+    },
+    {
+      "id": "wild-bird-feeders",
+      "label": "Wild Bird Feeders",
+      "parentId": "wild-bird",
+      "classifiable": true,
+      "facetProfileId": "profile-wild-bird",
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "wild-bird-feeders"
+      ],
+      "derivation": "type_1to1",
+      "scope": {
+        "animalDomain": "wild_bird"
+      },
+      "invariantAttributes": {
+        "species": "Bird"
+      }
+    },
+    {
+      "id": "wild-bird-wildlife",
+      "label": "Wild Bird & Wildlife",
+      "parentId": null,
+      "classifiable": false,
+      "facetProfileId": null,
+      "departmentId": "wild-bird-wildlife",
+      "legacyTypeIds": [
+        "bird-food",
+        "suet-cakes",
+        "wild-bird-feeders",
+        "bird-houses-baths",
+        "deer-wildlife-feed"
+      ],
+      "derivation": "department"
+    },
+    {
+      "id": "work-boots",
+      "label": "Work Boots & Barn Boots",
+      "parentId": "apparel-workwear",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "apparel-workwear",
+      "legacyTypeIds": [
+        "work-boots"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "work-gloves",
+      "label": "Work Gloves",
+      "parentId": "apparel-workwear",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "apparel-workwear",
+      "legacyTypeIds": [
+        "work-gloves"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    },
+    {
+      "id": "workwear-outerwear",
+      "label": "Workwear Outerwear",
+      "parentId": "apparel-workwear",
+      "classifiable": true,
+      "facetProfileId": "profile-accessories",
+      "departmentId": "apparel-workwear",
+      "legacyTypeIds": [
+        "workwear-outerwear"
+      ],
+      "derivation": "type_1to1",
+      "invariantAttributes": {}
+    }
+  ]
+}

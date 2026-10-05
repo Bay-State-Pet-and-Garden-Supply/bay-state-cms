@@ -1,0 +1,1582 @@
+{
+  "predictorVersion": "code-executed-v6",
+  "artifactHash": "743ea1907fe0329ce03a35dff141b727ff2d1786af870bf92e4c8e92eb968aa7",
+  "decisionPolicyHash": "630fcaab31ec8b1bd49b4cd9572bfc05748e5abb5a0e5bf33f34c69053d82362",
+  "predictedAt": "2026-10-04T12:26:23.554Z",
+  "entryCount": 25,
+  "captureMode": "live_captured",
+  "taxonomySource": "frozen_snapshot",
+  "frozenTaxonomyHash": "7df8da0059ec8bf0e8365722d9910a5cd3d51efcc16cb7e98fc9208e72369553",
+  "predictions": [
+    {
+      "sku": "PUBLIC:nulo.com:16DK01",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "insufficient_evidence",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "confidence": 0,
+        "latencyMs": 338,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1952,
+          "outputTokens": 776
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:nulo.com:63NT02",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "cat-food-wet",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.48
+          },
+          {
+            "targetId": "flavor",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.49
+          },
+          {
+            "targetId": "food-form",
+            "value": "Wet Food"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.92
+          },
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [
+          "444b43e7-0b90-4893-9f6e-30d6ab3a13c8"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.96,
+        "confidence": 1,
+        "latencyMs": 370,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9737,
+          "outputTokens": 3585
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:nulo.com:55FB08",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-food-dry",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "value": "All Sizes",
+            "outcome": "predicted",
+            "probability": 0.71
+          },
+          {
+            "targetId": "flavor",
+            "value": "Beef",
+            "outcome": "predicted",
+            "probability": 0.99
+          },
+          {
+            "targetId": "food-form",
+            "value": "Dry Food"
+          },
+          {
+            "targetId": "life-stage",
+            "value": "All Life Stages",
+            "outcome": "predicted",
+            "probability": 1
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "370c684b-666f-4c86-b615-261a7059ed0e"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.77,
+        "confidence": 0.93,
+        "latencyMs": 367,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9719,
+          "outputTokens": 3574
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:openfarmpet.com:4421816123505",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-food-dry",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "value": "All Sizes",
+            "outcome": "predicted",
+            "probability": 0.76
+          },
+          {
+            "targetId": "flavor",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.5
+          },
+          {
+            "targetId": "food-form",
+            "value": "Dry Food"
+          },
+          {
+            "targetId": "life-stage",
+            "value": "Puppy",
+            "outcome": "predicted",
+            "probability": 1
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "370c684b-666f-4c86-b615-261a7059ed0e"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.96,
+        "confidence": 1,
+        "latencyMs": 331,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9681,
+          "outputTokens": 3578
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:openfarmpet.com:7575698702449",
+      "baseline": {
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.8,
+        "productType": "dog-food-wet",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "flavor",
+            "value": "Beef"
+          },
+          {
+            "targetId": "food-form",
+            "value": "Wet Food"
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "28560b73-8743-4b6b-a76a-d42c123a4536"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-food-wet",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.95
+          },
+          {
+            "targetId": "flavor",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.38
+          },
+          {
+            "targetId": "food-form",
+            "value": "Wet Food"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.98
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "902f5a0e-9830-40f1-bb05-01f768ae6c42"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.96,
+        "confidence": 1,
+        "latencyMs": 383,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9673,
+          "outputTokens": 3587
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:tikipets.com:17ef10b261c556bababd",
+      "baseline": {
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.8,
+        "productType": "cat-treats",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "flavor",
+            "value": "Chicken"
+          },
+          {
+            "targetId": "food-form",
+            "value": "Treat"
+          },
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [
+          "36d75fa7-602b-4e95-890c-f8b947aa57c2"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "cat-treats",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "no_match",
+            "probability": 0.48
+          },
+          {
+            "targetId": "flavor",
+            "value": "Chicken",
+            "outcome": "predicted",
+            "probability": 0.88
+          },
+          {
+            "targetId": "food-form",
+            "value": "Treat"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.95
+          },
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [
+          "36d75fa7-602b-4e95-890c-f8b947aa57c2"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.99,
+        "confidence": 1,
+        "latencyMs": 358,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9701,
+          "outputTokens": 3576
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:primalpetfoods.com:5453780549786",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 2,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-food-wet",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "value": "Large",
+            "outcome": "predicted",
+            "probability": 0.91
+          },
+          {
+            "targetId": "flavor",
+            "value": "Beef",
+            "outcome": "predicted",
+            "probability": 1
+          },
+          {
+            "targetId": "food-form",
+            "value": "Wet Food"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.96
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.75,
+        "confidence": 0.77,
+        "latencyMs": 336,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9715,
+          "outputTokens": 3578
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:nulo.com:56TS04",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-treats",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.96
+          },
+          {
+            "targetId": "flavor",
+            "value": "Salmon",
+            "outcome": "predicted",
+            "probability": 1
+          },
+          {
+            "targetId": "food-form",
+            "value": "Treat"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.95
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [],
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "low_probability",
+        "pageProbability": 0.43,
+        "confidence": 0.99,
+        "latencyMs": 344,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9631,
+          "outputTokens": 3583
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:nulo.com:56TS04:degraded-flavor-withheld",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-treats",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.96
+          },
+          {
+            "targetId": "flavor",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.98
+          },
+          {
+            "targetId": "food-form",
+            "value": "Treat"
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.88
+          },
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [],
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "low_probability",
+        "pageProbability": 0.48,
+        "confidence": 0.96,
+        "latencyMs": 318,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9673,
+          "outputTokens": 3587
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:petmate.com:8996480745793",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-toys",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.97,
+        "confidence": 1,
+        "latencyMs": 304,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 8983,
+          "outputTokens": 3258
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:petmate.com:8996484841793",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "dog-toys",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.93,
+        "confidence": 1,
+        "latencyMs": 356,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 8979,
+          "outputTokens": 3258
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:petmate.com:8996492378433",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "cat-toys",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [
+          "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.98,
+        "confidence": 1,
+        "latencyMs": 336,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 8976,
+          "outputTokens": 3256
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:petmate.com:8996502241601",
+      "baseline": {
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "unresolved",
+        "pageProbability": 0.6833333333333333,
+        "productType": "cat-toys",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.8,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "cat-toys",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Cat"
+          }
+        ],
+        "pageIds": [
+          "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.97,
+        "confidence": 1,
+        "latencyMs": 327,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9034,
+          "outputTokens": 3256
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:fourpaws.com:24614fd7c695a71fdeda",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "grooming",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Dog",
+            "outcome": "predicted",
+            "probability": 1
+          }
+        ],
+        "pageIds": [
+          "608111f1-ef41-457b-838d-737c6be5c870"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.98,
+        "confidence": 0.98,
+        "latencyMs": 373,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9359,
+          "outputTokens": 3415
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:earthbath.com:8179693486337",
+      "baseline": {
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.8,
+        "productType": "grooming",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Dog"
+          }
+        ],
+        "pageIds": [
+          "608111f1-ef41-457b-838d-737c6be5c870"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "grooming",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "species",
+            "value": "Dog",
+            "outcome": "predicted",
+            "probability": 1
+          }
+        ],
+        "pageIds": [
+          "608111f1-ef41-457b-838d-737c6be5c870"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 1,
+        "confidence": 0.99,
+        "latencyMs": 344,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9258,
+          "outputTokens": 3415
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:durvet.com:32ccff3b7660b4ae0c71",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "horse-treats-supplements",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "packaging-type",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.99
+          },
+          {
+            "targetId": "species",
+            "value": "Horse"
+          }
+        ],
+        "pageIds": [
+          "b9d7b56b-968a-4c64-9812-2c5146fe27e4"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.87,
+        "confidence": 0.94,
+        "latencyMs": 461,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9279,
+          "outputTokens": 3393
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:earthbath.com:5935228616866",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "insufficient_evidence",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "confidence": 0,
+        "latencyMs": 191,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 1942,
+          "outputTokens": 776
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:bonide.com:0a4be8a778d99a4b0e61",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "insect-control",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "packaging-type",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.76
+          }
+        ],
+        "pageIds": [
+          "1b881cb8-39f0-42df-9e78-dc1bf2d40e47"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.75,
+        "confidence": 0.99,
+        "latencyMs": 338,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9543,
+          "outputTokens": 3392
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:bonide.com:024c02ad9ce43e0e3f00",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "weed-control",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "packaging-type",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.51
+          }
+        ],
+        "pageIds": [
+          "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.78,
+        "confidence": 1,
+        "latencyMs": 366,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9567,
+          "outputTokens": 3393
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:jonathangreen.com:10937",
+      "baseline": {
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "unresolved",
+        "pageProbability": 0.6833333333333333,
+        "productType": "grass-seed",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0.8,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "no_match",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "confidence": 0,
+        "latencyMs": 171,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 2025,
+          "outputTokens": 771
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:jonathangreen.com:154871",
+      "baseline": {
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "unresolved",
+        "pageProbability": 0.625,
+        "productType": "lawn-fertilizer",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "lawn-fertilizer",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "packaging-type",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.73
+          }
+        ],
+        "pageIds": [
+          "d3341055-c86c-4eb3-9a11-6a7f15d32bfd"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.52,
+        "confidence": 0.96,
+        "latencyMs": 335,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9408,
+          "outputTokens": 3393
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:mannapro.com:8237463994521",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "horse-treats-supplements",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "packaging-type",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "insufficient_evidence",
+            "probability": 0.98
+          },
+          {
+            "targetId": "species",
+            "value": "Horse"
+          }
+        ],
+        "pageIds": [
+          "b9d7b56b-968a-4c64-9812-2c5146fe27e4"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.73,
+        "confidence": 0.97,
+        "latencyMs": 377,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 9367,
+          "outputTokens": 3393
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:mazuri.com:7010599862468",
+      "baseline": {
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 0.8,
+        "productType": "fish-food",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "flavor",
+            "value": "Fish"
+          },
+          {
+            "targetId": "food-form",
+            "value": "Pellets"
+          },
+          {
+            "targetId": "species",
+            "value": "Fish"
+          }
+        ],
+        "pageIds": [
+          "2ae44b48-4ed1-4776-b278-3f2bcc840958"
+        ],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": "fish-food",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "breed-size",
+            "value": "Small",
+            "outcome": "predicted",
+            "probability": 0.64
+          },
+          {
+            "targetId": "flavor",
+            "value": "Fish",
+            "outcome": "predicted",
+            "probability": 0.51
+          },
+          {
+            "targetId": "food-form",
+            "value": "Pellets",
+            "outcome": "predicted",
+            "probability": 1
+          },
+          {
+            "targetId": "life-stage",
+            "outcome": "abstained-semantic",
+            "abstentionCode": "no_match",
+            "probability": 0.62
+          },
+          {
+            "targetId": "species",
+            "value": "Fish"
+          }
+        ],
+        "pageIds": [
+          "dfc0ba6d-fcc3-4747-a397-4945a067bc47"
+        ],
+        "pageOutcome": "predicted",
+        "pageAbstentionCode": null,
+        "pageProbability": 1,
+        "confidence": 1,
+        "latencyMs": 360,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 10457,
+          "outputTokens": 3733
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:mazuri.com:7010600190148",
+      "baseline": {
+        "pageOutcome": "unresolved",
+        "pageAbstentionCode": "unresolved",
+        "pageProbability": 0.625,
+        "productType": "supplements",
+        "abstained": false,
+        "abstentionCode": null,
+        "fieldAssignments": [
+          {
+            "targetId": "food-form",
+            "value": "Pellets"
+          }
+        ],
+        "pageIds": [],
+        "confidence": 0.8,
+        "latencyMs": 1,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "no_match",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "confidence": 0,
+        "latencyMs": 175,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 2055,
+          "outputTokens": 771
+        }
+      }
+    },
+    {
+      "sku": "PUBLIC:wildbirdsuets.com:4b119e7215973bb25f87",
+      "baseline": {
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "confidence": 0,
+        "latencyMs": 0,
+        "source": "deterministic_floor",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": null,
+        "resolvedModel": null,
+        "provider": null,
+        "usage": null
+      },
+      "candidate": {
+        "productType": null,
+        "abstained": true,
+        "abstentionCode": "low_probability",
+        "fieldAssignments": [],
+        "pageIds": [],
+        "pageOutcome": "abstained-semantic",
+        "pageAbstentionCode": "no_reviewed_product_type",
+        "pageProbability": null,
+        "confidence": 0,
+        "latencyMs": 140,
+        "source": "live_captured",
+        "blockedCode": null,
+        "blockedDetail": null,
+        "failureCode": null,
+        "requestedModel": "jev-1.13.0",
+        "resolvedModel": "jev-1.13.0",
+        "provider": "typesafe",
+        "usage": {
+          "inputTokens": 2009,
+          "outputTokens": 773
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "dryRun": false,
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "candidateCount": 0,
+  "familyCount": 0,
+  "splitDistribution": {
+    "train": 0,
+    "test": 0,
+    "holdout": 0
+  },
+  "dbWrites": 0,
+  "filesWritten": 4,
+  "outDir": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-representative-v3",
+  "release": "bay-state-v8",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe",
+  "verifiedPages": 212,
+  "productTypes": 74,
+  "attributes": 27
+}

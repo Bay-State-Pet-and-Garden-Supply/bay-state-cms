@@ -1,3 +1,4 @@
+import { getApiAuthHeaders } from './api';
 import type {
   OnboardingBatch,
   OnboardingItem,
@@ -76,8 +77,8 @@ export class OnboardingApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+async function request<T>(path: string, options?: RequestInit, base: string = API_BASE): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -1703,8 +1704,13 @@ export interface TaxonomyReleaseStatus {
   availableRevisions: TaxonomyReleaseRevisionInfo[];
 }
 
+/** Server mounts the taxonomy-release router at /api (not /api/onboarding). */
+const TAXONOMY_API_BASE = '/api';
+
 export async function getTaxonomyReleaseStatus(): Promise<TaxonomyReleaseStatus> {
-  return request<TaxonomyReleaseStatus>('/settings/taxonomy-release');
+  return request<TaxonomyReleaseStatus>('/settings/taxonomy-release', {
+    headers: getApiAuthHeaders(),
+  }, TAXONOMY_API_BASE);
 }
 
 export async function pinTaxonomyRelease(
@@ -1712,6 +1718,7 @@ export async function pinTaxonomyRelease(
 ): Promise<{ success: boolean; activeRevision: string; updatedAt: string }> {
   return request('/settings/taxonomy-release/pin', {
     method: 'POST',
+    headers: getApiAuthHeaders(),
     body: JSON.stringify({ revision }),
-  });
+  }, TAXONOMY_API_BASE);
 }

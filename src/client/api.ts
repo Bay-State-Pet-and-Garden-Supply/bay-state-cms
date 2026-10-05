@@ -4,17 +4,20 @@ import type { CatalogProposal } from '../shared/schemas/catalog-health-proposal'
 
 const API_BASE = '/api';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+export function getApiAuthHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined'
-    ? (window as any).__BAYSTATE_TOKEN__ || localStorage.getItem('baystate_cms_api_token')
+    ? (window as Window & { __BAYSTATE_TOKEN__?: string }).__BAYSTATE_TOKEN__ || localStorage.getItem('baystate_cms_api_token')
     : null;
-  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...authHeaders,
+      ...getApiAuthHeaders(),
       ...(options?.headers || {}),
     },
   });
@@ -1086,4 +1089,3 @@ export function applyClassificationPolicy(payload: ApplyPolicyInputPayload) {
     body: JSON.stringify(payload),
   });
 }
-

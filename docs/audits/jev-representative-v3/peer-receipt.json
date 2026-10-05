@@ -1,0 +1,14 @@
+{
+  "authority": "78f550f0",
+  "status": "peer-reviewed-strict-type-stage",
+  "adjudicationCounts": {
+    "sourceRich": 45,
+    "known": 19,
+    "noFit": 0,
+    "insufficient": 27,
+    "unlabeled": 0,
+    "quarantined": 42
+  },
+  "typeStageAdjudicationVerified": true,
+  "primaryLabelWronglyDependedOnOtherStages": true
+}

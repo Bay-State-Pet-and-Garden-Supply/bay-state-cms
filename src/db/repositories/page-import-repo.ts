@@ -33,6 +33,52 @@ export function mapImportRow(row: Record<string, any>): PageImport {
   });
 }
 
+/**
+ * Minimal readonly driver surface for verified-Page snapshot reads (#302).
+ * Accepts the global Database or an independent readonly driver — never
+ * initDb, never writes.
+ */
+export interface ReadonlySnapshotDb {
+  query(sql: string): {
+    get(...params: unknown[]): unknown;
+    all(...params: unknown[]): unknown[];
+  };
+  transaction<T>(fn: () => T): () => T;
+}
+
+export interface VerifiedPageIndexRow {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  source_hash: string | null;
+  identity_kind: string;
+  identity_key: string;
+  availability: string;
+}
+
+/** Active page-import row for a workspace over an explicit readonly db. */
+export function getActivePageImportRow(
+  db: ReadonlySnapshotDb,
+  workspaceId: string,
+): Record<string, unknown> | undefined {
+  return db.query(
+    "SELECT * FROM page_imports WHERE workspace_id = ? AND status = 'active' ORDER BY activated_at DESC LIMIT 1",
+  ).get(workspaceId) as Record<string, unknown> | undefined;
+}
+
+/** Verified page_index rows of one import over an explicit readonly db. */
+export function listVerifiedPageIndexRows(
+  db: ReadonlySnapshotDb,
+  workspaceId: string,
+  importId: string,
+): VerifiedPageIndexRow[] {
+  return db.query(
+    `SELECT id, name, parent_id, source_hash, identity_kind, identity_key, availability
+     FROM page_index
+     WHERE workspace_id = ? AND import_id = ? AND identity_status = 'verified'`,
+  ).all(workspaceId, importId) as VerifiedPageIndexRow[];
+}
+
 /** The currently active verified import for a workspace, or null. */
 export function getActivePageImport(workspaceId: string): PageImport | null {
   const db = getDb();

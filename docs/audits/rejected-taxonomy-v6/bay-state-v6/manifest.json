@@ -1,0 +1,35 @@
+{
+  "releaseId": "bay-state-v6",
+  "revision": "bay-state-v6",
+  "createdAt": "2026-10-04T00:00:00.000Z",
+  "schemaVersion": 3,
+  "compatibilityVersion": 3,
+  "lifecycle": "release",
+  "sourceBaseline": "bay-state-v5",
+  "fileVersions": {
+    "hierarchy.json": "4f5410dbeacaa37982bfae511ce479cc3f12c3922cdca669c6e769bf8ac5d6be",
+    "facet-profiles.json": "28097eac5195bdd55f74f7a61cb0a8c5d374b32280e801e75a2e873d66fc323a",
+    "legacy-mappings.json": "4c6b8bdbcd29441c6adcc20cde844f926d5d0010c8211a6b226b2bb2fd025e5d",
+    "attributes.json": "9bde81f0cd3aa23bc76f8c2cd0e84cfd09bd1571504c4aaa9b47eb05f3c95e21",
+    "export-mappings.json": "bbfe5e6f75f17b05c3fa016b4a3e89ce719932b83d07ff6dc05fb8d670fb6201",
+    "shopsite-projection.json": "bea9fd1aad8eef5d10e65b5e6f57347fd634fc6fd6086a665315f29f8678ae91",
+    "guidance.json": "348cf240e65694898b40ac549fe3314b6e244939c9600816bcca315e0fd0885a",
+    "page-assignment-policy.json": "64eafc38fcf9a9ba074f18a33c7026396642f3458a503419552686ba2285c7db"
+  },
+  "counts": {
+    "nodes": 91,
+    "facetProfiles": 9,
+    "attributes": 27,
+    "mappings": 19,
+    "pages": 153,
+    "departments": 10,
+    "types": 74,
+    "nativeLeaves": 1
+  },
+  "notes": [
+    "bay-state-v5 adds controlled species validation, domain-specific invariant attributes for pet, livestock, equine, and heating product types, and refined facet profiles.",
+    "bay-state-v6 (schemaVersion remains V5 generation): governed species cardinality single->multiple on the two facet-profile species entries backing the compiled profile-supplements (via profile-pet-food) and profile-grooming (via profile-accessories) types only.",
+    "Owner-authorized explicit approval: official manufacturer product copy for the affected supplement/grooming products explicitly lists both Dog and Cat; single-cardinality forced a false choice. Evidence reviewed by owner (public/dev manufacturer excerpts); no held-out items read.",
+    "Mechanical consequence: the 12 sibling-type species invariants under the two shared facets are rewrapped string->[string] with identical values (V5 gate requires array shape for multiple cardinality). All other profiles, types, values, mappings, questions, and history preserved from bay-state-v5 baseline."
+  ]
+}

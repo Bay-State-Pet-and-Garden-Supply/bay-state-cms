@@ -11,6 +11,7 @@ import {
   assertReleaseValid,
   assertReleaseValidV4,
   assertReleaseValidV5,
+  detectReleaseGeneration,
   isValidReleaseId,
   ReleaseValidationError,
 } from '../../classification/release-validation';
@@ -101,9 +102,13 @@ function inspectRevision(revision: string): AvailableRevision | null {
   }
   const schemaVersion = typeof manifest.schemaVersion === 'number' ? manifest.schemaVersion : null;
   try {
+    // Generation-aware inspection: V5 descendants (v6, v7, …) validate under
+    // the V5 rules via hierarchy evidence + sourceBaseline traversal — never
+    // an exact-revision name check.
+    const generation = detectReleaseGeneration(revision);
     const report =
-      revision === V5_TAXONOMY_REVISION ? assertReleaseValidV5(revision)
-        : schemaVersion === 3 ? assertReleaseValidV4(revision)
+      generation === 'v5' ? assertReleaseValidV5(revision)
+        : generation === 'v4' ? assertReleaseValidV4(revision)
         : schemaVersion === 2 ? assertReleaseValid(revision)
           : null;
     if (!report) throw new Error('unsupported_release_schema');
@@ -206,10 +211,12 @@ admin.post('/settings/taxonomy-release/pin', async (c) => {
   }
 
   // Gate 3: full validation BEFORE touching state.json (never partial writes).
+  // Generation-aware: V5 descendants validate under the V5 rules.
   try {
-    if (revision === V5_TAXONOMY_REVISION) {
+    const generation = detectReleaseGeneration(revision);
+    if (generation === 'v5') {
       assertReleaseValidV5(revision);
-    } else if (revision === V4_TAXONOMY_REVISION) {
+    } else if (generation === 'v4') {
       assertReleaseValidV4(revision);
     } else {
       assertReleaseValid(revision);

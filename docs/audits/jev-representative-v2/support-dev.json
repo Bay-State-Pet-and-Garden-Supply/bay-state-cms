@@ -1,0 +1,72 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "development-gold-support",
+ "authorityHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+ "authorityBinding": {
+  "release": "bay-state-v7",
+  "configHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+  "catalogGitCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b",
+  "taxonomy": "docs/audits/jev-representative-v2/taxonomy.json"
+ },
+ "status": "complete-26-family-dev-v2-multi-pilot",
+ "requestedIndependentFamilyCount": 120,
+ "reviewedIndependentFamilyCount": 26,
+ "entryCount": 27,
+ "independentFamilyIds": [
+  "family-016e4fd402de1547e1ded7dcec0d22f3",
+  "family-1637e5c436e3d6b164275f193eb72c91",
+  "family-1718d92c278fc8ea753dc8300211b68e",
+  "family-1cc2a0af19dab3b3182095ae92e51bae",
+  "family-2251a06c8f55ab4beeef313a7d228c32",
+  "family-24bf27927647c35b0e4cb54f6d17b3e8",
+  "family-491436d50f8101a3542b0c0d6478c8f1",
+  "family-53897785170d9e89fc5e3c7d145632c8",
+  "family-6b62e122b840a6c81bd6549bc71ad1e2",
+  "family-71b5712023e5d6e6577bda92cfa29211",
+  "family-77f6f1991d1f285ce700fe8476de3d49",
+  "family-80fcb9fd00a2a3288a70397f45784ddd",
+  "family-818fdd4e8bdccca7a2fc0b2e96b0ae53",
+  "family-83e9bb7062c62f5ffc82cacdf28dacda",
+  "family-8a8056327f54cd1a3752e3544431e68f",
+  "family-966123ca937d8613ab1aae1b8c6680bd",
+  "family-9a4259207c6ad68ee5ca5cfdad70fe6c",
+  "family-b916b5fa09b9a5718a2cab7da0dbf3aa",
+  "family-bf997289fe030059e671b8dd720ee982",
+  "family-c3c10bd1ce8d9db7460c4d4ebfe353f4",
+  "family-ce7e82d4be0275b69b88c5a768936360",
+  "family-e99092d516762d9c6b53f18938e3229d",
+  "family-e9b5ebe5e86d07e64f63ea82bd0fcd18",
+  "family-f4366deb01986548f38df6063102297f",
+  "family-f8a120dfc1ef5b4864139fee41e1d117",
+  "family-fd6c7858135f3b86b4102d8492a55c36"
+ ],
+ "knownMultiSpeciesEntries": 4,
+ "frozenConditionalInputs": {
+  "speciesCardinality": {
+   "profile-grooming": "multiple",
+   "profile-supplements": "multiple",
+   "defaultSingle": "all-other-72-profiles"
+  },
+  "configHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+  "catalogGitCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b",
+  "release": "bay-state-v7"
+ },
+ "approvedConfigChange": {
+  "changeType": "approved-cardinality-single-to-multiple",
+  "authority": "owner-approved bay-state-v7 (NOT model-based gold tuning)",
+  "affectedProfiles": [
+   "profile-grooming",
+   "profile-supplements"
+  ],
+  "affectedTarget": "species",
+  "semantics": "explicit Dog+Cat -> known [Dog, Cat] with literal quote; singleton declared species now array (e.g. [Dog]); all other controlled targets remain single"
+ },
+ "note": "V2 carries v1 24-family DEV lock + 2 dual-species adds; agent adjudication, NOT human approval. PUBLIC: ids are not store UPCs.",
+ "representationFix": {
+  "rejectedArchive": "rejected-gold-representation-v1.json",
+  "rejectedGoldSha256": "275ee9720ec32f7ae555f863f6fea545db805e3150b45cc2409e25008e892c70",
+  "correctedGoldSha256": "5bd7f5b7f90a0ff402d5817b4f2295a15c791af97b4b3cab7796c70d39d64994",
+  "change": "species known multi value:[...] -> values:[...]; value key absent on multi; labels/semantics/quotes unchanged"
+ }
+}

@@ -1,6 +1,26 @@
 import { getDb } from '../connection';
 import type { Workspace } from '@/shared/types';
 
+/** Minimal readonly driver surface for workspace-identity reads (#302). */
+export interface ReadonlyWorkspaceDb {
+  query(sql: string): {
+    get(...params: unknown[]): unknown;
+  };
+}
+
+/**
+ * Workspace id over an explicit readonly db (independent readonly driver —
+ * never initDb). Returns null when the workspace table is absent/empty.
+ */
+export function findWorkspaceIdReadonly(db: ReadonlyWorkspaceDb): string | null {
+  try {
+    const row = db.query('SELECT id FROM workspace LIMIT 1').get() as { id: unknown } | undefined;
+    return row && typeof row.id === 'string' ? row.id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function findWorkspace(): Workspace | null {
   try {
     const db = getDb();

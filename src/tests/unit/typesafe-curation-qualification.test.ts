@@ -57,6 +57,8 @@ import {
   evaluateJevOfflineComparison,
   assessProductionQualification,
   evaluateJevQualificationGate,
+  evaluationStatusText,
+  measuredPercent,
   REQUIRED_COMPATIBILITY_SUITE_IDS,
   OPERATOR_RUNBOOK_PATH,
   type QualificationGoldset,
@@ -1086,6 +1088,9 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const goldset = loadExecutedQualificationGoldset();
       const template = goldset.entries.find(entry => entry.gold.productType.kind === 'known-type')!;
       goldset.entries = Array.from({ length: 220 }, (_, index) => ({ ...template, sku: `STAT-FIXTURE-${index}`, familyId: `stat-fixture-${index}`, split: 'holdout' as const,
+        // Complete adjudication markers (fixture bytes untouched): the
+        // conservative gate refuses marker-less holdout rows fail-closed.
+        gold: { ...template.gold, categoryPages: { ...template.gold.categoryPages, state: 'known' as const, completeness: 'complete' as const } },
         baseline: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0, failureCode: null },
         candidate: { productType: template.gold.productType.typeId, abstained: false,
           fieldAssignments: template.gold.fieldAssignments, pageIds: template.gold.categoryPages.pageIds, confidence: 0.9, failureCode: null },
@@ -1592,10 +1597,17 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         expect(first.candidate.abstained).toBe(false);
         expect(first.candidate.confidence).toBeCloseTo(0.85, 4);
         expect(first.candidate.fieldAssignments).toEqual([
-          { targetId: 'animal_type', values: ['dog', 'cat'] },
-          { targetId: 'flavor', value: 'Chicken' },
+          { targetId: 'animal_type', values: ['dog', 'cat'], outcome: 'predicted', probability: 0.95,
+            candidateProbabilities: { dog: 0.95, cat: 0.95 }, probabilityDigest: expect.any(String) },
+          { targetId: 'flavor', value: 'Chicken', outcome: 'predicted', probability: 0.85 },
         ]);
+        // Provenance digest binds the actual canonical probabilities (format, not a frozen hash).
+        const predictedNoul = first.candidate.fieldAssignments.find(f => f.targetId === 'animal_type') as unknown as Record<string, unknown>;
+        expect(predictedNoul.probabilityDigest).toMatch(/^[0-9a-f]{64}$/);
         expect(first.candidate.pageIds).toEqual(['page-dry-dog-food']);
+        expect(first.candidate.pageOutcome).toBe('predicted');
+        expect(first.candidate.pageAbstentionCode).toBeNull();
+        expect(first.candidate.pageProbability).toBeCloseTo(0.85, 4);
         expect(first.candidate.requestedModel).toBe('jev-1.13.0');
         expect(first.candidate.resolvedModel).toBe('jev-1.13.0');
         expect(first.candidate.provider).toBe('typesafe');
@@ -1630,8 +1642,18 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         expect(first.candidate.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
         expect(first.candidate.abstained).toBe(true);
         expect(first.candidate.productType).toBeNull();
-        expect(first.candidate.fieldAssignments).toEqual([]);
+        // Below-floor answers ride as unresolved proof (never bare empties):
+        // the universal Noul target proves nothing at 0.1 — outcome stays
+        // unresolved (never credited) while carrying the shipped policy's
+        // actual code plus canonical probabilities, and pages abstain for the
+        // missing effective type with the production code.
+        expect(first.candidate.fieldAssignments).toEqual([
+          { targetId: 'animal_type', outcome: 'unresolved', abstentionCode: 'no_match', probability: null,
+            candidateProbabilities: { dog: 0.1, cat: 0.1 }, probabilityDigest: expect.any(String) },
+        ]);
         expect(first.candidate.pageIds).toEqual([]);
+        expect(first.candidate.pageOutcome).toBe('abstained-semantic');
+        expect(first.candidate.pageAbstentionCode).toBe('no_reviewed_product_type');
         expect(first.candidate.confidence).toBe(0);
         expect(first.candidate.failureCode).toBeNull();
         expect(first.candidate.resolvedModel).toBe('jev-1.13.0');
@@ -2025,6 +2047,500 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const proof = verifyFamilySeparation(entries);
       expect(proof.proofVersion).toBe(FAMILY_SEPARATION_PROOF_VERSION);
       expect(proof.passed).toBe(true);
+    });
+  });
+
+  describe('gold-state scoring contract (step 1)', () => {
+    function qualEntry(overrides: Partial<QualificationGoldEntry>): QualificationGoldEntry {
+      return {
+        sku: 'sku-1',
+        familyId: 'fam-1',
+        split: 'holdout',
+        assortment: 'food',
+        gold: {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: [],
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        },
+        evidence: [{ source: 'official_product_page', snippet: 'x', reliability: 'high', attributeId: null }],
+        baseline: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0 },
+        candidate: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0 },
+        ...overrides,
+      } as QualificationGoldEntry;
+    }
+    function qualGoldset(entries: QualificationGoldEntry[]): QualificationGoldset {
+      return { version: 1, description: 't', adjudicatedBy: 't', entries };
+    }
+
+    it('rejects invalid qualification gold states during parsing', () => {
+      expect(() => parseQualificationGoldOnly({ entries: [{ sku: 's', familyId: 'f', split: 'dev', assortment: 'a', gold: { productType: { kind: 'bogus', typeId: null }, fieldAssignments: [], categoryPages: { pageIds: [], pageAssignments: [] } }, evidence: [] }] })).toThrow();
+      expect(() => parseQualificationGoldOnly({ entries: [{ sku: 's', familyId: 'f', split: 'dev', assortment: 'a', gold: { productType: { kind: 'known-type', typeId: 't' }, fieldAssignments: [{ targetId: 'flavor', state: 'bogus' }], categoryPages: { pageIds: [], pageAssignments: [] } }, evidence: [] }] })).toThrow();
+      expect(() => parseQualificationGoldOnly({ entries: [{ sku: 's', familyId: 'f', split: 'dev', assortment: 'a', gold: { productType: { kind: 'known-type', typeId: 't' }, fieldAssignments: [], categoryPages: { pageIds: [], pageAssignments: [], state: 'bogus' } }, evidence: [] }] })).toThrow();
+    });
+
+    it('scores type-unlabeled but attr-known gold on attributes (independent of type labeling)', () => {
+      const entry = qualEntry({
+        gold: {
+          productType: { kind: 'unlabeled', typeId: null },
+          fieldAssignments: [{ targetId: 'flavor', value: 'Chicken', state: 'known' }],
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        },
+        baseline: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0 },
+        candidate: { productType: null, abstained: true, fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }], pageIds: [], confidence: 0.9 },
+      });
+      const report = evaluateJevOfflineComparison(qualGoldset([entry]));
+      expect(report.attributes.rawCorrectness.candidate).toBe(1);
+    });
+
+    it('requires coded abstention match: wrong/uncoded refusals are not correct', () => {
+      const noFit = qualEntry({
+        gold: {
+          productType: { kind: 'no-fit', typeId: null },
+          fieldAssignments: [],
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        },
+      });
+      const wrongCode = qualEntry({
+        gold: noFit.gold,
+        candidate: { productType: null, abstained: true, abstentionCode: 'wrong_code', fieldAssignments: [], pageIds: [], confidence: 0 },
+      });
+      const uncoded = qualEntry({
+        gold: noFit.gold,
+        candidate: { productType: null, abstained: false, fieldAssignments: [], pageIds: [], confidence: 0, failureCode: 'boom' },
+      });
+      const report = evaluateJevOfflineComparison(qualGoldset([wrongCode, uncoded]));
+      expect(report.productType.rawCorrectness.candidate).toBe(0);
+    });
+
+    it('excludes unknown/partial pages but counts explicit known-empty pages', () => {
+      const unknownPage = qualEntry({
+        gold: {
+          productType: { kind: 'known-type', typeId: 't' },
+          fieldAssignments: [],
+          categoryPages: { pageIds: [], pageAssignments: [], state: 'unknown', completeness: 'unknown' },
+        },
+      });
+      const knownEmpty = qualEntry({
+        sku: 'sku-2',
+        gold: {
+          productType: { kind: 'known-type', typeId: 't' },
+          fieldAssignments: [],
+          categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+        },
+      });
+      const report = evaluateJevOfflineComparison(qualGoldset([unknownPage, knownEmpty]));
+      // Unknown page entry excluded; known-empty entry evaluated and exactly matched (both empty).
+      expect(report.categoryPages.rawCorrectness.candidate).toBe(1);
+    });
+
+    // ── Step-1 completion: code-path proof tests (mocked HTTP / executed
+    // floors — never hand-authored prediction stand-ins) ──
+
+    function step1Taxa(): QualificationTaxonomies {
+      return {
+        productTypes: [
+          { id: 'dog_food_dry', label: 'Dry Dog Food', attributeProfileId: 'dog-profile' },
+        ],
+        attributeTargets: [
+          { targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] },
+          { targetId: 'animal_type', cardinality: 'multiple', options: ['dog', 'cat'], isUniversal: true },
+        ],
+        pages: [{ pageId: 'page-dry-dog-food', pageName: 'Dry Dog Food' }],
+        typeAttributeProfiles: { dog_food_dry: 'dog-profile' },
+        attributeProfiles: [
+          {
+            id: 'dog-profile',
+            productTypeId: 'dog_food_dry',
+            attributes: [
+              { attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] },
+              { attributeId: 'animal_type', cardinality: 'multiple', required: false, applicabilityConditions: [] },
+            ],
+          },
+        ],
+        universalAttributeIds: ['animal_type'],
+        invariantAttributesByType: {},
+      };
+    }
+
+    function step1Entry(sku: string, gold: QualificationGoldOnlyEntry['gold'], snippet: string): QualificationGoldOnlyEntry {
+      return {
+        sku,
+        familyId: `fam-${sku}`,
+        split: 'holdout',
+        assortment: 'food',
+        gold,
+        evidence: [{ source: 'official_page', snippet, reliability: 'high', attributeId: null }],
+      };
+    }
+
+    function mockStep1Fetch(flavorChoice: { kind: 'code'; code: string; prob: number } | { kind: 'first'; prob: number }, noulProb: number): typeof fetch {
+      return (async (_url: unknown, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { questions: Record<string, { type: string; criteria?: Record<string, string> }> };
+        const answers: Record<string, unknown> = {};
+        for (const [qid, q] of Object.entries(body.questions)) {
+          if (q.type === 'choice') {
+            const keys = Object.keys(q.criteria ?? {});
+            const want = qid === 'attr_flavor'
+              ? (flavorChoice.kind === 'code' ? flavorChoice.code : keys[0])
+              : keys[0];
+            const prob = qid === 'attr_flavor' ? flavorChoice.prob : 0.9;
+            const probabilities: Record<string, number> = {};
+            for (const k of keys) probabilities[k] = k === want ? prob : (1 - prob) / Math.max(1, keys.length - 1);
+            answers[qid] = { type: 'choice', choice: want, probabilities, confidence: 0.9 };
+          } else {
+            answers[qid] = { type: 'noul', noul: noulProb };
+          }
+        }
+        return new Response(
+          JSON.stringify({ model: 'jev-1.13.0', answers, usage: { input_tokens: 50, output_tokens: 10 } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+    }
+
+    async function captureStep1AttrScenario(
+      flavorGoldState: 'no-fit' | 'insufficient-evidence',
+      flavorChoice: { kind: 'code'; code: string; prob: number } | { kind: 'first'; prob: number },
+    ): Promise<{ candidateCorrect: number; candidate: QualificationGoldEntry['candidate'] }> {
+      const entry = step1Entry('STEP1-ATTR-01', {
+        productType: { kind: 'no-fit', typeId: null },
+        fieldAssignments: [{ targetId: 'flavor', state: flavorGoldState }],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      }, 'Acme generic goods parcel');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = mockStep1Fetch(flavorChoice, 0.1);
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          [entry], { jev: { apiKey: 'test-key-12345678' } }, step1Taxa(),
+        );
+        const p = artifact.predictions.find(x => x.sku === entry.sku)!;
+        const goldset: QualificationGoldset = {
+          version: 1, description: 't', adjudicatedBy: 't',
+          entries: [{ ...entry, gold: entry.gold, evidence: entry.evidence, baseline: { ...p.baseline }, candidate: { ...p.candidate } }],
+        };
+        const report = evaluateJevOfflineComparison(goldset);
+        return { candidateCorrect: report.attributes.rawCorrectness.candidate, candidate: p.candidate };
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    }
+
+    it('credits coded no-match vs insufficient-evidence but never wrong/uncoded/low-probability refusals (live capture)', async () => {
+      // Same empty value set in every scenario — only the coded proof differs.
+      const matched = await captureStep1AttrScenario('no-fit', { kind: 'code', code: 'no_match', prob: 0.9 });
+      expect(matched.candidateCorrect).toBe(1);
+      expect(matched.candidate.fieldAssignments).toContainEqual(
+        { targetId: 'flavor', outcome: 'abstained-semantic', abstentionCode: 'no_match', probability: 0.9 },
+      );
+
+      const insuff = await captureStep1AttrScenario('insufficient-evidence', { kind: 'code', code: 'insufficient_evidence', prob: 0.9 });
+      expect(insuff.candidateCorrect).toBe(1);
+
+      const wrongCode = await captureStep1AttrScenario('no-fit', { kind: 'code', code: 'insufficient_evidence', prob: 0.9 });
+      expect(wrongCode.candidateCorrect).toBe(0);
+
+      const uncoded = await captureStep1AttrScenario('no-fit', { kind: 'first', prob: 0.1 });
+      expect(uncoded.candidateCorrect).toBe(0);
+
+      const lowProb = await captureStep1AttrScenario('no-fit', { kind: 'code', code: 'no_match', prob: 0.2 });
+      expect(lowProb.candidateCorrect).toBe(0);
+    });
+
+    it('never credits Noul silence as semantic abstention (live capture)', async () => {
+      const entry = step1Entry('STEP1-NOUL-01', {
+        productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+        fieldAssignments: [
+          { targetId: 'animal_type', state: 'no-fit' },
+          { targetId: 'flavor', state: 'unlabeled' },
+        ],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      }, 'Acme generic goods parcel');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = mockStep1Fetch({ kind: 'code', code: 'no_match', prob: 0.9 }, 0.1);
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          [entry], { jev: { apiKey: 'test-key-12345678' } }, step1Taxa(),
+        );
+        const p = artifact.predictions.find(x => x.sku === entry.sku)!;
+        // Noul silence is unresolved, never abstained-semantic: the shipped
+        // policy's actual code rides along but only an abstained-semantic
+        // outcome can ever credit no-fit/insufficient-evidence gold.
+        expect(p.candidate.fieldAssignments).toContainEqual(
+          { targetId: 'animal_type', outcome: 'unresolved', abstentionCode: 'no_match', probability: null,
+            candidateProbabilities: { dog: 0.1, cat: 0.1 }, probabilityDigest: expect.any(String) },
+        );
+        const goldset: QualificationGoldset = {
+          version: 1, description: 't', adjudicatedBy: 't',
+          entries: [{ ...entry, evidence: entry.evidence, baseline: { ...p.baseline }, candidate: { ...p.candidate } }],
+        };
+        expect(evaluateJevOfflineComparison(goldset).attributes.rawCorrectness.candidate).toBe(0);
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('evaluates known-empty pages with extras penalized; partial/unknown excluded (executed floor)', () => {
+      const snippet = 'Acme Dry Dog Food Xylophone Gadget kibble';
+      const taxa = { ...step1Taxa(), pages: [{ pageId: 'page-x', pageName: 'Xylophone Gadget' }] };
+      const entries = (['known', 'partial', 'unknown'] as const).map((marker, i) => step1Entry(`STEP1-PAGE-0${i}`, {
+        productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+        fieldAssignments: [],
+        categoryPages: marker === 'known'
+          ? { pageIds: [], pageAssignments: [], state: 'known' as const, completeness: 'complete' as const }
+          : marker === 'partial'
+            ? { pageIds: ['page-x'], pageAssignments: [{ pageId: 'page-x', pageName: 'Xylophone Gadget' }], state: 'partial' as const, completeness: 'partial' as const }
+            : { pageIds: [], pageAssignments: [], state: 'unknown' as const, completeness: 'unknown' as const },
+      }, snippet));
+      const artifact = buildQualificationPredictionsFromCode(entries, taxa);
+      const goldset: QualificationGoldset = {
+        version: 1, description: 't', adjudicatedBy: 't',
+        entries: entries.map(e => {
+          const p = artifact.predictions.find(x => x.sku === e.sku)!;
+          return { ...e, evidence: e.evidence, baseline: { ...p.baseline }, candidate: { ...p.candidate } };
+        }),
+      };
+      const report = evaluateJevOfflineComparison(goldset);
+      // Only the known-empty entry evaluates; the floor's predicted extra is incorrect (not skipped).
+      expect(report.categoryPages.rawCorrectness.baseline).toBe(0);
+      expect(report.categoryPages.incorrectProposals.baseline).toBe(1);
+    });
+
+    it('scores type-unlabeled but attr-known gold from the executed floor (independent of type labeling)', () => {
+      const entry = step1Entry('STEP1-UNLABELED-01', {
+        productType: { kind: 'unlabeled', typeId: null },
+        fieldAssignments: [
+          { targetId: 'flavor', value: 'Chicken', state: 'known' },
+          { targetId: 'animal_type', values: ['dog'], state: 'known' },
+        ],
+        categoryPages: { pageIds: [], pageAssignments: [] },
+      }, 'Acme Chicken Dry Dog Food casserole');
+      const artifact = buildQualificationPredictionsFromCode([entry], step1Taxa());
+      const p = artifact.predictions[0];
+      const goldset: QualificationGoldset = {
+        version: 1, description: 't', adjudicatedBy: 't',
+        entries: [{ ...entry, evidence: entry.evidence, baseline: { ...p.baseline }, candidate: { ...p.candidate } }],
+      };
+      expect(evaluateJevOfflineComparison(goldset).attributes.rawCorrectness.baseline).toBe(1);
+    });
+
+    it('keeps legacy marker-less bytes readable but refuses them at qualification; invalid states throw', () => {
+      const parsed = parseQualificationGoldOnly({ entries: [step1Entry('STEP1-LEGACY-01', {
+        productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+        fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' } as never],
+        categoryPages: { pageIds: [], pageAssignments: [] },
+      }, 'Acme Chicken casserole')] });
+      expect(parsed).toHaveLength(1);
+      const goldset: QualificationGoldset = {
+        version: 1, description: 't', adjudicatedBy: 't',
+        entries: parsed.map(e => ({
+          ...e, split: 'holdout' as const,
+          baseline: { productType: 'dog_food_dry', abstained: false, fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }], pageIds: [], confidence: 0.9 },
+          candidate: { productType: 'dog_food_dry', abstained: false, fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }], pageIds: [], confidence: 0.9 },
+        })),
+      };
+      const gate = evaluateJevQualificationGate(goldset, { predictionSource: 'prereview_raw', bundleVersion: 1, snapshotMatched: true });
+      expect(gate.qualified).toBe(false);
+      expect(gate.reasons.some(r => r.startsWith('incomplete_gold_contract'))).toBe(true);
+      expect(() => parseQualificationGoldOnly({ entries: [step1Entry('STEP1-BAD-01', {
+        productType: { kind: 'known-type', typeId: 't' },
+        fieldAssignments: [{ targetId: 'flavor', state: 'bogus' }],
+        categoryPages: { pageIds: [], pageAssignments: [] },
+      }, 'x')] })).toThrow();
+    });
+
+    it('never credits partial/unknown pages end-to-end; exposes eligible/unevaluated (floor capture)', () => {
+      // DEV-pilot regression: 25 entries with partial/unknown page gold showed
+      // outer pages 0 eligible yet endToEndPipeline pages-match 11. A predicted
+      // subset that equals known page ids must NOT earn exact-match when the
+      // gold was only partially adjudicated.
+      const taxa = { ...step1Taxa(), pages: [{ pageId: 'page-x', pageName: 'Xylophone Gadget' }] };
+      const snippet = 'Acme Chicken Dry Dog Food Xylophone Gadget kibble';
+      const fields = [
+        { targetId: 'flavor', value: 'Chicken', state: 'known' },
+        { targetId: 'animal_type', values: ['dog'], state: 'known' },
+      ];
+      const entries = [
+        step1Entry('STEP1-E2E-01', {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: fields,
+          categoryPages: { pageIds: ['page-x'], pageAssignments: [{ pageId: 'page-x', pageName: 'Xylophone Gadget' }], state: 'known' as const, completeness: 'complete' as const },
+        }, snippet),
+        step1Entry('STEP1-E2E-02', {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: fields,
+          categoryPages: { pageIds: ['page-x'], pageAssignments: [{ pageId: 'page-x', pageName: 'Xylophone Gadget' }], state: 'partial' as const, completeness: 'partial' as const },
+        }, snippet),
+        step1Entry('STEP1-E2E-03', {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: fields,
+          categoryPages: { pageIds: [], pageAssignments: [], state: 'unknown' as const, completeness: 'unknown' as const },
+        }, snippet),
+        step1Entry('STEP1-E2E-04', {
+          productType: { kind: 'unlabeled', typeId: null },
+          fieldAssignments: fields,
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        }, snippet),
+      ];
+      const artifact = buildQualificationPredictionsFromCode(entries, taxa);
+      const goldset: QualificationGoldset = {
+        version: 1, description: 't', adjudicatedBy: 't',
+        entries: entries.map(e => {
+          const p = artifact.predictions.find(x => x.sku === e.sku)!;
+          // Score the executed floor values on both sides (captured output, not hand-authored).
+          return { ...e, evidence: e.evidence, baseline: { ...p.baseline }, candidate: { ...p.baseline } };
+        }),
+      };
+      const report = evaluateJevOfflineComparison(goldset);
+      const pipeline = report.endToEndPipeline;
+      // The partial entry predicts the known subset exactly yet earns nothing.
+      expect(pipeline.pageEffects.exactMatchWhenTypeCorrect).toBe(1);
+      expect(pipeline.pageEffects.eligible).toBe(2);
+      expect(pipeline.pageEffects.unevaluated).toBe(2);
+      expect(pipeline.pageEffects.failed).toBe(0);
+      // Only the fully-known entry is all-stages correct.
+      expect(pipeline.endToEndCorrectAllStages).toBe(1);
+      // Type-unlabeled entry: attributes still score, type unevaluated, never end-to-end.
+      expect(pipeline.typeResolution.unevaluated).toBe(1);
+      expect(pipeline.attributeEffects.eligible).toBe(8);
+      expect(pipeline.attributeEffects.unevaluated).toBe(0);
+    });
+
+    it('reports not-evaluated (never 0%-wrong) when no page gold is completely adjudicated', () => {
+      const entries = ['STEP1-NE-01', 'STEP1-NE-02'].map((sku, i) => qualEntry({
+        sku,
+        gold: {
+          productType: { kind: 'known-type', typeId: 't' },
+          fieldAssignments: [],
+          categoryPages: i === 0
+            ? { pageIds: ['page-x'], pageAssignments: [{ pageId: 'page-x', pageName: 'X' }], state: 'partial', completeness: 'partial' }
+            : { pageIds: [], pageAssignments: [], state: 'unknown', completeness: 'unknown' },
+        },
+        candidate: { productType: 't', abstained: false, fieldAssignments: [], pageIds: ['page-x'], confidence: 0.9 },
+      }));
+      const report = evaluateJevOfflineComparison(qualGoldset(entries));
+      // Dry-JSON shape carries the status; the misleading 0.0% lines are a presentation concern only.
+      const dryJson = JSON.parse(JSON.stringify(report));
+      expect(dryJson.categoryPages.evaluation).toEqual({ eligible: 0, unevaluated: 2, status: 'not_evaluated' });
+      expect(dryJson.categoryPages.rawCorrectness.candidate).toBe(0);
+      expect(evaluationStatusText(report.categoryPages.evaluation, 'page sets'))
+        .toBe('not evaluated (0 complete adjudicated page sets)');
+      expect(measuredPercent(report.categoryPages.rawCorrectness.candidate, report.categoryPages.evaluation)).toBe('n/a');
+      expect(measuredPercent(0.955, { eligible: 25, unevaluated: 0, status: 'measured' })).toBe('95.5%');
+      expect(evaluationStatusText(report.attributes.evaluation, 'attribute targets'))
+        .toBe('not evaluated (0 complete adjudicated attribute targets)');
+    });
+
+    it('reports type not-evaluated for unlabeled-only gold without weakening the gate', () => {
+      const entries = [qualEntry({
+        sku: 'STEP1-NE-TYPE-01',
+        gold: {
+          productType: { kind: 'unlabeled', typeId: null },
+          fieldAssignments: [{ targetId: 'flavor', value: 'Chicken', state: 'known' }],
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        },
+      })];
+      const report = evaluateJevOfflineComparison(qualGoldset(entries));
+      expect(report.productType.evaluation).toEqual({ eligible: 0, unevaluated: 1, status: 'not_evaluated' });
+      expect(evaluationStatusText(report.productType.evaluation, 'product type labels'))
+        .toBe('not evaluated (0 complete adjudicated product type labels)');
+      // Empty qualifying gold still cannot qualify.
+      const gate = evaluateJevQualificationGate(qualGoldset(entries), { predictionSource: 'prereview_raw', bundleVersion: 1, snapshotMatched: true });
+      expect(gate.qualified).toBe(false);
+    });
+
+    it('rejects malformed v2 field value shapes before any scoring (actual species pattern)', () => {
+      const malformed = (field: unknown) => ({
+        entries: [step1Entry('STEP1-SHAPE-01', {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: [field as never],
+          categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+        } as never, 'Acme kibble')],
+      });
+      // Actual v2 development pattern: array in the scalar slot.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: ['Dog', 'Cat'] }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: ['Dog'] }))).toThrow();
+      // Scalar slot takes objects/numbers/blanks; values slot takes nested/non-string/empty.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: 42 }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: { v: 'Dog' } }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', values: ['Dog', 42] }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', values: [] }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', values: 'Dog' }))).toThrow();
+      // Both slots together conflict, even when each is well-typed.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: 'Dog', values: ['Dog'] }))).toThrow();
+      // Known with neither slot is accidental, not an explicit empty.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known' }))).toThrow();
+      // Non-known states cannot assign values.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'no-fit', values: ['Dog'] }))).toThrow();
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'unlabeled', value: 'Dog' }))).toThrow();
+      // Unknown reader versions fail closed (never silently tolerated).
+      const flaggedUnknown = malformed({ targetId: 'species', state: 'known', value: ['Dog'] });
+      (flaggedUnknown.entries[0] as unknown as Record<string, unknown>).readerVersion = 'v9';
+      expect(() => parseQualificationGoldOnly(flaggedUnknown)).toThrow();
+      // A malformed prototype can never reach scoring to fake a passed result.
+      expect(() => parseQualificationGoldOnly(malformed({ targetId: 'species', state: 'known', value: ['Dog', 'Cat'] }))).toThrow();
+    });
+
+    it('accepts canonical scalar XOR nonempty values; legacy stays readable but ineligible', () => {
+      const shape = (field: unknown) => ({
+        entries: [step1Entry('STEP1-SHAPE-02', {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: [field as never],
+          categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+        } as never, 'Acme kibble')],
+      });
+      expect(parseQualificationGoldOnly(shape({ targetId: 'species', state: 'known', value: 'Dog' }))).toHaveLength(1);
+      expect(parseQualificationGoldOnly(shape({ targetId: 'species', state: 'known', values: ['Dog', 'Cat'] }))).toHaveLength(1);
+      // Explicit legacy reader version: old bytes parse but never qualify.
+      const legacyRaw = shape({ targetId: 'species', state: 'no-fit', values: ['Dog'] });
+      (legacyRaw.entries[0] as unknown as Record<string, unknown>).readerVersion = 'legacy';
+      const parsed = parseQualificationGoldOnly(legacyRaw);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].readerVersion).toBe('legacy');
+      const goldset: QualificationGoldset = {
+        version: 1, description: 't', adjudicatedBy: 't',
+        entries: parsed.map(e => ({
+          ...e, split: 'holdout' as const,
+          baseline: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0 },
+          candidate: { productType: null, abstained: true, fieldAssignments: [], pageIds: [], confidence: 0 },
+        })),
+      };
+      const gate = evaluateJevQualificationGate(goldset, { predictionSource: 'prereview_raw', bundleVersion: 1, snapshotMatched: true });
+      expect(gate.qualified).toBe(false);
+      expect(gate.reasons.some(r => r.startsWith('incomplete_gold_contract'))).toBe(true);
+      // Root-level legacy flag covers whole old fixtures the same way.
+      const rootLegacy = shape({ targetId: 'species', state: 'known', value: ['Dog'] });
+      (rootLegacy as unknown as Record<string, unknown>).readerVersion = 'legacy';
+      const rootParsed = parseQualificationGoldOnly(rootLegacy);
+      expect(rootParsed[0].readerVersion).toBe('legacy');
+    });
+
+    it('binds coded outcome metadata into the artifact hash without leaking gold labels', () => {
+      const taxa = step1Taxa();
+      const goldA: QualificationGoldOnlyEntry['gold'] = {
+        productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+        fieldAssignments: [{ targetId: 'flavor', value: 'Chicken', state: 'known' }],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      };
+      const goldB: QualificationGoldOnlyEntry['gold'] = {
+        productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+        fieldAssignments: [{ targetId: 'flavor', value: 'Beef', state: 'known' }],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      };
+      const a = buildQualificationPredictionsFromCode([step1Entry('STEP1-HASH-01', goldA, 'Acme Chicken Dry Dog Food casserole')], taxa);
+      const b = buildQualificationPredictionsFromCode([step1Entry('STEP1-HASH-01', goldB, 'Acme Chicken Dry Dog Food casserole')], taxa);
+      // Identical evidence → identical predictions + hash: gold labels never leak in.
+      // (latencyMs is wall-clock telemetry excluded from the hash by design; normalize it for the equality proof.)
+      expect(a.artifactHash).toBe(b.artifactHash);
+      const withoutLatency = (predictions: typeof a.predictions) =>
+        predictions.map(p => ({
+          ...p,
+          baseline: { ...p.baseline, latencyMs: 0 },
+          candidate: { ...p.candidate, latencyMs: 0 },
+        }));
+      expect(withoutLatency(a.predictions)).toEqual(withoutLatency(b.predictions));
+      const c = buildQualificationPredictionsFromCode([step1Entry('STEP1-HASH-01', goldA, 'Acme Beef Dry Dog Food stew')], taxa);
+      expect(c.artifactHash).not.toBe(a.artifactHash);
+      expect(a.predictorVersion).toBe('code-executed-v6');
     });
   });
 });

@@ -43,7 +43,7 @@ const OUTPUT_POLICY_VERSION = SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION;
  */
 export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, string>> = {
   evidence_extraction: 'evidence-extraction-prompt-v1',
-  product_type_ranking: 'product-type-ranking-prompt-v1',
+  product_type_ranking: 'product-type-ranking-prompt-v2-grounded-neighbors',
   attribute_ranking: 'attribute-ranking-prompt-v1',
   page_assignment: 'page-assignment-prompt-v2',
   cohort_page_assignment: 'cohort-page-assignment-prompt-v2',
@@ -63,7 +63,7 @@ export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, strin
  */
 export const RULE_VERSIONS: Readonly<Record<ProtectedOperation, string>> = {
   evidence_extraction: 'evidence-extraction-rules-v2',
-  product_type_ranking: 'product-type-ranking-rules-v1',
+  product_type_ranking: 'product-type-ranking-rules-v2-grounded-neighbors',
   attribute_ranking: 'attribute-ranking-rules-v2',
   page_assignment: 'page-assignment-rules-v2',
   cohort_page_assignment: 'cohort-page-assignment-rules-v2',

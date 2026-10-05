@@ -1,0 +1,16 @@
+{
+  "commit": "5907853b07d98d233848f48723581afe641eb787",
+  "stateKind": "approved_synthetic_contract_fixture",
+  "ok": true,
+  "requestedModel": "jev-1.13.0",
+  "returnedModel": "jev-1.13.0",
+  "attempts": 1,
+  "retried": false,
+  "usage": { "inputTokens": 551, "outputTokens": 109 },
+  "answers": {
+    "mentions_dog_food": { "type": "noul", "noul": 0.97 },
+    "topic": { "type": "choice", "choice": "pet_food", "probabilities": { "pet_food": 1, "shipping": 0 }, "confidence": 1 },
+    "primary_product_type": { "type": "choice", "choice": "opt_0", "probabilities": { "opt_1": 0, "opt_0": 1, "insufficient_evidence": 0, "no_match": 0 }, "confidence": 1 }
+  },
+  "calls": 1
+}

@@ -1,0 +1,44 @@
+{
+  "version": "jev-representative-source-bank-v1",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "c0af5c1c555a2b11d8e1157625ef1af2e3fea98af6ab97d130a90060f3c4c34a",
+  "binding": {
+    "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+    "release": "bay-state-v5",
+    "catalogGitCommit": "9cf6cf5d2551c4d93311a32c45d471877b85a9f1",
+    "configHash": "f439d732488b7483dbafc361189ce9c3265d11b6ddad91ca9bb109df5b7e2ae7",
+    "capturedAt": "2026-10-04T05:02:37.800Z",
+    "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+    "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+  },
+  "samplingPolicyHash": "901fd9a81d9e5af1522f0d13685974f70be57379b04cfd0019ff308e8ccff761",
+  "policyAmendmentsHash": "56f44ec66a16dfb7d601cb13fa1ddbcbed91c6d872262b245208a1d86eb09754",
+  "seedHash": "677341cae7d42a9cee2f46985cae371c2bc0c733c26d59a28af4dd78ec938388",
+  "collectorHash": "3fa829647081d78aaf1a55d499eca5c676f0264aa65e5acfc223071487965c0c",
+  "development": {
+    "path": "source-development.json",
+    "sha256": "4e957c46d91aa0bd16d39c61e4c3c1e29dd14d5487907257881b52587c2ffb4d",
+    "exampleCount": 1523,
+    "familyCount": 1523,
+    "supplementalPath": "source-development-supplemental.json",
+    "supplementalCount": 1428,
+    "supplementalHash": "e43b8a5d8e5288db5b55b4fd655d0376260a6ce07037d783ab14aae92fa89b89"
+  },
+  "holdout": {
+    "holdoutCommitHash": "4ea3d53ab338a55abe3fc5fd86e2ae29bb806356babe0765731fd34373fc0edd",
+    "holdoutExampleCount": 741,
+    "holdoutFamilyCount": 391,
+    "primaryCommitHash": "cebed7c3822925e7f8df4fb9f555e930d56c8c8aa773637f80bced46090d0387",
+    "primaryCount": 391,
+    "custodian": "private local filesystem custody; not ingested in conversation or search index",
+    "sealedAt": "2026-10-04T05:40:14.287Z"
+  },
+  "counts": {
+    "candidateRows": 3692,
+    "families": 1914,
+    "primaryCases": 1914,
+    "supplementalCases": 1778
+  },
+  "entries": [],
+  "humanApprovalRetained": true
+}

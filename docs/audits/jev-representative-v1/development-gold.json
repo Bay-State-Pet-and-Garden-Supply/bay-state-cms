@@ -1,0 +1,1275 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "qualification-gold-only-development",
+ "authorityHash": "c0af5c1c555a2b11d8e1157625ef1af2e3fea98af6ab97d130a90060f3c4c34a",
+ "entries": [
+  {
+   "sku": "PUBLIC:nulo.com:16DK01",
+   "familyId": "family-8a8056327f54cd1a3752e3544431e68f",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Digestive Health Kitten Chicken & Whitefish Recipe for Cats",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     },
+     {
+      "targetId": "food-form",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "unlabeled"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "known",
+      "value": "Kitten"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "54ddb28a-335c-4c02-9da9-66d0be3ca1ea"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "54ddb28a-335c-4c02-9da9-66d0be3ca1ea",
+       "pageName": "Cat Food Shop All"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:nulo.com:63NT02",
+   "familyId": "family-83e9bb7062c62f5ffc82cacdf28dacda",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Finely Minced Chicken & Tuna Recipe for Cats",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "This complete and balanced meal in a tasty broth will give them the flavor they want plus the hydration they need.",
+     "reliability": "high",
+     "attributeId": "food-form"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-food-wet"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Wet Food"
+     },
+     {
+      "targetId": "flavor",
+      "state": "unlabeled"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "444b43e7-0b90-4893-9f6e-30d6ab3a13c8"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "444b43e7-0b90-4893-9f6e-30d6ab3a13c8",
+       "pageName": "Cat Food Wet"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:nulo.com:55FB08",
+   "familyId": "family-1637e5c436e3d6b164275f193eb72c91",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Freeze-Dried Raw Beef Recipe with Apples for Dogs",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "100% complete & balanced nutrition for puppies, adults, and seniors.",
+     "reliability": "high",
+     "attributeId": "life-stage"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "unlabeled",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Freeze-Dried Raw"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Beef"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "known",
+      "value": "All Life Stages"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "3609bf21-45b1-40f2-bb60-02a1aaebe552",
+       "pageName": "Dog Food Raw"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:4421816123505",
+   "familyId": "family-966123ca937d8613ab1aae1b8c6680bd",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Chicken & Salmon Ancient Grains Puppy Kibble",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Great for: all puppies",
+     "reliability": "high",
+     "attributeId": "life-stage"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-food-dry"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Dry Food"
+     },
+     {
+      "targetId": "flavor",
+      "state": "unlabeled"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "known",
+      "value": "Puppy"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "370c684b-666f-4c86-b615-261a7059ed0e"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "370c684b-666f-4c86-b615-261a7059ed0e",
+       "pageName": "Dog Food Dry"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7575698702449",
+   "familyId": "family-b916b5fa09b9a5718a2cab7da0dbf3aa",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Chicken & Grass-Fed Beef Hearty Stew Wet Dog Food",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-food-wet"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Wet Food"
+     },
+     {
+      "targetId": "flavor",
+      "state": "unlabeled"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "902f5a0e-9830-40f1-bb05-01f768ae6c42"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "902f5a0e-9830-40f1-bb05-01f768ae6c42",
+       "pageName": "Dog Food Wet"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:tikipets.com:17ef10b261c556bababd",
+   "familyId": "family-e9b5ebe5e86d07e64f63ea82bd0fcd18",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Cat Treats: Chicken Flavor",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Irresistible Chicken, Pork &amp; Salmon Flavor",
+     "reliability": "high",
+     "attributeId": "flavor"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "flavor",
+      "state": "unlabeled"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "36d75fa7-602b-4e95-890c-f8b947aa57c2"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "36d75fa7-602b-4e95-890c-f8b947aa57c2",
+       "pageName": "Cat Treats"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:primalpetfoods.com:5453780549786",
+   "familyId": "family-53897785170d9e89fc5e3c7d145632c8",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Frozen Raw Patties Dog Food - Beef Recipe",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Larger portions ideal for large-breed and multi-dog households",
+     "reliability": "high",
+     "attributeId": "breed-size"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "unlabeled",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Frozen Raw"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Beef"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "known",
+      "value": "Large"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "3609bf21-45b1-40f2-bb60-02a1aaebe552",
+       "pageName": "Dog Food Raw"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:nulo.com:56TS04",
+   "familyId": "family-bf997289fe030059e671b8dd720ee982",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Trainers Treats Salmon Recipe for Dogs",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Salmon"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "93e1d3e2-7700-44fd-9478-db04b80aa222"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "93e1d3e2-7700-44fd-9478-db04b80aa222",
+       "pageName": "Dog Treats Shop All"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:nulo.com:56TS04:degraded-flavor-withheld",
+   "familyId": "family-bf997289fe030059e671b8dd720ee982",
+   "split": "dev",
+   "assortment": "food-treat",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Every incredible dog starts with incredible training",
+     "reliability": "high",
+     "attributeId": "species"
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Each treat is only 2 calories",
+     "reliability": "high",
+     "attributeId": "food-form"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "93e1d3e2-7700-44fd-9478-db04b80aa222"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "93e1d3e2-7700-44fd-9478-db04b80aa222",
+       "pageName": "Dog Treats Shop All"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996480745793",
+   "familyId": "family-491436d50f8101a3542b0c0d6478c8f1",
+   "split": "dev",
+   "assortment": "toy",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Chuckit! Fetch Ball Dog Toy",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "This rubber ball is the perfect toy to provide your dog with much of the daily exercise he needs outdoors.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "9a20805c-fa9a-4d5e-bd98-485697292cb6",
+       "pageName": "Dog Toys"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996484841793",
+   "familyId": "family-f4366deb01986548f38df6063102297f",
+   "split": "dev",
+   "assortment": "toy",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Chuckit! Fetch Wheel Dog Toy",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "The Chuckit!\u00ae Fetch Wheel\u00ae Interactive Dog Toy is a toy your dog will adore.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "9a20805c-fa9a-4d5e-bd98-485697292cb6",
+       "pageName": "Dog Toys"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996492378433",
+   "familyId": "family-9a4259207c6ad68ee5ca5cfdad70fe6c",
+   "split": "dev",
+   "assortment": "toy",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "FAT CAT Classic Eeeks! Cat Toy",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Real soft fur and a tiny little rattle keep your kitty on the hunt for hours.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e",
+       "pageName": "Cat Toys & Scratchers"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996502241601",
+   "familyId": "family-f8a120dfc1ef5b4864139fee41e1d117",
+   "split": "dev",
+   "assortment": "toy",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "JW Cataction Feather Ball with Bell Cat Toy",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "The JW\u00ae Cataction\u00ae Feather Ball with Bell Cat Toy is sure to be a favorite new addition to your cat's stash of toys.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e",
+       "pageName": "Cat Toys & Scratchers"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:fourpaws.com:24614fd7c695a71fdeda",
+   "familyId": "family-77f6f1991d1f285ce700fe8476de3d49",
+   "split": "dev",
+   "assortment": "animal-care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Magic Coat Professional Series 2-in-1 Combo Pin and Bristle Dog Brush",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "The pin brush for dogs features rounded pins that gently detangle and remove excess hair.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "608111f1-ef41-457b-838d-737c6be5c870"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "608111f1-ef41-457b-838d-737c6be5c870",
+       "pageName": "Dog Grooming"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:8179693486337",
+   "familyId": "family-016e4fd402de1547e1ded7dcec0d22f3",
+   "split": "dev",
+   "assortment": "animal-care",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Smelly Dog Grooming Kit",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Safe for dogs over 6 weeks.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "608111f1-ef41-457b-838d-737c6be5c870"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "608111f1-ef41-457b-838d-737c6be5c870",
+       "pageName": "Dog Grooming"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:durvet.com:32ccff3b7660b4ae0c71",
+   "familyId": "family-1cc2a0af19dab3b3182095ae92e51bae",
+   "split": "dev",
+   "assortment": "animal-care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "BiotinDAILY\u2122",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "This hoof & digestive supplement is formulated to provide optimum nutritional support for normal healthy hooves for horses of all class.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "horse-treats-supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Horse"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:5935228616866",
+   "familyId": "family-80fcb9fd00a2a3288a70397f45784ddd",
+   "split": "dev",
+   "assortment": "animal-care",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Hot Spot Relief Spray",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:bonide.com:0a4be8a778d99a4b0e61",
+   "familyId": "family-71b5712023e5d6e6577bda92cfa29211",
+   "split": "dev",
+   "assortment": "garden-pest",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Ant, Flea & Tick Killer",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "BUG KILLER \u2013 This pest control is great for use on ants, billbugs, brown dog ticks, chinch bugs, crickets, cutworms, earwigs, fire ants, fleas, sod webworms, & other listed insects.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "EASY APPLICATION \u2013 Granules should either be distributed as a barrier around the house foundation or spread throughout the lawn with a spreader. No need to mix or spray.",
+     "reliability": "high",
+     "attributeId": "packaging-type"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "insect-control"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "6546b09a-5f88-4e02-9dd5-e301e57ef7db",
+       "pageName": "Pest Control"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:bonide.com:024c02ad9ce43e0e3f00",
+   "familyId": "family-6b62e122b840a6c81bd6549bc71ad1e2",
+   "split": "dev",
+   "assortment": "garden-pest",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Captain Jack\u2019s Lawnweed Brew Ready-to-Spray",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "CONTROLS WEEDS AND DISEASE \u2013 Use to control dandelion, moss, algae, lichens, chickweed, oxalis, clover, ground ivy and more. It also suppresses diseases such as dollar spot, rust, snow mold plus many more.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "EASY SPRAY APPLICATION \u2013 Product instantly mixes with water and should be connected to a water hose. Carefully read and use according to label directions.",
+     "reliability": "high",
+     "attributeId": "packaging-type"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "weed-control"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "a6fcddc8-db75-46ba-801d-2409d8a59dd1",
+       "pageName": "Lawn Care"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:10937",
+   "familyId": "family-c3c10bd1ce8d9db7460c4d4ebfe353f4",
+   "split": "dev",
+   "assortment": "garden-pest",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Jonathan Green Standard Broadcast Spreader",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Holds up to 40 lbs of product Large air-filled 9-inch rubber tires for easy pushing Spreads grass seed, fertilizer, weed control, ice melter, and more Comes fully assembled",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:154871",
+   "familyId": "family-818fdd4e8bdccca7a2fc0b2e96b0ae53",
+   "split": "dev",
+   "assortment": "garden-pest",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Veri-Green Weed &amp;amp; Feed Lawn Fertilizer",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Controls over 250+ types of broadleaf weeds 2-in-1 product eliminates weeds while fertilizing the lawn Greens up the lawn for up to 3 months Fertilizer analysis: 21-0-3",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "unlabeled",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "a6fcddc8-db75-46ba-801d-2409d8a59dd1",
+       "pageName": "Lawn Care"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237463994521",
+   "familyId": "family-24bf27927647c35b0e4cb54f6d17b3e8",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "AccuBites Radiance Equine Supplement",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "For Mature Horses (800 to 1,200 lb): Feed 3 to 4 ounces of AccuBites Beauty daily, along with the regular grain and forage ration.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "horse-treats-supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Horse"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010599862468",
+   "familyId": "family-fd6c7858135f3b86b4102d8492a55c36",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Mazuri\u00ae Koi Platinum Bits",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Mazuri\u00ae Koi Platinum Bits are highly palatable koi and goldfish food designed to help keep your koi and goldfish healthy and beautiful. Best for koi and goldfish smaller than six inches. These fish food pellets provide optimum nutrition for your fish and encourage fish to come to the surface so they can be observed feeding. The floating pellets support a natural foraging behavior and help prevent over-feeding. With sustainably sourced fishmeal from a supplier certified by the Marine Stewardship Council and no added artificial flavors, you can feel good about feeding your fish Mazuri.",
+     "reliability": "high",
+     "attributeId": "species"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "partial",
+     "completeness": "partial",
+     "pageIds": [
+      "2ae44b48-4ed1-4776-b278-3f2bcc840958",
+      "dfc0ba6d-fcc3-4747-a397-4945a067bc47"
+     ],
+     "pageAssignments": [
+      {
+       "pageId": "2ae44b48-4ed1-4776-b278-3f2bcc840958",
+       "pageName": "Fish Food Goldfish"
+      },
+      {
+       "pageId": "dfc0ba6d-fcc3-4747-a397-4945a067bc47",
+       "pageName": "Fish Food Koi & Pond Fish"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010600190148",
+   "familyId": "family-1718d92c278fc8ea753dc8300211b68e",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Mazuri\u00ae Llama Diet High Fiber Coarse",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_structured_catalog",
+     "snippet": "Mazuri\u00ae Llama Diet High Fiber is a coarse feed mixture of pellets and grains that provides added energy to enhance a diet of pasture and forage. This llama food contains added vitamin E and selenium to reduce or eliminate the need for supplements.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:wildbirdsuets.com:4b119e7215973bb25f87",
+   "familyId": "family-e99092d516762d9c6b53f18938e3229d",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Sweet Corn Squirrelog Refill",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "C&S Sweet Corn Squirrelog offers a long-lasting, low-mess way to feed backyard squirrels.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  }
+ ]
+}

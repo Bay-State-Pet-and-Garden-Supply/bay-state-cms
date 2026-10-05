@@ -1,0 +1,6036 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "public-development-manual-adjudication-expansion",
+ "adjudicatedBy": "agent:jev-development-adjudicator",
+ "authorityHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+ "sourceFiles": [
+  "source-development.json",
+  "taxonomy.json"
+ ],
+ "status": "complete-94-family-expansion",
+ "reviewedIndependentFamilyCount": 94,
+ "entryCount": 94,
+ "selectionPolicy": "Expansion toward 120 DEV families: clearly-evidenced primary-bank rows, functional/evidential contrast, never lexical-first; variants grouped as frozen.",
+ "provenanceJoinPolicy": "Each record joins by sku to development-gold.json. sourceIndex identifies the immutable primary source row and supplies originalSku, familyId, canonicalUrl, sourceLocator, retrievedAt, productIdentity, and evidenceLimitations. sourceHash on each record is inherited by every local citation. A local citation's locator is an exact pointer to the supplied capture excerpt object; that object also retains the external capture URL/DOM locator. Each per-target citation ID resolves to that sourceHash + locator + literal exact quote; this normalization avoids duplicating the same evidence for every target. Page citations have their separate verified-import sourceHash below. Type and attribute citations resolve against the frozen approved bundle and its exact names/descriptions/options/profile members, never current catalog fields.",
+ "adjudicationScope": "Controlled targets only; free-text claims, composition, materials, size/color, brand, compiled projections and merchandising PF24/PF25 strings are not authored as gold. For known types every controlled profile member is assessed. Explicit dog-only breed-size semantics make that target inapplicable to cat/fish-only products even where the broad shared profile contains it. Non-profile controlled targets are separately outside scope, not no-fit. For unresolved types, direct supported facts may still be labeled, while profile applicability remains unresolved and must not be treated as production-qualified target scope.",
+ "reviewRules": {
+  "missing-discriminator": "The cited retained product facts do not establish a permitted answer for this target. Missing evidence is not a negative claim and does not prove no-fit.",
+  "single-value-dispute": "The positive source gives multiple distinct values or conflicting statements, but the actual profile is single-valued and provides no priority rule. Do not choose the first value or call a combination Assorted.",
+  "outside-profile": "The controlled attribute is absent from the actual effective type profile; record inapplicability separately from insufficient evidence or no-fit.",
+  "dog-only-breed": "Approved breed-size description is Dog breed size category.; an explicitly cat/fish-only product is inapplicable, not an unsupported dog size guess.",
+  "partial-pages": "These are positively supported verified category identities, not an exhaustive set. The catalog has null parent links and no complete membership definitions, including seasonal/featured inclusion criteria. Specific categories are preferred; Shop All is retained only where no supported specific form/texture child can be chosen. No complete empty set is claimed.",
+  "unknown-pages": "Available evidence or catalog inclusion semantics do not establish a positively supported page subset. Empty unknown is never known-empty.",
+  "unresolved-applicability": "Product type is unresolved. Field facts are individually evidenced but are not a resolution of the actual profile pointer. Missing profile-specific targets must not be inferred as inapplicable. Review remains necessary."
+ },
+ "taxonomySourceHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+ "typeCitationPolicy": "taxonomyTypes ids in records resolve to bundle.productTypes[id].name as the exact quoted approved type definition available here; all 74 descriptions are null. Applicable profiles resolve through the actual attributeProfileId, not a guessed universal field set. No fuller definition has been invented.",
+ "attributeCitations": {
+  "species": {
+   "locator": "taxonomy.json#/bundle/attributes[id=species]",
+   "quote": "Target animal species."
+  },
+  "food-form": {
+   "locator": "taxonomy.json#/bundle/attributes[id=food-form]",
+   "quote": "Physical form of food or feed."
+  },
+  "flavor": {
+   "locator": "taxonomy.json#/bundle/attributes[id=flavor]",
+   "quote": "Flavor of food or treats."
+  },
+  "life-stage": {
+   "locator": "taxonomy.json#/bundle/attributes[id=life-stage]",
+   "quote": "Pet life stage."
+  },
+  "breed-size": {
+   "locator": "taxonomy.json#/bundle/attributes[id=breed-size]",
+   "quote": "Dog breed size category."
+  },
+  "packaging-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=packaging-type]",
+   "quote": "Primary package form (can/bag/box/tray/pouch)."
+  },
+  "fuel-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=fuel-type]",
+   "quote": "Fuel or power source for heaters, splitters, and power equipment."
+  },
+  "hose-length": {
+   "locator": "taxonomy.json#/bundle/attributes[id=hose-length]",
+   "quote": "Garden or air hose length."
+  },
+  "safety-toe-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=safety-toe-type]",
+   "quote": "Work boot safety toe classification."
+  }
+ },
+ "profileApplicability": {
+  "pet-food": {
+   "typeIds": [
+    "cat-food-wet",
+    "dog-food-dry",
+    "dog-food-wet",
+    "cat-treats",
+    "dog-treats",
+    "supplements",
+    "fish-food"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "flavor",
+    "species",
+    "life-stage",
+    "breed-size"
+   ],
+   "outsideProfile": [
+    "packaging-type",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "pet-accessories": {
+   "typeIds": [
+    "dog-toys",
+    "cat-toys",
+    "grooming"
+   ],
+   "controlledTargets": [
+    "species"
+   ],
+   "outsideProfile": [
+    "food-form",
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "packaging-type",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "garden": {
+   "typeIds": [
+    "insect-control",
+    "weed-control",
+    "grass-seed",
+    "lawn-fertilizer"
+   ],
+   "controlledTargets": [
+    "packaging-type"
+   ],
+   "outsideProfile": [
+    "species",
+    "food-form",
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "animal-feed": {
+   "typeIds": [
+    "poultry-feed",
+    "small-animal-feed-bedding"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "packaging-type",
+    "species"
+   ],
+   "outsideProfile": [
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "bird-equipment": {
+   "typeIds": [
+    "wild-bird-feeders"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "packaging-type",
+    "species"
+   ],
+   "outsideProfile": [
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  }
+ },
+ "pageCitationSourceHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe",
+ "pageCitations": {
+  "54ddb28a-335c-4c02-9da9-66d0be3ca1ea": {
+   "locator": "taxonomy.json#/pages/71",
+   "quote": "Cat Food Shop All"
+  },
+  "444b43e7-0b90-4893-9f6e-30d6ab3a13c8": {
+   "locator": "taxonomy.json#/pages/72",
+   "quote": "Cat Food Wet"
+  },
+  "3609bf21-45b1-40f2-bb60-02a1aaebe552": {
+   "locator": "taxonomy.json#/pages/88",
+   "quote": "Dog Food Raw"
+  },
+  "370c684b-666f-4c86-b615-261a7059ed0e": {
+   "locator": "taxonomy.json#/pages/87",
+   "quote": "Dog Food Dry"
+  },
+  "902f5a0e-9830-40f1-bb05-01f768ae6c42": {
+   "locator": "taxonomy.json#/pages/90",
+   "quote": "Dog Food Wet"
+  },
+  "36d75fa7-602b-4e95-890c-f8b947aa57c2": {
+   "locator": "taxonomy.json#/pages/79",
+   "quote": "Cat Treats"
+  },
+  "93e1d3e2-7700-44fd-9478-db04b80aa222": {
+   "locator": "taxonomy.json#/pages/98",
+   "quote": "Dog Treats Shop All"
+  },
+  "9a20805c-fa9a-4d5e-bd98-485697292cb6": {
+   "locator": "taxonomy.json#/pages/95",
+   "quote": "Dog Toys"
+  },
+  "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e": {
+   "locator": "taxonomy.json#/pages/78",
+   "quote": "Cat Toys & Scratchers"
+  },
+  "95d303c6-8697-4962-bf5f-bf37d7335c62": {
+   "locator": "taxonomy.json#/pages/64",
+   "quote": "Caged Bird Toys"
+  },
+  "b2cb203b-d000-4047-b36d-17254ec340c4": {
+   "locator": "taxonomy.json#/pages/73",
+   "quote": "Cat Grooming"
+  },
+  "608111f1-ef41-457b-838d-737c6be5c870": {
+   "locator": "taxonomy.json#/pages/91",
+   "quote": "Dog Grooming"
+  },
+  "881a11f9-cdd9-4cee-b129-b006f5cfa839": {
+   "locator": "taxonomy.json#/pages/74",
+   "quote": "Cat Healthcare"
+  },
+  "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87": {
+   "locator": "taxonomy.json#/pages/92",
+   "quote": "Dog Healthcare"
+  },
+  "6546b09a-5f88-4e02-9dd5-e301e57ef7db": {
+   "locator": "taxonomy.json#/pages/134",
+   "quote": "Pest Control"
+  },
+  "a6fcddc8-db75-46ba-801d-2409d8a59dd1": {
+   "locator": "taxonomy.json#/pages/133",
+   "quote": "Lawn Care"
+  },
+  "d3341055-c86c-4eb3-9a11-6a7f15d32bfd": {
+   "locator": "taxonomy.json#/pages/183",
+   "quote": "Brand - Jonathan Green"
+  },
+  "68f32d03-de0e-48ef-acc0-6ee4cfb65119": {
+   "locator": "taxonomy.json#/pages/136",
+   "quote": "Seeds & Seed Starting"
+  },
+  "6db0de8c-f996-40ad-b7b4-761e3dc1f28f": {
+   "locator": "taxonomy.json#/pages/101",
+   "quote": "Farm Animal Cow"
+  },
+  "45508f64-b9ef-4df5-b94d-376f614480bb": {
+   "locator": "taxonomy.json#/pages/104",
+   "quote": "Farm Animal Sheep & Goat"
+  },
+  "1bc24345-121b-4088-8375-e8e152688120": {
+   "locator": "taxonomy.json#/pages/100",
+   "quote": "Farm Animal Chicken & Poultry"
+  },
+  "0fae6d2f-86ae-4903-89fd-2175c970bfd8": {
+   "locator": "taxonomy.json#/pages/149",
+   "quote": "Small Pet Food"
+  },
+  "2ae44b48-4ed1-4776-b278-3f2bcc840958": {
+   "locator": "taxonomy.json#/pages/108",
+   "quote": "Fish Food Goldfish"
+  },
+  "dfc0ba6d-fcc3-4747-a397-4945a067bc47": {
+   "locator": "taxonomy.json#/pages/109",
+   "quote": "Fish Food Koi & Pond Fish"
+  },
+  "1d9d7d0a-3ec7-48ac-b0bf-3806288b3b7f": {
+   "locator": "taxonomy.json#/pages/152",
+   "quote": "Small Pet Guinea Pig"
+  },
+  "f0997f35-cc27-43ec-b2b7-83c19a079f49": {
+   "locator": "taxonomy.json#/pages/147",
+   "quote": "Shavings & Bedding"
+  },
+  "6a486b3b-951a-4d5c-87b4-b7e9549f797a": {
+   "locator": "taxonomy.json#/pages/163",
+   "quote": "Wild Bird Feeders"
+  },
+  "61e31d4a-4b5b-44b3-b01d-e0df4820811f": {
+   "locator": "taxonomy.json#/pages/168",
+   "quote": "Wild Bird Suet & Mealworms"
+  },
+  "febb9696-2691-4d72-aba3-03dd7b23744f": {
+   "locator": "taxonomy.json#/pages/70",
+   "quote": "Cat Food Raw"
+  }
+ },
+ "evidencePolicy": "Manual product-fact adjudication against the frozen approved type names, definitions, profiles, guidance, cardinality, aliases, and evidence policies. Official structured catalog excerpts retain their feed locators and are not represented as individual product-page fetches. No brand/photo/absence inference for composition, material, species, or claims.",
+ "pagePolicy": "Verified ID/name pairs only. Generic brand directories, navigation, services, editorial, and example pages are excluded. Positive supported specific pages may be partial; an empty partial/unknown set is not known-empty. Complete requires review of the entire eligible catalog scope, including applicable genuine brand pages and the max-four/specific-over-Shop-All rules.",
+ "cardinalityLimitation": "Frozen single cardinality everywhere EXCEPT species in profile-grooming and profile-supplements (approved bay-state-v7 multiple). Explicit Dog+Cat is known [Dog, Cat]; singletons declared as one-element arrays.",
+ "httpRequestLedger": [],
+ "extraPublicHttpRequests": 0,
+ "records": [
+  {
+   "sku": "PUBLIC:nulo.com:61HT04",
+   "sourceIndex": 641,
+   "sourceHash": "0f6cc94398516c058d5df6e99952f57742c8702fa318187576c80ce3513b80b1",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/641/excerpts/0",
+     "quote": "FreeStyle Hairball Management Turkey & Cod Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/641/excerpts/1",
+     "quote": "Our grain-free recipe is rich in the essential nutrients from wholesome ingredients like turkey, cod, and salmon oil"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet"
+    ],
+    "reasoning": "Explicit hairball-management cat formula; captured facts do not distinguish dry from wet form."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Turkey and cod named together; no single-flavor rule."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "54ddb28a-335c-4c02-9da9-66d0be3ca1ea"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat-food purpose known; dry/wet child not."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:63CT02",
+   "sourceIndex": 643,
+   "sourceHash": "c53d922848b46ee94d841061bf1ff749b832769bcabdc82551d7e6e93013569b",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/643/excerpts/0",
+     "quote": "FreeStyle Pat\u00e9 Yellowfin Tuna & Shrimp Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/643/excerpts/1",
+     "quote": "Our smooth pat\u00e9s are crafted with real seafood"
+    },
+    "e2": {
+     "locator": "source-development.json#/643/excerpts/1",
+     "quote": "The broth-based gravy helps keep your feline friend hydrated"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "cat-food-wet"
+    ],
+    "reasoning": "Minced feline complete meal in broth is wet cat food by form and purpose."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Meal in broth is Wet Food."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Tuna and Shrimp are distinct permitted values."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Cats and kittens named together; no all-stage statement."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "444b43e7-0b90-4893-9f6e-30d6ab3a13c8"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Wet feline meal explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:18CI09",
+   "sourceIndex": 646,
+   "sourceHash": "0e263e507526e8e352f752fb2ae0b729c78626e693f5f8959526919575d0b45e",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/646/excerpts/0",
+     "quote": "Immune Soft Chew Supplements for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/646/excerpts/1",
+     "quote": "Nulo\u2019s Functional Immune Soft Chews help improve occasional and seasonal allergies"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Soft-chew immune supplement for dogs, not a meal or toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog; declared multiple [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Soft Chew Supplements use the Supplement form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:56JB05",
+   "sourceIndex": 647,
+   "sourceHash": "f12c9aaa156bcb8f21781f27d455615a3566cce096b2f1dad1a018b6c936888e",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/647/excerpts/0",
+     "quote": "Jerky Treats Beef Recipe with Coconut for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/647/excerpts/1",
+     "quote": "Our premium beef jerky strips with coconut"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-treats"
+    ],
+    "reasoning": "Beef jerky reward treats for dogs; coconut is an accompaniment, not a second meat flavor."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Jerky Treats map to Treat."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Beef Recipe names the primary flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "93e1d3e2-7700-44fd-9478-db04b80aa222"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Treat purpose explicit; no texture child supported."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:82BC02",
+   "sourceIndex": 649,
+   "sourceHash": "3cc634b806baed3f76b3feea9cd3c91a5fbc980792a25c4878782a29fddc2c80",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/649/excerpts/0",
+     "quote": "MedalSeries Chunky Broth Chicken Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/649/excerpts/1",
+     "quote": "perfectly portioned to serve as a decadent treat or meal enhancement"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-wet",
+     "cat-treats"
+    ],
+    "reasoning": "Chunks in broth served as treat or meal enhancement; treat-vs-topper function unresolved."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Real shreds of chicken name a single flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:71BP04",
+   "sourceIndex": 655,
+   "sourceHash": "72fa94749652a8834ca425a5ca5bae346e4ba579351eb4209b14f3d90f1ae322",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/655/excerpts/0",
+     "quote": "MedalSeries Puppy Baked & Coated Turkey, Chicken & Duck Recipe for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/655/excerpts/1",
+     "quote": "This protein-rich kibble with turkey, chicken, and duck"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry"
+    ],
+    "reasoning": "Oven-baked kibble meal for puppies is dry dog food by form and stage."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Kibble is dry-food form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Turkey, Chicken and Duck named together."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Puppy."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "370c684b-666f-4c86-b615-261a7059ed0e"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dry canine meal explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:81AS05",
+   "sourceIndex": 656,
+   "sourceHash": "a71075a83843060069e9f806d716603a50160265f3636dbba8880933943aac0e",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/656/excerpts/0",
+     "quote": "MedalSeries Salmon & Lentils Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/656/excerpts/1",
+     "quote": "With 83% of proteins coming from real meat like salmon, turkey, chicken and cod"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet"
+    ],
+    "reasoning": "Recipe for cats names meats but no physical form; dry/wet unresolved."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Salmon, turkey, chicken and cod named together."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "54ddb28a-335c-4c02-9da9-66d0be3ca1ea"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat-food purpose known; form child not."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:84SB05",
+   "sourceIndex": 664,
+   "sourceHash": "4b45a155221a2a56aee6a13078cb17aa16dbc9d5bb9c1eae2ea94481a12b3e67",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/664/excerpts/0",
+     "quote": "Perfect Pur\u00e9es Treats Beef & Sardine Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/664/excerpts/1",
+     "quote": "served straight from the packet as a savory, lickable treat"
+    },
+    "e2": {
+     "locator": "source-development.json#/664/excerpts/1",
+     "quote": "can be enjoyed by cats of all ages"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "cat-treats"
+    ],
+    "reasoning": "Lickable pur\u00e9e treats for cats of all ages."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Treats map to Treat."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Beef and Sardine named together."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit cats of all ages is All Life Stages."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "36d75fa7-602b-4e95-890c-f8b947aa57c2"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Treat purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7224032395377",
+   "sourceIndex": 677,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/677/excerpts/0",
+     "quote": "Harvest Chicken Air Dried Recipe for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/677/excerpts/1",
+     "quote": "gently air-dried at low temperatures"
+    },
+    "e2": {
+     "locator": "source-development.json#/677/excerpts/1",
+     "quote": "complete and balanced meal or topper"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "Air-dried jerky-like meal-or-topper; no air-dried type in the 74-type authority."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Air-dried is not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Chicken with organs is a single-protein recipe."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7305989587057",
+   "sourceIndex": 690,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/690/excerpts/0",
+     "quote": "Pollock & Oatmeal Digestive Health Dog Kibble"
+    },
+    "e1": {
+     "locator": "source-development.json#/690/excerpts/1",
+     "quote": "This vet-formulated kibble provides an easily digestible complete and balanced meal"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry"
+    ],
+    "reasoning": "Vet-formulated kibble meal is dry dog food."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Kibble is dry-food form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Pollock is not a canonical flavor; oatmeal is not a flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "370c684b-666f-4c86-b615-261a7059ed0e"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dry canine meal explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:6834678104177",
+   "sourceIndex": 692,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/692/excerpts/0",
+     "quote": "Grass-Fed Beef Freeze Dried Raw Patties for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/692/excerpts/1",
+     "quote": "single animal protein blend of 95% pasture-raised beef, organ, and bone"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "Freeze-dried raw patties meal; raw-meal type absent as in frozen-raw pilot disputes."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Freeze Dried Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Single-protein beef recipe."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Raw purpose known; type unresolved."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7224748966001",
+   "sourceIndex": 694,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/694/excerpts/0",
+     "quote": "Freeze Dried Raw Beef Liver Treat"
+    },
+    "e1": {
+     "locator": "source-development.json#/694/excerpts/1",
+     "quote": "made with one single ingredient \u2013 nutrient-rich, grass-fed beef liver!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-treats"
+    ],
+    "reasoning": "Freeze-dried single-ingredient beef liver treats."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Dogs named throughout; maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Treat maps to Treat."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Single-ingredient beef liver is Beef."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "93e1d3e2-7700-44fd-9478-db04b80aa222"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Treat purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7611786428529",
+   "sourceIndex": 705,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/705/excerpts/0",
+     "quote": "Hip & Joint Supplement Chews for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/705/excerpts/1",
+     "quote": "Our Hip & Joint health supplement chews are formulated with"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Hip and joint supplement chews for dogs."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog; declared multiple [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Supplement Chews use the Supplement form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:redbarn.com:6155086790836",
+   "sourceIndex": 1374,
+   "sourceHash": "dd573a250bdfb3cdbd18b1178cc75b9ef1cbe0aa541373d6c5d0aab7ccf21a3c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1374/excerpts/0",
+     "quote": "Air Dried Beef Training Treats"
+    },
+    "e1": {
+     "locator": "source-development.json#/1374/excerpts/2",
+     "quote": "Try today as a training treat or kibble topper!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Title-only training treats with no species or form discriminator."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:redbarn.com:7945424863412",
+   "sourceIndex": 1384,
+   "sourceHash": "dd573a250bdfb3cdbd18b1178cc75b9ef1cbe0aa541373d6c5d0aab7ccf21a3c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1384/excerpts/0",
+     "quote": "Cat Air Dried Powerfood Chicken Recipe"
+    },
+    "e1": {
+     "locator": "source-development.json#/1384/excerpts/5",
+     "quote": "Perfect as a meal, topper, mix-in, or treat"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet",
+     "cat-treats"
+    ],
+    "reasoning": "Air-dried cat meal/topper/treat; no air-dried type."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Air-dried is not canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Chicken Recipe names the flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "54ddb28a-335c-4c02-9da9-66d0be3ca1ea"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat-food meal purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:redbarn.com:7633370054836",
+   "sourceIndex": 1393,
+   "sourceHash": "dd573a250bdfb3cdbd18b1178cc75b9ef1cbe0aa541373d6c5d0aab7ccf21a3c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1393/excerpts/0",
+     "quote": "First-Five Kibble Grain-Free Large Breed Recipe"
+    },
+    "e1": {
+     "locator": "source-development.json#/1393/excerpts/1",
+     "quote": "Real Nutrition for Big Dogs!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry"
+    ],
+    "reasoning": "Large-breed kibble is dry dog food; Large Breed is a size, not an age."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Dogs named; maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Kibble is dry-food form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No protein named."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Large Breed states size, not age."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Large Breed with Big Dogs is Large."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "370c684b-666f-4c86-b615-261a7059ed0e"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dry canine meal explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:8539709047041",
+   "sourceIndex": 1412,
+   "sourceHash": "b13f775e005b8142f14076acbe52ae515ccc709c30204078b753c1651aa70c19",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1412/excerpts/0",
+     "quote": "Absolutely Rabbit Freeze-Dried Raw Dinner Morsels for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/1412/excerpts/1",
+     "quote": "98% rabbit, nutrient-rich organs, & bone"
+    },
+    "e2": {
+     "locator": "source-development.json#/1412/excerpts/5",
+     "quote": "100% complete & balanced dinner"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet",
+     "cat-treats",
+     "supplements"
+    ],
+    "reasoning": "Complete freeze-dried raw rabbit dinner for cats; rabbit outside flavor options."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Freeze-Dried Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Rabbit is not a canonical flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "febb9696-2691-4d72-aba3-03dd7b23744f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Raw purpose known; type unresolved."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:8539704492289",
+   "sourceIndex": 1413,
+   "sourceHash": "b13f775e005b8142f14076acbe52ae515ccc709c30204078b753c1651aa70c19",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1413/excerpts/0",
+     "quote": "Absolutely Rabbit Freeze-Dried Raw Dinner Patties for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/1413/excerpts/4",
+     "quote": "Easy for canines of all life stages to digest"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "Freeze-dried raw rabbit patties for canines of all life stages."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Dogs and canines map to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Freeze-Dried Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Rabbit is not canonical."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit all life stages."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Raw purpose known; type unresolved."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:primalpetfoods.com:5459998441626",
+   "sourceIndex": 1364,
+   "sourceHash": "3ba0e6e539bebdd76abcc327ca94dbb378e2a0f4e148b72b920adc6fd338323e",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1364/excerpts/0",
+     "quote": "Freeze-Dried Raw Nuggets Dog Food"
+    },
+    "e1": {
+     "locator": "source-development.json#/1364/excerpts/1",
+     "quote": "It\u2019s easy to feed your dog real, whole foods"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "Freeze-dried raw nuggets dog food; protein unspecified."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit dog maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Freeze-Dried Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Protein chosen later; not stated."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Raw purpose known; type unresolved."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:primalpetfoods.com:5464177672346",
+   "sourceIndex": 1368,
+   "sourceHash": "3ba0e6e539bebdd76abcc327ca94dbb378e2a0f4e148b72b920adc6fd338323e",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1368/excerpts/0",
+     "quote": "Frozen Raw Nuggets Cat Food"
+    },
+    "e1": {
+     "locator": "source-development.json#/1368/excerpts/1",
+     "quote": "Nourish your cat\u2019s primal needs with complete and balanced"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet",
+     "cat-treats",
+     "supplements"
+    ],
+    "reasoning": "Frozen raw nuggets cat food; protein unspecified."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit cat maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Frozen Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Favorite protein chosen later; not stated."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "febb9696-2691-4d72-aba3-03dd7b23744f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Raw purpose known; type unresolved."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:7804297936995",
+   "sourceIndex": 835,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/835/excerpts/0",
+     "quote": "Ball"
+    },
+    "e1": {
+     "locator": "source-development.json#/835/excerpts/1",
+     "quote": "this durable dog toy takes fetch to the next level"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit dog toy by described fetch function for the dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:7804557951075",
+   "sourceIndex": 838,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/838/excerpts/0",
+     "quote": "Chew, Chase, Challenge Trio (3-Pack)"
+    },
+    "e1": {
+     "locator": "source-development.json#/838/excerpts/1",
+     "quote": "Whether your pup\u2019s in the mood to chase, chew, or problem-solve"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Trio of toys for pups; pup is a young dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:7721202712675",
+   "sourceIndex": 846,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/846/excerpts/0",
+     "quote": "Cone"
+    },
+    "e1": {
+     "locator": "source-development.json#/846/excerpts/2",
+     "quote": "this interactive dog toy turns playtime into a puzzle"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit interactive dog toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:3517169401955",
+   "sourceIndex": 847,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/847/excerpts/0",
+     "quote": "Dental Chew"
+    },
+    "e1": {
+     "locator": "source-development.json#/847/excerpts/1",
+     "quote": "helps support your dog\u2019s daily dental routine"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Chew toy supporting the dog's dental routine."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:6625588969571",
+   "sourceIndex": 848,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/848/excerpts/0",
+     "quote": "Fishbone"
+    },
+    "e1": {
+     "locator": "source-development.json#/848/excerpts/1",
+     "quote": "this durable chew toy will keep your dog hooked"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Durable chew toy for the dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:6880823148643",
+   "sourceIndex": 854,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/854/excerpts/0",
+     "quote": "Puppy Stick"
+    },
+    "e1": {
+     "locator": "source-development.json#/854/excerpts/1",
+     "quote": "Inspired by your puppy\u2019s love for sticks"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Stick chew for puppies; puppy maps to Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:6895696380003",
+   "sourceIndex": 860,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/860/excerpts/0",
+     "quote": "Tripe Bone"
+    },
+    "e1": {
+     "locator": "source-development.json#/860/excerpts/1",
+     "quote": "a flavor-packed favorite for dogs who love a challenge"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Chew toy for dogs who love a challenge."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:benebone.com:7721218310243",
+   "sourceIndex": 861,
+   "sourceHash": "b984cb051ae39e0f76d25a66a4e8c4a1954b2edb404ac767e3043eada3f07831",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/861/excerpts/0",
+     "quote": "Tug"
+    },
+    "e1": {
+     "locator": "source-development.json#/861/excerpts/2",
+     "quote": "this tough dog toy is flexible, strong"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Tough tug toy for the dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996504207681",
+   "sourceIndex": 986,
+   "sourceHash": "d14ec3e15796b3d1604b87f686cbbdab725708741bef53d3d4838bd5c82a956c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/986/excerpts/0",
+     "quote": "Chuckit! Air Fetch Wheel Dog Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/986/excerpts/1",
+     "quote": "Unleash your dog's natural chase instinct"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit fetch wheel dog toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996491362625",
+   "sourceIndex": 1063,
+   "sourceHash": "26751d98aa15d3d32e763a9a0557cd4fa8cbab15eacaec02f49b52736f76b49d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1063/excerpts/0",
+     "quote": "FAT CAT Gruntleys Mini Dog Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1063/excerpts/1",
+     "quote": "drives dogs hog-wild!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit mini dog toy driving dogs hog-wild."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996479631681",
+   "sourceIndex": 1103,
+   "sourceHash": "fcf3237b634bdef97ab3fe70bdd1bd4e2d969da3d5de27eb02174b22c8e79a37",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1103/excerpts/0",
+     "quote": "JW Cataction Lattice Ball Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1103/excerpts/1",
+     "quote": "specifically geared toward cats to entice their natural instincts to pounce and play"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit lattice ball cat toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:9761859109185",
+   "sourceIndex": 1161,
+   "sourceHash": "fcf3237b634bdef97ab3fe70bdd1bd4e2d969da3d5de27eb02174b22c8e79a37",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1161/excerpts/0",
+     "quote": "Mad Cat Bacon Kicker With Catnip & Silvervine Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1161/excerpts/1",
+     "quote": "will keep a cat coming back for more!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit kicker cat toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:9030504481089",
+   "sourceIndex": 1190,
+   "sourceHash": "fcf3237b634bdef97ab3fe70bdd1bd4e2d969da3d5de27eb02174b22c8e79a37",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1190/excerpts/0",
+     "quote": "PetFusion Ambush Interactive Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1190/excerpts/1",
+     "quote": "Capture your cat's attention and satisfy its hunting instincts"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Interactive hunting-instinct cat toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996487364929",
+   "sourceIndex": 1100,
+   "sourceHash": "26751d98aa15d3d32e763a9a0557cd4fa8cbab15eacaec02f49b52736f76b49d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1100/excerpts/0",
+     "quote": "JW Birdie Basketball Bird Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1100/excerpts/1",
+     "quote": "a crowd favorite with all pet birds"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "caged-bird-toys"
+    ],
+    "reasoning": "Interactive bird toy for pet birds including parakeets, parrots and cockatiels; all map to Bird."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Bird maps to Bird."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "95d303c6-8697-4962-bf5f-bf37d7335c62"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996506730817",
+   "sourceIndex": 1183,
+   "sourceHash": "d14ec3e15796b3d1604b87f686cbbdab725708741bef53d3d4838bd5c82a956c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1183/excerpts/0",
+     "quote": "Pet Qwerks Babble Ball Replacement Batteries"
+    },
+    "e1": {
+     "locator": "source-development.json#/1183/excerpts/1",
+     "quote": "These Replacement Batteries are made just for Pet Qwerks\u00ae Babble Balls\u00ae and ship in a pack of six."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Replacement batteries are a power accessory; no toy, tool, feeder, or equipment type fits a battery pack."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:9767263633729",
+   "sourceIndex": 1274,
+   "sourceHash": "fcf3237b634bdef97ab3fe70bdd1bd4e2d969da3d5de27eb02174b22c8e79a37",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1274/excerpts/0",
+     "quote": "Quirky Kitty Avocado Toast Catnip Plush Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1274/excerpts/1",
+     "quote": "great for exercising and entertaining your cat"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit plush cat toy for the cat."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:weruva.com:10287464382738",
+   "sourceIndex": 1489,
+   "sourceHash": "254bb753486a9541eb447c19208249e3b8f247d0ee8d6a1c6364077d7bc31990",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1489/excerpts/0",
+     "quote": "Cat Person Bonded Pair Catnip Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1489/excerpts/1",
+     "quote": "these cat toys are perfectly sized for batting and chasing across the floor"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit batting and chasing cat toys."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:weruva.com:10287460679954",
+   "sourceIndex": 1490,
+   "sourceHash": "254bb753486a9541eb447c19208249e3b8f247d0ee8d6a1c6364077d7bc31990",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1490/excerpts/0",
+     "quote": "Little Cupcake Catnip Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1490/excerpts/1",
+     "quote": "catnip inside to keep curious paws engaged"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit catnip cat toy by title."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:weruva.com:10287468216594",
+   "sourceIndex": 1491,
+   "sourceHash": "254bb753486a9541eb447c19208249e3b8f247d0ee8d6a1c6364077d7bc31990",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1491/excerpts/0",
+     "quote": "Cat Person Feathered Friends Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1491/excerpts/1",
+     "quote": "Filled with catnip and built for action"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Cat Person feathered toy filled with catnip for pouncing play."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:weruva.com:9774384316690",
+   "sourceIndex": 1514,
+   "sourceHash": "254bb753486a9541eb447c19208249e3b8f247d0ee8d6a1c6364077d7bc31990",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1514/excerpts/0",
+     "quote": "Big Tuna Kicker Catnip Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1514/excerpts/1",
+     "quote": "stimulates your cat\u2019s natural instincts to grab, hug, and kick their prey"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Kicker toy stimulating the cat's prey instincts."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9170787631359",
+   "sourceIndex": 754,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/754/excerpts/0",
+     "quote": "TropiClean Dander Reducing No Rinse Cat Shampoo, 7.4oz"
+    },
+    "e1": {
+     "locator": "source-development.json#/754/excerpts/1",
+     "quote": "Give your cat a clean, fresh coat without the stress of bath time"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Waterless cat shampoo for coat cleaning is a grooming function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit cat maps to Cat; declared multiple [Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat grooming explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9166701658367",
+   "sourceIndex": 757,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/757/excerpts/0",
+     "quote": "TropiClean Fresh Breath Peanut Butter Oral Care Kit for Dogs & Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/757/excerpts/1",
+     "quote": "easy to add to your dog or cat grooming routine"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Oral hygiene kit for the dog-or-cat grooming routine is grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs & Cats and body names dog or cat; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species oral care."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9166701527295",
+   "sourceIndex": 759,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/759/excerpts/0",
+     "quote": "TropiClean HomeVet Enzymatic Ear Wash for Cats & Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/759/excerpts/1",
+     "quote": "helps clean, soothe, and protect"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Enzymatic ear wash for cats and dogs is ear grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Cats & Dogs; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species ear care."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9166701396223",
+   "sourceIndex": 762,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/762/excerpts/0",
+     "quote": "TropiClean HomeVet Soothing Eye Wash for Dogs & Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/762/excerpts/1",
+     "quote": "making it perfect for dogs and cats with seasonal allergies"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Sterile eye wash clearing discharge for dogs and cats is grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species eye care."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9166701035775",
+   "sourceIndex": 782,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/782/excerpts/0",
+     "quote": "TropiClean PURE Hypoallergenic Plant-Based Wipes for Dogs & Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/782/excerpts/1",
+     "quote": "Safe for everyday use on the face, paws, body, and tail"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Plant-based grooming wipes for face, paws, body and tail."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs & Cats; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species wipe grooming."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9166700577023",
+   "sourceIndex": 793,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/793/excerpts/0",
+     "quote": "TropiClean Mild Coconut Dog & Cat Ear Cleaning Wipes"
+    },
+    "e1": {
+     "locator": "source-development.json#/793/excerpts/7",
+     "quote": "Safe for dogs and cats 12 weeks and older"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Ear cleaning wipes lifting wax and debris are ear grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species ear wipes."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9170787270911",
+   "sourceIndex": 794,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/794/excerpts/0",
+     "quote": "TropiClean Fresh Breath Cat Dental Water Additive Concentrate"
+    },
+    "e1": {
+     "locator": "source-development.json#/794/excerpts/1",
+     "quote": "helps keep your cat\u2019s mouth healthy and their breath fresh"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Cat dental water additive fighting plaque is oral grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit cat maps to Cat; declared multiple [Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat oral care."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9170786615551",
+   "sourceIndex": 826,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/826/excerpts/0",
+     "quote": "TropiClean OxyMed Hypoallergenic Anti Itch Spray for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/826/excerpts/1",
+     "quote": "Perfect for dogs, cats, puppies, and kittens"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "No-rinse anti-itch skin spray for dogs and cats is grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species skin spray."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:9170787500287",
+   "sourceIndex": 834,
+   "sourceHash": "82cd0c3ac809ffc25eb48f8edf3f6aeb731aa3c69313d8cfc7a5e5a598ae1eae",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/834/excerpts/0",
+     "quote": "TropiClean Watermelon Deodorizing Spray for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/834/excerpts/1",
+     "quote": "leaving your dog or cat smelling irresistibly fresh"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Deodorizing coat spray for dogs and cats is grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species deodorizing."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6928915693616",
+   "sourceIndex": 560,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/560/excerpts/0",
+     "quote": "Advanced Probiotics & Enzymes Powder"
+    },
+    "e1": {
+     "locator": "source-development.json#/560/excerpts/1",
+     "quote": "Give your dog and cat the gut support they deserve"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Probiotic gut-health powder is a food supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Body names dog and cat; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Powder is not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6923073945648",
+   "sourceIndex": 567,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/567/excerpts/0",
+     "quote": "Anti-Diarrhea Liquid for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/567/excerpts/1",
+     "quote": "designed to promote healthy digestion and restore gut balance"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Digestive-balance liquid for gut health is a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs and Cats; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Liquid is not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6928196599856",
+   "sourceIndex": 570,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/570/excerpts/0",
+     "quote": "Bitter YUCK!\u00ae No Chew Spray for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/570/excerpts/1",
+     "quote": "this spray helps deter unwanted chewing and biting behaviors"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "A bitter behavior-deterrent spray for furniture and surfaces is not food, a toy, grooming, a supplement, or a health treatment; no type fits."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6928197812272",
+   "sourceIndex": 573,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/573/excerpts/0",
+     "quote": "Brewers Dried Yeast with Vitamins Chewable Tablets for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/573/excerpts/1",
+     "quote": "this daily supplement helps support healthy skin"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Daily yeast-and-vitamin tablets are a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs and Cats; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Tablets are not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:9323244323124",
+   "sourceIndex": 577,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/577/excerpts/0",
+     "quote": "Dental Targeted Care Soft Chews for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/577/excerpts/1",
+     "quote": "These easy to give and great-tasting soft chew supplements"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Dental soft-chew supplements reducing plaque are a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs and Cats; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit soft chew supplements use the Supplement form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6928060416048",
+   "sourceIndex": 585,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/585/excerpts/0",
+     "quote": "Moderate Joint Care Soft Chews for Dogs and Cats (formerly Glucosamine DS Plus\u2122)"
+    },
+    "e1": {
+     "locator": "source-development.json#/585/excerpts/1",
+     "quote": "veterinarian formulated for dogs and cats experiencing mild to moderate joint stiffness"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Joint-support soft chews are a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Soft Chews for joint care use the Supplement form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6919064059952",
+   "sourceIndex": 611,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/611/excerpts/0",
+     "quote": "Pet Electrolyte Concentrate for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/611/excerpts/1",
+     "quote": "Perfect for dogs and cats recovering from illness, exercise, or hot weather"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Electrolyte hydration concentrate is a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Concentrate is not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor discriminator."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6919046070320",
+   "sourceIndex": 621,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/621/excerpts/0",
+     "quote": "Salmon Oil for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/621/excerpts/1",
+     "quote": "Our Salmon Oil for Dogs and Cats is rich in Omega-3 and Omega-6 fatty acids"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Omega skin-and-coat oil mixed into food is a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title names Dogs and Cats; approved multi [Dog, Cat].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Oil is not a canonical form."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Salmon oil composition is not an established flavor value."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No life-stage stated."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Supplement purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6928058384432",
+   "sourceIndex": 629,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/629/excerpts/0",
+     "quote": "Septiderm-V\u00ae Skin Care Lotion Spray for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/629/excerpts/1",
+     "quote": "relief for your dog or cat and support a shinier coat"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Topical itch-relief lotion names both species but captured facts do not resolve a grooming-vs-treatment function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Title and body name both species; direct fact labeled while type unresolved."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:fourpaws.com:5925a4000667dcc813fe",
+   "sourceIndex": 911,
+   "sourceHash": "d8436fa8109f22855098348b8f67e32fa1807a7f584ab4252326b0a84aa9f6ff",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/911/excerpts/0",
+     "quote": "Magic Coat Professional Series Large Nail Clipper for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/911/excerpts/1",
+     "quote": "this innovative dog grooming tool features a large opening"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Nail clipper for dogs is a grooming tool."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog; declared multiple [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dog grooming tool explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:fourpaws.com:302341ed52a69710a567",
+   "sourceIndex": 913,
+   "sourceHash": "9f6465fa9f28bf479cebb5d1d1ffe33a50d6b5bfd2b76fb2eb4c003fc66cf69e",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/913/excerpts/0",
+     "quote": "Magic Coat Reduces Shedding Dog Shampoo"
+    },
+    "e1": {
+     "locator": "source-development.json#/913/excerpts/1",
+     "quote": "This deshedding shampoo for dogs is specially formulated"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Deshedding shampoo for dogs is coat grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog maps to Dog; declared multiple [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dog coat care explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:0fc5254aef4a45743f2b",
+   "sourceIndex": 243,
+   "sourceHash": "873185d4ea6f3fc247d825b60c5f20b76cc7fe320d9bc5afe6b493cdc59ce5b0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/243/excerpts/0",
+     "quote": "Annual\u00ae Grub Beater"
+    },
+    "e1": {
+     "locator": "source-development.json#/243/excerpts/2",
+     "quote": "Get rid of pesky grubs and insects from your garden"
+    },
+    "e2": {
+     "locator": "source-development.json#/243/excerpts/4",
+     "quote": "6 lbs of granules cover up to 5,000 sq. ft."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Systemic grub and insect killer for lawn and garden."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn and garden pest control explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:28e526d53132cc3328ed",
+   "sourceIndex": 244,
+   "sourceHash": "08e7c7b64620ebb6afd20ac14c307f8f7a3497ebeb307e8bd5143b630c730ad7",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/244/excerpts/0",
+     "quote": "Annual Tree & Shrub Insect Control w/ Systemaxx Conc"
+    },
+    "e1": {
+     "locator": "source-development.json#/244/excerpts/2",
+     "quote": "INSECT KILLER \u2013 This pest control is great for use on adelgids, aphids"
+    },
+    "e2": {
+     "locator": "source-development.json#/244/excerpts/3",
+     "quote": "Concentrate dissolves in water allowing the insecticide to move through the root zone"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Soil-drench insecticide protecting trees and shrubs."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Tree and shrub pest control explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:11fea910d82b3020776f",
+   "sourceIndex": 246,
+   "sourceHash": "e7b7a5ae9c91f16754a1aa1f03a1f2e576e8f5f2324eb366d60675cb9e3bc3a0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/246/excerpts/0",
+     "quote": "Poison Ivy & Brush Killer Bk-32 Concentrate"
+    },
+    "e1": {
+     "locator": "source-development.json#/246/excerpts/2",
+     "quote": "BRUSH AND WEED KILLER \u2013 Kills a variety of brush, woody weeds, and vines"
+    },
+    "e2": {
+     "locator": "source-development.json#/246/excerpts/4",
+     "quote": "When used as directed it kills broadleaf weeds in lawns, roots, and all"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "weed-control"
+    ],
+    "reasoning": "Brush and weed killer safe for lawn grasses with residential turf use."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the weed-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn weed killing explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:2bef6d1708f3a7ae4238",
+   "sourceIndex": 247,
+   "sourceHash": "e9c3a1967b58d21b45351d110f4ef56ebe05c534226e57e44cb93a3d33622372",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/247/excerpts/0",
+     "quote": "Captain Jack\u2019s Deadweed Brew Concentrate"
+    },
+    "e1": {
+     "locator": "source-development.json#/247/excerpts/2",
+     "quote": "NON-SELECTIVE WEED CONTROL \u2013 For use on non-selective herbaceous broadleaf and grassy weeds"
+    },
+    "e2": {
+     "locator": "source-development.json#/247/excerpts/6",
+     "quote": "Product mixes with water and should be applied as a spray"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "weed-control"
+    ],
+    "reasoning": "Non-selective weed killer for borders, drives, and buildings; no lawn-specific membership supported."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the weed-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:1f86cd8e6bf378baf8e1",
+   "sourceIndex": 249,
+   "sourceHash": "30139b6f3624a507d50ee961fe5716ef121b827154effa4cb3135a091c2cb98d",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/249/excerpts/0",
+     "quote": "Captain Jack\u2019s Citrus, Fruit, & Nut Orchard Spray Concentrate"
+    },
+    "e1": {
+     "locator": "source-development.json#/249/excerpts/2",
+     "quote": "INSECT KILLER \u2013 This pest control is great for use on beetles, fruit flies, caterpillars"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Orchard pest killer with secondary disease prevention; insect function controls the type."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Orchard pest control explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:2f49c710c4cececcaebc",
+   "sourceIndex": 250,
+   "sourceHash": "31843d214edba51deafe5e09900b771f8c4167c2163c4813a8a8da94e48035f2",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/250/excerpts/0",
+     "quote": "Dual-Action Bedbug & Insect Room Fogger"
+    },
+    "e1": {
+     "locator": "source-development.json#/250/excerpts/2",
+     "quote": "Our pest control kills bed bugs, boxelder bugs, beetles"
+    },
+    "e2": {
+     "locator": "source-development.json#/250/excerpts/5",
+     "quote": "One canister of fogger will treat a room up to 16 ft. x 16 ft."
+    },
+    "e3": {
+     "locator": "source-development.json#/250/excerpts/6",
+     "quote": "EASY TO USE SPRAY CANISTER \u2013 This product is ready to use when it arrives."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Indoor room fogger killing listed insects; spray canister is the Can form."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ],
+     "reasoning": "Explicit spray canister maps to Can."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2",
+      "e3"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Indoor insect killing explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:2fcfa01e5e54164704e6",
+   "sourceIndex": 254,
+   "sourceHash": "47871c53f26f2ae611725fb337f3555e4ff3997d100b0ac776176d651685b1e1",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/254/excerpts/0",
+     "quote": "Insect & Grub Control"
+    },
+    "e1": {
+     "locator": "source-development.json#/254/excerpts/3",
+     "quote": "Use outdoors, on lawns and around the foundation of the house"
+    },
+    "e2": {
+     "locator": "source-development.json#/254/excerpts/6",
+     "quote": "Granules should either be distributed as a barrier"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Systemic lawn and foundation insect and grub killer."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn insect control explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:1eae454148acb6ed1655",
+   "sourceIndex": 258,
+   "sourceHash": "b18974b4a7a082429daab5fda6a30a62f5490abf1b3c76b4281e84d6d073ccf1",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/258/excerpts/0",
+     "quote": "MossMax RTS"
+    },
+    "e1": {
+     "locator": "source-development.json#/258/excerpts/2",
+     "quote": "MossMax quickly kills lawn moss, giving your lawn grass the opportunity to fill in"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "weed-control"
+    ],
+    "reasoning": "Moss and algae killer; moss is not established as a weed under the weed-control type, so the pointer stays disputed."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the garden profiles."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn moss killing supports Lawn Care only."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:10306a5018fa9fcc67e5",
+   "sourceIndex": 263,
+   "sourceHash": "9352340a93ec316618a503011db951c402f0fecc8e1d652671b01b1e4ab5d8f9",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/263/excerpts/0",
+     "quote": "Revenge Wasp & Hornet Foam Aerosol"
+    },
+    "e1": {
+     "locator": "source-development.json#/263/excerpts/2",
+     "quote": "Our bug control is designed for use on wasps, hornets, yellow jackets"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Foam aerosol nest killer for wasps and hornets."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Foam aerosol delivery is not an explicit canonical package value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the insect-control profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Nest insect killing explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:185835",
+   "sourceIndex": 933,
+   "sourceHash": "d7151f849fdcbb4a54a7ae0050305fbc9a277cb3201205be981ce233efdfbc94",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/933/excerpts/0",
+     "quote": "Black Beauty\u00ae Founders Reserve Grass Seed"
+    },
+    "e1": {
+     "locator": "source-development.json#/933/excerpts/1",
+     "quote": "Grows a superior lawn in both sunny and shady areas"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grass-seed"
+    ],
+    "reasoning": "Turfgrass seed growing a superior lawn."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the grass-seed profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn grass seed explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:155098",
+   "sourceIndex": 935,
+   "sourceHash": "6577a7cf5d6f8ec0ea6273c57b719e45c4c04f8b20075c82c09832f96c27208c",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/935/excerpts/0",
+     "quote": "Lawn Starter Kit"
+    },
+    "e1": {
+     "locator": "source-development.json#/935/excerpts/1",
+     "quote": "including our premium cool-season grass seed"
+    },
+    "e2": {
+     "locator": "source-development.json#/935/excerpts/1",
+     "quote": "Veri-Green Starter Lawn Fertilizer for Seeding and Sodding"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grass-seed",
+     "lawn-fertilizer"
+    ],
+    "reasoning": "Kit bundles seed, fertilizer, and a spreader; single type cannot cover the combination."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules, concentrates, sprays, and hose-end application describe delivery, not a canonical Bag/Can/Box/Tray/Pouch value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the garden profiles."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn establishment purpose supports Lawn Care only."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:154473",
+   "sourceIndex": 936,
+   "sourceHash": "88c0f330c2aa786859cedf946a0cd53399e49a8ae82c2b21d8416f65750a7087",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/936/excerpts/0",
+     "quote": "Organic Lawn Food"
+    },
+    "e1": {
+     "locator": "source-development.json#/936/excerpts/1",
+     "quote": "100% organic lawn fertilizer made with food-grade all-natural ingredients"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "lawn-fertilizer"
+    ],
+    "reasoning": "Organic lawn fertilizer feeding the lawn for months."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the lawn-fertilizer profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn fertilizing explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:16009",
+   "sourceIndex": 938,
+   "sourceHash": "7f81a44e2f0b37035fb1cad919bd8332cf820e800baca8e0755ab568a3a758d2",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/938/excerpts/0",
+     "quote": "Veri-Green\u00ae Southern Weed &amp;amp; Feed"
+    },
+    "e1": {
+     "locator": "source-development.json#/938/excerpts/1",
+     "quote": "Kills dollarweed and over 40 broadleaf weeds"
+    },
+    "e2": {
+     "locator": "source-development.json#/938/excerpts/1",
+     "quote": "Feeds the lawn with a 30-0-3 fertilizer blend"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "weed-control",
+     "lawn-fertilizer"
+    ],
+    "reasoning": "2-in-1 weed killing plus fertilizing; no priority rule between weed-control and lawn-fertilizer."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granular formula is not a canonical package value."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the garden profiles."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn weed-and-feed purpose supports Lawn Care only."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:lakevalleyseed.com:00000547",
+   "sourceIndex": 319,
+   "sourceHash": "4caf0a41f0ec712dc5709e0dae532069f5220157abe5d7b9593ee3187524a06c",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/319/excerpts/0",
+     "quote": "Wildflowers Perennial Mix - Item #1664"
+    },
+    "e1": {
+     "locator": "source-development.json#/319/excerpts/1",
+     "quote": "This is a mixture of perennial flowers native and naturalized in North America"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Perennial wildflower seed mix is not lawn grass seed, weed control, fertilizer, or any other of the 74 types; no fit exists."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:lakevalleyseed.com:00000264",
+   "sourceIndex": 321,
+   "sourceHash": "86eae86d08d0e84b5258958faf9f086a16cb3f692799aaa2e53fb7a4618f2077",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/321/excerpts/0",
+     "quote": "Cat Grass Oat - Item #1854"
+    },
+    "e1": {
+     "locator": "source-development.json#/321/excerpts/1",
+     "quote": "Dogs and rabbits love it, too!"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grass-seed"
+    ],
+    "reasoning": "Oat grass grown for cats (also dogs and rabbits) is not established as lawn grass seed; pointer disputed."
+   },
+   "fields": {
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    },
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "outside-profile",
+     "reasoning": "Species is outside the grass-seed profile."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:thermacell.com:30062244921486bdd041",
+   "sourceIndex": 1482,
+   "sourceHash": "6da3691b5bb08ea34bea275934ff49c9089094296feed23a0cb4ee99f6ca90ae",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1482/excerpts/0",
+     "quote": "E-ZoneGuard Patio + Rechargeable Mosquito Repeller (E65)"
+    },
+    "e1": {
+     "locator": "source-development.json#/1482/excerpts/1",
+     "quote": "On-demand mosquito repellent starts heating with the push of a button"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "A battery-powered heating repeller device with no spray or chemical application is none of the control, equipment-power, or heater types as captured."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:thermacell.com:17aa863126bd5e699f22",
+   "sourceIndex": 1483,
+   "sourceHash": "017a390ede0a5b091c2af2be3511a536cacbaa55e798885dcaf09b73cbb555b1",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1483/excerpts/0",
+     "quote": "LIV 2.0 On-Demand Mosquito+ Repellent System"
+    },
+    "e1": {
+     "locator": "source-development.json#/1483/excerpts/1",
+     "quote": "Get On-Demand protection through LIV 2.0 App"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "An app-controlled hub-and-repeller hardware system is none of the 74 types; no fit exists."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237463896217",
+   "sourceIndex": 359,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/359/excerpts/0",
+     "quote": "11% Sweet Pellets"
+    },
+    "e1": {
+     "locator": "source-development.json#/359/excerpts/6",
+     "quote": "for cattle and goats"
+    },
+    "e2": {
+     "locator": "source-development.json#/359/excerpts/6",
+     "quote": "This feed is designed to be fed with hay and/or pasture"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "cattle-feed",
+     "goat-sheep-feed"
+    ],
+    "reasoning": "Sweet-pellet feed for cattle and goats; single type cannot cover both feeds and the pair cannot share one species value."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Cattle and goats named together; no single-value rule."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit Sweet Pellets use the Pellets form."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "6db0de8c-f996-40ad-b7b4-761e3dc1f28f",
+     "45508f64-b9ef-4df5-b94d-376f614480bb"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual cattle/goat feeding supports both pages only."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8332619219097",
+   "sourceIndex": 360,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/360/excerpts/0",
+     "quote": "7-Grain Ultimate Scratch"
+    },
+    "e1": {
+     "locator": "source-development.json#/360/excerpts/3",
+     "quote": "Treat for chickens, ducks & more"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "poultry-feed"
+    ],
+    "reasoning": "Scratch grain treat for chickens and ducks is poultry feed."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Chickens and ducks map to Poultry."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Scratch grains are not a canonical form."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1bc24345-121b-4088-8375-e8e152688120"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Poultry feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237464092825",
+   "sourceIndex": 363,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/363/excerpts/0",
+     "quote": "All Flock with Probiotic Crumble"
+    },
+    "e1": {
+     "locator": "source-development.json#/363/excerpts/4",
+     "quote": "Feed Manna Pro 16% All Flock Crumbles with Probiotics to growing, finishing, and mature chickens, ducks and geese"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "poultry-feed"
+    ],
+    "reasoning": "Crumble feed for chickens, ducks, geese, turkeys and gamebirds."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Named birds map to Poultry."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Crumble is canonical."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1bc24345-121b-4088-8375-e8e152688120"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Flock feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237464158361",
+   "sourceIndex": 364,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/364/excerpts/0",
+     "quote": "Apple Wafers Horse Treats"
+    },
+    "e1": {
+     "locator": "source-development.json#/364/excerpts/4",
+     "quote": "designed to provide a nutritional treat or reward for horses"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "horse-treats-supplements"
+    ],
+    "reasoning": "Nutritional wafer treats as a reward for horses."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Horse Treats and horses map to Horse."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237464420505",
+   "sourceIndex": 366,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/366/excerpts/0",
+     "quote": "Calf-Manna\u00ae"
+    },
+    "e1": {
+     "locator": "source-development.json#/366/excerpts/5",
+     "quote": "Dairy Calves: Up to 1 lb per day"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cattle-feed"
+    ],
+    "reasoning": "Supplemental feed for dairy, beef, and show cattle calves."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Calves and cows map to Cattle."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No form stated."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "6db0de8c-f996-40ad-b7b4-761e3dc1f28f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cattle feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237464617113",
+   "sourceIndex": 369,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/369/excerpts/0",
+     "quote": "Chick Starter Non-Medicated Crumbles"
+    },
+    "e1": {
+     "locator": "source-development.json#/369/excerpts/4",
+     "quote": "Feed continuously as the sole ration to chicks, ducklings, and goslings from 0 to 8 weeks"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "poultry-feed"
+    ],
+    "reasoning": "Starter crumble ration for chicks, ducklings, and goslings."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Named young birds map to Poultry."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Crumbles map to Crumble."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1bc24345-121b-4088-8375-e8e152688120"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Starter feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237467205785",
+   "sourceIndex": 383,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/383/excerpts/0",
+     "quote": "Duck Discs\u2122 Treats for Waterfowl"
+    },
+    "e1": {
+     "locator": "source-development.json#/383/excerpts/5",
+     "quote": "designed as a treat for adult ducks and geese"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "poultry-feed"
+    ],
+    "reasoning": "Floating disc treats for adult ducks and geese; no treat type exists for poultry."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Ducks and geese map to Poultry."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Discs are not a canonical form."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1bc24345-121b-4088-8375-e8e152688120"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Waterfowl feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237466386585",
+   "sourceIndex": 406,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/406/excerpts/0",
+     "quote": "Gamebird Showbird Starter Grower"
+    },
+    "e1": {
+     "locator": "source-development.json#/406/excerpts/6",
+     "quote": "Feed continuously as a starter and grower for gamebirds, turkeys, ducks, geese and broilers"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "poultry-feed"
+    ],
+    "reasoning": "Starter and grower feed for gamebirds, turkeys, ducks, geese and broilers."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Named birds map to Poultry."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No form stated."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "1bc24345-121b-4088-8375-e8e152688120"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Gamebird feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237466550425",
+   "sourceIndex": 411,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/411/excerpts/0",
+     "quote": "Goat Treats"
+    },
+    "e1": {
+     "locator": "source-development.json#/411/excerpts/2",
+     "quote": "For Sheep and Goats"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "goat-sheep-feed"
+    ],
+    "reasoning": "Reward treats named for sheep and goats together; single species value cannot cover the pair."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Sheep and goats named together; no single-value rule."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Oatmeal treats are not a canonical form."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "45508f64-b9ef-4df5-b94d-376f614480bb"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Sheep and goat purpose supports the page only."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010599207108",
+   "sourceIndex": 460,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/460/excerpts/0",
+     "quote": "Mazuri\u00ae CU Chinchilla Diet Pellet C"
+    },
+    "e1": {
+     "locator": "source-development.json#/460/excerpts/2",
+     "quote": "complete ration in pellet form designed for all life stages of chinchillas"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "small-animal-feed-bedding"
+    ],
+    "reasoning": "Complete pellet ration for chinchillas."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Chinchillas map to Small Animal."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit pellet form maps to Pellets."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "0fae6d2f-86ae-4903-89fd-2175c970bfd8"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Small-pet feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010593538244",
+   "sourceIndex": 478,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/478/excerpts/0",
+     "quote": "Mazuri\u00ae Aquatic Turtle Diet"
+    },
+    "e1": {
+     "locator": "source-development.json#/478/excerpts/1",
+     "quote": "designed for freshwater turtles, like painted and red-eared turtles"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Floating pellet diet for freshwater turtles; no turtle feed type and no turtle species option exist in the 74-type authority."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010593767620",
+   "sourceIndex": 487,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/487/excerpts/0",
+     "quote": "Mazuri\u00ae Chinchilla Diet"
+    },
+    "e1": {
+     "locator": "source-development.json#/487/excerpts/1",
+     "quote": "Our fresh pellets are made with multiple fiber sources"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "small-animal-feed-bedding"
+    ],
+    "reasoning": "Pellet diet with fiber for chinchillas."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Chinchillas map to Small Animal."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit fresh pellets map to Pellets."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "0fae6d2f-86ae-4903-89fd-2175c970bfd8"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Small-pet feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:8228677877956",
+   "sourceIndex": 505,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/505/excerpts/0",
+     "quote": "Mazuri\u00ae Koi Premium Food"
+    },
+    "e1": {
+     "locator": "source-development.json#/505/excerpts/1",
+     "quote": "It comes in three pellet sizes"
+    },
+    "e2": {
+     "locator": "source-development.json#/505/excerpts/1",
+     "quote": "for koi fish at every stage of their life"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "fish-food"
+    ],
+    "reasoning": "Pellet food for koi and goldfish at every life stage."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Koi and goldfish map to Fish."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Explicit pellet sizes map to Pellets."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No flavor stated."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Every stage of life is All Life Stages."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Breed size is dog-only."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "2ae44b48-4ed1-4776-b278-3f2bcc840958",
+     "dfc0ba6d-fcc3-4747-a397-4945a067bc47"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual koi and goldfish purpose supports both pages."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010594980036",
+   "sourceIndex": 524,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/524/excerpts/0",
+     "quote": "Mazuri\u00ae Rat & Mouse Diet"
+    },
+    "e1": {
+     "locator": "source-development.json#/524/excerpts/1",
+     "quote": "The large block pellet shape is to support dental health"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "small-animal-feed-bedding"
+    ],
+    "reasoning": "Block pellet diet for pet rats and mice."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Rats and mice map to Small Animal."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Block pellets map to Pellets."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "0fae6d2f-86ae-4903-89fd-2175c970bfd8"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Small-pet feeding explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010595537092",
+   "sourceIndex": 535,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/535/excerpts/0",
+     "quote": "Mazuri\u00ae Timothy Hay-Based Guinea Pig Diet"
+    },
+    "e1": {
+     "locator": "source-development.json#/535/excerpts/1",
+     "quote": "Made with Timothy hay"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "small-animal-feed-bedding"
+    ],
+    "reasoning": "Timothy-hay pellet diet for guinea pigs."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Guinea pigs map to Small Animal."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Pellet diet is Pellets."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "0fae6d2f-86ae-4903-89fd-2175c970bfd8",
+     "1d9d7d0a-3ec7-48ac-b0bf-3806288b3b7f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Guinea pig purpose supports both pages."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:0b0994ea53eb97c791b5",
+   "sourceIndex": 724,
+   "sourceHash": "d82668f46d110e13b4fbcd684c00e7f8d47ce29ca9aa0815f4747d8c9c277bcc",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/724/excerpts/0",
+     "quote": "Essentials Adult Guinea Pig Food"
+    },
+    "e1": {
+     "locator": "source-development.json#/724/excerpts/1",
+     "quote": "We start with high fiber Oxbow Western Timothy hay"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "small-animal-feed-bedding"
+    ],
+    "reasoning": "Timothy-hay guinea pig food with no stated physical form."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Guinea pigs map to Small Animal."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No form stated."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "0fae6d2f-86ae-4903-89fd-2175c970bfd8",
+     "1d9d7d0a-3ec7-48ac-b0bf-3806288b3b7f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Guinea pig purpose supports both pages."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:wildbirdsuets.com:4ebdabe5efbb760d7386",
+   "sourceIndex": 1519,
+   "sourceHash": "c2c4c16f99a40bd88accc9a08689a31e537c9062c2edcc3be60b35ad2bc5dc0e",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1519/excerpts/0",
+     "quote": "Mealworm Delight No Melt Suet Dough"
+    },
+    "e1": {
+     "locator": "source-development.json#/1519/excerpts/1",
+     "quote": "provides wild birds with the energy they need"
+    },
+    "e2": {
+     "locator": "source-development.json#/1519/excerpts/1",
+     "quote": "these no melt suet cakes ensure a hassle-free feeding experience"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "suet-cakes"
+    ],
+    "reasoning": "No-melt suet cakes feeding wild birds; cakes carry the Block invariant."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Wild birds map to Bird."
+    },
+    "food-form": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "reasoning": "Described suet cakes carry the Block invariant."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1",
+      "e2"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No package stated."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "61e31d4a-4b5b-44b3-b01d-e0df4820811f"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Wild bird suet purpose explicit."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  }
+ ]
+}

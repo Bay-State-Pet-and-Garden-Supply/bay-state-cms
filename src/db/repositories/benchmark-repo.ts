@@ -674,6 +674,85 @@ export function getBenchmarkBaseline(datasetId: string): BenchmarkSafetyBaseline
  * later baseline overwrites the prior one for the same dataset.
  * story: e03s01
  */
+/**
+ * Metadata-only read path (#302 step 2). Aggregates counts/splits/status/
+ * hashes/attribution presence ONLY — never selects gold/input-snapshot
+ * payload columns (input_snapshot_json, gold_labels_json, example_hash,
+ * product_sku) or any sensitive table. The caller supplies an explicit
+ * read-only connection dependency (e.g. an independent readonly driver);
+ * this function never calls getDb()/initDb and never migrates or writes.
+ * Workspace-scoped: a dataset id from another workspace reads as null.
+ */
+export interface BenchmarkMetadataDb {
+  query(sql: string): {
+    get(...params: unknown[]): unknown;
+    all(...params: unknown[]): unknown[];
+  };
+}
+
+export interface BenchmarkDatasetMetadata {
+  id: string;
+  workspace_id: string;
+  name: string;
+  holdout_strategy: string;
+  split_seed: number;
+  total_examples: number;
+  status: string;
+  dataset_hash: string | null;
+  frozen_at: string | null;
+  source_config_hash: string | null;
+  created_at: string;
+  splitCounts: Record<string, number>;
+  attribution: { reviewed: number; adjudicated: number; total: number };
+}
+
+const DATASET_METADATA_SQL =
+  'SELECT id, workspace_id, name, holdout_strategy, split_seed, total_examples, status, dataset_hash, frozen_at, source_config_hash, created_at FROM benchmark_datasets WHERE id = $id AND workspace_id = $workspaceId';
+const EXAMPLE_SPLIT_COUNTS_SQL =
+  'SELECT split_group, COUNT(*) AS n FROM benchmark_examples WHERE dataset_id = $datasetId GROUP BY split_group';
+const EXAMPLE_ATTRIBUTION_SQL =
+  'SELECT SUM(CASE WHEN reviewer_id IS NOT NULL THEN 1 ELSE 0 END) AS reviewed, SUM(CASE WHEN adjudicated_by IS NOT NULL THEN 1 ELSE 0 END) AS adjudicated, COUNT(*) AS total FROM benchmark_examples WHERE dataset_id = $datasetId';
+
+export function getDatasetMetadataOnly(
+  db: BenchmarkMetadataDb,
+  datasetId: string,
+  workspaceId: string,
+): BenchmarkDatasetMetadata | null {
+  if (!workspaceId) return null;
+  const row = db.query(DATASET_METADATA_SQL).get({ $id: datasetId, $workspaceId: workspaceId }) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  const splits = db.query(EXAMPLE_SPLIT_COUNTS_SQL).all({ $datasetId: datasetId }) as Array<{
+    split_group: string;
+    n: number;
+  }>;
+  const attribution = db.query(EXAMPLE_ATTRIBUTION_SQL).get({ $datasetId: datasetId }) as {
+    reviewed: number;
+    adjudicated: number;
+    total: number;
+  };
+  const splitCounts: Record<string, number> = {};
+  for (const s of splits) splitCounts[String(s.split_group)] = Number(s.n);
+  return {
+    id: String(row.id),
+    workspace_id: String(row.workspace_id),
+    name: String(row.name),
+    holdout_strategy: String(row.holdout_strategy),
+    split_seed: Number(row.split_seed),
+    total_examples: Number(row.total_examples),
+    status: String(row.status),
+    dataset_hash: row.dataset_hash ? String(row.dataset_hash) : null,
+    frozen_at: row.frozen_at ? String(row.frozen_at) : null,
+    source_config_hash: row.source_config_hash ? String(row.source_config_hash) : null,
+    created_at: String(row.created_at),
+    splitCounts,
+    attribution: {
+      reviewed: Number(attribution?.reviewed ?? 0),
+      adjudicated: Number(attribution?.adjudicated ?? 0),
+      total: Number(attribution?.total ?? 0),
+    },
+  };
+}
+
 export function recordBenchmarkBaseline(datasetId: string, rates: BenchmarkSafetyBaseline): void {
   ensureBaselineTable();
   getDb()

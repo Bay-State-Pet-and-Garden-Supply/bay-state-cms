@@ -1,0 +1,1191 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v8",
+    "createdAt": "2026-10-05T00:00:00.000Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "id": "brand",
+      "name": "Brand",
+      "description": "Manufacturer or house brand.",
+      "group": "Identity",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": true,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": true,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField16"
+      }
+    },
+    {
+      "id": "breed-size",
+      "name": "Breed Size",
+      "description": "Dog breed size category.",
+      "group": "Pet",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Small",
+        "Medium",
+        "Large",
+        "Giant",
+        "Toy",
+        "All Sizes"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField19"
+      }
+    },
+    {
+      "id": "btu-rating",
+      "name": "BTU Rating",
+      "description": "Heating output capacity in BTUs (e.g. 18,000 BTU, 60,000 BTU).",
+      "group": "Heating",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "canonical-breadcrumb",
+      "name": "Canonical Breadcrumb",
+      "description": "Render-ready canonical breadcrumb path (compiled projection, ProductField14).",
+      "valueMode": "freeText",
+      "canonicalUnit": null,
+      "allowedValues": [],
+      "valueAliases": [],
+      "visualEvidenceEligibility": "ineligible",
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "group": "Store",
+      "isUniversal": true,
+      "oldIdAliases": [],
+      "evidencePolicy": {
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "allowedSources": [
+          "page_context"
+        ],
+        "allowVisualEvidence": false,
+        "allowThirdPartyEvidence": false,
+        "thirdPartyEvidenceApproval": null,
+        "manualReviewRequired": false
+      },
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField14"
+      }
+    },
+    {
+      "id": "canonical-category-id",
+      "name": "Canonical Category ID",
+      "description": "Stable canonical category node id (compiled projection, ProductField13).",
+      "valueMode": "freeText",
+      "canonicalUnit": null,
+      "allowedValues": [],
+      "valueAliases": [],
+      "visualEvidenceEligibility": "ineligible",
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "group": "Store",
+      "isUniversal": true,
+      "oldIdAliases": [],
+      "evidencePolicy": {
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "allowedSources": [
+          "page_context"
+        ],
+        "allowVisualEvidence": false,
+        "allowThirdPartyEvidence": false,
+        "thirdPartyEvidenceApproval": null,
+        "manualReviewRequired": false
+      },
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField13"
+      }
+    },
+    {
+      "id": "category",
+      "name": "Category",
+      "description": "Store category classification (ShopSite Facet - Category).",
+      "group": "Store",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "ineligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": false,
+        "allowedSources": [
+          "official_product_page"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField24"
+      }
+    },
+    {
+      "id": "color",
+      "name": "Color",
+      "description": "Primary product color.",
+      "group": "Product",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField29"
+      }
+    },
+    {
+      "id": "dietary-features",
+      "name": "Dietary Features",
+      "description": "Dietary feature claims such as grain-free or high-protein.",
+      "group": "Nutrition",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": true,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": true,
+        "forbidAbsenceInference": true,
+        "manualReviewRequired": true,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField20"
+      }
+    },
+    {
+      "id": "flavor",
+      "name": "Flavor",
+      "description": "Flavor of food or treats.",
+      "group": "Nutrition",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Chicken",
+        "Beef",
+        "Lamb",
+        "Turkey",
+        "Duck",
+        "Salmon",
+        "Tuna",
+        "Fish",
+        "Peanut Butter",
+        "Assorted"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField23"
+      }
+    },
+    {
+      "id": "food-form",
+      "name": "Food Form",
+      "description": "Physical form of food or feed.",
+      "group": "Nutrition",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Dry Food",
+        "Wet Food",
+        "Treat",
+        "Freeze-Dried Raw",
+        "Frozen Raw",
+        "Seed Blend",
+        "Pellets",
+        "Crumble",
+        "Mash",
+        "Sweet Feed",
+        "Block",
+        "Tub",
+        "Supplement"
+      ],
+      "valueAliases": [
+        {
+          "alias": "Dry Dog Food",
+          "mapsTo": "Dry Food"
+        },
+        {
+          "alias": "Dry Cat Food",
+          "mapsTo": "Dry Food"
+        },
+        {
+          "alias": "Wet Dog Food",
+          "mapsTo": "Wet Food"
+        },
+        {
+          "alias": "Wet Cat Food",
+          "mapsTo": "Wet Food"
+        },
+        {
+          "alias": "Dog Treats",
+          "mapsTo": "Treat"
+        },
+        {
+          "alias": "Cat Treats",
+          "mapsTo": "Treat"
+        }
+      ],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField22"
+      }
+    },
+    {
+      "id": "fuel-type",
+      "name": "Fuel Type",
+      "description": "Fuel or power source for heaters, splitters, and power equipment.",
+      "group": "Heating",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Wood Pellets",
+        "Propane",
+        "Kerosene",
+        "Electric",
+        "Gasoline",
+        "Natural Gas",
+        "Firewood",
+        "Battery"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "health-benefits",
+      "name": "Health Benefits",
+      "description": "Health benefit claims.",
+      "group": "Nutrition",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": true,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": true,
+        "forbidAbsenceInference": true,
+        "manualReviewRequired": true,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField21"
+      }
+    },
+    {
+      "id": "hose-length",
+      "name": "Hose Length",
+      "description": "Garden or air hose length.",
+      "group": "Gardening",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "25 ft",
+        "50 ft",
+        "75 ft",
+        "100 ft"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "joule-rating",
+      "name": "Joule Rating",
+      "description": "Energy output rating in Joules for electric fence energizers (e.g. 0.25 Joules, 2.0 Joules).",
+      "group": "Fencing",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "life-stage",
+      "name": "Life Stage",
+      "description": "Pet life stage.",
+      "group": "Pet",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Adult",
+        "Puppy",
+        "Kitten",
+        "Senior",
+        "Junior",
+        "All Life Stages"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField18"
+      }
+    },
+    {
+      "id": "material",
+      "name": "Material",
+      "description": "Primary product material.",
+      "group": "Product",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField28"
+      }
+    },
+    {
+      "id": "npk-ratio",
+      "name": "N-P-K Ratio",
+      "description": "Nitrogen-Phosphorus-Potassium ratio for fertilizers (e.g. 10-10-10, 24-0-11).",
+      "group": "Gardening",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": true,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": true,
+        "forbidAbsenceInference": true,
+        "manualReviewRequired": true,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "nutrition",
+      "name": "Ingredients & Nutritional Info",
+      "description": "Ingredients and nutritional information.",
+      "group": "Nutrition",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField8"
+      }
+    },
+    {
+      "id": "packaging-type",
+      "name": "Packaging Type",
+      "description": "Primary package form (can/bag/box/tray/pouch).",
+      "group": "Packaging",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Bag",
+        "Can",
+        "Box",
+        "Tray",
+        "Pouch",
+        "Bottle",
+        "Jar",
+        "Pail",
+        "Tub",
+        "Individual"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField30"
+      }
+    },
+    {
+      "id": "product-cross-sell",
+      "name": "Product Cross Sell",
+      "description": "Associated SKUs or cross-sell products (ShopSite Product Cross Sell).",
+      "group": "Product",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "ineligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": false,
+        "allowedSources": [
+          "official_product_page"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField32"
+      }
+    },
+    {
+      "id": "product-feature",
+      "name": "Product Feature",
+      "description": "Notable product features (ShopSite Facet - Product Feature).",
+      "group": "Product",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField26"
+      }
+    },
+    {
+      "id": "product-type",
+      "name": "Product Type",
+      "description": "The store's product type classification, mirrored as the ShopSite Facet - Product Type value.",
+      "group": "Identity",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": true,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "ineligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": false,
+        "allowedSources": [
+          "official_product_page"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField25"
+      }
+    },
+    {
+      "id": "protein-pct",
+      "name": "Protein Percentage",
+      "description": "Crude protein content percentage for livestock and animal feeds (e.g. 16%, 20%).",
+      "group": "Nutrition",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": true,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": true,
+        "forbidAbsenceInference": true,
+        "manualReviewRequired": true,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "safety-toe-type",
+      "name": "Safety Toe Type",
+      "description": "Work boot safety toe classification.",
+      "group": "Apparel",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Steel Toe",
+        "Composite Toe",
+        "Soft Toe",
+        "Alloy Toe"
+      ],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    },
+    {
+      "id": "size",
+      "name": "Size",
+      "description": "Size abbreviation (S/M/L) — ShopSite Facet - Size.",
+      "group": "Product",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField27"
+      }
+    },
+    {
+      "id": "species",
+      "name": "Animal Species",
+      "description": "Target animal species.",
+      "group": "Pet",
+      "valueMode": "controlled",
+      "allowedValues": [
+        "Dog",
+        "Cat",
+        "Bird",
+        "Horse",
+        "Poultry",
+        "Cattle",
+        "Goat",
+        "Sheep",
+        "Swine",
+        "Small Animal",
+        "Wildlife",
+        "Fish",
+        "Reptile"
+      ],
+      "valueAliases": [
+        {
+          "alias": "dog",
+          "mapsTo": "Dog"
+        },
+        {
+          "alias": "dogs",
+          "mapsTo": "Dog"
+        },
+        {
+          "alias": "canine",
+          "mapsTo": "Dog"
+        },
+        {
+          "alias": "puppy",
+          "mapsTo": "Dog"
+        },
+        {
+          "alias": "puppies",
+          "mapsTo": "Dog"
+        },
+        {
+          "alias": "cat",
+          "mapsTo": "Cat"
+        },
+        {
+          "alias": "cats",
+          "mapsTo": "Cat"
+        },
+        {
+          "alias": "feline",
+          "mapsTo": "Cat"
+        },
+        {
+          "alias": "kitten",
+          "mapsTo": "Cat"
+        },
+        {
+          "alias": "kittens",
+          "mapsTo": "Cat"
+        },
+        {
+          "alias": "horse",
+          "mapsTo": "Horse"
+        },
+        {
+          "alias": "horses",
+          "mapsTo": "Horse"
+        },
+        {
+          "alias": "equine",
+          "mapsTo": "Horse"
+        },
+        {
+          "alias": "mare",
+          "mapsTo": "Horse"
+        },
+        {
+          "alias": "foal",
+          "mapsTo": "Horse"
+        },
+        {
+          "alias": "chicken",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "chickens",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "poultry",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "fowl",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "duck",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "turkey",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "chick",
+          "mapsTo": "Poultry"
+        },
+        {
+          "alias": "cattle",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "cow",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "cows",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "calf",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "calves",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "bovine",
+          "mapsTo": "Cattle"
+        },
+        {
+          "alias": "goat",
+          "mapsTo": "Goat"
+        },
+        {
+          "alias": "goats",
+          "mapsTo": "Goat"
+        },
+        {
+          "alias": "kid",
+          "mapsTo": "Goat"
+        },
+        {
+          "alias": "caprine",
+          "mapsTo": "Goat"
+        },
+        {
+          "alias": "sheep",
+          "mapsTo": "Sheep"
+        },
+        {
+          "alias": "lamb",
+          "mapsTo": "Sheep"
+        },
+        {
+          "alias": "lambs",
+          "mapsTo": "Sheep"
+        },
+        {
+          "alias": "ovine",
+          "mapsTo": "Sheep"
+        },
+        {
+          "alias": "swine",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "pig",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "pigs",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "hog",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "hogs",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "piglet",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "porcine",
+          "mapsTo": "Swine"
+        },
+        {
+          "alias": "small animal",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "rabbit",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "rabbits",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "guinea pig",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "hamster",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "ferret",
+          "mapsTo": "Small Animal"
+        },
+        {
+          "alias": "wildlife",
+          "mapsTo": "Wildlife"
+        },
+        {
+          "alias": "deer",
+          "mapsTo": "Wildlife"
+        },
+        {
+          "alias": "squirrel",
+          "mapsTo": "Wildlife"
+        },
+        {
+          "alias": "bird",
+          "mapsTo": "Bird"
+        },
+        {
+          "alias": "birds",
+          "mapsTo": "Bird"
+        },
+        {
+          "alias": "avian",
+          "mapsTo": "Bird"
+        },
+        {
+          "alias": "wild bird",
+          "mapsTo": "Bird"
+        },
+        {
+          "alias": "fish",
+          "mapsTo": "Fish"
+        },
+        {
+          "alias": "aquarium",
+          "mapsTo": "Fish"
+        },
+        {
+          "alias": "reptile",
+          "mapsTo": "Reptile"
+        },
+        {
+          "alias": "lizard",
+          "mapsTo": "Reptile"
+        },
+        {
+          "alias": "snake",
+          "mapsTo": "Reptile"
+        },
+        {
+          "alias": "turtle",
+          "mapsTo": "Reptile"
+        }
+      ],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "shopsite",
+        "catalogField": "ProductField17"
+      }
+    },
+    {
+      "id": "towing-capacity-lbs",
+      "name": "Towing Capacity",
+      "description": "Maximum towing capacity rating in pounds (e.g. 3,500 lbs, 6,000 lbs).",
+      "group": "Towing",
+      "valueMode": "freeText",
+      "allowedValues": [],
+      "valueAliases": [],
+      "canonicalUnit": null,
+      "isUniversal": false,
+      "isClaim": false,
+      "isCompositionAttribute": false,
+      "visualEvidenceEligibility": "eligible",
+      "evidencePolicy": {
+        "allowThirdPartyEvidence": false,
+        "allowVisualEvidence": true,
+        "allowedSources": [
+          "official_product_page",
+          "visual_product_evidence"
+        ],
+        "directEvidenceRequired": false,
+        "forbidAbsenceInference": false,
+        "manualReviewRequired": false,
+        "thirdPartyEvidenceApproval": null
+      },
+      "oldIdAliases": [],
+      "exportDisposition": {
+        "kind": "not_exported"
+      }
+    }
+  ]
+}

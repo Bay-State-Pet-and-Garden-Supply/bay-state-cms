@@ -1139,19 +1139,192 @@ export type TypeReviewDetail = z.infer<typeof TypeReviewDetailSchema>;
 
 // ─── Benchmark / Evaluation Schemas ────────────────────────────────────────────
 
+/** Versioned benchmark gold-state contract (representative Jev benchmark, step 1). */
+export const BENCHMARK_GOLD_CONTRACT_VERSION = 1 as const;
+
+function normalizeGoldStateToken(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const token = value.trim().toLowerCase().replace(/_/g, '-');
+  const aliases: Record<string, string> = {
+    'known-type': 'known',
+    'known-value': 'known',
+    'no-fitting-type': 'no-fit',
+    'no-fit-type': 'no-fit',
+    'nofit': 'no-fit',
+    'no-fitting': 'no-fit',
+    'insufficientevidence': 'insufficient-evidence',
+    'unlabelled': 'unlabeled',
+    'not-applicable': 'inapplicable',
+    'notapplicable': 'inapplicable',
+    'na': 'inapplicable',
+  };
+  return aliases[token] ?? token;
+}
+
+export const ProductTypeGoldStateV1Schema = z.preprocess(
+  normalizeGoldStateToken,
+  z.enum(['known', 'no-fit', 'insufficient-evidence', 'unlabeled']),
+);
+export type ProductTypeGoldStateV1 = z.infer<typeof ProductTypeGoldStateV1Schema>;
+
+export const FieldGoldStateV1Schema = z.preprocess(
+  normalizeGoldStateToken,
+  z.enum(['known', 'no-fit', 'insufficient-evidence', 'inapplicable', 'unlabeled']),
+);
+export type FieldGoldStateV1 = z.infer<typeof FieldGoldStateV1Schema>;
+
+export const PageGoldStateV1Schema = z.preprocess(
+  normalizeGoldStateToken,
+  z.enum(['known', 'unknown', 'partial', 'unlabeled']),
+);
+export type PageGoldStateV1 = z.infer<typeof PageGoldStateV1Schema>;
+
+export const PageCompletenessV1Schema = z.preprocess(
+  normalizeGoldStateToken,
+  z.enum(['complete', 'partial', 'unknown']),
+);
+export type PageCompletenessV1 = z.infer<typeof PageCompletenessV1Schema>;
+
+/**
+ * Strict v1 shape for ONE gold-only field assignment (representative
+ * benchmark). The actual v2 development file carried
+ * `{targetId:'species', state:'known', value:['Dog','Cat']}` — an array in
+ * the scalar `value` slot — which the old reader accepted despite the
+ * `value?: string` type. Rules (new marker contracts are strict; explicit
+ * legacy reader versions stay readable but qualification-ineligible):
+ * - `value` (when present) is a canonical scalar string only: arrays,
+ *   objects, numbers, empty/whitespace-only, untrimmed, or non-NFC text
+ *   reject. `null`/`undefined` count as absent (JSON tolerance).
+ * - `values` (when present) is a nonempty array of canonical strings;
+ *   nested arrays/objects/numbers/empty items reject.
+ * - `value` + nonempty `values` together conflict and reject.
+ * - `known` requires exactly one of scalar `value` XOR nonempty `values`
+ *   (a known field with neither is accidental, not an explicit empty — there
+ *   is no implicit known-empty; use an explicit state policy instead).
+ * - `no-fit` / `insufficient-evidence` / `unlabeled` / `inapplicable` /
+ *   `not_applicable` cannot assign `value`/`values` at all.
+ * State spelling itself is validated by the caller (present-but-invalid
+ * states throw there); missing states are legacy (readable, ineligible).
+ */
+export const QUALIFICATION_GOLD_FIELD_RAW_STATES = [
+  'known',
+  'no-fit',
+  'insufficient-evidence',
+  'inapplicable',
+  'not_applicable',
+  'unlabeled',
+] as const;
+export type QualificationGoldFieldRawState = (typeof QUALIFICATION_GOLD_FIELD_RAW_STATES)[number];
+
+/** True for a canonical slot string (nonempty, trimmed, NFC). */
+export function isCanonicalGoldSlotString(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value === value.trim()
+    && value === value.normalize('NFC');
+}
+
+export interface QualificationGoldFieldShapeIssue {
+  targetId: string;
+  code:
+    | 'not_an_object'
+    | 'missing_target'
+    | 'invalid_value'
+    | 'invalid_values'
+    | 'value_and_values_conflict'
+    | 'known_requires_value_or_values'
+    | 'non_known_cannot_assign_values';
+  message: string;
+}
+
+/** Content-bearing scalar `value` (null/undefined count as absent). */
+function goldFieldHasScalarValue(field: { value?: unknown }): boolean {
+  return field.value !== undefined && field.value !== null;
+}
+
+/** Content-bearing `values` (null/undefined/empty-array count as absent). */
+function goldFieldHasValuesContent(field: { values?: unknown }): boolean {
+  return Array.isArray(field.values) && field.values.length > 0;
+}
+
+/** Shape issues for one raw gold-only field assignment (empty = valid). */
+export function validateQualificationGoldFieldShape(
+  raw: unknown,
+): QualificationGoldFieldShapeIssue[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return [{ targetId: '', code: 'not_an_object', message: 'Gold field assignment must be an object.' }];
+  }
+  const field = raw as { targetId?: unknown; state?: unknown; value?: unknown; values?: unknown };
+  if (typeof field.targetId !== 'string' || field.targetId.length === 0) {
+    return [{ targetId: '', code: 'missing_target', message: 'Gold field assignment needs a non-empty targetId.' }];
+  }
+  const targetId = field.targetId;
+  const issues: QualificationGoldFieldShapeIssue[] = [];
+  const hasValue = goldFieldHasScalarValue(field);
+  const hasValues = goldFieldHasValuesContent(field);
+  if (hasValue && !isCanonicalGoldSlotString(field.value)) {
+    issues.push({ targetId, code: 'invalid_value', message: `Gold field "${targetId}" value must be a canonical scalar string (no arrays/objects/numbers/blank text).` });
+  }
+  if (field.values !== undefined && field.values !== null) {
+    const values = field.values;
+    const allCanonical = Array.isArray(values)
+      && values.length > 0
+      && values.every(isCanonicalGoldSlotString);
+    if (!allCanonical) {
+      issues.push({ targetId, code: 'invalid_values', message: `Gold field "${targetId}" values must be a nonempty array of canonical strings.` });
+    }
+  }
+  if (hasValue && hasValues) {
+    issues.push({ targetId, code: 'value_and_values_conflict', message: `Gold field "${targetId}" cannot carry both value and values.` });
+  }
+  const state = field.state;
+  if (typeof state === 'string' && (QUALIFICATION_GOLD_FIELD_RAW_STATES as readonly string[]).includes(state)) {
+    if (state === 'known') {
+      if (!(hasValue !== hasValues)) {
+        issues.push({ targetId, code: 'known_requires_value_or_values', message: `Gold field "${targetId}" is known but assigns no value(s): use an explicit state policy, never an accidental empty known marker.` });
+      }
+    } else if (hasValue || hasValues) {
+      issues.push({ targetId, code: 'non_known_cannot_assign_values', message: `Gold field "${targetId}" with state "${state}" cannot assign value(s).` });
+    }
+  }
+  return issues;
+}
+
+/** Shape issues across a gold-only entry's field assignments (empty = valid). */
+export function validateQualificationGoldFieldShapes(
+  fields: unknown,
+  sku: string,
+): Array<QualificationGoldFieldShapeIssue & { sku: string }> {
+  if (fields === undefined || fields === null) return [];
+  if (!Array.isArray(fields)) {
+    return [{ sku, targetId: '', code: 'invalid_values', message: `Gold entry "${sku}" fieldAssignments must be an array.` }];
+  }
+  return fields.flatMap(field => validateQualificationGoldFieldShape(field).map(issue => ({ ...issue, sku })));
+}
+
 export const BenchmarkGoldLabelsSchema = z.object({
   productType: z.string().nullable().default(null),
+  /** Adjudicated product-type gold state (additive; legacy rows omit it). */
+  productTypeState: ProductTypeGoldStateV1Schema.optional(),
   pageAssignments: z.array(z.object({
     pageName: z.string(),
     pageId: z.string().nullable().default(null),
   })).default([]),
   categoryPageIds: z.array(z.string()).optional(),
+  /** Page adjudication state: unknown/partial pages never count as known-empty. */
+  pageState: PageGoldStateV1Schema.optional(),
+  /** Page adjudication completeness: partial/unknown never counts as known-empty. */
+  pageCompleteness: PageCompletenessV1Schema.optional(),
   verifiedImportProvenance: z.string().nullable().optional(),
   fieldAssignments: z.array(z.object({
     targetId: z.string(),
     value: z.string().nullable(),
     values: z.array(z.string()).optional(),
   })).default([]),
+  /** Per-target adjudicated field states (additive; legacy rows omit it). */
+  fieldStates: z.record(z.string(), FieldGoldStateV1Schema).optional(),
+  /** Gold contract version (additive; legacy rows omit it). */
+  goldContractVersion: z.literal(BENCHMARK_GOLD_CONTRACT_VERSION).optional(),
 });
 export type BenchmarkGoldLabels = z.infer<typeof BenchmarkGoldLabelsSchema>;
 
@@ -1465,10 +1638,12 @@ export type ClassificationReadinessReportDto = z.infer<typeof ClassificationRead
 // or optional-with-default: no existing schema shape changes, and
 // prediction/bundle schemas (BenchmarkPredictionEntry/Bundle) are untouched.
 
-/** One frozen production product-type candidate (id + display label). */
+/** One frozen production product-type candidate and its approved meaning. */
 export const FrozenTaxonomyProductTypeSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
+  /** Optional for historical snapshots; no default that rewrites their bytes. */
+  description: z.string().min(1).nullable().optional(),
   /**
    * Frozen Product Type → Attribute Profile pointer (additive, issue #302).
    * Mirrors production's authoritative direction (Product Type →

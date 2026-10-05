@@ -1,0 +1,35 @@
+{
+  "releaseId": "bay-state-v7",
+  "revision": "bay-state-v7",
+  "createdAt": "2026-10-04T12:00:00.000Z",
+  "schemaVersion": 3,
+  "compatibilityVersion": 3,
+  "lifecycle": "release",
+  "sourceBaseline": "bay-state-v5",
+  "fileVersions": {
+    "hierarchy.json": "529c6bff05e6da3014dd9b1b08755984eed7eef954366bc8a666defa845aeda4",
+    "facet-profiles.json": "1a08ad3a8317fdcb25287c99de76bac00504e75fcdba9c550faad6c6052447fd",
+    "legacy-mappings.json": "80113b03afc840d7d32a80808ddd29d534788889359a5ebd161256bdf02311e0",
+    "attributes.json": "3b2528c5086f6dba7a773e505cc20cefc9ec0365d6bc62b6ed8b8c619ef8d2bc",
+    "export-mappings.json": "374698305ca7662da62c738de6cdc04567cf4ca9450f73b2757f095f4fc75fce",
+    "shopsite-projection.json": "b2e46fe10b67c4f3f7703d8a0d68d4a32b75f4a49f8f7c0a8b505cd58d49f433",
+    "guidance.json": "e16514b57fde930f20c7ba1a2a0373dead3fe2ece76d713ab941177d5f7e276c",
+    "page-assignment-policy.json": "64eafc38fcf9a9ba074f18a33c7026396642f3458a503419552686ba2285c7db"
+  },
+  "counts": {
+    "nodes": 91,
+    "facetProfiles": 11,
+    "attributes": 27,
+    "mappings": 19,
+    "pages": 153,
+    "departments": 10,
+    "types": 74,
+    "nativeLeaves": 1
+  },
+  "notes": [
+    "bay-state-v5 adds controlled species validation, domain-specific invariant attributes for pet, livestock, equine, and heating product types, and refined facet profiles.",
+    "bay-state-v7 (V5 generation, manifest schemaVersion 3 unchanged): governed species cardinality single->multiple scoped EXACTLY to the compiled profile-supplements and profile-grooming types via two new dedicated facets cloned from their shared facets. No shared-facet fan-out.",
+    "Owner-authorized explicit approval covers ONLY the compiled profile-supplements + profile-grooming species entries: official manufacturer product copy for the affected supplement/grooming products explicitly lists both Dog and Cat. Evidence owner-reviewed (public/dev manufacturer excerpts); no held-out items read.",
+    "Supersedes the rejected bay-state-v6 candidate (shared-facet flip fanned out to 21 compiled profiles; see rejection audit). All other profiles, types, values, mappings, questions, invariants, and history preserved from bay-state-v5 baseline."
+  ]
+}

@@ -45,7 +45,11 @@ import {
   compileTaxonomyReleaseV4,
   compileTaxonomyReleaseV5,
 } from './release-compiler';
-import { loadTaxonomyReleaseV4, loadTaxonomyReleaseV5 } from './release-validation';
+import {
+  detectReleaseGeneration,
+  loadTaxonomyReleaseV4,
+  loadTaxonomyReleaseV5,
+} from './release-validation';
 import {
   buildV4ShadowDiffSummary,
   isTaxonomyV4ShadowEnabled,
@@ -624,12 +628,26 @@ function readActiveRevisionPin(workspacePath: string): string | null {
   return readWorkspaceState(workspacePath)?.activeTaxonomyRevision ?? null;
 }
 
-/** Compile the pinned release (bay-state-v4 or bay-state-v5) into the runtime authority. Fail closed on validation failure. Store-local concerns (brands, modelPolicy, dataSharing, curationTargets) overlay after hashing so bundleHash stays pure-taxonomy. */
+/**
+ * Return the release generation for a pinned revision, or null when the pin
+ * names no readable v4/v5-generation release. Never throws (fail-closed
+ * callers decide).
+ */
+function pinnedReleaseGeneration(pinnedRevision: string): 'v4' | 'v5' | null {
+  try {
+    const generation = detectReleaseGeneration(pinnedRevision);
+    return generation === 'v4' || generation === 'v5' ? generation : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Compile the pinned release (v4 generation or V5 descendants) into the runtime authority. Fail closed on validation failure. Store-local concerns (brands, modelPolicy, dataSharing, curationTargets) overlay after hashing so bundleHash stays pure-taxonomy. */
 function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: string): RuntimeConfigAuthority {
   const compiled =
-    pinnedRevision === V5_TAXONOMY_REVISION
-      ? compileTaxonomyReleaseV5(loadTaxonomyReleaseV5('bay-state-v5'))
-      : compileTaxonomyReleaseV4(loadTaxonomyReleaseV4('bay-state-v4'));
+    pinnedReleaseGeneration(pinnedRevision) === 'v5'
+      ? compileTaxonomyReleaseV5(loadTaxonomyReleaseV5(pinnedRevision))
+      : compileTaxonomyReleaseV4(loadTaxonomyReleaseV4(pinnedRevision));
 
   if (compiled.taxonomyRevision !== pinnedRevision) {
     throw new ClassificationConfigLoadError(
@@ -809,20 +827,20 @@ export function loadRuntimeConfigAuthority(
   activationContext?: VerifiedActivationContext,
 ): RuntimeConfigAuthority {
   const pinnedRevision = readActiveRevisionPin(workspacePath);
+  const pinnedGeneration = pinnedRevision === null ? null : pinnedReleaseGeneration(pinnedRevision);
   if (
     pinnedRevision !== null &&
     pinnedRevision !== DEFAULT_TAXONOMY_REVISION &&
-    pinnedRevision !== V4_TAXONOMY_REVISION &&
-    pinnedRevision !== V5_TAXONOMY_REVISION
+    pinnedGeneration === null
   ) {
     throw new ClassificationConfigLoadError(
       'unsupported_version',
-      `Workspace classification state pins unknown taxonomy revision "${pinnedRevision}". Supported: ${DEFAULT_TAXONOMY_REVISION}, ${V4_TAXONOMY_REVISION}, ${V5_TAXONOMY_REVISION} (or no pin).`,
+      `Workspace classification state pins unknown taxonomy revision "${pinnedRevision}". Supported: ${DEFAULT_TAXONOMY_REVISION}, v4-generation and V5-generation releases such as ${V4_TAXONOMY_REVISION}, ${V5_TAXONOMY_REVISION} (or no pin).`,
       path.join(classificationDir(workspacePath), 'state.json'),
     );
   }
-  if (pinnedRevision === V4_TAXONOMY_REVISION || pinnedRevision === V5_TAXONOMY_REVISION) {
-    const authority = loadPinnedReleaseAuthority(workspacePath, pinnedRevision);
+  if (pinnedGeneration === 'v4' || pinnedGeneration === 'v5') {
+    const authority = loadPinnedReleaseAuthority(workspacePath, pinnedRevision as string);
     return authority;
   }
   const authority = loadLegacyRuntimeAuthority(workspacePath, activationContext);

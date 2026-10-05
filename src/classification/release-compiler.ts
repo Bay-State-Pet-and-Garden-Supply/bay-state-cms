@@ -73,7 +73,7 @@ function compileReleaseInternal(
   const productTypes = classifiableNodes.map(node => ({
     id: node.id,
     name: node.label,
-    description: null,
+    description: 'description' in node && typeof node.description === 'string' ? node.description : null,
     attributeProfileId: `profile-${node.id}`,
     oldIdAliases: [...node.legacyTypeIds],
     departmentId: node.departmentId,

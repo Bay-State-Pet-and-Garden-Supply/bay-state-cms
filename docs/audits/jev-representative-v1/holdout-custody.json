@@ -1,0 +1,68 @@
+{
+ "custodian": "agent:jev-holdout-custodian",
+ "contract": "parseQualificationGoldOnly",
+ "version": 1,
+ "goldRevision": 2,
+ "sealedAt": "2026-10-04T10:45:10.202Z",
+ "totalFamilies": 391,
+ "reviewedFamilies": 223,
+ "genuinelyLabeledIndependent": 223,
+ "notYetReviewed": 168,
+ "byGoldState": {
+  "known": 102,
+  "insufficient-evidence": 53,
+  "no-fit": 68,
+  "unlabeled": 168
+ },
+ "distinctKnownTypes": 23,
+ "evaluatedClassEligibleFamilies": 102,
+ "knownTypeFamilyCounts": {
+  "equine-grooming-hoof": 3,
+  "fly-control-equine": 3,
+  "horse-treats-supplements": 5,
+  "insect-control": 5,
+  "fly-insect-control-livestock": 3,
+  "weed-control": 1,
+  "grooming": 32,
+  "pet-beds": 1,
+  "cat-treats": 1,
+  "poultry-feed": 3,
+  "goat-sheep-feed": 1,
+  "poultry-coops-equipment": 1,
+  "livestock-health-dewormers": 2,
+  "small-animal-feed-bedding": 2,
+  "dog-treats": 3,
+  "supplements": 15,
+  "cat-food-wet": 9,
+  "dog-food-dry": 2,
+  "dog-food-wet": 1,
+  "flea-tick-treatment": 4,
+  "dog-toys": 3,
+  "collars-leashes": 1,
+  "grass-seed": 1
+ },
+ "fieldStateTotals": {
+  "known": 113,
+  "insufficient-evidence": 7,
+  "unlabeled": 156,
+  "no-fit": 0,
+  "inapplicable": 0
+ },
+ "pagePolicy": "all reviewed pages unknown; membership never assumed from name match",
+ "cardinality": "all 74 profiles single; multi-value unsupported",
+ "note": "Honest partial: bounded reviewed set genuinely adjudicated from source excerpts + taxonomy definitions/profiles; remainder explicitly not-yet-reviewed unlabeled. Agent gold, NOT human approval. No rows/excerpts/label associations disclosed.",
+ "support": {
+  "taxonomyTypes": 74,
+  "taxonomyAttrs": 27,
+  "controlledAttrs": 9,
+  "verifiedPages": 212
+ },
+ "hashes": {
+  "goldSha256": "ca124d5e5d1e7b179b333f7ff8d4f4a48ce8fa809a16a480e0bee20b0d07ec5f",
+  "adjudicationSha256": "8f15033098cc0a5f73b2d4d245f732aa90be3876f0e63d8dbc2022fda1f8df88"
+ },
+ "sealedPaths": {
+  "gold": "private-custody:holdout-gold-private.json",
+  "adjudication": "private-custody:holdout-adjudication-detail-private.json"
+ }
+}

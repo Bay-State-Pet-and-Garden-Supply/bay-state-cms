@@ -1,0 +1,1920 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "public-development-manual-adjudication",
+ "adjudicatedBy": "agent:jev-development-adjudicator",
+ "authorityHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+ "sourceFiles": [
+  "source-development.json",
+  "taxonomy.json"
+ ],
+ "status": "complete-26-family-dev-v2-multi-pilot",
+ "requestedIndependentFamilyCount": 120,
+ "reviewedIndependentFamilyCount": 26,
+ "entryCount": 27,
+ "selectionPolicy": "24-family DEV pilot: 8 food-treat (prior) + 4 each from toy, animal-care, garden-pest, neighbors at the indices above, chosen for functional/evidential contrast (explicit-species cases, title-only thin case, dual-purpose dispute, equipment and off-taxonomy hard negatives). Not lexical-first, not random/proportional. One withholding variant of food-treat index 675 retains its familyId with no independent support. V2 adds 2 locked-bank DEV families with direct-quote dual-species evidence (562 NaturVet supplements powder, 907 Four Paws grooming eye wipes); no resampling or label drift from prior outcomes.",
+ "selectedSourceIndices": {
+  "food-treat": [
+   639,
+   640,
+   644,
+   678,
+   684,
+   740,
+   1365,
+   675
+  ],
+  "toy": [
+   1005,
+   1010,
+   1060,
+   1102
+  ],
+  "animal-care": [
+   910,
+   300,
+   870,
+   290
+  ],
+  "garden-pest": [
+   245,
+   248,
+   934,
+   939
+  ],
+  "neighbors": [
+   361,
+   463,
+   465,
+   1520
+  ],
+  "animal-care-multi-add": [
+   562,
+   907
+  ]
+ },
+ "independentAgentExecution": {
+  "requested": 5,
+  "launched": 0,
+  "reason": "Subagent depth limit reached; no independent second-agent review. Single-agent manual adjudication in this session; 120-family goal incomplete."
+ },
+ "provenanceJoinPolicy": "Each record joins by sku to development-gold.json. sourceIndex identifies the immutable primary source row and supplies originalSku, familyId, canonicalUrl, sourceLocator, retrievedAt, productIdentity, and evidenceLimitations. sourceHash on each record is inherited by every local citation. A local citation's locator is an exact pointer to the supplied capture excerpt object; that object also retains the external capture URL/DOM locator. Each per-target citation ID resolves to that sourceHash + locator + literal exact quote; this normalization avoids duplicating the same evidence for every target. Page citations have their separate verified-import sourceHash below. Type and attribute citations resolve against the frozen approved bundle and its exact names/descriptions/options/profile members, never current catalog fields.",
+ "adjudicationScope": "Controlled targets only; free-text claims, composition, materials, size/color, brand, compiled projections and merchandising PF24/PF25 strings are not authored as gold. For known types every controlled profile member is assessed. Explicit dog-only breed-size semantics make that target inapplicable to cat/fish-only products even where the broad shared profile contains it. Non-profile controlled targets are separately outside scope, not no-fit. For unresolved types, direct supported facts may still be labeled, while profile applicability remains unresolved and must not be treated as production-qualified target scope.",
+ "reviewRules": {
+  "missing-discriminator": "The cited retained product facts do not establish a permitted answer for this target. Missing evidence is not a negative claim and does not prove no-fit.",
+  "single-value-dispute": "The positive source gives multiple distinct values or conflicting statements, but the actual profile is single-valued and provides no priority rule. Do not choose the first value or call a combination Assorted.",
+  "outside-profile": "The controlled attribute is absent from the actual effective type profile; record inapplicability separately from insufficient evidence or no-fit.",
+  "dog-only-breed": "Approved breed-size description is Dog breed size category.; an explicitly cat/fish-only product is inapplicable, not an unsupported dog size guess.",
+  "partial-pages": "These are positively supported verified category identities, not an exhaustive set. The catalog has null parent links and no complete membership definitions, including seasonal/featured inclusion criteria. Specific categories are preferred; Shop All is retained only where no supported specific form/texture child can be chosen. No complete empty set is claimed.",
+  "unknown-pages": "Available evidence or catalog inclusion semantics do not establish a positively supported page subset. Empty unknown is never known-empty.",
+  "unresolved-applicability": "Product type is unresolved. Field facts are individually evidenced but are not a resolution of the actual profile pointer. Missing profile-specific targets must not be inferred as inapplicable. Review remains necessary."
+ },
+ "taxonomySourceHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+ "typeCitationPolicy": "taxonomyTypes ids in records resolve to bundle.productTypes[id].name as the exact quoted approved type definition available here; all 74 descriptions are null. Applicable profiles resolve through the actual attributeProfileId, not a guessed universal field set. No fuller definition has been invented.",
+ "attributeCitations": {
+  "species": {
+   "locator": "taxonomy.json#/bundle/attributes[id=species]",
+   "quote": "Target animal species."
+  },
+  "food-form": {
+   "locator": "taxonomy.json#/bundle/attributes[id=food-form]",
+   "quote": "Physical form of food or feed."
+  },
+  "flavor": {
+   "locator": "taxonomy.json#/bundle/attributes[id=flavor]",
+   "quote": "Flavor of food or treats."
+  },
+  "life-stage": {
+   "locator": "taxonomy.json#/bundle/attributes[id=life-stage]",
+   "quote": "Pet life stage."
+  },
+  "breed-size": {
+   "locator": "taxonomy.json#/bundle/attributes[id=breed-size]",
+   "quote": "Dog breed size category."
+  },
+  "packaging-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=packaging-type]",
+   "quote": "Primary package form (can/bag/box/tray/pouch)."
+  },
+  "fuel-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=fuel-type]",
+   "quote": "Fuel or power source for heaters, splitters, and power equipment."
+  },
+  "hose-length": {
+   "locator": "taxonomy.json#/bundle/attributes[id=hose-length]",
+   "quote": "Garden or air hose length."
+  },
+  "safety-toe-type": {
+   "locator": "taxonomy.json#/bundle/attributes[id=safety-toe-type]",
+   "quote": "Work boot safety toe classification."
+  }
+ },
+ "profileApplicability": {
+  "pet-food": {
+   "typeIds": [
+    "cat-food-wet",
+    "dog-food-dry",
+    "dog-food-wet",
+    "cat-treats",
+    "dog-treats",
+    "supplements",
+    "fish-food"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "flavor",
+    "species",
+    "life-stage",
+    "breed-size"
+   ],
+   "outsideProfile": [
+    "packaging-type",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "pet-accessories": {
+   "typeIds": [
+    "dog-toys",
+    "cat-toys",
+    "grooming"
+   ],
+   "controlledTargets": [
+    "species"
+   ],
+   "outsideProfile": [
+    "food-form",
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "packaging-type",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "garden": {
+   "typeIds": [
+    "insect-control",
+    "weed-control",
+    "grass-seed",
+    "lawn-fertilizer"
+   ],
+   "controlledTargets": [
+    "packaging-type"
+   ],
+   "outsideProfile": [
+    "species",
+    "food-form",
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "animal-feed": {
+   "typeIds": [
+    "poultry-feed",
+    "small-animal-feed-bedding"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "packaging-type",
+    "species"
+   ],
+   "outsideProfile": [
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  },
+  "bird-equipment": {
+   "typeIds": [
+    "wild-bird-feeders"
+   ],
+   "controlledTargets": [
+    "food-form",
+    "packaging-type",
+    "species"
+   ],
+   "outsideProfile": [
+    "flavor",
+    "life-stage",
+    "breed-size",
+    "fuel-type",
+    "hose-length",
+    "safety-toe-type"
+   ]
+  }
+ },
+ "pageCitationSourceHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe",
+ "pageCitations": {
+  "54ddb28a-335c-4c02-9da9-66d0be3ca1ea": {
+   "locator": "taxonomy.json#/pages/71",
+   "quote": "Cat Food Shop All"
+  },
+  "444b43e7-0b90-4893-9f6e-30d6ab3a13c8": {
+   "locator": "taxonomy.json#/pages/72",
+   "quote": "Cat Food Wet"
+  },
+  "3609bf21-45b1-40f2-bb60-02a1aaebe552": {
+   "locator": "taxonomy.json#/pages/88",
+   "quote": "Dog Food Raw"
+  },
+  "370c684b-666f-4c86-b615-261a7059ed0e": {
+   "locator": "taxonomy.json#/pages/87",
+   "quote": "Dog Food Dry"
+  },
+  "902f5a0e-9830-40f1-bb05-01f768ae6c42": {
+   "locator": "taxonomy.json#/pages/90",
+   "quote": "Dog Food Wet"
+  },
+  "36d75fa7-602b-4e95-890c-f8b947aa57c2": {
+   "locator": "taxonomy.json#/pages/79",
+   "quote": "Cat Treats"
+  },
+  "93e1d3e2-7700-44fd-9478-db04b80aa222": {
+   "locator": "taxonomy.json#/pages/98",
+   "quote": "Dog Treats Shop All"
+  },
+  "9a20805c-fa9a-4d5e-bd98-485697292cb6": {
+   "locator": "taxonomy.json#/pages/95",
+   "quote": "Dog Toys"
+  },
+  "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e": {
+   "locator": "taxonomy.json#/pages/78",
+   "quote": "Cat Toys & Scratchers"
+  },
+  "95d303c6-8697-4962-bf5f-bf37d7335c62": {
+   "locator": "taxonomy.json#/pages/64",
+   "quote": "Caged Bird Toys"
+  },
+  "b2cb203b-d000-4047-b36d-17254ec340c4": {
+   "locator": "taxonomy.json#/pages/73",
+   "quote": "Cat Grooming"
+  },
+  "608111f1-ef41-457b-838d-737c6be5c870": {
+   "locator": "taxonomy.json#/pages/91",
+   "quote": "Dog Grooming"
+  },
+  "881a11f9-cdd9-4cee-b129-b006f5cfa839": {
+   "locator": "taxonomy.json#/pages/74",
+   "quote": "Cat Healthcare"
+  },
+  "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87": {
+   "locator": "taxonomy.json#/pages/92",
+   "quote": "Dog Healthcare"
+  },
+  "6546b09a-5f88-4e02-9dd5-e301e57ef7db": {
+   "locator": "taxonomy.json#/pages/134",
+   "quote": "Pest Control"
+  },
+  "a6fcddc8-db75-46ba-801d-2409d8a59dd1": {
+   "locator": "taxonomy.json#/pages/133",
+   "quote": "Lawn Care"
+  },
+  "d3341055-c86c-4eb3-9a11-6a7f15d32bfd": {
+   "locator": "taxonomy.json#/pages/183",
+   "quote": "Brand - Jonathan Green"
+  },
+  "68f32d03-de0e-48ef-acc0-6ee4cfb65119": {
+   "locator": "taxonomy.json#/pages/136",
+   "quote": "Seeds & Seed Starting"
+  },
+  "6db0de8c-f996-40ad-b7b4-761e3dc1f28f": {
+   "locator": "taxonomy.json#/pages/101",
+   "quote": "Farm Animal Cow"
+  },
+  "45508f64-b9ef-4df5-b94d-376f614480bb": {
+   "locator": "taxonomy.json#/pages/104",
+   "quote": "Farm Animal Sheep & Goat"
+  },
+  "1bc24345-121b-4088-8375-e8e152688120": {
+   "locator": "taxonomy.json#/pages/100",
+   "quote": "Farm Animal Chicken & Poultry"
+  },
+  "0fae6d2f-86ae-4903-89fd-2175c970bfd8": {
+   "locator": "taxonomy.json#/pages/149",
+   "quote": "Small Pet Food"
+  },
+  "2ae44b48-4ed1-4776-b278-3f2bcc840958": {
+   "locator": "taxonomy.json#/pages/108",
+   "quote": "Fish Food Goldfish"
+  },
+  "dfc0ba6d-fcc3-4747-a397-4945a067bc47": {
+   "locator": "taxonomy.json#/pages/109",
+   "quote": "Fish Food Koi & Pond Fish"
+  },
+  "1d9d7d0a-3ec7-48ac-b0bf-3806288b3b7f": {
+   "locator": "taxonomy.json#/pages/152",
+   "quote": "Small Pet Guinea Pig"
+  },
+  "f0997f35-cc27-43ec-b2b7-83c19a079f49": {
+   "locator": "taxonomy.json#/pages/147",
+   "quote": "Shavings & Bedding"
+  },
+  "6a486b3b-951a-4d5c-87b4-b7e9549f797a": {
+   "locator": "taxonomy.json#/pages/163",
+   "quote": "Wild Bird Feeders"
+  },
+  "61e31d4a-4b5b-44b3-b01d-e0df4820811f": {
+   "locator": "taxonomy.json#/pages/168",
+   "quote": "Wild Bird Suet & Mealworms"
+  }
+ },
+ "evidencePolicy": "Manual product-fact adjudication against the frozen approved type names, definitions, profiles, guidance, cardinality, aliases, and evidence policies. Official structured catalog excerpts retain their feed locators and are not represented as individual product-page fetches. No brand/photo/absence inference for composition, material, species, or claims.",
+ "pagePolicy": "Verified ID/name pairs only. Generic brand directories, navigation, services, editorial, and example pages are excluded. Positive supported specific pages may be partial; an empty partial/unknown set is not known-empty. Complete requires review of the entire eligible catalog scope, including applicable genuine brand pages and the max-four/specific-over-Shop-All rules.",
+ "cardinalityLimitation": "Frozen single cardinality everywhere EXCEPT species in profile-grooming and profile-supplements (approved bay-state-v7 multiple). Explicit Dog+Cat is known [Dog, Cat]; singletons declared as one-element arrays.",
+ "httpRequestLedger": [],
+ "extraPublicHttpRequests": 0,
+ "records": [
+  {
+   "sku": "PUBLIC:nulo.com:16DK01",
+   "sourceIndex": 639,
+   "sourceHash": "97ed08fa895dfcd6ff6a05897bd715aad32f31a5cb55f174829e825dcf4dce30",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/639/excerpts/0",
+     "quote": "Digestive Health Kitten Chicken & Whitefish Recipe for Cats"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "cat-food-dry",
+     "cat-food-wet"
+    ],
+    "reasoning": "Explicit kitten nutrition for cats, but captured title/description do not distinguish dry from wet physical form. Preserve missing-evidence review instead of guessing from recipe or brand."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Chicken and whitefish are named together; no approved rule resolves a single primary flavor or defines Fish priority."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Kitten is canonical Kitten."
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "54ddb28a-335c-4c02-9da9-66d0be3ca1ea"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Cat-food purpose is known, specific dry/wet child is not."
+   },
+   "uncertainties": [
+    "Actual profile pointer unresolved until food form is evidenced."
+   ],
+   "disagreements": [
+    "Single flavor cannot represent the named combination without an additional rule."
+   ]
+  },
+  {
+   "sku": "PUBLIC:nulo.com:63NT02",
+   "sourceIndex": 640,
+   "sourceHash": "9335864c16a3667990df5c87b894c1b6ac3d85aed4825246646e0a77d6065d65",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/640/excerpts/0",
+     "quote": "Finely Minced Chicken & Tuna Recipe for Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/640/excerpts/1",
+     "quote": "This complete and balanced meal in a tasty broth will give them the flavor they want plus the hydration they need."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-food-wet"
+    ],
+    "reasoning": "Minced feline complete meal in broth is wet cat food by physical form and stated feeding purpose, not merely a retailer category label."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Cats maps to Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Meal in broth is Wet Food; matches the approved type invariant."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Chicken and Tuna are distinct permitted values; one recipe is not an assorted variety pack."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "444b43e7-0b90-4893-9f6e-30d6ab3a13c8"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Life stage not explicitly supplied."
+   ],
+   "disagreements": [
+    "No primary-flavor priority for Chicken and Tuna."
+   ]
+  },
+  {
+   "sku": "PUBLIC:nulo.com:55FB08",
+   "sourceIndex": 644,
+   "sourceHash": "872fec13ba0f6675fbbc657844039fb917c0c34fae8ec5edcd2e8b99ec3b6d17",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/644/excerpts/0",
+     "quote": "Freeze-Dried Raw Beef Recipe with Apples for Dogs"
+    },
+    "e1": {
+     "locator": "source-development.json#/644/excerpts/1",
+     "quote": "100% complete & balanced nutrition for puppies, adults, and seniors."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "Complete freeze-dried raw meal has an explicit distinct canonical form, but no raw-meal type. Dry Dog Food implies Dry Food rather than Freeze-Dried Raw. Null type descriptions leave the intended extension unresolved; do not force a dry type or declare no-fit on silence."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Freeze-Dried Raw is an exact permitted form."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Beef Recipe names the primary recipe flavor; Apples are a stated accompaniment, not a second configured meat flavor."
+    },
+    "life-stage": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Complete nutrition explicitly spans puppies, adults and seniors, supporting All Life Stages without age inference."
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "unresolved-applicability"
+   ],
+   "disagreements": [
+    "Whether the approved dry type semantically includes raw freeze-dried meals despite its distinct form invariant."
+   ]
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:4421816123505",
+   "sourceIndex": 678,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/678/excerpts/0",
+     "quote": "Chicken & Salmon Ancient Grains Puppy Kibble"
+    },
+    "e1": {
+     "locator": "source-development.json#/678/excerpts/1",
+     "quote": "Great for: all puppies"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry"
+    ],
+    "reasoning": "Kibble for puppies states a dry canine meal function and stage. Puppy is an approved Dog alias; classification follows those facts."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Puppy/puppies map through the approved species aliases to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Kibble is dry food physical form, consistent with the dry-food type invariant."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Both Chicken and Salmon are explicitly named; no primary selector or assorted-pack claim."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Puppy."
+    },
+    "breed-size": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "All puppies describes life stage, not an explicit all-breed-size suitability claim."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "370c684b-666f-4c86-b615-261a7059ed0e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Breed size is not established."
+   ],
+   "disagreements": [
+    "Single-valued flavor has no rule for the combination."
+   ]
+  },
+  {
+   "sku": "PUBLIC:openfarmpet.com:7575698702449",
+   "sourceIndex": 684,
+   "sourceHash": "99a2ffa4a87c8f4c04a26abd7932ac1317d0f6aa63c9bf924df2b34685ebc043",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/684/excerpts/0",
+     "quote": "Chicken & Grass-Fed Beef Hearty Stew Wet Dog Food"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-food-wet"
+    ],
+    "reasoning": "Stated wet dog food stew identifies canine meal form and purpose. It is not being classified by a retailer shelf label."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Wet Dog Food uses the approved alias to Wet Food."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Chicken and Beef are both named and neither is designated primary."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "902f5a0e-9830-40f1-bb05-01f768ae6c42"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "No stated age or breed-size suitability."
+   ],
+   "disagreements": [
+    "Combination recipe cannot be reduced to one flavor by word order."
+   ]
+  },
+  {
+   "sku": "PUBLIC:tikipets.com:17ef10b261c556bababd",
+   "sourceIndex": 740,
+   "sourceHash": "bf083a2238b9edf1f0ff8cd6384a199dadb0ac8e7b8caee4709d0ceb01b694f8",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/740/excerpts/0",
+     "quote": "Cat Treats: Chicken Flavor"
+    },
+    "e1": {
+     "locator": "source-development.json#/740/excerpts/1",
+     "quote": "Irresistible Chicken, Pork &amp; Salmon Flavor"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-treats"
+    ],
+    "reasoning": "Both name and description identify cat treats; the discrepancy concerns flavor, not feeding function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Cat."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Cat Treats uses the approved Treat alias."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "single-value-dispute",
+     "reasoning": "Title says Chicken, description says Chicken/Pork/Salmon. Preserve this real source disagreement; Pork is also absent from the option set."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "36d75fa7-602b-4e95-890c-f8b947aa57c2"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Real flavor contradiction requires review."
+   ],
+   "disagreements": [
+    "Captured title and description name different flavor sets; neither is silently preferred."
+   ]
+  },
+  {
+   "sku": "PUBLIC:primalpetfoods.com:5453780549786",
+   "sourceIndex": 1365,
+   "sourceHash": "3ba0e6e539bebdd76abcc327ca94dbb378e2a0f4e148b72b920adc6fd338323e",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1365/excerpts/0",
+     "quote": "Frozen Raw Patties Dog Food - Beef Recipe"
+    },
+    "e1": {
+     "locator": "source-development.json#/1365/excerpts/4",
+     "quote": "Larger portions ideal for large-breed and multi-dog households"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-food-dry",
+     "dog-food-wet",
+     "dog-treats",
+     "supplements"
+    ],
+    "reasoning": "An explicit frozen raw canine meal is not explicitly a wet canned/stew meal, dry food, treat or supplement. The 74-type authority has no raw-meal type and no descriptive resolution of wet scope. Preserve semantic dispute instead of inventing a raw type or forcing wet."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Frozen Raw is canonical."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Beef Recipe."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit large-breed suitability supports Large; multi-dog does not imply all sizes."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "3609bf21-45b1-40f2-bb60-02a1aaebe552"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "unresolved-applicability"
+   ],
+   "disagreements": [
+    "Whether Wet Dog Food includes frozen raw patties despite the distinct Frozen Raw form."
+   ]
+  },
+  {
+   "sku": "PUBLIC:nulo.com:56TS04",
+   "sourceIndex": 675,
+   "sourceHash": "b9a33c2547c039ad118ac73a88fd5437acc1c7cc8b2e5e2e6ad6e20d48aeb3d5",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/675/excerpts/0",
+     "quote": "Trainers Treats Salmon Recipe for Dogs"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-treats"
+    ],
+    "reasoning": "Explicit reward treats for dogs, not a complete meal or non-food toy."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Dogs maps to Dog."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Treats maps to Treat."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit Salmon Recipe."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "93e1d3e2-7700-44fd-9478-db04b80aa222"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dog treats are explicit but no captured softness/crunchiness/jerky/dental/natural-chew fact supports a specific child."
+   },
+   "uncertainties": [
+    "Texture, age and breed-size suitability are not established."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:nulo.com:56TS04:degraded-flavor-withheld",
+   "sourceIndex": 675,
+   "sourceHash": "b9a33c2547c039ad118ac73a88fd5437acc1c7cc8b2e5e2e6ad6e20d48aeb3d5",
+   "observationMethod": "controlled_excerpt_withholding",
+   "degradation": {
+    "originalSku": "PUBLIC:nulo.com:56TS04",
+    "operation": "Withhold title and recipe-bearing passages; retain only two literal reward/species substrings from excerpt 1. Synthetic benchmark case suffix is not a manufacturer SKU/UPC."
+   },
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/675/excerpts/1",
+     "quote": "Every incredible dog starts with incredible training"
+    },
+    "e1": {
+     "locator": "source-development.json#/675/excerpts/1",
+     "quote": "Each treat is only 2 calories"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-treats"
+    ],
+    "reasoning": "Remaining same-product facts still explicitly identify dog training rewards and treats."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "reasoning": "Explicit dog."
+    },
+    "food-form": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit treat."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "The retained evidence no longer names Salmon; original evidence must not leak into this case."
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "93e1d3e2-7700-44fd-9478-db04b80aa222"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Flavor intentionally withheld; same family, no independent support increment."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996480745793",
+   "sourceIndex": 1005,
+   "sourceHash": "26751d98aa15d3d32e763a9a0557cd4fa8cbab15eacaec02f49b52736f76b49d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1005/excerpts/0",
+     "quote": "Chuckit! Fetch Ball Dog Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1005/excerpts/1",
+     "quote": "This rubber ball is the perfect toy to provide your dog with much of the daily exercise he needs outdoors."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit dog toy by title and described toy function for the dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit your dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996484841793",
+   "sourceIndex": 1010,
+   "sourceHash": "26751d98aa15d3d32e763a9a0557cd4fa8cbab15eacaec02f49b52736f76b49d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1010/excerpts/0",
+     "quote": "Chuckit! Fetch Wheel Dog Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1010/excerpts/1",
+     "quote": "The Chuckit!\u00ae Fetch Wheel\u00ae Interactive Dog Toy is a toy your dog will adore."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Explicit interactive dog toy; not a food or grooming tool."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit your dog maps to Dog."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "9a20805c-fa9a-4d5e-bd98-485697292cb6"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996492378433",
+   "sourceIndex": 1060,
+   "sourceHash": "26751d98aa15d3d32e763a9a0557cd4fa8cbab15eacaec02f49b52736f76b49d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1060/excerpts/0",
+     "quote": "FAT CAT Classic Eeeks! Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1060/excerpts/1",
+     "quote": "Real soft fur and a tiny little rattle keep your kitty on the hunt for hours."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit cat toy by title; play description confirms toy function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Cat Toy and kitty map to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:petmate.com:8996502241601",
+   "sourceIndex": 1102,
+   "sourceHash": "d14ec3e15796b3d1604b87f686cbbdab725708741bef53d3d4838bd5c82a956c",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1102/excerpts/0",
+     "quote": "JW Cataction Feather Ball with Bell Cat Toy"
+    },
+    "e1": {
+     "locator": "source-development.json#/1102/excerpts/1",
+     "quote": "The JW\u00ae Cataction\u00ae Feather Ball with Bell Cat Toy is sure to be a favorite new addition to your cat's stash of toys."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "cat-toys"
+    ],
+    "reasoning": "Explicit cat toy by title and stated toy stash function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit your cat maps to Cat."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "1b543d8d-f0a3-4ce9-b7b5-67c89e2bbc2e"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:fourpaws.com:24614fd7c695a71fdeda",
+   "sourceIndex": 910,
+   "sourceHash": "53fcd194c38decc282df59bcab20a659a7709a00c721174640f226a0571805d0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/910/excerpts/0",
+     "quote": "Magic Coat Professional Series 2-in-1 Combo Pin and Bristle Dog Brush"
+    },
+    "e1": {
+     "locator": "source-development.json#/910/excerpts/1",
+     "quote": "The pin brush for dogs features rounded pins that gently detangle and remove excess hair."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Brush for dogs is a grooming tool, not food, toy, or health supplement."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog Brush and for dogs map to Dog. Declared multiple under v7: value [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:8179693486337",
+   "sourceIndex": 300,
+   "sourceHash": "f034df4fd1329ffdd2e5d36c6ef81737404d65246ae09d828acada82fce26b4d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/300/excerpts/0",
+     "quote": "Smelly Dog Grooming Kit"
+    },
+    "e1": {
+     "locator": "source-development.json#/300/excerpts/1",
+     "quote": "Safe for dogs over 6 weeks."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Grooming kit of shampoo and spray for coat care is a grooming function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "reasoning": "Explicit Dog and dogs map to Dog. Declared multiple under v7: value [Dog].",
+     "configChange": "approved-cardinality-single-to-multiple"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:durvet.com:32ccff3b7660b4ae0c71",
+   "sourceIndex": 870,
+   "sourceHash": "545f57414fbeafea0c94395bc4c1ff5134e2f628530c1ca9b59544f758362802",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/870/excerpts/0",
+     "quote": "BiotinDAILY\u2122"
+    },
+    "e1": {
+     "locator": "source-development.json#/870/excerpts/1",
+     "quote": "An easy to feed pellet form."
+    },
+    "e2": {
+     "locator": "source-development.json#/870/excerpts/1",
+     "quote": "This hoof & digestive supplement is formulated to provide optimum nutritional support for normal healthy hooves for horses of all class."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "horse-treats-supplements"
+    ],
+    "reasoning": "Hoof and digestive supplement for horses is a horse supplement function; pellet form is not a horse-feed meal claim."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e2"
+     ],
+     "reasoning": "Explicit horses maps to Horse."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e2"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages",
+    "reasoning": "No verified horse-supplement page membership is positively supported by the capture."
+   },
+   "uncertainties": [
+    "Packaging and flavor profile membership unverified."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:5935228616866",
+   "sourceIndex": 290,
+   "sourceHash": "f034df4fd1329ffdd2e5d36c6ef81737404d65246ae09d828acada82fce26b4d",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/290/excerpts/0",
+     "quote": "Hot Spot Relief Spray"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Title alone names a spray for hot spots with no species, form, or function discriminator; preserve missing-evidence review instead of guessing grooming."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [
+    "Type and species unresolved on title-only evidence."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:0a4be8a778d99a4b0e61",
+   "sourceIndex": 245,
+   "sourceHash": "706daf228632008afc1a2da45206546e47b54f8919bfcdd947ef036a5b1ee097",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/245/excerpts/0",
+     "quote": "Ant, Flea & Tick Killer"
+    },
+    "e2": {
+     "locator": "source-development.json#/245/excerpts/2",
+     "quote": "BUG KILLER \u2013 This pest control is great for use on ants, billbugs, brown dog ticks, chinch bugs, crickets, cutworms, earwigs, fire ants, fleas, sod webworms, & other listed insects."
+    },
+    "e6": {
+     "locator": "source-development.json#/245/excerpts/6",
+     "quote": "EASY APPLICATION \u2013 Granules should either be distributed as a barrier around the house foundation or spread throughout the lawn with a spreader. No need to mix or spray."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "insect-control"
+    ],
+    "reasoning": "Stated pest-control killer for listed insects is an insect-control function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e2"
+     ],
+     "rule": "outside-profile"
+    },
+    "packaging-type": {
+     "citations": [
+      "e6"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Granules and 10-pound coverage describe application, not a canonical Bag/Can/Box/Tray/Pouch value."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e2"
+    ],
+    "catalogCitationIds": [
+     "6546b09a-5f88-4e02-9dd5-e301e57ef7db"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Package form not established."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:bonide.com:024c02ad9ce43e0e3f00",
+   "sourceIndex": 248,
+   "sourceHash": "8488e4c2db9fe3b711a3c929556da71c1987c28a8309ed9aab8c71748b4bc51b",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/248/excerpts/0",
+     "quote": "Captain Jack\u2019s Lawnweed Brew Ready-to-Spray"
+    },
+    "e2": {
+     "locator": "source-development.json#/248/excerpts/2",
+     "quote": "CONTROLS WEEDS AND DISEASE \u2013 Use to control dandelion, moss, algae, lichens, chickweed, oxalis, clover, ground ivy and more. It also suppresses diseases such as dollar spot, rust, snow mold plus many more."
+    },
+    "e4": {
+     "locator": "source-development.json#/248/excerpts/4",
+     "quote": "SAFE FOR GRASS \u2013 Designed to kill a variety of weeds and diseases, not lawn grasses. When used as directed it kills a variety of weeds in lawns, roots and all."
+    },
+    "e6": {
+     "locator": "source-development.json#/248/excerpts/6",
+     "quote": "EASY SPRAY APPLICATION \u2013 Product instantly mixes with water and should be connected to a water hose. Carefully read and use according to label directions."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "weed-control"
+    ],
+    "reasoning": "Stated control of weeds in lawns is a weed-control function; disease suppression adds no second type claim."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e2"
+     ],
+     "rule": "outside-profile"
+    },
+    "packaging-type": {
+     "citations": [
+      "e6"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Ready-to-Spray and hose connection describe application, not a canonical package value."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e4"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages"
+   },
+   "uncertainties": [
+    "Package form not established."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:10937",
+   "sourceIndex": 934,
+   "sourceHash": "92dfb4218c98410e766c2572fa918cb724eadce17f927f06cb4ebf63b1ef24aa",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/934/excerpts/0",
+     "quote": "Jonathan Green Standard Broadcast Spreader"
+    },
+    "e1": {
+     "locator": "source-development.json#/934/excerpts/1",
+     "quote": "Holds up to 40 lbs of product Large air-filled 9-inch rubber tires for easy pushing Spreads grass seed, fertilizer, weed control, ice melter, and more Comes fully assembled"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "A push spreader that applies seed, fertilizer, and weed control is application equipment; it is none of the chemical seed/fertilizer/control types."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:jonathangreen.com:154871",
+   "sourceIndex": 939,
+   "sourceHash": "c0c82ba0990a40d7b4d54b4d4187ef254a4b717fa260a47514343c00518cc255",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/939/excerpts/0",
+     "quote": "Veri-Green Weed &amp;amp; Feed Lawn Fertilizer"
+    },
+    "e1": {
+     "locator": "source-development.json#/939/excerpts/1",
+     "quote": "Controls over 250+ types of broadleaf weeds 2-in-1 product eliminates weeds while fertilizing the lawn Greens up the lawn for up to 3 months Fertilizer analysis: 21-0-3"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "weed-control",
+     "lawn-fertilizer"
+    ],
+    "reasoning": "The 2-in-1 product explicitly both eliminates weeds and fertilizes; the single-valued type cannot represent the combination without a priority rule."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "outside-profile"
+    },
+    "packaging-type": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "a6fcddc8-db75-46ba-801d-2409d8a59dd1"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Lawn fertilizing and lawn weed control both support Lawn Care; no complete set claimed."
+   },
+   "uncertainties": [
+    "Type priority between weed-control and lawn-fertilizer unresolved."
+   ],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8237463994521",
+   "sourceIndex": 361,
+   "sourceHash": "60d64f269520213ade1b9830b6b38418afe1ce77c53cc0bcb9b39d54d6ec6f50",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/361/excerpts/0",
+     "quote": "AccuBites Radiance Equine Supplement"
+    },
+    "e7": {
+     "locator": "source-development.json#/361/excerpts/7",
+     "quote": "For Mature Horses (800 to 1,200 lb): Feed 3 to 4 ounces of AccuBites Beauty daily, along with the regular grain and forage ration."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e7"
+    ],
+    "taxonomyTypes": [
+     "horse-treats-supplements"
+    ],
+    "reasoning": "Equine supplement fed with grain and forage is a horse supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e7"
+     ],
+     "reasoning": "Explicit Horses maps to Horse."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0",
+     "e7"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages",
+    "reasoning": "No verified horse-supplement page membership is positively supported by the capture."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010599862468",
+   "sourceIndex": 463,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/463/excerpts/0",
+     "quote": "Mazuri\u00ae Koi Platinum Bits"
+    },
+    "e1": {
+     "locator": "source-development.json#/463/excerpts/1",
+     "quote": "Mazuri\u00ae Koi Platinum Bits are highly palatable koi and goldfish food designed to help keep your koi and goldfish healthy and beautiful. Best for koi and goldfish smaller than six inches. These fish food pellets provide optimum nutrition for your fish and encourage fish to come to the surface so they can be observed feeding. The floating pellets support a natural foraging behavior and help prevent over-feeding. With sustainably sourced fishmeal from a supplier certified by the Marine Stewardship Council and no added artificial flavors, you can feel good about feeding your fish Mazuri."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "fish-food"
+    ],
+    "reasoning": "Stated koi and goldfish food in pellet form is a fish-food function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Koi and goldfish are both Fish; a single Fish value covers the combination."
+    },
+    "food-form": {
+     "citations": [
+      "e1"
+     ],
+     "reasoning": "Explicit fish food pellets map to Pellets."
+    },
+    "flavor": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Fishmeal sourcing is composition, not a canonical flavor value."
+    },
+    "life-stage": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Smaller than six inches is a size claim, not a life-stage value."
+    },
+    "breed-size": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "dog-only-breed"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e1"
+    ],
+    "catalogCitationIds": [
+     "2ae44b48-4ed1-4776-b278-3f2bcc840958",
+     "dfc0ba6d-fcc3-4747-a397-4945a067bc47"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Both goldfish and koi purposes are explicit; set remains partial, not complete."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:mazuri.com:7010600190148",
+   "sourceIndex": 465,
+   "sourceHash": "b96729e27786fed610503816bae2b8437f20dfa02295f4b04ecc2684f6d638ca",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/465/excerpts/0",
+     "quote": "Mazuri\u00ae Llama Diet High Fiber Coarse"
+    },
+    "e1": {
+     "locator": "source-development.json#/465/excerpts/1",
+     "quote": "Mazuri\u00ae Llama Diet High Fiber is a coarse feed mixture of pellets and grains that provides added energy to enhance a diet of pasture and forage. This llama food contains added vitamin E and selenium to reduce or eliminate the need for supplements."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Llama is absent from the approved species options and no llama feed type exists; positive facts fall outside all options."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:wildbirdsuets.com:4b119e7215973bb25f87",
+   "sourceIndex": 1520,
+   "sourceHash": "b142d1fc04de9553e6250e3f2fc3442c66f00c287171616ae0b7952ebb63da5b",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1520/excerpts/0",
+     "quote": "Sweet Corn Squirrelog Refill"
+    },
+    "e1": {
+     "locator": "source-development.json#/1520/excerpts/1",
+     "quote": "C&S Sweet Corn Squirrelog offers a long-lasting, low-mess way to feed backyard squirrels."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "A squirrel feed log is for squirrels, which are outside the species options, and no squirrel-feed type exists."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:naturvet.com:6919045218352",
+   "sourceIndex": 562,
+   "sourceHash": "8ff348eb7331cc0f5a3fb99d92e6652f9fbfcffe83f51f424d7858330828c610",
+   "observationMethod": "official_structured_catalog_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/562/excerpts/0",
+     "quote": "Aller-911\u00ae Advanced Allergy Support Powder for Dogs and Cats"
+    },
+    "e1": {
+     "locator": "source-development.json#/562/excerpts/1",
+     "quote": "Help your dog and cat fight allergies the easy way with Aller-911\u00ae Advanced Allergy Support Powder"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "supplements"
+    ],
+    "reasoning": "Allergy-support powder for pets is a supplement function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "configChange": "approved-cardinality-single-to-multiple",
+     "reasoning": "Title names Dogs and Cats and body names dog and cat; approved v7 multi makes [Dog, Cat] known with literal quotes, not an unlabeled single conflict."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "Powder is not a canonical food-form value."
+    },
+    "flavor": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "life-stage": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator"
+    },
+    "breed-size": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "missing-discriminator",
+     "reasoning": "No size suitability stated for the Dog+Cat pair."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "881a11f9-cdd9-4cee-b129-b006f5cfa839",
+     "69bb2b03-e466-4dbe-92ab-0c3bc59f0f87"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Allergy supplement purpose supports both Healthcare pages; set partial, never complete."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:fourpaws.com:625ab338329fefb469bb",
+   "sourceIndex": 907,
+   "sourceHash": "cc3cb1168656517fa1e2fca4e77fc5415c1ebdd1dea0e7fe9ec4189bb13632d0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/907/excerpts/0",
+     "quote": "Healthy Promise\u2122 Cat & Dog Eye Wipes"
+    },
+    "e1": {
+     "locator": "source-development.json#/907/excerpts/1",
+     "quote": "these eye wipes for dogs and cats help eliminate tear & saliva stains, discoloration, and discharge."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Eye wipes that cleanse the eye area are a grooming function."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "configChange": "approved-cardinality-single-to-multiple",
+     "reasoning": "Title names Cat & Dog and body names dogs and cats; approved v7 multi makes [Dog, Cat] known with literal quotes."
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [
+     "b2cb203b-d000-4047-b36d-17254ec340c4",
+     "608111f1-ef41-457b-838d-737c6be5c870"
+    ],
+    "rule": "partial-pages",
+    "reasoning": "Dual-species eye-wipe purpose supports both Grooming pages; set partial, never complete."
+   },
+   "uncertainties": [],
+   "disagreements": []
+  }
+ ],
+ "authorityBinding": {
+  "release": "bay-state-v7",
+  "authorityHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+  "configHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+  "catalogGitCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b",
+  "taxonomy": "docs/audits/jev-representative-v2/taxonomy.json"
+ },
+ "frozenConditionalInputs": {
+  "speciesCardinality": {
+   "profile-grooming": "multiple",
+   "profile-supplements": "multiple",
+   "defaultSingle": "all-other-72-profiles"
+  },
+  "configHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39",
+  "catalogGitCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b",
+  "release": "bay-state-v7"
+ },
+ "approvedConfigChange": {
+  "changeType": "approved-cardinality-single-to-multiple",
+  "authority": "owner-approved bay-state-v7 (NOT model-based gold tuning)",
+  "affectedProfiles": [
+   "profile-grooming",
+   "profile-supplements"
+  ],
+  "affectedTarget": "species",
+  "semantics": "explicit Dog+Cat -> known [Dog, Cat] with literal quote; singleton declared species now array (e.g. [Dog]); all other controlled targets remain single"
+ }
+}

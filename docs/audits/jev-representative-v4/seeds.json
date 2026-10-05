@@ -1,0 +1,43 @@
+{
+  "generation": "jev-representative-v4",
+  "declaredBeforeFetch": "2026-10-05",
+  "note": "New unseen brands only. Domains, never product URLs; every fetched URL must come from a fetched official sitemap/feed and pass the per-hop public-URL gate.",
+  "seeds": [
+    {
+      "domain": "ruffwear.com",
+      "brand": "Ruffwear",
+      "stratum": "neighbors",
+      "sourceRule": "official sitemap + product pages; dog gear product family lines"
+    },
+    {
+      "domain": "earthrated.com",
+      "brand": "Earth Rated",
+      "stratum": "care",
+      "sourceRule": "official sitemap + product pages; waste management and grooming care lines"
+    },
+    {
+      "domain": "zippypaws.com",
+      "brand": "ZippyPaws",
+      "stratum": "toys",
+      "sourceRule": "batch feed verified against official sitemap, else product pages; plush and burrow toy lines"
+    },
+    {
+      "domain": "petsafe.com",
+      "brand": "PetSafe",
+      "stratum": "neighbors",
+      "sourceRule": "official sitemap + product pages; containment, training and feeder lines"
+    },
+    {
+      "domain": "merrickpetcare.com",
+      "brand": "Merrick",
+      "stratum": "treat",
+      "sourceRule": "official sitemap + product pages; treat and chews product lines"
+    },
+    {
+      "domain": "pennington.com",
+      "brand": "Pennington",
+      "stratum": "garden",
+      "sourceRule": "official sitemap + product pages; lawn seed and garden structured product lines"
+    }
+  ]
+}

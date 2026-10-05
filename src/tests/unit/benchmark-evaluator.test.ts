@@ -8,6 +8,7 @@ import { runMigrations } from '../../db/migrations';
 import { createRun } from '../../db/repositories/classification-run-repo';
 import {
   evaluateBenchmark,
+  computeMetrics,
   computeEvaluatorAttribution,
   findPredictionsOutsideFrozenTaxonomy,
   verifyFrozenTaxonomySnapshotShape,
@@ -507,6 +508,147 @@ describe('Benchmark Evaluator', () => {
           { targetId: 'flavor', cardinality: 'single' as const, options: [] },
         ],
       }).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('gold-state contract (step 1)', () => {
+    function goldExample(
+      id: string,
+      goldLabels: Record<string, unknown>,
+      extra: Partial<GoldExampleForEvaluation> = {},
+    ): GoldExampleForEvaluation {
+      return {
+        id,
+        productSku: `sku-${id}`,
+        goldLabels: goldLabels as unknown as GoldExampleForEvaluation['goldLabels'],
+        evidenceText: '',
+        ...extra,
+      } as GoldExampleForEvaluation;
+    }
+
+    it('excludes omitted/unlabeled targets from field scoring (never correct)', () => {
+      const gold = [
+        goldExample('a', { productType: null, fieldAssignments: [], pageAssignments: [] }),
+      ];
+      const report = computeEvaluatorAttribution(gold, []);
+      expect(report.fixedPopulation.eligible).toBe(0);
+      expect(report.fieldReports).toEqual({});
+    });
+
+    it('scores explicit known-empty pages but excludes unknown/partial pages', () => {
+      const gold = [
+        goldExample('known-empty', { productType: null, fieldAssignments: [], pageAssignments: [], categoryPageIds: [] },
+          { pageGoldState: 'known', pageCompleteness: 'complete' }),
+        goldExample('unknown', { productType: null, fieldAssignments: [], pageAssignments: [], categoryPageIds: [] },
+          { pageGoldState: 'unknown', pageCompleteness: 'unknown' }),
+        goldExample('partial', { productType: 'dog_food_dry', fieldAssignments: [], pageAssignments: [{ pageName: 'P', pageId: 'p-1' }], categoryPageIds: ['p-1'] },
+          { pageGoldState: 'partial', pageCompleteness: 'partial' }),
+      ];
+      const report = computeEvaluatorAttribution(gold, []);
+      // Only the known-empty example is eligible; unknown/partial never count as known-empty.
+      expect(report.pageReport?.goldStates.known).toBe(1);
+      expect(report.pageReport?.goldStates.unlabeled).toBe(2);
+    });
+
+    it('treats not_applicable field states as inapplicable (excluded)', async () => {
+      const { readEvaluatorFieldStates } = await import('../../classification/benchmark-evaluator');
+      // Alias spelling normalizes through the JSON read path.
+      expect(readEvaluatorFieldStates(JSON.stringify({ fieldStates: { flavor: 'not_applicable' } }))).toEqual({ flavor: 'inapplicable' });
+      const gold = [
+        goldExample('a', { productType: 't', fieldAssignments: [{ targetId: 'flavor', value: null }], pageAssignments: [] },
+          { goldState: EVALUATOR_GOLD_STATE_KNOWN, fieldGoldStates: { flavor: 'inapplicable' } }),
+      ];
+      const report = computeEvaluatorAttribution(gold, [
+        { exampleId: 'a', productSku: 'sku-a', productType: 't', pageAssignments: [], fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }], abstained: false, confidence: 1, claimTargets: [] },
+      ]);
+      expect(report.fieldReports?.flavor.fixedPopulation.eligible).toBe(0);
+    });
+
+    it('rejects invalid gold states via the shared strict schema', async () => {
+      const { BenchmarkGoldLabelsSchema } = await import('../../shared/schemas/classification');
+      expect(() => BenchmarkGoldLabelsSchema.parse({ productType: null, fieldAssignments: [], pageAssignments: [], productTypeState: 'bogus' })).toThrow();
+      expect(() => BenchmarkGoldLabelsSchema.parse({ productType: null, fieldAssignments: [], pageAssignments: [], pageState: 'bogus' })).toThrow();
+      // Canonical spellings parse; aliases normalize.
+      expect(BenchmarkGoldLabelsSchema.parse({ productType: null, fieldAssignments: [], pageAssignments: [], productTypeState: 'known-type' }).productTypeState).toBe('known');
+      expect(BenchmarkGoldLabelsSchema.parse({ productType: null, fieldAssignments: [], pageAssignments: [], fieldStates: { f: 'not_applicable' } }).fieldStates).toEqual({ f: 'inapplicable' });
+    });
+
+    it('metrics path honors states: stale-label unlabeled type excluded, inapplicable adds no support, known attr kept', () => {
+      const gold = [
+        goldExample('a',
+          {
+            productType: 'dog_food_dry',
+            fieldAssignments: [
+              { targetId: 'flavor', value: 'Chicken' },
+              { targetId: 'organic', value: null },
+            ],
+            pageAssignments: [],
+          },
+          {
+            // Stale label bytes with an explicit unlabeled marker: no type support.
+            goldState: EVALUATOR_GOLD_STATE_UNLABELED,
+            fieldGoldStates: { flavor: 'known', organic: 'inapplicable' },
+          }),
+      ];
+      const metrics = computeMetrics(gold, [
+        { exampleId: 'a', productSku: 'sku-a', productType: 'dog_food_dry', pageAssignments: [], fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }, { targetId: 'organic', value: 'Yes' }], abstained: false, confidence: 1, claimTargets: [] },
+      ]);
+      expect(metrics.productType.support).toBe(0);
+      expect(metrics.fields.targetSupport).toEqual({ flavor: 1 });
+      expect(metrics.fields.targetAccuracy.flavor).toBe(1);
+    });
+
+    it('pipeline effects: failed sides and ineligible gold never earn correctness, with eligible/unevaluated exposed', async () => {
+      const { evaluateCohortPipelineEffects } = await import('../../classification/benchmark-evaluator');
+      const gold = [
+        goldExample('failed', {
+          productType: 't', fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }],
+          pageAssignments: [], categoryPageIds: [],
+        }, { goldState: 'known', fieldGoldStates: { flavor: 'known' } }),
+        goldExample('unlabeled-type', {
+          productType: 't', fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }],
+          pageAssignments: [], categoryPageIds: [],
+        }, { goldState: 'unlabeled', fieldGoldStates: { flavor: 'known' } }),
+      ];
+      const failedPred = (id: string) => ({
+        exampleId: id, productSku: `sku-${id}`, productType: 't', pageAssignments: [],
+        pageIds: [], fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }],
+        abstained: false, confidence: 1, claimTargets: [], failureCode: 'boom',
+      }) as never;
+      const okPred = (id: string) => ({
+        exampleId: id, productSku: `sku-${id}`, productType: 't', pageAssignments: [],
+        pageIds: [], fieldAssignments: [{ targetId: 'flavor', value: 'Chicken' }],
+        abstained: false, confidence: 1, claimTargets: [],
+      });
+      const effects = evaluateCohortPipelineEffects(
+        gold,
+        [failedPred('failed'), okPred('unlabeled-type')],
+        [failedPred('failed'), okPred('unlabeled-type')],
+        [failedPred('failed'), okPred('unlabeled-type')],
+      );
+      // Failed sides: counted, never correct or exact.
+      expect(effects.typeResolution.failed).toBe(1);
+      expect(effects.typeResolution.correct).toBe(0);
+      expect(effects.attributeEffects.failed).toBe(1);
+      expect(effects.pageEffects.failed).toBe(1);
+      expect(effects.pageEffects.exactMatchWhenTypeCorrect).toBe(0);
+      // Unlabeled type: unevaluated (not incorrect); its known attr slot stays eligible.
+      expect(effects.typeResolution.unevaluated).toBe(1);
+      expect(effects.typeResolution.incorrect).toBe(0);
+      expect(effects.attributeEffects.eligible).toBe(1);
+      expect(effects.endToEndCorrectAllStages).toBe(0);
+    });
+
+    it('counts service failures as failures, never as correct abstentions', () => {
+      const gold = [
+        goldExample('a', { productType: null, fieldAssignments: [], pageAssignments: [] },
+          { goldState: EVALUATOR_GOLD_STATE_NO_FIT }),
+      ];
+      const report = computeEvaluatorAttribution(gold, [
+        { exampleId: 'a', productSku: 'sku-a', productType: null, pageAssignments: [], fieldAssignments: [], abstained: false, confidence: null, claimTargets: [], failureCode: 'boom' } as never,
+      ]);
+      expect(report.fixedPopulation.failed).toBe(1);
+      expect(report.fixedPopulation.correct).toBe(0);
     });
   });
 });

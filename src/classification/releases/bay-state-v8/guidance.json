@@ -1,0 +1,92 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v8",
+    "createdAt": "2026-10-05T00:00:00.000Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "id": "species-safety-guidance",
+      "scope": "workspace",
+      "scopeId": null,
+      "structured": {
+        "ruleType": "species_safety",
+        "species": [
+          "dog",
+          "cat",
+          "bird",
+          "fish",
+          "reptile",
+          "small_animal"
+        ],
+        "crossSpeciesBlocked": true
+      },
+      "freeForm": "Never assign dog products to cat category pages, or vice versa.",
+      "manualReviewRequirement": true
+    },
+    {
+      "id": "page-assignment-guidance",
+      "scope": "workspace",
+      "scopeId": null,
+      "structured": {
+        "ruleType": "page_assignment_rules",
+        "maxPagesPerProduct": 4,
+        "preferSpecificOverShopAll": true,
+        "includeBrandPages": true
+      },
+      "freeForm": "Prefer specific child categories over top-level Shop All pages. Max 4 pages.",
+      "manualReviewRequirement": false
+    },
+    {
+      "id": "domain-keywords-guidance",
+      "scope": "workspace",
+      "scopeId": null,
+      "structured": {
+        "ruleType": "domain_keywords",
+        "keywordSets": {
+          "species": [
+            "dog",
+            "cat",
+            "bird",
+            "fish",
+            "reptile",
+            "small animal",
+            "horse",
+            "chicken"
+          ],
+          "lifeStage": [
+            "puppy",
+            "kitten",
+            "adult",
+            "senior",
+            "all life stages"
+          ],
+          "productForm": [
+            "dry",
+            "wet",
+            "freeze-dried",
+            "raw",
+            "treats",
+            "chews",
+            "supplements"
+          ],
+          "flavors": [
+            "chicken",
+            "beef",
+            "salmon",
+            "lamb",
+            "turkey",
+            "duck",
+            "tuna",
+            "venison",
+            "bison",
+            "pork"
+          ]
+        }
+      },
+      "freeForm": "Domain keywords used for deterministic detail enrichment matching.",
+      "manualReviewRequirement": false
+    }
+  ]
+}

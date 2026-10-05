@@ -486,7 +486,11 @@ function assertDistributionClosureAndArgmax(
   connectionId: string | undefined,
   modelId: string,
 ): void {
-  if (Math.abs(sum - 1) > SYSTEMONE_CHOICE_SUM_TOLERANCE) {
+  // Decimal boundary values (e.g. 0.99) can land a few binary ulps outside
+  // 1 +/- 0.01 after summation. Account only for arithmetic rounding; do not
+  // widen the documented tolerance or renormalize the returned probabilities.
+  const roundingSlack = Number.EPSILON * Object.keys(answer.probabilities).length;
+  if (Math.abs(sum - 1) > SYSTEMONE_CHOICE_SUM_TOLERANCE + roundingSlack) {
     failChoiceValidation(questionId,
       `Question "${questionId}" Choice probabilities sum to ${sum.toFixed(4)}, outside the ` +
         `±${SYSTEMONE_CHOICE_SUM_TOLERANCE} tolerance around 1.`,
@@ -535,6 +539,24 @@ export interface SystemOneDispatchOptions {
   assertConnectionEnabled?: () => void;
   /** Ownership is rechecked before every attempt, including transport-internal retries. */
   assertHeld?: () => void;
+  /**
+   * Narrow per-HTTP-attempt budget (benchmark replay guard). `tryConsumeAttempt`
+   * runs BEFORE every request attempt including the single retry — exactly once
+   * per attempt — and a `false` return fails closed with no dispatch. Never
+   * clips candidates: denial aborts the capture side as blocked, never a guess.
+   * Optional: absent budgets preserve existing behavior verbatim.
+   */
+  attemptBudget?: SystemOneAttemptBudget;
+}
+
+/**
+ * Per-HTTP-attempt budget consumed by the real request path. Pure counting
+ * contract — no DB, no storage coupling. The existing `assertHeld` ownership
+ * callback is untouched (ownership is not an attempt counter).
+ */
+export interface SystemOneAttemptBudget {
+  /** Consume one HTTP attempt before the request; false denies the attempt (fail-closed). */
+  tryConsumeAttempt: () => boolean;
 }
 
 export interface SystemOneDispatchResult extends ValidatedSystemOneResponse {
@@ -795,6 +817,15 @@ export async function executeSystemOne(
     if (options.signal?.aborted) {
       throw new AiAvailabilityError(
         `System One request cancelled before attempt ${attempt} on "${conn.label}".`,
+        conn.id,
+        modelId,
+      );
+    }
+    // Attempt budget is enforced BEFORE every request, including the retry:
+    // denial fails closed with no dispatch (never a clipped candidate).
+    if (options.attemptBudget && !options.attemptBudget.tryConsumeAttempt()) {
+      throw new AiAvailabilityError(
+        `System One HTTP attempt budget exhausted before attempt ${attempt} on "${conn.label}".`,
         conn.id,
         modelId,
       );

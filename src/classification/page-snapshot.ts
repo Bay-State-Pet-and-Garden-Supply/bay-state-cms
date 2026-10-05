@@ -22,7 +22,12 @@
 import { getDb } from '../db/connection';
 import { PageRecordSchema } from '../shared/schemas/page';
 import type { PageRecord } from '../shared/schemas/page';
-import { mapImportRow } from '../db/repositories/page-import-repo';
+import {
+  getActivePageImportRow,
+  listVerifiedPageIndexRows,
+  mapImportRow,
+  type ReadonlySnapshotDb,
+} from '../db/repositories/page-import-repo';
 import type { PageSnapshotRecord, PageSnapshotState } from './runtime-snapshot';
 
 export interface VerifiedPageSnapshot {
@@ -64,16 +69,15 @@ export const UNAVAILABLE_PAGE_SNAPSHOT: VerifiedPageSnapshot = {
  * UNAVAILABLE_PAGE_SNAPSHOT; the run-start readiness gate then blocks an
  * enabled Page target because the captured snapshot carries no Page IDs.
  */
-export function captureVerifiedPageSnapshot(workspaceId: string): VerifiedPageSnapshot {
-  const db = getDb();
+export function captureVerifiedPageSnapshot(workspaceId: string, db?: ReadonlySnapshotDb): VerifiedPageSnapshot {
+  const database: ReadonlySnapshotDb = db ?? getDb();
   // ONE coherent read: the active import row (including records_json), the
   // matching verified page_index rows, and all drift validation happen inside
   // a single transaction so a concurrent activation/supersede can never mix
-  // database moments (issue #17 D1).
-  return db.transaction(() => {
-    const activeRow = db.query(
-      "SELECT * FROM page_imports WHERE workspace_id = ? AND status = 'active' ORDER BY activated_at DESC LIMIT 1",
-    ).get(workspaceId) as Record<string, any> | undefined;
+  // database moments (issue #17 D1). Pass an independent readonly driver to
+  // capture without touching the global connection.
+  return database.transaction(() => {
+    const activeRow = getActivePageImportRow(database, workspaceId) as Record<string, any> | undefined;
     if (!activeRow) return UNAVAILABLE_PAGE_SNAPSHOT;
 
     const active = mapImportRow(activeRow);
@@ -96,20 +100,8 @@ export function captureVerifiedPageSnapshot(workspaceId: string): VerifiedPageSn
 
     // One read of the verified page_index rows for THIS import (any
     // availability) so drift between the import records and child rows is
-    // visible.
-    const rows = db.query(
-      `SELECT id, name, parent_id, source_hash, identity_kind, identity_key, availability
-       FROM page_index
-       WHERE workspace_id = ? AND import_id = ? AND identity_status = 'verified'`,
-    ).all(workspaceId, active.id) as Array<{
-      id: string;
-      name: string;
-      parent_id: string | null;
-      source_hash: string | null;
-      identity_kind: string;
-      identity_key: string;
-      availability: string;
-    }>;
+    // visible. SQL lives in the page-import repository; this seam only maps.
+    const rows = listVerifiedPageIndexRows(database, workspaceId, active.id);
 
     const verifiedRecords = records.filter(r => r.identity.status === 'verified');
 

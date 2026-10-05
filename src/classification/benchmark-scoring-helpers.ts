@@ -624,11 +624,94 @@ function selectBestByProbability<T>(
 // one adjudicated-gold + evidence core; prediction sides differ (executed
 // artifact vs stored baseline/candidate) and stay on their own types.
 
+/** Versioned qualification gold contract (mirrors shared Zod contracts). */
+export const QUALIFICATION_GOLD_CONTRACT_VERSION = 1 as const;
+
+/** Canonical qualification field states (`not_applicable` spelling normalizes to `inapplicable`). */
+export type QualificationFieldGoldState =
+  | 'known'
+  | 'no-fit'
+  | 'insufficient-evidence'
+  | 'inapplicable'
+  | 'not_applicable'
+  | 'unlabeled';
+
+/** Canonical qualification page states. */
+export type QualificationPageGoldState = 'known' | 'unknown' | 'partial' | 'unlabeled';
+export type QualificationPageCompleteness = 'complete' | 'partial' | 'unknown';
+
+/** Normalize a field gold state (`not_applicable` → `inapplicable`, strict otherwise). */
+export function normalizeQualificationFieldState(value: unknown): QualificationFieldGoldState | null {
+  if (typeof value !== 'string') return null;
+  const token = value.trim().toLowerCase().replace(/_/g, '-');
+  const aliases: Record<string, QualificationFieldGoldState> = {
+    known: 'known',
+    'known-type': 'known',
+    'known-value': 'known',
+    'no-fit': 'no-fit',
+    'no-fitting-type': 'no-fit',
+    'no-fit-type': 'no-fit',
+    nofit: 'no-fit',
+    'no-fitting': 'no-fit',
+    'insufficient-evidence': 'insufficient-evidence',
+    insufficientevidence: 'insufficient-evidence',
+    inapplicable: 'inapplicable',
+    'not-applicable': 'inapplicable',
+    na: 'inapplicable',
+    unlabeled: 'unlabeled',
+    unlabelled: 'unlabeled',
+  };
+  if (token === 'not-applicable') return 'inapplicable';
+  return aliases[token] ?? null;
+}
+
+/** True only for explicitly adjudicated known-empty page gold (never unknown/partial). */
+export function isKnownEmptyPageGold(pages: {
+  pageIds?: string[];
+  pageAssignments?: Array<{ pageId: string; pageName: string }>;
+  state?: string | null;
+  completeness?: string | null;
+}): boolean {
+  const empty = (pages.pageIds ?? []).length === 0 && (pages.pageAssignments ?? []).length === 0;
+  if (!empty) return false;
+  const state = typeof pages.state === 'string' ? pages.state.trim().toLowerCase().replace(/_/g, '-') : null;
+  const completeness = typeof pages.completeness === 'string' ? pages.completeness.trim().toLowerCase().replace(/_/g, '-') : null;
+  // Legacy rows without markers: readable but NOT qualifying known-empty (explicit ineligibility).
+  if (state === null && completeness === null) return false;
+  if (state !== null && state !== 'known') return false;
+  if (completeness !== null && completeness !== 'complete') return false;
+  return true;
+}
+
+/** True when page gold is eligible for scoring (known, completely adjudicated). */
+export function isPageGoldEligibleForScoring(pages: {
+  pageIds?: string[];
+  pageAssignments?: Array<{ pageId: string; pageName: string }>;
+  state?: string | null;
+  completeness?: string | null;
+}): boolean {
+  const hasIds = (pages.pageIds ?? []).length > 0 || (pages.pageAssignments ?? []).length > 0;
+  if (hasIds) {
+    const state = typeof pages.state === 'string' ? pages.state.trim().toLowerCase().replace(/_/g, '-') : null;
+    const completeness = typeof pages.completeness === 'string' ? pages.completeness.trim().toLowerCase().replace(/_/g, '-') : null;
+    if (state === 'unknown' || state === 'partial' || state === 'unlabeled') return false;
+    if (completeness === 'partial' || completeness === 'unknown') return false;
+    return true;
+  }
+  return isKnownEmptyPageGold(pages);
+}
+
 export interface QualificationGoldCore {
   sku: string;
   familyId: string;
   split: 'dev' | 'holdout';
   assortment: string;
+  /**
+   * Explicit legacy reader version (`'legacy'` only). Old bytes stay
+   * readable but are never qualification-eligible. Additive and inert:
+   * scoring never branches on it except the eligibility gate.
+   */
+  readerVersion?: string;
   gold: {
     productType: {
       kind: 'known-type' | 'no-fit' | 'insufficient-evidence' | 'unlabeled';
@@ -643,6 +726,10 @@ export interface QualificationGoldCore {
     categoryPages: {
       pageIds: string[];
       pageAssignments: Array<{ pageId: string; pageName: string }>;
+      /** Page adjudication state (absent on legacy rows → ineligible, never known-empty). */
+      state?: QualificationPageGoldState | null;
+      /** Page adjudication completeness (absent on legacy rows → ineligible when empty). */
+      completeness?: QualificationPageCompleteness | null;
     };
   };
   evidence: Array<{

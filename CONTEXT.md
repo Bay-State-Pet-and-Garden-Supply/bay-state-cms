@@ -32,6 +32,12 @@ _Avoid_: Category, template, department
 The Product Type that selects a product's Attribute Profile when known.
 _Avoid_: Secondary type, category, facet
 
+**Grooming**:
+The Product Type for pet skin and coat care, including medicated shampoos, lotions, and anti-itch sprays. Products explicitly intended for flea or tick control belong to Flea & Tick Treatment.
+
+**Insect & Pest Control**:
+The Product Type for insect and pest control products, including mosquito repellents, electronic or heated repellent devices, and their dedicated repellent consumables.
+
 **Unknown Primary Product Type**:
 The reviewed absence of a Primary Product Type for a product.
 _Avoid_: Product failure, forced type

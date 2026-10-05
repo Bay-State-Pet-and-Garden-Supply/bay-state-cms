@@ -1,0 +1,1251 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v8",
+    "createdAt": "2026-10-05T00:00:00.000Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "id": "migration-air-compressors-hoses",
+      "kind": "type_migration",
+      "v3TypeId": "air-compressors-hoses",
+      "targetNodeId": "air-compressors-hoses",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type air-compressors-hoses (\"Air Compressors & Hoses\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-bee-supplies",
+      "kind": "type_migration",
+      "v3TypeId": "bee-supplies",
+      "targetNodeId": "bee-supplies",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type bee-supplies (\"Bee Supplies & Apiary\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-bird-food",
+      "kind": "type_migration",
+      "v3TypeId": "bird-food",
+      "targetNodeId": "bird-food",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type bird-food (\"Wild Bird Food & Seed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-bird-houses-baths",
+      "kind": "type_migration",
+      "v3TypeId": "bird-houses-baths",
+      "targetNodeId": "bird-houses-baths",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type bird-houses-baths (\"Bird Houses & Baths\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cat-food-dry",
+      "kind": "type_migration",
+      "v3TypeId": "cat-food-dry",
+      "targetNodeId": "cat-food-dry",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cat-food-dry (\"Dry Cat Food\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cat-food-wet",
+      "kind": "type_migration",
+      "v3TypeId": "cat-food-wet",
+      "targetNodeId": "cat-food-wet",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cat-food-wet (\"Wet Cat Food\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cat-litter",
+      "kind": "type_migration",
+      "v3TypeId": "cat-litter",
+      "targetNodeId": "cat-litter",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cat-litter (\"Cat Litter\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cat-toys",
+      "kind": "type_migration",
+      "v3TypeId": "cat-toys",
+      "targetNodeId": "cat-toys",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cat-toys (\"Cat Toys\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cat-treats",
+      "kind": "type_migration",
+      "v3TypeId": "cat-treats",
+      "targetNodeId": "cat-treats",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cat-treats (\"Cat Treats\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-cattle-feed",
+      "kind": "type_migration",
+      "v3TypeId": "cattle-feed",
+      "targetNodeId": "cattle-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type cattle-feed (\"Cattle Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-chainsaws-log-splitters",
+      "kind": "type_migration",
+      "v3TypeId": "chainsaws-log-splitters",
+      "targetNodeId": "chainsaws-log-splitters",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type chainsaws-log-splitters (\"Chainsaws & Log Splitters\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-collars-leashes",
+      "kind": "type_migration",
+      "v3TypeId": "collars-leashes",
+      "targetNodeId": "collars-leashes",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type collars-leashes (\"Collars & Leashes\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-coop-barn-heat-lamps",
+      "kind": "type_migration",
+      "v3TypeId": "coop-barn-heat-lamps",
+      "targetNodeId": "coop-barn-heat-lamps",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type coop-barn-heat-lamps (\"Coop & Barn Heat Lamps\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-corral-panels-gates",
+      "kind": "type_migration",
+      "v3TypeId": "corral-panels-gates",
+      "targetNodeId": "corral-panels-gates",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type corral-panels-gates (\"Corral Panels & Farm Gates\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-deer-wildlife-feed",
+      "kind": "type_migration",
+      "v3TypeId": "deer-wildlife-feed",
+      "targetNodeId": "deer-wildlife-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type deer-wildlife-feed (\"Deer & Wildlife Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-crates-kennels",
+      "kind": "type_migration",
+      "v3TypeId": "dog-crates-kennels",
+      "targetNodeId": "dog-crates-kennels",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-crates-kennels (\"Dog Crates & Kennels\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-food-dry",
+      "kind": "type_migration",
+      "v3TypeId": "dog-food-dry",
+      "targetNodeId": "dog-food-dry",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-food-dry (\"Dry Dog Food\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-food-wet",
+      "kind": "type_migration",
+      "v3TypeId": "dog-food-wet",
+      "targetNodeId": "dog-food-wet",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-food-wet (\"Wet Dog Food\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-toys",
+      "kind": "type_migration",
+      "v3TypeId": "dog-toys",
+      "targetNodeId": "dog-toys",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-toys (\"Dog Toys\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-treats",
+      "kind": "type_migration",
+      "v3TypeId": "dog-treats",
+      "targetNodeId": "dog-treats",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-treats (\"Dog Treats\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-dog-waste-bags",
+      "kind": "type_migration",
+      "v3TypeId": "dog-waste-bags",
+      "targetNodeId": "dog-waste-bags",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type dog-waste-bags (\"Dog Waste Bags\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-electric-fence-chargers",
+      "kind": "type_migration",
+      "v3TypeId": "electric-fence-chargers",
+      "targetNodeId": "electric-fence-chargers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type electric-fence-chargers (\"Electric Fence Chargers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-electric-fence-insulators",
+      "kind": "type_migration",
+      "v3TypeId": "electric-fence-insulators",
+      "targetNodeId": "electric-fence-insulators",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type electric-fence-insulators (\"Electric Fence Insulators\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-equine-grooming-hoof",
+      "kind": "type_migration",
+      "v3TypeId": "equine-grooming-hoof",
+      "targetNodeId": "equine-grooming-hoof",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type equine-grooming-hoof (\"Equine Grooming & Hoof Care\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-fence-wire-mesh",
+      "kind": "type_migration",
+      "v3TypeId": "fence-wire-mesh",
+      "targetNodeId": "fence-wire-mesh",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type fence-wire-mesh (\"Fence Wire & Mesh\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-fencing-tools",
+      "kind": "type_migration",
+      "v3TypeId": "fencing-tools",
+      "targetNodeId": "fencing-tools",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type fencing-tools (\"Fencing Tools & Accessories\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-firewood-kindling",
+      "kind": "type_migration",
+      "v3TypeId": "firewood-kindling",
+      "targetNodeId": "firewood-kindling",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type firewood-kindling (\"Firewood & Kindling\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-flea-tick-treatment",
+      "kind": "type_migration",
+      "v3TypeId": "flea-tick-treatment",
+      "targetNodeId": "flea-tick-treatment",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type flea-tick-treatment (\"Flea & Tick Treatment\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-fly-control-equine",
+      "kind": "type_migration",
+      "v3TypeId": "fly-control-equine",
+      "targetNodeId": "fly-control-equine",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type fly-control-equine (\"Equine Fly & Pest Control\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-fly-insect-control-livestock",
+      "kind": "type_migration",
+      "v3TypeId": "fly-insect-control-livestock",
+      "targetNodeId": "fly-insect-control-livestock",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type fly-insect-control-livestock (\"Fly & Pest Control for Livestock\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-garage-barn-heaters",
+      "kind": "type_migration",
+      "v3TypeId": "garage-barn-heaters",
+      "targetNodeId": "garage-barn-heaters",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type garage-barn-heaters (\"Garage & Barn Heaters\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-garden-hoses-reels",
+      "kind": "type_migration",
+      "v3TypeId": "garden-hoses-reels",
+      "targetNodeId": "garden-hoses-reels",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type garden-hoses-reels (\"Garden Hoses & Reels\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-goat-sheep-feed",
+      "kind": "type_migration",
+      "v3TypeId": "goat-sheep-feed",
+      "targetNodeId": "goat-sheep-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type goat-sheep-feed (\"Goat & Sheep Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-grass-seed",
+      "kind": "type_migration",
+      "v3TypeId": "grass-seed",
+      "targetNodeId": "grass-seed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type grass-seed (\"Grass Seed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-grooming",
+      "kind": "type_migration",
+      "v3TypeId": "grooming",
+      "targetNodeId": "grooming",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type grooming (\"Grooming\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-hand-tools",
+      "kind": "type_migration",
+      "v3TypeId": "hand-tools",
+      "targetNodeId": "hand-tools",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type hand-tools (\"Hand Garden Tools\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-heating-pellets-wood",
+      "kind": "type_migration",
+      "v3TypeId": "heating-pellets-wood",
+      "targetNodeId": "heating-pellets-wood",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type heating-pellets-wood (\"Heating Wood Pellets\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-horse-blankets-tack",
+      "kind": "type_migration",
+      "v3TypeId": "horse-blankets-tack",
+      "targetNodeId": "horse-blankets-tack",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type horse-blankets-tack (\"Horse Blankets & Tack\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-horse-feed",
+      "kind": "type_migration",
+      "v3TypeId": "horse-feed",
+      "targetNodeId": "horse-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type horse-feed (\"Horse Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-horse-treats-supplements",
+      "kind": "type_migration",
+      "v3TypeId": "horse-treats-supplements",
+      "targetNodeId": "horse-treats-supplements",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type horse-treats-supplements (\"Horse Treats & Supplements\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-insect-control",
+      "kind": "type_migration",
+      "v3TypeId": "insect-control",
+      "targetNodeId": "insect-control",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type insect-control (\"Insect & Pest Control\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-lawn-fertilizer",
+      "kind": "type_migration",
+      "v3TypeId": "lawn-fertilizer",
+      "targetNodeId": "lawn-fertilizer",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type lawn-fertilizer (\"Lawn Fertilizer\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-lawn-mowers",
+      "kind": "type_migration",
+      "v3TypeId": "lawn-mowers",
+      "targetNodeId": "lawn-mowers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type lawn-mowers (\"Lawn Mowers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-livestock-feeders",
+      "kind": "type_migration",
+      "v3TypeId": "livestock-feeders",
+      "targetNodeId": "livestock-feeders",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type livestock-feeders (\"Livestock Feeders\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-livestock-health-dewormers",
+      "kind": "type_migration",
+      "v3TypeId": "livestock-health-dewormers",
+      "targetNodeId": "livestock-health-dewormers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type livestock-health-dewormers (\"Livestock Health & Dewormers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-overalls-coveralls",
+      "kind": "type_migration",
+      "v3TypeId": "overalls-coveralls",
+      "targetNodeId": "overalls-coveralls",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type overalls-coveralls (\"Overalls & Coveralls\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-pet-beds",
+      "kind": "type_migration",
+      "v3TypeId": "pet-beds",
+      "targetNodeId": "pet-beds",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type pet-beds (\"Pet Beds\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-pig-swine-feed",
+      "kind": "type_migration",
+      "v3TypeId": "pig-swine-feed",
+      "targetNodeId": "pig-swine-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type pig-swine-feed (\"Pig & Swine Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-plant-food-fertilizer",
+      "kind": "type_migration",
+      "v3TypeId": "plant-food-fertilizer",
+      "targetNodeId": "plant-food-fertilizer",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type plant-food-fertilizer (\"Plant Food & Garden Fertilizer\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-potting-soil",
+      "kind": "type_migration",
+      "v3TypeId": "potting-soil",
+      "targetNodeId": "potting-soil",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type potting-soil (\"Potting Soil & Mulch\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-poultry-coops-equipment",
+      "kind": "type_migration",
+      "v3TypeId": "poultry-coops-equipment",
+      "targetNodeId": "poultry-coops-equipment",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type poultry-coops-equipment (\"Poultry Coops & Equipment\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-poultry-feed",
+      "kind": "type_migration",
+      "v3TypeId": "poultry-feed",
+      "targetNodeId": "poultry-feed",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type poultry-feed (\"Poultry Feed\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-power-tool-accessories",
+      "kind": "type_migration",
+      "v3TypeId": "power-tool-accessories",
+      "targetNodeId": "power-tool-accessories",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type power-tool-accessories (\"Power Tool Accessories\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-pressure-washers",
+      "kind": "type_migration",
+      "v3TypeId": "pressure-washers",
+      "targetNodeId": "pressure-washers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type pressure-washers (\"Pressure Washers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-propane-heaters",
+      "kind": "type_migration",
+      "v3TypeId": "propane-heaters",
+      "targetNodeId": "propane-heaters",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type propane-heaters (\"Propane Heaters\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-small-animal-feed-bedding",
+      "kind": "type_migration",
+      "v3TypeId": "small-animal-feed-bedding",
+      "targetNodeId": "small-animal-feed-bedding",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type small-animal-feed-bedding (\"Small Animal Feed & Bedding\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-sprinklers-nozzles",
+      "kind": "type_migration",
+      "v3TypeId": "sprinklers-nozzles",
+      "targetNodeId": "sprinklers-nozzles",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type sprinklers-nozzles (\"Sprinklers & Hose Nozzles\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-stall-mats-bedding",
+      "kind": "type_migration",
+      "v3TypeId": "stall-mats-bedding",
+      "targetNodeId": "stall-mats-bedding",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type stall-mats-bedding (\"Stall Mats & Bedding\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-stock-tanks-waterers",
+      "kind": "type_migration",
+      "v3TypeId": "stock-tanks-waterers",
+      "targetNodeId": "stock-tanks-waterers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type stock-tanks-waterers (\"Stock Tanks & Waterers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-stove-pipe-chimney-care",
+      "kind": "type_migration",
+      "v3TypeId": "stove-pipe-chimney-care",
+      "targetNodeId": "stove-pipe-chimney-care",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type stove-pipe-chimney-care (\"Stove Pipe & Chimney Care\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-string-trimmers-edgers",
+      "kind": "type_migration",
+      "v3TypeId": "string-trimmers-edgers",
+      "targetNodeId": "string-trimmers-edgers",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type string-trimmers-edgers (\"String Trimmers & Edgers\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-suet-cakes",
+      "kind": "type_migration",
+      "v3TypeId": "suet-cakes",
+      "targetNodeId": "suet-cakes",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type suet-cakes (\"Suet Cakes\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-supplements",
+      "kind": "type_migration",
+      "v3TypeId": "supplements",
+      "targetNodeId": "supplements",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type supplements (\"Supplements\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-t-posts-wooden-posts",
+      "kind": "type_migration",
+      "v3TypeId": "t-posts-wooden-posts",
+      "targetNodeId": "t-posts-wooden-posts",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type t-posts-wooden-posts (\"T-Posts & Wooden Fence Posts\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-tie-down-straps-chains",
+      "kind": "type_migration",
+      "v3TypeId": "tie-down-straps-chains",
+      "targetNodeId": "tie-down-straps-chains",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type tie-down-straps-chains (\"Tie-Down Straps & Chains\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-towing-couplers-jacks",
+      "kind": "type_migration",
+      "v3TypeId": "towing-couplers-jacks",
+      "targetNodeId": "towing-couplers-jacks",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type towing-couplers-jacks (\"Trailer Couplers & Jacks\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-trailer-hitches-balls",
+      "kind": "type_migration",
+      "v3TypeId": "trailer-hitches-balls",
+      "targetNodeId": "trailer-hitches-balls",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type trailer-hitches-balls (\"Trailer Hitches & Hitch Balls\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-trailer-lights-wiring",
+      "kind": "type_migration",
+      "v3TypeId": "trailer-lights-wiring",
+      "targetNodeId": "trailer-lights-wiring",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type trailer-lights-wiring (\"Trailer Lights & Wiring\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-weed-control",
+      "kind": "type_migration",
+      "v3TypeId": "weed-control",
+      "targetNodeId": "weed-control",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type weed-control (\"Weed Control\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-wild-bird-feeders",
+      "kind": "type_migration",
+      "v3TypeId": "wild-bird-feeders",
+      "targetNodeId": "wild-bird-feeders",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type wild-bird-feeders (\"Wild Bird Feeders\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-work-boots",
+      "kind": "type_migration",
+      "v3TypeId": "work-boots",
+      "targetNodeId": "work-boots",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type work-boots (\"Work Boots & Barn Boots\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-work-gloves",
+      "kind": "type_migration",
+      "v3TypeId": "work-gloves",
+      "targetNodeId": "work-gloves",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type work-gloves (\"Work Gloves\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "migration-workwear-outerwear",
+      "kind": "type_migration",
+      "v3TypeId": "workwear-outerwear",
+      "targetNodeId": "workwear-outerwear",
+      "disposition": "preserve_as_node",
+      "rationale": "v3 type workwear-outerwear (\"Workwear Outerwear\") promoted 1:1 into the canonical hierarchy as leaf node."
+    },
+    {
+      "id": "profile-map-air-compressors-hoses-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "air-compressors-hoses-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-bee-supplies-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "bee-supplies-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-bird-food-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "bird-food-profile",
+      "v4ProfileId": "profile-wild-bird",
+      "v3Fingerprint": "95fa1b02fa3657de968e38a2",
+      "v4Fingerprint": "95fa1b02fa3657de968e38a2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-bird-houses-baths-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "bird-houses-baths-profile",
+      "v4ProfileId": "profile-wild-bird",
+      "v3Fingerprint": "95fa1b02fa3657de968e38a2",
+      "v4Fingerprint": "95fa1b02fa3657de968e38a2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cat-food-dry-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cat-food-dry-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cat-food-wet-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cat-food-wet-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cat-litter-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cat-litter-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cat-toys-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cat-toys-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cat-treats-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cat-treats-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-cattle-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "cattle-feed-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-chainsaws-log-splitters-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "chainsaws-log-splitters-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-collars-leashes-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "collars-leashes-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-coop-barn-heat-lamps-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "coop-barn-heat-lamps-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-corral-panels-gates-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "corral-panels-gates-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-deer-wildlife-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "deer-wildlife-feed-profile",
+      "v4ProfileId": "profile-wild-bird",
+      "v3Fingerprint": "95fa1b02fa3657de968e38a2",
+      "v4Fingerprint": "95fa1b02fa3657de968e38a2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-crates-kennels-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-crates-kennels-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-food-dry-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-food-dry-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-food-wet-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-food-wet-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-toys-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-toys-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-treats-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-treats-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-dog-waste-bags-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "dog-waste-bags-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-electric-fence-chargers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "electric-fence-chargers-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-electric-fence-insulators-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "electric-fence-insulators-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-equine-grooming-hoof-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "equine-grooming-hoof-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-fence-wire-mesh-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "fence-wire-mesh-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-fencing-tools-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "fencing-tools-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-firewood-kindling-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "firewood-kindling-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-flea-tick-treatment-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "flea-tick-treatment-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-fly-control-equine-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "fly-control-equine-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-fly-insect-control-livestock-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "fly-insect-control-livestock-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-garage-barn-heaters-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "garage-barn-heaters-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-garden-hoses-reels-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "garden-hoses-reels-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-goat-sheep-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "goat-sheep-feed-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-grass-seed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "grass-seed-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-grooming-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "grooming-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-hand-tools-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "hand-tools-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-heating-pellets-wood-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "heating-pellets-wood-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-horse-blankets-tack-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "horse-blankets-tack-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-horse-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "horse-feed-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-horse-treats-supplements-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "horse-treats-supplements-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-insect-control-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "insect-control-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-lawn-fertilizer-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "lawn-fertilizer-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-lawn-mowers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "lawn-mowers-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-livestock-feeders-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "livestock-feeders-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-livestock-health-dewormers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "livestock-health-dewormers-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-overalls-coveralls-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "overalls-coveralls-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-pet-beds-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "pet-beds-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-pig-swine-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "pig-swine-feed-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-plant-food-fertilizer-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "plant-food-fertilizer-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-potting-soil-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "potting-soil-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-poultry-coops-equipment-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "poultry-coops-equipment-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-poultry-feed-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "poultry-feed-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-power-tool-accessories-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "power-tool-accessories-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-pressure-washers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "pressure-washers-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-propane-heaters-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "propane-heaters-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-small-animal-feed-bedding-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "small-animal-feed-bedding-profile",
+      "v4ProfileId": "profile-livestock-feed",
+      "v3Fingerprint": "a2f813419160384ea218e320",
+      "v4Fingerprint": "a2f813419160384ea218e320",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-sprinklers-nozzles-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "sprinklers-nozzles-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-stall-mats-bedding-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "stall-mats-bedding-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-stock-tanks-waterers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "stock-tanks-waterers-profile",
+      "v4ProfileId": "profile-livestock-equipment",
+      "v3Fingerprint": "f2fe961f98967fc34797c5e2",
+      "v4Fingerprint": "f2fe961f98967fc34797c5e2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-stove-pipe-chimney-care-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "stove-pipe-chimney-care-profile",
+      "v4ProfileId": "profile-heating",
+      "v3Fingerprint": "aafba1797b40739564c6b76d",
+      "v4Fingerprint": "aafba1797b40739564c6b76d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-string-trimmers-edgers-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "string-trimmers-edgers-profile",
+      "v4ProfileId": "profile-power-equipment",
+      "v3Fingerprint": "de7047634717db39570531c1",
+      "v4Fingerprint": "de7047634717db39570531c1",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-suet-cakes-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "suet-cakes-profile",
+      "v4ProfileId": "profile-wild-bird",
+      "v3Fingerprint": "95fa1b02fa3657de968e38a2",
+      "v4Fingerprint": "95fa1b02fa3657de968e38a2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-supplements-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "supplements-profile",
+      "v4ProfileId": "profile-pet-food",
+      "v3Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "v4Fingerprint": "186e9f6ad0b1a908d38ea766",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-t-posts-wooden-posts-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "t-posts-wooden-posts-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-tie-down-straps-chains-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "tie-down-straps-chains-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-towing-couplers-jacks-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "towing-couplers-jacks-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-trailer-hitches-balls-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "trailer-hitches-balls-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-trailer-lights-wiring-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "trailer-lights-wiring-profile",
+      "v4ProfileId": "profile-fencing-towing",
+      "v3Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "v4Fingerprint": "d9dafc136517b8afea4b2e0f",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-weed-control-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "weed-control-profile",
+      "v4ProfileId": "profile-garden",
+      "v3Fingerprint": "3828878b02495b1456d6839d",
+      "v4Fingerprint": "3828878b02495b1456d6839d",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-wild-bird-feeders-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "wild-bird-feeders-profile",
+      "v4ProfileId": "profile-wild-bird",
+      "v3Fingerprint": "95fa1b02fa3657de968e38a2",
+      "v4Fingerprint": "95fa1b02fa3657de968e38a2",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-work-boots-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "work-boots-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-work-gloves-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "work-gloves-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    },
+    {
+      "id": "profile-map-workwear-outerwear-profile",
+      "kind": "profile_map",
+      "v3ProfileId": "workwear-outerwear-profile",
+      "v4ProfileId": "profile-accessories",
+      "v3Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "v4Fingerprint": "4b418c5e4f8937014a6e67bc",
+      "equivalent": true
+    }
+  ]
+}

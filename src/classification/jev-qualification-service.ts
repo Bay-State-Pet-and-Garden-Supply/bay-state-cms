@@ -39,7 +39,12 @@ import { FAMILY_SEPARATION_PROOF_VERSION } from './benchmark-exporter';
 import {
   qualificationTaxonomiesFromFrozenSnapshot,
   qualificationApplicableTargetIds,
+  isRawQualificationEntryEligible,
+  type QualificationFieldAssignment,
 } from './benchmark-prediction';
+// Shipped single-Choice probability floor (single definition site — the
+// scorer reuses it, never reimplements): coded abstentions below it prove nothing.
+import { JEV_ATTRIBUTE_MIN_PROBABILITY } from './attribute-decision';
 import type {
   CompatibilityReceipt,
   FamilySeparationProof,
@@ -52,7 +57,7 @@ export interface QualificationGoldEntry extends QualificationGoldCore {
     productType: string | null;
     abstained: boolean;
     abstentionCode?: string | null;
-    fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
+    fieldAssignments: Array<QualificationFieldAssignment>;
     pageIds: string[];
     confidence: number;
     /** Blocked-side code carried from executed predictions (null when unblocked). */
@@ -64,7 +69,7 @@ export interface QualificationGoldEntry extends QualificationGoldCore {
     productType: string | null;
     abstained: boolean;
     abstentionCode?: string | null;
-    fieldAssignments: Array<{ targetId: string; value?: string; values?: string[] }>;
+    fieldAssignments: Array<QualificationFieldAssignment>;
     pageIds: string[];
     confidence: number;
     /** Blocked-side code carried from executed predictions (null when unblocked). */
@@ -94,6 +99,18 @@ export interface QualificationGoldset {
   entries: QualificationGoldEntry[];
 }
 
+/**
+ * Additive per-stage evaluation status (presentation contract): when no gold
+ * is eligible the measured percents would read as a 0%-wrong failure, so the
+ * CLI prints `not evaluated`/`n/a` instead. Legacy numerics are preserved
+ * byte-for-byte; gates never consult this block (empty gold cannot qualify).
+ */
+export interface StageEvaluationStatus {
+  eligible: number;
+  unevaluated: number;
+  status: 'measured' | 'not_evaluated';
+}
+
 export interface StageMetricComparison {
   rawCorrectness: { baseline: number; candidate: number; delta: number };
   coverage: { baseline: number; candidate: number; delta: number };
@@ -101,6 +118,7 @@ export interface StageMetricComparison {
   harmfulRegressions: number;
   recoveredAbstentions: number;
   serviceFailures: { baseline: number; candidate: number };
+  evaluation: StageEvaluationStatus;
 }
 
 export interface SetMetricComparison {
@@ -163,6 +181,7 @@ interface JevComparisonAccumulator {
   ptRecovered: number;
   ptBaseFailures: number;
   ptCandFailures: number;
+  ptUnevaluated: number;
   attrBaseCorrect: number;
   attrCandCorrect: number;
   attrBaseAnswered: number;
@@ -178,6 +197,7 @@ interface JevComparisonAccumulator {
   totalAttrPrecCand: number;
   totalAttrRecCand: number;
   attrEvaluatedCount: number;
+  attrUnevaluated: number;
   totalAttrInstances: number;
   pageBaseExactMatches: number;
   pageCandExactMatches: number;
@@ -192,6 +212,7 @@ interface JevComparisonAccumulator {
   totalPagePrecCand: number;
   totalPageRecCand: number;
   pageEvaluatedCount: number;
+  pageUnevaluated: number;
   baseLatencies: number[];
   candLatencies: number[];
   baseTotalCost: number;
@@ -210,8 +231,9 @@ function emptyJevComparisonAccumulator(): JevComparisonAccumulator {
     ptCandIncorrect: 0,
     ptRegressions: 0,
     ptRecovered: 0,
-    ptBaseFailures: 0,
-    ptCandFailures: 0,
+  ptBaseFailures: 0,
+  ptCandFailures: 0,
+  ptUnevaluated: 0,
     attrBaseCorrect: 0,
     attrCandCorrect: 0,
     attrBaseAnswered: 0,
@@ -226,8 +248,9 @@ function emptyJevComparisonAccumulator(): JevComparisonAccumulator {
     totalAttrRecBase: 0,
     totalAttrPrecCand: 0,
     totalAttrRecCand: 0,
-    attrEvaluatedCount: 0,
-    totalAttrInstances: 0,
+  attrEvaluatedCount: 0,
+  attrUnevaluated: 0,
+  totalAttrInstances: 0,
     pageBaseExactMatches: 0,
     pageCandExactMatches: 0,
     pageBaseAnswered: 0,
@@ -240,8 +263,9 @@ function emptyJevComparisonAccumulator(): JevComparisonAccumulator {
     totalPageRecBase: 0,
     totalPagePrecCand: 0,
     totalPageRecCand: 0,
-    pageEvaluatedCount: 0,
-    baseLatencies: [],
+  pageEvaluatedCount: 0,
+  pageUnevaluated: 0,
+  baseLatencies: [],
     candLatencies: [],
     baseTotalCost: 0,
     candTotalCost: 0,
@@ -313,7 +337,10 @@ function accumulateJevProductTypeStage(
   const cand = entry.candidate;
   if (base.failureCode) acc.ptBaseFailures++;
   if (cand.failureCode) acc.ptCandFailures++;
-  if (goldPt.kind === 'unlabeled') return;
+  if (goldPt.kind === 'unlabeled') {
+    acc.ptUnevaluated++;
+    return;
+  }
   const isBaseAnswered = !base.abstained && base.productType !== null;
   const isCandAnswered = !cand.abstained && cand.productType !== null;
   tallyJevProductTypeAnswered(acc, isBaseAnswered, isCandAnswered);
@@ -329,6 +356,77 @@ function attributeValueSetsOf(
   assignments: Array<{ targetId: string; value?: string; values?: string[] }>,
 ): Map<string, Set<string>> {
   return new Map(assignments.map(f => [f.targetId, parseValueSet(f.value ?? f.values ?? [])]));
+}
+
+/** Normalize a qualification field gold state (`not_applicable` → `inapplicable`). */
+function jevFieldStateOf(entry: QualificationGoldEntry, targetId: string): string | null {
+  const raw = (entry.gold.fieldAssignments.find(f => f.targetId === targetId) as { state?: unknown } | undefined)?.state;
+  if (typeof raw !== 'string') return null;
+  const token = raw.trim().toLowerCase().replace(/_/g, '-');
+  if (token === 'not-applicable' || token === 'na' || token === 'notapplicable') return 'inapplicable';
+  return token;
+}
+
+/** True for field states excluded from scoring (never correct/incorrect). */
+function isJevFieldExcluded(state: string | null, hasGoldValue: boolean): boolean {
+  if (state === 'inapplicable' || state === 'unlabeled') return true;
+  return state === null && !hasGoldValue;
+}
+
+/** True for field states expecting abstention (empty prediction is correct). */
+function expectsJevFieldAbstention(state: string | null): boolean {
+  return state === 'no-fit' || state === 'insufficient-evidence';
+}
+
+/** Expected semantic-abstention code for a no-fit / insufficient-evidence field target. */
+function expectedJevFieldAbstentionCode(state: string | null): string | null {
+  if (state === 'no-fit') return 'no_match';
+  if (state === 'insufficient-evidence') return 'insufficient_evidence';
+  return null;
+}
+
+/**
+ * Coded semantic-abstention proof for one side/target. An empty value set is
+ * NOT enough: the side must carry `outcome: 'abstained-semantic'` with the
+ * MATCHING code at or above the shipped Choice floor, and must not have
+ * failed. Wrong codes, uncoded abstentions, below-floor probabilities,
+ * refusals (`unresolved`, incl. Noul — which has no explicit proof by
+ * construction), and service failures are never correct.
+ */
+function hasJevFieldAbstentionProof(
+  side: QualificationGoldEntry['baseline'],
+  targetId: string,
+  expectedCode: string,
+): boolean {
+  if (side.failureCode) return false;
+  const assignment = side.fieldAssignments.find(f => f.targetId === targetId);
+  if (!assignment || assignment.outcome !== 'abstained-semantic') return false;
+  if (assignment.abstentionCode !== expectedCode) return false;
+  if (typeof assignment.probability !== 'number' || assignment.probability < JEV_ATTRIBUTE_MIN_PROBABILITY) {
+    return false;
+  }
+  return true;
+}
+
+/** True when a side asserted at least one concrete value (proof-only entries don't count as answered). */
+function hasJevFieldValues(assignments: Array<QualificationFieldAssignment>): boolean {
+  return assignments.some(f =>
+    (typeof f.value === 'string' && f.value.length > 0) ||
+    (Array.isArray(f.values) && f.values.length > 0),
+  );
+}
+
+/** True when page gold is eligible (known-complete labels or known-empty; never unknown/partial). */
+function isJevPageGoldEligible(entry: QualificationGoldEntry): boolean {
+  const pages = entry.gold.categoryPages as { state?: string | null; completeness?: string | null; pageIds?: string[]; pageAssignments?: unknown[] };
+  const empty = (pages.pageIds ?? []).length === 0 && (pages.pageAssignments ?? []).length === 0;
+  const state = typeof pages.state === 'string' ? pages.state.trim().toLowerCase().replace(/_/g, '-') : null;
+  const completeness = typeof pages.completeness === 'string' ? pages.completeness.trim().toLowerCase().replace(/_/g, '-') : null;
+  if (state === 'unknown' || state === 'partial' || state === 'unlabeled') return false;
+  if (completeness === 'partial' || completeness === 'unknown') return false;
+  if (!empty) return true;
+  if (state === null && completeness === null) return false;
+  return (state === null || state === 'known') && (completeness === null || completeness === 'complete');
 }
 
 /** Score one attribute target's base/candidate sets (legacy argument order kept). */
@@ -407,11 +505,11 @@ function resolveJevAttributeApplicableIds(
   entry: QualificationGoldEntry,
   frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null,
 ): string[] | null {
-  if (entry.gold.productType.kind === 'unlabeled') return null;
+  const typeUnlabeled = entry.gold.productType.kind === 'unlabeled';
   const predictedIds = new Set<string>();
   for (const f of entry.baseline.fieldAssignments) predictedIds.add(f.targetId);
   for (const f of entry.candidate.fieldAssignments) predictedIds.add(f.targetId);
-  if (frozenTaxonomies) {
+  if (frozenTaxonomies && !typeUnlabeled) {
     try {
       const goldEffectiveTypeId = entry.gold.productType.kind === 'known-type'
         ? entry.gold.productType.typeId
@@ -446,8 +544,10 @@ function accumulateJevAttributeStage(
   frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null = null,
 ): void {
   const applicableIds = resolveJevAttributeApplicableIds(entry, frozenTaxonomies);
-  if (applicableIds === null) return;
-  if (applicableIds.length === 0) return;
+  if (applicableIds === null || applicableIds.length === 0) {
+    acc.attrUnevaluated++;
+    return;
+  }
   acc.attrEvaluatedCount++;
   const goldAttrMap = attributeValueSetsOf(entry.gold.fieldAssignments);
   const baseAttrMap = attributeValueSetsOf(entry.baseline.fieldAssignments);
@@ -455,13 +555,38 @@ function accumulateJevAttributeStage(
   let allBaseFieldsCorrect = true;
   let allCandFieldsCorrect = true;
   for (const targetId of applicableIds) {
+    const state = jevFieldStateOf(entry, targetId);
     const goldSet = goldAttrMap.get(targetId) ?? new Set<string>();
-    const { baseExact, candExact } = scoreJevAttributeTarget(
+    const baseSet = baseAttrMap.get(targetId) ?? new Set<string>();
+    const candSet = candAttrMap.get(targetId) ?? new Set<string>();
+    if (isJevFieldExcluded(state, goldSet.size > 0)) {
+      // Explicitly inapplicable/unlabeled (or legacy double-absent): excluded
+      // from all-correct scoring, but extras still tally set-metric slots so
+      // false positives stay visible as precision loss (legacy parity).
+      scoreJevAttributeTarget(acc, goldSet, baseSet, candSet);
+      continue;
+    }
+    let baseExact: boolean;
+    let candExact: boolean;
+    if (expectsJevFieldAbstention(state)) {
+      // No-fit/insufficient-evidence: ONLY coded semantic-abstention proof at
+      // sufficient probability is correct — an empty set alone proves nothing.
+      const expectedCode = expectedJevFieldAbstentionCode(state)!;
+      scoreJevAttributeTarget(acc, goldSet, baseSet, candSet);
+      baseExact = hasJevFieldAbstentionProof(entry.baseline, targetId, expectedCode);
+      candExact = hasJevFieldAbstentionProof(entry.candidate, targetId, expectedCode);
+      if (!baseExact) allBaseFieldsCorrect = false;
+      if (!candExact) allCandFieldsCorrect = false;
+      continue;
+    }
+    const scored = scoreJevAttributeTarget(
       acc,
       goldSet,
-      baseAttrMap.get(targetId) ?? new Set<string>(),
-      candAttrMap.get(targetId) ?? new Set<string>(),
+      baseSet,
+      candSet,
     );
+    baseExact = scored.baseExact;
+    candExact = scored.candExact;
     if (!baseExact) allBaseFieldsCorrect = false;
     if (!candExact) allCandFieldsCorrect = false;
   }
@@ -469,8 +594,8 @@ function accumulateJevAttributeStage(
     acc,
     allBaseFieldsCorrect,
     allCandFieldsCorrect,
-    entry.baseline.fieldAssignments.length > 0,
-    entry.candidate.fieldAssignments.length > 0,
+    hasJevFieldValues(entry.baseline.fieldAssignments),
+    hasJevFieldValues(entry.candidate.fieldAssignments),
   );
 }
 
@@ -508,18 +633,27 @@ function tallyJevPageSideOutcome(
   }
 }
 
-/** Score the category-pages comparison for one entry (skipped without gold ids). */
+/**
+ * Score the category-pages comparison for one entry. Only explicitly
+ * known-complete page gold is evaluated (partial/unknown never known-empty;
+ * explicit known-empty IS evaluated — predicted extras are incorrect, not
+ * skipped). Service failures are separate: a failed side is never exact,
+ * even when both sets are empty.
+ */
 function accumulateJevPageStage(
   acc: JevComparisonAccumulator,
   entry: QualificationGoldEntry,
 ): void {
-  if (entry.gold.categoryPages.pageIds.length === 0) return;
+  if (!isJevPageGoldEligible(entry)) {
+    acc.pageUnevaluated++;
+    return;
+  }
   acc.pageEvaluatedCount++;
   const goldPageSet = new Set(entry.gold.categoryPages.pageIds);
   const basePageSet = new Set(entry.baseline.pageIds);
   const candPageSet = new Set(entry.candidate.pageIds);
-  const baseExact = scoreJevPageSide(acc, goldPageSet, basePageSet, true);
-  const candExact = scoreJevPageSide(acc, goldPageSet, candPageSet, false);
+  const baseExact = scoreJevPageSide(acc, goldPageSet, basePageSet, true) && !entry.baseline.failureCode;
+  const candExact = scoreJevPageSide(acc, goldPageSet, candPageSet, false) && !entry.candidate.failureCode;
   const baseAnswered = basePageSet.size > 0;
   const candAnswered = candPageSet.size > 0;
   if (baseAnswered) acc.pageBaseAnswered++;
@@ -601,6 +735,33 @@ function jevProductTypeAccuracies(
   };
 }
 
+/** Evaluation status from actual eligible/unevaluated counts (0 eligible = not evaluated, never 0%-wrong). */
+function stageEvaluationStatus(eligible: number, unevaluated: number): StageEvaluationStatus {
+  return { eligible, unevaluated, status: eligible > 0 ? 'measured' : 'not_evaluated' };
+}
+
+/**
+ * Presentation text for one stage's evaluation status (pure; the CLI prints
+ * this instead of misleading 0.0% lines when nothing was completely
+ * adjudicated). Gates never consult it.
+ */
+export function evaluationStatusText(evaluation: StageEvaluationStatus, completeUnit: string): string {
+  if (evaluation.status === 'measured') {
+    return `measured over ${evaluation.eligible} eligible ${completeUnit} (${evaluation.unevaluated} unevaluated)`;
+  }
+  return `not evaluated (${evaluation.eligible} complete adjudicated ${completeUnit})`;
+}
+
+/** Measured percent, or an unambiguous `n/a` when the stage was not evaluated. */
+export function measuredPercent(value: number, evaluation: StageEvaluationStatus): string {
+  return evaluation.status === 'measured' ? `${(value * 100).toFixed(1)}%` : 'n/a';
+}
+
+/** Measured unit-interval score, or `n/a` when there is no eligible gold. */
+export function measuredScore(value: number, evaluation: StageEvaluationStatus): string {
+  return evaluation.status === 'measured' ? value.toFixed(3) : 'n/a';
+}
+
 /** Product-type stage report (raw correctness, coverage, errors, failures). */
 function buildJevProductTypeReport(
   acc: JevComparisonAccumulator,
@@ -608,6 +769,7 @@ function buildJevProductTypeReport(
 ): JevOfflineComparisonReport['productType'] {
   const { base, candidate } = jevProductTypeAccuracies(acc, total);
   return {
+    evaluation: stageEvaluationStatus(total, acc.ptUnevaluated),
     rawCorrectness: {
       baseline: Number(base.toFixed(4)),
       candidate: Number(candidate.toFixed(4)),
@@ -641,6 +803,7 @@ function buildJevAttributesReport(
   const base = averageJevSetMetrics(acc.totalAttrPrecBase, acc.totalAttrRecBase, slots);
   const cand = averageJevSetMetrics(acc.totalAttrPrecCand, acc.totalAttrRecCand, slots);
   return {
+    evaluation: stageEvaluationStatus(evaluated, acc.attrUnevaluated),
     rawCorrectness: {
       baseline: Number((acc.attrBaseCorrect / (evaluated || 1)).toFixed(4)),
       candidate: Number((acc.attrCandCorrect / (evaluated || 1)).toFixed(4)),
@@ -722,6 +885,7 @@ function buildJevCategoryPagesReport(
   const base = averageJevSetMetrics(acc.totalPagePrecBase, acc.totalPageRecBase, slots);
   const cand = averageJevSetMetrics(acc.totalPagePrecCand, acc.totalPageRecCand, slots);
   return {
+    evaluation: stageEvaluationStatus(evaluated, acc.pageUnevaluated),
     rawCorrectness: {
       baseline: Number((acc.pageBaseExactMatches / (evaluated || 1)).toFixed(4)),
       candidate: Number((acc.pageCandExactMatches / (evaluated || 1)).toFixed(4)),
@@ -787,6 +951,19 @@ function buildJevPipelineInputs(
       pageAssignments: e.gold.categoryPages.pageAssignments,
       verifiedImportProvenance: goldset.verifiedPageImport?.provenance ?? null,
     },
+    // Full adjudication context per row: the pipeline scorer skips
+    // partial/unknown/unlabeled pages and unlabeled/inapplicable targets
+    // (never exact-match, never correct) instead of misreading bare sets.
+    // Legacy rows without markers stay legacy (null); only explicit markers
+    // engage the strict qualification path.
+    goldState: e.gold.productType.kind === 'known-type' ? 'known' as const
+      : e.gold.productType.kind === 'unlabeled' ? 'unlabeled' as const
+      : e.gold.productType.kind === 'no-fit' || e.gold.productType.kind === 'insufficient-evidence'
+        ? e.gold.productType.kind
+        : null,
+    fieldGoldStates: jevGateFieldGoldStates(e),
+    pageGoldState: e.gold.categoryPages.state ?? null,
+    pageCompleteness: e.gold.categoryPages.completeness ?? null,
   }));
 
   const typePreds: BenchmarkPredictionEntry[] = entries.map(e => ({
@@ -798,6 +975,7 @@ function buildJevPipelineInputs(
     pageAssignments: [],
     fieldAssignments: [],
     claimTargets: [],
+    ...jevPipelineFailureMarker(e.candidate.failureCode),
   }));
 
   const attrPreds: BenchmarkPredictionEntry[] = entries.map(e => ({
@@ -807,12 +985,19 @@ function buildJevPipelineInputs(
     abstained: e.candidate.abstained,
     confidence: e.candidate.confidence,
     pageAssignments: [],
+    // Raw-outcome proof shapes ride through structurally (never reinterpreted
+    // here): the pipeline scorer credits no-fit/insufficient-evidence only on
+    // coded abstained-semantic proof at sufficient probability.
     fieldAssignments: e.candidate.fieldAssignments.map(f => ({
       targetId: f.targetId,
       value: f.value ?? null,
       values: f.values ?? (f.value ? [f.value] : []),
-    })),
+      outcome: f.outcome ?? null,
+      abstentionCode: f.abstentionCode ?? null,
+      probability: f.probability ?? null,
+    })) as BenchmarkPredictionEntry['fieldAssignments'],
     claimTargets: [],
+    ...jevPipelineFailureMarker(e.candidate.failureCode),
   }));
 
   const pagePreds: BenchmarkPredictionEntry[] = entries.map(e => ({
@@ -825,9 +1010,15 @@ function buildJevPipelineInputs(
     abstained: e.candidate.abstained,
     confidence: e.candidate.confidence,
     claimTargets: [],
+    ...jevPipelineFailureMarker(e.candidate.failureCode),
   }));
 
   return { goldForEffects, typePreds, attrPreds, pagePreds };
+}
+
+/** Failure marker for pipeline prediction rows (absent when unfailed; failures never earn correctness). */
+function jevPipelineFailureMarker(code: string | null | undefined): { failureCode?: string | null } {
+  return code ? { failureCode: code } : {};
 }
 
 export function evaluateJevOfflineComparison(
@@ -891,10 +1082,15 @@ export function evaluateJevOfflineComparison(
 /** Reuse the conservative raw benchmark gate; operational sign-offs cannot replace statistical support. */
 export function evaluateJevQualificationGate(goldset: QualificationGoldset, options: Pick<QualificationGateOptions,
   'predictionSource' | 'bundleVersion' | 'snapshotMatched'> & { pairedSeedDigest?: string } = {}): QualificationResult {
-  const entries = goldset.entries.filter(entry => entry.split === 'holdout' && entry.gold.productType.kind !== 'unlabeled');
+  const holdout = goldset.entries.filter(entry => entry.split === 'holdout');
+  const entries = holdout.filter(isRawQualificationEntryEligible);
+  const ineligibleCount = holdout.length - entries.length;
   const inputs = buildJevPipelineInputs(entries, goldset);
   const gold = inputs.goldForEffects.map((example, index) => ({ ...example,
     goldState: entries[index].gold.productType.kind === 'known-type' ? 'known' as const : entries[index].gold.productType.kind as 'no-fit' | 'insufficient-evidence',
+    fieldGoldStates: jevGateFieldGoldStates(entries[index]),
+    pageGoldState: entries[index].gold.categoryPages.state ?? null,
+    pageCompleteness: entries[index].gold.categoryPages.completeness ?? null,
   }));
   const predictions = inputs.typePreds.map((prediction, index) => ({ ...prediction,
     fieldAssignments: inputs.attrPreds[index].fieldAssignments, pageIds: inputs.pagePreds[index].pageIds,
@@ -915,9 +1111,34 @@ export function evaluateJevQualificationGate(goldset: QualificationGoldset, opti
     candidate: isJevProductTypeCorrect(entry.gold.productType, entry.candidate) ? 1 : 0,
     baseline: isJevProductTypeCorrect(entry.gold.productType, entry.baseline) ? 1 : 0,
   })), options.pairedSeedDigest ?? goldset.frozenTaxonomy?.snapshotHash ?? 'jev-raw-holdout') };
-  return evaluateQualificationGate(metrics, entries.length, { predictionSource: options.predictionSource,
+  const result = evaluateQualificationGate(metrics, holdout.length, { predictionSource: options.predictionSource,
     bundleVersion: options.bundleVersion, snapshotMatched: options.snapshotMatched ?? false, labeledSupport: entries.length,
     primaryMetric, failureCount: entries.filter(entry => entry.candidate.failureCode || entry.baseline.failureCode).length });
+  if (ineligibleCount > 0) {
+    return {
+      ...result,
+      qualified: false,
+      reasons: [...result.reasons, `incomplete_gold_contract: ${ineligibleCount} holdout entr${ineligibleCount === 1 ? 'y is' : 'ies are'} not raw-eligible (unlabeled type, unknown/partial pages, or missing adjudication markers) and cannot qualify`],
+    };
+  }
+  return result;
+}
+
+/** Per-target field states for gate metrics (not_applicable normalizes to inapplicable). */
+function jevGateFieldGoldStates(entry: QualificationGoldEntry): Record<string, 'known' | 'no-fit' | 'insufficient-evidence' | 'inapplicable' | 'unlabeled'> | null {
+  const states: Record<string, 'known' | 'no-fit' | 'insufficient-evidence' | 'inapplicable' | 'unlabeled'> = {};
+  for (const field of entry.gold.fieldAssignments) {
+    const raw = (field as { state?: unknown }).state;
+    if (typeof raw !== 'string') continue;
+    const token = raw.trim().toLowerCase().replace(/_/g, '-');
+    if (token === 'not-applicable' || token === 'na' || token === 'notapplicable') states[field.targetId] = 'inapplicable';
+    else if (token === 'known' || token === 'known-type' || token === 'known-value') states[field.targetId] = 'known';
+    else if (token === 'no-fit' || token === 'no-fitting-type' || token === 'no-fit-type' || token === 'nofit' || token === 'no-fitting') states[field.targetId] = 'no-fit';
+    else if (token === 'insufficient-evidence' || token === 'insufficientevidence') states[field.targetId] = 'insufficient-evidence';
+    else if (token === 'inapplicable') states[field.targetId] = 'inapplicable';
+    else if (token === 'unlabeled' || token === 'unlabelled') states[field.targetId] = 'unlabeled';
+  }
+  return Object.keys(states).length > 0 ? states : null;
 }
 
 export interface ProductionQualificationBlocker {

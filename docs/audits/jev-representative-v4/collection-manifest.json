@@ -1,0 +1,126 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "taxonomyPath": "docs/audits/jev-representative-v4/taxonomy.json",
+  "taxonomyFileHash": "7f622d890ad3cb88178000d96e271ee3dfc9f2c6a4bb0fc323c30f2dbeea6ec9",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "ruffwear.com:sitemap-locs": 327,
+      "ruffwear.com:sitemap-children": 2,
+      "ruffwear.com:sitemap-urls": 322,
+      "ruffwear.com:feed-rows": 0,
+      "ruffwear.com:feed-unverified": 144,
+      "ruffwear.com:fetch-queued": 144,
+      "excludedNonProduct": 133,
+      "ruffwear.com:page-rows": 13,
+      "earthrated.com:sitemap-locs": 686,
+      "earthrated.com:sitemap-children": 7,
+      "earthrated.com:sitemap-urls": 600,
+      "earthrated.com:feed-rows": 0,
+      "earthrated.com:feed-unverified": 17,
+      "earthrated.com:fetch-queued": 17,
+      "earthrated.com:page-rows": 16,
+      "zippypaws.com:sitemap-locs": 818,
+      "zippypaws.com:sitemap-children": 5,
+      "zippypaws.com:sitemap-urls": 600,
+      "zippypaws.com:feed-miss": 1,
+      "zippypaws.com:feed-rows": 0,
+      "zippypaws.com:feed-unverified": 0,
+      "zippypaws.com:fetch-queued": 0,
+      "zippypaws.com:page-rows": 0,
+      "petsafe.com:sitemap-miss": 1,
+      "petsafe.com:sitemap-urls": 0,
+      "petsafe.com:feed-miss": 1,
+      "petsafe.com:feed-rows": 0,
+      "petsafe.com:feed-unverified": 0,
+      "petsafe.com:fetch-queued": 0,
+      "petsafe.com:page-rows": 0,
+      "merrickpetcare.com:sitemap-locs": 336,
+      "merrickpetcare.com:sitemap-children": 1,
+      "merrickpetcare.com:sitemap-urls": 335,
+      "merrickpetcare.com:feed-miss": 1,
+      "merrickpetcare.com:feed-rows": 0,
+      "merrickpetcare.com:feed-unverified": 0,
+      "merrickpetcare.com:fetch-queued": 1,
+      "merrickpetcare.com:page-rows": 0,
+      "pennington.com:sitemap-locs": 679,
+      "pennington.com:sitemap-urls": 600,
+      "pennington.com:feed-miss": 1,
+      "pennington.com:feed-rows": 0,
+      "pennington.com:feed-unverified": 0,
+      "pennington.com:fetch-queued": 0,
+      "pennington.com:page-rows": 0
+    }
+  },
+  "attempts": {
+    "used": 208,
+    "cap": 302,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 208,
+      "totalSourceAttempts": 1693,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1693,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 28,
+    "devPrimary": 23,
+    "devSupplemental": 1,
+    "holdoutFamilies": 5,
+    "holdoutRows": 5
+  },
+  "commitments": {
+    "bankHash": "0b5465c87660d735509f8a48311f24b1580305d6f0b391ad5b2397bf523d9b25",
+    "holdoutHash": "1cb37b686b2e33c7cd2cd8e45e562b1c57f36897af7f536a6dbe64b3cb59f6d0",
+    "memberHash": "52001c08117083ee6b1baccd947d4aeee7721afd30ad07c424a569d505077912",
+    "ledgerHash": "df4f4a903ae51a23a6d84c7dd42cfabb9bd34d2df1136920f4fdd5880427cfde",
+    "cumulativeHash": "4088bd9369960b97bc204197601e7dff52fb8740ef81b9163e6b3181a73fba44",
+    "devHash": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1",
+    "devSuppHash": "7cca68efc7074b019a48172b3e3db0937bd2872a1059150a916c919f0481f801"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  },
+  "authorityAnchor": {
+    "v3ManifestAuthorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+    "taxonomyBytesIdenticalToV3": true,
+    "note": "v4 taxonomy.json is a byte copy of v3 taxonomy.json; authorityHash corrected to the exact {bundle, pages, binding-minus-capturedAt} domain (see authorityCorrection)"
+  },
+  "authorityCorrection": {
+    "reason": "authority_hash_domain_correction",
+    "oldRecordedHash": "5879c9221631d086f92f4c2c411320c91b1c996b625e918e1eb2081e0326fce3",
+    "oldErroneousDomain": "canonical JSON of whole taxonomy file including observation-time capturedAt",
+    "correctedDomain": "{bundle, pages, binding-minus-capturedAt} via recomputeTaxonomyAuthorityHash",
+    "correctedAt": "2026-10-05T14:53:11.597Z",
+    "archivedOriginal": "collection-manifest.v1-authority-hash-domain-error.json",
+    "oldHashQualifying": false
+  }
+}

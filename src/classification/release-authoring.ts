@@ -5,7 +5,9 @@
  * produces a CANDIDATE release under the releases root with recomputed file
  * hashes, a bumped `sourceBaseline`, refreshed `bundleOrigin` provenance on
  * every focused file, and updated manifest counts. The candidate is validated
- * with `assertReleaseValidV4` before it is allowed to exist at its final path:
+ * with the generation-appropriate gate (`assertReleaseValidV5` for
+ * V5-generation sources, else `assertReleaseValidV4`) before it is allowed to
+ * exist at its final path:
  * any ERROR finding refuses output entirely (temp dir removed, nothing
  * written). WARNING findings (e.g. P2 `retire_candidate` advisories) are
  * surfaced in the returned report but never block — otherwise every child of
@@ -28,6 +30,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {
   assertReleaseValidV4,
+  assertReleaseValidV5,
+  computeV3ProfileFingerprint,
+  detectReleaseGeneration,
   isValidReleaseId,
   resolveReleaseDir,
   type ReleaseValidationReport,
@@ -64,12 +69,56 @@ export interface ProfileMembershipRevocationChange {
   attributeId: string;
 }
 
+/**
+ * Patch the cardinality of an EXISTING facet-profile membership entry in
+ * place (issue: governed species multi-value for explicit owner approval).
+ * The entry must already exist — no grants, no removals, no id changes.
+ * `cardinality` follows the validating release schema vocabulary
+ * (`single` | `multiple`).
+ */
+export interface ProfileCardinalityPatchChange {
+  profileId: string;
+  attributeId: string;
+  cardinality: 'single' | 'multiple';
+}
+
+/**
+ * Append a NEW facet profile cloned from an EXISTING one (governed
+ * facet-split for per-type cardinality without shared-facet fan-out).
+ * Membership is copied exactly except for the declared per-entry
+ * cardinality overrides; `behaviorFingerprint` is recomputed with the same
+ * derivation the validator trusts. `canonicalNodeIds` starts empty —
+ * `typeFacetRebindings` in the same change-set populate it.
+ */
+export interface FacetProfileAddChange {
+  profileId: string;
+  cloneFromProfileId: string;
+  name?: string;
+  /** Required: the V5 gate refuses profiles without provenance. */
+  sourceV3ProfileIds: string[];
+  cardinalityPatches?: Array<{ attributeId: string; cardinality: 'single' | 'multiple' }>;
+}
+
+/**
+ * Rebind an EXISTING classifiable hierarchy node to an EXISTING facet
+ * profile (including profiles added by `facetProfileAdds` in the same
+ * change-set). Type ids never change; the node's old facet drops the node
+ * from `canonicalNodeIds` and the target gains it, keeping the V5
+ * provenance rule exact.
+ */
+export interface TypeFacetRebindingChange {
+  nodeId: string;
+  facetProfileId: string;
+}
+
 /** Patch onto an EXISTING hierarchy node. `id`, `parentId` cycles and identity
  *  fields are immutable; only descriptive/scope fields may change. */
 export interface HierarchyNodeEditChange {
   nodeId: string;
   label?: string;
   scope?: { animalDomain: string } | null;
+  /** Owner-curated type definition (1–500 chars); null clears it. */
+  description?: string | null;
 }
 
 /**
@@ -81,6 +130,19 @@ export interface ValueAliasAddChange {
   attributeId: string;
   alias: string;
   mapsTo: string;
+}
+
+/**
+ * Rewrap the value of an EXISTING hierarchy-node invariant to match a
+ * cardinality change (single string <-> single-element array). The invariant
+ * key must already exist — no invention, no removal — and the flattened
+ * value set must be preserved exactly (mechanical shape migration only;
+ * semantic value changes are refused).
+ */
+export interface HierarchyInvariantPatchChange {
+  nodeId: string;
+  attributeId: string;
+  value: string | string[];
 }
 
 /**
@@ -100,7 +162,15 @@ export interface ReleaseChangeSet {
   mappingRemoves?: Array<{ attributeId: string }>;
   profileMembershipGrants?: ProfileMembershipGrantChange[];
   profileMembershipRevocations?: ProfileMembershipRevocationChange[];
+  /** In-place cardinality patches on EXISTING profile membership entries. */
+  profileCardinalityPatches?: ProfileCardinalityPatchChange[];
+  /** Append-only cloned facet profiles (ids must be new). */
+  facetProfileAdds?: FacetProfileAddChange[];
+  /** Rebind EXISTING type nodes to EXISTING facet profiles. */
+  typeFacetRebindings?: TypeFacetRebindingChange[];
   hierarchyNodeEdits?: HierarchyNodeEditChange[];
+  /** Value-preserving invariant rewraps on EXISTING invariant keys. */
+  hierarchyInvariantPatches?: HierarchyInvariantPatchChange[];
   /** Append-only value-alias additions (issue #328 governed alias flow). */
   valueAliasAdds?: ValueAliasAddChange[];
 }
@@ -262,6 +332,87 @@ export function applyChangeSetToFiles(
       valueAliases: [],
     });
   }
+  for (const patch of changeSet.profileCardinalityPatches ?? []) {
+    if (patch.cardinality !== 'single' && patch.cardinality !== 'multiple') {
+      throw new Error(`profileCardinalityPatches: invalid cardinality "${String(patch.cardinality)}" for "${patch.profileId}/${patch.attributeId}" (must be "single" or "multiple").`);
+    }
+    const profile = profiles.find(p => p.id === patch.profileId);
+    if (!profile) throw new Error(`profileCardinalityPatches: unknown facet profile id "${patch.profileId}".`);
+    const entry = profile.attributes.find(a => a.attributeId === patch.attributeId);
+    if (!entry) {
+      throw new Error(`profileCardinalityPatches: attribute "${patch.attributeId}" is not a member of "${patch.profileId}" (patches never grant membership).`);
+    }
+    entry.cardinality = patch.cardinality;
+  }
+  // ── Facet-profile adds (clone-from-existing + cardinality overrides) ──
+  const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+  for (const add of changeSet.facetProfileAdds ?? []) {
+    if (!SLUG_RE.test(add.profileId)) {
+      throw new Error(`facetProfileAdds: new profile id "${add.profileId}" must match /^[a-z0-9]+(-[a-z0-9]+)*$/.`);
+    }
+    if (profiles.some(p => p.id === add.profileId)) {
+      throw new Error(`facetProfileAdds: facet profile id "${add.profileId}" already exists (adds never overwrite).`);
+    }
+    const source = profiles.find(p => p.id === add.cloneFromProfileId);
+    if (!source) throw new Error(`facetProfileAdds: unknown source facet profile id "${add.cloneFromProfileId}".`);
+    if (!Array.isArray(add.sourceV3ProfileIds) || add.sourceV3ProfileIds.length === 0) {
+      throw new Error(`facetProfileAdds: "${add.profileId}" requires non-empty sourceV3ProfileIds (V5 provenance gate).`);
+    }
+    for (const v3Id of add.sourceV3ProfileIds) {
+      if (!SLUG_RE.test(v3Id)) throw new Error(`facetProfileAdds: invalid sourceV3ProfileId "${v3Id}".`);
+    }
+    const clone = JSON.parse(JSON.stringify(source)) as JsonRecord & {
+      id: string;
+      name: string;
+      attributes: Array<JsonRecord & { attributeId: string; cardinality?: string }>;
+    };
+    clone.id = add.profileId;
+    if (add.name !== undefined) clone.name = add.name;
+    clone.sourceV3ProfileIds = [...add.sourceV3ProfileIds];
+    clone.canonicalNodeIds = [];
+    for (const patch of add.cardinalityPatches ?? []) {
+      if (patch.cardinality !== 'single' && patch.cardinality !== 'multiple') {
+        throw new Error(`facetProfileAdds: invalid cardinality "${String(patch.cardinality)}" for "${add.profileId}/${patch.attributeId}".`);
+      }
+      const entry = clone.attributes.find(a => a.attributeId === patch.attributeId);
+      if (!entry) {
+        throw new Error(`facetProfileAdds: attribute "${patch.attributeId}" is not a member of source profile "${add.cloneFromProfileId}".`);
+      }
+      entry.cardinality = patch.cardinality;
+    }
+    // Deterministic behavior fingerprint via the validator-trusted derivation.
+    clone.behaviorFingerprint = computeV3ProfileFingerprint(
+      clone as unknown as Parameters<typeof computeV3ProfileFingerprint>[0],
+      attributes as unknown as Parameters<typeof computeV3ProfileFingerprint>[1],
+    );
+    profiles.push(clone as unknown as (typeof profiles)[number]);
+  }
+  // ── Type facet rebindings (existing nodes → existing profiles) ──
+  for (const rebind of changeSet.typeFacetRebindings ?? []) {
+    const node = nodes.find(n => n.id === rebind.nodeId) as
+      | (JsonRecord & { id: string; classifiable?: boolean; facetProfileId?: string | null })
+      | undefined;
+    if (!node) throw new Error(`typeFacetRebindings: unknown node id "${rebind.nodeId}".`);
+    if (node.classifiable !== true) {
+      throw new Error(`typeFacetRebindings: node "${rebind.nodeId}" is not classifiable (only type leaves rebind).`);
+    }
+    const target = profiles.find(p => p.id === rebind.facetProfileId);
+    if (!target) throw new Error(`typeFacetRebindings: unknown facet profile id "${rebind.facetProfileId}".`);
+    const oldProfileId = node.facetProfileId;
+    if (oldProfileId === rebind.facetProfileId) {
+      throw new Error(`typeFacetRebindings: node "${rebind.nodeId}" already references "${rebind.facetProfileId}" (no-op rebinds refused).`);
+    }
+    const oldProfile = profiles.find(p => p.id === oldProfileId);
+    if (!oldProfile) throw new Error(`typeFacetRebindings: node "${rebind.nodeId}" references unknown profile "${oldProfileId}".`);
+    const oldLeaves = (oldProfile.canonicalNodeIds ?? []) as string[];
+    if (!oldLeaves.includes(rebind.nodeId)) {
+      throw new Error(`typeFacetRebindings: old facet profile "${oldProfileId}" does not list node "${rebind.nodeId}" in canonicalNodeIds.`);
+    }
+    node.facetProfileId = rebind.facetProfileId;
+    oldProfile.canonicalNodeIds = oldLeaves.filter(id => id !== rebind.nodeId);
+    const targetLeaves = (target.canonicalNodeIds ?? []) as string[];
+    target.canonicalNodeIds = [...targetLeaves, rebind.nodeId].sort();
+  }
   for (const revoke of changeSet.profileMembershipRevocations ?? []) {
     const profile = profiles.find(p => p.id === revoke.profileId);
     if (!profile) throw new Error(`profileMembershipRevocations: unknown facet profile id "${revoke.profileId}".`);
@@ -278,6 +429,54 @@ export function applyChangeSetToFiles(
     if (!node) throw new Error(`hierarchyNodeEdits: unknown node id "${nodeEdit.nodeId}".`);
     if (nodeEdit.label !== undefined) node.label = nodeEdit.label;
     if (nodeEdit.scope !== undefined) node.scope = nodeEdit.scope;
+    if (nodeEdit.description !== undefined) {
+      if (nodeEdit.description !== null) {
+        if (typeof nodeEdit.description !== 'string' || nodeEdit.description.length < 1 || nodeEdit.description.length > 500) {
+          throw new Error(`hierarchyNodeEdits: description for "${nodeEdit.nodeId}" must be a 1–500 character string or null.`);
+        }
+      }
+      node.description = nodeEdit.description;
+    }
+  }
+
+  // ── Hierarchy invariant patches (mechanical shape migration only) ──
+  // Runs AFTER cardinality patches so the shape check below sees the final
+  // profile cardinality for each patched invariant.
+  for (const invPatch of changeSet.hierarchyInvariantPatches ?? []) {
+    const node = nodes.find(n => n.id === invPatch.nodeId) as
+      | (JsonRecord & { id: string; facetProfileId?: string | null; invariantAttributes?: Record<string, string | string[]> })
+      | undefined;
+    if (!node) throw new Error(`hierarchyInvariantPatches: unknown node id "${invPatch.nodeId}".`);
+    const invariants = node.invariantAttributes;
+    if (!invariants || !(invPatch.attributeId in invariants)) {
+      throw new Error(`hierarchyInvariantPatches: node "${invPatch.nodeId}" has no invariant for "${invPatch.attributeId}" (patches never invent or remove invariants).`);
+    }
+    const before = invariants[invPatch.attributeId];
+    const beforeFlat = [...(Array.isArray(before) ? before : [before])].sort();
+    const afterFlat = [...(Array.isArray(invPatch.value) ? invPatch.value : [invPatch.value])].sort();
+    if (JSON.stringify(beforeFlat) !== JSON.stringify(afterFlat)) {
+      throw new Error(`hierarchyInvariantPatches: node "${invPatch.nodeId}" invariant "${invPatch.attributeId}" value set would change (mechanical rewrap only).`);
+    }
+    const attr = attributes.find(a => a.id === invPatch.attributeId) as
+      | (JsonRecord & { id: string; allowedValues?: unknown })
+      | undefined;
+    if (attr && Array.isArray(attr.allowedValues)) {
+      for (const val of afterFlat) {
+        if (!(attr.allowedValues as unknown[]).includes(val)) {
+          throw new Error(`hierarchyInvariantPatches: value "${val}" is not an allowed value of "${invPatch.attributeId}".`);
+        }
+      }
+    }
+    const profile = profiles.find(p => p.id === (node.facetProfileId as string | undefined));
+    const entry = profile?.attributes.find(a => a.attributeId === invPatch.attributeId) as
+      | { cardinality?: string }
+      | undefined;
+    const cardinality = entry?.cardinality ?? 'single';
+    const isMulti = cardinality === 'multiple' || cardinality === 'multi';
+    if (isMulti !== Array.isArray(invPatch.value)) {
+      throw new Error(`hierarchyInvariantPatches: node "${invPatch.nodeId}" invariant "${invPatch.attributeId}" shape does not match profile cardinality "${cardinality}".`);
+    }
+    invariants[invPatch.attributeId] = invPatch.value;
   }
 
   // ── Provenance rebinding + serialization ──
@@ -396,6 +595,14 @@ export function authorCandidateRelease(
   }
   const sourceManifest = JSON.parse(fs.readFileSync(path.join(sourceDir, 'manifest.json'), 'utf8')) as JsonRecord;
 
+  // Generation-aware validation gate: V5-generation sources (detected via
+  // hierarchy evidence + sourceBaseline traversal, never exact-name checks)
+  // validate under the V5 rules; older sources stay on the V4 gate. The
+  // candidate inherits its generation from the source.
+  const assertReleaseValid = detectReleaseGeneration(sourceDir) === 'v5'
+    ? assertReleaseValidV5
+    : assertReleaseValidV4;
+
   let candidateFiles: Record<string, string>;
   try {
     candidateFiles = applyChangeSetToFiles(sourceFiles, changeSet);
@@ -435,7 +642,7 @@ export function authorCandidateRelease(
     // dir is removed below so the candidate never exists at its final path.
     let report: ReleaseValidationReport;
     try {
-      report = assertReleaseValidV4(tempDir);
+      report = assertReleaseValid(tempDir);
     } catch (err) {
       const maybeReport = err instanceof Error ? (err as unknown as { report?: ReleaseValidationReport }).report : undefined;
       if (maybeReport) {

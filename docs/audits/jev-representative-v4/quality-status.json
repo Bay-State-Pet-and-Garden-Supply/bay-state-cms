@@ -1,0 +1,26 @@
+{
+  "generation": "jev-representative-v4",
+  "status": "metadata-corrected-qualification-still-ineligible",
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "v3InitialCollection": {
+    "status": "exploratory-ineligible",
+    "reason": "collector admission defect admitted non-product families (taxonomy nav, product-line listings, ingredient glossary, cookie/privacy/footer clips); all 88 held inputs conservatively insufficient per custodian",
+    "consequence": "must never enter holdout or no-fit scoring"
+  },
+  "v4Counts": {
+    "familiesKept": 28,
+    "devPrimary": 23,
+    "devSupplemental": 1,
+    "holdoutFamilies": 5,
+    "holdoutRows": 5,
+    "familySeparationPassed": true,
+    "publicHoldoutOverlap": 0
+  },
+  "budget": { "sourceUsed": 1693, "legacy": 1140, "pageWorker": 273, "total": 3107, "cap": 3200 },
+  "correction": {
+    "reason": "authority_hash_domain_correction",
+    "archivedOriginal": "collection-manifest.v1-authority-hash-domain-error.json"
+  },
+  "labelsCollected": 0,
+  "note": "Aggregate counts/status only. No private case identifiers, URLs, excerpts, or labels."
+}

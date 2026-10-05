@@ -1,0 +1,184 @@
+{
+ "custodian": "agent:jev-holdout-custodian",
+ "contract": "parseQualificationGoldOnly",
+ "version": 1,
+ "goldRevision": 9,
+ "sourceLabel": "holdout-custody-v2-semantic-audit",
+ "status": "semantic audit applied; bank unchanged",
+ "sealedAt": "2026-10-05T08:18:36.472Z",
+ "oldAuthority": {
+  "release": "bay-state-v5",
+  "goldFile": "archive-holdout-gold-v5-rev2.json",
+  "goldCompactSha256": "ca124d5e5d1e7b179b333f7ff8d4f4a48ce8fa809a16a480e0bee20b0d07ec5f"
+ },
+ "newAuthority": {
+  "release": "bay-state-v7",
+  "manifestDeclaredHash": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+  "taxonomyFileHash": "66557f40c2f86e099f69c79230e37b71926acdbbfb64329c941f1392d565e105",
+  "hashStatus": "VERIFIED: canonical recompute matches declared 2310c06a (producer domain); raw-bytes sha recorded separately under canonicalHash",
+  "catalogCommit": "78015020d702ab6d66dc6d1dabcf9b7721d96f7b"
+ },
+ "bank": {
+  "families": 391,
+  "primarySha256": "cebed7c3822925e7f8df4fb9f555e930d56c8c8aa773637f80bced46090d0387",
+  "split": "unchanged"
+ },
+ "changedTargets": {
+  "profiles": [
+   "supplements",
+   "grooming"
+  ],
+  "attribute": "species",
+  "cardinality": "single->multiple",
+  "recordsFlippedToKnownMulti": 6,
+  "flipValues": [
+   "Dog",
+   "Cat"
+  ],
+  "singletonsUnchanged": true,
+  "allOtherStatesUnchanged": true,
+  "nonFlipRowsIdentical": 385
+ },
+ "counts": {
+  "reviewed": 391,
+  "notYetReviewed": 0,
+  "byGoldState": {
+   "known": 200,
+   "insufficient-evidence": 106,
+   "no-fit": 85
+  },
+  "distinctKnownTypes": 26,
+  "knownTypeFamilyCounts": {
+   "equine-grooming-hoof": 3,
+   "fly-control-equine": 3,
+   "horse-treats-supplements": 6,
+   "insect-control": 7,
+   "fly-insect-control-livestock": 3,
+   "weed-control": 1,
+   "grooming": 34,
+   "pet-beds": 7,
+   "cat-treats": 3,
+   "poultry-feed": 3,
+   "goat-sheep-feed": 1,
+   "poultry-coops-equipment": 1,
+   "livestock-health-dewormers": 2,
+   "small-animal-feed-bedding": 2,
+   "dog-treats": 14,
+   "supplements": 16,
+   "cat-food-wet": 10,
+   "dog-food-dry": 3,
+   "dog-food-wet": 1,
+   "flea-tick-treatment": 4,
+   "dog-toys": 44,
+   "collars-leashes": 2,
+   "grass-seed": 1,
+   "dog-waste-bags": 1,
+   "cat-toys": 26,
+   "dog-crates-kennels": 3
+  },
+  "speciesFieldStates": {
+   "known": 254,
+   "insufficient-evidence": 10,
+   "unlabeled": 212
+  }
+ },
+ "pages": {
+  "verified": 212,
+  "membership": "unknown stays unknown; no all-pages-complete claimed; no new page definitions applied"
+ },
+ "hashes": {
+  "goldFileSha256": "eb179559b7c49be96515b9870618e6cf93e8b628286cbd057f11c912b1334b86",
+  "adjudicationFileSha256": "50384ecd894d1233b85a68eb8eb529e1d3c0eb01fb844deba4a03a7887abfad1"
+ },
+ "sealedPaths": {
+  "gold": "private-custody:holdout-gold-private.json",
+  "adjudication": "private-custody:holdout-adjudication-detail-private.json",
+  "archiveGold": "private-custody:archive-holdout-gold-v5-rev2.json",
+  "archiveAdjudication": "private-custody:archive-holdout-adjudication-v5-rev2.json"
+ },
+ "note": "Agent adjudication, NOT human approval. No rows/excerpts/label associations disclosed. No dev inputs, models, network, DB, credentials, or commits.",
+ "normalization": {
+  "singletonsToCanonicalArray": 22,
+  "affectedProfiles": [
+   "supplements",
+   "grooming"
+  ],
+  "other72ProfilesScalarUnchanged": true
+ },
+ "shapeValidation": {
+  "affectedKnownArray": 28,
+  "otherKnownScalar": 63,
+  "valueAbsent": 300,
+  "violations": 0,
+  "allPass": true,
+  "pagesComplete": 0
+ },
+ "canonicalHash": {
+  "declaredAuthority": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+  "recomputed": "2310c06a9e92ef55b91dc96b03fa6b31e19656b0adfead653f7c572040713577",
+  "match": true,
+  "method": "bun import hashCanonicalJson from src/shared/stable-id",
+  "domain": "{bundle, pages, binding-minus-capturedAt} (capture-preparation authority, volatile capture timestamp excluded)",
+  "rawFileBytesSha256": "66557f40c2f86e099f69c79230e37b71926acdbbfb64329c941f1392d565e105",
+  "rawBytesNote": "separate algorithm domain (serialized file bytes incl. volatile timestamp); not the canonical authority domain",
+  "sourceConfigHash": "3461e87f65c856ed4ec976b5673976a44670621d0741cfaf0f102b4a3a605a39"
+ },
+ "shapeFix": {
+  "malformedValueArray": 0,
+  "nullValueKeysRemoved": 28,
+  "severe": 0,
+  "validKnownFieldsUnderInsuffType": 24,
+  "strictParserProof": {
+   "bugValueArrayRejected": true,
+   "canonMultiPass": true,
+   "canonSinglePass": true
+  }
+ },
+ "strictReceipt": {
+  "fullParse391": "PASS",
+  "legacyReader": false,
+  "legacyFlagged": 0,
+  "rawEligibleCount": 0,
+  "authorityCanonical": "MATCH",
+  "citationsCited": 391,
+  "citationsMissing": 0,
+  "contract": "new version (no readerVersion flag)",
+  "pagesNote": "all pages unknown; zero complete"
+ },
+ "taxonomyContainment": {
+  "assertGoldWithinFrozenTaxonomy": "PASS",
+  "unknownType": 0,
+  "unknownTarget": 0,
+  "unknownValue": 0,
+  "cardinalityViolations": 0,
+  "applicabilityDefects": 0,
+  "inapplicableMarkers": 6,
+  "invariantViolations": 0,
+  "pageAssignmentsTotal": 0,
+  "canonicalPagesVerified": 212,
+  "frozenTypes": 74,
+  "frozenTargets": 27
+ },
+ "semanticAudit": {
+  "flips": 14,
+  "boundaryBasis": "frozen names+invariants+explicit guidance; NULL descriptions; edible boundary via Treat/no-food invariants; device exclusion rejected as imagined",
+  "awaitingQuotas": false
+ },
+ "exposure": {
+  "status": "quarantined-full-bank",
+  "genericReason": "recognizable family-to-label associations in prior status text",
+  "qualificationEligibility": "ineligible-pending-new-unexposed-holdout",
+  "pristineBlindQualificationClaimed": false,
+  "sealedAt": "2026-10-05T05:23:28.569Z"
+ },
+ "quarantine": {
+  "originalFamilies": 391,
+  "quarantinedFamilies": 391,
+  "remainingFamilies": 0,
+  "knownLabelsRemaining": 0,
+  "minKnownClassSupport": 0,
+  "completePageSets": 0,
+  "criterion": "entire-bank",
+  "membershipsUnchanged": true
+ }
+}

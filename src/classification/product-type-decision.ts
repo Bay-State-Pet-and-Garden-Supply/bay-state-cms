@@ -77,9 +77,9 @@ const NO_MATCH_CHOICE_KEY = 'no_match';
 const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'insufficient_evidence';
 
 /**
- * Development-fitted minimum probability for Jev Choice selection.
- * Tuned on representative Pet & Garden assortment examples.
- * An ungrounded option pick below 0.50 probability is an explicit semantic abstention.
+ * Evaluated starting probability floor for Jev Choice selection.
+ * Representative per-capability fitting is a release prerequisite, not a
+ * property established by this constant. Below-floor picks remain reviewable.
  */
 export const JEV_PRODUCT_TYPE_MIN_PROBABILITY = SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY; // 0.50
 
@@ -289,7 +289,7 @@ export function buildProductTypeChoiceQuestion(
     'The evidence provided is insufficient, ambiguous, or lacks essential product identity details to determine a product type with confidence.';
 
   const instructions =
-    'Identify the primary product type that best categorizes this product from the available choices based strictly on the provided product evidence. If none of the specific product types fit the product, select "no_match". If the evidence does not provide enough information to determine the type with confidence, select "insufficient_evidence".';
+    'Identify the primary product type that best categorizes this product from the available choices based strictly on the provided product evidence. Ground the features that distinguish neighboring choices, such as physical form, intended use, or species, in the supplied evidence. Do not guess a distinguishing feature from a familiar brand, product line, SKU, URL, or information from an unseen page. If a required distinguishing feature is missing, select "insufficient_evidence", even when a broader product category is clear. If the supplied facts establish what the product is but none of the specific product types fit, select "no_match".';
 
   return {
     questionId: JEV_PRODUCT_TYPE_QUESTION_ID,

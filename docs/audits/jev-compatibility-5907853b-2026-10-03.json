@@ -1,0 +1,9 @@
+{
+  "suites": [
+    { "suiteId": "other-providers", "commit": "5907853b07d98d233848f48723581afe641eb787", "passed": true, "executedAt": "2026-10-04T00:28:26.074Z" },
+    { "suiteId": "deterministic-rules", "commit": "5907853b07d98d233848f48723581afe641eb787", "passed": true, "executedAt": "2026-10-04T00:28:36.048Z" },
+    { "suiteId": "frozen-snapshots", "commit": "5907853b07d98d233848f48723581afe641eb787", "passed": true, "executedAt": "2026-10-04T00:28:40.789Z" },
+    { "suiteId": "legacy-reads", "commit": "5907853b07d98d233848f48723581afe641eb787", "passed": true, "executedAt": "2026-10-04T00:28:55.213Z" }
+  ],
+  "recordedAt": "2026-10-04T00:28:55.213Z"
+}

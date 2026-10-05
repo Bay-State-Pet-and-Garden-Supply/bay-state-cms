@@ -1,0 +1,990 @@
+{
+  "candidateRows": 3692,
+  "families": 1914,
+  "primaryCases": 1914,
+  "supplementalCases": 1778,
+  "splits": {
+    "holdout": {
+      "rows": 741,
+      "primaryFamilies": 391
+    },
+    "development": {
+      "rows": 2951,
+      "primaryFamilies": 1523
+    }
+  },
+  "domains": {
+    "absorbine.com": {
+      "rows": 62,
+      "primaryFamilies": 52,
+      "bySplit": {
+        "holdout": {
+          "rows": 10,
+          "primaryFamilies": 9
+        },
+        "development": {
+          "rows": 52,
+          "primaryFamilies": 43
+        }
+      }
+    },
+    "bentleyseeds.com": {
+      "rows": 614,
+      "primaryFamilies": 242,
+      "bySplit": {
+        "development": {
+          "rows": 532,
+          "primaryFamilies": 200
+        },
+        "holdout": {
+          "rows": 82,
+          "primaryFamilies": 42
+        }
+      }
+    },
+    "bonide.com": {
+      "rows": 42,
+      "primaryFamilies": 40,
+      "bySplit": {
+        "development": {
+          "rows": 34,
+          "primaryFamilies": 32
+        },
+        "holdout": {
+          "rows": 8,
+          "primaryFamilies": 8
+        }
+      }
+    },
+    "canadapooch.com": {
+      "rows": 3,
+      "primaryFamilies": 2,
+      "bySplit": {
+        "development": {
+          "rows": 3,
+          "primaryFamilies": 2
+        }
+      }
+    },
+    "earthbath.com": {
+      "rows": 80,
+      "primaryFamilies": 36,
+      "bySplit": {
+        "development": {
+          "rows": 74,
+          "primaryFamilies": 31
+        },
+        "holdout": {
+          "rows": 6,
+          "primaryFamilies": 5
+        }
+      }
+    },
+    "inabafoods.com": {
+      "rows": 59,
+      "primaryFamilies": 10,
+      "bySplit": {
+        "development": {
+          "rows": 58,
+          "primaryFamilies": 9
+        },
+        "holdout": {
+          "rows": 1,
+          "primaryFamilies": 1
+        }
+      }
+    },
+    "lakevalleyseed.com": {
+      "rows": 53,
+      "primaryFamilies": 51,
+      "bySplit": {
+        "development": {
+          "rows": 44,
+          "primaryFamilies": 42
+        },
+        "holdout": {
+          "rows": 9,
+          "primaryFamilies": 9
+        }
+      }
+    },
+    "mannapro.com": {
+      "rows": 187,
+      "primaryFamilies": 126,
+      "bySplit": {
+        "development": {
+          "rows": 151,
+          "primaryFamilies": 99
+        },
+        "holdout": {
+          "rows": 36,
+          "primaryFamilies": 27
+        }
+      }
+    },
+    "mazuri.com": {
+      "rows": 170,
+      "primaryFamilies": 111,
+      "bySplit": {
+        "holdout": {
+          "rows": 29,
+          "primaryFamilies": 22
+        },
+        "development": {
+          "rows": 141,
+          "primaryFamilies": 89
+        }
+      }
+    },
+    "missinglinkproducts.com": {
+      "rows": 20,
+      "primaryFamilies": 14,
+      "bySplit": {
+        "development": {
+          "rows": 19,
+          "primaryFamilies": 13
+        },
+        "holdout": {
+          "rows": 1,
+          "primaryFamilies": 1
+        }
+      }
+    },
+    "naturvet.com": {
+      "rows": 159,
+      "primaryFamilies": 92,
+      "bySplit": {
+        "development": {
+          "rows": 134,
+          "primaryFamilies": 78
+        },
+        "holdout": {
+          "rows": 25,
+          "primaryFamilies": 14
+        }
+      }
+    },
+    "nulo.com": {
+      "rows": 60,
+      "primaryFamilies": 48,
+      "bySplit": {
+        "development": {
+          "rows": 50,
+          "primaryFamilies": 39
+        },
+        "holdout": {
+          "rows": 10,
+          "primaryFamilies": 9
+        }
+      }
+    },
+    "openfarmpet.com": {
+      "rows": 186,
+      "primaryFamilies": 58,
+      "bySplit": {
+        "development": {
+          "rows": 129,
+          "primaryFamilies": 44
+        },
+        "holdout": {
+          "rows": 57,
+          "primaryFamilies": 14
+        }
+      }
+    },
+    "oxbowanimalhealth.com": {
+      "rows": 57,
+      "primaryFamilies": 16,
+      "bySplit": {
+        "development": {
+          "rows": 56,
+          "primaryFamilies": 15
+        },
+        "holdout": {
+          "rows": 1,
+          "primaryFamilies": 1
+        }
+      }
+    },
+    "tikipets.com": {
+      "rows": 29,
+      "primaryFamilies": 16,
+      "bySplit": {
+        "development": {
+          "rows": 24,
+          "primaryFamilies": 12
+        },
+        "holdout": {
+          "rows": 5,
+          "primaryFamilies": 4
+        }
+      }
+    },
+    "tropiclean.com": {
+      "rows": 189,
+      "primaryFamilies": 114,
+      "bySplit": {
+        "development": {
+          "rows": 141,
+          "primaryFamilies": 87
+        },
+        "holdout": {
+          "rows": 48,
+          "primaryFamilies": 27
+        }
+      }
+    },
+    "benebone.com": {
+      "rows": 48,
+      "primaryFamilies": 31,
+      "bySplit": {
+        "development": {
+          "rows": 43,
+          "primaryFamilies": 27
+        },
+        "holdout": {
+          "rows": 5,
+          "primaryFamilies": 4
+        }
+      }
+    },
+    "durvet.com": {
+      "rows": 56,
+      "primaryFamilies": 53,
+      "bySplit": {
+        "development": {
+          "rows": 45,
+          "primaryFamilies": 42
+        },
+        "holdout": {
+          "rows": 11,
+          "primaryFamilies": 11
+        }
+      }
+    },
+    "fourpaws.com": {
+      "rows": 24,
+      "primaryFamilies": 23,
+      "bySplit": {
+        "holdout": {
+          "rows": 6,
+          "primaryFamilies": 6
+        },
+        "development": {
+          "rows": 18,
+          "primaryFamilies": 17
+        }
+      }
+    },
+    "instinctpetfood.com": {
+      "rows": 138,
+      "primaryFamilies": 20,
+      "bySplit": {
+        "holdout": {
+          "rows": 61,
+          "primaryFamilies": 8
+        },
+        "development": {
+          "rows": 77,
+          "primaryFamilies": 12
+        }
+      }
+    },
+    "jonathangreen.com": {
+      "rows": 8,
+      "primaryFamilies": 8,
+      "bySplit": {
+        "development": {
+          "rows": 7,
+          "primaryFamilies": 7
+        },
+        "holdout": {
+          "rows": 1,
+          "primaryFamilies": 1
+        }
+      }
+    },
+    "kaytee.com": {
+      "rows": 3,
+      "primaryFamilies": 1,
+      "bySplit": {
+        "development": {
+          "rows": 3,
+          "primaryFamilies": 1
+        }
+      }
+    },
+    "petmate.com": {
+      "rows": 675,
+      "primaryFamilies": 520,
+      "bySplit": {
+        "holdout": {
+          "rows": 131,
+          "primaryFamilies": 118
+        },
+        "development": {
+          "rows": 544,
+          "primaryFamilies": 402
+        }
+      }
+    },
+    "polkadog.com": {
+      "rows": 35,
+      "primaryFamilies": 23,
+      "bySplit": {
+        "development": {
+          "rows": 28,
+          "primaryFamilies": 18
+        },
+        "holdout": {
+          "rows": 7,
+          "primaryFamilies": 5
+        }
+      }
+    },
+    "primalpetfoods.com": {
+      "rows": 56,
+      "primaryFamilies": 16,
+      "bySplit": {
+        "development": {
+          "rows": 46,
+          "primaryFamilies": 12
+        },
+        "holdout": {
+          "rows": 10,
+          "primaryFamilies": 4
+        }
+      }
+    },
+    "redbarn.com": {
+      "rows": 134,
+      "primaryFamilies": 43,
+      "bySplit": {
+        "development": {
+          "rows": 95,
+          "primaryFamilies": 30
+        },
+        "holdout": {
+          "rows": 39,
+          "primaryFamilies": 13
+        }
+      }
+    },
+    "standleeforage.com": {
+      "rows": 23,
+      "primaryFamilies": 11,
+      "bySplit": {
+        "development": {
+          "rows": 20,
+          "primaryFamilies": 9
+        },
+        "holdout": {
+          "rows": 3,
+          "primaryFamilies": 2
+        }
+      }
+    },
+    "stellaandchewys.com": {
+      "rows": 198,
+      "primaryFamilies": 35,
+      "bySplit": {
+        "development": {
+          "rows": 157,
+          "primaryFamilies": 30
+        },
+        "holdout": {
+          "rows": 41,
+          "primaryFamilies": 5
+        }
+      }
+    },
+    "thehonestkitchen.com": {
+      "rows": 133,
+      "primaryFamilies": 48,
+      "bySplit": {
+        "development": {
+          "rows": 95,
+          "primaryFamilies": 40
+        },
+        "holdout": {
+          "rows": 38,
+          "primaryFamilies": 8
+        }
+      }
+    },
+    "thermacell.com": {
+      "rows": 14,
+      "primaryFamilies": 6,
+      "bySplit": {
+        "holdout": {
+          "rows": 4,
+          "primaryFamilies": 2
+        },
+        "development": {
+          "rows": 10,
+          "primaryFamilies": 4
+        }
+      }
+    },
+    "weruva.com": {
+      "rows": 158,
+      "primaryFamilies": 43,
+      "bySplit": {
+        "holdout": {
+          "rows": 56,
+          "primaryFamilies": 11
+        },
+        "development": {
+          "rows": 102,
+          "primaryFamilies": 32
+        }
+      }
+    },
+    "wildbirdsuets.com": {
+      "rows": 19,
+      "primaryFamilies": 5,
+      "bySplit": {
+        "development": {
+          "rows": 19,
+          "primaryFamilies": 5
+        }
+      }
+    }
+  },
+  "samplingStrata": {
+    "animal-care": {
+      "rows": 590,
+      "primaryFamilies": 384,
+      "bySplit": {
+        "holdout": {
+          "rows": 107,
+          "primaryFamilies": 73
+        },
+        "development": {
+          "rows": 483,
+          "primaryFamilies": 311
+        }
+      }
+    },
+    "garden/pest": {
+      "rows": 731,
+      "primaryFamilies": 347,
+      "bySplit": {
+        "development": {
+          "rows": 627,
+          "primaryFamilies": 285
+        },
+        "holdout": {
+          "rows": 104,
+          "primaryFamilies": 62
+        }
+      }
+    },
+    "neighbors": {
+      "rows": 1137,
+      "primaryFamilies": 792,
+      "bySplit": {
+        "development": {
+          "rows": 937,
+          "primaryFamilies": 622
+        },
+        "holdout": {
+          "rows": 200,
+          "primaryFamilies": 170
+        }
+      }
+    },
+    "food/treats": {
+      "rows": 1186,
+      "primaryFamilies": 360,
+      "bySplit": {
+        "development": {
+          "rows": 861,
+          "primaryFamilies": 278
+        },
+        "holdout": {
+          "rows": 325,
+          "primaryFamilies": 82
+        }
+      }
+    },
+    "toys": {
+      "rows": 48,
+      "primaryFamilies": 31,
+      "bySplit": {
+        "development": {
+          "rows": 43,
+          "primaryFamilies": 27
+        },
+        "holdout": {
+          "rows": 5,
+          "primaryFamilies": 4
+        }
+      }
+    }
+  },
+  "labeledCases": 0,
+  "httpAttempts": 1099,
+  "ledgerEntries": 1100,
+  "budget": 1200,
+  "accessBlocks": [
+    {
+      "domain": "greenies.com",
+      "reason": "access_denied_stop_domain"
+    }
+  ],
+  "collectionFinishedAt": "2026-10-04T05:40:13.718Z",
+  "rawCollectedRecords": 3699,
+  "duplicateOrInvalidRecords": 0,
+  "quarantinedFamilies": 2,
+  "semanticVariantUnions": 5007,
+  "holdoutCommitment": "4ea3d53ab338a55abe3fc5fd86e2ae29bb806356babe0765731fd34373fc0edd",
+  "holdoutPrimaryCommitment": "cebed7c3822925e7f8df4fb9f555e930d56c8c8aa773637f80bced46090d0387",
+  "bankCommitment": "4843bad4bfff4d27e1f95bfe717708ab63924c19c8b1ac27eef542159a1933d7",
+  "sourceVerification": {
+    "rawByteHashChecked": true,
+    "canonicalUrlsCheckedAgainstCapturedDocuments": true,
+    "excerptsChecked": true,
+    "schemaValidated": true,
+    "uniqueSkus": true,
+    "uniqueCanonicalUrls": true,
+    "priceFreeDescriptionRequired": true,
+    "allSupplementalVariantsIncludedInSeparationProof": true
+  },
+  "sourceForms": {
+    "public-manufacturer-structured-catalog-document": 3245,
+    "public-manufacturer-product-html": 447
+  },
+  "catalogSkuBindings": 0,
+  "explicitPublicIdentifiers": 3692,
+  "verifiedCaptureReuseEvents": 400,
+  "distinctProductEvidenceCaptures": 472,
+  "collectionProtocolNotes": [
+    "Manufacturer structured catalog documents are actual captured evidence; canonical product-page URLs were separately observed in actual captured official sitemaps. Product pages for those records were not individually fetched.",
+    "All admitted identities use PUBLIC: prefixes; no approved catalog SKU binding was established. Catalog SKU/title/brand projections were used only as sampling/identity proxies.",
+    "2 families (7 rows) were quarantined by full-bank cross-split evidence audit, before publication.",
+    "HTTP 406 was an unsuccessful response during initial collection; the final collector now stops a domain on 406. No evidence was admitted from either affected domain."
+  ],
+  "targets": {
+    "candidateFamilies": 1100,
+    "developmentFamilies": 120,
+    "holdoutPrimaryCases": 200,
+    "met": true
+  },
+  "sourceBlocking": [
+    {
+      "domain": "acana.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 3,
+        "301": 2,
+        "404": 2
+      }
+    },
+    {
+      "domain": "rescue.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 1,
+        "301:cross_domain_redirect_refused": 2
+      }
+    },
+    {
+      "domain": "kurgo.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 1,
+        "301": 3,
+        "404": 3
+      }
+    },
+    {
+      "domain": "outwardhound.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 21
+      },
+      "httpStatuses": {
+        "200": 27,
+        "404": 2
+      }
+    },
+    {
+      "domain": "nylabone.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 2
+      }
+    },
+    {
+      "domain": "audubonpark.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 1,
+        "301": 2,
+        "404": 1,
+        "406": 2
+      }
+    },
+    {
+      "domain": "wilddelight.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "0:network_or_timeout": 1
+      }
+    },
+    {
+      "domain": "petplay.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "301:cross_domain_redirect_refused": 1
+      }
+    },
+    {
+      "domain": "wellnesspetfood.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 4,
+        "301": 5
+      }
+    },
+    {
+      "domain": "standleeforage.com",
+      "sourceRecords": 23,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 6
+      },
+      "httpStatuses": {
+        "200": 31,
+        "301": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "westpaw.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 1
+      }
+    },
+    {
+      "domain": "barkworthies.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "308": 3,
+        "404": 3
+      }
+    },
+    {
+      "domain": "frommfamily.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 1
+      },
+      "httpStatuses": {
+        "200": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "poulingrain.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "404": 2,
+        "406": 1
+      }
+    },
+    {
+      "domain": "farnam.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "espoma.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 4
+      }
+    },
+    {
+      "domain": "tasteofthewildpetfood.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 5,
+        "301": 3
+      }
+    },
+    {
+      "domain": "naturesmiracle.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "0:network_or_timeout": 1
+      }
+    },
+    {
+      "domain": "ferry-morse.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "0:network_or_timeout": 1
+      }
+    },
+    {
+      "domain": "havahart.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "naturalbalanceinc.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "0:network_or_timeout": 1
+      }
+    },
+    {
+      "domain": "merrickpetcare.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 1
+      },
+      "httpStatuses": {
+        "200": 5,
+        "301": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "fox-farm.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "0:dns_or_public_host_guard": 1
+      }
+    },
+    {
+      "domain": "coastalpet.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 3
+      },
+      "httpStatuses": {
+        "200": 5,
+        "302": 1,
+        "404": 1,
+        "500": 1
+      }
+    },
+    {
+      "domain": "earthbornholisticpetfood.com",
+      "sourceRecords": 0,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 44
+      },
+      "httpStatuses": {
+        "200": 52,
+        "301": 5
+      }
+    },
+    {
+      "domain": "nutrisourcepetfoods.com",
+      "sourceRecords": 0,
+      "reason": "robots_unavailable",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "301:cross_domain_redirect_refused": 1
+      }
+    },
+    {
+      "domain": "canidae.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 8
+      },
+      "httpStatuses": {
+        "200": 14,
+        "301": 1,
+        "404": 1
+      }
+    },
+    {
+      "domain": "zignature.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 1,
+        "404": 1
+      }
+    },
+    {
+      "domain": "petsafe.com",
+      "sourceRecords": 0,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 43
+      },
+      "httpStatuses": {
+        "200": 47,
+        "301": 3,
+        "404": 2
+      }
+    },
+    {
+      "domain": "fourpaws.com",
+      "sourceRecords": 24,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 13
+      },
+      "httpStatuses": {
+        "200": 39,
+        "301": 4,
+        "404": 1
+      }
+    },
+    {
+      "domain": "tikipets.com",
+      "sourceRecords": 29,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 35,
+        "301": 1,
+        "404": 1
+      }
+    },
+    {
+      "domain": "orijenpetfoods.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 3,
+        "301": 2,
+        "404": 2
+      }
+    },
+    {
+      "domain": "vannesspets.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "200": 2,
+        "301": 1,
+        "404": 1
+      }
+    },
+    {
+      "domain": "wildbirdsuets.com",
+      "sourceRecords": 19,
+      "reason": "run_limit_truncated",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 6
+      },
+      "httpStatuses": {
+        "200": 27,
+        "301": 3,
+        "404": 1
+      }
+    },
+    {
+      "domain": "greenies.com",
+      "sourceRecords": 0,
+      "reason": "access_denied_stop_domain",
+      "rejectionCounts": {},
+      "httpStatuses": {
+        "403:access_denied_stop_domain": 1
+      }
+    },
+    {
+      "domain": "kongcompany.com",
+      "sourceRecords": 0,
+      "reason": "no_qualified_product_record_in_supported_source_format",
+      "rejectionCounts": {
+        "no_unambiguous_product_record_with_description": 1
+      },
+      "httpStatuses": {
+        "200": 7,
+        "301": 3,
+        "404": 2
+      }
+    }
+  ],
+  "familySeparation": {
+    "passed": true,
+    "proofVersion": "family-separation-v1",
+    "familiesChecked": 1914,
+    "leakedFamilies": 0,
+    "nearDuplicatePairs": 0
+  },
+  "authorityHash": "c0af5c1c555a2b11d8e1157625ef1af2e3fea98af6ab97d130a90060f3c4c34a",
+  "developmentHash": "4e957c46d91aa0bd16d39c61e4c3c1e29dd14d5487907257881b52587c2ffb4d",
+  "labelingStatus": "not started",
+  "classProfileTargetSupport": "unqualified until independent adjudication; sampling strata are not gold labels",
+  "controlledDegradations": 0,
+  "guards": {
+    "noDatabaseOpened": true,
+    "noModelInference": true,
+    "noCredentialReads": true,
+    "noHoldoutRowsPublished": true,
+    "concurrencyPerDomain": 1,
+    "requestBudget": 1200,
+    "sourceHashesReverified": true
+  }
+}

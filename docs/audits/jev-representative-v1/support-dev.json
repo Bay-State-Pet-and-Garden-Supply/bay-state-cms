@@ -1,0 +1,43 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "development-gold-support",
+ "authorityHash": "c0af5c1c555a2b11d8e1157625ef1af2e3fea98af6ab97d130a90060f3c4c34a",
+ "status": "complete-24-family-dev-pilot",
+ "requestedIndependentFamilyCount": 120,
+ "reviewedIndependentFamilyCount": 24,
+ "entryCount": 25,
+ "independentFamilyIds": [
+  "family-016e4fd402de1547e1ded7dcec0d22f3",
+  "family-1637e5c436e3d6b164275f193eb72c91",
+  "family-1718d92c278fc8ea753dc8300211b68e",
+  "family-1cc2a0af19dab3b3182095ae92e51bae",
+  "family-24bf27927647c35b0e4cb54f6d17b3e8",
+  "family-491436d50f8101a3542b0c0d6478c8f1",
+  "family-53897785170d9e89fc5e3c7d145632c8",
+  "family-6b62e122b840a6c81bd6549bc71ad1e2",
+  "family-71b5712023e5d6e6577bda92cfa29211",
+  "family-77f6f1991d1f285ce700fe8476de3d49",
+  "family-80fcb9fd00a2a3288a70397f45784ddd",
+  "family-818fdd4e8bdccca7a2fc0b2e96b0ae53",
+  "family-83e9bb7062c62f5ffc82cacdf28dacda",
+  "family-8a8056327f54cd1a3752e3544431e68f",
+  "family-966123ca937d8613ab1aae1b8c6680bd",
+  "family-9a4259207c6ad68ee5ca5cfdad70fe6c",
+  "family-b916b5fa09b9a5718a2cab7da0dbf3aa",
+  "family-bf997289fe030059e671b8dd720ee982",
+  "family-c3c10bd1ce8d9db7460c4d4ebfe353f4",
+  "family-e99092d516762d9c6b53f18938e3229d",
+  "family-e9b5ebe5e86d07e64f63ea82bd0fcd18",
+  "family-f4366deb01986548f38df6063102297f",
+  "family-f8a120dfc1ef5b4864139fee41e1d117",
+  "family-fd6c7858135f3b86b4102d8492a55c36"
+ ],
+ "byGoldState": {
+  "insufficient-evidence": 2,
+  "known-type": 17,
+  "unlabeled": 3,
+  "no-fit": 3
+ },
+ "note": "Honest 24-family DEV pilot (8 food-treat + 4x4 strata) with per-target provenance; agent adjudication, NOT human approval. PUBLIC: skus are not store UPCs."
+}

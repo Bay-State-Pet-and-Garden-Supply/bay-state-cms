@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "maxPagesPerProduct": 4,
+  "preferSpecificOverShopAll": true,
+  "crossSpeciesBlocked": true,
+  "allowedSpecies": [
+    "dog",
+    "cat",
+    "bird",
+    "fish",
+    "reptile",
+    "small_animal"
+  ],
+  "notes": "Port of preset-pet-and-garden page-assignment guidance (page-assignment-guidance + species-safety-guidance) into the immutable release."
+}

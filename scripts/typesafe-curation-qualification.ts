@@ -42,6 +42,20 @@
  * Usage:
  *   bun scripts/typesafe-curation-qualification.ts [--split=dev|holdout] [--json] [--live-check] [--live-capture] [--model=jev-1.13.0] [--baseline-provider=ollama] [--baseline-model=llama3] [--artifact-out=path]
  *   TYPESAFE_LIVE_CHECK=1 TYPESAFE_API_KEY=... bun scripts/typesafe-curation-qualification.ts --live-capture --live-check
+ *
+ * Bounded dev replay (no agent LIVE calls; primary runs real inference after
+ * verifying the guard):
+ *   bun scripts/typesafe-curation-qualification.ts --manifest docs/audits/jev-representative-v1/manifest.json --gold docs/audits/jev-representative-v1/development-gold.json --taxonomy docs/audits/jev-representative-v1/taxonomy.json [--split=dev] [--max-attempts=600] [--concurrency=2] [--deadline-ms=60000]
+ * Dev candidate-only live capture additionally needs explicit
+ * `--live-capture --model=<id>` + TYPESAFE_API_KEY: a bound attempt guard
+ * (600 max attempts, ≤2 concurrency, hard deadline) is enforced inside every
+ * real request attempt, primary + retry. Real inference command (primary):
+ *   TYPESAFE_API_KEY=... bun scripts/typesafe-curation-qualification.ts --manifest docs/audits/jev-representative-v1/manifest.json --gold docs/audits/jev-representative-v1/development-gold.json --taxonomy docs/audits/jev-representative-v1/taxonomy.json --live-capture --model=jev-1.13.0 [--max-attempts=600] [--deadline-ms=300000]
+ * Default runs (no --live-capture) never touch the network even with an
+ * ambient key, and the key value is never printed.
+ * `--isolated-store=<path>` + TYPESAFE_BASELINE_CREDENTIAL_REF (production
+ * DB is never initialized; otherwise the labeled deterministic_floor).
+ * Private holdout custody is never readable here (denied before load).
  */
 
 import fs from 'node:fs';
@@ -52,6 +66,9 @@ import {
   evaluateJevOfflineComparison,
   evaluateJevQualificationGate,
   assessProductionQualification,
+  evaluationStatusText,
+  measuredPercent,
+  measuredScore,
   REQUIRED_COMPATIBILITY_SUITE_IDS,
   OPERATOR_RUNBOOK_PATH,
   type QualificationGoldset,
@@ -68,40 +85,93 @@ import {
   parseQualificationGoldOnly,
   buildQualificationPredictionsFromCode,
   captureQualificationPredictionsLive,
+  withFrozenAuthorityDetails,
   QUALIFICATION_PREDICTOR_VERSION,
   type ExecutedQualificationPrediction,
   type QualificationPredictionArtifact,
 } from '../src/classification/benchmark-prediction';
 import { FrozenTaxonomySnapshotSchema } from '../src/shared/schemas/classification';
+import {
+  REPRESENTATIVE_DEV_GOLD_PATH,
+  REPRESENTATIVE_MANIFEST_PATH,
+  REPRESENTATIVE_TAXONOMY_PATH,
+  assertNoHoldoutAccess,
+  createDevAttemptGuard,
+  defaultDevReplayBudget,
+  dryRunBudgetPreflight,
+  assertLiveCaptureAllowed,
+  isLiveRuntimeGuardWired,
+  planDevReplayBudget,
+  resolveBaselineRoute,
+  assertIsolatedBaselineStore,
+  resolveDevCaptureMode,
+  loadDevReplayInputs,
+  DEV_REPLAY_UNSUPPORTED_CAPABILITIES,
+  REPLAY_CONTEXT_ISOLATED_SINGLE_CHOICE,
+  DEV_CALIBRATION_NOTE,
+} from '../src/classification/jev-benchmark-replay';
 
-const GOLDSET_PATH = path.resolve(
-  import.meta.dir,
-  '../src/tests/fixtures/benchmark-jev-qualification-goldset.json',
-);
 const LIVE_CHECK_PATH = path.resolve(import.meta.dir, './typesafe-live-contract-check.ts');
+
+/** Flag value in `--flag=value` or `--flag value` form (dev-replay flags accept both). */
+function flagValue(name: string): string | null {
+  const eq = process.argv.find(a => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1);
+  const i = process.argv.indexOf(name);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : null;
+}
 
 const isJson = process.argv.includes('--json');
 const isLiveCheckFlag = process.argv.includes('--live-check');
 const isLiveCaptureFlag = process.argv.includes('--live-capture');
-const splitArg = process.argv.find(a => a.startsWith('--split='))?.split('=')[1] as 'dev' | 'holdout' | undefined;
 const modelArg = process.argv.find(a => a.startsWith('--model='))?.split('=')[1];
 const baselineProviderArg = process.argv.find(a => a.startsWith('--baseline-provider='))?.split('=')[1];
 const baselineModelArg = process.argv.find(a => a.startsWith('--baseline-model='))?.split('=')[1];
 const artifactOutArg = process.argv.find(a => a.startsWith('--artifact-out='))?.split('=')[1];
 const dbArg = process.argv.find(a => a.startsWith('--db='))?.slice('--db='.length);
+// Bounded dev-replay inputs (issue #302 follow-up): explicit external
+// manifest/gold + frozen authority. --split defaults to dev when any
+// representative input is given; holdout labels load only at publication
+// binding/custody explicit unseal (never here — see assertNoHoldoutAccess).
+const manifestArg = flagValue('--manifest');
+const goldArg = flagValue('--gold');
+const taxonomyArg = flagValue('--taxonomy');
+const representativeInputs = manifestArg ?? goldArg ?? taxonomyArg;
+const splitArg = (flagValue('--split') ?? (representativeInputs ? 'dev' : undefined)) as 'dev' | 'holdout' | undefined;
+const maxAttemptsArg = flagValue('--max-attempts');
+const concurrencyArg = flagValue('--concurrency');
+const deadlineMsArg = flagValue('--deadline-ms');
+const isolatedStoreArg = flagValue('--isolated-store');
 if (splitArg && !['dev', 'holdout'].includes(splitArg)) throw new Error('--split must be dev or holdout.');
+if (representativeInputs && splitArg !== 'dev') throw new Error('Representative replay inputs are dev-only (--split=dev); holdout needs publication binding/custody explicit unseal.');
 if (Boolean(baselineProviderArg) !== Boolean(baselineModelArg)) throw new Error('Provide both baseline provider and model.');
+for (const p of [manifestArg, goldArg, taxonomyArg]) if (p) assertNoHoldoutAccess(p);
+
+const GOLDSET_PATH = goldArg ?? path.resolve(
+  import.meta.dir,
+  '../src/tests/fixtures/benchmark-jev-qualification-goldset.json',
+);
 
 if (!fs.existsSync(GOLDSET_PATH)) {
   console.error(`Goldset fixture not found at ${GOLDSET_PATH}`);
   process.exit(1);
 }
 
-const raw = JSON.parse(fs.readFileSync(GOLDSET_PATH, 'utf8'));
+// Representative dev replay: explicit external manifest/gold + frozen
+// authority (dev-only; holdout custody never loads here).
+const devReplay = representativeInputs
+  ? loadDevReplayInputs({
+      manifestPath: manifestArg ?? REPRESENTATIVE_MANIFEST_PATH,
+      goldPath: goldArg ?? REPRESENTATIVE_DEV_GOLD_PATH,
+      taxonomyPath: taxonomyArg ?? REPRESENTATIVE_TAXONOMY_PATH,
+    })
+  : null;
+
+const raw = devReplay ? null : JSON.parse(fs.readFileSync(GOLDSET_PATH, 'utf8'));
 // Fail-closed on legacy authored predictions: they may exist in older copies
 // for readability, but they must never be scored. The loader strips them;
 // this notice makes any such copy visible instead of silently trusted.
-if (Array.isArray(raw.entries) && raw.entries.some((e: unknown) => {
+if (raw && Array.isArray(raw.entries) && raw.entries.some((e: unknown) => {
   const r = e as Record<string, unknown>;
   return 'baseline' in r || 'candidate' in r;
 })) {
@@ -109,7 +179,7 @@ if (Array.isArray(raw.entries) && raw.entries.some((e: unknown) => {
     'Note: fixture copy embeds legacy baseline/candidate predictions; ignoring them — predictions will be executed from code.',
   );
 }
-const allGoldEntries = parseQualificationGoldOnly(raw);
+const allGoldEntries = devReplay ? devReplay.goldEntries : parseQualificationGoldOnly(raw);
 // Split before inference. A development run must never send sealed holdout
 // evidence to either provider merely to discard it later during scoring.
 const goldEntries = splitArg ? allGoldEntries.filter(entry => entry.split === splitArg) : allGoldEntries;
@@ -117,7 +187,7 @@ const goldEntries = splitArg ? allGoldEntries.filter(entry => entry.split === sp
 // Candidate option sets come from the frozen taxonomy snapshot — never the
 // union of gold labels. A present-but-malformed snapshot fails closed;
 // legacy fixtures without one fall back to the labeled gold-union pool.
-const frozenTaxonomy = raw.frozenTaxonomy ?? null;
+const frozenTaxonomy = devReplay ? devReplay.frozenSnapshot : (raw.frozenTaxonomy ?? null);
 if (frozenTaxonomy !== null) {
   const parsed = FrozenTaxonomySnapshotSchema.safeParse(frozenTaxonomy);
   if (!parsed.success) {
@@ -126,45 +196,125 @@ if (frozenTaxonomy !== null) {
   }
 }
 
+// Dry-run budget preflight (before transport/chunks/retries): dev default
+// 600 max HTTP attempts, max 2 concurrency. The plan is the EXACT derived
+// worst case (entries × question batches × max retry — never clipped
+// candidates); over-budget denies before dispatch. Live mode additionally
+// needs the bound runtime guard supplied through the request path.
+const replayBudget = defaultDevReplayBudget({
+  ...(maxAttemptsArg ? { maxHttpAttempts: Number(maxAttemptsArg) } : {}),
+  ...(concurrencyArg ? { maxConcurrency: Number(concurrencyArg) } : {}),
+  ...(deadlineMsArg ? { hardDeadlineMs: Number(deadlineMsArg) } : {}),
+});
+const devPlan = isLiveCaptureFlag && devReplay && frozenTaxonomy
+  ? planDevReplayBudget(goldEntries, devReplay.frozenSnapshot)
+  : null;
+if (devPlan) {
+  console.error(`Plan: ${devPlan.entryCount} entries, ${devPlan.totalQuestions} questions, ${devPlan.dispatchBatches} batches, worst-case ${devPlan.plannedHttpAttempts} HTTP attempts (max ${replayBudget.maxHttpAttempts}).`);
+}
+const preflight = dryRunBudgetPreflight({
+  entryCount: goldEntries.length,
+  plannedHttpAttempts: devPlan ? devPlan.plannedHttpAttempts : (isLiveCaptureFlag ? goldEntries.length : 0),
+  budget: replayBudget,
+});
+if (!preflight.allowed) {
+  console.error(`Budget preflight denied: ${preflight.reason}`);
+  process.exit(1);
+}
+
 // 1. Capture baseline + candidate predictions into an immutable artifact.
-//    Default: deterministic floor (no network). Opt-in live capture for the
-//    candidate (`--live-capture` + TYPESAFE_API_KEY) and/or the baseline
-//    chat leg (`--baseline-provider` + `--baseline-model`).
+//    Default: deterministic floor (no network — an ambient TYPESAFE_API_KEY
+//    alone never implies live; only explicit --live-capture does, and the key
+//    value itself is never printed). Dev candidate-only live capture needs
+//    explicit --live-capture --model + credential AND the bound attempt guard
+//    wired through the real request path (else blocked with reason, never
+//    simulated). New baseline live routes need --isolated-store + credential
+//    ref (else the labeled deterministic floor — never a substituted
+//    provider, never production DB; candidate-only dev mode performs no DB
+//    init and no production writes).
 const apiKey = process.env.TYPESAFE_API_KEY ?? '';
 const hasKey = apiKey.length >= 8;
-const baselineRoute = baselineProviderArg && baselineModelArg
-  ? { provider: baselineProviderArg, model: baselineModelArg }
-  : null;
+const baselineResolution = resolveBaselineRoute({
+  provider: baselineProviderArg ?? null,
+  model: baselineModelArg ?? null,
+  isolatedStore: isolatedStoreArg ?? dbArg ?? null,
+  credentialRef: process.env.TYPESAFE_BASELINE_CREDENTIAL_REF ?? null,
+});
+const baselineRoute = baselineResolution.route;
+if (baselineResolution.blockedReason) {
+  console.error(`Note: ${baselineResolution.blockedReason}`);
+}
 if (baselineRoute) {
-  const databasePath = dbArg ?? process.env.BAYSTATE_CMS_DB ?? path.resolve(import.meta.dir, '../storage/catalog/.shopsite-cms/app.db');
-  if (!fs.existsSync(databasePath)) throw new Error('Live incumbent capture requires an initialized workspace database (--db=path).');
-  initDb(databasePath);
+  // NEVER initialize the production DB for replay: live baselines run only
+  // against the explicit isolated store.
+  if (!isolatedStoreArg) throw new Error('baseline_live_requires_isolated_store: pass --isolated-store=<path> (production DB is never initialized for replay).');
+  if (!fs.existsSync(isolatedStoreArg)) throw new Error('Live incumbent capture requires an initialized isolated workspace database (--isolated-store=path).');
+  const isolatedStore = assertIsolatedBaselineStore(isolatedStoreArg, {
+    repositoryRoot: path.resolve(import.meta.dir, '..'),
+    productionStorePaths: [path.resolve(import.meta.dir, '../storage/catalog/.shopsite-cms/app.db')],
+  });
+  initDb(isolatedStore);
+}
+// Bound the runtime guard to this run (budget + hard deadline enforced
+// inside every real request attempt, primary + retry). Unwired/absent stays
+// blocked — the flag is the bound guard itself, never a global.
+const attemptGuard = isLiveCaptureFlag ? createDevAttemptGuard(replayBudget) : null;
+let liveAllowed = false;
+if (isLiveCaptureFlag) {
+  try {
+    assertLiveCaptureAllowed({ liveCapture: true, model: modelArg ?? null, credentialRef: hasKey ? 'TYPESAFE_API_KEY' : null, guard: attemptGuard });
+    liveAllowed = hasKey;
+  } catch (err) {
+    console.error(`Note: ${(err as Error).message} The candidate side will be recorded as blocked, never simulated.`);
+    attemptGuard?.dispose();
+  }
+} else if (devReplay) {
+  console.error(`Note: dev replay context ${REPLAY_CONTEXT_ISOLATED_SINGLE_CHOICE}. ${DEV_CALIBRATION_NOTE}. Unsupported: ${DEV_REPLAY_UNSUPPORTED_CAPABILITIES.join('; ')}.`);
 }
 if (isLiveCaptureFlag && !hasKey) {
   console.error(
     'Note: --live-capture requested without a provisioned TYPESAFE_API_KEY; the candidate side will be recorded as blocked (jev_credentials_absent), never simulated.',
   );
 }
+const captureMode = liveAllowed
+  ? resolveDevCaptureMode({
+      liveCaptureRequested: true,
+      credentialPresent: true,
+      guardWired: isLiveRuntimeGuardWired(attemptGuard),
+    })
+  : 'deterministic_floor' as const;
 let artifact: QualificationPredictionArtifact;
-if (isLiveCaptureFlag || baselineRoute) {
+// Frozen grounding sidecar (aliases, catalog fields, claim flags) rides
+// capture post-validation — the strict schema check above stays pure, the
+// frozen_snapshot contract + hash are unchanged.
+const captureTaxonomy = devReplay
+  ? withFrozenAuthorityDetails(devReplay.frozenSnapshot, devReplay.authorityDetails)
+  : frozenTaxonomy;
+if (captureMode === 'live_captured' || baselineRoute) {
   artifact = await captureQualificationPredictionsLive(
     goldEntries,
     {
-      jev: hasKey ? { apiKey, ...(modelArg ? { model: modelArg } : {}) } : null,
+      jev: captureMode === 'live_captured' ? { apiKey, ...(modelArg ? { model: modelArg } : {}) } : null,
       baselineRoute,
+      ...(attemptGuard ? { attemptBudget: { tryConsumeAttempt: () => attemptGuard.tryConsumeAttempt() }, deadlineSignal: attemptGuard.signal } : {}),
     },
-    frozenTaxonomy,
+    captureTaxonomy,
   );
+  if (attemptGuard) {
+    const audit = attemptGuard.audit();
+    console.error(`Guard audit: ${audit.consumed} attempts consumed, ${audit.rejected} rejected (max ${audit.maxHttpAttempts}), deadlineFired=${audit.deadlineFired}.`);
+    attemptGuard.dispose();
+  }
 } else {
-  artifact = buildQualificationPredictionsFromCode(goldEntries, frozenTaxonomy);
+  artifact = buildQualificationPredictionsFromCode(goldEntries, captureTaxonomy);
 }
 
 // 2. Score the executed artifact with the existing evaluator (unchanged).
 const goldset: QualificationGoldset = {
-  version: raw.version,
-  description: raw.description,
-  adjudicatedBy: raw.adjudicatedBy,
-  verifiedPageImport: raw.verifiedPageImport,
+  version: devReplay ? 'jev-representative-dev-v1' : raw.version,
+  description: devReplay ? 'Bounded dev replay over jev-representative-v1 (agent adjudication, NOT approval; isolated single-Choice, NOT cohort qualification)' : raw.description,
+  adjudicatedBy: devReplay ? 'agent:jev-development-adjudicator (NOT human approval)' : raw.adjudicatedBy,
+  verifiedPageImport: devReplay ? devReplay.frozenSnapshot.pages.length : raw.verifiedPageImport,
   frozenTaxonomy,
   entries: goldEntries.map(e => {
     const p = artifact.predictions.find(x => x.sku === e.sku);
@@ -628,8 +778,10 @@ const predictionProvenance = {
   captureMode: artifact.captureMode,
   taxonomySource: artifact.taxonomySource,
   frozenTaxonomyHash: artifact.frozenTaxonomyHash,
-  fixtureVersion: raw.version,
-  fixturePath: GOLDSET_PATH,
+  authorityHash: artifact.authorityHash,
+  authorityDetailsHash: artifact.authorityDetailsHash,
+  fixtureVersion: devReplay ? 'jev-representative-dev-v1' : raw.version,
+  fixturePath: devReplay ? devReplay.goldPath : GOLDSET_PATH,
   sources: predictionSources,
   liveCaptureRequested: isLiveCaptureFlag,
   baselineRoute: baselineRoute ? `${baselineRoute.provider}/${baselineRoute.model}` : null,
@@ -706,25 +858,28 @@ console.log(`Statistical gate:   ${statisticalGate.qualified ? 'passed' : `unqua
 console.log(`Adjudicated By:     ${goldset.adjudicatedBy}\n`);
 
 console.log('--- 1. PRIMARY PRODUCT TYPE COMPARISON ---');
-console.log(`  Raw Correctness: Baseline ${(comparisonReport.productType.rawCorrectness.baseline * 100).toFixed(1)}% | Jev ${(comparisonReport.productType.rawCorrectness.candidate * 100).toFixed(1)}% (Delta: ${comparisonReport.productType.rawCorrectness.delta > 0 ? '+' : ''}${(comparisonReport.productType.rawCorrectness.delta * 100).toFixed(1)}%)`);
-console.log(`  Coverage:        Baseline ${(comparisonReport.productType.coverage.baseline * 100).toFixed(1)}% | Jev ${(comparisonReport.productType.coverage.candidate * 100).toFixed(1)}%`);
+console.log(`  Evaluation:      ${evaluationStatusText(comparisonReport.productType.evaluation, 'product type labels')}`);
+console.log(`  Raw Correctness: Baseline ${measuredPercent(comparisonReport.productType.rawCorrectness.baseline, comparisonReport.productType.evaluation)} | Jev ${measuredPercent(comparisonReport.productType.rawCorrectness.candidate, comparisonReport.productType.evaluation)} (Delta: ${comparisonReport.productType.rawCorrectness.delta > 0 ? '+' : ''}${(comparisonReport.productType.rawCorrectness.delta * 100).toFixed(1)}%)`);
+console.log(`  Coverage:        Baseline ${measuredPercent(comparisonReport.productType.coverage.baseline, comparisonReport.productType.evaluation)} | Jev ${measuredPercent(comparisonReport.productType.coverage.candidate, comparisonReport.productType.evaluation)}`);
 console.log(`  Incorrect:       Baseline ${comparisonReport.productType.incorrectProposals.baseline} | Jev ${comparisonReport.productType.incorrectProposals.candidate}`);
 console.log(`  Regressions:     ${comparisonReport.productType.harmfulRegressions}`);
 console.log(`  Recovered:       ${comparisonReport.productType.recoveredAbstentions}`);
 console.log(`  Service Failures:${comparisonReport.productType.serviceFailures.candidate}\n`);
 
 console.log('--- 2. CONTROLLED ATTRIBUTES COMPARISON ---');
-console.log(`  Raw Correctness: Baseline ${(comparisonReport.attributes.rawCorrectness.baseline * 100).toFixed(1)}% | Jev ${(comparisonReport.attributes.rawCorrectness.candidate * 100).toFixed(1)}%`);
-console.log(`  Set F1 Score:    Baseline ${comparisonReport.attributes.setMetrics.f1.baseline.toFixed(3)} | Jev ${comparisonReport.attributes.setMetrics.f1.candidate.toFixed(3)}`);
-console.log(`  Set Precision:   Baseline ${comparisonReport.attributes.setMetrics.precision.baseline.toFixed(3)} | Jev ${comparisonReport.attributes.setMetrics.precision.candidate.toFixed(3)}`);
-console.log(`  Set Recall:      Baseline ${comparisonReport.attributes.setMetrics.recall.baseline.toFixed(3)} | Jev ${comparisonReport.attributes.setMetrics.recall.candidate.toFixed(3)}`);
-console.log(`  Exact Match:     Baseline ${(comparisonReport.attributes.setMetrics.exactMatch.baseline * 100).toFixed(1)}% | Jev ${(comparisonReport.attributes.setMetrics.exactMatch.candidate * 100).toFixed(1)}%\n`);
+console.log(`  Evaluation:      ${evaluationStatusText(comparisonReport.attributes.evaluation, 'product attribute sets')}`);
+console.log(`  Raw Correctness: Baseline ${measuredPercent(comparisonReport.attributes.rawCorrectness.baseline, comparisonReport.attributes.evaluation)} | Jev ${measuredPercent(comparisonReport.attributes.rawCorrectness.candidate, comparisonReport.attributes.evaluation)}`);
+console.log(`  Set F1 Score:    Baseline ${measuredScore(comparisonReport.attributes.setMetrics.f1.baseline, comparisonReport.attributes.evaluation)} | Jev ${measuredScore(comparisonReport.attributes.setMetrics.f1.candidate, comparisonReport.attributes.evaluation)}`);
+console.log(`  Set Precision:   Baseline ${measuredScore(comparisonReport.attributes.setMetrics.precision.baseline, comparisonReport.attributes.evaluation)} | Jev ${measuredScore(comparisonReport.attributes.setMetrics.precision.candidate, comparisonReport.attributes.evaluation)}`);
+console.log(`  Set Recall:      Baseline ${measuredScore(comparisonReport.attributes.setMetrics.recall.baseline, comparisonReport.attributes.evaluation)} | Jev ${measuredScore(comparisonReport.attributes.setMetrics.recall.candidate, comparisonReport.attributes.evaluation)}`);
+console.log(`  Exact Match:     Baseline ${measuredPercent(comparisonReport.attributes.setMetrics.exactMatch.baseline, comparisonReport.attributes.evaluation)} | Jev ${measuredPercent(comparisonReport.attributes.setMetrics.exactMatch.candidate, comparisonReport.attributes.evaluation)}\n`);
 
 console.log('--- 3. CATEGORY PAGES & COHORTS COMPARISON ---');
-console.log(`  Page Exact Match:Baseline ${(comparisonReport.categoryPages.setMetrics.exactMatch.baseline * 100).toFixed(1)}% | Jev ${(comparisonReport.categoryPages.setMetrics.exactMatch.candidate * 100).toFixed(1)}%`);
-console.log(`  Page F1 Score:   Baseline ${comparisonReport.categoryPages.setMetrics.f1.baseline.toFixed(3)} | Jev ${comparisonReport.categoryPages.setMetrics.f1.candidate.toFixed(3)}`);
-console.log(`  Page Precision:  Baseline ${comparisonReport.categoryPages.setMetrics.precision.baseline.toFixed(3)} | Jev ${comparisonReport.categoryPages.setMetrics.precision.candidate.toFixed(3)}`);
-console.log(`  Page Recall:     Baseline ${comparisonReport.categoryPages.setMetrics.recall.baseline.toFixed(3)} | Jev ${comparisonReport.categoryPages.setMetrics.recall.candidate.toFixed(3)}\n`);
+console.log(`  Evaluation:      ${evaluationStatusText(comparisonReport.categoryPages.evaluation, 'page sets')}`);
+console.log(`  Page Exact Match:Baseline ${measuredPercent(comparisonReport.categoryPages.setMetrics.exactMatch.baseline, comparisonReport.categoryPages.evaluation)} | Jev ${measuredPercent(comparisonReport.categoryPages.setMetrics.exactMatch.candidate, comparisonReport.categoryPages.evaluation)}`);
+console.log(`  Page F1 Score:   Baseline ${measuredScore(comparisonReport.categoryPages.setMetrics.f1.baseline, comparisonReport.categoryPages.evaluation)} | Jev ${measuredScore(comparisonReport.categoryPages.setMetrics.f1.candidate, comparisonReport.categoryPages.evaluation)}`);
+console.log(`  Page Precision:  Baseline ${measuredScore(comparisonReport.categoryPages.setMetrics.precision.baseline, comparisonReport.categoryPages.evaluation)} | Jev ${measuredScore(comparisonReport.categoryPages.setMetrics.precision.candidate, comparisonReport.categoryPages.evaluation)}`);
+console.log(`  Page Recall:     Baseline ${measuredScore(comparisonReport.categoryPages.setMetrics.recall.baseline, comparisonReport.categoryPages.evaluation)} | Jev ${measuredScore(comparisonReport.categoryPages.setMetrics.recall.candidate, comparisonReport.categoryPages.evaluation)}\n`);
 
 console.log('--- 4. END-TO-END PIPELINE EFFECTS ---');
 console.log(`  Total Evaluated: ${comparisonReport.endToEndPipeline.totalMembers}`);
