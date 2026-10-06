@@ -105,7 +105,6 @@
   border-radius: var(--rounded-md);
   background: var(--color-white-surface);
   -webkit-overflow-scrolling: touch;
-  box-shadow: var(--shadow-sm);
   position: relative;
 }
 
@@ -272,57 +271,46 @@
   outline-offset: 2px;
 }
 
-/* Prepare listing: five internal sections, one stage view */
-.bws-prepare-sections {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  margin-bottom: var(--spacing-md);
-}
-
-.bws-prepare-section {
-  background: var(--color-white-surface);
-  border: 1px solid var(--color-card-border);
-  border-radius: var(--rounded-md);
-}
-
-.bws-prepare-section-toggle {
-  appearance: none;
-  background: transparent;
-  border: none;
-  width: 100%;
+/* Six task screens share one compact header and preserve mounted view state. */
+.bws-shell { padding: 16px 24px 32px; min-width: 0; }
+.bws-header, .bws-header-identity, .bws-header-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-ledger-charcoal);
-  padding: 0.625rem 0.875rem;
-  min-height: 40px;
-  cursor: pointer;
-  text-align: left;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
 }
+.bws-header { justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.bws-header h1 { overflow-wrap: anywhere; }
+.bws-header button { cursor: pointer; }
+.bws-attention-trigger { color: var(--color-uniform-green); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bws-read-error { margin: 12px 0; color: var(--color-danger-text); }
+.bws-read-error button { margin-left: 12px; }
+.bws-working-screen { min-width: 0; padding-top: 12px; }
+.bws-working-screen[hidden] { display: none !important; }
+.bws-attention-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--color-card-border); }
+.bws-attention-heading h2 { font-size: 1.125rem; margin: 0 0 4px; }
+.bws-attention-heading p { font-size: 0.8125rem; margin: 0; }
+.bws-attention-body { padding: 20px 24px; min-width: 0; overflow-wrap: anywhere; }
+.bws-preparation-header { margin-bottom: 16px; }
+.bws-preparation input { font: inherit; min-height: 36px; padding: 6px 10px; border: 1px solid var(--color-card-border); border-radius: var(--rounded-md); background: var(--color-white-surface); color: var(--color-ledger-charcoal); max-width: 100%; }
+.bws-preparation-products { max-height: 70vh; overflow: auto; }
+.bws-preparation-selected { padding: 0 20px; border-left: 1px solid var(--color-card-border); }
+.bws-preparation-details { font-size: 0.875rem; line-height: 1.55; }
+.bws-preparation-details h4 { font-size: 0.875rem; }
+.bws-preparation-product button { width: 100%; text-align: left; white-space: normal; }
+.bws-preparation-product button[aria-pressed='true'], .bws-preparation-filters button[aria-pressed='true'] { background: var(--color-uniform-green); color: var(--color-feed-bag-cream); border-color: var(--color-uniform-green); }
+.bws-preparation input:focus-visible, .bws-preparation button:focus-visible, .bws-header button:focus-visible, .bws-attention-panel button:focus-visible { outline: 2px solid var(--color-seedling-green); outline-offset: 2px; }
 
-.bws-prepare-section-toggle:focus-visible {
-  outline: 2px solid var(--color-seedling-green);
-  outline-offset: -2px;
-}
-
-.bws-prepare-section-body {
-  padding: 0 0.875rem 0.875rem 0.875rem;
-  font-size: 0.8125rem;
-}
-
-.bws-prepare-section-body p {
-  margin: 0 0 0.5rem 0;
-}
-
-/* ── Header batch tools dropdown ── */
-.bws-batch-tools-summary::-webkit-details-marker {
-  display: none;
-}
-.bws-batch-tools-summary {
-  list-style: none;
+@media (max-width: 700px) {
+  .bws-shell { padding: 12px 12px 24px; }
+  .bws-header-identity, .bws-header-controls { width: 100%; }
+  .bws-stage-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .bws-stage-tab { flex-shrink: 0; min-height: 40px; }
+  .bws-attention-panel { width: 100%; }
+  .bws-attention-heading, .bws-attention-body { padding: 16px; }
+  .bws-preparation-selected { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--color-card-border); }
+  .bws-preparation-layout > section { flex-basis: 100% !important; }
+  .bws-preparation-products { max-height: 50vh; }
+  .bws-table-scroll { min-height: 240px; }
 }

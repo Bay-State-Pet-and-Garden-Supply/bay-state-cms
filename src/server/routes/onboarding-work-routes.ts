@@ -254,6 +254,7 @@ route.get('/onboarding/batches/:id/review-queue', async (c) => {
     brand: c.req.query('brand') || undefined,
     sourceType: c.req.query('sourceType') || undefined,
     q: c.req.query('q') || undefined,
+    selectedItemId: c.req.query('selectedItemId'),
   };
 
   if (reviewStatesRaw) {
@@ -639,7 +640,7 @@ route.post('/onboarding/batches/:id/create-export-drafts', async (c) => {
     validIds.push(id);
   }
   try {
-    const res = createExportDraftsWithReceipt({
+    const res = await createExportDraftsWithReceipt({
       itemIds: validIds,
       batchId,
       requestedBy: principal.actor,
@@ -651,7 +652,7 @@ route.post('/onboarding/batches/:id/create-export-drafts', async (c) => {
       preRejected,
     });
     // Build response envelope matching approve shape but with export lifecycle fields
-    const finalRejected = [...preRejected, ...res.rejected];
+    const finalRejected = res.rejected;
     const results = [
       ...res.created.map(itemId => ({ itemId, status: 'created' as const, reason: null })),
       ...finalRejected.map(r => ({ itemId: r.itemId, status: 'rejected' as const, reason: r.reason })),

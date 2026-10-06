@@ -183,18 +183,55 @@ describe('Stage 1 builder integration', () => {
     });
   }
 
-  it('strategy column stays compact: status + Review button, no inline revision details', async () => {
+  /**
+   * Strategy review now lives inside the product Details panel: open the
+   * row's Details first, then the Review strategy trigger within the panel.
+   * Rows whose next action is already "Details" expose only the primary
+   * button; rows with a "Review strategy" next action carry Details as the
+   * secondary button.
+   */
+  async function openStrategyDialogFor(itemId: string) {
+    expect(container.querySelector('[data-testid="source-item-detail"]')).toBeNull();
+    const details = (container.querySelector(`[data-testid="intake-details-${itemId}"]`)
+      ?? container.querySelector(`[data-testid="intake-next-action-${itemId}"]`)) as HTMLButtonElement;
+    expect(details).not.toBeNull();
+    await act(async () => {
+      details.click();
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="source-item-detail"]')).not.toBeNull();
+    const review = container.querySelector(
+      `[data-testid="intake-strategy-review-${itemId}"]`,
+    ) as HTMLButtonElement;
+    expect(review).not.toBeNull();
+    expect(review.getAttribute('aria-haspopup')).toBe('dialog');
+    await act(async () => {
+      review.click();
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    return { details, review };
+  }
+
+  it('strategy column stays compact: five columns, status + next action, no inline revision details', async () => {
     await renderStage();
-    // No verbose inline details in the table — revision/proposal text lives in the dialog.
+    // Five compact columns: Product, Brand, Source, Status, Next action.
+    const headers = Array.from(container.querySelectorAll('table thead th')).map((th) => th.textContent ?? '');
+    expect(headers).toEqual([' Product', 'Brand', 'Source', 'Status', 'Next action']);
+    // No verbose inline details in the table — revision/proposal text lives
+    // in the Details panel and dialog.
     expect(container.querySelector('[data-testid="intake-strategy-approved-item_gamma"]')).toBeNull();
     expect(container.querySelector('[data-testid="intake-strategy-use-proposal-item_beta"]')).toBeNull();
     expect(container.textContent).not.toMatch(/proposal differs/);
     expect(container.textContent).not.toMatch(/official collection not yet supported/);
-    // Compact status + single trigger per row.
-    expect(container.querySelector('[data-testid="intake-readiness-item_gamma"]')?.textContent).toMatch(/Ready.*2 sources available/);
+    // Compact status per row; the Review trigger lives inside Details now,
+    // never as a second table button.
+    expect(container.querySelector('[data-testid="intake-readiness-item_gamma"]')?.textContent).toMatch(/Ready · 2 sources available/);
     expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting approval/);
-    expect(container.querySelector('[data-testid="intake-strategy-review-item_gamma"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="intake-strategy-review-item_beta"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_gamma"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-strategy-review-item_beta"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-next-action-item_gamma"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-next-action-item_beta"]')).not.toBeNull();
   });
 
   it('409 in the expander preserves context and requires an explicit second Save', async () => {
@@ -202,13 +239,9 @@ describe('Stage 1 builder integration', () => {
       new OnboardingApiError('stale', 409, 'stale_revision', { error: 'stale_revision', code: 'stale_revision', revision: 0 }),
     );
     await renderStage();
-    // Open the dialog via the single Review trigger, then stage the live
-    // proposal inside the builder (still requiring explicit Save).
-    await act(async () => {
-      (container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement).click();
-    });
-    await settle();
-    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    // Open Details first, then Review strategy inside the panel; stage the
+    // live proposal inside the builder (still requiring explicit Save).
+    await openStrategyDialogFor('item_beta');
     await act(async () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement).click();
     });
@@ -223,10 +256,28 @@ describe('Stage 1 builder integration', () => {
       (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Review changes against latest') as HTMLButtonElement).click();
     });
     expect(container.textContent).toMatch(/Rebased onto the latest revision/);
+    // The preserved edits survive rebase: a second explicit Save succeeds
+    // and closes the dialog.
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement).click();
+    });
+    await settle();
+    expect(saveBrandStrategy).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).toBeNull();
   });
 
   it('dialog trigger is keyboard-operable with a labelled modal dialog and readiness text (no color-only status)', async () => {
     await renderStage();
+    // Details is the keyboard entry point; the Review trigger inside the
+    // panel carries the dialog semantics.
+    const details = (container.querySelector('[data-testid="intake-details-item_beta"]')
+      ?? container.querySelector('[data-testid="intake-next-action-item_beta"]')) as HTMLButtonElement;
+    details.focus();
+    expect(document.activeElement).toBe(details);
+    await act(async () => {
+      details.click();
+    });
+    await settle();
     const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
     review.focus();
     expect(document.activeElement).toBe(review);
@@ -242,6 +293,14 @@ describe('Stage 1 builder integration', () => {
     expect(dialog?.getAttribute('aria-label')).toMatch(/Review strategy — Beta/);
     // Text readiness, not color-only: awaiting-approval wording is present.
     expect(container.textContent).toMatch(/Awaiting approval/);
+    // Escape closes and returns focus to the Review invoker — keyboard
+    // users are never stranded or skipped elsewhere.
+    await act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(review);
   });
 
   it('prepare gap dialog opens labelled, Escape closes and restores invoker focus (T-8)', async () => {

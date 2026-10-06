@@ -5,7 +5,7 @@
  * from the v2 server count matrix (column sums per stage), never from
  * fetched-page lengths. Step 0 (`brand-setup`) is never a tab here.
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { LINEAR_STAGES, type LinearStageId } from './linear-workspace-logic';
 import { formatCount } from './batch-workspace-logic';
 
@@ -18,6 +18,7 @@ export interface StageNavigationProps {
 }
 
 export function StageNavigation({ activeStage, stageCounts, countsStale, onSelect }: StageNavigationProps) {
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   return (
     <div className="bws-stage-nav-wrap">
       <div className="bws-tabs bws-stage-tabs" role="tablist" aria-label="Onboarding stages">
@@ -31,10 +32,24 @@ export function StageNavigation({ activeStage, stageCounts, countsStale, onSelec
               role="tab"
               id={`bws-stage-tab-${stage.id}`}
               aria-selected={selected}
-              aria-controls="bws-stage-panel"
+              aria-controls={`bws-stage-panel-${stage.id}`}
+              tabIndex={selected ? 0 : -1}
+              ref={(element) => { tabs.current[index] = element; }}
               className="bws-tab bws-stage-tab"
               title={`${index + 1}. ${stage.label} — ${stage.description}`}
               onClick={() => onSelect(stage.id)}
+              onKeyDown={(event) => {
+                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                const next = event.key === 'ArrowRight' ? (index + 1) % LINEAR_STAGES.length
+                  : event.key === 'ArrowLeft' ? (index + LINEAR_STAGES.length - 1) % LINEAR_STAGES.length
+                  : event.key === 'Home' ? 0
+                  : event.key === 'End' ? LINEAR_STAGES.length - 1
+                  : null;
+                if (next === null) return;
+                event.preventDefault();
+                tabs.current[next]?.focus();
+                onSelect(LINEAR_STAGES[next].id);
+              }}
             >
               <span className="bws-stage-tab-step" aria-hidden="true">{index + 1}</span>
               {stage.label}

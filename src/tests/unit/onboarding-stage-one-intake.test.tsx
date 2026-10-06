@@ -1,723 +1,372 @@
 // @vitest-environment jsdom
-/**
- * Stage 1 "Identify & Route Sources" intake surface (issues #116–#119).
- *
- * UI integration seam over StageItemsView route_sources:
- * - #116 Intake KPI strip: accurate counts + click-to-filter + active-chip
- *   highlight/clear.
- * - #117 Unmapped brand resolution drawer: renders blockers, inline domain
- *   save dispatches assignBatchBrandDomain, failures keep input.
- * - #118 Enhanced bulk bar: checkboxes/select-all, live domain preview,
- *   inline quick-add, server dispatch (assignBrandGroup + optional
- *   assignBatchBrandDomain).
- * - #119 Enriched table: Missing Brand badge, Domain states
- *   (Profile Ready / Profile Required → Settings / Missing Domain +
- *   Add Domain / distributor-exempt note), compact Strategy column
- *   (readiness status + Review trigger).
- */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-vi.mock('../../shared/schemas/onboarding-stage-read', () => ({
-  STAGE_READ_LIMIT_DEFAULT: 50,
-}));
-
-vi.mock('../../client/onboarding-api', () => ({
-  assignItemBrand: vi.fn(),
-  assignItemDomain: vi.fn(),
-  assignBrandGroup: vi.fn(),
-  getBrandSites: vi.fn(),
-  getExtractorProfiles: vi.fn(),
-  getBrandStrategyDetail: vi.fn(),
-  saveBrandStrategy: vi.fn(),
-}));
-
-vi.mock('../../client/onboarding-work-api', () => ({
-  getBrandDomainBlockers: vi.fn(),
-  assignBatchBrandDomain: vi.fn(),
-}));
-
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { StageItemsView } from '../../client/components/onboarding/StageItemsView';
-import {
-  assignBrandGroup,
-  getBrandSites,
-  getBrandStrategyDetail,
-  getExtractorProfiles,
-} from '../../client/onboarding-api';
-import {
-  assignBatchBrandDomain,
-  getBrandDomainBlockers,
-} from '../../client/onboarding-work-api';
+
+vi.mock('../../shared/schemas/onboarding-stage-read', () => ({ STAGE_READ_LIMIT_DEFAULT: 50 }));
+vi.mock('../../client/onboarding-api', () => ({
+  assignItemBrand: vi.fn(), assignBrandGroup: vi.fn(), getBrandSites: vi.fn(), getExtractorProfiles: vi.fn(),
+  getBrandStrategyDetail: vi.fn(), saveBrandStrategy: vi.fn(),
+}));
+vi.mock('../../client/onboarding-work-api', () => ({ assignBatchBrandDomain: vi.fn() }));
+
+import { StageItemsView, type StageItemsViewProps } from '../../client/components/onboarding/StageItemsView';
+import { assignItemBrand, assignBrandGroup, getBrandSites, getExtractorProfiles, getBrandStrategyDetail } from '../../client/onboarding-api';
+import { assignBatchBrandDomain } from '../../client/onboarding-work-api';
 import { resetBrandOptionsCache } from '../../client/components/onboarding/brand-combobox-logic';
+import { readStageViewPreferences } from '../../client/components/onboarding/workspace-view-state';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-function healthy() {
-  return { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] };
-}
-
-function makeRow(i: number, overrides: Record<string, unknown> = {}) {
+function row(i: number, overrides: Record<string, unknown> = {}) {
   return {
-    itemId: `item_${i}`,
-    category: 'processing',
-    activity: null,
-    label: 'Working',
-    detail: null,
-    attentionReason: null,
-    attentionAction: null,
-    variantResolution: null,
-    findingCode: null,
-    findingSummary: null,
-    conflictingValues: null,
-    suggestedAction: null,
-    findingDetails: null,
-    family: null,
-    reviewState: 'unreviewed',
-    stage: 'sourcing',
-    stageStatus: 'pending',
-    upc: `0000000000${i}`,
-    name: `Product ${i}`,
-    brand: 'Acme',
-    sourceType: 'official_page',
-    domain: 'acme.example',
-    curatedTitle: null,
-    imageUrl: null,
-    description: null,
-    weight: null,
-    ...overrides,
+    itemId: `item_${i}`, category: 'processing', activity: null, label: 'Working', detail: null,
+    attentionReason: null, attentionAction: null, variantResolution: null, findingCode: null,
+    findingSummary: null, conflictingValues: null, suggestedAction: null, findingDetails: null, family: null,
+    reviewState: 'unreviewed', stage: 'sourcing', stageStatus: 'pending', upc: `0000000000${i}`,
+    name: `Product ${i}`, brand: 'Acme', sourceType: 'official_page', domain: 'acme.com',
+    curatedTitle: null, imageUrl: null, description: null, weight: null, ...overrides,
   };
 }
-
-// item_1: missing brand · item_2: Acme mapped+profile ·
-// item_3: Beta unmapped (blocker) · item_4: distributor exempt
-function intakeRows() {
-  return [
-    makeRow(1, { brand: null, domain: null }),
-    makeRow(2, { brand: 'Acme', domain: 'acme.com' }),
-    makeRow(3, { brand: 'Beta', domain: null }),
-    makeRow(4, { brand: 'Gamma', domain: null, sourceType: 'distributor_record' }),
-  ];
+const SOLO = {
+  normalizedBrand: 'solo', approval: { approved: true, revision: 1 }, proposalSources: [],
+  approvedSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
+  sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: false, reason: 'Distributor connection not enabled' }],
+  collectionReadiness: 'setup_attention',
+};
+function collection(overrides: Record<string, unknown> = {}) {
+  return {
+    itemId: 'item_9', path: 'approved_strategy', readiness: 'setup_attention', canCollect: false,
+    canExecuteNow: false, effectiveRevision: 1, reasons: ['Approved strategy revision 1 has no usable sources'],
+    requires: 'explicit_retry', effectiveSources: [],
+    sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', usable: false, reason: 'Distributor connection not enabled' }],
+    label: 'Setup attention · No usable sources', explanation: null, strategyLabel: 'Phillips', ...overrides,
+  };
 }
-
-function setInputValue(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-  setter?.call(input, value);
+function setInput(input: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => { resolve = r; });
+  return { promise, resolve };
+}
 
-describe('Stage 1 intake surface (#116–#119)', () => {
+describe('#284 selected-product source setup', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let rows: ReturnType<typeof row>[];
+  let strategies: unknown[];
+  let collectionByItem: Record<string, unknown>;
+  let urls: string[];
+  const scope = { workspaceId: 'w1', batchId: 'b1', stage: 'route_sources' as const };
 
-  async function mount(extraProps: Record<string, unknown> = {}) {
-    await act(async () => {
-      root.render(<StageItemsView batchId="b1" stage="route_sources" {...(extraProps as object)} />);
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 30));
-    });
+  function payload(items = rows) {
+    return {
+      schemaVersion: 2, stageVocabularyVersion: 2, batchId: 'b1', filterFingerprint: 'a'.repeat(32),
+      projectionHealth: { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] },
+      items, collectionByItem, nextCursor: null, scannedRows: items.length, queryCount: 3,
+    };
+  }
+  async function settle(ms = 20) { await act(async () => { await new Promise((r) => setTimeout(r, ms)); }); }
+  async function mount(props: Partial<StageItemsViewProps> = {}) {
+    await act(async () => { root.render(<StageItemsView {...scope} {...props} />); });
+    await settle();
+  }
+  function get<T extends Element = HTMLButtonElement>(id: string): T {
+    const el = container.querySelector<T>(`[data-testid="${id}"]`);
+    expect(el, id).not.toBeNull();
+    return el!;
+  }
+  async function click(id: string) { await act(async () => { get<HTMLButtonElement>(id).click(); }); }
+  async function details(id: string) {
+    const button = container.querySelector<HTMLButtonElement>(`[data-testid="intake-details-${id}"]`) ?? get<HTMLButtonElement>(`intake-next-action-${id}`);
+    await act(async () => { button.click(); });
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    resetBrandOptionsCache();
-    vi.mocked(assignBrandGroup).mockResolvedValue({ success: true, preflight: {} } as never);
-    vi.mocked(assignBatchBrandDomain).mockResolvedValue({ success: true, requeued: 1, blockers: [] } as never);
-    vi.mocked(getBrandSites).mockResolvedValue({
-      brandSites: [{ brandName: 'Acme', domain: 'acme.com' }],
-      catalogBrands: ['Acme', 'Beta', 'Gamma'],
-    } as never);
-    vi.mocked(getExtractorProfiles).mockResolvedValue({
-      extractorProfiles: [{ domain: 'acme.com' }],
-    } as never);
-    vi.mocked(getBrandDomainBlockers).mockResolvedValue({
-      blockers: [
-        {
-          brand: 'Beta',
-          blockedItemCount: 1,
-          batchId: 'b1',
-          itemIds: ['item_3'],
-          sampleItems: [],
-          existingMapping: null,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    } as never);
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        schemaVersion: 2,
-        stageVocabularyVersion: 2,
-        batchId: 'b1',
-        filterFingerprint: 'a'.repeat(32),
-        projectionHealth: healthy(),
-        items: intakeRows(),
-        nextCursor: null,
-        scannedRows: 4,
-        queryCount: 3,
-      }),
-    }) as any);
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
+    vi.clearAllMocks(); sessionStorage.clear(); resetBrandOptionsCache();
+    rows = [row(1, { brand: null, domain: null }), row(2), row(3, { brand: 'Beta', domain: null }), row(4, { brand: 'Gamma', domain: null, sourceType: 'distributor_record' })];
+    strategies = []; collectionByItem = {}; urls = [];
+    vi.mocked(assignItemBrand).mockResolvedValue({ success: true } as never);
+    vi.mocked(assignBrandGroup).mockResolvedValue({ success: true } as never);
+    vi.mocked(assignBatchBrandDomain).mockResolvedValue({ success: true } as never);
+    vi.mocked(getBrandSites).mockResolvedValue({ brandSites: [{ brandName: 'Acme', domain: 'acme.com' }], catalogBrands: ['Acme', 'Beta', 'Gamma'] } as never);
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [{ domain: 'acme.com' }] } as never);
+    vi.mocked(getBrandStrategyDetail).mockResolvedValue({ strategy: SOLO } as never);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input); urls.push(url);
+      const query = new URL(url, 'http://localhost').searchParams.get('q');
+      return { ok: true, status: 200, json: async () => url.includes('/brands/strategy') ? { strategies } : payload(query ? rows.filter((r) => r.name.includes(query)) : rows) } as Response;
+    });
+    container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container);
   });
-
   afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-    vi.restoreAllMocks();
-    document.body.innerHTML = '';
+    act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); document.body.innerHTML = '';
+    window.history.replaceState(null, '', '/');
   });
 
-  it('#116 renders the KPI strip with accurate counts', async () => {
+  it('shows the five intake columns, quick brands, and no advanced editors or duplicate unmapped section', async () => {
     await mount();
-    const strip = container.querySelector('[data-testid="intake-kpi-strip"]');
-    expect(strip).not.toBeNull();
-    expect(strip?.getAttribute('role')).toBe('group');
-    const text = strip?.textContent ?? '';
-    expect(text).toMatch(/All Products \(4\)/);
-    expect(text).toMatch(/Missing Brand \(1\)/);
-    expect(text).toMatch(/Missing Domain \(1\)/);
-    expect(text).toMatch(/Distributor record \(1\)/);
-    expect(text).toMatch(/Ready to Route \(2\)/);
+    expect(Array.from(container.querySelectorAll('th')).map((th) => th.textContent?.trim())).toEqual(['Product', 'Brand', 'Source', 'Status', 'Next action']);
+    expect(container.querySelectorAll('input[role="combobox"]')).toHaveLength(4);
+    expect(container.querySelector('[data-testid="source-item-detail"]')).toBeNull();
+    expect(container.querySelector('[data-testid="unmapped-brand-drawer"]')).toBeNull();
+    expect(container.querySelector('[data-testid^="intake-domain-input-"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stage-bulk-bar"]')).toBeNull();
+    expect(get('intake-kpi-strip').textContent).toMatch(/Loaded products:.*All Products \(4\).*Missing Brand \(1\).*Missing Domain \(1\).*Distributor record \(1\).*Ready to Route \(2\)/);
   });
 
-  it('#116 clicking a KPI chip filters rows; clicking the active chip clears', async () => {
+  it('keeps individual canonical brand assignment fast and submits the originating brand', async () => {
     await mount();
-    const chip = container.querySelector('[data-testid="intake-kpi-missing-brand"]') as HTMLButtonElement;
-    expect(chip.getAttribute('aria-pressed')).toBe('false');
-    await act(async () => {
-      chip.click();
-    });
-    expect(chip.getAttribute('aria-pressed')).toBe('true');
-    // Only the unbranded row remains visible.
-    expect(container.querySelector('[data-testid="stage-select-item_1"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_3"]')).toBeNull();
-    // Clicking the active chip clears the filter.
-    await act(async () => {
-      chip.click();
-    });
-    expect(chip.getAttribute('aria-pressed')).toBe('false');
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).not.toBeNull();
+    await act(async () => { setInput(get<HTMLInputElement>('stage-brand-input-item_1'), 'acme'); });
+    await act(async () => { get('stage-brand-input-item_1').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(assignItemBrand).toHaveBeenCalledWith('item_1', 'Acme', undefined);
+    expect(urls.filter((url) => url.includes('/stage-work-state/items')).length).toBeGreaterThan(1);
   });
 
-  it('#116 distributor + ready filters isolate the expected rows', async () => {
-    await mount();
-    const dist = container.querySelector('[data-testid="intake-kpi-distributor"]') as HTMLButtonElement;
-    await act(async () => {
-      dist.click();
-    });
-    expect(container.querySelector('[data-testid="stage-select-item_4"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
-    const ready = container.querySelector('[data-testid="intake-kpi-ready"]') as HTMLButtonElement;
-    await act(async () => {
-      ready.click();
-    });
-    // Ready: Acme (mapped) + Gamma (distributor exempt).
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_4"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_1"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_3"]')).toBeNull();
-  });
-
-  it('#116 does not cap list length at 50, draining cursors so All Products and filter counts show full 130 items', async () => {
-    // Generate 130 mock rows: 50 unbranded, 80 branded with Acme
-    const mockRows = Array.from({ length: 130 }, (_, i) =>
-      makeRow(i + 1, {
-        brand: i < 50 ? null : 'Acme',
-        sourceType: 'official_page',
-        domain: i < 50 ? null : 'acme.com',
-      }),
-    );
-
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (url: unknown) => {
-      const u = String(url);
-      if (u.includes('/stage-work-state/items')) {
-        const urlObj = new URL(u, 'http://localhost');
-        const cursor = urlObj.searchParams.get('cursor');
-        let chunk: typeof mockRows;
-        let nextCursor: string | null = null;
-        if (!cursor) {
-          chunk = mockRows.slice(0, 50);
-          nextCursor = 'c_50';
-        } else if (cursor === 'c_50') {
-          chunk = mockRows.slice(50, 100);
-          nextCursor = 'c_100';
-        } else {
-          chunk = mockRows.slice(100);
-          nextCursor = null;
-        }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            schemaVersion: 2,
-            stageVocabularyVersion: 2,
-            batchId: 'b1',
-            filterFingerprint: 'a'.repeat(32),
-            projectionHealth: healthy(),
-            items: chunk,
-            nextCursor,
-            scannedRows: chunk.length,
-            queryCount: 3,
-          }),
-        } as any;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          schemaVersion: 2,
-          stageVocabularyVersion: 2,
-          batchId: 'b1',
-          filterFingerprint: 'a'.repeat(32),
-          projectionHealth: healthy(),
-          items: [],
-          nextCursor: null,
-          scannedRows: 0,
-          queryCount: 1,
-        }),
-      } as any;
-    });
-
-    await mount();
-    const strip = container.querySelector('[data-testid="intake-kpi-strip"]');
-    expect(strip).not.toBeNull();
-    const text = strip?.textContent ?? '';
-    expect(text).toMatch(/All Products \(130\)/);
-    expect(text).toMatch(/Missing Brand \(50\)/);
-    expect(text).toMatch(/Ready to Route \(80\)/);
-
-    const scope = container.querySelector('[data-testid="stage-scope-label"]');
-    expect(scope?.textContent).toMatch(/130 loaded rows/);
-    expect(scope?.textContent).not.toMatch(/more available/);
-  });
-
-  it('#117 drawer lists the unmapped brand and saves the domain to Brand Hub', async () => {
-    await mount();
-    const drawer = container.querySelector('[data-testid="unmapped-brand-drawer"]');
-    expect(drawer).not.toBeNull();
-    expect(drawer?.textContent).toMatch(/Beta/);
-    expect(drawer?.textContent).toMatch(/1 product/);
-    const input = container.querySelector('[data-testid="unmapped-brand-input-Beta"]') as HTMLInputElement;
-    const save = container.querySelector('[data-testid="unmapped-brand-save-Beta"]') as HTMLButtonElement;
-    expect(input).not.toBeNull();
-    expect(save.disabled).toBe(true);
-    await act(async () => {
-      setInputValue(input, 'beta.com');
-    });
-    await act(async () => {
-      save.click();
-      await new Promise((r) => setTimeout(r, 30));
-    });
-    expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
-    // Post-save refresh: the drawer input clears and intake references
-    // (blockers) are re-read from the server.
-    expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect((container.querySelector('[data-testid="unmapped-brand-input-Beta"]') as HTMLInputElement)?.value ?? '').toBe('');
-  });
-
-  it('#117 failed drawer saves keep the input and show an error', async () => {
-    vi.mocked(assignBatchBrandDomain).mockRejectedValueOnce(new Error('hub refused'));
-    await mount();
-    const input = container.querySelector('[data-testid="unmapped-brand-input-Beta"]') as HTMLInputElement;
-    await act(async () => {
-      setInputValue(input, 'beta.com');
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="unmapped-brand-save-Beta"]') as HTMLButtonElement).click();
-      await new Promise((r) => setTimeout(r, 30));
-    });
-    const alert = container.querySelector('[data-testid="unmapped-brand-error-Beta"]');
-    expect(alert).not.toBeNull();
-    expect(alert?.getAttribute('role')).toBe('alert');
-    expect(alert?.textContent).toContain('hub refused');
-    // Input is preserved for retry.
-    expect((container.querySelector('[data-testid="unmapped-brand-input-Beta"]') as HTMLInputElement).value).toBe('beta.com');
-  });
-
-  it('#118 bulk bar previews a mapped brand domain and assigns without a domain call', async () => {
-    await mount();
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-select-item_2"]') as HTMLInputElement).click();
-    });
-    const bulkInput = container.querySelector('[data-testid="stage-bulk-brand-input"]') as HTMLInputElement;
-    await act(async () => {
-      setInputValue(bulkInput, 'Acme');
-    });
-    const preview = container.querySelector('[data-testid="stage-bulk-domain-preview"]');
-    expect(preview).not.toBeNull();
-    expect(preview?.textContent).toMatch(/acme\.com/);
-    expect(preview?.textContent).toMatch(/Active in Brand Hub/);
-    expect(preview?.textContent).toMatch(/Profile Ready/);
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-bulk-assign"]') as HTMLButtonElement).click();
-      await new Promise((r) => setTimeout(r, 30));
-    });
-    expect(assignBrandGroup).toHaveBeenCalledWith('b1', ['item_2'], 'Acme');
+  it('contextual bulk assignment previews mapped brands and supports an optional Brand Hub domain', async () => {
+    await mount(); await click('stage-select-item_1');
+    await act(async () => { setInput(get<HTMLInputElement>('stage-bulk-brand-input'), 'acme'); });
+    expect(get('stage-bulk-domain-preview').textContent).toContain('acme.com · Active in Brand Hub (Profile Ready)');
+    await click('stage-bulk-assign');
+    expect(assignBrandGroup).toHaveBeenCalledWith('b1', ['item_1'], 'Acme');
     expect(assignBatchBrandDomain).not.toHaveBeenCalled();
-  });
-
-  it('#118 bulk bar reveals a quick-add domain input for unmapped brands and persists both', async () => {
-    await mount();
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-select-item_3"]') as HTMLInputElement).click();
-    });
-    await act(async () => {
-      setInputValue(container.querySelector('[data-testid="stage-bulk-brand-input"]') as HTMLInputElement, 'Beta');
-    });
-    expect(container.querySelector('[data-testid="stage-bulk-domain-preview"]')).toBeNull();
-    const domainInput = container.querySelector('[data-testid="stage-bulk-domain-input"]') as HTMLInputElement;
-    expect(domainInput).not.toBeNull();
-    await act(async () => {
-      setInputValue(domainInput, 'beta.com');
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-bulk-assign"]') as HTMLButtonElement).click();
-      await new Promise((r) => setTimeout(r, 30));
-    });
+    await click('stage-select-item_3');
+    await act(async () => { setInput(get<HTMLInputElement>('stage-bulk-brand-input'), 'Beta'); });
+    await act(async () => { setInput(get<HTMLInputElement>('stage-bulk-domain-input'), 'beta.com'); });
+    await click('stage-bulk-assign');
     expect(assignBrandGroup).toHaveBeenCalledWith('b1', ['item_3'], 'Beta');
     expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
   });
 
-  it('#118 select-all covers filtered rows and shows the selected count', async () => {
+  it('domain exception opens one selected-product editor; failed saves keep input and protect context', async () => {
+    vi.mocked(assignBatchBrandDomain).mockRejectedValueOnce(new Error('hub refused'));
     await mount();
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
-    });
-    expect(container.querySelector('[data-testid="stage-bulk-count"]')?.textContent).toMatch(/4 selected/);
-    // Clear, filter to Missing Brand, then select-all covers only the
-    // visible (filtered) row.
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="intake-kpi-missing-brand"]') as HTMLButtonElement).click();
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="stage-select-all"]') as HTMLInputElement).click();
-    });
-    expect(container.querySelector('[data-testid="stage-bulk-count"]')?.textContent).toMatch(/1 selected/);
-    expect(container.querySelector('[data-testid="stage-select-item_1"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
-    // Clearing the filter restores all rows.
-    await act(async () => {
-      (container.querySelector('[data-testid="intake-kpi-missing-brand"]') as HTMLButtonElement).click();
-    });
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).not.toBeNull();
-  });
-
-  it('#119 rows show brand, domain/profile, and compact strategy states', async () => {
-    await mount();
-    // Missing brand badge on the unbranded row.
-    const missing = container.querySelector('[data-testid="intake-missing-brand-item_1"]');
-    expect(missing).not.toBeNull();
-    expect(missing?.textContent).toMatch(/Missing Brand/);
-    // Acme: domain + Profile Ready.
-    expect(container.querySelector('[data-testid="intake-domain-item_2"]')?.textContent).toMatch(/acme\.com/);
-    expect(container.querySelector('[data-testid="intake-profile-ready-item_2"]')).not.toBeNull();
-    // Beta: Missing Domain + quick-add trigger.
-    expect(container.querySelector('[data-testid="intake-missing-domain-item_3"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="intake-add-domain-item_3"]')).not.toBeNull();
-    // Gamma: distributor-exempt note, no domain chase.
-    expect(container.querySelector('[data-testid="intake-domain-item_4"]')?.textContent).toMatch(/Distributor record/);
-    // Strategy column: compact readiness status + Review trigger (no route badges).
-    expect(container.querySelector('[data-testid="intake-route-item_1"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-readiness-item_2"]')?.textContent).toMatch(/Awaiting approval/);
-    expect(container.querySelector('[data-testid="intake-strategy-review-item_2"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="intake-strategy-review-item_1"]')).toBeNull();
-  });
-
-  it('#119 distributor-only approved strategy suppresses the Profile Required CTA', async () => {
-    // Solo: mapped domain in Brand Hub, no extractor profile, but an
-    // approved distributor-only strategy — official collection is out of
-    // scope, so no profile is needed and none is demanded.
-    vi.mocked(getBrandSites).mockResolvedValue({
-      brandSites: [{ brandName: 'Solo', domain: 'solo.example' }],
-      catalogBrands: ['Solo'],
-    } as never);
-    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
-    vi.mocked(getBrandDomainBlockers).mockResolvedValue({ blockers: [] } as never);
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
-      if (url.includes('/api/onboarding/brands/strategy')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            strategies: [{
-              normalizedBrand: 'solo',
-              approval: { approved: true, revision: 1, approvedAt: '2026-01-01', approvedBy: 'op' },
-              proposalSources: [],
-              approvedSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
-              sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: true, reason: 'ready' }],
-              collectionReadiness: 'ready',
-            }],
-          }),
-        } as any;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          schemaVersion: 2,
-          stageVocabularyVersion: 2,
-          batchId: 'b1',
-          filterFingerprint: 'a'.repeat(32),
-          projectionHealth: healthy(),
-          items: [makeRow(9, { brand: 'Solo', domain: null })],
-          nextCursor: null,
-          scannedRows: 1,
-          queryCount: 1,
-        }),
-      } as any;
-    });
-    await mount();
-    // Mapped domain still shown (factual), but neither profile chip nor CTA.
-    expect(container.querySelector('[data-testid="intake-domain-item_9"]')?.textContent).toMatch(/solo\.example/);
-    expect(container.querySelector('[data-testid="intake-profile-required-item_9"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-profile-ready-item_9"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-distributor-only-item_9"]')?.textContent).toMatch(/no profile needed/);
-    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(/Ready/);
-  });
-
-  it('#119 Profile Required links to Settings and Add Domain saves inline', async () => {
-    // Drop the acme.com profile so the row reports Profile Required.
-    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
-    const onOpenSettings = vi.fn();
-    await mount({ onOpenSettings });
-    const required = container.querySelector('[data-testid="intake-profile-required-item_2"]') as HTMLButtonElement;
-    expect(required).not.toBeNull();
-    expect(required.textContent).toMatch(/Profile Required/);
-    await act(async () => {
-      required.click();
-    });
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
-    // Inline + Add Domain on the Beta row.
-    await act(async () => {
-      (container.querySelector('[data-testid="intake-add-domain-item_3"]') as HTMLButtonElement).click();
-    });
-    const rowInput = container.querySelector('[data-testid="intake-domain-input-item_3"]') as HTMLInputElement;
-    expect(rowInput).not.toBeNull();
-    await act(async () => {
-      setInputValue(rowInput, 'beta.com');
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="intake-domain-save-item_3"]') as HTMLButtonElement).click();
-      await new Promise((r) => setTimeout(r, 30));
-    });
+    expect(get('intake-next-action-item_3').textContent).toBe('Add domain');
+    await click('intake-next-action-item_3');
+    expect(container.querySelectorAll('[data-testid="source-item-detail"]')).toHaveLength(1);
+    expect(get('source-item-detail').getAttribute('aria-label')).toContain('Product 3');
+    await act(async () => { setInput(get<HTMLInputElement>('intake-domain-input-item_3'), 'beta.com'); });
+    await details('item_2');
+    expect(get('source-item-detail').textContent).toContain('Product 3');
+    expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.disabled).toBe(true);
+    await click('intake-domain-save-item_3');
     expect(assignBatchBrandDomain).toHaveBeenCalledWith('b1', 'Beta', 'beta.com');
+    expect(get('intake-domain-error-item_3').textContent).toContain('hub refused');
+    expect(get<HTMLInputElement>('intake-domain-input-item_3').value).toBe('beta.com');
   });
 
-  it('opens Profile Builder for the product domain when Profile Required is clicked', async () => {
+  it('successful selected domain save refreshes Brand Hub, rather than marking setup locally complete', async () => {
+    await mount(); await click('intake-next-action-item_3');
+    await act(async () => { setInput(get<HTMLInputElement>('intake-domain-input-item_3'), 'beta.com'); });
+    const before = vi.mocked(getBrandSites).mock.calls.length;
+    await click('intake-domain-save-item_3'); await settle();
+    expect(vi.mocked(getBrandSites).mock.calls.length).toBeGreaterThan(before);
+    expect(get<HTMLInputElement>('intake-domain-input-item_3').value).toBe('');
+    expect(get('intake-missing-domain-item_3').textContent).toContain('Missing Domain');
+  });
+
+  it('profile exception opens its relevant detail; specialist callback receives the product domain', async () => {
     vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
     const onOpenProfileBuilder = vi.fn();
     await mount({ onOpenProfileBuilder });
-    const required = container.querySelector('[data-testid="intake-profile-required-item_2"]') as HTMLButtonElement;
-    expect(required).not.toBeNull();
-    await act(async () => {
-      required.click();
-    });
+    expect(container.querySelector('[data-testid="intake-profile-required-item_2"]')).toBeNull();
+    expect(get('intake-next-action-item_2').textContent).toBe('Set up profile');
+    await click('intake-next-action-item_2');
+    expect(document.activeElement).toBe(get('intake-domain-item_2'));
+    await click('intake-profile-required-item_2');
     expect(onOpenProfileBuilder).toHaveBeenCalledWith('acme.com');
+    expect(readStageViewPreferences(scope)?.selectedId).toBe('item_2');
   });
 
-  it('does not display Create new brand for items with existing brands, and syncs item brands into brand pool', async () => {
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        schemaVersion: 2,
-        stageVocabularyVersion: 2,
-        batchId: 'b1',
-        filterFingerprint: 'a'.repeat(32),
-        projectionHealth: healthy(),
-        items: [
-          makeRow(1, { brand: 'Delta', domain: 'delta.com' }),
-          makeRow(2, { brand: 'Acme', domain: 'acme.com' }),
-        ],
-        nextCursor: null,
-        scannedRows: 2,
-        queryCount: 1,
-      }),
-    }) as any);
-
-    await mount();
-
-    // Neither item_1 nor item_2 should show a "Create new brand" nudge
-    const input1 = container.querySelector('[data-testid="stage-brand-input-item_1"]') as HTMLInputElement;
-    const input2 = container.querySelector('[data-testid="stage-brand-input-item_2"]') as HTMLInputElement;
-    expect(input1?.value).toBe('Delta');
-    expect(input2?.value).toBe('Acme');
-    expect(container.querySelectorAll('[data-testid="brand-combobox-new-nudge"]')).toHaveLength(0);
-  });
-
-  it('does not include items with Profile Required in Ready to Route count or filter', async () => {
-    // Drop extractor profiles so Acme (item_2) has domain but lacks a profile
+  it('external profile link preserves batch URL, product preference, seed URL, and failure context', async () => {
     vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
-    await mount();
-
-    const strip = container.querySelector('[data-testid="intake-kpi-strip"]');
-    expect(strip?.textContent).toMatch(/All Products \(4\)/);
-    // Only item_4 (distributor record) is ready; item_2 is blocked on Profile Required
-    expect(strip?.textContent).toMatch(/Ready to Route \(1\)/);
-
-    // Filter by Ready to Route
-    const readyChip = container.querySelector('[data-testid="intake-kpi-ready"]') as HTMLButtonElement;
-    expect(readyChip).not.toBeNull();
-    await act(async () => {
-      readyChip.click();
-    });
-
-    // item_2 (Profile Required) must NOT be visible under Ready to Route
-    expect(container.querySelector('[data-testid="stage-select-item_2"]')).toBeNull();
-    // item_4 (distributor record) IS visible
-    expect(container.querySelector('[data-testid="stage-select-item_4"]')).not.toBeNull();
-  });
-});
-
-
-describe('Stage 1 ticket #125 follow-ups (mounted intake)', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  async function mountStage(extraProps: Record<string, unknown> = {}) {
-    await act(async () => {
-      root.render(<StageItemsView batchId="b1" stage="route_sources" {...(extraProps as object)} />);
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 30));
-    });
-  }
-
-  function itemsWithCollection(collectionByItem: Record<string, unknown>) {
-    return {
-      schemaVersion: 2,
-      stageVocabularyVersion: 2,
-      batchId: 'b1',
-      filterFingerprint: 'a'.repeat(32),
-      projectionHealth: healthy(),
-      items: [makeRow(9, { brand: 'Solo', domain: null })],
-      collectionByItem,
-      nextCursor: null,
-      scannedRows: 1,
-      queryCount: 1,
-    };
-  }
-
-  const SOLO_SETUP = {
-    normalizedBrand: 'solo',
-    approval: { approved: true, revision: 1, approvedAt: '2026-01-01', approvedBy: 'op' },
-    proposalSources: [],
-    approvedSources: [{ kind: 'distributor_record', distributorId: 'Phillips' }],
-    sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: false, reason: 'Distributor connection not enabled' }],
-    collectionReadiness: 'setup_attention',
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetBrandOptionsCache();
-    vi.mocked(getBrandSites).mockResolvedValue({
-      brandSites: [{ brandName: 'Solo', domain: 'solo.example' }],
-      catalogBrands: ['Solo'],
-    } as never);
-    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
-    vi.mocked(getBrandDomainBlockers).mockResolvedValue({ blockers: [] } as never);
-    vi.mocked(getBrandStrategyDetail).mockImplementation(async () => ({ strategy: SOLO_SETUP }) as never);
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
+    rows = [row(2, { sourceUrl: 'https://acme.com/product', detail: 'Missing title selector' })];
+    window.history.replaceState(null, '', '/?view=onboarding&batch=b1&stage=route_sources&stageVersion=2');
+    const returnPath = `${location.pathname}${location.search}`;
+    await mount(); await click('intake-next-action-item_2'); await click('intake-profile-required-item_2');
+    expect(location.pathname).toBe('/settings/domains/acme.com/profile');
+    const params = new URLSearchParams(location.search);
+    expect(params.get('return')).toBe(returnPath);
+    expect(params.get('seedUrl')).toBe('https://acme.com/product');
+    expect(params.get('failureReason')).toBe('Missing title selector');
+    expect(readStageViewPreferences(scope)?.selectedId).toBe('item_2');
   });
 
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-    vi.restoreAllMocks();
-    document.body.innerHTML = '';
+  it('qualified distributor records remain domain/profile-free in the selected panel', async () => {
+    await mount(); await details('item_4');
+    expect(get('intake-domain-item_4').textContent).toMatch(/No domain needed; no profile needed/);
+    expect(container.querySelector('[data-testid="intake-profile-required-item_4"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-domain-input-item_4"]')).toBeNull();
   });
 
-  it('setup-attention row shows explicit remediation with keyboard operability; distributor reasons never demand domain/profile (F3/F8)', async () => {
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
-      if (url.includes('/api/onboarding/brands/strategy')) {
-        return { ok: true, status: 200, json: async () => ({ strategies: [SOLO_SETUP] }) } as any;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => itemsWithCollection({
-          item_9: {
-            itemId: 'item_9',
-            path: 'approved_strategy',
-            readiness: 'setup_attention',
-            canCollect: false,
-            canExecuteNow: false,
-            effectiveRevision: 1,
-            reasons: ['Approved strategy revision 1 has no usable sources'],
-            requires: 'explicit_retry',
-            effectiveSources: [],
-            sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', usable: false, reason: 'Distributor connection not enabled' }],
-            label: 'Setup attention · No usable sources',
-            explanation: null,
-            strategyLabel: 'Phillips',
-          },
-        }),
-      } as any;
-    });
-    await mountStage();
-    // The per-item server decision wins: exact setup-attention label.
-    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(/Setup attention · No usable sources/);
-    // Explicit remediation: Review strategy opens the dialog (keyboard
-    // focusable and operable); Retry is a real button.
-    const review = container.querySelector('[data-testid="intake-strategy-review-item_9"]') as HTMLButtonElement;
-    expect(review).not.toBeNull();
-    await act(async () => {
-      review.focus();
-    });
-    expect(document.activeElement).toBe(review);
-    await act(async () => {
-      review.click();
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 30));
-    });
-    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
-    // Distributor-only reasons never demand domain/profile work: no Missing
-    // Domain badge, no Profile Required CTA, no Add Domain control.
-    expect(container.querySelector('[data-testid="intake-missing-domain-item_9"]')).toBeNull();
+  it('approved distributor-only decisions stay exempt while unavailable, with the real availability reason', async () => {
+    rows = [row(9, { brand: 'Solo', domain: null })]; strategies = [SOLO]; collectionByItem = { item_9: collection() };
+    vi.mocked(getBrandSites).mockResolvedValue({ brandSites: [{ brandName: 'Solo', domain: 'solo.example' }], catalogBrands: ['Solo'] } as never);
+    await mount(); await details('item_9');
+    expect(get('intake-readiness-item_9').textContent).toBe('Setup attention · No usable sources');
+    expect(get('source-item-detail').textContent).toContain('Phillips · Unavailable — Distributor connection not enabled');
+    expect(get('intake-distributor-only-item_9').textContent).toContain('no profile needed');
     expect(container.querySelector('[data-testid="intake-profile-required-item_9"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-add-domain-item_9"]')).toBeNull();
+    expect(container.querySelector('[data-testid="intake-domain-input-item_9"]')).toBeNull();
+    await click('intake-kpi-missing-domain');
+    expect(container.querySelector('[data-testid="stage-select-item_9"]')).toBeNull();
   });
 
-  it('strategy fetch failure renders Retry explicitly, never stuck Loading (F6)', async () => {
-    vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : String((input as { url?: unknown })?.url ?? '');
-      if (url.includes('/api/onboarding/brands/strategy')) {
-        return { ok: false, status: 500, json: async () => ({}) } as any;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          schemaVersion: 2,
-          stageVocabularyVersion: 2,
-          batchId: 'b1',
-          filterFingerprint: 'a'.repeat(32),
-          projectionHealth: healthy(),
-          items: [makeRow(9, { brand: 'Solo', domain: null })],
-          nextCursor: null,
-          scannedRows: 1,
-          queryCount: 1,
-        }),
-      } as any;
+  it('strategy exceptions open the existing dialog directly from Next action', async () => {
+    rows = [row(9, { brand: 'Solo', domain: null })]; strategies = [SOLO]; collectionByItem = { item_9: collection() };
+    await mount();
+    expect(get('intake-next-action-item_9').textContent).toBe('Review strategy');
+    await click('intake-next-action-item_9');
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    expect(getBrandStrategyDetail).toHaveBeenCalledWith('Solo');
+    expect(readStageViewPreferences(scope)?.selectedId).toBe('item_9');
+  });
+
+  it('per-item blocked decisions never borrow the brand-level Ready or invent new setup gates', async () => {
+    rows = [row(9, { brand: 'Solo', domain: null })];
+    strategies = [{ ...SOLO, sourceAvailability: [{ kind: 'distributor_record', ref: 'Phillips', available: true, reason: 'ready' }], collectionReadiness: 'ready' }];
+    collectionByItem = { item_9: collection({ path: 'blocked', readiness: 'unknown', label: 'Generation retired' }) };
+    await mount();
+    expect(get('intake-readiness-item_9').textContent).toBe('Generation retired');
+    expect(get('intake-next-action-item_9').textContent).toBe('Details');
+    expect(get('intake-kpi-ready').textContent).toContain('(0)');
+    await click('intake-kpi-ready');
+    expect(container.querySelector('[data-testid="stage-select-item_9"]')).toBeNull();
+  });
+
+  it('failed profile and strategy reads are unavailable, never readiness success or endless Loading', async () => {
+    vi.mocked(getExtractorProfiles).mockRejectedValue(new Error('profile read failed'));
+    vi.mocked(fetch).mockImplementation(async (input) => ({ ok: !String(input).includes('/brands/strategy'), status: 500, json: async () => payload() } as Response));
+    await mount();
+    expect(get('intake-readiness-item_2').textContent).toBe('Collection readiness unavailable · Retry');
+    await details('item_2');
+    expect(get('source-item-detail').textContent).toContain('Profile checks unavailable');
+    expect(container.querySelector('[data-testid="intake-profile-required-item_2"]')).toBeNull();
+    expect(get('intake-kpi-ready').textContent).toContain('(1)'); // only the qualified distributor fallback
+  });
+
+  it('pages one bounded read at a time and keeps quick filter counts in the explicit loaded scope', async () => {
+    const allRows = Array.from({ length: 130 }, (_, i) => row(i + 1, { brand: i < 50 ? null : 'Acme' }));
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = new URL(String(input), 'http://localhost');
+      const start = Number(url.searchParams.get('cursor') ?? 0);
+      return { ok: true, status: 200, json: async () => url.pathname.includes('/brands/strategy') ? { strategies: [] } : { ...payload(allRows.slice(start, start + 50)), nextCursor: start + 50 < allRows.length ? String(start + 50) : null } } as Response;
     });
-    await mountStage();
-    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).toMatch(
-      /Collection readiness unavailable · Retry/,
-    );
-    expect(container.querySelector('[data-testid="intake-readiness-item_9"]')?.textContent).not.toMatch(/Loading/);
-    expect(container.querySelector('[data-testid="intake-readiness-retry-item_9"]')).not.toBeNull();
+    await mount();
+    // One bounded page initially (fixture limit 50), with explicit loaded scope.
+    expect(get('stage-scope-label').textContent).toContain('50 loaded products');
+    expect(get('stage-scope-label').textContent).toContain('more available');
+    expect(get('intake-kpi-strip').textContent).toMatch(/Loaded products:.*All Products \(50\).*Missing Brand \(50\)/);
+    // Load more drains the requested cursor; scope stays explicit as it grows.
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Load more')?.click(); });
+    await settle();
+    expect(get('stage-scope-label').textContent).toContain('100 loaded products');
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Load more')?.click(); });
+    await settle();
+    expect(get('stage-scope-label').textContent).toContain('130 loaded products');
+    expect(get('stage-scope-label').textContent).not.toContain('more available');
+    expect(get('intake-kpi-strip').textContent).toMatch(/Loaded products:.*All Products \(130\).*Missing Brand \(50\).*Ready to Route \(80\)/);
+    await click('intake-kpi-missing-brand');
+    expect(container.querySelectorAll('[data-testid^="stage-select-item_"]')).toHaveLength(50);
+  });
+
+  it('restores only preferences on remount and prunes a moved product after fresh rows', async () => {
+    await mount(); await details('item_3');
+    await click('intake-kpi-missing-domain');
+    await act(async () => { setInput(container.querySelector<HTMLInputElement>('input[type="search"]')!, 'Product'); });
+    await settle(320);
+    await click('stage-select-item_3');
+    expect(readStageViewPreferences(scope)).toEqual({ q: 'Product', filters: { kpiFilter: 'missing-domain' }, selectedId: 'item_3' });
+    act(() => root.unmount()); root = createRoot(container); await mount();
+    expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('Product');
+    expect(get('intake-kpi-missing-domain').getAttribute('aria-pressed')).toBe('true');
+    expect(get('source-item-detail').textContent).toContain('Product 3');
+    expect(get<HTMLInputElement>('stage-select-item_3').checked).toBe(false);
+    expect(container.querySelector('[data-testid="stage-bulk-bar"]')).toBeNull();
+    rows = rows.filter((r) => r.itemId !== 'item_3');
+    act(() => root.unmount()); root = createRoot(container); await mount();
+    expect(container.querySelector('[data-testid="source-item-detail"]')).toBeNull();
+    expect(readStageViewPreferences(scope)?.selectedId).toBeNull();
+  });
+
+  it('refreshes the loaded pages without losing a valid later-page inspector or bulk selection', async () => {
+    let allRows = Array.from({ length: 100 }, (_, i) => row(i + 1));
+    vi.mocked(fetch).mockImplementation(async input => {
+      const url = new URL(String(input), 'http://localhost');
+      const start = Number(url.searchParams.get('cursor') ?? 0);
+      return { ok: true, status: 200, json: async () => url.pathname.includes('/brands/strategy') ? { strategies: [] }
+        : { ...payload(allRows.slice(start, start + 50)), nextCursor: start + 50 < allRows.length ? String(start + 50) : null } } as Response;
+    });
+    await mount({ refreshKey: 0 });
+    await act(async () => { [...container.querySelectorAll('button')].find(button => button.textContent === 'Load more')!.click(); });
+    await settle();
+    await details('item_75');
+    await click('stage-select-item_75');
+    await mount({ refreshKey: 1 });
+    expect(get('stage-scope-label').textContent).toContain('100 loaded products');
+    expect(get('source-item-detail').textContent).toContain('Product 75');
+    expect(get<HTMLInputElement>('stage-select-item_75').checked).toBe(true);
+    allRows = allRows.filter(item => item.itemId !== 'item_75');
+    await mount({ refreshKey: 2 });
+    expect(container.querySelector('[data-testid="source-item-detail"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stage-select-item_75"]')).toBeNull();
+  });
+
+  it('coalesces worker refreshes instead of continuously cancelling an outstanding multi-page refresh', async () => {
+    const allRows = Array.from({ length: 100 }, (_, i) => row(i + 1));
+    const held = deferred<Omit<ReturnType<typeof payload>, 'nextCursor'> & { nextCursor: string | null }>();
+    let hold = false;
+    let itemReads = 0;
+    vi.mocked(fetch).mockImplementation(async input => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname.includes('/brands/strategy')) return { ok: true, status: 200, json: async () => ({ strategies: [] }) } as Response;
+      itemReads += 1;
+      const start = Number(url.searchParams.get('cursor') ?? 0);
+      const response = { ...payload(allRows.slice(start, start + 50)), nextCursor: start === 0 ? '50' : null };
+      if (hold && start === 0) {
+        hold = false;
+        return { ok: true, status: 200, json: () => held.promise } as Response;
+      }
+      return { ok: true, status: 200, json: async () => response } as Response;
+    });
+    await mount({ refreshKey: 0 });
+    await act(async () => { [...container.querySelectorAll('button')].find(button => button.textContent === 'Load more')!.click(); });
+    await settle();
+    await details('item_75');
+    hold = true;
+    await mount({ refreshKey: 1 });
+    await mount({ refreshKey: 2 });
+    expect(itemReads).toBe(3);
+    await act(async () => { held.resolve({ ...payload(allRows.slice(0, 50)), nextCursor: '50' }); });
+    await settle();
+    expect(itemReads).toBe(6);
+    expect(get('stage-scope-label').textContent).toContain('100 loaded products');
+    expect(get('source-item-detail').textContent).toContain('Product 75');
+  });
+
+  it('late domain-save completion cannot refresh or alter a new batch', async () => {
+    const save = deferred<any>(); vi.mocked(assignBatchBrandDomain).mockImplementationOnce(() => save.promise);
+    await mount(); await click('intake-next-action-item_3');
+    await act(async () => { setInput(get<HTMLInputElement>('intake-domain-input-item_3'), 'beta.com'); });
+    await click('intake-domain-save-item_3');
+    await mount({ batchId: 'b2' });
+    const count = urls.filter((u) => u.includes('/batches/b2/')).length;
+    await act(async () => { save.resolve({ success: true }); }); await settle();
+    expect(urls.filter((u) => u.includes('/batches/b2/'))).toHaveLength(count);
+    expect(container.textContent).not.toContain('beta.com');
+    expect(readStageViewPreferences({ ...scope, batchId: 'b2' })?.selectedId).toBeNull();
+  });
+
+  it('late intake reference responses cannot replace a different batch’s current setup facts', async () => {
+    const old = deferred<any>(); vi.mocked(getExtractorProfiles).mockImplementationOnce(() => old.promise);
+    await mount();
+    vi.mocked(getExtractorProfiles).mockResolvedValue({ extractorProfiles: [] } as never);
+    await mount({ batchId: 'b2' });
+    expect(get('intake-next-action-item_2').textContent).toBe('Set up profile');
+    await act(async () => { old.resolve({ extractorProfiles: [{ domain: 'acme.com' }] }); });
+    expect(get('intake-next-action-item_2').textContent).toBe('Set up profile');
   });
 });

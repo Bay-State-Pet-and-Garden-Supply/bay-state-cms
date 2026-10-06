@@ -26,6 +26,21 @@ afterEach(() => {
 });
 
 describe('catalog evidence scan', () => {
+  it('scans delimiter evidence for ProductField26..32 (previously unscanned range)', async () => {
+    const root = tempWorkspace();
+    writeProduct(root, 'a.json', {
+      sku: 'SKU-A',
+      customFields: { ProductField26: 'Squeak|Crinkle', ProductField32: '111|222|333' },
+    });
+
+    const evidence = await scanCatalogEvidence(root);
+
+    const pf26 = evidence.fields.find(field => field.xmlField === 'ProductField26')!;
+    expect(pf26.delimiterEvidence).toContainEqual({ character: '|', occurrenceCount: 1 });
+    const pf32 = evidence.fields.find(field => field.xmlField === 'ProductField32')!;
+    expect(pf32.delimiterEvidence).toContainEqual({ character: '|', occurrenceCount: 2 });
+  });
+
   it('records field counts, distinct-value hashes, delimiter evidence, pages, and parse failures deterministically', async () => {
     const root = tempWorkspace();
 

@@ -35,10 +35,10 @@ import {
   hasActiveQueueFilters,
   removeFilterChip,
   countGateBlockedItems,
+  isGateBlocked,
   buildLegacyListingUpdatePayload,
   pruneQueueSelection,
   reviewProgress,
-  reviewableSelectionIds,
   selectAllVisible,
   sortForReview,
   toggleGroupSelection,
@@ -75,17 +75,39 @@ import { ReviewWarningsPanel } from './ReviewWarningsPanel';
 import { ReviewReadinessPanel } from './ReviewReadinessPanel';
 import { ReviewConfirmStep, shouldOpenConfirmStep } from './ReviewConfirmStep';
 import { ReviewActions } from './ReviewActions';
+import { ReviewApprovalControl } from './ReviewApprovalControl';
+import { reviewCommands } from './review-command-context';
+import { readStageViewPreferences, writeStageViewPreferences } from '../workspace-view-state';
+import type { ReviewQueueStatusTotals } from '../../../../shared/schemas/onboarding-review-queue';
 import './review.css';
 
 const REFRESH_DEBOUNCE_MS = 900;
 
 export interface ReviewWorkspaceProps {
   batchId: string;
+  workspaceId?: string;
+  onChanged?: () => void;
 }
 
-export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
+function restoredReviewPreferences(workspaceId: string | undefined, batchId: string) {
+  const preferences = workspaceId ? readStageViewPreferences({ workspaceId, batchId, stage: 'review_listings' }) : null;
+  const stored = preferences?.filters ?? {};
+  const state = ['unreviewed', 'reviewed', 'approved'].includes(stored.reviewState ?? '') ? stored.reviewState! : 'unreviewed';
+  const filters: ReviewQueueFilters = { reviewStates: [state as 'unreviewed' | 'reviewed' | 'approved'] };
+  if (preferences?.q) filters.q = preferences.q;
+  if (stored.brand) filters.brand = stored.brand;
+  if (stored.familyCohortId) filters.familyCohortId = stored.familyCohortId;
+  if (stored.warningsOnly === 'true') filters.warningsOnly = true;
+  if (stored.sourceType === 'all' || stored.sourceType === 'official_page' || stored.sourceType === 'distributor_record') filters.sourceType = stored.sourceType;
+  if (stored.gateStatus === 'ready' || stored.gateStatus === 'blocked' || stored.gateStatus === 'unknown') filters.gateStatus = stored.gateStatus;
+  return { filters, selectedId: preferences?.selectedId ?? null };
+}
+
+export function ReviewWorkspace({ batchId, workspaceId, onChanged }: ReviewWorkspaceProps) {
+  const restored = useMemo(() => restoredReviewPreferences(workspaceId, batchId), [workspaceId, batchId]);
   // ── Filters / facets ────────────────────────────────────────────────────
-  const [filters, setFilters] = useState<ReviewQueueFilters>({});
+  const [filters, setFilters] = useState<ReviewQueueFilters>(restored.filters);
+  const [approvalBusy, setApprovalBusy] = useState(false);
 
   // ── Bulk review selection (epic #46 follow-up, phase 4) ─────────────────
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -97,10 +119,9 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   // ── Session tracking ────────────────────────────────────────────────────
   const [editedIds, setEditedIds] = useState<Set<string>>(() => new Set());
   const [warnedIds, setWarnedIds] = useState<Set<string>>(() => new Set());
-  const [optimisticReviewed, setOptimisticReviewed] = useState(0);
 
   // ── Current inspector item ──────────────────────────────────────────────
-  const [currentItemId, setCurrentItemId] = useState<string | null>(null);
+  const [currentItemId, setCurrentItemId] = useState<string | null>(restored.selectedId);
 
   // ── Actions ─────────────────────────────────────────────────────────────
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(() => new Set());
@@ -132,21 +153,28 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneIds = useRef<Set<string>>(new Set());
+  const reviewInFlight = useRef<Set<string>>(new Set());
   const keyboardNavRef = useRef(false);
 
   // ── Cursor-Paginated Queue Loading (Milestone 1 / P1-C) ─────────────────
   const {
     rows,
+    selectedRow,
+    selectedContextId,
     counts,
+    statusTotals,
+    progress: serverProgress,
+    projectionHealth,
     hasMore,
     loading: queueLoading,
     loadingMore,
+    refreshing: queueRefreshing,
     error: queueError,
     loadQueue,
     loadMore,
     optimisticUpdateRow,
     optimisticRemoveRow,
-  } = useReviewQueue({ batchId, filters, pageSize: 50 });
+  } = useReviewQueue({ batchId, filters, pageSize: 50, selectedItemId: currentItemId });
 
   // ── Derived filtered & sorted queue ─────────────────────────────────────
   const sortedAll = useMemo(() => sortForReview(rows), [rows]);
@@ -188,15 +216,28 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
 
   // Reset local state on batch change
   useEffect(() => {
-    setCurrentItemId(null);
+    setCurrentItemId(restored.selectedId);
     setEditedIds(new Set());
     setWarnedIds(new Set());
     setEditing(false);
     setDraft(null);
     setAllReviewed(false);
-    setOptimisticReviewed(0);
+    setFilters(restored.filters);
+    setSelectedIds([]);
+    setApprovalBusy(false);
+    setBulkNotice(null);
+    setBulkError(null);
     doneIds.current = new Set<string>();
-  }, [batchId]);
+  }, [batchId, restored]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    writeStageViewPreferences({ workspaceId, batchId, stage: 'review_listings' }, {
+      q: filters.q ?? '', selectedId: currentItemId,
+      filters: { reviewState: filters.reviewStates?.[0] ?? 'unreviewed', brand: filters.brand, sourceType: filters.sourceType,
+        familyCohortId: filters.familyCohortId, gateStatus: filters.gateStatus, warningsOnly: String(!!filters.warningsOnly) },
+    });
+  }, [workspaceId, batchId, filters, currentItemId]);
 
   // Auto-select the first unreviewed item once queue is loaded
   useEffect(() => {
@@ -205,10 +246,10 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
       setAllReviewed(false);
       return;
     }
-    const target = findNextReviewTarget(sortedAll, null, doneIds.current);
+    const target = findNextReviewTarget(filteredItems, null, doneIds.current) ?? filteredItems[0];
     if (target) setCurrentItemId(target.itemId);
     else setAllReviewed(true);
-  }, [queueLoading, sortedAll, currentItemId]);
+  }, [queueLoading, filteredItems, currentItemId]);
 
   // SSE-driven refresh (debounced) — counts + queue stay live without killing dirty draft
   useEffect(() => {
@@ -252,13 +293,16 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
 
   // Prune the bulk-review selection whenever the queue reloads.
   useEffect(() => {
-    setSelectedIds(prev => pruneQueueSelection(prev, rows.map(i => i.itemId)));
-  }, [rows]);
+    setSelectedIds(prev => pruneQueueSelection(prev, filteredItems.filter(i => {
+      const commands = reviewCommands(i, details.get(i.itemId));
+      return commands.canCompleteReview || commands.canApprove;
+    }).map(i => i.itemId)));
+  }, [filteredItems, details]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const reviewableSelectedIds = useMemo(
-    () => reviewableSelectionIds(selectedIds, filteredItems),
-    [selectedIds, filteredItems],
+    () => selectedIds.filter(id => reviewCommands(filteredItems.find(i => i.itemId === id) ?? null, details.get(id)).canCompleteReview),
+    [selectedIds, filteredItems, details],
   );
   const reviewableSelected = reviewableSelectedIds.length;
 
@@ -270,7 +314,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
 
   const handleBulkReview = useCallback(async () => {
-    if (reviewableSelectedIds.length === 0 || bulkBusy) return;
+    if (reviewableSelectedIds.length === 0 || bulkBusy || approvalBusy || queueLoading || queueError || projectionHealth.status !== 'healthy' || draftDirty) return;
     if (bulkFilenameWarnedIds.length > 0) {
       setBulkError(
         `${bulkFilenameWarnedIds.length} selected product${bulkFilenameWarnedIds.length === 1 ? ' has' : 's have'} a file-name warning — accept or defer each one individually before bulk review.`,
@@ -290,27 +334,32 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
             : ''),
       );
       setSelectedIds([]);
+      reviewableSelectedIds.forEach(invalidateItem);
       await loadQueue();
+      onChanged?.();
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : String(err));
     } finally {
       setBulkBusy(false);
       setBulkConfirmOpen(false);
     }
-  }, [reviewableSelectedIds, bulkBusy, bulkFilenameWarnedIds, loadQueue]);
+  }, [reviewableSelectedIds, bulkBusy, approvalBusy, queueLoading, queueError, projectionHealth.status, draftDirty, bulkFilenameWarnedIds, loadQueue, invalidateItem, onChanged]);
 
-  const totalCount = counts ? counts.total : rows.length;
-  const reviewedCount = counts
-    ? counts.reviewedTotal + optimisticReviewed
-    : rows.filter(r => r.reviewState === 'reviewed' || r.reviewState === 'approved').length;
+  const totalCount = counts?.total ?? 0;
 
   const progress = useMemo(() => {
-    return reviewProgress(rows, { total: totalCount, reviewedTotal: reviewedCount });
-  }, [rows, totalCount, reviewedCount]);
+    return reviewProgress([], { total: serverProgress?.total ?? 0, reviewedTotal: serverProgress?.reviewed ?? 0 });
+  }, [serverProgress]);
 
   const currentWorkState = useMemo(
-    () => (currentItemId ? rows.find(i => i.itemId === currentItemId) ?? null : null),
-    [rows, currentItemId],
+    () => {
+      if (!currentItemId) return null;
+      const loaded = rows.find(row => row.itemId === currentItemId);
+      if (loaded) return loaded;
+      if (selectedContextId !== currentItemId || selectedRow?.itemId !== currentItemId) return null;
+      return applyQueueFilters([selectedRow], filters, { editedIds, warnedIds })[0] ?? null;
+    },
+    [rows, currentItemId, selectedContextId, selectedRow, filters, editedIds, warnedIds],
   );
 
   // ── Filename preview for the inspected item (issue #109) ──────────────
@@ -333,6 +382,22 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     };
   }, [currentWorkState, details, detailErrors]);
 
+  const currentCommands = reviewCommands(currentWorkState, currentInspector?.detail);
+  const commandsAvailable = !queueLoading && !queueError && projectionHealth.status === 'healthy' && !approvalBusy && !bulkBusy;
+  const canEditCurrent = currentCommands.canEdit && commandsAvailable && !!currentInspector?.detail;
+  const canCompleteCurrent = currentCommands.canCompleteReview && commandsAvailable && !!currentInspector?.detail;
+  const approvalSelection = filteredItems.filter(row => selectedSet.has(row.itemId) && reviewCommands(row, details.get(row.itemId)).canApprove);
+  const selectableIds = filteredItems.filter(row => {
+    const commands = reviewCommands(row, details.get(row.itemId));
+    return commands.canCompleteReview || commands.canApprove;
+  }).map(row => row.itemId);
+  const approvalDisabledReason = queueLoading ? 'Refreshing eligibility…'
+    : queueError ? 'Queue is stale — retry the refresh before approving.'
+      : projectionHealth.status !== 'healthy' ? 'Projection degraded — cannot approve.'
+        : bulkBusy || busyItemIds.size > 0 || busyDecisionId !== null || draftDirty ? 'Finish the current edit or review action before approving.'
+          : approvalSelection.some(row => isGateBlocked(row, details.get(row.itemId))) ? 'Selected products have blocked or unavailable readiness. Resolve them before approving.'
+            : undefined;
+
   const readiness = useMemo(
     () =>
       v2 && currentInspector
@@ -351,20 +416,23 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
 
   // ── Actions ──────────────────────────────────────────────────────────────
-  const approveCurrentItem = useCallback(async (filenameDecision?: 'accept' | 'defer') => {
-    if (!currentWorkState) return;
+  const completeCurrentReview = useCallback(async (filenameDecision?: 'accept' | 'defer') => {
+    if (!currentWorkState || !canCompleteCurrent || draftDirty || busyItemIds.has(currentWorkState.itemId)) return;
     const id = currentWorkState.itemId;
+    if (reviewInFlight.current.has(id)) return;
+    reviewInFlight.current.add(id);
     setBusyItemIds(prev => new Set(prev).add(id));
     setActionError(null);
     try {
-      await completeReviewStage(
+      const result = await completeReviewStage(
         [id],
         filenameDecision ? { filenameDecisions: { [id]: filenameDecision } } : undefined,
       );
+      if (result.count !== 1) throw new Error('Product was not marked reviewed. Refresh and inspect the current decision.');
       setRejectedBlockers(null);
       doneIds.current.add(id);
       optimisticUpdateRow(id, { reviewState: 'reviewed' });
-      setOptimisticReviewed(prev => prev + 1);
+      invalidateItem(id);
       const remaining = rows.map(i => (i.itemId === id ? { ...i, reviewState: 'reviewed' as const } : i));
       const next = findNextReviewTarget(sortForReview(remaining), id, doneIds.current);
       if (next) {
@@ -375,6 +443,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
       }
       void loadQueue({ silent: true });
       refreshFilenamePreview();
+      onChanged?.();
     } catch (err) {
       const codes = v2 ? parseBlockersFromRejection(err, id) : [];
       if (codes.length > 0) {
@@ -384,25 +453,28 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         setActionError(err instanceof Error ? err.message : 'Failed to mark item reviewed');
       }
     } finally {
+      reviewInFlight.current.delete(id);
       setBusyItemIds(prev => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
     }
-  }, [currentWorkState, rows, optimisticUpdateRow, loadQueue, v2, refreshFilenamePreview]);
+  }, [currentWorkState, canCompleteCurrent, draftDirty, busyItemIds, rows, optimisticUpdateRow, loadQueue, v2, refreshFilenamePreview, invalidateItem, onChanged]);
 
   // ── Filename-warning decisions (issue #109) ────────────────────────────
   // Warned items can never ride plain Looks-Good: Accept records the
-  // decision and approves; Defer records it and moves on unreviewed.
+  // decision and marks reviewed; Defer records it and moves on unreviewed.
   const handleAcceptFilename = useCallback(async () => {
     if (!currentWorkState || !currentIsFilenameWarned || currentHasCatalogCollision) return;
-    await approveCurrentItem('accept');
-  }, [currentWorkState, currentIsFilenameWarned, currentHasCatalogCollision, approveCurrentItem]);
+    await completeCurrentReview('accept');
+  }, [currentWorkState, currentIsFilenameWarned, currentHasCatalogCollision, completeCurrentReview]);
 
   const handleDeferFilename = useCallback(async () => {
-    if (!currentWorkState || !currentIsFilenameWarned) return;
+    if (!currentWorkState || !canCompleteCurrent || draftDirty || busyItemIds.has(currentWorkState.itemId) || !currentIsFilenameWarned) return;
     const id = currentWorkState.itemId;
+    if (reviewInFlight.current.has(id)) return;
+    reviewInFlight.current.add(id);
     setBusyItemIds(prev => new Set(prev).add(id));
     setActionError(null);
     try {
@@ -419,16 +491,17 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to defer item');
     } finally {
+      reviewInFlight.current.delete(id);
       setBusyItemIds(prev => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
     }
-  }, [currentWorkState, currentIsFilenameWarned, rows, loadQueue, refreshFilenamePreview]);
+  }, [currentWorkState, canCompleteCurrent, draftDirty, busyItemIds, currentIsFilenameWarned, rows, loadQueue, refreshFilenamePreview]);
 
   const beginEdit = useCallback(() => {
-    if (!currentInspector) return;
+    if (!currentInspector || !canEditCurrent) return;
     const id = currentInspector.workState.itemId;
     const item = currentInspector.detail?.item;
     const cur = item?.curationData as Record<string, unknown> | undefined;
@@ -467,7 +540,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         effectiveGateValues(currentInspector.detail, currentInspector.workState),
       );
     }
-  }, [currentInspector, v2]);
+  }, [currentInspector, canEditCurrent, v2]);
 
   const attemptCancelEdit = useCallback((): boolean => {
     if (!v2 || !editing) {
@@ -504,7 +577,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
 
   const handleLooksGood = useCallback(async () => {
-    if (!currentInspector) return;
+    if (!currentInspector || !canCompleteCurrent || busyItemIds.has(currentInspector.workState.itemId)) return;
     // Issue #109: a filename-warned item can never ride plain Looks-Good
     // (keyboard shortcut included) — Accept or Defer explicitly.
     if (currentIsFilenameWarned) {
@@ -520,9 +593,9 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
       setConfirmWarnings(readiness?.warnings ?? []);
       setConfirmOpen(true);
     } else {
-      await approveCurrentItem();
+      await completeCurrentReview();
     }
-  }, [currentInspector, approveCurrentItem, v2, editedIds, readiness, currentIsFilenameWarned]);
+  }, [currentInspector, canCompleteCurrent, busyItemIds, completeCurrentReview, v2, editedIds, readiness, currentIsFilenameWarned]);
 
   const moveTo = useCallback(
     (dir: 'next' | 'previous') => {
@@ -537,7 +610,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   );
 
   const handleSaveEdit = useCallback(async () => {
-    if (!currentInspector || !draft) return;
+    if (!currentInspector || !draft || !canEditCurrent) return;
     const id = currentInspector.workState.itemId;
     setBusyItemIds(prev => new Set(prev).add(id));
     setSaveError(null);
@@ -569,7 +642,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         return next;
       });
     }
-  }, [currentInspector, draft, invalidateItem, loadQueue, v2]);
+  }, [currentInspector, canEditCurrent, draft, invalidateItem, loadQueue, v2, refreshFilenamePreview]);
 
   useEffect(() => {
     if (!v2 || editing || !currentInspector?.detail) return;
@@ -577,31 +650,32 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   }, [v2, editing, currentInspector, beginEdit]);
 
   const handleSaveMedia = useCallback(async (selection: MediaSelectionRequest) => {
-    if (!currentInspector) return;
+    if (!currentInspector || !canEditCurrent) return;
     const id = currentInspector.workState.itemId;
     await updateItemMedia(id, selection);
     invalidateItem(id);
     void loadQueue({ silent: true });
-  }, [currentInspector, invalidateItem, loadQueue]);
+  }, [currentInspector, canEditCurrent, invalidateItem, loadQueue]);
 
   const handleDecision = useCallback(
     async (proposal: ClassificationProposal, decision: 'accepted' | 'rejected') => {
-      if (!currentInspector) return;
+      if (!currentInspector || !canEditCurrent) return;
       const id = currentInspector.workState.itemId;
       setBusyDecisionId(proposal.id);
       try {
         await submitDecisions(id, [{ proposalId: proposal.id, decision }]);
         invalidateItem(id);
+        void loadQueue({ silent: true });
       } finally {
         setBusyDecisionId(null);
       }
     },
-    [currentInspector, invalidateItem],
+    [currentInspector, canEditCurrent, invalidateItem, loadQueue],
   );
 
   const handleUpdatePages = useCallback(
     async (nextPages: string[], correction?: { pageId: string; activePageImportHash: string }) => {
-      if (!currentInspector) return;
+      if (!currentInspector || !canEditCurrent) return;
       const id = currentInspector.workState.itemId;
       const curation = currentInspector.detail?.item?.curationData ?? {};
       setBusyItemIds(prev => new Set(prev).add(id));
@@ -622,6 +696,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
           },
         });
         invalidateItem(id);
+        void loadQueue({ silent: true });
       } catch (err) {
         setActionError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -632,11 +707,11 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         });
       }
     },
-    [currentInspector, invalidateItem],
+    [currentInspector, canEditCurrent, invalidateItem, loadQueue],
   );
 
   const handleSendToCuration = useCallback(async () => {
-    if (!currentWorkState) return;
+    if (!currentWorkState || !canEditCurrent) return;
     if (v2 && editing && isDraftDirty(draftSeedRef.current, draft)) {
       setActionError('You have unsaved edits — click “Save edits” (or Cancel) before sending back to curation.');
       return;
@@ -664,14 +739,15 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         return next;
       });
     }
-  }, [currentWorkState, v2, editing, draft, rows, optimisticRemoveRow, loadQueue]);
+  }, [currentWorkState, canEditCurrent, v2, editing, draft, rows, optimisticRemoveRow, loadQueue]);
 
   const handleBulkSendToCuration = useCallback(async () => {
-    if (selectedIds.length === 0 || bulkBusy) return;
+    const ids = selectedIds.filter(id => reviewCommands(rows.find(row => row.itemId === id) ?? null, details.get(id)).canEdit);
+    if (ids.length === 0 || bulkBusy || !commandsAvailable || draftDirty) return;
     setBulkBusy(true);
     setBulkError(null);
     try {
-      const res = await moveToPreviousStage(selectedIds);
+      const res = await moveToPreviousStage(ids);
       setBulkNotice(`${res.moved} item${res.moved === 1 ? '' : 's'} sent back to Curation`);
       setSelectedIds([]);
       await loadQueue();
@@ -680,7 +756,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     } finally {
       setBulkBusy(false);
     }
-  }, [selectedIds, bulkBusy, loadQueue]);
+  }, [selectedIds, rows, details, bulkBusy, commandsAvailable, draftDirty, loadQueue]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   useEffect(() => {
@@ -703,7 +779,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
         return;
       }
       if (!workspaceRef.current?.contains(target ?? document.body)) return;
-      if (editing) {
+      if (editing && (!v2 || draftDirty)) {
         if (e.key === 'Escape') {
           e.preventDefault();
           attemptCancelEdit();
@@ -739,7 +815,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [lightbox, editing, currentItemId, attemptCancelEdit, moveTo, handleLooksGood]);
+  }, [lightbox, editing, v2, draftDirty, currentItemId, attemptCancelEdit, moveTo, handleLooksGood]);
 
   const busy = currentItemId ? busyItemIds.has(currentItemId) : false;
 
@@ -770,67 +846,109 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
   useEffect(() => {
     if (!currentItemId) return;
     if (filteredItems.some(i => i.itemId === currentItemId)) return;
-    const target = findNextReviewTarget(filteredItems, null, doneIds.current);
+    if (queueLoading || queueError) return;
+    if (draftDirty) return;
+    if (currentWorkState) return;
+    // A first page is not a membership check. Only the server's explicit
+    // selected context can prove that a remembered product left this scope.
+    if (selectedContextId !== currentItemId || selectedRow === undefined) return;
+    const target = findNextReviewTarget(filteredItems, null, doneIds.current) ?? filteredItems[0];
+    setEditing(false);
+    setDraft(null);
+    draftSeedRef.current = null;
     setCurrentItemId(target?.itemId ?? null);
-  }, [filteredItems]);
+  }, [filteredItems, queueLoading, queueError, draftDirty, currentItemId, currentWorkState, selectedContextId, selectedRow]);
+
+  const changeFilters = (next: ReviewQueueFilters) => {
+    if (approvalBusy || bulkBusy || busyItemIds.size > 0 || busyDecisionId || !attemptCancelEdit()) return;
+    setSelectedIds([]);
+    setCurrentItemId(null);
+    setAllReviewed(false);
+    setBulkConfirmOpen(false);
+    setFilters({ ...next, reviewStates: next.reviewStates?.length ? next.reviewStates : ['unreviewed'] });
+  };
 
   const queueEmptyMessage =
     queueLoading
       ? 'Loading review queue…'
       : filtersTotal === 0 && hasActiveQueueFilters(filters)
-        ? 'No products match the current filters.'
+        ? statusTotals?.unreviewed === 0 && filters.reviewStates?.includes('unreviewed')
+          ? 'No products need review in this scope. Open Reviewed to approve reviewed products.'
+          : 'No products match the current filters.'
         : 'Nothing to review yet — automation is still working.';
 
   return (
-    <div className="rv-workspace" ref={workspaceRef}>
+    <div className="rv-workspace" ref={workspaceRef} data-onboarding-dirty={editing && isDraftDirty(draftSeedRef.current, draft) ? 'true' : 'false'}>
       {actionError && (
         <div role="alert" className="rv-error-banner">
           {actionError}
         </div>
       )}
+      {projectionHealth.status === 'degraded' && <p className="rv-error-banner" role="alert">Review projection degraded — refresh before making review or approval decisions.</p>}
+      {currentWorkState && !filteredItems.some(row => row.itemId === currentItemId) && <p role="status">Selected product context from outside the loaded page. Counts and bulk selection still describe the queue.</p>}
+      {currentItemId && !currentWorkState && !queueLoading && selectedRow === undefined && <p role="status">Selected product context is unavailable in this read. Load more products or refresh the queue to locate it.</p>}
 
       <div className="rv-body">
         <div className="rv-queue-pane">
           <QueueHeader
             filters={filters}
-            onChange={setFilters}
+            onChange={changeFilters}
             facets={facets}
             progress={progress}
             total={totalCount}
             shownCount={loadedCount}
+            statusTotals={statusTotals}
+            progressAvailable={serverProgress !== null}
           />
-          {(selectedIds.length > 0 || filters.sourceType === 'distributor_record') && (
+          {filters.reviewStates?.includes('reviewed') && (
+            <ReviewApprovalControl
+              batchId={batchId}
+              selected={approvalSelection}
+              disabledReason={approvalDisabledReason}
+              previews={filenamePreview.byId}
+              onBusyChange={setApprovalBusy}
+              queueComputedAt={projectionHealth.computedAt}
+              onApproved={async result => {
+                result.results.forEach(outcome => invalidateItem(outcome.itemId));
+                setSelectedIds([]);
+                await loadQueue({ silent: true });
+                refreshFilenamePreview();
+                if (result.approvedCount > 0) onChanged?.();
+              }}
+            />
+          )}
+          {!filters.reviewStates?.includes('approved') && (selectedIds.length > 0 || filters.sourceType === 'distributor_record') && (
             <div className="rv-bulk-bar" role="region" aria-label="Bulk review">
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                disabled={bulkBusy || filteredItems.length === 0}
+                disabled={bulkBusy || approvalBusy || queueLoading || selectableIds.length === 0}
                 onClick={() =>
                   setSelectedIds(prev =>
-                    prev.length === filteredItems.length ? [] : selectAllVisible(filteredItems.map(i => i.itemId)),
+                    prev.length === selectableIds.length ? [] : selectAllVisible(selectableIds),
                   )
                 }
               >
-                {selectedIds.length === filteredItems.length && filteredItems.length > 0
+                {selectedIds.length === selectableIds.length && selectableIds.length > 0
                   ? 'Clear selection'
-                  : `Select all shown (${filteredItems.length})`}
+                  : `Select eligible shown (${selectableIds.length})`}
               </button>
               <span className="rv-bulk-count">
                 {selectedIds.length} selected · {reviewableSelected} reviewable
               </span>
-              <button
+              {filters.reviewStates?.includes('unreviewed') && <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                disabled={bulkBusy || selectedIds.length === 0}
+                disabled={bulkBusy || !commandsAvailable || draftDirty || selectedIds.length === 0}
                 onClick={() => void handleBulkSendToCuration()}
                 title="Send selected items back to Curation stage"
               >
                 ↩ Send to Curation ({selectedIds.length})
-              </button>
-              <button
+              </button>}
+              {filters.reviewStates?.includes('unreviewed') && <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                disabled={bulkBusy || reviewableSelected === 0 || selectedBlockedCount > 0 || bulkFilenameWarnedIds.length > 0}
+                disabled={bulkBusy || !commandsAvailable || draftDirty || reviewableSelected === 0 || selectedBlockedCount > 0 || bulkFilenameWarnedIds.length > 0}
                 title={
                   bulkFilenameWarnedIds.length > 0
                     ? `${bulkFilenameWarnedIds.length} selected product${bulkFilenameWarnedIds.length === 1 ? ' has' : 's have'} a file-name warning — accept or defer each one individually first`
@@ -845,7 +963,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                   : selectedBlockedCount > 0
                     ? `Mark reviewed (${reviewableSelected} · ${selectedBlockedCount} blocked)`
                     : `Mark reviewed (${reviewableSelected})`}
-              </button>
+              </button>}
             </div>
           )}
           {bulkNotice && (
@@ -870,7 +988,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 <h3 className="rv-modal-title">Mark {reviewableSelected} product{reviewableSelected === 1 ? '' : 's'} reviewed?</h3>
                 <p className="rv-modal-body">
                   These products will be durably marked reviewed and moved to the approval
-                  queue. Approving never exports anything — export stays a separate step.
+                  filter. Approval remains an explicit separate decision in Reviewed.
                 </p>
                 <div className="rv-modal-actions">
                   <button type="button" className="btn btn-outline" onClick={() => setBulkConfirmOpen(false)}>
@@ -891,6 +1009,7 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
           {queueError ? (
             <div className="rv-state-note" role="alert">
               Could not load the review queue: {queueError}
+              <button type="button" className="btn btn-outline" onClick={() => void loadQueue()}>Retry queue</button>
             </div>
           ) : (
             <ReviewQueue
@@ -900,12 +1019,13 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
               warnedIds={warnedIds}
               editedIds={editedIds}
               selectedIds={selectedSet}
-              onToggleSelected={itemId =>
-                setSelectedIds(prev => toggleQueueSelection(prev, itemId))
+                onToggleSelected={itemId =>
+                  !approvalBusy && setSelectedIds(prev => toggleQueueSelection(prev, itemId))
               }
-              onToggleFamilySelected={itemIds =>
-                setSelectedIds(prev => toggleGroupSelection(prev, itemIds))
-              }
+                onToggleFamilySelected={itemIds =>
+                  !approvalBusy && setSelectedIds(prev => toggleGroupSelection(prev, itemIds))
+                }
+                selectableIds={new Set(selectableIds)}
               emptyMessage={queueEmptyMessage}
               onSelect={selectItem}
             />
@@ -916,10 +1036,11 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 type="button"
                 className="btn btn-outline"
                 onClick={() => void loadMore()}
-                disabled={loadingMore}
+                disabled={loadingMore || queueRefreshing}
               >
                 {loadingMore
                   ? 'Loading more…'
+                  : queueRefreshing ? 'Refreshing queue…'
                   : `Load more (${rows.length} of ${totalCount} shown)`}
               </button>
             </div>
@@ -928,17 +1049,18 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
 
         <div className="rv-inspector-pane" tabIndex={-1} aria-label="Review inspector">
           {currentInspector ? (
-            <div className="rv-inspector-inner">
+            <div className="rv-inspector-inner" key={currentInspector.workState.itemId}>
               {currentInspector.detailError && (
                 <div className="rv-error-banner" role="alert">
                   Detail could not be loaded: {currentInspector.detailError}
                 </div>
               )}
               <ReviewIdentityPanel workState={currentInspector.workState} detail={currentInspector.detail} fileName={currentPreview?.fileName ?? null} />
+              {!currentCommands.canEdit && <p role="status">Inspection only — review-stage changes are unavailable for this product.</p>}
               <ReviewListingPanel
                 workState={currentInspector.workState}
                 detail={currentInspector.detail}
-                editing={editing}
+                editing={editing && canEditCurrent}
                 draft={draft ?? { curatedTitle: '', brandHint: '', curatedWeight: '', curatedDescription: '', searchKeywords: '' }}
                 onDraftChange={setDraft}
                 onSaveEdit={handleSaveEdit}
@@ -951,19 +1073,20 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 saveError={saveError}
                 onOpenLightbox={(url, caption) => setLightbox({ url, caption })}
                 v2={v2}
-                onSaveMedia={v2 ? handleSaveMedia : undefined}
+                onSaveMedia={v2 && canEditCurrent ? handleSaveMedia : undefined}
                 blockedCodesByField={
                   v2 && mergedReadiness ? fieldBlockerCodes(mergedReadiness.blockers) : undefined
                 }
               />
               <ReviewPagesPanel
                 detail={currentInspector.detail}
-                onUpdatePages={handleUpdatePages}
+                onUpdatePages={canEditCurrent ? handleUpdatePages : undefined}
               />
               <ReviewClassificationPanel
                 detail={currentInspector.detail}
                 onDecision={handleDecision}
                 busyDecisionId={busyDecisionId}
+                readOnly={!canEditCurrent}
               />
               <ReviewWarningsPanel detail={currentInspector.detail} filenameWarnings={currentFilenameWarnings} filenameResolutions={currentPreview?.allowedResolutions} />
               {v2 && (
@@ -971,15 +1094,17 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                   detail={currentInspector.detail}
                   workState={currentInspector.workState}
                   readiness={mergedReadiness ?? undefined}
-                  onJumpRequest={jumpToFix}
+                  enableJump={canEditCurrent}
+                  onJumpRequest={canEditCurrent ? jumpToFix : undefined}
                 />
               )}
               <ReviewActions
                 workState={currentInspector.workState}
                 detail={currentInspector.detail}
                 busy={busy}
-                editing={editing}
-                allReviewed={allReviewed}
+                editing={editing && (!v2 || draftDirty)}
+                canCompleteReview={canCompleteCurrent}
+                allReviewed={allReviewed && serverProgress?.remaining === 0}
                 shortcutKey="G"
                 blockers={v2 ? mergedReadiness?.blockers : undefined}
                 filenameWarned={currentIsFilenameWarned}
@@ -989,14 +1114,14 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
                 onLooksGood={() => void handleLooksGood()}
                 onPrevious={() => moveTo('previous')}
                 onNext={() => moveTo('next')}
-                onToggleEdit={v2 ? undefined : () => (editing ? attemptCancelEdit() : beginEdit())}
-                onSendToCuration={() => void handleSendToCuration()}
+                onToggleEdit={v2 || !canEditCurrent ? undefined : () => (editing ? attemptCancelEdit() : beginEdit())}
+                onSendToCuration={canEditCurrent ? () => void handleSendToCuration() : undefined}
               />
             </div>
           ) : (
             <div className="rv-state-note">
-              {allReviewed
-                ? 'All products reviewed — ready for bulk approval in the Approved tab.'
+              {allReviewed && serverProgress?.remaining === 0
+                ? 'Review complete — open Reviewed to approve a selection.'
                 : 'Select a product from the queue to inspect it.'}
             </div>
           )}
@@ -1011,13 +1136,13 @@ export function ReviewWorkspace({ batchId }: ReviewWorkspaceProps) {
 
       {v2 && (
         <ReviewConfirmStep
-          open={confirmOpen}
+          open={confirmOpen && canCompleteCurrent}
           diffRows={pendingDiff}
           warnings={confirmWarnings}
           busy={busy}
           onApprove={() => {
             setConfirmOpen(false);
-            void approveCurrentItem();
+            void completeCurrentReview();
           }}
           onCancel={() => setConfirmOpen(false)}
         />
@@ -1035,6 +1160,8 @@ function QueueHeader({
   progress,
   total,
   shownCount,
+  statusTotals,
+  progressAvailable,
 }: {
   filters: ReviewQueueFilters;
   onChange: (f: ReviewQueueFilters) => void;
@@ -1042,6 +1169,8 @@ function QueueHeader({
   progress: ReturnType<typeof reviewProgress>;
   total: number;
   shownCount: number;
+  statusTotals: ReviewQueueStatusTotals | null;
+  progressAvailable: boolean;
 }) {
   const pct = progress.total > 0 ? Math.round((progress.reviewedCount / progress.total) * 100) : 0;
 
@@ -1049,15 +1178,25 @@ function QueueHeader({
     <div className="rv-queue-header">
       <div className="rv-queue-header-top">
         <div className="rv-progress" role="status" aria-label="Review progress">
-          <span className="rv-progress-main">{formatReviewProgress(progress)}</span>
+          <span className="rv-progress-main">{progressAvailable ? formatReviewProgress(progress) : 'Review progress unavailable'}</span>
           <span className="rv-progress-sub">
-            {progress.remaining} remaining
+            {progressAvailable ? `${progress.remaining} remaining` : 'Refresh to load batch progress'}
             {total > shownCount ? ` · showing ${shownCount}` : ''}
           </span>
         </div>
 
         <FilterControls filters={filters} onChange={onChange} facets={facets} />
       </div>
+      <div className="rv-filter-popover-row" role="group" aria-label="Review status">
+        {(['unreviewed', 'reviewed', 'approved'] as const).map(status => (
+          <button key={status} type="button" className={`rv-chip${filters.reviewStates?.includes(status) ? ' rv-chip-active' : ''}`}
+            aria-pressed={filters.reviewStates?.includes(status) ?? false}
+            onClick={() => onChange({ ...filters, reviewStates: [status] })}>
+            {status === 'unreviewed' ? 'Needs review' : status === 'reviewed' ? 'Reviewed' : 'Approved'}{statusTotals ? ` (${statusTotals[status]})` : ' (unavailable)'}
+          </button>
+        ))}
+      </div>
+      <input type="search" className="rv-input" aria-label="Search review products" placeholder="Search name, UPC, brand or family" value={filters.q ?? ''} onChange={e => onChange({ ...filters, q: e.target.value || undefined })} />
       <div className="rv-progress-track" aria-hidden="true">
         <div className="rv-progress-fill" style={{ transform: `scaleX(${pct / 100})` }} />
       </div>
@@ -1080,8 +1219,9 @@ function FilterControls({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const activeCount = countActiveQueueFilters(filters);
-  const chips = activeFilterChips(filters, {
+  const advancedFilters = { ...filters, reviewStates: undefined };
+  const activeCount = countActiveQueueFilters(advancedFilters);
+  const chips = activeFilterChips(advancedFilters, {
     familyLabel: facets.families.find(f => f.cohortId === filters.familyCohortId)?.label,
   });
 
@@ -1142,36 +1282,6 @@ function FilterControls({
 
       {open && (
         <div className="rv-filter-popover">
-          <div className="rv-filter-popover-row">
-            <button
-              type="button"
-              className={`rv-chip${filters.reviewStates?.includes('unreviewed') ? ' rv-chip-active' : ''}`}
-              aria-pressed={filters.reviewStates?.includes('unreviewed') ?? false}
-              onClick={() =>
-                onChange(
-                  filters.reviewStates?.includes('unreviewed')
-                    ? { ...filters, reviewStates: undefined }
-                    : { ...filters, reviewStates: ['unreviewed'] },
-                )
-              }
-            >
-              Unreviewed
-            </button>
-            <button
-              type="button"
-              className={`rv-chip${filters.reviewStates?.includes('reviewed') ? ' rv-chip-active' : ''}`}
-              aria-pressed={filters.reviewStates?.includes('reviewed') ?? false}
-              onClick={() =>
-                onChange(
-                  filters.reviewStates?.includes('reviewed')
-                    ? { ...filters, reviewStates: undefined }
-                    : { ...filters, reviewStates: ['reviewed'] },
-                )
-              }
-            >
-              Reviewed
-            </button>
-          </div>
           <div className="rv-filter-popover-row">
             <button
               type="button"
@@ -1236,9 +1346,9 @@ function FilterControls({
             <option value="official_page">Official page</option>
           </select>
 
-          {hasActiveQueueFilters(filters) && (
-            <button type="button" className="rv-chip" onClick={() => onChange({})}>
-              Clear all filters
+          {hasActiveQueueFilters(advancedFilters) && (
+            <button type="button" className="rv-chip" onClick={() => onChange({ reviewStates: filters.reviewStates })}>
+              Clear additional filters
             </button>
           )}
         </div>

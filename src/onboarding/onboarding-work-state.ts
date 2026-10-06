@@ -29,6 +29,8 @@ import {
   listReviewStates,
   getReviewState,
   type OnboardingReviewState,
+  listExportDraftLinks,
+  type ExportDraftLink,
 } from '../db/repositories/onboarding-review-repo';
 import { listChangeSetStatusBySkus } from '../db/repositories/change-set-repo';
 import {
@@ -119,6 +121,7 @@ export interface WorkStateContext {
   reviewStates: Map<string, OnboardingReviewState>;
   cohortByItem: Map<string, FamilyCohortState>;
   changeSetStatusBySku: Map<string, string>;
+  exportDraftLinksByItem?: Map<string, ExportDraftLink>;
   candidateCountByItem: Map<string, number>;
   variantResolutionByItem: Map<string, { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string }>;
   /**
@@ -210,10 +213,13 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     .filter(item => stageIs(item.stage, 'create_drafts'))
     .map(item => item.upc);
   const workspaceId = findBatchById(batchId)?.workspaceId ?? '';
+  let exportDraftLinksByItem: Map<string, ExportDraftLink>;
   let changeSetStatusBySku: Map<string, string>;
   try {
+    exportDraftLinksByItem = listExportDraftLinks(workspaceId, items.filter(item => stageIs(item.stage, 'create_drafts')).map(item => item.id));
     changeSetStatusBySku = listChangeSetStatusBySkus(workspaceId, promotedSkus);
   } catch {
+    exportDraftLinksByItem = new Map();
     changeSetStatusBySku = new Map();
     if (promotedSkus.length > 0) {
       healthIssues.push({ source: 'change_sets', code: 'change_set_lookup_failed', affectedCount: promotedSkus.length });
@@ -293,6 +299,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     reviewStates,
     cohortByItem,
     changeSetStatusBySku,
+    exportDraftLinksByItem,
     candidateCountByItem,
     variantResolutionByItem,
     variantDispositionByItem,
@@ -731,8 +738,9 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
   // default branch, never coerced to the first stage).
   switch (canonicalStageOf(item.stage)) {
     case 'create_drafts': {
-      if (item.stageStatus === 'completed') {
-        const changeSetStatus = ctx.changeSetStatusBySku.get(item.upc);
+      const linkedDraft = ctx.exportDraftLinksByItem?.get(item.id);
+      if (item.stageStatus === 'completed' || linkedDraft) {
+        const changeSetStatus = linkedDraft?.status ?? ctx.changeSetStatusBySku.get(item.upc);
         if (changeSetStatus === 'pushed') {
           return build(item, row, cohort, { category: 'completed', activity: 'export', label: 'Exported', detail: 'Change set pushed to the store' });
         }
@@ -1217,6 +1225,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   // Use bulk helpers even for single item (keeps query plan uniform)
   const cohortByItem = buildCohortContext(item.batchId, listItemsByBatch(item.batchId));
   const changeSetStatusBySku = stageIs(item.stage, 'create_drafts') ? listChangeSetStatusBySkus(workspaceId, [item.upc]) : new Map();
+  const exportDraftLinksByItem = stageIs(item.stage, 'create_drafts') ? listExportDraftLinks(workspaceId, [item.id]) : new Map();
   const candidateCountByItem = bulkCountDiscoveryCandidates([item.id]);
   const variantResolutionByItem = bulkLoadVariantResolutions([item.id]);
   const variantDispositionByItem = bulkLoadVariantDispositionsWithHealth([item.id]).data;
@@ -1234,6 +1243,7 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
     reviewStates: new Map(reviewRow ? [[item.id, reviewRow]] : []),
     cohortByItem,
     changeSetStatusBySku,
+    exportDraftLinksByItem,
     candidateCountByItem,
     variantResolutionByItem,
     variantDispositionByItem,

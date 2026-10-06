@@ -155,9 +155,10 @@ describe('ShopSiteProductCodec (Ticket #140)', () => {
       expect(lines[7]).toBe('  <Graphic>none</Graphic>');
       expect(lines[8]).toBe('  <ProductDescription><![CDATA[Minimal Test Item]]></ProductDescription>');
       expect(lines[9]).toBe('  <ProductType>Tangible</ProductType>');
-      expect(lines[10]).toBe('  <MoreInformationGraphic>none</MoreInformationGraphic>');
-      expect(lines[11]).toBe('  <FileName>minimal-test-item.html</FileName>');
-      expect(lines[12]).toBe('</Product>');
+      expect(lines[10]).toBe('  <DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
+      expect(lines[11]).toBe('  <MoreInformationGraphic>none</MoreInformationGraphic>');
+      expect(lines[12]).toBe('  <FileName>minimal-test-item.html</FileName>');
+      expect(lines[13]).toBe('</Product>');
     });
 
     it('serializes product.core.productOnPages as modern <PageLink><Name>', () => {

@@ -2,7 +2,7 @@
 /**
  * B5 — Stage 1 shared dialog coverage (mounted StageItemsView).
  *
- * Review strategy opens the SAME builder/command as Settings for
+ * Selected-product details and Next action open the SAME builder/command as Settings for
  * approved/drifted/new brands; the live proposal is staged from inside the
  * dialog (still requiring explicit Save); two rows of one brand
  * share a single dialog/refresh; a save resolving after the dialog closed
@@ -15,7 +15,8 @@ vi.mock('../../shared/schemas/onboarding-stage-read', () => ({
   STAGE_READ_LIMIT_DEFAULT: 50,
 }));
 
-vi.mock('../../client/onboarding-api', () => ({
+vi.mock('../../client/onboarding-api', async (importOriginal) => ({
+  OnboardingApiError: (await importOriginal<typeof import('../../client/onboarding-api')>()).OnboardingApiError,
   assignItemBrand: vi.fn(),
   assignItemDomain: vi.fn(),
   assignBrandGroup: vi.fn(),
@@ -34,6 +35,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { StageItemsView } from '../../client/components/onboarding/StageItemsView';
 import {
+  OnboardingApiError,
   assignItemBrand,
   getBrandSites,
   getBrandStrategyDetail,
@@ -145,6 +147,17 @@ function itemsPayload() {
   };
 }
 
+async function strategyButton(container: HTMLElement, itemId: string) {
+  await act(async () => {
+    const details = container.querySelector<HTMLButtonElement>(`[data-testid="intake-details-${itemId}"]`)
+      ?? container.querySelector<HTMLButtonElement>(`[data-testid="intake-next-action-${itemId}"]`);
+    details?.click();
+  });
+  const review = container.querySelector<HTMLButtonElement>(`[data-testid="intake-strategy-review-${itemId}"]`);
+  expect(review).not.toBeNull();
+  return review!;
+}
+
 describe('Stage 1 strategy dialog (mounted)', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -199,17 +212,18 @@ describe('Stage 1 strategy dialog (mounted)', () => {
   it('shows the approved label, suppresses Missing Domain for distributor-only brands, and expands the shared builder', async () => {
     await renderStage();
 
-    // Compact strategy column: readiness status + Review trigger, no verbose labels.
+    // The default table shows readiness; detailed setup is selection-driven.
     expect(container.querySelector('[data-testid="intake-strategy-item_acme"]')?.textContent).toMatch(/Ready.*2 sources available/);
     expect(container.querySelector('[data-testid="intake-strategy-approved-item_acme"]')).toBeNull();
     expect(container.querySelector('[data-testid="intake-readiness-item_beta"]')?.textContent).toMatch(/Awaiting approval/);
     expect(container.querySelector('[data-testid="intake-missing-domain-item_acme"]')).toBeNull();
-    expect(container.querySelector('[data-testid="intake-missing-domain-item_beta"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="intake-missing-domain-item_beta"]')).toBeNull();
     // No direct approve button remains — only the Review strategy dialog trigger.
     expect(container.querySelector('[data-testid="intake-strategy-approve-item_beta"]')).toBeNull();
-    const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
+    const review = await strategyButton(container, 'item_beta');
     expect(review).not.toBeNull();
     expect(review.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(container.querySelector('[data-testid="intake-missing-domain-item_beta"]')).not.toBeNull();
 
     await act(async () => {
       review.click();
@@ -227,8 +241,9 @@ describe('Stage 1 strategy dialog (mounted)', () => {
 
   it('"Use current proposal" inside the dialog stages the proposal and saves through the same guarded contract', async () => {
     await renderStage();
+    const review = await strategyButton(container, 'item_beta');
     await act(async () => {
-      (container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement).click();
+      review.click();
     });
     await settle();
     expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
@@ -237,7 +252,7 @@ describe('Stage 1 strategy dialog (mounted)', () => {
     });
 
     const saveBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement;
-    const blockersBefore = vi.mocked(getBrandDomainBlockers).mock.calls.length;
+    const referencesBefore = vi.mocked(getBrandSites).mock.calls.length;
     await act(async () => {
       saveBtn.click();
     });
@@ -253,7 +268,7 @@ describe('Stage 1 strategy dialog (mounted)', () => {
     });
     // Successful Save reloads intake references (no requeue/recollection path touched).
     await settle();
-    expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBeGreaterThan(blockersBefore);
+    expect(vi.mocked(getBrandSites).mock.calls.length).toBeGreaterThan(referencesBefore);
   });
 
   it('two rows of the same brand share one dialog and one detail load', async () => {
@@ -272,7 +287,7 @@ describe('Stage 1 strategy dialog (mounted)', () => {
       } as any;
     });
     await renderStage();
-    const review1 = container.querySelector('[data-testid="intake-strategy-review-item_beta_1"]') as HTMLButtonElement;
+    const review1 = await strategyButton(container, 'item_beta_1');
     await act(async () => {
       review1.click();
     });
@@ -283,13 +298,60 @@ describe('Stage 1 strategy dialog (mounted)', () => {
     expect(getBrandStrategyDetail).toHaveBeenCalledTimes(1);
   });
 
+  it('a strategy revision conflict keeps selected-product context and requires explicit rebase and Save', async () => {
+    vi.mocked(saveBrandStrategy).mockRejectedValueOnce(
+      new OnboardingApiError('stale', 409, 'stale_revision', { code: 'stale_revision', revision: 0 }),
+    );
+    await renderStage();
+    const review = await strategyButton(container, 'item_beta');
+    await act(async () => { review.click(); });
+    await settle();
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Save strategy') as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toMatch(/changed while editing/);
+    expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="source-item-detail"]')?.textContent).toContain('Product item_beta');
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Review changes against latest') as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toMatch(/Rebased onto the latest revision/);
+    expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
+  });
+
+  it('protects pending strategy edits on Escape and restores Next action focus after explicit discard', async () => {
+    await renderStage();
+    const nextAction = container.querySelector('[data-testid="intake-next-action-item_beta"]') as HTMLButtonElement;
+    await act(async () => { nextAction.focus(); nextAction.click(); });
+    await settle();
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Use current proposal') as HTMLButtonElement).click();
+    });
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).not.toBeNull();
+    expect(saveBrandStrategy).not.toHaveBeenCalled();
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Cancel') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Discard edits') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(nextAction);
+    expect(container.querySelector('[data-testid="source-item-detail"]')?.textContent).toContain('Product item_beta');
+  });
+
   it('a save resolving after brand reassignment cannot apply the stale response', async () => {
     let resolveSave!: (v: { strategy: { revision: number } }) => void;
     vi.mocked(saveBrandStrategy).mockImplementationOnce(
       () => new Promise((resolve) => { resolveSave = resolve as never; }),
     );
     await renderStage();
-    const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
+    const review = await strategyButton(container, 'item_beta');
     await act(async () => {
       review.click();
     });
@@ -303,7 +365,7 @@ describe('Stage 1 strategy dialog (mounted)', () => {
       saveBtn.click();
     });
     expect(saveBrandStrategy).toHaveBeenCalledTimes(1);
-    const blockersBefore = vi.mocked(getBrandDomainBlockers).mock.calls.length;
+    const referencesBefore = vi.mocked(getBrandSites).mock.calls.length;
     // Operator closes the dialog (editor unmounts) before the save resolves.
     // The edit is dirty, so Cancel first arms discard confirmation.
     await act(async () => {
@@ -317,7 +379,7 @@ describe('Stage 1 strategy dialog (mounted)', () => {
     });
     await settle();
     // Stale response dropped: no intake refresh from the abandoned dialog.
-    expect(vi.mocked(getBrandDomainBlockers).mock.calls.length).toBe(blockersBefore);
+    expect(vi.mocked(getBrandSites).mock.calls.length).toBe(referencesBefore);
     expect(container.querySelector('[data-testid="intake-strategy-dialog"]')).toBeNull();
   });
 });
@@ -393,7 +455,7 @@ describe('Stage 1 ticket #125 follow-ups (mounted)', () => {
     });
     await settle();
     // Open the Beta strategy dialog first.
-    const review = container.querySelector('[data-testid="intake-strategy-review-item_beta"]') as HTMLButtonElement;
+    const review = await strategyButton(container, 'item_beta');
     await act(async () => {
       review.click();
     });

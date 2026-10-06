@@ -528,6 +528,7 @@
 }
 
 .rv-row-title {
+  display: block;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-ledger-charcoal);
@@ -1150,6 +1151,13 @@
   .rv-compare {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 600px) {
+  .rv-queue-row { grid-template-columns: 44px minmax(0, 1fr); }
+  .rv-queue-row.rv-row-selectable { grid-template-columns: 24px 44px minmax(0, 1fr); }
+  .rv-row-checks { grid-column: 2 / -1; justify-content: flex-start; flex-wrap: wrap; }
+  .rv-row-selectable .rv-row-checks { grid-column: 3 / -1; }
 }
 /* ── Classification clarity (epic #46 review round) ─────────────────────── */
 

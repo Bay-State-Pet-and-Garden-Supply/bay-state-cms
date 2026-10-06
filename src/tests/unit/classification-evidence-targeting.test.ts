@@ -51,6 +51,24 @@ describe('evidence-targeting (issue #17 H)', () => {
     expect(evidenceMatchesTarget(noAttr, { attributeId: 'flavor', sourceField: 'flavor' })).toBe(true);
   });
 
+  it('admits preserved content tags as bounded context, never as supporting/contradicting assertions', () => {
+    const spec = ev({ id: 'sp1', attributeId: null, sourceField: 'Specifications', value: 'Crude Protein 14%' });
+    const howTo = ev({ id: 'h1', attributeId: null, sourceField: 'HowToUse', value: 'Feed twice daily' });
+    const weight = ev({ id: 'w1', attributeId: null, sourceField: 'weight', value: '5 lb' });
+    const packet = buildEvidenceTargetPacket([spec, howTo, weight], {
+      attributeId: 'flavor',
+      sourceField: 'flavor',
+      selectionMode: 'single',
+      proposedValue: 'Chicken',
+    });
+    expect(packet.supportingEvidenceIds).toEqual([]);
+    expect(packet.contradictingEvidenceIds).toEqual([]);
+    // Preserved content is context; unrelated fields (weight) stay excluded.
+    expect(packet.context.map(r => r.id).sort()).toEqual(['h1', 'sp1']);
+    expect(packet.promptText).toContain('Crude Protein 14%');
+    expect(packet.promptText).not.toContain('5 lb');
+  });
+
   it('never grounds an unrelated (color) record into a flavor proposal (issue #17 pass 5b)', () => {
     const colorChicken = ev({ id: 'c1', attributeId: 'color', value: 'Chicken' });
     const packet = buildEvidenceTargetPacket([colorChicken], {

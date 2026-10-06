@@ -439,17 +439,16 @@ describe('Characterization: Round-trip Stability', () => {
       expect(second.customFields['GoogleGTIN']).toBe(first.customFields['GoogleGTIN']);
     });
 
-    // KNOWN QUIRK: ProductType accumulates on every round-trip pass because
-    // it's not in the parser's coreFields or the denormalizer's blacklist.
-    // Each pass adds a duplicate <ProductType> from unknownElements,
-    // and fast-xml-parser concatenates them: "Tangible" → "Tangible,Tangible".
-    it('should accumulate ProductType on repeated round-trips (known quirk — never stabilizes)', () => {
+    // Fixed: ProductType is emitted exactly once per pass (the dedicated
+    // emitter owns it; the unknown-element loop skips it), so repeated
+    // round-trips are stable instead of accumulating "Tangible,Tangible".
+    it('stabilizes ProductType across repeated round-trips (no accumulation)', () => {
       const reparsed2 = ShopSiteProductCodec.decode(secondXml);
       const third = reparsed2.products[0];
       const { xml: thirdXml } = ShopSiteProductCodec.encode(third);
-      // Third pass has "Tangible,Tangible" because secondXml already has
-      // ProductType emitted from both DTD default and unknownElements
-      expect(thirdXml).toContain('<ProductType>Tangible,Tangible</ProductType>');
+      expect(thirdXml).toContain('<ProductType>Tangible</ProductType>');
+      expect(thirdXml).not.toContain('Tangible,Tangible');
+      expect((thirdXml.match(/<ProductType>/g) ?? []).length).toBe(1);
     });
   });
 
@@ -497,12 +496,13 @@ describe('Characterization: Round-trip Stability', () => {
       expect(second.shopsite.preserved.unknownElements['ProductType']).toBe('Tangible');
     });
 
-    // KNOWN QUIRK: Same ProductType accumulation as Dog Food (see above).
-    it('should accumulate ProductType on repeated round-trips (known quirk — never stabilizes)', () => {
+    // Fixed: same single-emission guarantee as Dog Food — stable round-trips.
+    it('stabilizes ProductType across repeated round-trips (no accumulation)', () => {
       const reparsed2 = ShopSiteProductCodec.decode(secondXml);
       const third = reparsed2.products[0];
       const { xml: thirdXml } = ShopSiteProductCodec.encode(third);
-      expect(thirdXml).toContain('<ProductType>Tangible,Tangible</ProductType>');
+      expect(thirdXml).toContain('<ProductType>Tangible</ProductType>');
+      expect((thirdXml.match(/<ProductType>/g) ?? []).length).toBe(1);
     });
   });
 });
@@ -784,14 +784,16 @@ describe('Characterization: Name-in-ProductDescription Convention', () => {
     expect(product.core.description).toBe('The real description.');
   });
 
-  it('should omit MoreInformationText when there is no description', () => {
+  it('omits MoreInformationText when there is no description but always emits the display flag', () => {
     const xml = `<Product><SKU>NC-04</SKU><Name>No Desc</Name></Product>`;
     const product = ShopSiteProductCodec.decode(xml).products[0];
     expect(product.core.description).toBeNull();
 
     const { xml: output } = ShopSiteProductCodec.encode(product);
     expect(output).not.toContain('<MoreInformationText>');
-    expect(output).not.toContain('<DisplayMoreInformationPage>');
+    // The store sets DisplayMoreInformationPage on every product, so the
+    // flag is emitted unconditionally (default checked) — never dropped.
+    expect(output).toContain('<DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
     // ProductDescription still carries the name
     expect(output).toContain('<ProductDescription><![CDATA[No Desc]]></ProductDescription>');
   });

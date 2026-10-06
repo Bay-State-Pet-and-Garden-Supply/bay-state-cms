@@ -1,216 +1,314 @@
-/**
- * Epic #46 — Ready to Export view (Phase 8 UI) — Redesigned.
- *
- * Approval ≠ export. Language matches the real side effect: ShopSite
- * DRAFT creation via change sets. 'Exported' only appears for the
- * server-verified `completed` category — never invented client-side.
- *
- * Impeccable redesign: showcases what the final products actually look like,
- * contrasting the final curated listing with the initial distributor intake values,
- * complete with product imagery, pricing, weight, catalog taxonomy, and rich
- * merchandising preview (Grid and Table modes).
- */
+/** Direct Create drafts task. Approval, CMS drafts, and verified export are distinct. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { OnboardingWorkState } from '../../../../shared/schemas/onboarding-work-state';
 import {
-  getBatchWorkState,
-  getBatchWorkStateCounts,
   subscribeBatchEvents,
   createExportDrafts,
+  createIdempotencyKey,
+  type CreateExportDraftsResponse,
 } from '../../../onboarding-work-api';
-import { ExportActions } from './ExportActions';
+import { getStageReadCounts, getStageReadItems } from '../../../onboarding-stage-api';
+import {
+  StageReadCountsResponseSchema,
+  StageReadItemsResponseSchema,
+  STAGE_READ_LIMIT_DEFAULT,
+  type StageReadCountsResponse,
+} from '../../../../shared/schemas/onboarding-stage-read';
+import { getProduct, getChangeSet, type ChangeSetItem } from '../../../api';
+import { readStageViewPreferences, writeStageViewPreferences } from '../workspace-view-state';
 import { exportStatusPresentation } from './approved-logic';
 import { PackagingInspectorModal } from './PackagingInspectorModal';
 import './approved.css';
 
-interface ReadyToExportViewProps {
+export interface ReadyToExportViewProps {
   batchId: string;
+  workspaceId?: number | string;
+  onChanged?: () => void;
 }
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = STAGE_READ_LIMIT_DEFAULT;
 
-type SectionKey = 'approved' | 'ready_to_export' | 'completed';
+type SectionKey = 'approved' | 'ready_to_export' | 'completed' | 'skipped';
+type DraftFilter = 'all' | SectionKey;
+type DraftLink = Pick<ChangeSetItem, 'id' | 'sku' | 'changeSetId'>;
+interface SectionPage {
+  items: OnboardingWorkState[];
+  nextCursor: string | null;
+  cursor: string | null;
+  previous: Array<string | null>;
+}
+const SECTIONS: SectionKey[] = ['approved', 'ready_to_export', 'completed', 'skipped'];
+const FILTER_LABELS: Record<DraftFilter, string> = {
+  all: 'All outcomes', approved: 'Awaiting CMS drafts', ready_to_export: 'CMS drafts created',
+  completed: 'Export verified', skipped: 'Skipped · all stages',
+};
+function emptyPages(): Record<SectionKey, SectionPage> {
+  const page = (): SectionPage => ({ items: [], nextCursor: null, cursor: null, previous: [] });
+  return { approved: page(), ready_to_export: page(), completed: page(), skipped: page() };
+}
+function isDraftFilter(value: unknown): value is DraftFilter {
+  return value === 'all' || SECTIONS.includes(value as SectionKey);
+}
+function draftHref(sku: string): string {
+  return `?view=catalog&product=${encodeURIComponent(sku)}`;
+}
+function changeSetHref(id: string): string {
+  // The release screen has no record-specific URL. This links the actual persisted record.
+  return `/api/change-sets/${encodeURIComponent(id)}`;
+}
 
-const SECTIONS: SectionKey[] = ['approved', 'ready_to_export', 'completed'];
+export function ReadyToExportView({ batchId, workspaceId = 'default', onChanged }: ReadyToExportViewProps) {
+  // A keyed session also isolates late reads/commands when the host changes batch or workspace.
+  return <DraftWorkspace key={JSON.stringify([String(workspaceId), batchId])}
+    batchId={batchId} workspaceId={workspaceId} onChanged={onChanged} />;
+}
 
-export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
-  const [bySection, setBySection] = useState<Record<SectionKey, OnboardingWorkState[]>>({
-    approved: [],
-    ready_to_export: [],
-    completed: [],
-  });
+function DraftWorkspace({ batchId, workspaceId = 'default', onChanged }: ReadyToExportViewProps) {
+  const preferenceScope = useMemo(() => ({ workspaceId: String(workspaceId), batchId, stage: 'create_drafts' as const }), [workspaceId, batchId]);
+  const [preferences] = useState(() => readStageViewPreferences(preferenceScope));
+  const [pages, setPages] = useState(emptyPages);
+  const pagesRef = useRef(pages);
+  const [counts, setCounts] = useState<StageReadCountsResponse | null>(null);
+  const [matchingCounts, setMatchingCounts] = useState<StageReadCountsResponse | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [draftResult, setDraftResult] = useState<{ count: number; changeSetId: string | null } | null>(null);
+  const [draftResult, setDraftResult] = useState<CreateExportDraftsResponse | null>(null);
+  const [resultLinks, setResultLinks] = useState<DraftLink[]>([]);
+  const [resultLinkError, setResultLinkError] = useState<string | null>(null);
   const [isDegraded, setIsDegraded] = useState(false);
-  const [filterText, setFilterText] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | SectionKey>('all');
+  const [filterText, setFilterText] = useState(preferences?.q ?? '');
+  const [activeTab, setActiveTab] = useState<DraftFilter>(isDraftFilter(preferences?.filters.category) ? preferences.filters.category : 'approved');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [inspectItem, setInspectItem] = useState<OnboardingWorkState | null>(null);
+  const [inspectId, setInspectId] = useState<string | null>(preferences?.selectedId ?? null);
+  const [inspectedLink, setInspectedLink] = useState<DraftLink | null>(null);
+  const [inspectionLinkError, setInspectionLinkError] = useState<string | null>(null);
+  const [inspectionLoading, setInspectionLoading] = useState(false);
   const [packagingInspectItem, setPackagingInspectItem] = useState<OnboardingWorkState | null>(null);
+  const alive = useRef(true);
+  const generation = useRef(0);
+  const busyRef = useRef(false);
+  const successfulIds = useRef(new Set<string>());
+  const attempt = useRef<{ key: string; ids: string[] } | null>(null);
+  const resultGeneration = useRef(0);
+  const [retryPending, setRetryPending] = useState(false);
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
+  const bySection = useMemo(() => Object.fromEntries(SECTIONS.map(section => [section, pages[section].items])) as Record<SectionKey, OnboardingWorkState[]>, [pages]);
+  const allItems = useMemo(() => SECTIONS.flatMap(section => pages[section].items), [pages]);
+  const inspectItem = allItems.find(item => item.itemId === inspectId) ?? null;
+  const setInspectItem = (item: OnboardingWorkState | null) => setInspectId(item?.itemId ?? null);
+  const canSelect = !loading && !refreshing && !readError && !isDegraded && !busy;
 
-  const exportIdempotencyKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    exportIdempotencyKeyRef.current = null;
-  }, [JSON.stringify(selectedIds)]);
+    alive.current = true;
+    return () => { alive.current = false; generation.current += 1; };
+  }, []);
+  useEffect(() => {
+    writeStageViewPreferences(preferenceScope, { filters: { category: activeTab }, q: filterText, selectedId: inspectId });
+  }, [preferenceScope, activeTab, filterText, inspectId]);
 
+  // One page per category; skipped deliberately has NO stage predicate.
   const loadSections = useCallback(async () => {
+    const gen = ++generation.current;
+    setRefreshing(true);
     try {
-      setError(null);
-      const results = await Promise.all(
-        SECTIONS.map(async (category) => {
-          const collected: OnboardingWorkState[] = [];
-          let offset = 0;
-          for (;;) {
-            const res = await getBatchWorkState(batchId, { category, limit: PAGE_SIZE, offset });
-            collected.push(...res.items);
-            if (collected.length >= res.total) break;
-            offset += PAGE_SIZE;
-          }
-          return [category, collected] as const;
-        }),
-      );
-      const next = {
-        approved: [] as OnboardingWorkState[],
-        ready_to_export: [] as OnboardingWorkState[],
-        completed: [] as OnboardingWorkState[],
-      };
-      for (const [category, items] of results) next[category] = items;
-      setBySection(next);
-      const validIds = new Set([...next.approved].map((it) => it.itemId));
-      setSelectedIds((prev) => prev.filter((id) => validIds.has(id)));
-      try {
-        const healthRes = await getBatchWorkStateCounts(batchId);
-        setIsDegraded(healthRes.projectionHealth?.status === 'degraded');
-      } catch {
-        setIsDegraded(false);
+      const q = filterText.trim();
+      const [rawCounts, rawMatching, ...rawPages] = await Promise.all([
+        getStageReadCounts(batchId),
+        q ? getStageReadCounts(batchId, { q }) : Promise.resolve(null),
+        ...SECTIONS.map(category => getStageReadItems(batchId, { category, ...(q ? { q } : {}), limit: PAGE_SIZE })),
+      ]);
+      const full = StageReadCountsResponseSchema.parse(rawCounts);
+      const matching = rawMatching ? StageReadCountsResponseSchema.parse(rawMatching) : full;
+      const responses = rawPages.map(raw => StageReadItemsResponseSchema.parse(raw));
+      if ([full, matching, ...responses].some(response => response.batchId !== batchId)) throw new Error('Draft read belongs to another batch. Refresh to try again.');
+      if (responses.some((response, index) => response.items.some(item => item.category !== SECTIONS[index]))) throw new Error('Draft category scope did not match the requested page.');
+      if (!alive.current || generation.current !== gen) return;
+      const next = emptyPages();
+      for (const [index, section] of SECTIONS.entries()) {
+        next[section] = { ...next[section], items: responses[index].items, nextCursor: responses[index].nextCursor };
       }
+      pagesRef.current = next;
+      setPages(next);
+      setCounts(full);
+      setMatchingCounts(matching);
+      setReadError(null);
+      setIsDegraded([full, matching, ...responses].some(response => response.projectionHealth.status === 'degraded'));
+      const eligible = new Set(next.approved.items.filter(item => !successfulIds.current.has(item.itemId)).map(item => item.itemId));
+      setSelectedIds(prev => prev.filter(id => eligible.has(id)));
+      const ids = new Set(SECTIONS.flatMap(section => next[section].items.map(item => item.itemId)));
+      setInspectId(prev => prev && ids.has(prev) ? prev : null);
+      setPackagingInspectItem(prev => prev ? SECTIONS.flatMap(section => next[section].items).find(item => item.itemId === prev.itemId) ?? null : null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (alive.current && generation.current === gen) setReadError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (alive.current && generation.current === gen) { setLoading(false); setRefreshing(false); }
     }
-  }, [batchId]);
+  }, [batchId, filterText]);
+  const refreshRef = useRef(loadSections);
+  refreshRef.current = loadSections;
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        const results = await Promise.all(
-          SECTIONS.map(async (category) => {
-            const collected: OnboardingWorkState[] = [];
-            let offset = 0;
-            for (;;) {
-              const res = await getBatchWorkState(batchId, { category, limit: PAGE_SIZE, offset });
-              if (cancelled) return [category, collected] as const;
-              collected.push(...res.items);
-              if (collected.length >= res.total) break;
-              offset += PAGE_SIZE;
-            }
-            return [category, collected] as const;
-          }),
-        );
-        if (cancelled) return;
-        const next = {
-          approved: [] as OnboardingWorkState[],
-          ready_to_export: [] as OnboardingWorkState[],
-          completed: [] as OnboardingWorkState[],
-        };
-        for (const [category, items] of results) next[category] = items;
-        setBySection(next);
-        const validIds = new Set([...next.approved].map((it) => it.itemId));
-        setSelectedIds((prev) => prev.filter((id) => validIds.has(id)));
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    let subscribed = true;
+    void loadSections();
     const unsubscribe = subscribeBatchEvents(batchId, (event) => {
-      if (event.type === 'item:status' || event.type === 'batch:progress') loadSections();
+      if (subscribed && (event.type === 'item:status' || event.type === 'batch:progress' || event.type === 'batch:complete')) void loadSections();
     });
     return () => {
-      cancelled = true;
+      subscribed = false;
+      generation.current += 1;
       unsubscribe();
     };
   }, [batchId, loadSections]);
 
-  const createDrafts = useCallback(async () => {
-    if (selectedIds.length === 0) return;
+  const pageSection = async (section: SectionKey, direction: 'next' | 'previous') => {
+    if (refreshing || busy || readError) return;
+    const page = pagesRef.current[section];
+    const cursor = direction === 'next' ? page.nextCursor : page.previous.at(-1) ?? null;
+    if (direction === 'next' ? !cursor : page.previous.length === 0) return;
+    const gen = ++generation.current;
+    setRefreshing(true);
+    try {
+      const response = StageReadItemsResponseSchema.parse(await getStageReadItems(batchId, {
+        category: section, ...(filterText.trim() ? { q: filterText.trim() } : {}), limit: PAGE_SIZE, ...(cursor ? { cursor } : {}),
+      }));
+      if (response.batchId !== batchId) throw new Error('Draft page belongs to another batch.');
+      if (response.items.some(item => item.category !== section)) throw new Error('Draft category scope did not match the requested page.');
+      if (!alive.current || generation.current !== gen) return;
+      const next = { ...pagesRef.current, [section]: {
+        items: response.items, nextCursor: response.nextCursor, cursor,
+        previous: direction === 'next' ? [...page.previous, page.cursor] : page.previous.slice(0, -1),
+      } };
+      pagesRef.current = next;
+      setPages(next);
+      setReadError(null);
+      if (response.projectionHealth.status === 'degraded') setIsDegraded(true);
+      if (section === 'approved') {
+        const eligible = new Set(response.items.filter(item => !successfulIds.current.has(item.itemId)).map(item => item.itemId));
+        setSelectedIds(prev => prev.filter(id => eligible.has(id)));
+      }
+      setInspectId(prev => prev && SECTIONS.some(key => next[key].items.some(item => item.itemId === prev)) ? prev : null);
+      setPackagingInspectItem(null);
+    } catch (err) {
+      if (alive.current && generation.current === gen) setReadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (alive.current && generation.current === gen) setRefreshing(false);
+    }
+  };
+
+  const readResultLinks = useCallback(async (result: CreateExportDraftsResponse) => {
+    if (!result.changeSetId) return;
+    const gen = ++resultGeneration.current;
+    try {
+      const persisted = await getChangeSet(result.changeSetId);
+      if (!alive.current || resultGeneration.current !== gen) return;
+      if (persisted.changeSet.id !== result.changeSetId) throw new Error('Change set identity did not match the draft receipt.');
+      const created = new Set(result.created);
+      const links = persisted.items.filter(item => {
+        try { return item.changeSetId === result.changeSetId && created.has(JSON.parse(item.draftJson).itemId); } catch { return false; }
+      }).map(({ id, sku, changeSetId }) => ({ id, sku, changeSetId }));
+      setResultLinks(links);
+      setResultLinkError(links.length < created.size ? 'Some draft records could not be linked. The receipt is retained; retry the record lookup.' : null);
+    } catch (err) {
+      if (alive.current && resultGeneration.current === gen) setResultLinkError(`Draft record lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
+  const createDrafts = async (replay = false) => {
+    if (busyRef.current || isDegraded || readError || refreshing) return;
+    const eligible = new Set(pagesRef.current.approved.items.filter(item => !successfulIds.current.has(item.itemId)).map(item => item.itemId));
+    const ids = selectedIds.filter(id => eligible.has(id));
+    if (!replay && (retryPending || ids.length === 0)) return;
+    if (!replay) attempt.current = { key: createIdempotencyKey(), ids };
+    const current = attempt.current;
+    if (!current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
-    setNotice(null);
-    setDraftResult(null);
-    if (!exportIdempotencyKeyRef.current) {
-      try {
-        exportIdempotencyKeyRef.current =
-          typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function'
-            ? (crypto as any).randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      } catch {
-        exportIdempotencyKeyRef.current = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      }
-    }
-    const currentKey = exportIdempotencyKeyRef.current as string;
     try {
-      const res = await createExportDrafts(batchId, selectedIds, { idempotencyKey: currentKey });
-      exportIdempotencyKeyRef.current = null;
-      setDraftResult({ count: res.createdCount, changeSetId: res.changeSetId });
-      setNotice(
-        res.createdCount > 0
-          ? `Created export drafts for ${res.createdCount} product${res.createdCount === 1 ? '' : 's'}.`
-          : 'No export drafts were created — check the products above.',
-      );
-      await loadSections();
+      const res = await createExportDrafts(batchId, current.ids, { idempotencyKey: current.key });
+      if (!alive.current) return;
+      attempt.current = null;
+      setRetryPending(false);
+      setDraftResult(res);
+      resultGeneration.current += 1;
+      setResultLinks([]);
+      setResultLinkError(null);
+      res.created.forEach(id => successfulIds.current.add(id));
+      setSelectedIds(prev => prev.filter(id => !successfulIds.current.has(id)));
+      void readResultLinks(res);
+      await refreshRef.current();
+      if (!alive.current) return;
+      try { onChangedRef.current?.(); } catch {
+        setError('CMS draft receipt recorded, but the batch summary refresh failed. Refresh the batch summary to try again.');
+      }
     } catch (err) {
+      if (!alive.current) return;
+      setRetryPending(true);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (alive.current) setBusy(false);
     }
-  }, [batchId, selectedIds, loadSections]);
+  };
 
-  const total = useMemo(
-    () => bySection.approved.length + bySection.ready_to_export.length + bySection.completed.length,
-    [bySection],
-  );
+  const total = counts ? SECTIONS.reduce((sum, section) => sum + counts.counts[section], 0) : 0;
+  // Search is server-owned and applies before pagination; badges remain full-batch totals.
+  const filteredBySection = bySection;
+  const visibleApproved = (activeTab === 'all' || activeTab === 'approved')
+    ? bySection.approved.filter(item => !successfulIds.current.has(item.itemId)) : [];
+  const projectionReceiptLag = bySection.approved.some(item => successfulIds.current.has(item.itemId));
 
-  const filteredBySection = useMemo(() => {
-    const query = filterText.trim().toLowerCase();
-    if (!query) return bySection;
-    const filterItem = (it: OnboardingWorkState) =>
-      it.name.toLowerCase().includes(query) ||
-      (Boolean(it.curatedTitle) && it.curatedTitle!.toLowerCase().includes(query)) ||
-      (Boolean(it.upc) && it.upc.toLowerCase().includes(query)) ||
-      (Boolean(it.brand) && it.brand!.toLowerCase().includes(query)) ||
-      (Boolean(it.weight) && it.weight!.toLowerCase().includes(query)) ||
-      (Boolean(it.description) && it.description!.toLowerCase().includes(query));
-
-    return {
-      approved: bySection.approved.filter(filterItem),
-      ready_to_export: bySection.ready_to_export.filter(filterItem),
-      completed: bySection.completed.filter(filterItem),
-    };
-  }, [bySection, filterText]);
-
-  const visibleApproved = filteredBySection.approved;
   const allApprovedSelected =
     visibleApproved.length > 0 && visibleApproved.every((it) => selectedIds.includes(it.itemId));
-  const toggleAllApproved = () =>
+  const toggleAllApproved = () => {
+    if (!canSelect) return;
     setSelectedIds((prev) =>
       allApprovedSelected
         ? prev.filter((id) => !visibleApproved.some((it) => it.itemId === id))
         : [...new Set([...prev, ...visibleApproved.map((it) => it.itemId)])],
     );
+  };
 
   const toggleItemSelection = (id: string) => {
+    if (!canSelect || !pagesRef.current.approved.items.some(item => item.itemId === id) || successfulIds.current.has(id)) return;
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    setInspectedLink(null);
+    setInspectionLinkError(null);
+    if (!inspectItem || inspectItem.category === 'skipped') { setInspectionLoading(false); return; }
+    const item = inspectItem;
+    const receiptLink = resultLinks.find(link => link.sku === item.upc);
+    if (receiptLink) { setInspectedLink(receiptLink); setInspectionLoading(false); return; }
+    if (item.category === 'approved') { setInspectionLoading(false); return; }
+    setInspectionLoading(true);
+    void (async () => {
+      try {
+        const product = await getProduct(item.upc);
+        if (cancelled) return;
+        if (!product.hasDraft || !product.changeSetId) throw new Error('No active CMS draft link is available for this product.');
+        const persisted = await getChangeSet(product.changeSetId);
+        if (cancelled) return;
+        const draft = persisted.items.find(row => row.sku === item.upc && row.changeSetId === product.changeSetId);
+        if (!draft) throw new Error('The persisted change set no longer contains this product.');
+        setInspectedLink({ id: draft.id, sku: draft.sku, changeSetId: draft.changeSetId });
+      } catch (err) {
+        if (!cancelled) setInspectionLinkError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setInspectionLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inspectItem, resultLinks]);
 
   // Close drawer on escape key
   useEffect(() => {
@@ -221,29 +319,17 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  if (loading) return <div className="ow-loading">Loading export status…</div>;
-  if (error && total === 0) {
+  if (loading) return <div className="ow-loading" role="status">Loading CMS draft status…</div>;
+  if (readError && !counts) {
     return (
       <div className="ow-error" role="alert">
-        <span>{error}</span>
+        <span>Draft status unavailable: {readError}</span>
         <button type="button" className="btn btn-outline" onClick={loadSections}>
           Retry
         </button>
       </div>
     );
   }
-  if (total === 0) {
-    return (
-      <div className="ow-empty">
-        <strong>Nothing approved yet.</strong>
-        <span>
-          Reviewed products that receive the bulk approval decision appear here,
-          then move to Ready to Export when ShopSite drafts are created.
-        </span>
-      </div>
-    );
-  }
-
   const sectionsToRender = activeTab === 'all' ? SECTIONS : [activeTab];
 
   return (
@@ -252,58 +338,23 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
       <div className="ow-funnel-header">
         <div className="ow-funnel-title-area">
           <h4 className="ow-funnel-main-title">
-            Create Drafts & Export Catalog
-            <span className="ow-count-pill">{total} total</span>
+            Create CMS drafts
+            <span className="ow-count-pill">{total} products in draft creation and outcomes</span>
           </h4>
           <span className="ow-audit-line">
-            Inspect finalized product listings and create approved ShopSite drafts in a change set.
+            Create CMS product drafts for approved listings. Change-set approval, export, and publication are separate steps.
           </span>
         </div>
 
-        <div className="ow-funnel-metrics" role="tablist" aria-label="Draft pipeline stages">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'all'}
-            className={`ow-funnel-stat ${activeTab === 'all' ? 'ow-funnel-stat--active' : ''}`}
-            onClick={() => setActiveTab('all')}
-          >
-            <span className="ow-funnel-num">{total}</span>
-            <span className="ow-funnel-label">All Items</span>
-          </button>
-          <div className="ow-funnel-arrow">→</div>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'approved'}
-            className={`ow-funnel-stat ow-funnel-stat--approved ${activeTab === 'approved' ? 'ow-funnel-stat--active' : ''}`}
-            onClick={() => setActiveTab('approved')}
-          >
-            <span className="ow-funnel-num">{bySection.approved.length}</span>
-            <span className="ow-funnel-label">Awaiting Drafts</span>
-          </button>
-          <div className="ow-funnel-arrow">→</div>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'ready_to_export'}
-            className={`ow-funnel-stat ow-funnel-stat--ready ${activeTab === 'ready_to_export' ? 'ow-funnel-stat--active' : ''}`}
-            onClick={() => setActiveTab('ready_to_export')}
-          >
-            <span className="ow-funnel-num">{bySection.ready_to_export.length}</span>
-            <span className="ow-funnel-label">Drafts Created</span>
-          </button>
-          <div className="ow-funnel-arrow">→</div>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'completed'}
-            className={`ow-funnel-stat ow-funnel-stat--completed ${activeTab === 'completed' ? 'ow-funnel-stat--active' : ''}`}
-            onClick={() => setActiveTab('completed')}
-          >
-            <span className="ow-funnel-num">{bySection.completed.length}</span>
-            <span className="ow-funnel-label">Export Verified</span>
-          </button>
+        <div className="ow-funnel-metrics" role="group" aria-label="Draft status filters">
+          {(['all', ...SECTIONS] as DraftFilter[]).map(section => (
+            <button key={section} type="button" aria-pressed={activeTab === section}
+              className={`ow-funnel-stat ${activeTab === section ? 'ow-funnel-stat--active' : ''}`}
+              onClick={() => setActiveTab(section)}>
+              <span className="ow-funnel-num">{section === 'all' ? total : counts?.counts[section] ?? '—'}</span>
+              <span className="ow-funnel-label">{FILTER_LABELS[section]}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -320,16 +371,16 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
           <input
             type="search"
             className="ow-search-input"
-            placeholder="Search by final title, initial upload name, brand, or UPC…"
-            aria-label="Search items"
+            placeholder="Search intake name, brand, or UPC…"
+            aria-label="Search batch products by intake name, brand, or UPC"
             value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
+            onChange={(e) => { generation.current += 1; setRefreshing(true); setFilterText(e.target.value); }}
           />
           {filterText && (
             <button
               type="button"
               className="ow-search-clear"
-              onClick={() => setFilterText('')}
+              onClick={() => { generation.current += 1; setRefreshing(true); setFilterText(''); }}
               aria-label="Clear search"
             >
               Clear
@@ -369,59 +420,59 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
         </div>
 
         {/* Bulk Action Controls */}
-        {bySection.approved.length > 0 && (
+        {(activeTab === 'all' || activeTab === 'approved') && (
           <div className="ow-toolbar-actions">
             <button
               type="button"
               className="btn btn-outline btn-sm"
               onClick={toggleAllApproved}
-              disabled={isDegraded || visibleApproved.length === 0}
+              disabled={!canSelect || visibleApproved.length === 0}
             >
-              {allApprovedSelected ? 'Deselect All' : `Select All Awaiting (${visibleApproved.length})`}
+              {allApprovedSelected ? 'Deselect loaded' : `Select loaded awaiting (${visibleApproved.length})`}
             </button>
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              onClick={createDrafts}
-              disabled={selectedIds.length === 0 || isDegraded || busy}
+              onClick={() => void createDrafts()}
+              disabled={selectedIds.length === 0 || !canSelect || retryPending}
             >
-              {busy ? 'Creating Drafts…' : `Create ShopSite Drafts (${selectedIds.length})`}
+              {busy ? 'Creating CMS drafts…' : `Create CMS drafts for selected (${selectedIds.length})`}
             </button>
           </div>
         )}
       </div>
 
-      {notice && (
-        <div
-          className="ow-section ow-notice-banner"
-          style={{ background: 'var(--color-success-bg)', borderColor: 'var(--color-success-border)' }}
-        >
-          <span style={{ color: 'var(--color-success-text)' }}>{notice}</span>
+      <p className="ow-detail">Status counts cover the full batch. Selection covers only loaded approved rows (up to {PAGE_SIZE} per page); it never selects the entire eligible batch.</p>
+      <button type="button" className="btn btn-outline btn-sm" disabled={refreshing || busy} onClick={() => void loadSections()}>
+        {refreshing ? 'Refreshing draft status…' : 'Refresh draft status'}
+      </button>
+      {readError && <div className="ow-error" role="alert">Showing stale draft status. {readError} Refresh before creating drafts.</div>}
+      {isDegraded && <div className="ow-error" role="alert">Projection degraded — CMS draft creation is unavailable until a healthy refresh.</div>}
+      {projectionReceiptLag && <p role="status" className="ow-detail">Confirmed CMS draft receipts exist for products the status projection still lists as awaiting drafts. Counts are server-reported; those products cannot be selected again in this session.</p>}
+      {total === 0 && <div className="ow-empty"><strong>No draft creation or outcomes yet.</strong><span>Approved listings appear here when ready for CMS draft creation. Skipped products from every stage remain available here.</span></div>}
+      {draftResult && (
+        <div className="ow-section" aria-label="CMS draft operation results">
+          <p role="status">CMS draft request: {draftResult.createdCount} created, {draftResult.rejectedCount} rejected.</p>
+          <p className="ow-detail">Receipt: <code>{draftResult.receiptId}</code>. Draft creation does not export or publish products.</p>
+          <ul>{draftResult.results.map(result => <li key={result.itemId}><code>{result.itemId}</code>: {result.status}{result.reason ? ` — ${result.reason}` : ''}</li>)}</ul>
+          {draftResult.changeSetId && <p>Persisted change set: <a href={changeSetHref(draftResult.changeSetId)}>{draftResult.changeSetId}</a></p>}
+          {resultLinks.length > 0 && <ul>{resultLinks.map(link => <li key={link.id}><a href={draftHref(link.sku)}>CMS draft {link.sku}</a> · Draft record <code>{link.id}</code></li>)}</ul>}
+          {resultLinkError && <div role="alert">{resultLinkError} <button type="button" className="btn btn-outline btn-sm" onClick={() => void readResultLinks(draftResult)}>Retry draft record lookup</button></div>}
+          {draftResult.changeSetId && <a href="?view=changesets">Continue release in Change Sets</a>}
         </div>
       )}
       {error && (
         <div className="ow-error" role="alert">
           <span>{error}</span>
-        </div>
-      )}
-      {draftResult?.changeSetId && (
-        <div className="ow-section ow-changeset-alert">
-          <span className="ow-detail">
-            Export drafts were created in change set{' '}
-            <a href="?view=changesets" style={{ fontWeight: 600, color: 'var(--color-uniform-green)' }}>
-              {draftResult.changeSetId}
-            </a>{' '}
-            — open the Change Set Review to review generated drafts and publish to ShopSite.
-          </span>
+          {retryPending && <><span> The outcome is unconfirmed. Retry the same request to recover its receipt.</span><button type="button" className="btn btn-outline btn-sm" disabled={busy || refreshing || isDegraded || Boolean(readError)} onClick={() => void createDrafts(true)}>Retry draft request</button></>}
         </div>
       )}
 
       {/* Sections rendering */}
       {sectionsToRender.map((section) => {
         const items = filteredBySection[section];
-        const rawCount = bySection[section].length;
+        const rawCount = matchingCounts?.counts[section] ?? 0;
         const pres = exportStatusPresentation(section);
-        if (rawCount === 0) return null;
 
         return (
           <div key={section} className={`ow-section ow-dashboard-section ow-section--${section}`}>
@@ -431,35 +482,16 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                 <h5 className="ow-section-title">
                   {pres.heading}{' '}
                   <span className="ow-count-pill">
-                    {items.length}
-                    {items.length !== rawCount ? ` of ${rawCount}` : ''}
+                    {rawCount} matching · {items.length} loaded
                   </span>
                 </h5>
               </div>
-              {section === 'approved' && (
-                <ExportActions
-                  primaryLabel={`Create drafts for selected (${selectedIds.length})`}
-                  primaryDisabled={selectedIds.length === 0 || isDegraded}
-                  secondaryLabel={allApprovedSelected ? 'Deselect visible' : `Select visible (${items.length})`}
-                  secondaryDisabled={items.length === 0 || isDegraded}
-                  busy={busy}
-                  onPrimary={createDrafts}
-                  onSecondary={toggleAllApproved}
-                  hint={
-                    isDegraded
-                      ? 'Projection degraded — cannot create drafts'
-                      : selectedIds.length === 0
-                      ? 'Select approved products to create export drafts.'
-                      : undefined
-                  }
-                />
-              )}
             </div>
             <p className="ow-detail ow-section-desc">{pres.description}</p>
 
-            {items.length === 0 && filterText ? (
+            {items.length === 0 ? (
               <div className="ow-no-matches">
-                No products in <em>{pres.heading}</em> match "{filterText}".
+                {pages[section].nextCursor ? 'No matching products in this page. Continue to the next page.' : `No ${FILTER_LABELS[section].toLowerCase()}${filterText ? ` matching "${filterText}"` : ''}.`}
               </div>
             ) : viewMode === 'grid' ? (
               /* ── Grid View: Visual Product Cards ── */
@@ -491,6 +523,7 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                               type="checkbox"
                               aria-label={`Select ${displayTitle}`}
                               checked={isSelected}
+                              disabled={!canSelect || successfulIds.current.has(item.itemId)}
                               onChange={() => toggleItemSelection(item.itemId)}
                             />
                             <span className="ow-brand-pill" title={item.brand || undefined}>
@@ -519,7 +552,7 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                                 background: 'var(--color-success-bg)',
                               }}
                             >
-                              Draft Created
+                              CMS draft created
                             </span>
                           )}
                           {section === 'approved' && isSelected && (
@@ -527,6 +560,8 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                               Selected
                             </span>
                           )}
+                          {section === 'skipped' && <span className="ow-chip">Skipped · {item.stage}</span>}
+                          {section === 'approved' && successfulIds.current.has(item.itemId) && <span className="ow-chip">CMS draft receipt recorded</span>}
                         </div>
                       </div>
 
@@ -625,16 +660,10 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                           className="ow-btn-link"
                           onClick={() => setInspectItem(item)}
                         >
-                          Inspect Draft →
+                          Inspect listing
                         </button>
                         {section === 'ready_to_export' && (
-                          <a
-                            className="btn btn-primary btn-sm"
-                            href="?view=changesets"
-                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                          >
-                            Open Change Set →
-                          </a>
+                          <button type="button" className="ow-btn-link" onClick={() => setInspectItem(item)}>Inspect CMS draft links</button>
                         )}
                       </div>
                     </div>
@@ -651,8 +680,9 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                         <th style={{ width: 40 }}>
                           <input
                             type="checkbox"
-                            aria-label="Select all visible products"
+                            aria-label="Select all loaded approved products"
                             checked={allApprovedSelected}
+                            disabled={!canSelect || visibleApproved.length === 0}
                             onChange={toggleAllApproved}
                           />
                         </th>
@@ -688,6 +718,7 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                                 type="checkbox"
                                 aria-label={`Select ${displayTitle}`}
                                 checked={isSelected}
+                                disabled={!canSelect || successfulIds.current.has(item.itemId)}
                                 onChange={() => toggleItemSelection(item.itemId)}
                               />
                             </td>
@@ -786,9 +817,7 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                               <span className="ow-chip ow-chip--success">✓ Export verified</span>
                             )}
                             {section === 'ready_to_export' && (
-                              <a className="btn btn-primary btn-sm" href="?view=changesets">
-                                Open Change Set →
-                              </a>
+                              <button type="button" className="ow-btn-link" onClick={() => setInspectItem(item)}>Inspect CMS draft links</button>
                             )}
                             {section === 'approved' && (
                               <span
@@ -799,9 +828,10 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                                   borderColor: isSelected ? '#86efac' : '#fde68a',
                                 }}
                               >
-                                {isSelected ? 'Selected for Draft' : 'Awaiting Draft'}
+                                {successfulIds.current.has(item.itemId) ? 'CMS draft receipt recorded' : isSelected ? 'Selected for CMS draft' : 'Awaiting CMS draft'}
                               </span>
                             )}
+                            {section === 'skipped' && <span className="ow-chip">Skipped · {item.stage}</span>}
                           </td>
                         </tr>
                       );
@@ -810,6 +840,13 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                 </table>
               </div>
             )}
+            <div className="ow-toolbar-actions" aria-label={`${pres.heading} pagination`}>
+              <button type="button" className="btn btn-outline btn-sm" disabled={refreshing || busy || Boolean(readError) || pages[section].previous.length === 0}
+                onClick={() => void pageSection(section, 'previous')}>Previous {pres.heading} page</button>
+              <span className="ow-detail">Page {pages[section].previous.length + 1} · up to {PAGE_SIZE} products per page</span>
+              <button type="button" className="btn btn-outline btn-sm" disabled={refreshing || busy || Boolean(readError) || !pages[section].nextCursor}
+                onClick={() => void pageSection(section, 'next')}>Next {pres.heading} page</button>
+            </div>
           </div>
         );
       })}
@@ -826,7 +863,7 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
           >
             {/* Drawer Header */}
             <div className="ow-drawer-header">
-              <h4 className="ow-drawer-title">Product Draft Dossier</h4>
+              <h4 className="ow-drawer-title">Listing details</h4>
               <button
                 type="button"
                 className="ow-drawer-close"
@@ -931,6 +968,15 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
               </div>
 
               {/* Pipeline Status */}
+              {inspectItem.category !== 'skipped' && <div className="ow-drawer-section">
+                <h6 className="ow-drawer-section-title">CMS draft and release records</h6>
+                {inspectionLoading ? <p role="status">Looking up persisted CMS draft…</p> : inspectedLink ? <>
+                  <p><a href={draftHref(inspectedLink.sku)}>CMS draft {inspectedLink.sku}</a> · Draft record <code>{inspectedLink.id}</code></p>
+                  <p><a href={changeSetHref(inspectedLink.changeSetId)}>Change set {inspectedLink.changeSetId}</a></p>
+                  <a href="?view=changesets">Continue release in Change Sets</a>
+                </> : <p>{inspectionLinkError ?? (inspectItem.category === 'approved' ? 'Approved; awaiting CMS draft creation.' : 'Persisted CMS draft link unavailable.')}</p>}
+                {inspectItem.category === 'completed' && <p>Downstream export verified by the server. This does not establish publication status.</p>}
+              </div>}
               <div className="ow-drawer-section">
                 <h6 className="ow-drawer-section-title">Pipeline Stage Info</h6>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-mulch-brown)', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -958,15 +1004,11 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                 <button
                   type="button"
                   className={`btn ${selectedIds.includes(inspectItem.itemId) ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                  disabled={!canSelect || successfulIds.current.has(inspectItem.itemId)}
                   onClick={() => toggleItemSelection(inspectItem.itemId)}
                 >
                   {selectedIds.includes(inspectItem.itemId) ? 'Deselect Item' : 'Select for Draft Creation'}
                 </button>
-              )}
-              {inspectItem.category === 'ready_to_export' && (
-                <a className="btn btn-primary btn-sm" href="?view=changesets">
-                  Open in Change Set Review →
-                </a>
               )}
               <button
                 type="button"
@@ -990,12 +1032,13 @@ export function ReadyToExportView({ batchId }: ReadyToExportViewProps) {
                   ...filteredBySection.approved,
                   ...filteredBySection.ready_to_export,
                   ...filteredBySection.completed,
+                  ...filteredBySection.skipped,
                 ]
               : filteredBySection[activeTab]
           }
           onClose={() => setPackagingInspectItem(null)}
           onNavigate={setPackagingInspectItem}
-          onToggleSelection={toggleItemSelection}
+          onToggleSelection={canSelect && packagingInspectItem.category === 'approved' && !successfulIds.current.has(packagingInspectItem.itemId) ? toggleItemSelection : undefined}
           isSelected={selectedIds.includes(packagingInspectItem.itemId)}
         />
       )}

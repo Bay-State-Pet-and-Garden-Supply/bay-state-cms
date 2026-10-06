@@ -180,7 +180,7 @@ export function ReviewPagesPanel({ detail, onUpdatePages }: ReviewPagesPanelProp
             </div>
           )}
 
-          {isAddingPage && (
+          {isAddingPage && onUpdatePages && (
             <div style={{ marginTop: '0.5rem', background: '#f8fafc', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
               <input
                 type="text"

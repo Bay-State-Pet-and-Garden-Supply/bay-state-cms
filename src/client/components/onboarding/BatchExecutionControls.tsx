@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useId, useRef, useState } from 'react';
 import { colors, rounded } from '../../theme';
 import { getBatch, pauseBatch, resumeBatch, startBatch } from '../../onboarding-api';
 
@@ -16,10 +16,11 @@ export interface BatchExecutionControlsProps {
  * Always-reachable batch execution controls (replaces the deleted
  * Preflight Review modal's Start/Pause entry points).
  *
- * Explicit ready-only vs all-items choice: ready-only releases branded
+ * Explicit branded vs all-items choice: branded releases branded
  * items and holds unbranded ones with `unresolved_brand`; all-items
  * releases everything and therefore requires confirmation. Resume only
- * flips paused → running and never releases holds.
+ * flips paused → running and never releases holds. Start actions stay
+ * reachable while running so held items can be released without pause.
  */
 function PlayIcon() {
   return (
@@ -46,6 +47,9 @@ export function BatchExecutionControls({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [localState, setLocalState] = useState<string | null>(null);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowId = useId();
+  const overflowButtonRef = useRef<HTMLButtonElement | null>(null);
   const state = localState ?? controlledState ?? null;
 
   const run = useCallback(
@@ -83,6 +87,11 @@ export function BatchExecutionControls({
     [batchId, busy, onChanged],
   );
 
+  const closeOverflow = useCallback(() => {
+    setOverflowOpen(false);
+    overflowButtonRef.current?.focus();
+  }, []);
+
   const pad = compact ? '0.3125rem 0.625rem' : '0.4375rem 0.875rem';
   const btn = (primary: boolean): React.CSSProperties => ({
     backgroundColor: primary ? colors.uniformGreen : 'transparent',
@@ -101,29 +110,67 @@ export function BatchExecutionControls({
 
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      {state !== 'running' && (
+      {state !== 'completed' && (
         <button
           type="button"
           data-testid="batch-start-ready"
           onClick={() => void run('ready')}
           disabled={busy !== null}
           style={btn(true)}
-          title="Release branded items and hold unbranded ones"
+          title="Start branded products: release items with a brand and hold unbranded ones with unresolved_brand"
         >
-          {busy === 'ready' ? 'Starting…' : <><PlayIcon />Start ready</>}
+          {busy === 'ready' ? 'Starting…' : <><PlayIcon />Start branded products</>}
         </button>
       )}
-      {state !== 'running' && (
-        <button
-          type="button"
-          data-testid="batch-start-all"
-          onClick={() => void run('all')}
-          disabled={busy !== null}
-          style={btn(false)}
-          title="Release all items including unbranded ones"
+      {state !== 'completed' && (
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <button
+            type="button"
+            ref={overflowButtonRef}
+            data-testid="batch-start-overflow-toggle"
+            aria-expanded={overflowOpen}
+            aria-controls={overflowOpen ? overflowId : undefined}
+            aria-label="More start actions"
+            onClick={() => setOverflowOpen((value) => !value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && overflowOpen) {
+                event.stopPropagation();
+                setOverflowOpen(false);
+              }
+            }}
+            disabled={busy !== null}
+            style={btn(false)}
+            title="Advanced start actions"
+          >
+            {overflowOpen ? '▴ Less' : '▾ More'}
+          </button>
+        </span>
+      )}
+      {overflowOpen && state !== 'completed' && (
+        <span
+          id={overflowId}
+          data-testid="batch-start-overflow"
+          role="group"
+          aria-label="Advanced start actions"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              closeOverflow();
+            }
+          }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
         >
-          {busy === 'all' ? 'Starting…' : 'Start all'}
-        </button>
+          <button
+            type="button"
+            data-testid="batch-start-all"
+            onClick={() => void run('all')}
+            disabled={busy !== null}
+            style={btn(false)}
+            title="Start all products, including items without a brand (requires confirmation)"
+          >
+            {busy === 'all' ? 'Starting…' : 'Start all products'}
+          </button>
+        </span>
       )}
       {state === 'running' && (
         <button

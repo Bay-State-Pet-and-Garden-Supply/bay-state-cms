@@ -1,40 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { colors, fonts, rounded, typography } from '../../theme';
+import { colors, fonts, typography } from '../../theme';
 import { subscribeBatchEvents } from '../../onboarding-work-api';
-import type {
-  WorkStateCounts,
-  WorkStateProjectionHealth,
-} from '../../../shared/schemas/onboarding-work-state';
-import { attentionIsUrgent, formatCount } from './batch-workspace-logic';
-import { getOnboardingFeatureFlags } from '../../onboarding-feature-flags';
-import {
-  parseWorkspaceSelection,
-  resolveLegacyTabDestination,
-  type LinearStageId,
-  type OperationViewId,
-} from './linear-workspace-logic';
-import { ExecutionStrip } from './ExecutionStrip';
-import { BatchExecutionControls } from './BatchExecutionControls';
 import { getBatch } from '../../onboarding-api';
+import { getStageReadCounts } from '../../onboarding-stage-api';
+import type { WorkStateCounts, WorkStateProjectionHealth } from '../../../shared/schemas/onboarding-work-state';
+import type { StageStatusMatrix } from '../../../shared/schemas/onboarding-stage-read';
+import { getOnboardingFeatureFlags } from '../../onboarding-feature-flags';
+import { LINEAR_STAGES, parseWorkspaceSelection, resolveLegacyTabDestination, type LinearStageId } from './linear-workspace-logic';
+import { readLastWorkspaceStage, readStageViewPreferences, rememberWorkspaceStage, writeStageViewPreferences } from './workspace-view-state';
 import { StageNavigation } from './StageNavigation';
 import { StageItemsView } from './StageItemsView';
-import { OutcomeItemsView } from './OutcomeItemsView';
 import { PrepareListingView } from './PrepareListingView';
-import {
-  getStageReadCounts,
-  type StageReadQuery,
-} from '../../onboarding-stage-api';
-import type { StageStatusMatrix } from '../../../shared/schemas/onboarding-stage-read';
-
-// ── Sibling feature views (epic #46 wave 2 contract) ─────────────────────────
+import { ReviewWorkspace } from './review/ReviewWorkspace';
+import { ReadyToExportView } from './approved/ReadyToExportView';
 import { AttentionQueueView } from './attention/AttentionQueueView';
 import { OfficialSiteResolutionWorkspace } from './attention/OfficialSiteResolutionWorkspace';
-import { ProcessingView } from './processing/ProcessingView';
-import { FamilyWaitingView } from './families/FamilyWaitingView';
-import { ReviewWorkspace } from './review/ReviewWorkspace';
-import { ApprovedView } from './approved/ApprovedView';
-import { ReadyToExportView } from './approved/ReadyToExportView';
-
+import { BatchExecutionControls } from './BatchExecutionControls';
+import { ExecutionStrip } from './ExecutionStrip';
 import './onboarding-workspace.css';
 
 const COUNT_REFRESH_DEBOUNCE_MS = 400;
@@ -42,803 +24,245 @@ const COUNT_REFRESH_DEBOUNCE_MS = 400;
 export interface BatchWorkspaceProps {
   batchId: string;
   batchName: string;
+  workspaceId?: string;
   onBack: () => void;
-  /** Opens the Onboarding settings page (extractor profiles, distributors…). */
   onOpenSettings?: () => void;
-  /** Direct hook to open Profile Builder for the specified domain. */
   onOpenProfileBuilder?: (domain: string) => void;
-}
-
-/**
- * Epic #46 — Batch Workspace (UX workstream 1).
- *
- * The Store Manager's primary onboarding surface. Automation owns
- * progression; this shell shows exactly where the operator is needed
- * (Needs Attention), what is progressing on its own (Processing), what is
- * gated on families (Waiting on Family), what awaits final inspection
- * (Review), and what has been released (Approved / Ready to Export).
- *
- * Raw pipeline stage/stage_status are secondary diagnostics only.
- */
-
-export function BatchWorkspace({ batchId, batchName, onBack, onOpenSettings, onOpenProfileBuilder }: BatchWorkspaceProps) {
-  // Slice 7: BatchWorkspace is the sole shell and the temporary classic
-  // work-state-primary navigation branch is removed (fallback release
-  // archived). The linear six-stage navigation is primary; batch-wide
-  // operation/outcome destinations live behind one compact Batch tools
-  // disclosure in the batch header (grouped links, never a second tablist).
-  // shellV2Enabled=false is an emergency
-  // disabled-content state (header + rollback instruction, no
-  // brand/strip/old navigation), not a permanent competing primary shell —
-  // restore classic navigation via the archived matching bridge client.
-  const linearEnabled = getOnboardingFeatureFlags().shellV2Enabled;
-  if (linearEnabled) {
-    return (
-      <LinearShell
-        batchId={batchId}
-        batchName={batchName}
-        onBack={onBack}
-        onOpenSettings={onOpenSettings}
-        onOpenProfileBuilder={onOpenProfileBuilder}
-      />
-    );
-  }
-  return (
-    <ShellDisabledNotice
-      batchName={batchName}
-      onBack={onBack}
-      onOpenSettings={onOpenSettings}
-    />
-  );
-}
-
-/**
- * Slice 7 emergency kill-switch state (shell flag OFF): the shell header
- * plus a clear rollback instruction. No stage navigation, no brand view, no
- * execution strip, and no resurrected classic/board navigation — this is a
- * disabled-content state, not a second shell.
- */
-function ShellDisabledNotice({ batchName, onBack, onOpenSettings }: {
-  batchName: string;
-  onBack: () => void;
-  onOpenSettings?: () => void;
-}) {
-  return (
-    <div data-testid="shell-disabled-notice" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 36, marginTop: 6 }}
-          aria-label="Back to batches"
-        >
-          ← Batches
-        </button>
-        <div>
-          <h1 style={{ ...typography.viewTitle, margin: 0 }}>{batchName}</h1>
-          <p style={{ ...typography.viewSubtitle, margin: '0.25rem 0 0 0' }}>Workspace disabled</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
-          {onOpenSettings && (
-            <button type="button" onClick={onOpenSettings} style={{ backgroundColor: 'transparent', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.4375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.mulchBrown, cursor: 'pointer', minHeight: 36 }}>
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-      <div role="status" style={{ backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, padding: '16px', fontSize: '0.8125rem', lineHeight: 1.5 }}>
-        The onboarding workspace is disabled by configuration (<code>VITE_ONBOARDING_SHELL_V2=false</code>). No stage navigation, brand setup, or execution strip is available in this state.
-        To restore the workspace, rebuild with the shell flag enabled — or, to use classic navigation, serve the archived matching bridge client.
-      </div>
-    </div>
-  );
-}
-
-/** Sum one stage column of the server 6×6 matrix — the badge source of truth. */
-function sumStageMatrixColumn(matrix: StageStatusMatrix, stage: LinearStageId): number {
-  const col = matrix[stage];
-  return col.pending + col.in_progress + col.completed + col.failed + col.needs_input + col.skipped;
-}
-
-function readSelection() {
-  return parseWorkspaceSelection(typeof window !== 'undefined' ? window.location.search : '');
 }
 
 function writeSearch(mutator: (params: URLSearchParams) => void, push: boolean) {
   const url = new URL(window.location.href);
   mutator(url.searchParams);
-  if (push) window.history.pushState(null, '', url.toString());
-  else window.history.replaceState(null, '', url.toString());
+  window.history[push ? 'pushState' : 'replaceState'](null, '', url);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-/**
- * Slice 2 linear shell: six stage tabs are primary navigation; preserved
- * full-batch operation views are secondary destinations (clearly labeled
- * 'entire batch', stage filters cleared/hidden while open); Completed /
- * Skipped are server-filtered outcome results with no new decisions.
- */
-function LinearShell({ batchId, batchName, onBack, onOpenSettings, onOpenProfileBuilder }: BatchWorkspaceProps) {
-  const [selection, setSelection] = useState(readSelection);
-  const [stageCounts, setStageCounts] = useState<Record<LinearStageId, number> | null>(null);
-  const [opCounts, setOpCounts] = useState<WorkStateCounts | null>(null);
-  const [countsError, setCountsError] = useState<string | null>(null);
-  const [countsStale, setCountsStale] = useState(false);
-  const [projectionHealth, setProjectionHealth] = useState<WorkStateProjectionHealth | null>(null);
-  const [attentionItemId, setAttentionItemId] = useState<string | null>(null);
-  const [executionState, setExecutionState] = useState<string | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const generation = useRef(0);
+function sumStageMatrixColumn(matrix: StageStatusMatrix, stage: LinearStageId) {
+  return Object.values(matrix[stage]).reduce((total, count) => total + count, 0);
+}
 
-  const refreshStageCounts = useCallback(async () => {
-    const gen = generation.current;
+/** One shell, six working screens. Exceptions never replace the active stage. */
+export function BatchWorkspace(props: BatchWorkspaceProps) {
+  if (!getOnboardingFeatureFlags().shellV2Enabled) {
+    return <div data-testid="shell-disabled-notice" className="bws-shell">
+      <button type="button" className="bws-filter-input" onClick={props.onBack}>← Batches</button>
+      <h1 style={typography.viewTitle}>{props.batchName}</h1>
+      <p role="status">The onboarding workspace is disabled by configuration (<code>VITE_ONBOARDING_SHELL_V2=false</code>).
+        Rebuild with the shell enabled, or restore the archived matching bridge client.</p>
+      {props.onOpenSettings && <button type="button" className="bws-filter-input" onClick={props.onOpenSettings}>Settings</button>}
+    </div>;
+  }
+  return <WorkingShell key={JSON.stringify([props.workspaceId, props.batchId])} {...props} />;
+}
+
+function WorkingShell({ batchId, batchName, workspaceId: suppliedWorkspaceId, onBack, onOpenSettings, onOpenProfileBuilder }: BatchWorkspaceProps) {
+  const [selection, setSelection] = useState(() => parseWorkspaceSelection(window.location.search));
+  const [workspaceId, setWorkspaceId] = useState(suppliedWorkspaceId);
+  const [stageCounts, setStageCounts] = useState<Record<LinearStageId, number> | null>(null);
+  const [counts, setCounts] = useState<WorkStateCounts | null>(null);
+  const [projectionHealth, setProjectionHealth] = useState<WorkStateProjectionHealth | null>(null);
+  const [countsError, setCountsError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [executionState, setExecutionState] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [attentionOpen, setAttentionOpen] = useState(() => new URLSearchParams(window.location.search).get('attention') === '1');
+  const [attentionItemId, setAttentionItemId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('issue'));
+  const [visited, setVisited] = useState<Set<LinearStageId>>(() => new Set());
+  const alive = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const lastStage = useRef<LinearStageId>('route_sources');
+  const refreshGeneration = useRef(0);
+
+  const refreshCounts = useCallback(async () => {
+    const gen = ++refreshGeneration.current;
     try {
-      const res = await getStageReadCounts(batchId, {} satisfies StageReadQuery);
-      if (generation.current !== gen) return;
-      const next: Record<LinearStageId, number> = {
-        route_sources: sumStageMatrixColumn(res.stageStatusMatrix, 'route_sources'),
-        find_product_page: sumStageMatrixColumn(res.stageStatusMatrix, 'find_product_page'),
-        collect_details: sumStageMatrixColumn(res.stageStatusMatrix, 'collect_details'),
-        prepare_listing: sumStageMatrixColumn(res.stageStatusMatrix, 'prepare_listing'),
-        review_listings: sumStageMatrixColumn(res.stageStatusMatrix, 'review_listings'),
-        create_drafts: sumStageMatrixColumn(res.stageStatusMatrix, 'create_drafts'),
-      };
-      setStageCounts(next);
-      setOpCounts(res.counts);
-      setProjectionHealth(res.projectionHealth);
+      const response = await getStageReadCounts(batchId);
+      if (!alive.current || gen !== refreshGeneration.current) return;
+      setStageCounts(Object.fromEntries(LINEAR_STAGES.map(({ id }) => [id, sumStageMatrixColumn(response.stageStatusMatrix, id)])) as Record<LinearStageId, number>);
+      setCounts(response.counts);
+      setProjectionHealth(response.projectionHealth);
       setCountsError(null);
-      setCountsStale(false);
-    } catch (err) {
-      if (generation.current !== gen) return;
-      // Retain last successful counts with a stale badge — never zero them.
-      setCountsError(err instanceof Error ? err.message : String(err));
-      setCountsStale(true);
+    } catch (error) {
+      if (alive.current && gen === refreshGeneration.current) setCountsError(error instanceof Error ? error.message : String(error));
     } finally {
-      if (generation.current === gen) setUpdating(false);
+      if (alive.current && gen === refreshGeneration.current) setUpdating(false);
     }
   }, [batchId]);
 
-  useEffect(() => {
-    generation.current += 1;
-    setStageCounts(null);
-    setOpCounts(null);
-    setCountsError(null);
-    setCountsStale(false);
-    setAttentionItemId(null);
-    setExecutionState(null);
-    setSelection(readSelection());
-    void refreshStageCounts();
-    void getBatch(batchId).then(
-      (res) => setExecutionState(res?.batch?.executionState ?? null),
-      () => {},
-    );
-  }, [refreshStageCounts, batchId]);
+  const refreshBatch = useCallback(async () => {
+    try {
+      const response = await getBatch(batchId);
+      if (!alive.current) return;
+      setExecutionState(response?.batch?.executionState ?? null);
+      if (response?.batch?.workspaceId) setWorkspaceId(response.batch.workspaceId);
+    } catch { /* Execution permission stays unknown or last-known; counts have their own error. */ }
+  }, [batchId]);
 
   useEffect(() => {
-    const onPop = () => setSelection(readSelection());
+    alive.current = true;
+    void refreshCounts();
+    void refreshBatch();
+    const onPop = () => {
+      setSelection(parseWorkspaceSelection(window.location.search));
+      const params = new URLSearchParams(window.location.search);
+      setAttentionOpen(params.get('attention') === '1');
+      setAttentionItemId(params.get('issue'));
+    };
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  useEffect(() => {
     const unsubscribe = subscribeBatchEvents(batchId, () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      if (timer.current) clearTimeout(timer.current);
       setUpdating(true);
-      refreshTimer.current = setTimeout(() => {
-        refreshStageCounts();
-        void getBatch(batchId).then(
-          (res) => setExecutionState(res?.batch?.executionState ?? null),
-          () => {},
-        );
-      }, COUNT_REFRESH_DEBOUNCE_MS);
+      timer.current = setTimeout(() => { void refreshCounts(); void refreshBatch(); setRefreshKey(key => key + 1); }, COUNT_REFRESH_DEBOUNCE_MS);
     });
     return () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      alive.current = false;
+      refreshGeneration.current += 1;
+      if (timer.current) clearTimeout(timer.current);
       unsubscribe();
+      window.removeEventListener('popstate', onPop);
     };
-  }, [batchId, refreshStageCounts]);
+  }, [batchId, refreshCounts, refreshBatch]);
 
-  const selectStage = useCallback((stage: LinearStageId) => {
-    setAttentionItemId(null);
-    writeSearch((params) => {
-      params.delete('tab');
-      params.delete('wview');
-      params.set('stage', stage);
-      params.set('stageVersion', '2');
-    }, true);
-  }, []);
-
-  const openOperation = useCallback((view: OperationViewId) => {
-    const tab = view === 'attention' ? 'needs_attention'
-      : view === 'processing' ? 'processing'
-      : view === 'family' ? 'waiting_on_family'
-      : view === 'review' ? 'review'
-      : view === 'approved' ? 'approved'
-      : 'ready_to_export';
-    setAttentionItemId(null);
-    // Entering a full-batch operation clears/hides stage-scoped filters:
-    // the stage list unmounts (keyed remount clears its filters on return).
-    writeSearch((params) => {
-      params.delete('stage');
-      params.delete('stageVersion');
-      params.delete('wview');
-      params.set('tab', tab);
-    }, true);
-  }, []);
-
-  const openOutcome = useCallback((outcome: 'completed' | 'skipped') => {
-    setAttentionItemId(null);
-    writeSearch((params) => {
-      params.delete('stage');
-      params.delete('stageVersion');
-      params.delete('wview');
-      params.set('tab', outcome);
-    }, true);
-  }, []);
-
-  const backToStage = useCallback((stage: LinearStageId) => {
-    setAttentionItemId(null);
-    writeSearch((params) => {
-      params.delete('tab');
-      params.delete('wview');
-      params.set('stage', stage);
-      params.set('stageVersion', '2');
-    }, true);
-  }, []);
-
-  const activeStage: LinearStageId = selection.kind === 'stage' ? selection.stage : 'route_sources';
-  const legacyDest = selection.kind === 'legacy' ? resolveLegacyTabDestination(selection.rawTab) : null;
-  // Return-to-prior-stage: remember the last explicitly entered stage so
-  // operation/outcome/brand destinations return there instead of
-  // resetting to route_sources. Legacy ?tab= links never infer a stage,
-  // so the remembered stage only advances on explicit stage selections.
-  const lastStageRef = useRef<LinearStageId>('route_sources');
-  useEffect(() => {
-    if (selection.kind === 'stage') lastStageRef.current = selection.stage;
-  }, [selection]);
-  const returnStage: LinearStageId = selection.kind === 'stage' ? selection.stage : lastStageRef.current;
-
-  const openAttentionItem = useCallback((itemId: string) => {
-    // Blocking siblings live in Needs Attention — jump there and open them.
-    openOperation('attention');
-    setAttentionItemId(itemId);
-  }, [openOperation]);
-
-  // Slice 3 (retired, #115): Step 0 brand-setup is absorbed into Stage 1
-  // ("Identify & Route Sources"). `parseWorkspaceSelection` redirects legacy
-  // `wview=brand-setup` links into `stage=route_sources` at the parse seam,
-  // so there is no standalone brand view, no header button, and no separate
-  // mount branch here.
-  const stripMounted = isExecutionStripMounted();
-  // Step 0 retired (#115): normalize any inbound `wview=brand-setup` URL to
-  // the canonical Stage 1 URL so legacy links/bookmarks land on Identify &
-  // Route Sources with stageVersion=2 (single replace, no history loop).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('wview') === 'brand-setup') {
-      writeSearch((p) => {
-        p.delete('tab');
-        p.delete('wview');
-        p.set('stage', 'route_sources');
-        p.set('stageVersion', '2');
-      }, false);
-    }
-  }, []);
-
-  return (
-    <div data-testid="linear-shell" style={{ padding: '16px 24px 32px 24px', fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              backgroundColor: colors.whiteSurface,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: rounded.md,
-              padding: '0.375rem 0.75rem',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              color: colors.uniformGreen,
-              cursor: 'pointer',
-              minHeight: 32,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-            aria-label="Back to batches"
-          >
-            ← Batches
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h1 style={{ ...typography.viewTitle, margin: 0, fontSize: '1.25rem', lineHeight: 1.2 }}>{batchName}</h1>
-            {updating && (
-              <span
-                role="status"
-                style={{
-                  fontSize: '0.6875rem',
-                  fontWeight: 600,
-                  color: colors.mulchBrown,
-                  backgroundColor: colors.feedBagCream,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: rounded.full,
-                  padding: '2px 8px',
-                }}
-              >
-                updating…
-              </span>
-            )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <BatchExecutionControls batchId={batchId} executionState={executionState} onChanged={setExecutionState} compact />
-          <BatchToolsDisclosure opCounts={opCounts} onOpenOperation={openOperation} onOpenOutcome={openOutcome} />
-          {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              style={{
-                backgroundColor: 'transparent',
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: rounded.md,
-                padding: '0.3125rem 0.625rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: colors.mulchBrown,
-                cursor: 'pointer',
-                minHeight: 32,
-              }}
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-
-      {countsError && (
-        <div role="alert" style={{ backgroundColor: colors.signetBurgundy, color: colors.feedBagCream, borderRadius: rounded.md, padding: '10px 14px', marginBottom: 8, fontSize: '0.8125rem' }}>
-          Could not load stage counts: {countsError}
-        </div>
-      )}
-      {stripMounted && <ExecutionStrip batchId={batchId} />}
-      {projectionHealth?.status === 'degraded' && (
-        <div role="status" aria-label="Projection health degraded" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Projection degraded: {projectionHealth.issues.length} issue(s) — counts may be partial. (v{projectionHealth.version})
-        </div>
-      )}
-
-      {selection.kind === 'unsupported' && (
-        <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Unsupported link: {selection.reason} Showing Identify & Route Sources instead — nothing was changed.
-          <div style={{ marginTop: 8 }}>
-            <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-              Go to Identify & Route Sources
-            </button>
-          </div>
-        </div>
-      )}
-
-      {stageCounts ? (
-        <StageNavigation activeStage={activeStage} stageCounts={stageCounts} countsStale={countsStale} onSelect={selectStage} />
-      ) : !countsError ? (
-        <div style={{ padding: 24, textAlign: 'center', color: colors.mulchBrown }}>Loading stages…</div>
-      ) : null}
-
-      {/* Step 0 retired (#115): unreachable via parse (redirects to Stage 1
-          at the parse seam). Defensive fallback: any residual brand-setup
-          selection renders the Stage 1 intake surface, never a separate
-          brand view. */}
-      {selection.kind === 'brand-setup' && stageCounts && (
-        <StageItemsView
-          key={`stage-${batchId}-route_sources`}
-          batchId={batchId}
-          stage="route_sources"
-        />
-      )}
-
-      {(selection.kind === 'stage' || selection.kind === 'unsupported') && stageCounts && (
-        selection.kind === 'stage' && selection.stage === 'prepare_listing' ? (
-          <PrepareListingView
-            key={`prepare-${batchId}`}
-            batchId={batchId}
-            onOpenOperation={openOperation}
-            onOpenFullBatchReview={() => openOperation('review')}
-          />
-        ) : (
-          <StageItemsView
-            key={`stage-${batchId}-${activeStage}`}
-            batchId={batchId}
-            stage={activeStage}
-            onOpenSettings={onOpenSettings}
-            onOpenProfileBuilder={onOpenProfileBuilder}
-            onOpenFullBatchReview={activeStage === 'review_listings' ? () => openOperation('review') : undefined}
-            onOpenReadyToExportWorkspace={activeStage === 'create_drafts' ? () => openOperation('export') : undefined}
-          />
-        )
-      )}
-
-      {legacyDest && (legacyDest.kind === 'operation' ? (
-        <LinearOperationDestination
-          batchId={batchId}
-          view={legacyDest.view}
-          returnStage={returnStage}
-          onBack={() => backToStage(returnStage)}
-          onOpenItem={legacyDest.view === 'attention' ? setAttentionItemId : openAttentionItem}
-        />
-      ) : legacyDest.kind === 'outcome' ? (
-        <div>
-          <LinearScopeBanner scope={`${legacyDest.outcome === 'completed' ? 'Completed' : 'Skipped'} outcome`} returnLabel={`Back to ${activeStageLabel(returnStage)}`} onBack={() => backToStage(returnStage)} />
-          <OutcomeItemsView key={`outcome-${batchId}-${legacyDest.outcome}`} batchId={batchId} outcome={legacyDest.outcome} />
-        </div>
-      ) : legacyDest.kind === 'stage' ? (
-        <StageItemsView key={`stage-${batchId}-${legacyDest.stage}`} batchId={batchId} stage={legacyDest.stage} onOpenSettings={onOpenSettings} onOpenProfileBuilder={onOpenProfileBuilder} onOpenFullBatchReview={legacyDest.stage === 'review_listings' ? () => openOperation('review') : undefined} onOpenReadyToExportWorkspace={legacyDest.stage === 'create_drafts' ? () => openOperation('export') : undefined} />
-      ) : (
-        <div role="alert" data-testid="unsupported-link-notice" style={{ backgroundColor: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7', borderRadius: rounded.md, padding: '10px 14px', marginBottom: 14, fontSize: '0.8125rem' }}>
-          Unsupported link: unknown operation ‘{selection.kind === 'legacy' ? (selection.rawTab ?? '') : ''}’. Showing Identify & Route Sources instead — nothing was changed.
-          <div style={{ marginTop: 8 }}>
-            <button type="button" onClick={() => backToStage('route_sources')} style={{ backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-              Go to Identify & Route Sources
-            </button>
-          </div>
-        </div>
-      ))}
-
-      {attentionItemId && (
-        <FocusTrap onClose={() => setAttentionItemId(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Resolve product blocker" className="bws-drawer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: colors.uniformGreen, color: colors.feedBagCream }}>
-              <strong style={{ fontFamily: fonts.body, fontSize: '0.875rem' }}>Resolve product blocker</strong>
-              <button type="button" onClick={() => setAttentionItemId(null)} aria-label="Close resolution workspace" style={{ backgroundColor: 'transparent', border: 'none', color: colors.feedBagCream, fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, padding: '0.25rem 0.5rem', minHeight: 32 }}>
-                ✕
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-              <OfficialSiteResolutionWorkspace batchId={batchId} itemId={attentionItemId} onResolved={() => { setAttentionItemId(null); refreshStageCounts(); }} />
-            </div>
-          </div>
-        </FocusTrap>
-      )}
-    </div>
-  );
-}
-
-function activeStageLabel(stage: LinearStageId): string {
-  switch (stage) {
-    case 'route_sources': return 'Identify & Route Sources';
-    case 'find_product_page': return 'Find product page';
-    case 'collect_details': return 'Collect details';
-    case 'prepare_listing': return 'Prepare listing';
-    case 'review_listings': return 'Review listings';
-    case 'create_drafts': return 'Create drafts';
+  const scope = { workspaceId: workspaceId ?? '', batchId };
+  const remembered = workspaceId ? readLastWorkspaceStage(scope) : null;
+  const legacy = selection.kind === 'legacy' ? resolveLegacyTabDestination(selection.rawTab) : null;
+  let activeStage: LinearStageId = selection.kind === 'stage' ? selection.stage : remembered ?? lastStage.current;
+  if (selection.kind === 'unsupported' || selection.kind === 'brand-setup' || legacy?.kind === 'unsupported') activeStage = 'route_sources';
+  if (legacy?.kind === 'stage') activeStage = selection.kind === 'legacy' && selection.rawTab === null
+    ? remembered ?? legacy.stage : legacy.stage;
+  if (legacy?.kind === 'operation') {
+    if (legacy.view === 'review' || legacy.view === 'approved') activeStage = 'review_listings';
+    if (legacy.view === 'export') activeStage = 'create_drafts';
+    if (legacy.view === 'family') activeStage = 'prepare_listing';
   }
-}
+  if (legacy?.kind === 'outcome') activeStage = 'create_drafts';
 
-// Step 0 retired (#115): the standalone Brand setup view is absorbed into
-// Stage 1 ("Identify & Route Sources"). The former isBrandSetupAvailable
-// anchor is removed; the shell no longer gates any brand view on flags.
-
-/**
- * Slice 4: the ephemeral execution strip mounts only when the shell flag
- * AND the strip flag are both on (Table B E=1 ⇒ mounted). It is a
- * batch-wide shell element with honest scope — it stays mounted across
- * stage/operation destinations and never claims worker health.
- */
-function isExecutionStripMounted(): boolean {
-  const flags = getOnboardingFeatureFlags();
-  return flags.shellV2Enabled && flags.executionStripV2Enabled;
-}
-
-/** Clearly-scoped full-batch operation destination (composition, not rewrite). */
-function LinearOperationDestination({ batchId, view, returnStage, onBack, onOpenItem }: {
-  batchId: string;
-  view: OperationViewId;
-  returnStage: LinearStageId;
-  onBack: () => void;
-  onOpenItem: (itemId: string) => void;
-}) {
-  return (
-    <div data-testid={`linear-operation-${view}`}>
-      <LinearScopeBanner scope={`Entire batch — ${view === 'attention' ? 'Needs Attention' : view === 'processing' ? 'Processing' : view === 'family' ? 'Waiting on Family' : view === 'review' ? 'Review' : view === 'approved' ? 'Approved' : 'Ready to Export'}`} returnLabel={`Back to ${activeStageLabel(returnStage)}`} onBack={onBack} />
-      {view === 'attention' && <AttentionQueueView batchId={batchId} onOpenItem={onOpenItem} />}
-      {view === 'processing' && <ProcessingView batchId={batchId} />}
-      {view === 'family' && <FamilyWaitingView batchId={batchId} onOpenItem={onOpenItem} />}
-      {view === 'review' && <ReviewWorkspace batchId={batchId} />}
-      {view === 'approved' && (
-        <div data-testid="approved-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <ApprovedView batchId={batchId} />
-        </div>
-      )}
-      {view === 'export' && (
-        <div data-testid="ready-to-export-view" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <ReadyToExportView batchId={batchId} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LinearScopeBanner({ scope, returnLabel, onBack }: { scope: string; returnLabel: string; onBack: () => void }) {
-  return (
-    <div data-testid="linear-scope-banner" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', backgroundColor: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: '0.8125rem', color: '#3730a3' }}>
-      <strong>Scope: {scope}.</strong>
-      <span>Stage filters are cleared while this view is open.</span>
-      <button type="button" onClick={onBack} style={{ marginLeft: 'auto', backgroundColor: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '0.375rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: colors.uniformGreen, cursor: 'pointer', minHeight: 32 }}>
-        {returnLabel}
-      </button>
-    </div>
-  );
-}
-
-/**
- * Oracle slice: the single compact batch-wide entry point in the header.
- *
- * One <details> disclosure labeled 'Batch tools, entire batch' with grouped
- * navigation LINKS (plain buttons in lists — never a second tablist, so no
- * tab selection state can falsely highlight Ready to Export). Batch counts
- * stay inside the disclosure; the trigger carries a clearly labeled
- * batch-attention urgency indicator. Opening a destination replaces stage
- * content with its explicit scope banner, stays batch-wide, and hides
- * stage filters (entering an operation clears stage params; the stage list
- * unmounts and its filters reset on return).
- */
-function BatchToolsDisclosure({ opCounts, onOpenOperation, onOpenOutcome }: {
-  opCounts: WorkStateCounts | null;
-  onOpenOperation: (view: OperationViewId) => void;
-  onOpenOutcome: (outcome: 'completed' | 'skipped') => void;
-}) {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const urgent = opCounts ? attentionIsUrgent(opCounts) : false;
-  const attentionCount = opCounts?.needs_attention ?? null;
+  // Canonicalize old task links once. Preferences carry explicit old facets,
+  // while the URL remains a stage destination rather than another workspace.
+  useEffect(() => {
+    if (selection.kind !== 'legacy' && selection.kind !== 'brand-setup') return;
+    if (legacy?.kind === 'unsupported') return;
+    const destination = legacy?.kind === 'operation' ? legacy.view : legacy?.kind === 'outcome' ? legacy.outcome : null;
+    if (workspaceId && destination && destination !== 'attention' && destination !== 'processing') {
+      const stageScope = { ...scope, stage: activeStage };
+      const previous = readStageViewPreferences(stageScope);
+      const filter = destination === 'approved' ? { reviewState: 'reviewed' }
+        : destination === 'review' ? { reviewState: 'unreviewed' }
+        : destination === 'family' ? { category: 'waiting_on_family' }
+        : { category: destination === 'export' ? 'all' : destination };
+      writeStageViewPreferences(stageScope, { q: previous?.q ?? '', selectedId: previous?.selectedId ?? null, filters: { ...previous?.filters, ...filter } });
+    }
+    if (destination && destination !== 'attention' && !workspaceId) return;
+    writeSearch(params => {
+      params.delete('tab'); params.delete('wview');
+      params.set('stage', activeStage); params.set('stageVersion', '2');
+      if (destination === 'attention') params.set('attention', '1');
+    }, false);
+  }, [selection, activeStage, workspaceId]); // scope is a preference value, not an effect trigger
 
   useEffect(() => {
-    const handleDocumentClick = (e: MouseEvent) => {
-      if (detailsRef.current?.open && !detailsRef.current.contains(e.target as Node)) {
-        detailsRef.current.open = false;
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && detailsRef.current?.open) {
-        detailsRef.current.open = false;
-      }
-    };
-    document.addEventListener('click', handleDocumentClick);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('click', handleDocumentClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+    if (selection.kind !== 'stage') return;
+    lastStage.current = activeStage;
+    if (workspaceId) rememberWorkspaceStage({ workspaceId, batchId }, activeStage);
+    setVisited(previous => previous.has(activeStage) ? previous : new Set([...previous, activeStage]));
+  }, [selection, activeStage, workspaceId, batchId]);
 
-  const closeMenu = () => {
-    if (detailsRef.current) {
-      detailsRef.current.open = false;
-    }
+  const navigateStage = (stage: LinearStageId) => writeSearch(params => {
+    params.delete('tab'); params.delete('wview'); params.delete('attention'); params.delete('issue');
+    params.set('stage', stage); params.set('stageVersion', '2');
+  }, true);
+  const openAttention = useCallback((itemId?: string) => writeSearch(params => {
+    params.set('attention', '1');
+    if (itemId) params.set('issue', itemId); else params.delete('issue');
+  }, true), []);
+  const closeAttention = () => writeSearch(params => { params.delete('attention'); params.delete('issue'); }, true);
+  const changed = useCallback(() => {
+    setRefreshKey(key => key + 1);
+    void refreshCounts();
+  }, [refreshCounts]);
+  const leave = (action: () => void) => {
+    if (shellRef.current?.querySelector('[data-onboarding-dirty="true"]') && !window.confirm('Leave this batch and discard unsaved edits?')) return;
+    action();
   };
+  const stages = LINEAR_STAGES.filter(stage => stage.id === activeStage || visited.has(stage.id));
+  const unsupported = selection.kind === 'unsupported' ? selection.reason
+    : legacy?.kind === 'unsupported' ? `Unknown destination ${legacy.reportedTab}` : null;
+  const canonicalPending = !unsupported && (selection.kind === 'legacy' || selection.kind === 'brand-setup');
 
-  const linkStyle: React.CSSProperties = {
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: colors.uniformGreen,
-    fontWeight: 600,
-    fontSize: '0.8125rem',
-    cursor: 'pointer',
-    padding: '0.25rem 0',
-    minHeight: 28,
-    textAlign: 'left',
-    fontFamily: fonts.body,
-    whiteSpace: 'nowrap',
-  };
-  const countStyle: React.CSSProperties = {
-    fontVariantNumeric: 'tabular-nums',
-    fontWeight: 400,
-    color: colors.mulchBrown,
-  };
-  const groupTitleStyle: React.CSSProperties = {
-    margin: '0 0 4px 0',
-    fontSize: '0.6875rem',
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    color: colors.mulchBrown,
-    fontFamily: fonts.body,
-    whiteSpace: 'nowrap',
-  };
-  const renderCount = (value: number | null) => (
-    <span style={countStyle}> ({value === null ? '…' : formatCount(value)})</span>
-  );
-  return (
-    <details
-      ref={detailsRef}
-      data-testid="batch-tools-disclosure"
-      style={{
-        position: 'relative',
-        display: 'inline-block',
-      }}
-    >
-      <summary
-        data-testid="batch-tools-trigger"
-        className="bws-batch-tools-summary"
-        style={{
-          cursor: 'pointer',
-          fontSize: '0.8125rem',
-          fontWeight: 600,
-          color: colors.mulchBrown,
-          backgroundColor: 'transparent',
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: rounded.md,
-          padding: '0.3125rem 0.625rem',
-          minHeight: 32,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          fontFamily: fonts.body,
-          userSelect: 'none',
-        }}
-      >
-        <span>Batch tools</span>
-        <span style={{ fontSize: '0.625rem', opacity: 0.8 }}>▾</span>
-        {urgent && attentionCount !== null ? (
-          <span
-            data-testid="batch-attention-urgency"
-            role="status"
-            aria-label={`Batch attention urgent: ${attentionCount} need attention`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              borderRadius: rounded.full,
-              padding: '1px 7px',
-              fontSize: '0.6875rem',
-              lineHeight: 1.3,
-              fontWeight: 700,
-              backgroundColor: colors.signetBurgundy,
-              color: colors.feedBagCream,
-              border: `1px solid ${colors.burgundyDark}`,
-              marginLeft: 2,
-            }}
-          >
-            {formatCount(attentionCount)}
-          </span>
-        ) : (
-          <span
-            data-testid="batch-attention-urgency"
-            role="status"
-            aria-label={
-              attentionCount === null
-                ? 'Batch attention: loading'
-                : `Batch attention: ${attentionCount} need attention`
-            }
-            style={{ display: 'none' }}
-          />
-        )}
-      </summary>
-      {opCounts ? (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 4px)',
-            zIndex: 40,
-            backgroundColor: colors.whiteSurface,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: rounded.md,
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
-            padding: '12px 16px',
-            minWidth: 420,
-          }}
-        >
-          <nav aria-label="Batch tools, entire batch" style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 110 }}>
-              <p style={groupTitleStyle}>Resolve and monitor</p>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <li><button type="button" data-testid="batch-tool-attention" onClick={() => { closeMenu(); onOpenOperation('attention'); }} style={linkStyle}>Attention{renderCount(opCounts.needs_attention)}</button></li>
-                <li><button type="button" data-testid="batch-tool-processing" onClick={() => { closeMenu(); onOpenOperation('processing'); }} style={linkStyle}>Processing{renderCount(opCounts.processing)}</button></li>
-                <li><button type="button" data-testid="batch-tool-family" onClick={() => { closeMenu(); onOpenOperation('family'); }} style={linkStyle}>Family{renderCount(opCounts.waiting_on_family)}</button></li>
-              </ul>
-            </div>
-            <div style={{ flex: 1, minWidth: 120 }}>
-              <p style={groupTitleStyle}>Review and approval</p>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <li><button type="button" data-testid="batch-tool-review" onClick={() => { closeMenu(); onOpenOperation('review'); }} style={linkStyle}>Full-batch review workspace{renderCount(opCounts.ready_for_review)}</button></li>
-                <li><button type="button" data-testid="batch-tool-approved" onClick={() => { closeMenu(); onOpenOperation('approved'); }} style={linkStyle}>Approved{renderCount(opCounts.approved)}</button></li>
-              </ul>
-            </div>
-            <div style={{ flex: 1, minWidth: 110 }}>
-              <p style={groupTitleStyle}>Drafts and outcomes</p>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <li><button type="button" data-testid="batch-tool-export" onClick={() => { closeMenu(); onOpenOperation('export'); }} style={linkStyle}>Ready to export{renderCount(opCounts.ready_to_export)}</button></li>
-                <li><button type="button" data-testid="batch-tool-completed" onClick={() => { closeMenu(); onOpenOutcome('completed'); }} style={linkStyle}>Completed{renderCount(opCounts.completed)}</button></li>
-                <li><button type="button" data-testid="batch-tool-skipped" onClick={() => { closeMenu(); onOpenOutcome('skipped'); }} style={linkStyle}>Skipped{renderCount(opCounts.skipped)}</button></li>
-              </ul>
-            </div>
-          </nav>
-        </div>
-      ) : (
-        <div
-          className="bws-muted"
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 4px)',
-            zIndex: 40,
-            backgroundColor: colors.whiteSurface,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: rounded.md,
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
-            fontSize: '0.8125rem',
-            padding: '8px 12px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Loading batch counts…
-        </div>
-      )}
-    </details>
-  );
+  return <div data-testid="linear-shell" className="bws-shell" ref={shellRef} style={{ fontFamily: fonts.body, color: colors.ledgerCharcoal }}>
+    <header className="bws-header">
+      <div className="bws-header-identity">
+        <button type="button" className="bws-filter-input" onClick={() => leave(onBack)} aria-label="Back to batches">← Batches</button>
+        <h1 style={{ ...typography.viewTitle, margin: 0, fontSize: '1.25rem' }}>{batchName}</h1>
+        {updating && <span role="status" className="bws-muted">Updating…</span>}
+      </div>
+      <div className="bws-header-controls">
+        <button type="button" className="bws-filter-input bws-attention-trigger" aria-haspopup="dialog" aria-expanded={attentionOpen}
+          onClick={() => openAttention()} data-testid="batch-attention-trigger">
+          Needs attention · {counts ? counts.needs_attention.toLocaleString() : '—'}{countsError && counts ? ' (stale)' : ''}
+        </button>
+        <BatchExecutionControls batchId={batchId} executionState={executionState} onChanged={setExecutionState} compact />
+        {onOpenSettings && <button type="button" className="bws-filter-input" onClick={() => leave(onOpenSettings)}>Settings</button>}
+      </div>
+    </header>
+    {countsError && <div role="alert" className="bws-read-error">Could not load stage counts: {countsError}
+      <button type="button" className="bws-filter-input" onClick={() => void refreshCounts()}>Retry counts</button></div>}
+    {getOnboardingFeatureFlags().executionStripV2Enabled && <ExecutionStrip batchId={batchId} />}
+    {projectionHealth?.status === 'degraded' && <p role="status">Some batch facts are unavailable. Approval and draft controls use their current eligibility reads.</p>}
+    {unsupported && <div role="alert" data-testid="unsupported-link-notice">Unsupported link: {unsupported}. Showing Identify &amp; Route Sources.
+      <button type="button" className="bws-filter-input" onClick={() => navigateStage('route_sources')}>Go to Identify &amp; Route Sources</button></div>}
+    {stageCounts ? <StageNavigation activeStage={activeStage} stageCounts={stageCounts} countsStale={!!countsError} onSelect={navigateStage} />
+      : !countsError && <p role="status">Loading stages…</p>}
+    {stageCounts && !canonicalPending && stages.map(({ id }) => <div key={id} hidden={id !== activeStage} className="bws-working-screen"
+      id={`bws-stage-panel-${id}`} role="tabpanel" aria-labelledby={`bws-stage-tab-${id}`} data-testid={`working-stage-${id}`}>
+      {id === 'review_listings' ? <ReviewWorkspace batchId={batchId} workspaceId={workspaceId} onChanged={changed} />
+        : id === 'create_drafts' ? <ReadyToExportView batchId={batchId} workspaceId={workspaceId} onChanged={changed} />
+        : id === 'prepare_listing' ? <PrepareListingView batchId={batchId} workspaceId={workspaceId} refreshKey={refreshKey} onOpenAttentionItem={openAttention} />
+        : <StageItemsView batchId={batchId} stage={id} workspaceId={workspaceId} refreshKey={refreshKey} onOpenAttentionItem={openAttention}
+          onOpenSettings={onOpenSettings ? () => leave(onOpenSettings) : undefined}
+          onOpenProfileBuilder={onOpenProfileBuilder ? domain => leave(() => onOpenProfileBuilder(domain)) : undefined} />}
+    </div>)}
+    {attentionOpen && <AttentionPanel batchId={batchId} itemId={attentionItemId} onClose={closeAttention}
+      onOpenItem={item => openAttention(item)} onBackToIssues={() => writeSearch(params => params.delete('issue'), true)}
+      onResolved={() => { changed(); writeSearch(params => params.delete('issue'), false); }} />}
+  </div>;
 }
 
-// ─── Focus trap for the resolution modal ───────────────────────────────────────
-
-function FocusTrap({
-  onClose,
-  children,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
+function AttentionPanel({ batchId, itemId, onClose, onOpenItem, onBackToIssues, onResolved }: {
+  batchId: string; itemId: string | null; onClose: () => void; onOpenItem: (id: string) => void;
+  onBackToIssues: () => void; onResolved: () => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<Element | null>(null);
-
+  const container = useRef<HTMLDivElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    previouslyFocused.current = document.activeElement;
-    const el = containerRef.current;
-    if (el) {
-      const focusables = el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      const first = Array.from(focusables).find(f => !f.hasAttribute('disabled'));
-      if (first) first.focus();
-      else el.focus();
-    }
-    return () => {
-      if (previouslyFocused.current instanceof HTMLElement) {
-        previouslyFocused.current.focus();
-      }
-    };
+    const previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    close.current?.focus();
+    return () => { document.body.style.overflow = overflow; if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
   }, []);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-      return;
-    }
-    if (e.key !== 'Tab') return;
-    const el = containerRef.current;
-    if (!el) return;
-    const focusables = Array.from(
-      el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter(f => !f.hasAttribute('disabled'));
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement;
-    if (e.shiftKey) {
-      if (active === first || !el.contains(active)) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else if (active === last || !el.contains(active)) {
-      e.preventDefault();
-      first.focus();
-    }
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.defaultPrevented) return;
+    if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(container.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? [])
+      .filter(element => !element.closest('[hidden]'));
+    const first = buttons[0], last = buttons.at(-1);
+    if (!first || !last) { event.preventDefault(); return; }
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   };
-
-  return (
-    <div className="bws-overlay" ref={containerRef} onKeyDown={handleKeyDown} role="presentation">
-      {children}
+  return <div className="bws-overlay" onKeyDown={onKeyDown}>
+    <div className="bws-drawer bws-attention-panel" ref={container} role="dialog" aria-modal="true" aria-labelledby="batch-attention-title" data-testid="batch-attention-panel">
+      <header className="bws-attention-heading"><div><h2 id="batch-attention-title">{itemId ? 'Resolve product issue' : 'Needs attention'}</h2>
+        <p className="bws-muted">Entire batch · your working stage stays in place</p></div>
+        <button ref={close} type="button" className="bws-filter-input" onClick={onClose} aria-label="Close attention panel">Close</button></header>
+      <div className="bws-attention-body">
+        {itemId ? <><button type="button" className="bws-filter-input" onClick={onBackToIssues}>← All issues</button>
+          <OfficialSiteResolutionWorkspace key={itemId} batchId={batchId} itemId={itemId} onResolved={onResolved} /></>
+          : <AttentionQueueView batchId={batchId} onOpenItem={onOpenItem} />}
+      </div>
     </div>
-  );
+  </div>;
 }

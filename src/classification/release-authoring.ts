@@ -37,7 +37,7 @@ import {
   resolveReleaseDir,
   type ReleaseValidationReport,
 } from './release-validation';
-import { validateCanonicalValue } from './controlled-value-identity';
+import { findCanonicalCollisions, validateCanonicalValue } from './controlled-value-identity';
 
 // ─── Change-set shape ──────────────────────────────────────────────────────────
 
@@ -122,6 +122,17 @@ export interface HierarchyNodeEditChange {
 }
 
 /**
+ * Append approved values onto an EXISTING controlled attribute's
+ * `allowedValues` (governed vocabulary widening). Values are canonical-form
+ * validated and collision-checked against the existing vocabulary + aliases;
+ * never renames or removes — append-only.
+ */
+export interface AttributeAllowedValueAddChange {
+  attributeId: string;
+  values: string[];
+}
+
+/**
  * Append a value alias onto an EXISTING controlled attribute (issue #328).
  * `alias` must not already exist on the attribute and `mapsTo` must be an
  * exact `allowedValues` entry. Never renames or deletes — append-only.
@@ -173,6 +184,8 @@ export interface ReleaseChangeSet {
   hierarchyInvariantPatches?: HierarchyInvariantPatchChange[];
   /** Append-only value-alias additions (issue #328 governed alias flow). */
   valueAliasAdds?: ValueAliasAddChange[];
+  /** Append-only allowedValues widening on EXISTING controlled attributes. */
+  attributeAllowedValueAdds?: AttributeAllowedValueAddChange[];
 }
 
 export interface AuthorCandidateOptions {
@@ -281,6 +294,38 @@ export function applyChangeSetToFiles(
       serialization: add.serialization ?? { kind: 'scalar', prefix: '', suffix: '' },
     };
     (mappingsEnvelope.entries as Array<JsonRecord>).push(entry);
+  }
+
+  // ── Allowed-value adds (append-only; governed vocabulary widening) ──
+  // Runs BEFORE valueAliasAdds so aliases can target values added in the
+  // same change-set.
+  for (const add of changeSet.attributeAllowedValueAdds ?? []) {
+    const attr = attributes.find(a => a.id === add.attributeId) as
+      | (JsonRecord & { id: string; valueMode?: unknown; allowedValues?: unknown })
+      | undefined;
+    if (!attr) {
+      throw new Error(`attributeAllowedValueAdds: unknown attribute id "${add.attributeId}".`);
+    }
+    if (attr.valueMode !== 'controlled' || !Array.isArray(attr.allowedValues)) {
+      throw new Error(`attributeAllowedValueAdds: "${add.attributeId}" is not a controlled attribute (vocabulary widening never converts a free-text attribute).`);
+    }
+    const allowed = attr.allowedValues as unknown[];
+    const pending: string[] = [];
+    for (const value of add.values) {
+      const canonical = validateCanonicalValue(value);
+      if (!canonical.ok) {
+        throw new Error(`attributeAllowedValueAdds: value "${value}" of "${add.attributeId}" is not canonical (${canonical.reason}); store the NFC-normalized, trimmed form.`);
+      }
+      if (allowed.includes(value) || pending.includes(value)) {
+        throw new Error(`attributeAllowedValueAdds: value "${value}" already exists on "${add.attributeId}" (append-only).`);
+      }
+      pending.push(value);
+    }
+    const collisions = findCanonicalCollisions([...allowed.filter((v): v is string => typeof v === 'string'), ...pending]);
+    if (collisions.length > 0) {
+      throw new Error(`attributeAllowedValueAdds: canonical collision on "${add.attributeId}" (${collisions.map(c => `${c.a}/${c.b} (${c.kind})`).join(', ')}).`);
+    }
+    attr.allowedValues = [...allowed, ...pending];
   }
 
   // ── Value-alias adds (append-only; issue #328 governed alias flow) ──

@@ -134,11 +134,14 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
       // QuantityOnHand omitted because null
       // GTIN omitted because SKU is not purely numeric (8-14 digits)
       // Availability omitted
-      // MoreInformationText & DisplayMoreInformationPage omitted because description is null
-      expect(lines[10]).toBe('  <MoreInformationGraphic>none</MoreInformationGraphic>'); // DTD default
+      // MoreInformationText omitted because description is null
+      // DisplayMoreInformationPage is emitted for every product (store sets
+      // it on all products); default is checked.
+      expect(lines[10]).toBe('  <DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
+      expect(lines[11]).toBe('  <MoreInformationGraphic>none</MoreInformationGraphic>'); // DTD default
       // Additional images omitted
-      expect(lines[11]).toBe('  <FileName>minimal-test-item.html</FileName>');
-      expect(lines[12]).toBe('</Product>');
+      expect(lines[12]).toBe('  <FileName>minimal-test-item.html</FileName>');
+      expect(lines[13]).toBe('</Product>');
     });
 
     it('pins full XML document wrapping with DOCTYPE in buildProductsXml', () => {

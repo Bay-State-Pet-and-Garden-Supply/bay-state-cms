@@ -26,7 +26,7 @@ import {
 
 export { deriveReviewGateStatus, buildReviewQueueSortKey };
 
-export const REVIEW_QUEUE_PROJECTION_VERSION = '1.0.0';
+export const REVIEW_QUEUE_PROJECTION_VERSION = '1.1.0';
 
 /**
  * Project a batch into a bounded, cursor-paginated review queue.
@@ -45,6 +45,11 @@ export function getBatchReviewQueue(
   // 1. Project compact rows
   const allRows: ReviewQueueRow[] = [];
   for (const item of items) {
+    // Same guarded outcome semantics as onboarding-work-state: skipped at any
+    // stage and completed Create drafts are downstream outcomes. Review's
+    // completed status is a review decision, NOT a terminal outcome.
+    if (item.stageStatus === 'skipped' ||
+        (stageIs(item.stage, 'create_drafts') && item.stageStatus === 'completed')) continue;
     const curationData = item.curationData ? (item.curationData as Record<string, unknown>) : null;
     const extractionData = item.extractionData ? (item.extractionData as Record<string, unknown>) : null;
 
@@ -58,11 +63,18 @@ export function getBatchReviewQueue(
       else reviewState = 'unreviewed';
     } else {
       if (stageIs(item.stage, 'review_listings') && item.stageStatus === 'completed') reviewState = 'reviewed';
-      else if (stageIs(item.stage, 'create_drafts') && item.stageStatus === 'completed') reviewState = 'reviewed';
       else if (stageIs(item.stage, 'prepare_listing') && item.stageStatus === 'completed') reviewState = 'unreviewed';
       else if (stageIs(item.stage, 'review_listings')) reviewState = 'unreviewed';
       else reviewState = 'not_ready';
     }
+
+    // Durable history alone does not make products still preparing review work.
+    // Keep the legacy Curation-complete scope and approved Create drafts history.
+    const inReview = stageIs(item.stage, 'review_listings');
+    if (!inReview &&
+        !(stageIs(item.stage, 'prepare_listing') && item.stageStatus === 'completed') &&
+        !(stageIs(item.stage, 'create_drafts') && (reviewState === 'approved' || reviewState === 'reviewed'))) continue;
+    const canEdit = inReview && !item.isHeld && reviewState !== 'approved';
 
     const curatedTitle = typeof curationData?.curatedTitle === 'string' ? curationData.curatedTitle : null;
     const displayTitle = curatedTitle?.trim() || item.name;
@@ -112,7 +124,17 @@ export function getBatchReviewQueue(
       sourceType: item.sourceType ?? null,
       imageUrl,
       family: familySummary,
-      reviewState: reviewState as any,
+      reviewState,
+      stage: toCanonicalStage(item.stage),
+      stageStatus: item.stageStatus,
+      actions: {
+        canEdit,
+        canCompleteReview: canEdit && reviewState === 'unreviewed',
+        // Legacy review/completed WITHOUT durable review is inspectable, but
+        // the existing approval command requires a non-invalidated durable row.
+        canApprove: inReview && !item.isHeld && item.stageStatus === 'completed' &&
+          reviewState === 'reviewed' && Boolean(reviewRow?.reviewedAt),
+      },
       sortKey,
       updatedAt: item.updatedAt ?? item.createdAt,
       warningCodes,
@@ -122,11 +144,7 @@ export function getBatchReviewQueue(
   }
 
   // 2. Filter rows
-  const filteredRows = allRows.filter(row => {
-    if (filters.reviewStates && filters.reviewStates.length > 0) {
-      const state = row.reviewState ?? 'unreviewed';
-      if (!filters.reviewStates.includes(state as any)) return false;
-    }
+  const scopeRows = allRows.filter(row => {
     if (filters.warningsOnly && !row.hasWarnings) return false;
     if (filters.gateStatus && row.reviewGateStatus !== filters.gateStatus) return false;
     if (filters.familyCohortId && row.family?.cohortId !== filters.familyCohortId) return false;
@@ -141,6 +159,19 @@ export function getBatchReviewQueue(
     }
     return true;
   });
+  const statusTotals = {
+    unreviewed: scopeRows.filter(r => r.reviewState === 'unreviewed').length,
+    reviewed: scopeRows.filter(r => r.reviewState === 'reviewed').length,
+    approved: scopeRows.filter(r => r.reviewState === 'approved').length,
+  };
+  const progress = {
+    total: allRows.length,
+    reviewed: allRows.filter(r => r.reviewState === 'reviewed' || r.reviewState === 'approved').length,
+    remaining: allRows.filter(r => r.reviewState === 'unreviewed').length,
+  };
+  const filteredRows = scopeRows.filter(row =>
+    !filters.reviewStates?.length || (row.reviewState !== null && filters.reviewStates.includes(row.reviewState)),
+  );
 
   // 3. Sort rows deterministically
   filteredRows.sort((a, b) => {
@@ -153,7 +184,8 @@ export function getBatchReviewQueue(
   if (filters.cursor) {
     const cursorPayload = validateReviewQueueCursor(filters.cursor, filters);
     const cursorIndex = filteredRows.findIndex(
-      r => r.sortKey > cursorPayload.sortKey || (r.sortKey === cursorPayload.sortKey && r.itemId > cursorPayload.itemId),
+      r => r.sortKey.localeCompare(cursorPayload.sortKey) > 0 ||
+        (r.sortKey === cursorPayload.sortKey && r.itemId.localeCompare(cursorPayload.itemId) > 0),
     );
     startIndex = cursorIndex === -1 ? filteredRows.length : cursorIndex;
   }
@@ -192,8 +224,11 @@ export function getBatchReviewQueue(
   return {
     batchId,
     rows: pageRows,
+    ...(filters.selectedItemId ? { selectedRow: filteredRows.find(row => row.itemId === filters.selectedItemId) ?? null } : {}),
     nextCursor,
     counts,
+    statusTotals,
+    progress,
     projectionHealth,
   };
 }

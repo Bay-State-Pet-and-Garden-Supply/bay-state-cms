@@ -61,6 +61,7 @@ import {
   loadV2CohortMembers,
   loadV2ExtractionBindings,
   loadV2ChangeSetStatusBySkus,
+  loadV2ExportDraftLinks,
   loadV2StrategyApprovals,
   loadV2CollectionGenerations,
   loadV2EnabledCollectionConnections,
@@ -321,8 +322,10 @@ function buildV2ChunkContext(
 
   // Slice 5b native: canonical promotion check (dual read — either stored spelling).
   const promotedSkus = items.filter(item => { try { return toCanonicalStage(item.stage) === 'create_drafts'; } catch { return false; } }).map(item => item.upc);
+  let exportDraftLinksByItem: WorkStateContext['exportDraftLinksByItem'];
   const changeSetStatusBySku: Map<string, string> = (() => {
     try {
+      exportDraftLinksByItem = loadV2ExportDraftLinks(workspaceId, items.filter(item => { try { return toCanonicalStage(item.stage) === 'create_drafts'; } catch { return false; } }).map(item => item.id));
       return loadV2ChangeSetStatusBySkus(workspaceId, promotedSkus);
     } catch {
       if (promotedSkus.length > 0) fail('change_sets', 'change_set_lookup_failed', promotedSkus.length);
@@ -365,6 +368,7 @@ function buildV2ChunkContext(
       reviewStates,
       cohortByItem,
       changeSetStatusBySku,
+      exportDraftLinksByItem,
       candidateCountByItem: candidateRes.data,
       variantResolutionByItem: variantRes.data as unknown as WorkStateContext['variantResolutionByItem'],
       cohortRunStatusByItem: cohortRunRes.data,

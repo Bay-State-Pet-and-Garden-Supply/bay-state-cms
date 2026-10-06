@@ -181,7 +181,23 @@ function validTask(raw: unknown): raw is RenderTask {
   return (task.pages as unknown[]).every(validPage);
 }
 
+/** Accept the per-run validating-proxy credential (in-container only — see extractSnapshot). Idempotent. */
+function enableInterceptTrust(): void {
+  const key = 'BAYSTATE_CMS_WORKER_EXTRA_LAUNCH_ARGS';
+  const flags = (process.env[key] ?? '').split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  if (!flags.includes('--ignore-certificate-errors')) flags.push('--ignore-certificate-errors');
+  process.env[key] = flags.join(' ');
+}
+
 async function extractSnapshot(url: string, guard: (url: string) => Promise<boolean>, budgetMs: number) {
+  // Validating-intercept trust: this container's sole egress is the per-run
+  // proxy, which terminates the browser's TLS with its own credential and
+  // validates every inner request through the broker (upstream TLS to the
+  // origin is genuinely validated there). The browser therefore accepts the
+  // proxy credential via the scoped launch flag — set here, in-container
+  // only (host code never imports this module), so normal extraction
+  // (flag absent) keeps default certificate validation.
+  enableInterceptTrust();
   const base = loadWorkerBrowserConfig();
   const proxyUrls = (process.env.BAYSTATE_CMS_WORKER_PROXY_URLS ?? '')
     .split(',')

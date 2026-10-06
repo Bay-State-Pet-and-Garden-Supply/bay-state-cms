@@ -1,0 +1,217 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v9",
+    "createdAt": "2026-10-06T15:45:30.345Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "attributeId": "brand",
+      "catalogField": "ProductField16",
+      "id": "brand-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "breed-size",
+      "catalogField": "ProductField19",
+      "id": "breed-size-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "canonical-breadcrumb-mapping",
+      "attributeId": "canonical-breadcrumb",
+      "catalogField": "ProductField14",
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      },
+      "isStale": false
+    },
+    {
+      "id": "canonical-category-id-mapping",
+      "attributeId": "canonical-category-id",
+      "catalogField": "ProductField13",
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      },
+      "isStale": false
+    },
+    {
+      "attributeId": "packaging-type",
+      "catalogField": "ProductField30",
+      "id": "packaging-type-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "product-type",
+      "catalogField": "ProductField25",
+      "id": "product-type-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "size",
+      "catalogField": "ProductField27",
+      "id": "size-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "species-mapping",
+      "attributeId": "species",
+      "catalogField": "ProductField17",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "life-stage-mapping",
+      "attributeId": "life-stage",
+      "catalogField": "ProductField18",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "dietary-features-mapping",
+      "attributeId": "dietary-features",
+      "catalogField": "ProductField20",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "health-benefits-mapping",
+      "attributeId": "health-benefits",
+      "catalogField": "ProductField21",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "food-form-mapping",
+      "attributeId": "food-form",
+      "catalogField": "ProductField22",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "flavor-mapping",
+      "attributeId": "flavor",
+      "catalogField": "ProductField23",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "category-mapping",
+      "attributeId": "category",
+      "catalogField": "ProductField24",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "product-feature-mapping",
+      "attributeId": "product-feature",
+      "catalogField": "ProductField26",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "material-mapping",
+      "attributeId": "material",
+      "catalogField": "ProductField28",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "id": "color-mapping",
+      "attributeId": "color",
+      "catalogField": "ProductField29",
+      "isStale": false,
+      "serialization": {
+        "kind": "delimited",
+        "delimiter": "|",
+        "escapePolicy": "reject",
+        "prefix": "",
+        "suffix": ""
+      }
+    }
+  ]
+}

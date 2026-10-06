@@ -40,6 +40,8 @@ import {
   createExportDraftsWithReceipt,
 } from '../../db/repositories/onboarding-review-repo';
 import { runStageVocabularyMigration } from '../../db/repositories/onboarding-stage-vocabulary-repo';
+import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
+import { assignProductToPageId, listVerifiedPageOptions } from '../../db/repositories/page-repo';
 
 function shaFile(p: string): string {
   return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
@@ -137,6 +139,14 @@ describe('rollback bridge artifact proof', () => {
     seedFixed({ id: 'q-coh', batchId, stage: 'curation', rowNumber: 5 });
     seedFixed({ id: 'q-approved', batchId, stage: 'review', status: 'completed', curationJson: PAGES, rowNumber: 6 });
     seedFixed({ id: 'q-rereview', batchId, stage: 'review', status: 'completed', curationJson: PAGES, rowNumber: 7 });
+    // The current receipt path creates a native Product, so its successful
+    // bridge proof supplies real mandatory draft facts and a verified Page.
+    activatePageImportFromRecords({ workspaceId: wsId, sourceHash: 'd'.repeat(64), parserFormatVersion: 'pages-xml-1',
+      activatedBy: 'fixture', records: [{ identity: { kind: 'exported_guid', key: 'bridge-fixture-page', status: 'verified' },
+        name: 'Fixture Page', parentRef: null, availability: 'available' }] });
+    assignProductToPageId('upc-q-approved', listVerifiedPageOptions(wsId)[0].id, 'Fixture Page');
+    getDb().query('UPDATE onboarding_items SET price = ?, brand_hint = ?, extraction_data_json = ? WHERE id = ?').run(
+      '$12.50', 'Fixture Brand', JSON.stringify({ title: 'Fixture Brand Toy', primaryImage: 'fixture/toy.jpg', additionalImages: [], customFields: {} }), 'q-approved');
     seedFixed({
       id: 'q-hist', batchId, stage: 'sourcing', status: 'completed', rowNumber: 8,
       decisionJson: JSON.stringify({ schemaVersion: 2, route: 'evidence_to_discovery', target: 'discovery' }),
@@ -173,7 +183,7 @@ describe('rollback bridge artifact proof', () => {
       workspaceId: wsId,
     });
     expect(approval.approved).toEqual(['q-approved']);
-    const exported = createExportDraftsWithReceipt({
+    const exported = await createExportDraftsWithReceipt({
       itemIds: ['q-approved'],
       batchId,
       requestedBy: 'op',

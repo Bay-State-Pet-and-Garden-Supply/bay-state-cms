@@ -426,12 +426,14 @@ export function subscribeBatchEvents(
  */
 export async function getBatchReviewQueue(
   batchId: string,
-  filters?: ReviewQueueFilters & { cursor?: string; limit?: number },
+  filters?: ReviewQueueFilters & { cursor?: string; limit?: number; selectedItemId?: string },
 ): Promise<ReviewQueuePage> {
   const params = new URLSearchParams();
   if (filters) {
     if (filters.cursor) params.set('cursor', filters.cursor);
     if (typeof filters.limit === 'number') params.set('limit', String(filters.limit));
+    if (filters.selectedItemId) params.set('selectedItemId', filters.selectedItemId);
+    if (filters.gateStatus) params.set('gateStatus', filters.gateStatus);
     if (filters.q) params.set('q', filters.q);
     if (filters.brand) params.set('brand', filters.brand);
     if (filters.familyCohortId) params.set('familyCohortId', filters.familyCohortId);

@@ -21,6 +21,7 @@ import type { StageInput, StageContext } from './types';
 import type { ClassificationEvidence } from '../shared/types';
 import { CanonicalBrandEvidenceValueSchema } from '../shared/schemas/classification';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
+import { PRESERVED_CONTENT_SNIPPET_CAP } from './preserved-content-tags';
 import type { PackagingOcrData, OcrAttemptOutcome } from '../shared/schemas/onboarding';
 export type { OcrAttemptOutcome };
 
@@ -57,6 +58,12 @@ export interface NormalizedEvidenceInput {
   searchKeywords: string | EvidenceInputField<string> | null;
   /** Custom fields key-value pairs */
   customFields: Record<string, string | EvidenceInputField<string>>;
+  /**
+   * Preserved live-store content tags (`Specifications`,
+   * `MaterialsOrIngredients`, `HowToUse`, …) surfaced as bounded context
+   * evidence. Never target-matching values; consumers treat them as context.
+   */
+  preservedContent?: Record<string, string | EvidenceInputField<string>>;
   /** Primary product image URL or path */
   primaryImage: string | null;
   /** Additional gallery image URLs or paths */
@@ -300,6 +307,31 @@ export async function extractProductEvidence(
           sourceField: key,
           snippet: String(fieldInfo.value),
           value: String(fieldInfo.value),
+          metadata: { provenance: fieldInfo.source === 'catalog_product' ? 'catalog_product' : 'product_data', ...fieldInfo.metadata },
+          capturedAt: now(),
+        });
+      }
+    }
+  }
+
+  // Preserved live-store content (Specifications / HowToUse / …): bounded
+  // context evidence. Never target-matching — these are free content blobs.
+  if (input.preservedContent && typeof input.preservedContent === 'object') {
+    for (const [tag, rawVal] of Object.entries(input.preservedContent)) {
+      const fieldInfo = parseFieldInput(rawVal, (input.evidenceSourceOverride ?? defaultTextSource), sourceUrl);
+      if (fieldInfo.value && String(fieldInfo.value).trim().length > 0) {
+        evidence.push({
+          id: randomUUID(),
+          runId: context.runId,
+          stageName: 'evidence_extraction',
+          productSku: sku,
+          attributeId: null,
+          source: fieldInfo.source,
+          reliability: 'medium' as ClassificationEvidence['reliability'],
+          sourceUrl: fieldInfo.sourceUrl,
+          sourceField: tag,
+          snippet: String(fieldInfo.value).slice(0, PRESERVED_CONTENT_SNIPPET_CAP),
+          value: String(fieldInfo.value).slice(0, PRESERVED_CONTENT_SNIPPET_CAP),
           metadata: { provenance: fieldInfo.source === 'catalog_product' ? 'catalog_product' : 'product_data', ...fieldInfo.metadata },
           capturedAt: now(),
         });

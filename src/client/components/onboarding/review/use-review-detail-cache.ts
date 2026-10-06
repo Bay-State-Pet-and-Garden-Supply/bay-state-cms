@@ -99,7 +99,7 @@ export function useReviewDetailCache({
 
       try {
         const detail = await getItemDetail(itemId, { signal: controller.signal });
-        if (generationRef.current !== currentGen) return;
+        if (controller.signal.aborted || generationRef.current !== currentGen) return;
 
         abortControllersRef.current.delete(itemId);
         setInflightIds(prev => {
@@ -134,7 +134,7 @@ export function useReviewDetailCache({
 
   // Active + Adjacent Prefetch Orchestration
   useEffect(() => {
-    if (!selectedItemId || visibleRows.length === 0) return;
+    if (!selectedItemId) return;
     const currentGen = generationRef.current;
 
     // 1. Determine target IDs: active + next + previous
@@ -194,11 +194,10 @@ export function useReviewDetailCache({
           return next;
         });
       }
-      if (selectedItemId === itemId) {
-        void fetchDetail(itemId, generationRef.current);
-      }
+      // The orchestration effect fetches from the new cache state. Calling
+      // fetchDetail here would see the old closed-over entry and skip refresh.
     },
-    [selectedItemId, fetchDetail],
+    [],
   );
 
   const updateCachedDetail = useCallback(

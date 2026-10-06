@@ -1,0 +1,46 @@
+{
+  "artifactKind": "development-peer-receipt",
+  "peerPerformed": true,
+  "humanApproval": false,
+  "modelCalls": 0,
+  "networkCalls": 0,
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "hashCommitments": {
+    "devGold": "02d3ab09834b3a2f7255bfb9d30f3e726a904dbd4e1ebab981eb19132b409e08",
+    "devAdjudication": "dd6486c4f7b052a2f376cf0dba52312946b08ee16819a3d35edd9008bce243a3",
+    "devSupport": "900cea454332e7f7b8ff0c35adb41d62ee147adb50feef91ba8146f4680abb64",
+    "devManifest": "42e98c117299edb2c662e37fee031d6e120466b1221dea74be94bfe1b8a2d5cf",
+    "taxonomy": "7f622d890ad3cb88178000d96e271ee3dfc9f2c6a4bb0fc323c30f2dbeea6ec9",
+    "sourceBank": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1",
+    "supplemental": "7cca68efc7074b019a48172b3e3db0937bd2872a1059150a916c919f0481f801"
+  },
+  "counts": {
+    "primaryFamilies": 23,
+    "supplementalVariants": 1,
+    "goldEntries": 23,
+    "knownType": 16,
+    "genuineNoFit": 7,
+    "quarantine": 0,
+    "types": 74,
+    "profiles": 74,
+    "pages": 212,
+    "controlledTargets": 9,
+    "adjCitationsTotal": 76,
+    "adjCitationsExact": 76,
+    "goldSnippetsTotal": 76,
+    "goldSnippetsExact": 76
+  },
+  "validation": {
+    "nearestExclusionsPerNoFitOk": true,
+    "controlledIdsOk": true,
+    "citationJoinExactOk": true,
+    "locatorAlignedOk": true,
+    "noInventionOk": true,
+    "manifestEmptyDevelopmentScopeOk": true,
+    "rejectedPreservedOk": true,
+    "canonicalMembershipOk": true
+  },
+  "status": "peer-verified-development-only-qualification-ineligible"
+}

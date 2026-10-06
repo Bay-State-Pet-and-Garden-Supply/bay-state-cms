@@ -78,6 +78,17 @@ export class ShopSiteHttpClient {
     params.set('dbname', dbname);
     params.set('version', options?.version ?? '15.0');
     if (options?.fields && options.fields.length > 0) {
+      // Verified against the live store: the `fields=` allowlist does NOT
+      // honor `ProductFieldN` names — the response silently returns only the
+      // recognized identity fields and drops every custom field, which makes
+      // the store look empty. Refuse instead of returning a misleading subset.
+      const productFields = options.fields.filter(field => /^ProductField\d+$/i.test(field));
+      if (productFields.length > 0) {
+        const detail = `unsupported_fields_filter: db_xml.cgi fields= cannot subset custom fields (${productFields.join(', ')}): ` +
+          'ProductFieldN names are not honored by the allowlist and the response would silently omit them. ' +
+          'Download the full record and project locally instead.';
+        return { success: false, error: detail, errors: [detail] };
+      }
       params.set('fields', '|' + options.fields.join('|') + '|');
     }
 

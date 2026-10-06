@@ -399,6 +399,9 @@ describe('validating forward proxy: broker policy per request', () => {
               res.on('end', () => resolve(res.statusCode ?? 0));
             },
           );
+          // CONNECT replies surface on 'connect' (even refusals) rather
+          // than 'response' — either way a refused tunnel never opens.
+          req.on('connect', (res: import('node:http').IncomingMessage) => resolve(res.statusCode ?? 0));
           // A refused tunnel surfaces as a connection error on some
           // clients (no tunnel established either way — that is the point).
           req.on('error', () => resolve('refused'));
@@ -406,7 +409,9 @@ describe('validating forward proxy: broker policy per request', () => {
           req.end();
         });
       const connectVerdict = await raw('CONNECT', 'https://brand.example/products/alpha');
-      expect(connectVerdict === 405 || connectVerdict === 'refused').toBe(true);
+      // A malformed CONNECT authority (absolute URI instead of host:port)
+      // is denied without ever opening a tunnel.
+      expect(connectVerdict === 400 || connectVerdict === 'refused').toBe(true);
       await expect(raw('POST', 'https://brand.example/products/alpha')).resolves.toBe(405);
       const originForm = await getViaProxy(proxy.url, '/products/alpha').then(
         (r) => r.status,
@@ -427,6 +432,189 @@ describe('validating forward proxy: broker policy per request', () => {
       const cart = await getViaProxy(proxy.url, 'https://brand.example/cart/add');
       expect(cart.status).toBe(502);
       expect(cart.body).toMatch(/path_forbidden/);
+    } finally {
+      await proxy.close();
+    }
+  });
+});
+
+describe('validating CONNECT interception: HTTPS through the boundary', () => {
+  // Chromium carries HTTPS through an HTTP proxy via CONNECT, which the
+  // proxy used to refuse outright (opaque_tunnel_refused) — so real
+  // https:// navigation could never load. The proxy now intercepts CONNECT
+  // to approved hosts: it terminates the tunnel with a per-run credential,
+  // validates every inner request through the broker policy, and fulfills
+  // via broker.fetch. The tunnel is never opaque and never bypasses the
+  // broker — these tests prove each half at the proxy seam over real
+  // sockets (TLS client side, broker stub upstream).
+
+  function proxyWithMitm(
+    transport: BrokerTransport,
+    sampleUrls = ['https://brand.example/products/alpha'],
+  ) {
+    const budget = resolveInvestigationBudget({});
+    const ledger = new BudgetLedger(budget);
+    return startRenderProxy({
+      investigationId: 'binv_mitm_1',
+      workspaceId: 'ws_mitm',
+      sampleUrls,
+      budget,
+      ledger,
+      brokerDeps: { lookup: lookupPublic, transport },
+    }).then((proxy) => ({ proxy, ledger }));
+  }
+
+  function requireMitm(proxy: { mitmAvailable?: boolean }): void {
+    if (proxy.mitmAvailable !== true) {
+      console.warn('SKIP: validating CONNECT interception unavailable (openssl required) — HTTPS tunnel tests skipped');
+      return;
+    }
+  }
+
+  function isMitm(proxy: { mitmAvailable?: boolean }): boolean {
+    return proxy.mitmAvailable === true;
+  }
+
+  /** Open a CONNECT tunnel; resolves with the status and the live socket. */
+  async function connectTunnel(
+    proxyUrl: string,
+    target: string,
+  ): Promise<{ status: number; socket: import('node:net').Socket }> {
+    const { default: net } = await import('node:net');
+    const u = new URL(proxyUrl);
+    return new Promise((resolve, reject) => {
+      const socket = net.connect(Number(u.port), u.hostname, () => {
+        socket.write(`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n\r\n`);
+      });
+      let buf = '';
+      const timer = setTimeout(() => {
+        socket.destroy(new Error('timeout'));
+        reject(new Error('timeout'));
+      }, 10_000);
+      const onData = (c: Buffer): void => {
+        buf += c.toString('utf8');
+        const end = buf.indexOf('\r\n\r\n');
+        if (end !== -1) {
+          clearTimeout(timer);
+          socket.off('data', onData);
+          const status = Number(buf.slice(0, end).split('\r\n')[0]?.split(' ')[1]);
+          resolve({ status, socket });
+        }
+      };
+      socket.on('data', onData);
+      socket.on('error', (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
+  /** TLS-handshake over an established tunnel and issue one origin-form GET. */
+  async function tlsGetThrough(
+    socket: import('node:net').Socket,
+    servername: string,
+    path: string,
+    method = 'GET',
+  ): Promise<{ status: number; body: string }> {
+    const { default: tls } = await import('node:tls');
+    const secure = tls.connect({ socket, servername, rejectUnauthorized: false });
+    await new Promise<void>((resolve, reject) => {
+      secure.once('secureConnect', () => resolve());
+      secure.once('error', reject);
+      setTimeout(() => reject(new Error('tls timeout')), 10_000);
+    });
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      secure.on('data', (c: Buffer) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+      secure.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        const headEnd = raw.indexOf('\r\n\r\n');
+        const status = Number(raw.slice(0, headEnd).split('\r\n')[0]?.split(' ')[1]);
+        resolve({ status, body: headEnd === -1 ? '' : raw.slice(headEnd + 4) });
+      });
+      secure.on('error', reject);
+      setTimeout(() => reject(new Error('inner timeout')), 10_000);
+      secure.write(`${method} ${path} HTTP/1.1\r\nHost: ${servername}\r\nConnection: close\r\n\r\n`);
+    });
+  }
+
+  it('carries approved HTTPS through the validating tunnel (broker body, ledger charged)', async () => {
+    const { proxy, ledger } = await proxyWithMitm(htmlTransport('<html>secure-proxied</html>'));
+    try {
+      if (!isMitm(proxy)) {
+        requireMitm(proxy);
+        return;
+      }
+      const { status, socket } = await connectTunnel(proxy.url, 'brand.example:443');
+      expect(status).toBe(200);
+      const res = await tlsGetThrough(socket, 'brand.example', '/products/alpha');
+      expect(res.status).toBe(200);
+      expect(res.body).toBe('<html>secure-proxied</html>');
+      expect(ledger.snapshot().requestAttempts).toBeGreaterThan(0);
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  it('refuses CONNECT to off-scope hosts without opening a tunnel', async () => {
+    const { proxy } = await proxyWithMitm(htmlTransport('<html>x</html>'));
+    try {
+      if (!isMitm(proxy)) {
+        requireMitm(proxy);
+        return;
+      }
+      const { status, socket } = await connectTunnel(proxy.url, 'evil.example:443');
+      expect(status).toBe(403);
+      socket.destroy();
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  it('refuses CONNECT to non-HTTPS ports', async () => {
+    const { proxy } = await proxyWithMitm(htmlTransport('<html>x</html>'));
+    try {
+      if (!isMitm(proxy)) {
+        requireMitm(proxy);
+        return;
+      }
+      const { status, socket } = await connectTunnel(proxy.url, 'brand.example:22');
+      expect([400, 403]).toContain(status);
+      socket.destroy();
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  it('validates inside the tunnel: forbidden paths denied with broker codes', async () => {
+    const { proxy } = await proxyWithMitm(htmlTransport('<html>x</html>'));
+    try {
+      if (!isMitm(proxy)) {
+        requireMitm(proxy);
+        return;
+      }
+      const { status, socket } = await connectTunnel(proxy.url, 'brand.example:443');
+      expect(status).toBe(200);
+      const res = await tlsGetThrough(socket, 'brand.example', '/cart/add');
+      expect(res.status).toBe(502);
+      expect(res.body).toMatch(/path_forbidden/);
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  it('validates inside the tunnel: non-GET methods denied', async () => {
+    const { proxy } = await proxyWithMitm(htmlTransport('<html>x</html>'));
+    try {
+      if (!isMitm(proxy)) {
+        requireMitm(proxy);
+        return;
+      }
+      const { status, socket } = await connectTunnel(proxy.url, 'brand.example:443');
+      expect(status).toBe(200);
+      const res = await tlsGetThrough(socket, 'brand.example', '/products/alpha', 'POST');
+      expect(res.status).toBe(405);
+      expect(res.body).toMatch(/method_forbidden/);
     } finally {
       await proxy.close();
     }
@@ -508,6 +696,159 @@ describe('Tier 1 model context: holdout blindness + redaction by construction', 
         }),
       ),
     ).toThrowError(/budget_exhausted/);
+  });
+});
+
+describe('Worker B adversarial: every context string probed, budgets fail closed', () => {
+  const BUDGET = resolveInvestigationBudget({});
+  const HOLDOUTS = [{ url: HOLDOUT_URL, artifactRef: HOLDOUT_ARTIFACT }];
+
+  function baseInput(overrides: Record<string, unknown> = {}) {
+    return {
+      investigationId: 'binv_ctx_adv',
+      domain: 'brand.example',
+      observations: [
+        { kind: 'page_title', sourceUrl: 'https://brand.example/products/alpha', artifactHash: ARTIFACT_HASH, detail: 'Acme Dog Food', incomplete: false },
+      ],
+      evidenceRefs: ['artifact:binv_ctx_adv:p0'],
+      analysisGaps: [],
+      knownContextKeys: ['flavor'],
+      excludedHoldouts: HOLDOUTS,
+      budget: BUDGET,
+      ...overrides,
+    };
+  }
+
+  it('probes the remaining identity surfaces: domain and investigationId', () => {
+    expect(() => buildTier1ModelContext(baseInput({ domain: `shop at ${HOLDOUT_URL} today` }))).toThrowError(
+      /holdout_exposed/,
+    );
+    expect(() =>
+      buildTier1ModelContext(baseInput({ investigationId: `binv_${HOLDOUT_URL}` })),
+    ).toThrowError(/holdout_exposed/);
+  });
+
+  it('matches case-insensitively and across trailing-slash canonical forms', () => {
+    const upper = HOLDOUT_URL.toUpperCase();
+    expect(() => buildTier1ModelContext(baseInput({ analysisGaps: [`see ${upper}`] }))).toThrowError(
+      /holdout_exposed/,
+    );
+    // Holdout reserved WITH a trailing slash still blinds the bare form.
+    const slashed = [{ url: `${HOLDOUT_URL}/`, artifactRef: null }];
+    expect(() =>
+      buildTier1ModelContext(baseInput({ excludedHoldouts: slashed, analysisGaps: [`see ${HOLDOUT_URL}`] })),
+    ).toThrowError(/holdout_exposed/);
+    // And the reverse: bare reservation blinds the slashed smuggle.
+    expect(() =>
+      buildTier1ModelContext(baseInput({ analysisGaps: [`see ${HOLDOUT_URL}/`] })),
+    ).toThrowError(/holdout_exposed/);
+  });
+
+  it('probes holdout artifacts on every text surface, case-insensitively', () => {
+    const upperArtifact = HOLDOUT_ARTIFACT.toUpperCase();
+    const surfaces: Array<[string, Record<string, unknown>]> = [
+      ['gap', { analysisGaps: [`hash ${HOLDOUT_ARTIFACT}`] }],
+      ['gap-upper', { analysisGaps: [`hash ${upperArtifact}`] }],
+      ['evidenceRef', { evidenceRefs: [`artifact:${HOLDOUT_ARTIFACT}`] }],
+      ['knownContextKey', { knownContextKeys: [`ref-${HOLDOUT_ARTIFACT}`] }],
+      ['kind', { observations: [{ kind: `page_title ${HOLDOUT_ARTIFACT}`, sourceUrl: 'https://brand.example/products/alpha', artifactHash: ARTIFACT_HASH, incomplete: false }] }],
+      ['artifactHash', { observations: [{ kind: 'page_title', sourceUrl: 'https://brand.example/products/alpha', artifactHash: HOLDOUT_ARTIFACT, incomplete: false }] }],
+    ];
+    for (const [label, override] of surfaces) {
+      expect(() => buildTier1ModelContext(baseInput(override)), label).toThrowError(/holdout_exposed/);
+    }
+  });
+
+  it('commits to the exclusion list: order-independent, empty-list stable', () => {
+    const reversed = [...HOLDOUTS].reverse();
+    expect(exclusionCommitmentOf(reversed)).toBe(exclusionCommitmentOf(HOLDOUTS));
+    expect(exclusionCommitmentOf([])).toMatch(/^[0-9a-f]{64}$/);
+    // An empty exclusion list blinds nothing — the same smuggle passes.
+    const ctx = buildTier1ModelContext(baseInput({ excludedHoldouts: [], analysisGaps: ['plain gap'] }));
+    expect(ctx.exclusionCommitment).toBe(exclusionCommitmentOf([]));
+  });
+
+  it('fails closed when no model calls are budgeted (calls)', async () => {
+    // The schema floors maxModelCalls at 1, so the zero-call path is
+    // reached with a narrowed runtime budget — the seam reasonWithBudget
+    // guards before any dispatch.
+    const noCalls = { ...BUDGET, maxModelCalls: 0 };
+    const ctx = buildTier1ModelContext({ ...baseInput(), excludedHoldouts: [] });
+    await expect(
+      reasonWithBudget(stubReasoner(), ctx, new BudgetLedger(BUDGET), noCalls, { timeoutMs: 5_000 }),
+    ).rejects.toThrowError(/budget_exhausted/);
+  });
+
+  it('fails closed on cumulative model-input overrun (tokens/bytes)', async () => {
+    // Pre-charge the ledger so the bounded call's own input overruns the
+    // cumulative total (chunked under the per-call cap).
+    const ctx = buildTier1ModelContext({ ...baseInput(), excludedHoldouts: [] });
+    const ledger = new BudgetLedger(BUDGET);
+    let fill = BUDGET.maxModelInputBytesTotal - ctx.inputBytes + 1;
+    const chunk = Math.min(8192, BUDGET.maxModelInputBytesPerCall);
+    while (fill > 0) {
+      const take = Math.min(fill, chunk);
+      ledger.chargeModelInput(take);
+      fill -= take;
+    }
+    await expect(
+      reasonWithBudget(stubReasoner(), ctx, ledger, BUDGET, { timeoutMs: 5_000 }),
+    ).rejects.toThrowError(/budget_exhausted/);
+  });
+
+  it('reports usage truthfully: no fabricated cost, null calls when absent', async () => {
+    const { describeInvestigationCost } = await import(
+      '../../onboarding/browser-investigation/workspace'
+    );
+    const { describeInvestigationTelemetry } = await import(
+      '../../onboarding/browser-investigation/telemetry'
+    );
+    // Absent usage is explicit unavailable — never zero, never billed.
+    expect(describeInvestigationCost(null)).toMatchObject({
+      modelCalls: null,
+      costUsd: null,
+      costBasis: 'unavailable',
+      costDisplay: 'unavailable',
+    });
+    // A fresh ledger likewise reports unavailable cost (never hardcoded zeros).
+    const ledger = new BudgetLedger(BUDGET);
+    expect(describeInvestigationCost(ledger.toUsage())).toMatchObject({
+      costUsd: null,
+      costBasis: 'unavailable',
+    });
+    // Telemetry passes counted calls through and leaks no knownContext values.
+    const record = {
+      id: 'binv_adv_1',
+      domain: 'brand.example',
+      mode: 'domain_onboarding',
+      status: 'completed',
+      provider: 'local_browser_harness',
+      runId: 'binvrun_adv',
+      requestedModel: null,
+      actualModel: { provider: 'stub', model: 'stub-reasoner-v1' },
+      inputSnapshot: {
+        domain: 'brand.example',
+        mode: 'domain_onboarding',
+        sampleUrls: ['https://brand.example/products/alpha'],
+        budget: BUDGET,
+        modelPolicy: { allowCloudTextAnalysis: false, allowImageSharing: false },
+        knownContext: { flavor: 'canary-value-peanut-butter' },
+        requestedAt: new Date().toISOString(),
+      },
+      inputHash: 'abcdef1234567890abcdef1234567890',
+      usage: { ...ledger.toUsage(), modelCalls: 1 },
+      result: null,
+      failureCode: null,
+      failureDetail: null,
+      startedAt: null,
+      completedAt: null,
+    } as unknown as Parameters<typeof describeInvestigationTelemetry>[0];
+    const telemetry = describeInvestigationTelemetry(record, null);
+    expect(telemetry.usage.modelCalls).toBe(1);
+    expect(telemetry.usage.costUsd).toBeNull();
+    expect(telemetry.usage.costBasis).toBe('unavailable');
+    expect(telemetry.knownContextKeys).toEqual(['flavor']);
+    expect(JSON.stringify(telemetry)).not.toContain('canary-value-peanut-butter');
   });
 });
 
@@ -927,7 +1268,6 @@ describe('containment: Tier 1 network surface stays authorized', () => {
       expect(match[0]).toBe('broker.fetch(');
     }
   });
-
   it('host code never imports the in-container render worker', () => {
     const hostModules = [
       '../../onboarding/browser-investigation/local-harness.ts',
@@ -939,6 +1279,30 @@ describe('containment: Tier 1 network surface stays authorized', () => {
       const source = readFileSync(new URL(rel, import.meta.url), 'utf8');
       expect(source, rel).not.toMatch(/render-worker/);
     }
+  });
+
+  it('intercept trust stays scoped: worker sets it, playwright honors it, nothing else', () => {
+    // The browser accepts the per-run validating-proxy credential ONLY via
+    // this chain: render-worker (in-container) sets the env knob, the
+    // plain-Playwright launch path appends it, config parsing honors only
+    // `--` flags. Normal extraction (knob absent) keeps default validation.
+    const worker = readFileSync(
+      new URL('../../onboarding/browser-investigation/render-worker.ts', import.meta.url),
+      'utf8',
+    );
+    expect(worker).toMatch(/BAYSTATE_CMS_WORKER_EXTRA_LAUNCH_ARGS/);
+    expect(worker).toMatch(/--ignore-certificate-errors/);
+    const launch = fs.readFileSync(
+      path.join(REPO, 'src/extraction-worker/browser/camoufox-launch.ts'),
+      'utf8',
+    );
+    expect(launch).toMatch(/config\.extraLaunchArgs/);
+    const config = fs.readFileSync(
+      path.join(REPO, 'src/extraction-worker/browser/config.ts'),
+      'utf8',
+    );
+    expect(config).toMatch(/BAYSTATE_CMS_WORKER_EXTRA_LAUNCH_ARGS/);
+    expect(config).toMatch(/startsWith\('--'\)/);
   });
 });
 
@@ -1103,6 +1467,118 @@ describe('Tier 1 container-level egress denial (live, daemon-gated)', () => {
       expect(out.proxied.error).toBeUndefined();
       expect(out.proxied.status).toBe(200);
       expect(out.proxied.body).toBe('<html>proxied</html>');
+    } finally {
+      await proxy.close();
+    }
+  }, DOCKER_TIMEOUT);
+
+  it('carries container HTTPS through the validating tunnel while direct egress stays denied', async () => {
+    if (!(await dockerAvailable())) {
+      console.warn('SKIP: no Docker daemon — container HTTPS tunnel skipped');
+      return;
+    }
+    if (!(await ensureRenderNetwork())) {
+      console.warn('SKIP: render network unavailable — container HTTPS tunnel skipped');
+      return;
+    }
+    const budget = resolveInvestigationBudget({});
+    const ledger = new BudgetLedger(budget);
+    const proxy = await startRenderProxy({
+      investigationId: 'binv_live_mitm',
+      workspaceId: 'ws_live',
+      sampleUrls: ['https://brand.example/products/alpha'],
+      budget,
+      ledger,
+      brokerDeps: {
+        lookup: lookupPublic,
+        transport: async (req) => ({
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+          body: Buffer.from('<html>secure-proxied</html>', 'utf8'),
+          connectedIp: req.validatedAddresses[0] ?? null,
+        }),
+      },
+      bindHost: '0.0.0.0',
+      advertiseHost: 'host.docker.internal',
+    });
+    try {
+      if (proxy.mitmAvailable !== true) {
+        console.warn('SKIP: validating CONNECT interception unavailable (openssl required) — container HTTPS tunnel skipped');
+        return;
+      }
+      const tunnelProbe = `
+        const net = require('node:net');
+        const tls = require('node:tls');
+        const proxyUrl = new URL(process.env.PROXY_URL);
+        const connectTunnel = (target) => new Promise((resolve, reject) => {
+          const socket = net.connect(Number(proxyUrl.port), proxyUrl.hostname, () => {
+            socket.write('CONNECT ' + target + ' HTTP/1.1\\r\\nHost: ' + target + '\\r\\n\\r\\n');
+          });
+          let buf = '';
+          socket.on('data', (c) => {
+            buf += c.toString('utf8');
+            const end = buf.indexOf('\\r\\n\\r\\n');
+            if (end !== -1) {
+              const status = Number(buf.slice(0, end).split('\\r\\n')[0].split(' ')[1]);
+              resolve({ status, socket });
+            }
+          });
+          socket.on('error', reject);
+          socket.setTimeout(12000, () => reject(new Error('timeout')));
+        });
+        const tlsGet = (socket, servername, path) => new Promise((resolve, reject) => {
+          const secure = tls.connect({ socket, servername, rejectUnauthorized: false });
+          secure.once('secureConnect', () => {
+            secure.write('GET ' + path + ' HTTP/1.1\\r\\nHost: ' + servername + '\\r\\nConnection: close\\r\\n\\r\\n');
+          });
+          const chunks = [];
+          secure.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+          secure.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            const headEnd = raw.indexOf('\\r\\n\\r\\n');
+            resolve({
+              status: Number(raw.slice(0, headEnd).split('\\r\\n')[0].split(' ')[1]),
+              body: headEnd === -1 ? '' : raw.slice(headEnd + 4),
+            });
+          });
+          secure.on('error', reject);
+          secure.setTimeout(12000, () => reject(new Error('timeout')));
+        });
+        const direct = () => new Promise((resolve) => {
+          const req = require('node:http').get('http://brand.example/', (res) => {
+            res.resume(); res.on('end', () => resolve({ status: res.statusCode }));
+          });
+          req.on('error', (e) => resolve({ error: String((e && e.message) || e) }));
+          req.setTimeout(12000, () => req.destroy(new Error('timeout')));
+        });
+        (async () => {
+          const directOut = await direct();
+          let tunneled;
+          try {
+            const { status, socket } = await connectTunnel('brand.example:443');
+            tunneled = status === 200
+              ? { connectStatus: status, ...(await tlsGet(socket, 'brand.example', '/products/alpha')) }
+              : { connectStatus: status };
+          } catch (e) {
+            tunneled = { error: String((e && e.message) || e) };
+          }
+          console.log(JSON.stringify({ direct: directOut, tunneled }));
+        })();
+      `;
+      const out = (await runProbe(probeFlags(proxy.url), ['--env=PROXY_URL=' + proxy.url], tunnelProbe)) as {
+        direct: { status?: number; error?: string };
+        tunneled: { connectStatus?: number; status?: number; body?: string; error?: string };
+      };
+      // Denial half must hold wherever the tunnel half is judged.
+      expect(out.direct.status).toBeUndefined();
+      if (out.tunneled.error && /ENETUNREACH|EHOSTUNREACH/.test(out.tunneled.error)) {
+        console.warn(`SKIP: platform cannot route internal-network containers to the host gateway (${out.tunneled.error}) — container HTTPS tunnel skipped`);
+        return;
+      }
+      expect(out.tunneled.error).toBeUndefined();
+      expect(out.tunneled.connectStatus).toBe(200);
+      expect(out.tunneled.status).toBe(200);
+      expect(out.tunneled.body).toBe('<html>secure-proxied</html>');
     } finally {
       await proxy.close();
     }

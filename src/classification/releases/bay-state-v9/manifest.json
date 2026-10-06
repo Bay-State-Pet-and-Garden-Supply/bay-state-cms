@@ -1,0 +1,44 @@
+{
+  "releaseId": "bay-state-v9",
+  "revision": "bay-state-v9",
+  "createdAt": "2026-10-06T15:45:30.346Z",
+  "schemaVersion": 3,
+  "compatibilityVersion": 3,
+  "lifecycle": "release",
+  "sourceBaseline": "bay-state-v8",
+  "fileVersions": {
+    "hierarchy.json": "bc8928b8285ceb90debac40ee999bce55f1fca050f29636dd5b1fd895c916ce1",
+    "facet-profiles.json": "701bee90b8d4c7cf75139a10f77477ef5b4356ba1a1aa2b2cffbeba1e6f8c505",
+    "legacy-mappings.json": "6ff3932a91f6aeaa81e401e67daf6a90cc3daa6fe0240703bcb3f95fd74a6cf0",
+    "attributes.json": "8b631555e3ed926fcf24a4181fe62f23f9d032c7f6c36d731f620cc9af352425",
+    "export-mappings.json": "deb3ed8c3d20e70e709b168adbf852e02abadc180a514250e243ce54a73777a1",
+    "shopsite-projection.json": "434c68fa69fa4120d6415a44305d158dd62934ef42e1fe4e90e6e4ce0ca82b9e",
+    "guidance.json": "144a177eb06d24bbf474ebd6689b5745a12646b79f2cb2942433f7803ca1ffd9",
+    "page-assignment-policy.json": "64eafc38fcf9a9ba074f18a33c7026396642f3458a503419552686ba2285c7db"
+  },
+  "counts": {
+    "nodes": 91,
+    "facetProfiles": 11,
+    "attributes": 27,
+    "mappings": 17,
+    "pages": 153,
+    "departments": 10,
+    "types": 74,
+    "nativeLeaves": 1
+  },
+  "notes": [
+    "bay-state-v5 adds controlled species validation, domain-specific invariant attributes for pet, livestock, equine, and heating product types, and refined facet profiles.",
+    "bay-state-v7 (V5 generation, manifest schemaVersion 3 unchanged): governed species cardinality single->multiple scoped EXACTLY to the compiled profile-supplements and profile-grooming types via two new dedicated facets cloned from their shared facets. No shared-facet fan-out.",
+    "Owner-authorized explicit approval covers ONLY the compiled profile-supplements + profile-grooming species entries: official manufacturer product copy for the affected supplement/grooming products explicitly lists both Dog and Cat. Evidence owner-reviewed (public/dev manufacturer excerpts); no held-out items read.",
+    "Supersedes the rejected bay-state-v6 candidate (shared-facet flip fanned out to 21 compiled profiles; see rejection audit). All other profiles, types, values, mappings, questions, invariants, and history preserved from bay-state-v5 baseline.",
+    "bay-state-v8 (V5 generation, manifest schemaVersion 3 unchanged): owner-decided type definitions for EXACTLY two classifiable types — grooming (pet skin/coat care incl. medicated lotions/shampoos/anti-itch sprays; explicitly flea/tick-targeted products stay Flea & Tick Treatment) and insect-control (electronic/heated mosquito-repellent systems and dedicated consumables). Verbatim owner wording; no other leaf/taxonomy edits.",
+    "All 74 type/profile IDs, facet memberships, species cardinalities (multiple still only profile-supplements + profile-grooming), invariants, values, aliases, mappings, questions, and history preserved from bay-state-v7 baseline.",
+    "Owner-approved CMS↔ShopSite alignment (2026-10-06):",
+    "PF32 is pipe-joined UPC/barcode data — product-cross-sell mapping removed, not_exported (read-only).",
+    "PF8 carries feeding-instruction/ingredient HTML — nutrition mapping removed, not_exported (read-only).",
+    "species vocabulary widened: Wild Bird, Caged Bird, Farm Animal, Small Pet, Bee.",
+    "Delimited '|' serialization adopted for the CMS-owned multi-value slots (live store uses pipes).",
+    "Species membership cardinality normalized to single (profile-pet-food-supplements, profile-accessories-grooming) so the derived target matches the compiler's single-select contract.",
+    "Retires safety-toe-type export intent (already not_exported; remains for the next gold contract revision)."
+  ]
+}

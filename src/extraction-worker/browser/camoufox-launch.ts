@@ -59,6 +59,10 @@ export async function createPlainPlaywrightLaunchContext(
         '--no-sandbox',
         '--disable-infobars',
         '--window-size=1280,800',
+        // Scoped trust flags (e.g. the Tier 1 render worker accepting the
+        // per-run validating-proxy credential in-container). Empty in
+        // normal extraction; only `--` flags survive config parsing.
+        ...(config.extraLaunchArgs ?? []),
       ],
     },
   };

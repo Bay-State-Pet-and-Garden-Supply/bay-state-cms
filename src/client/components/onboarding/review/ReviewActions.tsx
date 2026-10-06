@@ -44,6 +44,8 @@ export interface ReviewActionsProps {
   onNext: () => void;
   onToggleEdit?: () => void;
   onSendToCuration?: () => void;
+  /** Only an authoritative currently-unreviewed review-stage row may complete. */
+  canCompleteReview?: boolean;
 }
 
 export function ReviewActions({
@@ -63,6 +65,7 @@ export function ReviewActions({
   onNext,
   onToggleEdit,
   onSendToCuration,
+  canCompleteReview = true,
 }: ReviewActionsProps) {
   const warningBlocked = workState ? warningInfoFromDetail(detail ?? {}).blocked : false;
   const hasBlockers = Array.isArray(blockers) && blockers.length > 0;
@@ -71,7 +74,7 @@ export function ReviewActions({
 
   return (
     <div className="rv-actions">
-      <button
+      {canCompleteReview && <button
         type="button"
         className="rv-btn rv-btn-primary"
         onClick={onLooksGood}
@@ -82,27 +85,27 @@ export function ReviewActions({
         } (${shortcutKey})`}
       >
         {busy ? 'Saving…' : 'Looks Good & Next'}
-      </button>
+      </button>}
 
-      {filenameWarned && (
+      {canCompleteReview && filenameWarned && (
         <span className="rv-actions-blocked" role="status">
           Filename warning needs an explicit decision — accept the suffixed name{filenameAcceptable ? '' : ' (not available for catalog collisions)'} or defer.
         </span>
       )}
 
-      {filenameWarned && filenameAcceptable && onAcceptFilename && (
+      {canCompleteReview && filenameWarned && filenameAcceptable && onAcceptFilename && (
         <button
           type="button"
           className="rv-btn rv-btn-primary"
           onClick={onAcceptFilename}
-          disabled={!workState || busy}
+          disabled={!workState || busy || editing || hasBlockers}
           title="Record filename accept and mark reviewed"
         >
-          {busy ? 'Saving…' : 'Accept filename & approve'}
+          {busy ? 'Saving…' : 'Accept filename & mark reviewed'}
         </button>
       )}
 
-      {filenameWarned && onDeferFilename && (
+      {canCompleteReview && filenameWarned && onDeferFilename && (
         <button
           type="button"
           className="rv-btn rv-btn-secondary"
@@ -168,7 +171,7 @@ export function ReviewActions({
       )}
       {allReviewed && (
         <span className="rv-shortcut-hint" role="status">
-          All products reviewed — ready for bulk approval in the Approved tab.
+          Review complete — open Reviewed to approve a selection.
         </span>
       )}
     </div>

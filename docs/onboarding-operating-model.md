@@ -2,7 +2,8 @@
 
 This guide describes how a Store Manager operates product onboarding under the
 operator-facing model adopted by [ADR 0016](adr/0016-onboarding-operating-model.md)
-(epic #46). It is the human-facing counterpart to the internal six-stage
+(epic #46), with stage navigation reconciled by
+[ADR 0034](adr/0034-onboarding-rename-and-shell-rewrite.md). It is the human-facing counterpart to the internal six-stage
 execution pipeline (Sourcing → Discovery → Extraction → Curation → Review →
 Promotion), which remains the diagnostics/admin truth.
 
@@ -54,24 +55,48 @@ Ready to Export
    approved. Review is fast and sequential ("Looks Good & Next").
 8. **Bulk Approval** — the Store Manager approves the reviewed selection in
    bulk. Approval is a release decision; it does **not** export or publish.
-9. **Ready to Export** — approved products sit in a Ready to Export queue until
-   the Store Manager runs the export action separately.
+9. **Draft creation and downstream release** — approval authorizes the existing
+   CMS draft operation, not export or publication. In the approved workspace
+   target, Create drafts is the task home; created drafts then continue through
+   the downstream export/release workflow.
 
-## The batch workspace
+## The simplified batch workspace
 
-The batch workspace replaces the six-column Kanban as the primary operating
-view. It is organized around operator meaning, not pipeline stage:
+The owner approved the following simplification on 2026-09-30. It is implemented
+in the working tree; the [verification report](audits/onboarding-ui-simplification-332.md)
+records scoped results and repository-wide check blockers.
+The [UI simplification spec](plans/onboarding-ui-simplification.md) records the
+complete scope and verification decisions.
 
-| View | Meaning | Primary human action |
+The existing Batch Workspace keeps six stage tabs. Each opens its actual working
+screen rather than a basic list followed by an Open workspace button:
+
+| Stage tab | Main content | Primary human action |
 | --- | --- | --- |
-| **Processing** | Products being handled automatically (distributor lookup, materialization, official-site search, extraction, Curation running) | none — visibility only |
-| **Needs Attention** | Products where automation cannot safely continue (URL verification, no URL found, multiple variants, missing/failed extraction profile, source conflict, processing failure) | resolve the blocker |
-| **Waiting on Family** | Products whose own evidence is ready but whose family cannot start Curation because siblings are incomplete or blocked | none from this view (link to the blocking sibling) |
-| **Ready for Review** | Products with completed Curation output awaiting final inspection | review every product |
-| **Approved / Ready to Export** | Reviewed products that received the bulk approval decision; drafts/export pending | export/release when desired |
+| **Identify & Route Sources** | Product, Brand, Source, Status, and Next action | assign brands quickly; open relevant domain/profile/strategy detail when needed |
+| **Find product page** | Progress and specific source-page blockers | resolve the relevant page/variant issue |
+| **Collect details** | Extraction or distributor-materialization progress and actionable failures | resolve the relevant collection issue |
+| **Prepare listing** | Products preparing, waiting on family, or needing attention; real selected-product evidence | inspect preparation detail and correct actual gaps |
+| **Review listings** | Review queue and persistent inspector; Needs review, Reviewed, and Approved filters | inspect, record review, then explicitly approve a reviewed selection |
+| **Create drafts** | Approved products awaiting drafts, created CMS drafts, and completed/skipped outcomes | create drafts and follow the downstream release links |
 
-Every product has exactly one current operator work-state, and Needs Attention
-is the most prominent queue while processing is active.
+Every product still has exactly one current Operator Work-State. Review-history
+filters may show approved products that have advanced to Create drafts; this
+does not change their Pipeline Stage. Attention spans all stages and is exposed
+through a persistent **Needs attention · N** header control. Its panel opens the
+issue list and existing resolver while preserving the underlying tab, filters,
+and selected product. Batch tools no longer competes with stage navigation.
+
+The compact header also contains recorded batch status, **Start branded
+products**, Pause/Resume, and Settings. Start branded products describes the
+existing brand-release behavior, not domain/profile readiness. Start all
+products is an advanced overflow action; detailed live activity begins
+collapsed. Execution permission does not prove worker activity.
+
+New batches start at Identify & Route Sources. Existing batches remember the
+last stage and filters, while explicit valid links take precedence. Restored
+selection is checked against current membership and eligibility; resolution
+and refresh do not silently change the active tab or discard pending edits.
 
 ## Terminology
 
@@ -79,12 +104,12 @@ Human-facing vocabulary describes tasks and outcomes:
 
 | Internal stage | Human-facing term |
 | --- | --- |
-| Sourcing | Distributor Lookup |
-| Discovery | Official Site Search / Verify Product Page |
-| Extraction | Extracting Product Data |
-| Curation | Curating Product Family |
-| Review | Review |
-| Promotion | Approved / Ready to Export / Exporting |
+| Sourcing | Identify & Route Sources |
+| Discovery | Find product page |
+| Extraction | Collect details |
+| Curation | Prepare listing |
+| Review | Review listings |
+| Promotion | Create drafts |
 
 Internal enum names do not change. Raw technical state (stage, stage_status,
 worker terminology) remains available in secondary diagnostics only.
@@ -164,15 +189,23 @@ once every active member is ready, cohort Curation runs automatically.
 
 - Unreviewed products cannot be bulk-approved through the normal path.
 - Items with blocking semantic/review errors cannot be approved.
+- In the approved workspace target, approval is available in the Reviewed
+  filter of Review listings; it is a separate action rather than another
+  destination. Approved products remain available for inspection without
+  review-stage mutation controls.
 - Approval reports exact success/failure counts; partial failures are visible
   and retryable; approval is auditable (actor/time/output version).
 - Approval does **not** automatically export.
 
-## Ready to Export
+## Create drafts and Ready to Export
 
-- Approved products appear under Ready to Export, showing what is approved,
-  what has been exported, what the export action will do, and any export
-  blockers/failures with retry.
+- In the approved workspace target, Create drafts opens the working draft
+  screen directly, showing approved products awaiting draft creation, actual
+  created drafts, and completed/skipped outcomes.
+- Skipped outcomes include products skipped in any stage of the batch, not
+  only products that reached Create drafts.
+- Created drafts that await downstream export are Ready to Export. Draft
+  result links and exact failures/retry options remain visible.
 - Language matches the actual side effect (e.g. "creates ShopSite drafts");
   a product is never called `published` or `exported` until the underlying
   operation has succeeded and been verified.
@@ -210,11 +243,12 @@ once every active member is ready, cohort Curation runs automatically.
 
 9. Review progress reaches 300 / 300.
 
-10. Manager bulk-approves reviewed products.
+10. Manager bulk-approves a reviewed selection in Review listings.
 
-11. Products appear under Ready to Export.
+11. Approved products appear in Create drafts, awaiting CMS draft creation.
 
-12. Manager exports/releases them when operationally appropriate.
+12. Manager creates CMS drafts and follows the downstream export/release
+    workflow when operationally appropriate.
 ```
 
 The desired experience is not "move 300 cards through six columns." It is:

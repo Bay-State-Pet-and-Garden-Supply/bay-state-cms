@@ -450,8 +450,11 @@ export default defineConfig({
       // run under bun test via test:db (dual-runner gate §6.1).
       'src/tests/unit/type-dependent-refresh.test.ts',
       'src/tests/unit/jev-benchmark-preparation.test.ts',
+      // Representative benchmark dev-replay boundary (#302 follow-up) —
+      // bun:test imports; run under bun test via test:db (dual-runner gate §6.1).
       'src/tests/unit/jev-benchmark-replay.test.ts',
-      'src/tests/unit/jev-source-collection.test.ts',
+      // v9 representative corpus invariants (bun:test; deterministic floor).
+      'src/tests/unit/jev-representative-v9.test.ts',
       // Type-first curation / accuracy guardrails suites — bun:test/bun:sqlite
       'src/tests/unit/classification-currentness.test.ts',
       'src/tests/unit/classification-refresh-repo.test.ts',
@@ -477,6 +480,11 @@ export default defineConfig({
       // behavior (the production runtime), which Node-run Vitest cannot
       // exercise; run under bun test via test:db.
       'src/tests/unit/browser-investigation-transport-bun.test.ts',
+      // Export-draft authority gate — bun:test/bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/onboarding-export-draft-authority.test.ts',
+      // Jev v3 source-extractor seam — transitively imports bun:sqlite via the
+      // collector's benchmark-exporter chain; run under bun test directly.
+      'src/tests/unit/jev-source-collection.test.ts',
     ],
   },
 });

@@ -68,6 +68,133 @@ const BLOCK_TAGS = new Set([
   'ProductOnPages', 'productOnPages',
 ]);
 
+/**
+ * True when a parsed top-level product node is a container rather than a leaf
+ * scalar. Nested containers (e.g. QuantityPricing, CrossSell, AddToPages,
+ * OptionMenus, QBImport) are preserved as RAW XML slices: stringifying them
+ * would lose the block and store literal "[object Object]".
+ */
+function isNestedNode(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(entry => entry != null && typeof entry === 'object');
+  return value != null && typeof value === 'object';
+}
+
+/**
+ * Extract one top-level element's RAW source slice from a product block.
+ * Depth/CDATA/comment-aware so nested same-name elements and CDATA bodies are
+ * sliced exactly; repeated sibling occurrences of the same top-level tag are
+ * concatenated with a newline. Returns null when the element cannot be sliced.
+ */
+function extractRawElementXml(xml: string, tagName: string): string | null {
+  const escaped = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const openPattern = new RegExp(`<${escaped}(?=[\\s/>])`, 'i');
+  const slices: string[] = [];
+  let searchFrom = 0;
+
+  while (true) {
+    const openMatch = openPattern.exec(xml.slice(searchFrom));
+    if (!openMatch) break;
+    const start = searchFrom + openMatch.index;
+    const slice = sliceElementFrom(xml, start, tagName);
+    if (!slice) break;
+    slices.push(slice.text);
+    searchFrom = slice.end;
+  }
+
+  return slices.length > 0 ? slices.join('\n') : null;
+}
+
+/** Scan one element's raw slice from its opening '<' to its matching '>'. */
+function sliceElementFrom(
+  xml: string,
+  start: number,
+  tagName: string,
+): { text: string; end: number } | null {
+  let depth = 0;
+  let index = start;
+  while (index < xml.length) {
+    if (xml.startsWith('<![CDATA[', index)) {
+      const close = xml.indexOf(']]>', index + 9);
+      if (close < 0) return null;
+      index = close + 3;
+      continue;
+    }
+    if (xml.startsWith('<!--', index)) {
+      const close = xml.indexOf('-->', index + 4);
+      if (close < 0) return null;
+      index = close + 3;
+      continue;
+    }
+    if (xml[index] === '<') {
+      const close = xml.indexOf('>', index);
+      if (close < 0) return null;
+      const tagText = xml.slice(index, close + 1);
+      const nameMatch = tagText.match(/^<\/?\s*([A-Za-z_][\w.:-]*)/);
+      if (nameMatch && nameMatch[1].toLowerCase() === tagName.toLowerCase()) {
+        const isClose = tagText.startsWith('</');
+        const selfClosing = /\/>$/.test(tagText);
+        if (isClose) {
+          depth -= 1;
+          if (depth === 0) return { text: xml.slice(start, close + 1), end: close + 1 };
+        } else if (selfClosing) {
+          if (depth === 0) return { text: xml.slice(start, close + 1), end: close + 1 };
+        } else {
+          depth += 1;
+        }
+      }
+      index = close + 1;
+      continue;
+    }
+    index += 1;
+  }
+  return null;
+}
+
+/** Matches the preserved-value corruption sentinel ("[object Object]"/"[object Array]"). */
+const PRESERVED_CORRUPTION_RE = /\[object (?:Object|Array)\]/;
+
+/**
+ * List preserved buckets that carry the "[object Object]" corruption sentinel
+ * (defects from pre-fix decode of nested blocks). Empty when clean.
+ */
+export function findPreservedCorruption(product: Product): string[] {
+  const found: string[] = [];
+  for (const [tag, value] of Object.entries(product.shopsite?.preserved?.unknownElements ?? {})) {
+    if (value != null && PRESERVED_CORRUPTION_RE.test(String(value))) {
+      found.push(`unknownElements:${tag}`);
+    }
+  }
+  for (const [tag, value] of Object.entries(product.shopsite?.preserved?.advancedBlocks ?? {})) {
+    if (typeof value === 'string' && PRESERVED_CORRUPTION_RE.test(value)) {
+      found.push(`advancedBlocks:${tag}`);
+    }
+  }
+  return found;
+}
+
+/**
+ * Fail-closed preflight for every ShopSite write path: a product whose
+ * preserved data carries the corruption sentinel must never be encoded or
+ * uploaded (dbupload is a full-record import — emitting the sentinel destroys
+ * live blocks, and silently omitting one resets it to DTD defaults).
+ */
+export function assertNoPreservedCorruption(products: readonly Product[]): void {
+  const offenders: string[] = [];
+  for (const product of products) {
+    const found = findPreservedCorruption(product);
+    if (found.length > 0) {
+      offenders.push(`${product.sku || '(no-sku)'} [${found.join(', ')}]`);
+      if (offenders.length >= 5) break;
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `preserved_data_corrupted: ${offenders.length >= 5 ? 'at least 5 products' : `${offenders.length} product(s)`} carry "[object Object]" in preserved ShopSite data (${offenders.join('; ')}). ` +
+      'Refusing to encode/upload corrupted drafts — repair the preserved blocks from a fresh db_xml.cgi download first.',
+    );
+  }
+}
+
 const KNOWN_FIELD_LABELS: Record<string, { label: string; kind: string }> = {
   SKU: { label: 'SKU', kind: 'core' },
   Name: { label: 'Product Name', kind: 'core' },
@@ -183,11 +310,13 @@ export class ShopSiteProductCodec {
           if (tagName.startsWith('@_')) continue;
           if (tagName === 'Product' || tagName === 'product') continue;
 
-          if (BLOCK_TAGS.has(tagName)) {
-            const blockRegex = new RegExp(`<${tagName}>[\\s\\S]*?<\\/${tagName}>`, 'i');
-            const bMatch = block.match(blockRegex);
-            if (bMatch) {
-              advancedBlocks[tagName] = bMatch[0];
+          if (BLOCK_TAGS.has(tagName) || isNestedNode(tagValue)) {
+            const rawSlice = extractRawElementXml(block, tagName);
+            // Self-closing empties (<Subproducts/>) carry no content and were
+            // never preserved; routing them to the raw bucket would make every
+            // existing draft disagree with a fresh decode (false drift).
+            if (rawSlice && !rawSlice.endsWith('/>')) {
+              advancedBlocks[tagName] = rawSlice;
             }
             continue;
           }
@@ -530,21 +659,24 @@ export class ShopSiteProductCodec {
     }
 
     // 16. DisplayMoreInformationPage & MoreInformationText
+    // The display flag is emitted for EVERY product (live store sets it on all
+    // products); MoreInformationText stays gated on content.
+    const displayFlagRaw = product.customFields['DisplayMoreInformationPage']
+      ?? product.customFields['DisplayMoreInformationPage_']
+      ?? (product.shopsite.preserved.unknownElements['DisplayMoreInformationPage'] != null
+          ? String(product.shopsite.preserved.unknownElements['DisplayMoreInformationPage'])
+          : (product.shopsite.preserved.unknownElements['DisplayMoreInformationPage_'] != null
+              ? String(product.shopsite.preserved.unknownElements['DisplayMoreInformationPage_'])
+              : null));
+    const displayDisabled = ['uncheck', 'unchecked', 'no', '0', 'false']
+      .includes((displayFlagRaw ?? '').trim().toLowerCase());
+    lines.push(`  <DisplayMoreInformationPage>${displayDisabled ? 'uncheck' : 'checked'}</DisplayMoreInformationPage>`);
+
     const moreInfoText = product.customFields['MoreInformationText']
       || (product.shopsite.preserved.unknownElements['MoreInformationText'] != null
           ? String(product.shopsite.preserved.unknownElements['MoreInformationText'])
           : product.core.description);
     if (moreInfoText) {
-      const displayFlagRaw = product.customFields['DisplayMoreInformationPage']
-        ?? product.customFields['DisplayMoreInformationPage_']
-        ?? (product.shopsite.preserved.unknownElements['DisplayMoreInformationPage'] != null
-            ? String(product.shopsite.preserved.unknownElements['DisplayMoreInformationPage'])
-            : (product.shopsite.preserved.unknownElements['DisplayMoreInformationPage_'] != null
-                ? String(product.shopsite.preserved.unknownElements['DisplayMoreInformationPage_'])
-                : null));
-      const displayDisabled = ['uncheck', 'unchecked', 'no', '0', 'false']
-        .includes((displayFlagRaw ?? '').trim().toLowerCase());
-      lines.push(`  <DisplayMoreInformationPage>${displayDisabled ? 'uncheck' : 'checked'}</DisplayMoreInformationPage>`);
       lines.push(`  <MoreInformationText><![CDATA[${escapeCdata(moreInfoText)}]]></MoreInformationText>`);
     }
 
@@ -592,6 +724,10 @@ export class ShopSiteProductCodec {
     const preserved = product.shopsite.preserved;
     for (const [blockName, blockXml] of Object.entries(preserved.advancedBlocks)) {
       if (blockName.toLowerCase() === 'productonpages') continue;
+      if (PRESERVED_CORRUPTION_RE.test(blockXml)) {
+        warnings.push(`Refusing to emit corrupted preserved block "${blockName}" (contains "[object Object]"); repair the draft before upload.`);
+        continue;
+      }
       lines.push(`  ${blockXml}`);
     }
 
@@ -604,14 +740,27 @@ export class ShopSiteProductCodec {
       if (tag === 'DisplayMoreInformationPage' || tag === 'DisplayMoreInformationPage_') continue;
       if (tag === 'MoreInformationGraphic') continue;
       if (tag === 'FileName') continue;
+      // Dedicated emitter (§11) owns ProductType; re-emitting here duplicates it.
+      if (tag === 'ProductType') continue;
       if (!isValidXmlTagName(tag)) {
         warnings.push(`Skipping unknown element "${tag}" because it is not a valid XML tag name.`);
         continue;
       }
       const stringVal = rawValue != null ? String(rawValue) : '';
-      if (stringVal) {
-        lines.push(`  <${tag}>${escapeXml(stringVal)}</${tag}>`);
+      if (!stringVal) continue;
+      if (PRESERVED_CORRUPTION_RE.test(stringVal)) {
+        warnings.push(`Refusing to emit corrupted preserved value for "${tag}" (contains "[object Object]"); repair the draft before upload.`);
+        continue;
       }
+      lines.push(`  <${tag}>${escapeXml(stringVal)}</${tag}>`);
+    }
+
+    // 23. ShopSite record identity (last, matching live element order)
+    if (product.shopsite.productId) {
+      lines.push(`  <ProductID>${escapeXml(product.shopsite.productId)}</ProductID>`);
+    }
+    if (product.shopsite.productGuid) {
+      lines.push(`  <ProductGUID>${escapeXml(product.shopsite.productGuid)}</ProductGUID>`);
     }
 
     lines.push('</Product>');

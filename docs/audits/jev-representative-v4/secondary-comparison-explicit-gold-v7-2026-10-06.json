@@ -1,0 +1,216 @@
+{
+  "comparisonRole": "secondary_comparator",
+  "provider": "deepseek-cloud",
+  "model": "deepseek-flash",
+  "entries": 23,
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "candidateWorstCaseAttempts": 92,
+  "comparatorWorstCaseAttempts": 506,
+  "perLegBudget": {
+    "maxHttpAttempts": 600,
+    "maxConcurrency": 2,
+    "hardDeadlineMs": 300000
+  },
+  "historicalIncumbentComparison": false,
+  "qualificationEligible": false,
+  "sourceCapture": "docs/audits/jev-representative-v4/secondary-comparison-v7-2026-10-06.json",
+  "sourceCaptureSha256": "35d947c7455d66b5c915f8d230e8df5898f776cdfba62db41ba8278b92b8944d",
+  "sourceArtifactHash": "088082e0d7d82d63209f9123164f7ccc0df821a429d0ae5d7db54f3fa094dd7b",
+  "captureGoldSha256": "02d3ab09834b3a2f7255bfb9d30f3e726a904dbd4e1ebab981eb19132b409e08",
+  "evaluatedGoldSha256": "1330b3a1873beb15e52074674bd2f6a9aa3191ed5c650ce33722edb3fd570468",
+  "sourceInputsUnchanged": true,
+  "predictionsUnchanged": true,
+  "additionalModelRequests": 0,
+  "report": {
+    "timestamp": "2026-10-06T12:23:28.038Z",
+    "evaluatedExamples": 23,
+    "devCount": 23,
+    "holdoutCount": 0,
+    "productType": {
+      "evaluation": {
+        "eligible": 23,
+        "unevaluated": 0,
+        "status": "measured"
+      },
+      "rawCorrectness": {
+        "baseline": 0.6957,
+        "candidate": 0.9565,
+        "delta": 0.2609
+      },
+      "coverage": {
+        "baseline": 0.7826,
+        "candidate": 0.7391,
+        "delta": -0.0435
+      },
+      "incorrectProposals": {
+        "baseline": 2,
+        "candidate": 1,
+        "delta": -1
+      },
+      "harmfulRegressions": 0,
+      "recoveredAbstentions": 5,
+      "serviceFailures": {
+        "baseline": 0,
+        "candidate": 0
+      }
+    },
+    "attributes": {
+      "evaluation": {
+        "eligible": 18,
+        "unevaluated": 5,
+        "status": "measured"
+      },
+      "rawCorrectness": {
+        "baseline": 1,
+        "candidate": 1,
+        "delta": 0
+      },
+      "coverage": {
+        "baseline": 1,
+        "candidate": 0.9444,
+        "delta": -0.0556
+      },
+      "incorrectProposals": {
+        "baseline": 0,
+        "candidate": 0,
+        "delta": 0
+      },
+      "harmfulRegressions": 0,
+      "recoveredAbstentions": 0,
+      "serviceFailures": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "setMetrics": {
+        "exactMatch": {
+          "baseline": 0.8889,
+          "candidate": 0.9444
+        },
+        "precision": {
+          "baseline": 0.8889,
+          "candidate": 0.9444
+        },
+        "recall": {
+          "baseline": 0.8889,
+          "candidate": 0.9444
+        },
+        "f1": {
+          "baseline": 0.8889,
+          "candidate": 0.9444
+        }
+      }
+    },
+    "categoryPages": {
+      "evaluation": {
+        "eligible": 0,
+        "unevaluated": 23,
+        "status": "not_evaluated"
+      },
+      "rawCorrectness": {
+        "baseline": 0,
+        "candidate": 0,
+        "delta": 0
+      },
+      "coverage": {
+        "baseline": 0,
+        "candidate": 0,
+        "delta": 0
+      },
+      "incorrectProposals": {
+        "baseline": 0,
+        "candidate": 0,
+        "delta": 0
+      },
+      "harmfulRegressions": 0,
+      "recoveredAbstentions": 0,
+      "serviceFailures": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "setMetrics": {
+        "exactMatch": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "precision": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "recall": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "f1": {
+          "baseline": 0,
+          "candidate": 0
+        }
+      }
+    },
+    "telemetry": {
+      "latency": {
+        "baseline": {
+          "meanMs": 1796,
+          "p50Ms": 1580,
+          "p95Ms": 3859
+        },
+        "candidate": {
+          "meanMs": 309,
+          "p50Ms": 344,
+          "p95Ms": 404
+        }
+      },
+      "estimatedCostUsd": {
+        "baseline": null,
+        "candidate": null
+      },
+      "operatorTimeNote": "Pipeline and model run duration metrics reflect computational latency and do not constitute measured operator-time gains."
+    },
+    "endToEndPipeline": {
+      "totalMembers": 23,
+      "typeResolution": {
+        "correct": 16,
+        "abstained": 6,
+        "incorrect": 1,
+        "unevaluated": 0,
+        "failed": 0
+      },
+      "attributeEffects": {
+        "totalEvaluated": 16,
+        "eligible": 16,
+        "unevaluated": 1,
+        "failed": 0,
+        "correctWhenTypeCorrect": 16,
+        "abstainedWhenTypeAbstained": 0
+      },
+      "pageEffects": {
+        "totalEvaluated": 23,
+        "eligible": 0,
+        "unevaluated": 23,
+        "failed": 0,
+        "exactMatchWhenTypeCorrect": 0,
+        "abstainedWhenTypeAbstained": 0
+      },
+      "endToEndCorrectAllStages": 0
+    },
+    "summary": {
+      "candidateOutperformsBaseline": true,
+      "zeroHarmfulRegressionsOnHoldout": true,
+      "zeroServiceFailures": true
+    }
+  },
+  "candidateAudit": {
+    "consumed": 40,
+    "rejected": 0,
+    "maxHttpAttempts": 600,
+    "deadlineFired": false
+  },
+  "comparatorAudit": {
+    "consumed": 20,
+    "rejected": 0,
+    "maxHttpAttempts": 600,
+    "deadlineFired": false
+  },
+  "pageCohortContext": "isolated_single_choice_approximation",
+  "policiesPublishedBeforeHoldout": false,
+  "holdoutInference": false
+}

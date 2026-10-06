@@ -1,0 +1,845 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "qualification-gold-only-fresh-development",
+ "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+ "authorityBinding": {
+  "release": "bay-state-v8",
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "taxonomy": "docs/audits/jev-representative-v4/taxonomy.json",
+  "sourceBank": "docs/audits/jev-representative-v4/source-development.json"
+ },
+ "frozenConditionalInputs": {
+  "speciesCardinality": {
+   "profile-grooming": "multiple",
+   "profile-supplements": "multiple",
+   "defaultSingle": "all-other-72-profiles"
+  },
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "release": "bay-state-v8"
+ },
+ "selectionPolicy": "V4 development: all 23 primary families reviewed in source order; no sampling; 1 supplemental variant excluded from independent support.",
+ "entries": [
+  {
+   "sku": "PUBLIC:ruffwear.com:7a02531f86d15d5f",
+   "familyId": "family-bead2225cd3cd213fd99e36575f86f0b",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "With an engaging, origami-like shape, the Remix™ Cactus Tug Toy features an irresistible shape that dogs love to sink their teeth into.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Designed and tested with feedback from avalanche rescue teams, this toy dials up the fun by turning flat webbing into three-dimensional fun that’s easy to tug, toss, and fetch.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:c85e7db84408a6ec",
+   "familyId": "family-4f6d5eba6f1ba63eaa5eb6f4b9789c39",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Inspired by our original Hover Craft toy, the Remix™ Soft Flying Disc is a lightweight, flexible flyer for fetch sessions on land.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "It’s soft build is easy on gums and teeth, great for building confidence in aspiring disc dogs.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:b36d7e293f3e1ee5",
+   "familyId": "family-a223b9a5575603b61442d784cc5ca60d",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "This food and water bowl footprint has a non-slip surface and base, sturdy walls for containing spills, and an easy to clean surface.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Adventures begin at basecamp, and the Basecamp™ Mat is where your canine sidekick can go to refresh and refuel for their next excursion.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:a356f29052b12e15",
+   "familyId": "family-d4ae2376f177d11a3fbe12f9e430da01",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "The Kibble Kaddie™ is a soft-sided, travel-friendly dog food carrier.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "A compact, convenient design allows for easy transport, storage, and dispensing of kibble on the road or at camp.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:fbdfa0be8d41f3cd",
+   "familyId": "family-0c7354ebe0641c5091c6282625731781",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Rest, rinse, and repeat with the Dirtbag™ Bed – an easy to clean and durable outdoor dog bed designed to handle the grit and aftermath that come standard with canine explorers.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "On top, a breathable air mesh sleeping surface.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "pet-beds"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5f23228aa68c8b2f",
+   "familyId": "family-02347ff4380256fe96f1b706de137fe4",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "EverRest™ Dog Cot takes your dog’s post-adventure nap up a notch as a light, strong, and stable elevated dog bed.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "pet-beds"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5c238b471d461c33",
+   "familyId": "family-2d430c49e7e935ba78f1f540a1bfcf12",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Fuel your dog’s adventures with the light and durable Bivy™ Dog Bowl.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:31a0f5e6a390cb8d",
+   "familyId": "family-c16a187ffa64c028c14e783d3aa6a72c",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "This BPA-free water bladder is collapsible and lightweight, ideal for adventures on the trail.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:d2ec2ac7da1c4301",
+   "familyId": "family-24cb6db2351f0c9bb5e8b7e50288d4bf",
+   "split": "dev",
+   "assortment": "neighbors",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "The Beacon™ is a high-performance safety dog light to help keep dogs visible in low-light conditions or inclement weather.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:4e6d23ef30273be0",
+   "familyId": "family-0b62d0c05013fa6637b2df3c4ac60dcc",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Earth Rated's Odor-Blocking Dog Poop Bags Refill Rolls deliver superior protection with our innovative 3X Protect system, combining odor-blocking technology, leak-proof performance, and full blackout ",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Key Features 3X Protect Technology: Our advanced triple-layer protection system features odor-blocking technology that fully conceals unpleasant smells, leak-proof construction for reliable containmen",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-waste-bags"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b002e86083719174",
+   "familyId": "family-0000ff39e204c84dc45b13ff8b3e39c3",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Leak protection, quick-drying unscented surface, adhesive tabs, and a built-in training attractant all in one pad.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Earth Rated Max Absorbency Pee Pads with AbsorbShield™+ Technology absorb 2X faster and 2X more* than the leading brand, locking away messes before they become problems.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:6270cc60dfd3d21a",
+   "familyId": "family-0dc1de2649e2bcd9e067bfba0cd07070",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Our dog poop bags with handles on a roll tear smoothly from the roll and open extra wide for mess-free handling.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Our handle bags open extra wide so they can handle any size mess.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-waste-bags"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:426b60b6a318a407",
+   "familyId": "family-93417821491848e16c419e83a5c8b01e",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Complete Coat Care in One Simple StepTransform bath time with our 3-in-1 dog shampoo collection that cleans, hydrates, and deodorizes your dog's coat all at once.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "No more juggling multiple products - just one gentle formula that does it all.Tailored for Every Dog's Unique Needs: Detangling Formula: Perfect for dogs with long or easily matted coats Deshedding Fo",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:debd72edb60f6e07",
+   "familyId": "family-014bfa289c90dccd0fa2d45fc863d04f",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Clean Your Dog Anywhere, Anytime - No Water NeededTransform grooming time with our revolutionary no-rinse dog shampoo.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Perfect for busy pet parents, anxious dogs, or when a traditional bath just isn't possible.Why Pet Parents Love Our Waterless Formula: No Bath Required: Clean your dog anywhere - at home, in the car, ",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7a96f15b7db29ed9",
+   "familyId": "family-a661b1bce3610a49748d8e0d6c186384",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Instantly Eliminate Dog Odors with One Quick SpraySay goodbye to embarrassing dog smells with our powerful deodorizing spray.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Whether it's that wet dog smell, outdoor adventures, or just daily freshening, our triple-action mist delivers instant results.Triple-Action Deodorizing Power: Instant Odor Elimination: Neutralizes sm",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1ac771fa42bf640e",
+   "familyId": "family-4787e4641caf71e67037df30a84bfab2",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Finally, Relief from Endless Dog HairTired of finding dog hair everywhere?",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Our deshedding 3-in-1 shampoo is specially formulated to reduce excessive shedding while keeping your dog's coat healthy and beautiful.Triple Action Shedding Control: Loosens Undercoat: Gently release",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1f1ed0341a3ef189",
+   "familyId": "family-5a31a166598f0818bac9d2cd03046fcc",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Gentle Relief for Sensitive SkinGive your dog the comfort they deserve with our soothing 3-in-1 shampoo, specially formulated for dogs with sensitive skin, allergies, or irritation.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Finally, a bath that feels good instead of causing stress.Triple Soothing Action: Calms Irritation: Natural ingredients reduce redness and itching Gentle Cleansing: Removes dirt without stripping prot",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b5abb3ce76063356",
+   "familyId": "family-78ae7158aefdcc39dd2399bc1d13e521",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Cleanse your dog’s eyes and reduce tear stains in a blink with Earth Rated Dog Eye Wipes.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Earth Rated Dog Eye Wipes are thoughtfully designed to help you take care of your dog’s eyes in just a few swipes.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:dce61981c59bcf5b",
+   "familyId": "family-a1323a004e17fecf0fd299dcc6e7f7a4",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Simplify ear care for your dog with easy-to-use Earth Rated Dog Ear Wipes Thoughtfully designed to cleanse the sensitive folds, flaps, and fur of your dog’s ears in just a few swipes.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Hypoallergenic and formulated with soothing aloe vera, each wipe measures 5x5 inches—large enough to give both ears a good clean.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:83729b8e5d3bb8d0",
+   "familyId": "family-2eebe81009b1a4df365dc5e5623f4bc4",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Keep Your Dog Fresh, Clean, and Comfortable Between Baths The Problem Every Dog Owner Knows: Dogs get dirty.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Gentle enough for daily use, tough enough to handle real messes, and formulated with premium plant-based ingredients that actually nourish your dog's skin and coat.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:296bf8efe35fecda",
+   "familyId": "family-698fc0b7b51025f77531d8f1b6ed28e0",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Sturdy, minimal-swing silicone strap attaches easily to any style of leash.",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:12c39097063f5fd5",
+   "familyId": "family-10f3622f15771bf4dc33ae0bd1b3c8dc",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Long-lasting bulk format perfect for multi-dog households Convenient tissue-style dispensing right out of the box Extra long, extra strong and 100% leak-proof guaranteed Made from 65% certified post-c",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-waste-bags"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7b85b2c72ae1d942",
+   "familyId": "family-824fb94f871499d9a3ed21d42c6f3aaa",
+   "split": "dev",
+   "assortment": "care",
+   "evidence": [
+    {
+     "source": "official_product_page",
+     "snippet": "Never Worry About Leaks AgainMake dog walks stress-free with our premium poop bags on refill rolls.",
+     "reliability": "high",
+     "attributeId": null
+    },
+    {
+     "source": "official_product_page",
+     "snippet": "Designed for pet parents who need reliable, mess-free cleanup every single time.Why Dog Owners Love These Bags: 100% Leak-Proof Guarantee: Extra strong construction prevents tears and embarrassing lea",
+     "reliability": "high",
+     "attributeId": null
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-waste-bags"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  }
+ ]
+}

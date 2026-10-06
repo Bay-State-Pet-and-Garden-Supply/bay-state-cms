@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   getBatches,
   getBatch,
@@ -21,6 +21,13 @@ import { formatCount, totalItemCount } from './onboarding/batch-workspace-logic'
 import { matchExistingBrand } from '../../shared/brand-matcher';
 import { resolveOnboardingSettingsTab } from './onboarding-settings/tabRegistry';
 import { getProfileWorkspacePath } from './profile-workspace/route';
+import { parseWorkspaceSelection } from './onboarding/linear-workspace-logic';
+import {
+  batchWorkspaceUrl,
+  clearBatchWorkspaceParams,
+  readLastWorkspaceStage,
+  rememberWorkspaceStage,
+} from './onboarding/workspace-view-state';
 
 // Semantic SVG Icons (replaces raw unicode emoji for consistent craft)
 function ReportIcon() {
@@ -154,6 +161,10 @@ export function Onboarding() {
     : null;
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(initialBatchId);
   const [selectedBatch, setSelectedBatch] = useState<OnboardingBatch | null>(null);
+  const selectedBatchIdRef = useRef(initialBatchId);
+  const selectedBatchRef = useRef<OnboardingBatch | null>(null);
+  const batchSelectionGeneration = useRef(0);
+  const onboardingPath = useRef(window.location.pathname);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -223,38 +234,50 @@ export function Onboarding() {
     }
   };
 
-  const handleSelectBatch = async (batchId: string, replaceHistory = false) => {
+  const rememberCurrentStage = () => {
+    const batch = selectedBatchRef.current;
+    const url = new URL(window.location.href);
+    if (!batch || url.searchParams.get('batch') !== batch.id) return;
+    const selection = parseWorkspaceSelection(url.search);
+    // Attention/outcome links and unsupported fallbacks never replace the
+    // operator's last stage with an inferred Stage 1.
+    if (selection.kind === 'stage') rememberWorkspaceStage({ workspaceId: batch.workspaceId, batchId: batch.id }, selection.stage);
+  };
+
+  const handleSelectBatch = async (batchId: string, replaceHistory = false, newBatch = false) => {
+    rememberCurrentStage();
+    const generation = ++batchSelectionGeneration.current;
     setLoading(true);
     setError('');
+    selectedBatchIdRef.current = batchId;
+    selectedBatchRef.current = null;
     setSelectedBatchId(batchId);
+    setSelectedBatch(null);
     try {
       const batchRes = await getBatch(batchId);
+      if (generation !== batchSelectionGeneration.current) return;
+      const scope = { workspaceId: batchRes.batch.workspaceId, batchId };
+      const url = batchWorkspaceUrl(new URL(window.location.href), batchId, readLastWorkspaceStage(scope), newBatch);
+      selectedBatchRef.current = batchRes.batch;
       setSelectedBatch(batchRes.batch);
-      const url = new URL(window.location.href);
-      url.searchParams.set('view', 'onboarding');
-      url.searchParams.set('batch', batchId);
-      // If the batch has items needing attention and no explicit stage/tab was in the URL,
-      // default the user directly into Needs Attention:
-      const counts = batchCounts[batchId];
-      if (!url.searchParams.get('tab') && !url.searchParams.get('stage') && counts && (counts.needs_attention ?? 0) > 0) {
-        url.searchParams.set('tab', 'needs_attention');
-      }
       if (replaceHistory) {
         window.history.replaceState({ view: 'onboarding', batch: batchId }, '', url.toString());
       } else {
         window.history.pushState({ view: 'onboarding', batch: batchId }, '', url.toString());
       }
+      rememberCurrentStage();
     } catch (err) {
+      if (generation !== batchSelectionGeneration.current) return;
       setError(err instanceof Error ? err.message : String(err));
+      selectedBatchIdRef.current = null;
+      selectedBatchRef.current = null;
       setSelectedBatchId(null);
       setSelectedBatch(null);
       const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete('batch');
-      cleanUrl.searchParams.delete('tab');
-      cleanUrl.searchParams.delete('board');
+      clearBatchWorkspaceParams(cleanUrl.searchParams);
       window.history.replaceState({ view: 'onboarding' }, '', cleanUrl.toString());
     } finally {
-      setLoading(false);
+      if (generation === batchSelectionGeneration.current) setLoading(false);
     }
   };
 
@@ -263,33 +286,60 @@ export function Onboarding() {
     if (initialBatchId) {
       void handleSelectBatch(initialBatchId, true);
     }
+    return () => { batchSelectionGeneration.current += 1; };
   }, []);
 
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
+      // The app also dispatches popstate for specialist/settings navigation.
+      // Never rewrite another app view's `tab` or reclaim its URL.
+      if (window.location.pathname !== onboardingPath.current || (params.get('view') !== null && params.get('view') !== 'onboarding')) {
+        batchSelectionGeneration.current += 1;
+        if (!selectedBatchRef.current) selectedBatchIdRef.current = null;
+        return;
+      }
       const urlBatchId = params.get('batch');
-      if (urlBatchId !== selectedBatchId) {
+      if (urlBatchId !== selectedBatchIdRef.current) {
         if (urlBatchId) {
           void handleSelectBatch(urlBatchId, true);
         } else {
+          batchSelectionGeneration.current += 1;
+          selectedBatchIdRef.current = null;
+          selectedBatchRef.current = null;
           setSelectedBatchId(null);
           setSelectedBatch(null);
+          setLoading(false);
+          const cleanUrl = new URL(window.location.href);
+          clearBatchWorkspaceParams(cleanUrl.searchParams);
+          window.history.replaceState({ view: 'onboarding' }, '', cleanUrl.toString());
           void fetchBatchesList();
+        }
+      } else if (urlBatchId && selectedBatchRef.current) {
+        rememberCurrentStage();
+        const batch = selectedBatchRef.current;
+        const current = new URL(window.location.href);
+        const url = batchWorkspaceUrl(current, urlBatchId, readLastWorkspaceStage({ workspaceId: batch.workspaceId, batchId: urlBatchId }));
+        if (url.href !== current.href) {
+          window.history.replaceState({ view: 'onboarding', batch: urlBatchId }, '', url.toString());
+          window.dispatchEvent(new PopStateEvent('popstate'));
         }
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedBatchId]);
+  }, []);
 
   const handleBackToBatches = () => {
+    rememberCurrentStage();
+    batchSelectionGeneration.current += 1;
+    selectedBatchIdRef.current = null;
+    selectedBatchRef.current = null;
     setSelectedBatchId(null);
     setSelectedBatch(null);
+    setLoading(false);
     const url = new URL(window.location.href);
-    url.searchParams.delete('batch');
-    url.searchParams.delete('tab');
-    url.searchParams.delete('board');
+    clearBatchWorkspaceParams(url.searchParams);
     window.history.pushState({ view: 'onboarding' }, '', url.toString());
     fetchBatchesList();
   };
@@ -299,13 +349,15 @@ export function Onboarding() {
     if (!confirm('Are you sure you want to delete this batch and all its items?')) return;
     try {
       await deleteBatch(id);
-      if (selectedBatchId === id) {
+      if (selectedBatchIdRef.current === id) {
+        batchSelectionGeneration.current += 1;
+        selectedBatchIdRef.current = null;
+        selectedBatchRef.current = null;
         setSelectedBatchId(null);
         setSelectedBatch(null);
+        setLoading(false);
         const url = new URL(window.location.href);
-        url.searchParams.delete('batch');
-        url.searchParams.delete('tab');
-        url.searchParams.delete('board');
+        clearBatchWorkspaceParams(url.searchParams);
         window.history.replaceState({ view: 'onboarding' }, '', url.toString());
       }
       fetchBatchesList();
@@ -458,7 +510,7 @@ export function Onboarding() {
       setBrandMappings({});
       
       await fetchBatchesList();
-      handleSelectBatch(res.batch.id);
+      await handleSelectBatch(res.batch.id, false, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -739,7 +791,7 @@ export function Onboarding() {
       <div style={styles.container}>
         {boardQuery && (
           <div role="status" data-testid="retired-diagnostics-notice" style={{ backgroundColor: colors.feedBagCream, color: colors.ledgerCharcoal, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.md, padding: '8px 12px', marginBottom: 20, fontSize: '0.8125rem' }}>
-            The pipeline board diagnostics view has been retired — showing the Batch Workspace instead. Use the stage tabs and operations below; nothing was lost.
+            The pipeline board diagnostics view has been retired — showing the Batch Workspace instead. Use the stage tabs and Needs attention panel below.
           </div>
         )}
         <ViewHeader
@@ -797,6 +849,7 @@ export function Onboarding() {
                     tabIndex={0}
                     role="row"
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         handleSelectBatch(batch.id);
@@ -809,7 +862,7 @@ export function Onboarding() {
                     <td style={styles.td}>
                       <button
                         type="button"
-                        onClick={() => handleSelectBatch(batch.id)}
+                        onClick={(e) => { e.stopPropagation(); void handleSelectBatch(batch.id); }}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -1259,6 +1312,7 @@ export function Onboarding() {
         <BatchWorkspace
           batchId={selectedBatchId}
           batchName={selectedBatch.name}
+          workspaceId={selectedBatch.workspaceId}
           onBack={handleBackToBatches}
           onOpenSettings={() => setShowSettings(true)}
           onOpenProfileBuilder={(domain) => {

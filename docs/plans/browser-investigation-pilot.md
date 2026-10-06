@@ -139,6 +139,59 @@ from the trusted GTIN/SKU. Every compiled policy field — `title`, `brand`,
   `BAYSTATE_CMS_BROWSER_INVESTIGATION_PILOT=1` plus available isolation; the
   deterministic suites never launch it.
 
+## Tier-1 rendered pilot status (#237, Worker C)
+
+Status: **not yet exercised live — the default gate stays deferred**
+(`render_deferred`). The pilot above remains Tier-0-only evidence
+(`modelCalls: 0`, `renderOptIn` absent/false). This section records what
+was done toward a Tier-1 pilot, what blocks it, and what is explicitly
+not claimed.
+
+What was done (Worker C slice):
+
+1. **Tier-1 opt-in passthrough**: `scripts/browser-investigation-pilot.ts`
+   now constructs the real harness with `{ allowTier1Render: true }`
+   when — and only when — the operator exports
+   `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`, and passes `renderOptIn`
+   through `runPilot` so the report records it verbatim. Without the
+   switch the pilot behaves exactly as the recorded Tier-0 run above.
+2. **Tier-1 → validation integration** (deterministic, fakes):
+   `src/tests/unit/browser-investigation-tier1-validate.test.ts` proves a
+   Tier-1-flavored completed result (merged `page_rendered` observations,
+   truthful `modelCalls: 1` with the acting model) flows through the
+   UNCHANGED compile → production-worker representative + blind-holdout
+   validation → governed inactive draft path, and that a Tier-1
+   observation leaking holdout material fails closed with
+   `holdout_exposed` before any worker call.
+3. **Gate decision: LEFT DEFERRED.** Lifting the default
+   `render_deferred` gate requires all three proofs, and none is complete:
+   - (a) Proxy-only egress for the rendered path is being re-proven at
+     container level alongside the in-flight CONNECT-interception work
+     (sibling slice; `render-proxy.ts`, `isolation.ts`,
+     `camoufox-launch.ts`/`config.ts` all have uncommitted changes at the
+     time of writing).
+   - (b) Holdout-blindness + budgets are being re-proven: the staged
+     `model-context.ts` fix (probing `investigationId` as a
+     model-visible surface) shows the blindness proof is still in flux.
+   - (c) No passing Tier-1 Shopify compile exists locally or in a pilot:
+     the render image does not build in this environment
+     (`better-sqlite3` postinstall needs Python via node-gyp; the
+     `oven/bun:1.3.5` build step has none), so no live render container
+     could be launched here, and no Tier-1 pilot has been recorded.
+
+What this section does NOT claim:
+
+- **No rendered navigation proof.** No real HTTPS product page has been
+  rendered through the validating boundary in any run recorded here.
+- **No gate change.** `local-harness.ts` still refuses
+  rendered-required work with `render_deferred` by default; ADR 0038's
+  addendum and `CONTEXT.md` carry the same reason, unchanged.
+- **No Tier-1 pilot report.** There is no `renderOptIn: true` run to
+  quote. When the three proofs land, the Tier-1 pilot is:
+  `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1` plus the reproduce steps above,
+  and its report (with `renderOptIn: true`, actual `modelCalls`, and the
+  acting model) will be appended here verbatim.
+
 ## How to reproduce
 
 ```sh

@@ -9,6 +9,8 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems } from '../../db/repositories/onboarding-item-repo';
+import { markReviewed, markApproved, markReviewInvalidated } from '../../db/repositories/onboarding-review-repo';
+import { getBatchReviewQueue } from '../../onboarding/onboarding-review-queue';
 import onboardingWorkRoutes from '../../server/routes/onboarding-work-routes';
 import {
   ReviewQueuePageSchema,
@@ -122,6 +124,126 @@ beforeAll(async () => {
     totalItems: 5,
   });
   foreignBatchId = foreignBatch.id;
+});
+
+describe('Active review scope and progress (#280 service + HTTP seam)', () => {
+  it('returns selected metadata beyond the page without changing rows, counts, or cursor identity', async () => {
+    const first = getBatchReviewQueue(testBatchId, { limit: 50 });
+    const second = getBatchReviewQueue(testBatchId, { limit: 50, cursor: first.nextCursor! });
+    const selected = second.rows[10];
+    const app = makeApp();
+    const response = await app.request(`/api/onboarding/batches/${testBatchId}/review-queue?limit=50&selectedItemId=${selected.itemId}`);
+    expect(response.status).toBe(200);
+    const result = ReviewQueuePageSchema.parse(await response.json());
+    expect(result.rows).toEqual(first.rows);
+    expect(result.selectedRow?.itemId).toBe(selected.itemId);
+    expect(result.counts).toEqual(first.counts);
+    expect(result.nextCursor).toBe(first.nextCursor);
+    expect(computeReviewQueueFilterHash({ limit: 50, selectedItemId: selected.itemId })).toBe(computeReviewQueueFilterHash({ limit: 50 }));
+    expect(getBatchReviewQueue(testBatchId, { limit: 50, brand: 'No matching brand', selectedItemId: selected.itemId }).selectedRow).toBeNull();
+    const foreign = getDb().query('SELECT id FROM onboarding_items WHERE batch_id = ? LIMIT 1').get(foreignBatchId) as { id: string } | undefined;
+    // An unknown or foreign selection returns no context rather than fetching across scopes.
+    expect(getBatchReviewQueue(testBatchId, { selectedItemId: foreign?.id ?? 'foreign-item' }).selectedRow).toBeNull();
+  });
+
+  function fixture() {
+    const batch = createBatch({ workspaceId, name: 'Review decisions', fileName: 'decisions.csv', totalItems: 10 });
+    const items = insertItems(batch.id, [
+      'Needs review', 'Durably reviewed', 'Legacy reviewed', 'Approved awaiting drafts',
+      'Skipped review', 'Skipped approved', 'Draft created legacy', 'Still preparing',
+      'Invalidated and preparing', 'Preparation complete',
+    ].map((name, i) => ({ upc: `${batch.id.slice(0, 8)}-${i}`, name, rowNumber: i + 1 })));
+    const contexts = [
+      ['review_listings', 'pending'], ['review', 'completed'], ['review_listings', 'completed'],
+      ['create_drafts', 'pending'], ['review', 'skipped'], ['promotion', 'skipped'],
+      ['create_drafts', 'completed'], ['prepare_listing', 'pending'], ['curation', 'pending'],
+      ['prepare_listing', 'completed'],
+    ];
+    items.forEach((item, i) => getDb().run(
+      'UPDATE onboarding_items SET stage = ?, stage_status = ?, price = ?, brand_hint = ?, curation_data_json = ?, extraction_data_json = ? WHERE id = ?',
+      [contexts[i][0], contexts[i][1], '19.99', 'Acme', JSON.stringify({ curatedTitle: item.name, suggestedPages: ['Pet food'] }), JSON.stringify({ primaryImage: 'https://example.test/image.jpg' }), item.id],
+    ));
+    for (const index of [1, 3, 5, 8]) markReviewed({ itemId: items[index].id, batchId: batch.id, reviewedBy: 'test' });
+    for (const index of [3, 5]) markApproved({ itemId: items[index].id, batchId: batch.id, approvedBy: 'test' });
+    markReviewInvalidated(items[8].id, 'Preparing changed output');
+    return { batch, items };
+  }
+
+  it('excludes skipped and downstream completed rows before pagination, retaining review/completed history', () => {
+    const { batch, items } = fixture();
+    const all = ReviewQueuePageSchema.parse(getBatchReviewQueue(batch.id));
+    expect(all.counts.total).toBe(5);
+    expect(all.counts.reviewedTotal).toBe(3); // legacy field includes approved
+    expect(all.statusTotals).toEqual({ unreviewed: 2, reviewed: 2, approved: 1 });
+    expect(all.progress).toEqual({ total: 5, reviewed: 3, remaining: 2 });
+    expect(new Set(all.rows.map(r => r.itemId))).toEqual(new Set([0, 1, 2, 3, 9].map(i => items[i].id)));
+    expect(all.rows.find(r => r.itemId === items[2].id)?.reviewState).toBe('reviewed');
+    expect(all.rows.find(r => r.itemId === items[2].id)?.actions?.canApprove).toBe(false);
+    expect(all.rows.find(r => r.itemId === items[1].id)?.actions?.canApprove).toBe(true);
+    expect(all.rows.find(r => r.itemId === items[9].id)?.actions?.canCompleteReview).toBe(false);
+    const approved = all.rows.find(r => r.itemId === items[3].id)!;
+    expect(approved.stage).toBe('create_drafts');
+    expect(approved.actions).toEqual({ canEdit: false, canCompleteReview: false, canApprove: false });
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const current = getBatchReviewQueue(batch.id, { reviewStates: ['unreviewed'], limit: 1, cursor });
+      expect(current.rows).toHaveLength(1);
+      expect(current.counts.total).toBe(2);
+      expect(current.statusTotals).toEqual(all.statusTotals);
+      expect(current.progress).toEqual(all.progress);
+      seen.push(current.rows[0].itemId);
+      cursor = current.nextCursor ?? undefined;
+    } while (cursor);
+    expect(new Set(seen)).toEqual(new Set([items[0].id, items[9].id]));
+  });
+
+  it('provides filter-independent status totals and progress through the actual validated route', async () => {
+    const { batch } = fixture();
+    const app = makeApp();
+    for (const state of ['unreviewed', 'reviewed', 'approved']) {
+      const res = await app.request(`/api/onboarding/batches/${batch.id}/review-queue?reviewStates=${state}&limit=1`);
+      expect(res.status).toBe(200);
+      const current = ReviewQueuePageSchema.parse(await res.json());
+      expect(current.rows.every(r => r.reviewState === state)).toBe(true);
+      expect(current.counts.total).toBe(state === 'approved' ? 1 : 2);
+      expect(current.statusTotals).toEqual({ unreviewed: 2, reviewed: 2, approved: 1 });
+      expect(current.progress).toEqual({ total: 5, reviewed: 3, remaining: 2 });
+    }
+    const searched = getBatchReviewQueue(batch.id, { q: 'Legacy', reviewStates: ['unreviewed'] });
+    expect(searched.counts.total).toBe(0);
+    expect(searched.statusTotals).toEqual({ unreviewed: 0, reviewed: 1, approved: 0 });
+    expect(searched.progress).toEqual({ total: 5, reviewed: 3, remaining: 2 });
+  });
+
+  it('invalidation changes status and command eligibility without confusing completed review with a terminal outcome', () => {
+    const { batch, items } = fixture();
+    markReviewInvalidated(items[1].id, 'Listing changed');
+    const current = getBatchReviewQueue(batch.id, { reviewStates: ['unreviewed'] });
+    const changed = current.rows.find(r => r.itemId === items[1].id)!;
+    expect(changed.stageStatus).toBe('completed');
+    expect(changed.actions).toEqual({ canEdit: true, canCompleteReview: true, canApprove: false });
+    expect(current.statusTotals).toEqual({ unreviewed: 3, reviewed: 1, approved: 1 });
+    expect(current.progress).toEqual({ total: 5, reviewed: 2, remaining: 3 });
+    expect(getBatchReviewQueue(batch.id, { q: 'Still preparing' }).rows).toHaveLength(0);
+  });
+
+  it('uses the same collation for sorting and cursor traversal of accented titles', () => {
+    const batch = createBatch({ workspaceId, name: 'Cursor collation', fileName: 'collation.csv', totalItems: 4 });
+    const items = insertItems(batch.id, ['Å product', 'Z product', 'É product', 'A product'].map((name, i) => ({ name, upc: `accent-${batch.id}-${i}`, rowNumber: i + 1 })));
+    items.forEach(item => getDb().run("UPDATE onboarding_items SET stage = 'review_listings', stage_status = 'completed' WHERE id = ?", [item.id]));
+    const expected = getBatchReviewQueue(batch.id).rows.map(r => r.itemId);
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const current = getBatchReviewQueue(batch.id, { limit: 1, cursor });
+      seen.push(...current.rows.map(r => r.itemId));
+      cursor = current.nextCursor ?? undefined;
+      if (seen.length > 4) throw new Error('Cursor did not advance');
+    } while (cursor);
+    expect(seen).toEqual(expected);
+  });
 });
 
 afterAll(() => {

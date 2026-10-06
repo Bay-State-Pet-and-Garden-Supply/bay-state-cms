@@ -24,6 +24,9 @@ function makeQueueRow(i: number, overrides: Partial<ReviewQueueRow> = {}): Revie
     warningCodes: [],
     hasWarnings: false,
     reviewGateStatus: 'ready',
+    stage: 'review_listings',
+    stageStatus: 'pending',
+    actions: { canEdit: true, canCompleteReview: true, canApprove: false },
     ...overrides,
   };
 }
@@ -32,6 +35,8 @@ function makeDetail(itemId: string) {
   return {
     item: {
       itemId,
+      stage: 'review_listings',
+      stageStatus: 'pending',
       name: `Product ${itemId}`,
       price: '29.99',
       quantity: 10,
@@ -537,7 +542,8 @@ describe('Challenger 2 Empirical Stress Suite // Milestone 1 (P1-C)', () => {
       let loadQueueCallCount = 0;
       vi.spyOn(workApi, 'getBatchReviewQueue').mockImplementation(async () => {
         loadQueueCallCount++;
-        return page;
+        return { ...page, rows: page.rows.map(row => ({ ...row })),
+          projectionHealth: { ...page.projectionHealth, computedAt: new Date().toISOString() } };
       });
       vi.spyOn(api, 'getItemDetail').mockImplementation(async id => makeDetail(id));
 
@@ -566,11 +572,14 @@ describe('Challenger 2 Empirical Stress Suite // Milestone 1 (P1-C)', () => {
       expect(titleInput).not.toBeNull();
 
       await act(async () => {
-        titleInput.value = 'User Entered Critical Edit';
+        // Bypass React's value tracker, as a real browser input event does.
+        // A direct property assignment only changes the DOM, not the draft.
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(titleInput, 'User Entered Critical Edit');
         titleInput.dispatchEvent(new Event('input', { bubbles: true }));
       });
 
       expect(titleInput.value).toBe('User Entered Critical Edit');
+      expect(container.querySelector('[data-onboarding-dirty="true"]')).not.toBeNull();
 
       // Fire multiple SSE events in rapid succession
       expect(sseCallback).not.toBeNull();
@@ -908,8 +917,5 @@ describe('Challenger 2 Empirical Stress Suite // Milestone 1 (P1-C)', () => {
     });
   });
 });
-
-
-
 
 

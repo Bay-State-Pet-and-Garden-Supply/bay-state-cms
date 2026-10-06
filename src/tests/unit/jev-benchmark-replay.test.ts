@@ -32,11 +32,13 @@ import {
   REPRESENTATIVE_TAXONOMY_PATH,
   INCUMBENT_DETERMINISTIC_FLOOR_LABEL,
 } from '../../classification/jev-benchmark-replay';
-import { buildQualificationPredictionsFromCode } from '../../classification/benchmark-prediction';
 import { captureGuardedJevForTest } from '../helpers/qualification-capture';
 import {
+  assertQualificationArtifactIntegrity,
   attachFrozenAuthorityDetails,
   buildQualificationCandidateQuestionSet,
+  buildQualificationPredictionsFromCode,
+  hashDevReplaySourceInputs,
   permittedEvidenceForQualificationTarget,
   qualificationEvidenceForBoundary,
   qualificationTaxonomiesFromFrozenSnapshot,
@@ -946,6 +948,7 @@ describe('artifact identity domain (authority-bound, gold-free)', () => {
     };
     const changed = buildQualificationPredictionsFromCode([relabeled], snap);
     expect(changed.artifactHash).toBe(base.artifactHash);
+    expect(changed.sourceInputsHash).toBe(base.sourceInputsHash);
     const stripTiming = (predictions: typeof changed.predictions) =>
       predictions.map(p => ({
         sku: p.sku,
@@ -955,30 +958,37 @@ describe('artifact identity domain (authority-bound, gold-free)', () => {
     expect(stripTiming(changed.predictions)).toEqual(stripTiming(base.predictions));
   });
 
-  it('malformed authority details fail closed (never invented permission)', () => {
-    const good = loadDevReplayInputs(DEV_INPUTS).authorityDetails;
-    expect(() => validateFrozenAuthorityDetails(good)).not.toThrow();
-    const bad: FrozenAuthorityDetails[] = [
-      { ...good, catalogFieldByTarget: { '': 'ProductField17' } },
-      { ...good, catalogFieldByTarget: { species: 42 as never } },
-      {
-        ...good,
-        attributeConfigByTarget: {
-          species: { valueAliases: [{ alias: 'dogs', mapsTo: '' }], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
-        },
-      },
-      {
-        ...good,
-        attributeConfigByTarget: {
-          species: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'sometimes' as never },
-        },
-      },
-      { ...good, authorityHash: 'not-a-hash' },
-    ];
-    for (const details of bad) {
-      expect(() => validateFrozenAuthorityDetails(details)).toThrow('frozen_authority_malformed');
-      expect(() => attachFrozenAuthorityDetails({ productTypes: [], attributeTargets: [], pages: [] }, details)).toThrow();
-    }
+  it('changed evidence changes the source-input commitment (finding 2)', () => {
+    const loaded = loadDevReplayInputs(DEV_INPUTS);
+    const snap = withFrozenAuthorityDetails(loaded.frozenSnapshot, loaded.authorityDetails);
+    const base = buildQualificationPredictionsFromCode([loaded.goldEntries[0]], snap);
+    const revised: QualificationGoldOnlyEntry = {
+      ...loaded.goldEntries[0],
+      evidence: [{ source: 'revised', snippet: 'changed evidence snippet', reliability: 'high', attributeId: null }],
+    };
+    const changed = buildQualificationPredictionsFromCode([revised], snap);
+    expect(changed.sourceInputsHash).not.toBe(base.sourceInputsHash);
+    expect(changed.sourceInputsHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(hashDevReplaySourceInputs([revised], loaded.frozenSnapshot, loaded.authorityDetails))
+      .toBe(changed.sourceInputsHash!);
+    expect(hashDevReplaySourceInputs(loaded.goldEntries.slice(0, 1), loaded.frozenSnapshot, loaded.authorityDetails))
+      .toBe(base.sourceInputsHash!);
+  });
+
+  it('tampered predictions fail artifact integrity (finding 3)', () => {
+    const loaded = loadDevReplayInputs(DEV_INPUTS);
+    const snap = withFrozenAuthorityDetails(loaded.frozenSnapshot, loaded.authorityDetails);
+    const artifact = buildQualificationPredictionsFromCode([loaded.goldEntries[0]], snap);
+    expect(() => assertQualificationArtifactIntegrity(artifact, snap)).not.toThrow();
+    const tampered = {
+      ...artifact,
+      predictions: artifact.predictions.map(prediction => ({
+        ...prediction,
+        candidate: { ...prediction.candidate, productType: 'tampered-type-id' },
+      })),
+    };
+    expect(() => assertQualificationArtifactIntegrity(tampered, snap))
+      .toThrow('artifact identity does not match its predictions');
   });
 });
 

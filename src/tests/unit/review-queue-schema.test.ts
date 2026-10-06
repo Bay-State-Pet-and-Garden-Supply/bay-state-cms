@@ -6,6 +6,8 @@ import {
   ProjectionHealthSchema,
   ReviewQueueCountsSchema,
   ReviewQueuePageSchema,
+  ReviewQueueStatusTotalsSchema,
+  ReviewQueueProgressSchema,
   ReviewQueueCursorError,
   encodeReviewQueueCursor,
   decodeReviewQueueCursor,
@@ -110,6 +112,11 @@ describe('ProjectionHealthSchema', () => {
 });
 
 describe('ReviewQueueCountsSchema', () => {
+  it('accepts additive independent scopes without changing legacy filtered count fields', () => {
+    expect(ReviewQueueStatusTotalsSchema.parse({ unreviewed: 10, reviewed: 3, approved: 2 })).toEqual({ unreviewed: 10, reviewed: 3, approved: 2 });
+    expect(ReviewQueueProgressSchema.parse({ total: 15, reviewed: 5, remaining: 10 })).toEqual({ total: 15, reviewed: 5, remaining: 10 });
+    expect(ReviewQueueCountsSchema.parse({ total: 3, reviewedTotal: 3 }).reviewedTotal).toBe(3);
+  });
   it('validates correct counts', () => {
     const counts = {
       total: 100,

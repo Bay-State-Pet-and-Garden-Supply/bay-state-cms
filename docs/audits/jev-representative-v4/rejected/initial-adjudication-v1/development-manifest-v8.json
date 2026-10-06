@@ -1,0 +1,36 @@
+{
+ "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v8",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "capturedAt": "2026-10-05T11:51:49.560Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "entries": [],
+ "scope": "fresh-development-v8-v4",
+ "declaredInputs": {
+  "devGold": {
+   "path": "development-gold-v8.json",
+   "sha256": "9be36510df1a794fbbc984db8be3b9872d81b238969d1d08eebd72738b1e5a60"
+  },
+  "devAdjudication": {
+   "path": "development-adjudication-v8.json",
+   "sha256": "9eab3b241abb28fbdae9a1530cc1ab76c42b2d388538c2bf4d3cbbc102c14bdf"
+  },
+  "devSupport": {
+   "path": "development-support-v8.json",
+   "sha256": "453b30e96b53d62c8a407ae2bd593ee040cf2cb4b93640e180ad208719cda5d8"
+  },
+  "taxonomy": {
+   "path": "taxonomy.json",
+   "sha256": "7f622d890ad3cb88178000d96e271ee3dfc9f2c6a4bb0fc323c30f2dbeea6ec9"
+  },
+  "sourceBank": {
+   "path": "source-development.json",
+   "sha256": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1"
+  }
+ }
+}

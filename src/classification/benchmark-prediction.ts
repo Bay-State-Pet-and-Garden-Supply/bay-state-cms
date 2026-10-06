@@ -1676,6 +1676,14 @@ export interface QualificationPredictionArtifact {
    */
   authorityHash: string | null;
   authorityDetailsHash: string | null;
+  /**
+   * Canonical source-input digest (finding 2, additive): hash of the LOADED
+   * capture inputs (identity + evidence + resolved taxonomy provenance),
+   * computed before dispatch via `hashQualificationSourceInputs`. Gold labels
+   * never enter. Captures predating this field carry `null` (legacy,
+   * unverifiable — rescoring must fail this proof or mark it unverified).
+   */
+  sourceInputsHash: string | null;
   predictions: Array<{
     sku: string;
     baseline: ExecutedQualificationPrediction;
@@ -4551,6 +4559,102 @@ function hashQualificationPredictions(
   }));
 }
 
+/**
+ * Canonical, gold-independent source-input digest for one capture's LOADED
+ * inputs (finding 2): identity + evidence + resolved taxonomy provenance.
+ * Gold labels (`gold`, `readerVersion`) never enter — the same evidence
+ * always yields the same digest, and a changed snippet always changes it.
+ * Recomputed from the loaded inputs at capture time and stored on the
+ * capture record, so rescoring can prove the preserved `--capture-gold`
+ * revision supplied the evidence the predictions ran against.
+ */
+export const QUALIFICATION_SOURCE_INPUTS_HASH_VERSION = 1 as const;
+
+export function hashQualificationSourceInputs(
+  entries: QualificationGoldOnlyEntry[],
+  resolved: {
+    taxonomySource: QualificationTaxonomySource;
+    frozenTaxonomyHash: string | null;
+    taxonomies: QualificationTaxonomies;
+  },
+  authorityHash: string | null,
+  authorityDetailsHash: string | null,
+): string {
+  const sorted = [...entries]
+    .sort((a, b) => a.sku.localeCompare(b.sku))
+    .map(entry => ({
+      sku: entry.sku,
+      familyId: entry.familyId,
+      split: entry.split,
+      assortment: entry.assortment,
+      evidence: entry.evidence,
+    }));
+  return hashCanonicalJson({
+    version: QUALIFICATION_SOURCE_INPUTS_HASH_VERSION,
+    entries: sorted,
+    taxonomy: hashableTaxonomyProvenance(resolved),
+    authorityHash,
+    authorityDetailsHash,
+  });
+}
+
+/**
+ * Source-input digest for dev-replay capture inputs: resolves the frozen
+ * snapshot + authority sidecar exactly like the capture builders, then
+ * hashes identity + evidence + taxonomy provenance (gold-free).
+ */
+export function hashDevReplaySourceInputs(
+  entries: QualificationGoldOnlyEntry[],
+  snapshot: FrozenTaxonomySnapshot,
+  details: FrozenAuthorityDetails | null | undefined,
+): string {
+  const taxonomies = qualificationTaxonomiesFromFrozenSnapshot(withFrozenAuthorityDetails(snapshot, details));
+  return hashQualificationSourceInputs(entries, {
+    taxonomySource: 'frozen_snapshot',
+    frozenTaxonomyHash: snapshot.snapshotHash,
+    taxonomies,
+  }, details?.authorityHash ?? null, frozenAuthorityDetailsHash(details));
+}
+
+/**
+ * Recompute and validate a stored artifact's semantic identity (finding 3):
+ * the caller's taxonomy input must reproduce `artifact.artifactHash`, else
+ * the capture is scored under an identity describing different predictions.
+ * Fail-closed — a mismatch throws before scoring or reusing the identity.
+ */
+export function assertQualificationArtifactIntegrity(
+  artifact: QualificationPredictionArtifact,
+  taxonomies?: QualificationTaxonomyInput,
+): void {
+  if (!artifact || !Array.isArray(artifact.predictions) || typeof artifact.artifactHash !== 'string') {
+    throw new Error('Captured comparison artifact is malformed.');
+  }
+  if (typeof artifact.entryCount === 'number' && artifact.predictions.length !== artifact.entryCount) {
+    throw new Error('Captured comparison artifact identity does not match its predictions.');
+  }
+  if (artifact.predictorVersion !== QUALIFICATION_PREDICTOR_VERSION ||
+    artifact.decisionPolicyHash !== qualificationDecisionPolicyHash()) {
+    throw new Error('Captured comparison artifact identity does not match its predictions.');
+  }
+  const stubEntries = artifact.predictions.map(({ sku }) => ({
+    sku,
+    familyId: '',
+    split: 'dev',
+    assortment: '',
+    gold: {
+      productType: { kind: 'unlabeled', typeId: null },
+      fieldAssignments: [],
+      categoryPages: { pageIds: [], pageAssignments: [] },
+    },
+    evidence: [],
+  }) as QualificationGoldOnlyEntry);
+  const resolved = resolveQualificationTaxonomies(taxonomies, stubEntries);
+  const recomputed = hashQualificationPredictions(artifact.predictions, resolved);
+  if (recomputed !== artifact.artifactHash) {
+    throw new Error('Captured comparison artifact identity does not match its predictions.');
+  }
+}
+
 function qualificationDecisionPolicyHash(): string {
   return hashCanonicalJson({ predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
     runtimeRules: buildRuntimeRuleVersions().digest,
@@ -4612,6 +4716,9 @@ export function buildQualificationPredictionsFromCode(
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,
     ...artifactAuthorityBinding(resolved),
+    sourceInputsHash: hashQualificationSourceInputs(entries, resolved,
+      resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
+      frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails)),
     predictions,
   };
 }
@@ -4683,6 +4790,9 @@ export async function captureQualificationPredictionsLive(
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,
     ...artifactAuthorityBinding(resolved),
+    sourceInputsHash: hashQualificationSourceInputs(entries, resolved,
+      resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
+      frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails)),
     predictions,
   };
 }

@@ -8,8 +8,14 @@
 # request) whose URL arrives via the proxy env (see `buildRenderContainerSpec`).
 #
 # The worker defaults to the plain-Playwright backend (Chromium pre-warmed
-# below, no runtime browser download — the container has no route to fetch
+# below, no runtime browser download — the render network has no route to fetch
 # one). Camoufox stays available for a future pre-warmed variant.
+#
+# HTTPS trust: the host-side proxy terminates the browser's TLS with a
+# per-run credential (validating CONNECT interception — every inner request
+# is broker-validated upstream). The worker therefore launches Chromium with
+# certificate errors ignored (scoped to the in-container worker only);
+# upstream TLS to origins is still genuinely validated by the proxy.
 #
 # Build: docker build -t baystate/investigation-render:1 \
 #          -f docker/investigation-render/Dockerfile .

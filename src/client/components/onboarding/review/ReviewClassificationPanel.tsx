@@ -32,6 +32,7 @@ export interface ReviewClassificationPanelProps {
   onDecision: (proposal: ClassificationProposal, decision: 'accepted' | 'rejected') => Promise<void>;
   /** Item id currently performing a decision write (disables row buttons). */
   busyDecisionId: string | null;
+  readOnly?: boolean;
 }
 
 export const PROPOSAL_TYPE_LABELS: Record<string, string> = {
@@ -142,6 +143,7 @@ export function ReviewClassificationPanel({
   detail,
   onDecision,
   busyDecisionId,
+  readOnly = false,
 }: ReviewClassificationPanelProps) {
   const [decisionError, setDecisionError] = useState<string | null>(null);
 
@@ -157,6 +159,7 @@ export function ReviewClassificationPanel({
   const provenance = curation?.taxonomyProvenance ?? null;
 
   const handleDecision = async (proposal: ClassificationProposal, decision: 'accepted' | 'rejected') => {
+    if (readOnly) return;
     setDecisionError(null);
     try {
       await onDecision(proposal, decision);
@@ -236,7 +239,7 @@ export function ReviewClassificationPanel({
                 ⚠ Type conflict in derived attributes: One or more type invariants conflict with product evidence. Verify whether this Product Type is accurate.
               </div>
             )}
-            <ReviewProposalRow proposal={primary} onDecision={handleDecision} busy={busyDecisionId} />
+            <ReviewProposalRow proposal={primary} onDecision={handleDecision} busy={busyDecisionId} readOnly={readOnly} />
           </div>
         )}
 
@@ -252,6 +255,7 @@ export function ReviewClassificationPanel({
                 proposal={proposal}
                 onDecision={handleDecision}
                 busy={busyDecisionId}
+                readOnly={readOnly}
                 siblings={reviewable.filter(
                   q =>
                     q.id !== proposal.id &&
@@ -409,17 +413,19 @@ export function ReviewClassificationPanel({
 function ReviewProposalRow({
   proposal,
   onDecision,
+  readOnly = false,
   busy,
   siblings = [],
 }: {
   proposal: ClassificationProposal;
   onDecision: (proposal: ClassificationProposal, decision: 'accepted' | 'rejected') => Promise<void>;
+  readOnly?: boolean;
   busy: string | null;
   /** Identical pending proposals merged into this row (different targets). */
   siblings?: ClassificationProposal[];
 }) {
   const { text, matchedWords } = proposalValueText(proposal);
-  const isPending = proposal.status === 'pending';
+  const isPending = proposal.status === 'pending' && !readOnly;
   const tier = typeof proposal.confidence === 'number' ? confidenceTier(proposal.confidence) : null;
   const targetLabels = [proposal.targetId, ...siblings.map(s => s.targetId)]
     .filter((id): id is string => Boolean(id))

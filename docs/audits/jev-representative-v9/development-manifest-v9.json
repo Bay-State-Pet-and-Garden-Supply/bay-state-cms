@@ -1,0 +1,37 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v9",
+  "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+  "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+  "capturedAt": "2026-10-06T16:18:15.514Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "entries": [],
+ "entriesSemantics": "Intentional: this development manifest carries no entry duplication; the entry source of truth is development-gold-v9.json (bound by devGold.sha256 below). entries:[] exists only for loader-shape compatibility and must remain empty — heldout membership is never declared here.",
+ "scope": "fresh-development-v9-v4",
+ "declaredInputs": {
+  "devGold": {
+   "path": "development-gold-v9.json",
+   "sha256": "c910c1295614baeadb4255e2412cc25b8db65e8393aafd33d678934f0ea1e237"
+  },
+  "devAdjudication": {
+   "path": "development-adjudication-v9.json",
+   "sha256": "4f08db2992cddff7a8dd90c98e5b9a9012267644180666db3dc555cd076c8ef4"
+  },
+  "devSupport": {
+   "path": "development-support-v9.json",
+   "sha256": "078f0a6995c96ebcb46557d37739571a281132366974ced6a252c7dde785e4ab"
+  },
+  "taxonomy": {
+   "path": "taxonomy.json",
+   "sha256": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0"
+  },
+  "sourceBank": {
+   "path": "source-development.json",
+   "sha256": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1"
+  }
+ }
+}

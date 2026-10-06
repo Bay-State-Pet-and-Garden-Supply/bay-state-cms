@@ -1,0 +1,3011 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "public-fresh-development-manual-adjudication",
+ "adjudicatedBy": "agent:jev-development-adjudicator-v4-peer-correction",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "sourceFiles": [
+  "source-development.json",
+  "taxonomy.json"
+ ],
+ "status": "complete-fresh-23-explicit-contract",
+ "reviewedIndependentFamilyCount": 23,
+ "entryCount": 23,
+ "taxonomySourceHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+ "pageCitationSourceHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe",
+ "cardinalityLimitation": "Frozen single everywhere (74 profiles) after the v9 species-cardinality normalization.",
+ "citationContract": "Adjudication quotes are exact full captured excerpt strings (no truncation); e-keys align 1:1 with gold evidence order per entry.",
+ "nonProductExclusions": {
+  "count": 0,
+  "note": "No row proven non-product; every row is an official manufacturer product page for a real product. No exclusions; no separate quarantine file required."
+ },
+ "httpRequestLedger": [],
+ "extraPublicHttpRequests": 0,
+ "records": [
+  {
+   "sku": "PUBLIC:ruffwear.com:7a02531f86d15d5f",
+   "sourceIndex": 0,
+   "sourceHash": "8470e5d4215df1d7c265a3601ec80ce27480d67987d75fc2ce96f31956ab155f",
+   "sourceWordCount": 146,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/0/excerpts/0",
+     "quote": "With an engaging, origami-like shape, the Remix™ Cactus Tug Toy features an irresistible shape that dogs love to sink their teeth into."
+    },
+    "e1": {
+     "locator": "source-development.json#/0/excerpts/1",
+     "quote": "Designed and tested with feedback from avalanche rescue teams, this toy dials up the fun by turning flat webbing into three-dimensional fun that’s easy to tug, toss, and fetch."
+    },
+    "e2": {
+     "locator": "source-development.json#/0/excerpts/4",
+     "quote": "Chew Style: GentlePlay Style: Tug & toss Our toys are designed to be interactive - it's just more fun that way."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Excerpts name an interactive tug/toss/fetch toy for dogs (\"dogs love to sink their teeth into\", \"easy to tug, toss, and fetch\", \"Play Style: Tug & toss\"); fits Dog Toys among the 74. Invariant species Dog corroborated by literal dogs."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dogs\" (alias→Dog) in e0; invariant Dog for dog-toys.",
+     "attributeProfileId": "profile-dog-toys"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dogs",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-toys",
+    "attributeProfileId": "profile-dog-toys",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:c85e7db84408a6ec",
+   "sourceIndex": 1,
+   "sourceHash": "1e96bc70f4afe4785c64a4eefe05b51dea44df573dcf8f718e5205d7d279b819",
+   "sourceWordCount": 144,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1/excerpts/0",
+     "quote": "Inspired by our original Hover Craft toy, the Remix™ Soft Flying Disc is a lightweight, flexible flyer for fetch sessions on land."
+    },
+    "e1": {
+     "locator": "source-development.json#/1/excerpts/1",
+     "quote": "It’s soft build is easy on gums and teeth, great for building confidence in aspiring disc dogs."
+    },
+    "e2": {
+     "locator": "source-development.json#/1/excerpts/4",
+     "quote": "Chew Style: GentlePlay Style: Fly & FetchOne Size: Diameter: 8.7 in (22 cm) Our toys are designed to be interactive - it's just more fun that way."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Excerpts name a soft flying disc \"for fetch sessions\", \"great for building confidence in aspiring disc dogs\", \"Play Style: Fly & Fetch\"; a Dog Toys product. Invariant Dog plus literal dog/disc dogs."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"disc dogs\"/\"your dog\" (alias→Dog) in e0/e1; invariant Dog.",
+     "attributeProfileId": "profile-dog-toys"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-toys; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dogs",
+     "dog",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-toys",
+    "attributeProfileId": "profile-dog-toys",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:b36d7e293f3e1ee5",
+   "sourceIndex": 2,
+   "sourceHash": "d1396b0e748ce331dfdcd07ca884a4dc8e57dbc5eab99a6b3ec5ea03561b0ac6",
+   "sourceWordCount": 78,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/2/excerpts/0",
+     "quote": "This food and water bowl footprint has a non-slip surface and base, sturdy walls for containing spills, and an easy to clean surface."
+    },
+    "e1": {
+     "locator": "source-development.json#/2/excerpts/1",
+     "quote": "Adventures begin at basecamp, and the Basecamp™ Mat is where your canine sidekick can go to refresh and refuel for their next excursion."
+    },
+    "e2": {
+     "locator": "source-development.json#/2/excerpts/2",
+     "quote": "It fits two Basecamp™ Bowls side-by-side."
+    },
+    "e3": {
+     "locator": "source-development.json#/2/excerpts/3",
+     "quote": "Dimensions: 20.5 in x 12.5 in x 1.25 in (52 x 32 x 3 cm) *Customers may receive product with variations in the Basecamp™ Mat design."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (food/water bowl mat with dimensions). No feeding-accessory type among the 74: nearest Livestock Feeders and Stock Tanks & Waterers sit in livestock-farm-animals and name livestock scope, excluding dog gear; Dog Waste Bags covers bags, Pet Beds covers beds. Genuine ontology gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "canine"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:a356f29052b12e15",
+   "sourceIndex": 3,
+   "sourceHash": "e57bc6e9b5a51b567b52cd8ec8491d5f6a24b0f1a61b0f74925b736caa34879c",
+   "sourceWordCount": 91,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/3/excerpts/0",
+     "quote": "The Kibble Kaddie™ is a soft-sided, travel-friendly dog food carrier."
+    },
+    "e1": {
+     "locator": "source-development.json#/3/excerpts/1",
+     "quote": "A compact, convenient design allows for easy transport, storage, and dispensing of kibble on the road or at camp."
+    },
+    "e2": {
+     "locator": "source-development.json#/3/excerpts/2",
+     "quote": "The top-loading, roll-down closure secures contents (from spills and curious noses) and allows you to reduce the volume of the bag as food is consumed."
+    },
+    "e3": {
+     "locator": "source-development.json#/3/excerpts/3",
+     "quote": "Dispense kibble through a fold-out spout at the top, and stash collapsible bowls and other food items in a separate internal compartment."
+    },
+    "e4": {
+     "locator": "source-development.json#/3/excerpts/4",
+     "quote": "Volume: 10 L (42 cups) Height: 16.9 in (43 cm) Width: 9.4 in (24 cm)"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3",
+     "e4"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (soft-sided travel dog-food carrier, 10 L/42 cups). No carrier/luggage/feed-transport type among the 74; nearest Livestock Feeders names livestock scope. Genuine gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:fbdfa0be8d41f3cd",
+   "sourceIndex": 4,
+   "sourceHash": "c7dcc990690c02befbbf7719cb288b15fa5cc550da984b45e79742340ecfcddf",
+   "sourceWordCount": 182,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/4/excerpts/0",
+     "quote": "Rest, rinse, and repeat with the Dirtbag™ Bed – an easy to clean and durable outdoor dog bed designed to handle the grit and aftermath that come standard with canine explorers."
+    },
+    "e1": {
+     "locator": "source-development.json#/4/excerpts/1",
+     "quote": "To clean, simply hose it down while holding the handle, watch the dirt and grime drain out from the bottom, and stand it upright to dry."
+    },
+    "e2": {
+     "locator": "source-development.json#/4/excerpts/3",
+     "quote": "Its layered construction maximizes comfort and function."
+    },
+    "e3": {
+     "locator": "source-development.json#/4/excerpts/4",
+     "quote": "On top, a breathable air mesh sleeping surface."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [
+     "pet-beds"
+    ],
+    "reasoning": "Excerpts name an \"outdoor dog bed\" with mattress/cushioning (\"Qshion mattress\", \"cushioning\", \"sleeping surface\"); fits Pet Beds. Literal \"canine explorers\"/\"your dog\" → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"canine\"/\"your dog\" (alias→Dog) in e0.",
+     "attributeProfileId": "profile-pet-beds"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "canine",
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "pet-beds",
+    "attributeProfileId": "profile-pet-beds",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5f23228aa68c8b2f",
+   "sourceIndex": 5,
+   "sourceHash": "9b4c72bdf2598a8b3c17a1f0a80158d62b668f15536c96a02f439c84e6eb7de7",
+   "sourceWordCount": 179,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/5/excerpts/0",
+     "quote": "EverRest™ Dog Cot takes your dog’s post-adventure nap up a notch as a light, strong, and stable elevated dog bed."
+    },
+    "e1": {
+     "locator": "source-development.json#/5/excerpts/2",
+     "quote": "Watch the video for a quick guide.Dimensions: 30 in x 38 in x 8 in (76 cm x 96 cm x 20 cm)Packed Dimensions: 32 in x 5 in x 5 in (81.3 cm x 12.7 cm x 12.7 cm)Weight: 2.6 lbs (1.2 kg)Maximum weight capacity: 70 pounds (32 kg)"
+    },
+    "e2": {
+     "locator": "source-development.json#/5/excerpts/5",
+     "quote": "Made with partially recycled content, the reinforced topper has a soft and durable microsuede surface with just enough give for that camp chair-like comfort."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "pet-beds"
+    ],
+    "reasoning": "Excerpts name an \"elevated dog bed\" for \"post-adventure nap\" with microsuede surface and camp-chair comfort; fits Pet Beds. Literal \"your dog’s\" → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"your dog\" (alias→Dog) in e0.",
+     "attributeProfileId": "profile-pet-beds"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-pet-beds; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "dog",
+     "dog",
+     "Dog",
+     "canine"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "pet-beds",
+    "attributeProfileId": "profile-pet-beds",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5c238b471d461c33",
+   "sourceIndex": 6,
+   "sourceHash": "ee6bd41c126565b5561395af52756ed47746738fcec2dda78ef9017de8b2b3f9",
+   "sourceWordCount": 67,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/6/excerpts/0",
+     "quote": "Fuel your dog’s adventures with the light and durable Bivy™ Dog Bowl."
+    },
+    "e1": {
+     "locator": "source-development.json#/6/excerpts/1",
+     "quote": "Capacity: 7.6 cups (60 fl oz; 1.8 L)Weight: 2.96 oz (84 g)"
+    },
+    "e2": {
+     "locator": "source-development.json#/6/excerpts/2",
+     "quote": "The welded, single-wall construction is waterproof and keeps the bowl simple and quick to clean."
+    },
+    "e3": {
+     "locator": "source-development.json#/6/excerpts/3",
+     "quote": "Engineered to have structure while expanded and pack flat when collapsed, it’s portable and equally ready to hit the trail and stop for a water (or snack) break."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (collapsible portable dog bowl, 7.6 cups). No bowl/feeder type among the 74 for pet scope; nearest Livestock Feeders / Stock Tanks & Waterers name livestock scope in livestock-farm-animals. Genuine gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "Dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:31a0f5e6a390cb8d",
+   "sourceIndex": 7,
+   "sourceHash": "961103cb2830ed0da9e34e1a95d890ae93333183715ec0aaf2746e1302f54a7c",
+   "sourceWordCount": 53,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/7/excerpts/0",
+     "quote": "This BPA-free water bladder is collapsible and lightweight, ideal for adventures on the trail."
+    },
+    "e1": {
+     "locator": "source-development.json#/7/excerpts/1",
+     "quote": "Compatibility: Switchbak™ Harness (only size L/XL); Front Range™ Day Pack (S-L/XL); Approach™ Pack (S-L/XL); Palisades™ Pack (all sizes)."
+    },
+    "e2": {
+     "locator": "source-development.json#/7/excerpts/2",
+     "quote": "Each bladder holds 1L and features a pop up top for quick access."
+    },
+    "e3": {
+     "locator": "source-development.json#/7/excerpts/3",
+     "quote": "When empty, the bladder rolls up for storage."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (1 L collapsible water bladder; compatibility cites harness/pack lines, i.e. a pack accessory). No bladder/hydration-accessory type among the 74; nearest Stock Tanks & Waterers names livestock scope. Genuine gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:d2ec2ac7da1c4301",
+   "sourceIndex": 8,
+   "sourceHash": "e84cb7ae3d2c6becacdec28741257e69f4d0b758cd51be60ae6b00ea71f44a18",
+   "sourceWordCount": 89,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/8/excerpts/0",
+     "quote": "The Beacon™ is a high-performance safety dog light to help keep dogs visible in low-light conditions or inclement weather."
+    },
+    "e1": {
+     "locator": "source-development.json#/8/excerpts/1",
+     "quote": "The Beacon is rechargeable, with indicator lights to let you know when it’s charging or the battery is low."
+    },
+    "e2": {
+     "locator": "source-development.json#/8/excerpts/2",
+     "quote": "The Beacon is durable and waterproof, with an easy-to-use Quick Clip™ that attaches to Ruffwear apparel, harnesses, collars, and other gear."
+    },
+    "e3": {
+     "locator": "source-development.json#/8/excerpts/3",
+     "quote": "Easily cycle through three LED color options and three light modes for maximum visibility on your adventure."
+    },
+    "e4": {
+     "locator": "source-development.json#/8/excerpts/4",
+     "quote": "The Beacon is visible from all directions with a bright, full-body glow design."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3",
+     "e4"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (rechargeable LED safety light clipping to apparel/harnesses/collars). No lighting/visibility/safety-electronics type among the 74; nearest Coop & Barn Heat Lamps is heat lamps for coops, Garage & Barn Heaters likewise heat — definitional mismatch. Genuine gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:4e6d23ef30273be0",
+   "sourceIndex": 9,
+   "sourceHash": "d67d2017ce2d5725628beea6fa8c9c45aafc3edc986d836d124b8dfbb3348db1",
+   "sourceWordCount": 169,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/9/excerpts/0",
+     "quote": "Earth Rated's Odor-Blocking Dog Poop Bags Refill Rolls deliver superior protection with our innovative 3X Protect system, combining odor-blocking technology, leak-proof performance, and full blackout appearance to completely conceal smells and mess, making time outside more pleasant for you and your dog."
+    },
+    "e1": {
+     "locator": "source-development.json#/9/excerpts/3",
+     "quote": "Our mission is to make everyday moments for people and their dogs simpler and better."
+    },
+    "e2": {
+     "locator": "source-development.json#/9/excerpts/4",
+     "quote": "Key Features 3X Protect Technology: Our advanced triple-layer protection system features odor-blocking technology that fully conceals unpleasant smells, leak-proof construction for reliable containment, and a complete blackout appearance to hide mess."
+    },
+    "e3": {
+     "locator": "source-development.json#/9/excerpts/6",
+     "quote": "Durable and Thick Construction: Multi-layer protection creates a tough, tear-resistant cleanup solution that you can trust on every walk."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Excerpts name dog poop bags on refill rolls with odor-blocking/leak-proof/blackout layers (\"Dog Poop Bags Refill Rolls\", \"3X Protect\"); fits Dog Waste Bags. Invariant Dog plus literal \"you and your dogs\"."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dogs\" (alias→Dog); invariant Dog.",
+     "attributeProfileId": "profile-dog-waste-bags"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "dog",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-waste-bags",
+    "attributeProfileId": "profile-dog-waste-bags",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b002e86083719174",
+   "sourceIndex": 10,
+   "sourceHash": "ee9427057fa4f9041ea2b5a9b24c05c3241d88d4b6e38cd90e58be8c4caed5c0",
+   "sourceWordCount": 42,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/10/excerpts/0",
+     "quote": "Leak protection, quick-drying unscented surface, adhesive tabs, and a built-in training attractant all in one pad."
+    },
+    "e1": {
+     "locator": "source-development.json#/10/excerpts/1",
+     "quote": "Earth Rated Max Absorbency Pee Pads with AbsorbShield™+ Technology absorb 2X faster and 2X more* than the leading brand, locking away messes before they become problems."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product (absorbent pee pads with training attractant). No pad type among the 74; nearest Dog Waste Bags covers bags (feces containment, name boundary), Cat Litter covers litter (invariant Cat) — pads are neither bags nor litter. Genuine gap → no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:6270cc60dfd3d21a",
+   "sourceIndex": 11,
+   "sourceHash": "26ca01d624445f431205412e10443eee9ef5d1dcc76f7d8d733ef2041fb15ce0",
+   "sourceWordCount": 130,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/11/excerpts/0",
+     "quote": "Our dog poop bags with handles on a roll tear smoothly from the roll and open extra wide for mess-free handling."
+    },
+    "e1": {
+     "locator": "source-development.json#/11/excerpts/1",
+     "quote": "Our handle bags open extra wide so they can handle any size mess."
+    },
+    "e2": {
+     "locator": "source-development.json#/11/excerpts/4",
+     "quote": "Easy-tie handles make picking up and carrying used bags a clean and smooth experience."
+    },
+    "e3": {
+     "locator": "source-development.json#/11/excerpts/7",
+     "quote": "Made with 65% certified post-consumer recycled plastic, giving a second life to over 5 million pounds of landfill-bound plastic a year."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Excerpts name handled dog poop bags on a roll for mess pickup (\"dog poop bags with handles\", \"picking up\"); fits Dog Waste Bags. Invariant Dog plus literal dog/dogs."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog\"/\"dogs\" (alias→Dog); invariant Dog.",
+     "attributeProfileId": "profile-dog-waste-bags"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-waste-bags",
+    "attributeProfileId": "profile-dog-waste-bags",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:426b60b6a318a407",
+   "sourceIndex": 12,
+   "sourceHash": "b83d80fb0b30e6c8d8271e2b7ef782b7e7d6eae5ac4c84c37d7fadb4172468fc",
+   "sourceWordCount": 208,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/12/excerpts/0",
+     "quote": "Complete Coat Care in One Simple StepTransform bath time with our 3-in-1 dog shampoo collection that cleans, hydrates, and deodorizes your dog's coat all at once."
+    },
+    "e1": {
+     "locator": "source-development.json#/12/excerpts/1",
+     "quote": "No more juggling multiple products - just one gentle formula that does it all.Tailored for Every Dog's Unique Needs: Detangling Formula: Perfect for dogs with long or easily matted coats Deshedding Formula: Ideal for heavy shedders and double-coated breeds Soothing Formula: Gentle care for sensitive skin and irritated coats Coat-Specific Formulas: Specialized care for curly, straight, and textured coats Why Pet Parents Love Our 3-in-1 Shampoos: Saves Time: Three benefits in one quick wash Gentle & Effective: Safe for regular use on all coat types Professional Results: Salon-quality care at home Long-Lasting Freshness: Natural deodorizing keeps dogs smelling great Easy Application: Rich lather rinses clean without residue Perfect For: Busy pet parents who want efficient grooming Dogs with specific coat care needs Regular maintenance between professional grooming Puppies learning to love bath time Senior dogs who need gentle care Multi-dog households with different coat types How to Use: Wet your dog's coat thoroughly, apply shampoo and work into a rich lather, massage gently into coat and skin, then rinse completely."
+    },
+    "e2": {
+     "locator": "source-development.json#/12/excerpts/2",
+     "quote": "For best results, follow with our grooming wipes for touch-ups between baths."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name a 3-in-1 dog shampoo collection that \"cleans, hydrates, and deodorizes your dog's coat\" with coat-specific formulas; cleansing within Grooming definition (skin/coat care incl. cleansing). No flea/tick intent → not Flea & Tick. Literal dog/dogs → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/dogs\" (alias→Dog); full-row alias scan: Dog-literals present, zero Cat-literals; generic \"pet parents/all coat types\" is not a configured alias and asserts no species.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "dog",
+     "Dog",
+     "dogs",
+     "dogs",
+     "Dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:debd72edb60f6e07",
+   "sourceIndex": 13,
+   "sourceHash": "e2774750f318415fbfccf4c3b9e6166a9a4e7d150fab45ad100c153e2faac97b",
+   "sourceWordCount": 226,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/13/excerpts/0",
+     "quote": "Clean Your Dog Anywhere, Anytime - No Water NeededTransform grooming time with our revolutionary no-rinse dog shampoo."
+    },
+    "e1": {
+     "locator": "source-development.json#/13/excerpts/1",
+     "quote": "Perfect for busy pet parents, anxious dogs, or when a traditional bath just isn't possible.Why Pet Parents Love Our Waterless Formula: No Bath Required: Clean your dog anywhere - at home, in the car, or on vacation Stress-Free Grooming: Perfect for dogs who hate baths or have mobility issues Luxurious Foam: Easy-to-apply foam that brushes through effortlessly Instant Deodorizing: White tea & basil fragrance eliminates unwanted odors immediately Deep Hydration: Moisturizes skin and coat while cleaning Perfect For: Senior dogs with arthritis or mobility challenges Anxious dogs who fear water or bath time Quick touch-ups between regular baths Travel and camping with your pet Post-surgery or injury recovery periods Emergency cleanups when traditional bathing isn't possible Puppies too young for full baths Gentle & Safe Formula: Free from harsh chemicals like parabens, sulfates, and alcohol."
+    },
+    "e2": {
+     "locator": "source-development.json#/13/excerpts/2",
+     "quote": "Safe for all coat types and regular use.How to Use: Apply foam to dry coat, massage gently into fur and skin, brush through for even distribution, then towel dry."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name a no-rinse foam dog shampoo (\"Clean Your Dog\", \"massage gently into fur and skin\"); coat/skin cleansing within Grooming definition. Literal dog/dogs → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/dogs\" (alias→Dog); alias scan: zero Cat-literals; generic \"pet/travel\" terms assert no species.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "dog",
+     "dogs",
+     "dog",
+     "dogs",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7a96f15b7db29ed9",
+   "sourceIndex": 14,
+   "sourceHash": "40e3a8cbfd8f70b681aa4590717fb6593842731471099ef6473378fe7e49850b",
+   "sourceWordCount": 258,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/14/excerpts/0",
+     "quote": "Instantly Eliminate Dog Odors with One Quick SpraySay goodbye to embarrassing dog smells with our powerful deodorizing spray."
+    },
+    "e1": {
+     "locator": "source-development.json#/14/excerpts/1",
+     "quote": "Whether it's that wet dog smell, outdoor adventures, or just daily freshening, our triple-action mist delivers instant results.Triple-Action Deodorizing Power: Instant Odor Elimination: Neutralizes smells on contact, not just masking them Long-Lasting Freshness: White tea & basil fragrance keeps dogs smelling great for hours Deep Hydration: Moisturizes coat and skin while deodorizing Detangling Action: Makes brushing easier while eliminating odors Perfect for Eliminating: Wet dog smell after rain or swimming Outdoor adventure odors (mud, grass, dirt) Between-bath freshening for active dogs Post-exercise or playtime smells Travel odors from car rides or hotels General daily freshening and maintenance When You Need Instant Freshness: Before guests arrive at your home After dog park visits or outdoor play Quick touch-ups before vet appointments Travel situations where bathing isn't possible Senior dogs who can't bathe frequently Multi-dog households with ongoing odor challenges Professional-Grade Deodorizing: Our advanced formula doesn't just cover up odors - it eliminates them at the source using zinc ricinoleate technology.Gentle & Safe: Free from harsh chemicals like parabens, sulfates, and alcohol."
+    },
+    "e2": {
+     "locator": "source-development.json#/14/excerpts/2",
+     "quote": "Safe for daily use and all coat types.Easy Application: Simply spray onto coat, brush through if desired, and enjoy instant freshness."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name a deodorizing coat spray (\"spray onto coat\", moisturizes \"coat and skin while deodorizing\"); coat/skin care within Grooming definition. Literal dog/dogs → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/dogs\" (alias→Dog); alias scan: zero Cat-literals.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "dog",
+     "dog",
+     "dogs",
+     "dog",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1ac771fa42bf640e",
+   "sourceIndex": 15,
+   "sourceHash": "28ee1da52dd7fc1b668d95fc06079844b02f91ac6077b9d8ce83703d49c873a8",
+   "sourceWordCount": 196,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/15/excerpts/0",
+     "quote": "Finally, Relief from Endless Dog HairTired of finding dog hair everywhere?"
+    },
+    "e1": {
+     "locator": "source-development.json#/15/excerpts/1",
+     "quote": "Our deshedding 3-in-1 shampoo is specially formulated to reduce excessive shedding while keeping your dog's coat healthy and beautiful.Triple Action Shedding Control: Loosens Undercoat: Gently releases dead hair during bath time Strengthens Hair Follicles: Reduces future shedding at the source Nourishes Skin: Healthy skin means healthier, stronger coat Perfect for Heavy Shedding Breeds: German Shepherds, Golden Retrievers, Labradors Huskies, Malamutes, and other double-coated breeds Seasonal heavy shedders Dogs with thick, dense undercoats Any dog leaving hair all over your furniture What Pet Parents Notice: Less Hair Around the House: Significantly reduces loose fur on furniture and clothes Easier Grooming: Dead hair comes out in the bath, not on your brush Healthier Coat: Remaining hair is stronger and shinier Reduced Allergies: Less dander and loose hair in your home Professional Results: Salon-quality deshedding at home How It Works: The gentle formula penetrates deep into the undercoat, loosening dead hair and debris while nourishing the skin underneath."
+    },
+    "e2": {
+     "locator": "source-development.json#/15/excerpts/2",
+     "quote": "Follow with thorough brushing while coat is damp to remove loosened hair."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name a deshedding 3-in-1 dog shampoo acting on undercoat/follicles/skin (\"Loosens Undercoat\", \"Nourishes Skin\"); coat/skin care within Grooming definition. Literal \"dog's coat\"/\"Any dog\" → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog\" (alias→Dog) in e0/e1; alias scan: zero Cat-literals.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "dog",
+     "dog",
+     "Dogs",
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1f1ed0341a3ef189",
+   "sourceIndex": 16,
+   "sourceHash": "716feba31a53eeec6666ae9ecb3c8e9d49afe46cc5a8ff57d85550e8a4913316",
+   "sourceWordCount": 202,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/16/excerpts/0",
+     "quote": "Gentle Relief for Sensitive SkinGive your dog the comfort they deserve with our soothing 3-in-1 shampoo, specially formulated for dogs with sensitive skin, allergies, or irritation."
+    },
+    "e1": {
+     "locator": "source-development.json#/16/excerpts/1",
+     "quote": "Finally, a bath that feels good instead of causing stress.Triple Soothing Action: Calms Irritation: Natural ingredients reduce redness and itching Gentle Cleansing: Removes dirt without stripping protective oils Deep Moisturizing: Restores skin barrier and prevents dryness Perfect for Dogs With: Sensitive or easily irritated skin Environmental allergies and seasonal sensitivities Dry, flaky, or itchy skin conditions Recent skin treatments or healing wounds Puppies with delicate skin Senior dogs with thinning skin What Makes This Formula Special: Hypoallergenic: Free from harsh chemicals and common irritants pH Balanced: Matches your dog's natural skin pH for optimal comfort Natural Ingredients: Soothing botanicals like oatmeal, aloe, and chamomile Tear-Free: Gentle enough for face and eye area Veterinarian Recommended: Trusted by professionals for sensitive skin care Immediate Comfort: Most dogs experience relief from itching and irritation after just one use."
+    },
+    "e2": {
+     "locator": "source-development.json#/16/excerpts/2",
+     "quote": "The gentle formula won't sting or burn, making bath time a positive experience.How to Use: Wet coat with lukewarm water, apply shampoo gently without vigorous scrubbing, let sit for 2-3 minutes for maximum soothing effect, then rinse thoroughly with cool water."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name a soothing 3-in-1 dog shampoo for sensitive skin (\"Calms Irritation\", \"Restores skin barrier\"); skin care within Grooming definition. Literal \"your dog\"/\"Dogs With\" → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/Dogs\" (alias→Dog); alias scan: zero Cat-literals.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "dogs",
+     "Dogs",
+     "Puppies",
+     "dogs",
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b5abb3ce76063356",
+   "sourceIndex": 17,
+   "sourceHash": "cb1ad4e1b36b3c0b4b1dc64f1bb32d1933ab28b008da66ce9ee8cf759abe1abc",
+   "sourceWordCount": 127,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/17/excerpts/0",
+     "quote": "Cleanse your dog’s eyes and reduce tear stains in a blink with Earth Rated Dog Eye Wipes."
+    },
+    "e1": {
+     "locator": "source-development.json#/17/excerpts/1",
+     "quote": "Earth Rated Dog Eye Wipes are thoughtfully designed to help you take care of your dog’s eyes in just a few swipes."
+    },
+    "e2": {
+     "locator": "source-development.json#/17/excerpts/3",
+     "quote": "Made from FSC-certified and FSC-controlled viscose fibres, this super soft material is durable enough to lift dirt, discharge, and brown or reddish stains around the eyes, gently and effectively."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name dog eye wipes that \"Cleanse your dog’s eyes\" and \"lift dirt, discharge, and ... stains around the eyes\" — cleansing of the eye-area coat. Admitted boundary: eyes are not skin/coat proper, but the wipe cleanses stain-bearing fur under the cleansing limb of the Grooming definition; no flea/tick intent. Literal dog/Dog → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog’s/Dog\" (alias→Dog); alias scan: zero Cat-literals.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "Dog",
+     "Dog",
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [
+    "Eye-area cleansing sits at the edge of the skin/coat definition; judged cleansing of stain-bearing fur, not ocular medicine."
+   ],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:dce61981c59bcf5b",
+   "sourceIndex": 18,
+   "sourceHash": "2495fdeacdd7ae8e2ae5e54081e81dca0c181415a710a0e02a773489206ffee0",
+   "sourceWordCount": 142,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/18/excerpts/0",
+     "quote": "Simplify ear care for your dog with easy-to-use Earth Rated Dog Ear Wipes Thoughtfully designed to cleanse the sensitive folds, flaps, and fur of your dog’s ears in just a few swipes."
+    },
+    "e1": {
+     "locator": "source-development.json#/18/excerpts/1",
+     "quote": "Hypoallergenic and formulated with soothing aloe vera, each wipe measures 5x5 inches—large enough to give both ears a good clean."
+    },
+    "e2": {
+     "locator": "source-development.json#/18/excerpts/2",
+     "quote": "Made from FSC-certified and FSC-controlled viscose fibres, this super soft material is durable enough to lift dirt, wax buildup, and unpleasant odors, gently and effectively."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name dog ear wipes that \"cleanse the sensitive folds, flaps, and fur\" of ears — cleansing of fur/skin folds within the Grooming definition's cleansing limb. Literal \"your dog’s\"/\"dogs’\" → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/dogs\" (alias→Dog); alias scan: zero Cat-literals; \"fur\" is coat.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "Dog",
+     "dog",
+     "dogs"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [
+    "Ear-canal-adjacent cleansing noted; excerpts describe outer folds/flaps/fur wiping only, consistent with topical cleansing."
+   ],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:83729b8e5d3bb8d0",
+   "sourceIndex": 19,
+   "sourceHash": "86348fb69cdeea3d99133313a1ee81a1d5e88457c3b9868548657ed34beac20c",
+   "sourceWordCount": 238,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/19/excerpts/0",
+     "quote": "Keep Your Dog Fresh, Clean, and Comfortable Between Baths The Problem Every Dog Owner Knows: Dogs get dirty."
+    },
+    "e1": {
+     "locator": "source-development.json#/19/excerpts/2",
+     "quote": "Gentle enough for daily use, tough enough to handle real messes, and formulated with premium plant-based ingredients that actually nourish your dog's skin and coat."
+    },
+    "e2": {
+     "locator": "source-development.json#/19/excerpts/4",
+     "quote": "Each wipe is enriched with:✓ Chamomile: Soothes irritation and calms sensitive skin✓ Aloe Vera: Moisturizes and promotes healthy skin healing✓ Shea Butter: Nourishes and conditions coat for softness and shine✓ Cucumber Extract: Refreshes and cools skin naturally✓ Pomegranate: Provides antioxidant protection✓ Vitamin E: Supports skin health and coat vitality Thick, Durable, Extra-Large WipesOur 8\" x 8\" wipes are generously sized and ultra-thick with a textured surface that actually grabs dirt, mud, and debris."
+    },
+    "e3": {
+     "locator": "source-development.json#/19/excerpts/6",
+     "quote": "Multi-Purpose Cleaning for Every SituationOne product, endless uses:✓ Paws after muddy walks✓ Body for quick freshening between baths✓ Bum for sanitary cleanups✓ Ears for gentle outer ear cleaning✓ Coat for removing dust, pollen, and allergens Cruelty-Free & Ethically MadeLeaping Bunny certified - never tested on animals."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2",
+     "e3"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Excerpts name hypoallergenic grooming wipes that \"nourish your dog's skin and coat\" across paws/body/coat/ears; squarely skin/coat cleansing and conditioning within the Grooming definition. Literal Dogs/dog → Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"Dogs/dog\" (alias→Dog); alias scan: zero Cat-literals.",
+     "attributeProfileId": "profile-grooming"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-grooming; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "Dog",
+     "Dog",
+     "Dogs",
+     "dog",
+     "dog",
+     "Dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "grooming",
+    "attributeProfileId": "profile-grooming",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {}
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:296bf8efe35fecda",
+   "sourceIndex": 20,
+   "sourceHash": "d571bee1e5ec28166e64f4b5f3b5cdf1aa6453af723f7f181f516490f7f6dcac",
+   "sourceWordCount": 35,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/20/excerpts/0",
+     "quote": "Click-and-lock closure to keep bags secure."
+    },
+    "e1": {
+     "locator": "source-development.json#/20/excerpts/1",
+     "quote": "Sturdy, minimal-swing silicone strap attaches easily to any style of leash."
+    },
+    "e2": {
+     "locator": "source-development.json#/20/excerpts/2",
+     "quote": "Signature hook for hanging used bags keeps your hands free and clean until you spot a trash bin."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Real product: a leash-attach silicone dispenser (closure/strap/hook — all 3 excerpts describe dispenser hardware, none describes bags as the product). Dog Waste Bags covers bags, not dispenser hardware; the included 15-bag count does not change product identity. No dispenser type among the 74 → genuine gap no-fit (scored)."
+   },
+   "fields": {
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "breed-size is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "flavor is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "food-form is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "fuel-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "hose-length is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "life-stage is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "packaging-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "safety-toe-type is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    },
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "no-resolved-type",
+     "note": "species is type-dependent controlled; no resolved type → no applicable profile. Exact universals (brand:freeText, canonical-breadcrumb:freeText, canonical-category-id:freeText, product-type:freeText) are all freeText — zero controlled universals apply."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": null,
+    "attributeProfileId": null,
+    "controlledMember": null,
+    "note": "No corresponding type; universals-only; all 9 controlled type-dependent → inapplicable."
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:12c39097063f5fd5",
+   "sourceIndex": 21,
+   "sourceHash": "4bb75d942aaa3ceaa346c488e49adcfd8f80b7a58a7f5d39322f4c95489554c2",
+   "sourceWordCount": 46,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/21/excerpts/0",
+     "quote": "Long-lasting bulk format perfect for multi-dog households Convenient tissue-style dispensing right out of the box Extra long, extra strong and 100% leak-proof guaranteed Made from 65% certified post-consumer recycled plastic, they give a second life to more than 5 million pounds of landfill-bound plastic each year."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Single-excerpt row naming bulk poop bags (\"bulk format\", tissue-style dispensing, leak-proof, recycled plastic) for dog-walk cleanup; fits Dog Waste Bags despite thinness — decidable type must not be forced insufficient by brevity. Literal \"dog walks\"/\"Dog Owners\" → Dog; invariant Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog/Dog\" (alias→Dog); invariant Dog.",
+     "attributeProfileId": "profile-dog-waste-bags"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [
+    "Single-excerpt (thin) row; type decidable from explicit poop-bag identity; pages stay unknown."
+   ],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-waste-bags",
+    "attributeProfileId": "profile-dog-waste-bags",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7b85b2c72ae1d942",
+   "sourceIndex": 22,
+   "sourceHash": "6d6307f7b1d318d0c28be124aea050d67dc9d8d3f93663c22d2cee172d877a15",
+   "sourceWordCount": 162,
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/22/excerpts/0",
+     "quote": "Never Worry About Leaks AgainMake dog walks stress-free with our premium poop bags on refill rolls."
+    },
+    "e1": {
+     "locator": "source-development.json#/22/excerpts/1",
+     "quote": "Designed for pet parents who need reliable, mess-free cleanup every single time.Why Dog Owners Love These Bags: 100% Leak-Proof Guarantee: Extra strong construction prevents tears and embarrassing leaks Extra Long & Wide Design: Generous sizing makes pickup easy and tying secure Easy One-Handed Dispensing: Perforated design tears cleanly when you need it Universal Compatibility: Works with our dispensers or use standalone Durable Construction: Won't break when you need them most Perfect For: Daily dog walks and outdoor adventures Large dogs and messy situations Dog parks and public spaces Travel and hiking with your pet Multi-dog households Smart Choice: Made from 65% certified post-consumer recycled plastic, giving new life to over 5 million pounds of plastic that would otherwise end up in landfills.Convenient Refill System: These rolls integrate seamlessly with our dispenser system, ensuring you're always prepared for walks, hikes, and outdoor adventures with your furry companion."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Excerpts name premium poop bags on refill rolls with leak-proof guarantee for \"dog walks\"; fits Dog Waste Bags. Literal dog/pet-parents-of-dogs → Dog; invariant Dog."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation",
+     "note": "Literal \"dog\" (alias→Dog); invariant Dog.",
+     "attributeProfileId": "profile-dog-waste-bags"
+    },
+    "breed-size": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "breed-size is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "flavor": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "flavor is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "food-form": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "food-form is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "fuel-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "fuel-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "hose-length": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "hose-length is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "life-stage": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "life-stage is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "packaging-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "packaging-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    },
+    "safety-toe-type": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "not-in-applicable-profile",
+     "note": "safety-toe-type is not a member of frozen profile-dog-waste-bags; type-gated inapplicable per applicability policy (never broadened)."
+    }
+   },
+   "speciesLiteralScan": {
+    "dogLiterals": [
+     "dog",
+     "Dog",
+     "dog",
+     "dogs",
+     "Dog",
+     "dog"
+    ],
+    "catLiterals": []
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": [],
+   "profileValidation": {
+    "typeId": "dog-waste-bags",
+    "attributeProfileId": "profile-dog-waste-bags",
+    "controlledMember": "species",
+    "nonMemberControlled": [
+     "breed-size",
+     "flavor",
+     "food-form",
+     "fuel-type",
+     "hose-length",
+     "life-stage",
+     "packaging-type",
+     "safety-toe-type"
+    ],
+    "invariantAttributes": {
+     "species": "Dog"
+    }
+   }
+  }
+ ]
+}

@@ -27,7 +27,10 @@ export const INVESTIGATION_CONTAINER_IMAGE = 'baystate/investigation-browser:1' 
 // rendered-page stack whose ONLY egress is the validating forward proxy
 // (`render-proxy.ts`, host-side, broker-validated per request) on the
 // isolated render network. Direct container egress is denied at container
-// level (proven by the Tier 1 denial suite). See docs/plans/browser-investigation-design.md
+// level (proven by the Tier 1 denial suite). HTTPS reaches the boundary
+// through validating CONNECT interception (approved host + 443 only, tunnel
+// terminated per run, every inner request broker-validated) — never an
+// opaque tunnel. See docs/plans/browser-investigation-design.md
 
 export const INVESTIGATION_NETWORK_SHAPE = {
   tier0: {
@@ -46,7 +49,7 @@ export const INVESTIGATION_NETWORK_SHAPE = {
 
 /** Tier 1 rendered investigation runs in the render container (proxy-only egress). */
 export const TIER1_RENDER_CONTAINER_STATUS =
-  'active: render container on the isolated render network with proxy-only egress to the validating forward proxy (#237)' as const;
+  'active: render container on the isolated render network with proxy-only egress to the validating forward proxy, including validating CONNECT interception for HTTPS (#237)' as const;
 
 /** Pinned image for the Tier 1 render container (posture-pinned, like the Tier 0 image). */
 export const RENDER_CONTAINER_IMAGE = 'baystate/investigation-render:1' as const;

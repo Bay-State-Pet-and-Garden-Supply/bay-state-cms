@@ -8,8 +8,9 @@
 //    holdout material — no failure context, no reports, no metadata, no
 //    knownContext VALUES (key names only), no page bodies. The caller
 //    supplies the reserved-holdout exclusion list explicitly; every context
-//    string is probed for every excluded URL/artifact and the build fails
-//    closed with `holdout_exposed` on any match.
+//    string (id, domain, observations, refs, gaps, keys) is probed for every
+//    excluded URL/artifact and the build fails closed with `holdout_exposed`
+//    on any match.
 // 2. Redaction by construction: observations carry kind/sourceUrl/bounded
 //    detail/artifact hash only. Raw page bodies, keys, and knownContext
 //    values have no field to travel in — the input type cannot express them.
@@ -99,15 +100,16 @@ function normalizeUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }
 
-/** Every model-visible string in the context: observations, refs, gaps, keys, domain. */
+/** Every model-visible string in the context: id, domain, observations, refs, gaps, keys. */
 function contextStrings(ctx: {
+  investigationId: string;
   domain: string;
   observations: RedactedObservation[];
   evidenceRefs: string[];
   analysisGaps: string[];
   knownContextKeys: string[];
 }): string[] {
-  const out: string[] = [ctx.domain];
+  const out: string[] = [ctx.investigationId, ctx.domain];
   for (const o of ctx.observations) {
     out.push(o.sourceUrl, o.artifactHash, o.detail ?? '', o.kind);
   }
@@ -204,7 +206,7 @@ export function buildTier1ModelContext(input: Tier1ModelContextInput): Tier1Mode
   const analysisGaps = input.analysisGaps.slice(0, 50).map((g) => g.slice(0, 1000));
   const knownContextKeys = [...new Set(input.knownContextKeys)].sort().slice(0, 64);
   assertHoldoutBlind(
-    contextStrings({ domain: input.domain, observations, evidenceRefs, analysisGaps, knownContextKeys }),
+    contextStrings({ investigationId: input.investigationId, domain: input.domain, observations, evidenceRefs, analysisGaps, knownContextKeys }),
     input.excludedHoldouts,
   );
   const exclusionCommitment = exclusionCommitmentOf(input.excludedHoldouts);

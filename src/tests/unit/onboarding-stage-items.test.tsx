@@ -20,10 +20,11 @@ vi.mock('../../client/onboarding-api', async (importOriginal) => {
 });
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import { StageItemsView } from '../../client/components/onboarding/StageItemsView';
+import { StageItemsView, type StageItemsViewProps } from '../../client/components/onboarding/StageItemsView';
 import { OutcomeItemsView } from '../../client/components/onboarding/OutcomeItemsView';
 import { assignItemBrand } from '../../client/onboarding-api';
 import * as workApi from '../../client/onboarding-work-api';
+import { readStageViewPreferences } from '../../client/components/onboarding/workspace-view-state';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -92,9 +93,9 @@ describe('StageItemsView (server-filtered v2 reads)', () => {
     });
   }
 
-  async function mountStage(stage: 'route_sources' | 'review_listings' = 'route_sources') {
+  async function mountStage(stage: StageItemsViewProps['stage'] = 'route_sources', props: Partial<StageItemsViewProps> = {}) {
     await act(async () => {
-      root.render(<StageItemsView batchId="b1" stage={stage} />);
+      root.render(<StageItemsView batchId="b1" stage={stage} {...props} />);
     });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20));
@@ -102,6 +103,7 @@ describe('StageItemsView (server-filtered v2 reads)', () => {
   }
 
   beforeEach(() => {
+    sessionStorage.clear();
     vi.spyOn(workApi, 'subscribeBatchEvents').mockImplementation(() => () => {});
     responder = () => [makeRow(1), makeRow(2)];
     installFetch();
@@ -126,7 +128,7 @@ describe('StageItemsView (server-filtered v2 reads)', () => {
     const scope = container.querySelector('[data-testid="stage-scope-label"]');
     expect(scope?.textContent).toMatch(/server-filtered/);
     // Loaded rows shown as loaded rows — never as a batch total.
-    expect(scope?.textContent).toMatch(/2 loaded rows/);
+    expect(scope?.textContent).toMatch(/2 loaded products/);
     expect(scope?.textContent).not.toMatch(/total/i);
   });
 
@@ -148,6 +150,58 @@ describe('StageItemsView (server-filtered v2 reads)', () => {
     responder = () => [];
     await mountStage('route_sources');
     expect(container.querySelector('[data-testid="stage-empty"]')).not.toBeNull();
+  });
+
+  it.each([
+    ['find_product_page', 'choose_official_url', 'choose_official_url', 'Choose a page', 'Several official pages match'],
+    ['collect_details', 'extraction_profile_failed', 'retry_extraction', 'Retry extraction', 'Selector no longer matches'],
+  ] as const)('%s shows specific blockers and opens the relevant shell resolver', async (stage, attentionReason, attentionAction, label, detail) => {
+    responder = () => [makeRow(1, { category: 'needs_attention', attentionReason, attentionAction, detail }), makeRow(2, { activity: 'extraction' })];
+    const onOpenAttentionItem = vi.fn();
+    await mountStage(stage, { onOpenAttentionItem, workspaceId: 'w1' });
+    expect(container.textContent).toContain(detail);
+    const action = container.querySelector('[data-testid="stage-next-action-item_1"]') as HTMLButtonElement;
+    expect(action.textContent).toBe(label);
+    await act(async () => { action.click(); });
+    expect(onOpenAttentionItem).toHaveBeenCalledWith('item_1');
+    expect(readStageViewPreferences({ workspaceId: 'w1', batchId: 'b1', stage })?.selectedId).toBe('item_1');
+    expect(container.querySelector('[data-testid="stage-next-action-item_2"]')).toBeNull();
+    expect(container.textContent).toContain('Automatic processing');
+  });
+
+  it('collection status filters round-trip to server reads and restore across stage switches', async () => {
+    responder = (url) => url.includes('category=needs_attention') ? [makeRow(1, { category: 'needs_attention', attentionAction: 'retry_extraction' })] : [makeRow(1), makeRow(2)];
+    await mountStage('collect_details', { workspaceId: 'w1' });
+    await act(async () => {
+      const filter = container.querySelector('select[aria-label="Product status filter"]') as HTMLSelectElement;
+      filter.value = 'needs_attention'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(seenUrls.some((url) => url.includes('category=needs_attention'))).toBe(true);
+    await mountStage('find_product_page', { workspaceId: 'w1' });
+    await mountStage('collect_details', { workspaceId: 'w1' });
+    expect((container.querySelector('select') as HTMLSelectElement).value).toBe('needs_attention');
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(1);
+  });
+
+  it('late stage reads cannot restore old rows or a resolver after a batch switch', async () => {
+    let resolve!: (value: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise((r) => { resolve = r; }));
+    const onOpenAttentionItem = vi.fn();
+    await mountStage('find_product_page', { onOpenAttentionItem });
+    responder = () => [makeRow(2)];
+    await mountStage('collect_details', { batchId: 'b2', onOpenAttentionItem });
+    await act(async () => { resolve({ ok: true, json: async () => ({ items: [makeRow(1, { category: 'needs_attention', attentionAction: 'choose_official_url' })], nextCursor: null }) } as Response); });
+    expect(container.textContent).toContain('Product 2');
+    expect(container.textContent).not.toContain('Product 1');
+    expect(container.querySelector('[data-testid="stage-next-action-item_1"]')).toBeNull();
+    expect(onOpenAttentionItem).not.toHaveBeenCalled();
+  });
+
+  it('keeps review and draft workspace openers out of the generic stage list', async () => {
+    await mountStage('review_listings', { onOpenFullBatchReview: vi.fn() });
+    expect(container.textContent).not.toMatch(/Open full-batch Review workspace/);
+    await mountStage('create_drafts', { onOpenReadyToExportWorkspace: vi.fn() });
+    expect(container.querySelector('[data-testid="open-ready-to-export-workspace"]')).toBeNull();
   });
 });
 

@@ -1,0 +1,954 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "public-fresh-development-manual-adjudication",
+ "adjudicatedBy": "agent:jev-development-adjudicator-v4-peer",
+ "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+ "sourceFiles": [
+  "source-development.json",
+  "taxonomy.json"
+ ],
+ "status": "complete-fresh-23",
+ "reviewedIndependentFamilyCount": 23,
+ "entryCount": 23,
+ "taxonomySourceHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+ "pageCitationSourceHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe",
+ "cardinalityLimitation": "Frozen single everywhere EXCEPT species in profile-grooming and profile-supplements (multiple).",
+ "httpRequestLedger": [],
+ "extraPublicHttpRequests": 0,
+ "records": [
+  {
+   "sku": "PUBLIC:ruffwear.com:7a02531f86d15d5f",
+   "sourceIndex": 0,
+   "sourceHash": "8470e5d4215df1d7c265a3601ec80ce27480d67987d75fc2ce96f31956ab155f",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/0/excerpts/0",
+     "quote": "With an engaging, origami-like shape, the Remix™ Cactus Tug Toy features an irresistible shape that dogs love to sink their teeth into."
+    },
+    "e1": {
+     "locator": "source-development.json#/0/excerpts/1",
+     "quote": "Designed and tested with feedback from avalanche rescue teams, this toy dials up the fun by turning flat webbing into three-dimensional fun that’s easy to tug, "
+    },
+    "e2": {
+     "locator": "source-development.json#/0/excerpts/4",
+     "quote": "Chew Style: GentlePlay Style: Tug & toss Our toys are designed to be interactive - it's just more fun that way."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Literal excerpt supports dog-toys per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:c85e7db84408a6ec",
+   "sourceIndex": 1,
+   "sourceHash": "1e96bc70f4afe4785c64a4eefe05b51dea44df573dcf8f718e5205d7d279b819",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/1/excerpts/0",
+     "quote": "Inspired by our original Hover Craft toy, the Remix™ Soft Flying Disc is a lightweight, flexible flyer for fetch sessions on land."
+    },
+    "e1": {
+     "locator": "source-development.json#/1/excerpts/1",
+     "quote": "It’s soft build is easy on gums and teeth, great for building confidence in aspiring disc dogs."
+    },
+    "e2": {
+     "locator": "source-development.json#/1/excerpts/4",
+     "quote": "Chew Style: GentlePlay Style: Fly & FetchOne Size: Diameter: 8.7 in (22 cm) Our toys are designed to be interactive - it's just more fun that way."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "dog-toys"
+    ],
+    "reasoning": "Literal excerpt supports dog-toys per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:b36d7e293f3e1ee5",
+   "sourceIndex": 2,
+   "sourceHash": "d1396b0e748ce331dfdcd07ca884a4dc8e57dbc5eab99a6b3ec5ea03561b0ac6",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/2/excerpts/0",
+     "quote": "This food and water bowl footprint has a non-slip surface and base, sturdy walls for containing spills, and an easy to clean surface."
+    },
+    "e1": {
+     "locator": "source-development.json#/2/excerpts/1",
+     "quote": "Adventures begin at basecamp, and the Basecamp™ Mat is where your canine sidekick can go to refresh and refuel for their next excursion."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:a356f29052b12e15",
+   "sourceIndex": 3,
+   "sourceHash": "e57bc6e9b5a51b567b52cd8ec8491d5f6a24b0f1a61b0f74925b736caa34879c",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/3/excerpts/0",
+     "quote": "The Kibble Kaddie™ is a soft-sided, travel-friendly dog food carrier."
+    },
+    "e1": {
+     "locator": "source-development.json#/3/excerpts/1",
+     "quote": "A compact, convenient design allows for easy transport, storage, and dispensing of kibble on the road or at camp."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:fbdfa0be8d41f3cd",
+   "sourceIndex": 4,
+   "sourceHash": "c7dcc990690c02befbbf7719cb288b15fa5cc550da984b45e79742340ecfcddf",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/4/excerpts/0",
+     "quote": "Rest, rinse, and repeat with the Dirtbag™ Bed – an easy to clean and durable outdoor dog bed designed to handle the grit and aftermath that come standard with c"
+    },
+    "e1": {
+     "locator": "source-development.json#/4/excerpts/4",
+     "quote": "On top, a breathable air mesh sleeping surface."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "pet-beds"
+    ],
+    "reasoning": "Literal excerpt supports pet-beds per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5f23228aa68c8b2f",
+   "sourceIndex": 5,
+   "sourceHash": "9b4c72bdf2598a8b3c17a1f0a80158d62b668f15536c96a02f439c84e6eb7de7",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/5/excerpts/0",
+     "quote": "EverRest™ Dog Cot takes your dog’s post-adventure nap up a notch as a light, strong, and stable elevated dog bed."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "pet-beds"
+    ],
+    "reasoning": "Literal excerpt supports pet-beds per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:5c238b471d461c33",
+   "sourceIndex": 6,
+   "sourceHash": "ee6bd41c126565b5561395af52756ed47746738fcec2dda78ef9017de8b2b3f9",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/6/excerpts/0",
+     "quote": "Fuel your dog’s adventures with the light and durable Bivy™ Dog Bowl."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:31a0f5e6a390cb8d",
+   "sourceIndex": 7,
+   "sourceHash": "961103cb2830ed0da9e34e1a95d890ae93333183715ec0aaf2746e1302f54a7c",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/7/excerpts/0",
+     "quote": "This BPA-free water bladder is collapsible and lightweight, ideal for adventures on the trail."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:ruffwear.com:d2ec2ac7da1c4301",
+   "sourceIndex": 8,
+   "sourceHash": "e84cb7ae3d2c6becacdec28741257e69f4d0b758cd51be60ae6b00ea71f44a18",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/8/excerpts/0",
+     "quote": "The Beacon™ is a high-performance safety dog light to help keep dogs visible in low-light conditions or inclement weather."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:4e6d23ef30273be0",
+   "sourceIndex": 9,
+   "sourceHash": "d67d2017ce2d5725628beea6fa8c9c45aafc3edc986d836d124b8dfbb3348db1",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/9/excerpts/0",
+     "quote": "Earth Rated's Odor-Blocking Dog Poop Bags Refill Rolls deliver superior protection with our innovative 3X Protect system, combining odor-blocking technology, le"
+    },
+    "e1": {
+     "locator": "source-development.json#/9/excerpts/4",
+     "quote": "Key Features 3X Protect Technology: Our advanced triple-layer protection system features odor-blocking technology that fully conceals unpleasant smells, leak-pr"
+    },
+    "e2": {
+     "locator": "source-development.json#/9/excerpts/3",
+     "quote": "Our mission is to make everyday moments for people and their dogs simpler and better."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Literal excerpt supports dog-waste-bags per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e2"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b002e86083719174",
+   "sourceIndex": 10,
+   "sourceHash": "ee9427057fa4f9041ea2b5a9b24c05c3241d88d4b6e38cd90e58be8c4caed5c0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/10/excerpts/0",
+     "quote": "Leak protection, quick-drying unscented surface, adhesive tabs, and a built-in training attractant all in one pad."
+    },
+    "e1": {
+     "locator": "source-development.json#/10/excerpts/1",
+     "quote": "Earth Rated Max Absorbency Pee Pads with AbsorbShield™+ Technology absorb 2X faster and 2X more* than the leading brand, locking away messes before they become "
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:6270cc60dfd3d21a",
+   "sourceIndex": 11,
+   "sourceHash": "26ca01d624445f431205412e10443eee9ef5d1dcc76f7d8d733ef2041fb15ce0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/11/excerpts/0",
+     "quote": "Our dog poop bags with handles on a roll tear smoothly from the roll and open extra wide for mess-free handling."
+    },
+    "e1": {
+     "locator": "source-development.json#/11/excerpts/1",
+     "quote": "Our handle bags open extra wide so they can handle any size mess."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Literal excerpt supports dog-waste-bags per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:426b60b6a318a407",
+   "sourceIndex": 12,
+   "sourceHash": "b83d80fb0b30e6c8d8271e2b7ef782b7e7d6eae5ac4c84c37d7fadb4172468fc",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/12/excerpts/0",
+     "quote": "Complete Coat Care in One Simple StepTransform bath time with our 3-in-1 dog shampoo collection that cleans, hydrates, and deodorizes your dog's coat all at onc"
+    },
+    "e1": {
+     "locator": "source-development.json#/12/excerpts/1",
+     "quote": "No more juggling multiple products - just one gentle formula that does it all.Tailored for Every Dog's Unique Needs: Detangling Formula: Perfect for dogs with l"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:debd72edb60f6e07",
+   "sourceIndex": 13,
+   "sourceHash": "e2774750f318415fbfccf4c3b9e6166a9a4e7d150fab45ad100c153e2faac97b",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/13/excerpts/0",
+     "quote": "Clean Your Dog Anywhere, Anytime - No Water NeededTransform grooming time with our revolutionary no-rinse dog shampoo."
+    },
+    "e1": {
+     "locator": "source-development.json#/13/excerpts/1",
+     "quote": "Perfect for busy pet parents, anxious dogs, or when a traditional bath just isn't possible.Why Pet Parents Love Our Waterless Formula: No Bath Required: Clean y"
+    },
+    "e2": {
+     "locator": "source-development.json#/13/excerpts/2",
+     "quote": "Safe for all coat types and regular use.How to Use: Apply foam to dry coat, massage gently into fur and skin, brush through for even distribution, then towel dr"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7a96f15b7db29ed9",
+   "sourceIndex": 14,
+   "sourceHash": "40e3a8cbfd8f70b681aa4590717fb6593842731471099ef6473378fe7e49850b",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/14/excerpts/0",
+     "quote": "Instantly Eliminate Dog Odors with One Quick SpraySay goodbye to embarrassing dog smells with our powerful deodorizing spray."
+    },
+    "e1": {
+     "locator": "source-development.json#/14/excerpts/1",
+     "quote": "Whether it's that wet dog smell, outdoor adventures, or just daily freshening, our triple-action mist delivers instant results.Triple-Action Deodorizing Power: "
+    },
+    "e2": {
+     "locator": "source-development.json#/14/excerpts/2",
+     "quote": "Safe for daily use and all coat types.Easy Application: Simply spray onto coat, brush through if desired, and enjoy instant freshness."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1ac771fa42bf640e",
+   "sourceIndex": 15,
+   "sourceHash": "28ee1da52dd7fc1b668d95fc06079844b02f91ac6077b9d8ce83703d49c873a8",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/15/excerpts/0",
+     "quote": "Finally, Relief from Endless Dog HairTired of finding dog hair everywhere?"
+    },
+    "e1": {
+     "locator": "source-development.json#/15/excerpts/1",
+     "quote": "Our deshedding 3-in-1 shampoo is specially formulated to reduce excessive shedding while keeping your dog's coat healthy and beautiful.Triple Action Shedding Co"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:1f1ed0341a3ef189",
+   "sourceIndex": 16,
+   "sourceHash": "716feba31a53eeec6666ae9ecb3c8e9d49afe46cc5a8ff57d85550e8a4913316",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/16/excerpts/0",
+     "quote": "Gentle Relief for Sensitive SkinGive your dog the comfort they deserve with our soothing 3-in-1 shampoo, specially formulated for dogs with sensitive skin, alle"
+    },
+    "e1": {
+     "locator": "source-development.json#/16/excerpts/1",
+     "quote": "Finally, a bath that feels good instead of causing stress.Triple Soothing Action: Calms Irritation: Natural ingredients reduce redness and itching Gentle Cleans"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:b5abb3ce76063356",
+   "sourceIndex": 17,
+   "sourceHash": "cb1ad4e1b36b3c0b4b1dc64f1bb32d1933ab28b008da66ce9ee8cf759abe1abc",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/17/excerpts/0",
+     "quote": "Cleanse your dog’s eyes and reduce tear stains in a blink with Earth Rated Dog Eye Wipes."
+    },
+    "e1": {
+     "locator": "source-development.json#/17/excerpts/1",
+     "quote": "Earth Rated Dog Eye Wipes are thoughtfully designed to help you take care of your dog’s eyes in just a few swipes."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:dce61981c59bcf5b",
+   "sourceIndex": 18,
+   "sourceHash": "2495fdeacdd7ae8e2ae5e54081e81dca0c181415a710a0e02a773489206ffee0",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/18/excerpts/0",
+     "quote": "Simplify ear care for your dog with easy-to-use Earth Rated Dog Ear Wipes Thoughtfully designed to cleanse the sensitive folds, flaps, and fur of your dog’s ear"
+    },
+    "e1": {
+     "locator": "source-development.json#/18/excerpts/1",
+     "quote": "Hypoallergenic and formulated with soothing aloe vera, each wipe measures 5x5 inches—large enough to give both ears a good clean."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:83729b8e5d3bb8d0",
+   "sourceIndex": 19,
+   "sourceHash": "86348fb69cdeea3d99133313a1ee81a1d5e88457c3b9868548657ed34beac20c",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/19/excerpts/0",
+     "quote": "Keep Your Dog Fresh, Clean, and Comfortable Between Baths The Problem Every Dog Owner Knows: Dogs get dirty."
+    },
+    "e1": {
+     "locator": "source-development.json#/19/excerpts/2",
+     "quote": "Gentle enough for daily use, tough enough to handle real messes, and formulated with premium plant-based ingredients that actually nourish your dog's skin and c"
+    },
+    "e2": {
+     "locator": "source-development.json#/19/excerpts/5",
+     "quote": "The durable material stays intact even when cleaning rough paw pads or heavily soiled areas."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1",
+     "e2"
+    ],
+    "taxonomyTypes": [
+     "grooming"
+    ],
+    "reasoning": "Literal excerpt supports grooming per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0",
+      "e1"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:296bf8efe35fecda",
+   "sourceIndex": 20,
+   "sourceHash": "d571bee1e5ec28166e64f4b5f3b5cdf1aa6453af723f7f181f516490f7f6dcac",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/20/excerpts/1",
+     "quote": "Sturdy, minimal-swing silicone strap attaches easily to any style of leash."
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [],
+    "reasoning": "Source object is an accessory/index outside all 74 frozen types; quarantined no-fit, never scored."
+   },
+   "fields": {},
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:12c39097063f5fd5",
+   "sourceIndex": 21,
+   "sourceHash": "4bb75d942aaa3ceaa346c488e49adcfd8f80b7a58a7f5d39322f4c95489554c2",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/21/excerpts/0",
+     "quote": "Long-lasting bulk format perfect for multi-dog households Convenient tissue-style dispensing right out of the box Extra long, extra strong and 100% leak-proof g"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Literal excerpt supports dog-waste-bags per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  },
+  {
+   "sku": "PUBLIC:earthrated.com:7b85b2c72ae1d942",
+   "sourceIndex": 22,
+   "sourceHash": "6d6307f7b1d318d0c28be124aea050d67dc9d8d3f93663c22d2cee172d877a15",
+   "observationMethod": "official_product_page_capture",
+   "citations": {
+    "e0": {
+     "locator": "source-development.json#/22/excerpts/0",
+     "quote": "Never Worry About Leaks AgainMake dog walks stress-free with our premium poop bags on refill rolls."
+    },
+    "e1": {
+     "locator": "source-development.json#/22/excerpts/1",
+     "quote": "Designed for pet parents who need reliable, mess-free cleanup every single time.Why Dog Owners Love These Bags: 100% Leak-Proof Guarantee: Extra strong construc"
+    }
+   },
+   "productType": {
+    "citations": [
+     "e0",
+     "e1"
+    ],
+    "taxonomyTypes": [
+     "dog-waste-bags"
+    ],
+    "reasoning": "Literal excerpt supports dog-waste-bags per frozen definition; species Dog via literal citation/alias."
+   },
+   "fields": {
+    "species": {
+     "citations": [
+      "e0"
+     ],
+     "rule": "literal-citation"
+    }
+   },
+   "pages": {
+    "citations": [
+     "e0"
+    ],
+    "catalogCitationIds": [],
+    "rule": "unknown-pages"
+   },
+   "uncertainties": [],
+   "disagreements": []
+  }
+ ]
+}

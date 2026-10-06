@@ -22,6 +22,7 @@ export interface ReviewQueueProps {
   editedIds: Set<string>;
   /** Bulk-review selection (epic #46 follow-up, phase 4). */
   selectedIds?: Set<string>;
+  selectableIds?: Set<string>;
   onToggleSelected?: (itemId: string) => void;
   /** Toggle every visible member of a family group (family header checkbox). */
   onToggleFamilySelected?: (itemIds: string[]) => void;
@@ -36,6 +37,7 @@ export function ReviewQueue({
   warnedIds,
   editedIds,
   selectedIds = new Set(),
+  selectableIds,
   onToggleSelected,
   onToggleFamilySelected,
   emptyMessage,
@@ -54,7 +56,8 @@ export function ReviewQueue({
           {group.title && (
             <div className={`rv-family-group-header${group.type === 'individual' ? ' rv-family-group-header--individual' : ''}`}>
               {group.type === 'family' && onToggleFamilySelected && (() => {
-                const itemIds = group.items.map(i => i.itemId);
+                const itemIds = group.items.filter(i => !selectableIds || selectableIds.has(i.itemId)).map(i => i.itemId);
+                if (!itemIds.length) return null;
                 const selectedCount = itemIds.filter(id => selectedIds.has(id)).length;
                 const allSelected = selectedCount === itemIds.length;
                 return (
@@ -110,7 +113,7 @@ export function ReviewQueue({
                 edited={editedIds.has(item.itemId)}
                 selected={onToggleSelected ? selectedIds.has(item.itemId) : false}
                 onSelect={onSelect}
-                onToggleSelected={onToggleSelected}
+                onToggleSelected={!selectableIds || selectableIds.has(item.itemId) ? onToggleSelected : undefined}
               />
             ))}
           </ul>
@@ -206,9 +209,9 @@ function ReviewQueueRowItem({
       <span className="rv-row-checks">
         <span
           className={`rv-badge ${reviewed ? 'rv-badge-review' : 'rv-badge-unreviewed'}`}
-          title={reviewed ? 'Durably reviewed' : 'Not yet reviewed'}
+           title={item.reviewState === 'approved' ? 'Approved' : reviewed ? 'Reviewed' : 'Not yet reviewed'}
         >
-          {reviewed ? '✓ reviewed' : 'unreviewed'}
+           {item.reviewState === 'approved' ? '✓ approved' : reviewed ? '✓ reviewed' : 'unreviewed'}
         </span>
         <span className="rv-row-meta" style={{ justifyContent: 'flex-end' }}>
           <span className="rv-badge rv-badge-source">{sourceTypeLabel(item.sourceType)}</span>

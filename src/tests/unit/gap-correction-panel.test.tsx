@@ -204,7 +204,7 @@ describe('GapCorrectionPanel', () => {
     await waitForSettled();
   });
 
-  it('stale_gap reloads the latest gap with product context intact (T-8)', async () => {
+  it('stale_gap keeps correction values until an explicit reload preserves product context (T-8)', async () => {
     const refreshed = { ...GAP, reason: 'Still missing a description — someone else recorded first.' };
     fetchMock.mockImplementationOnce(async () => jsonResponse({ gap: GAP }));
     fetchMock.mockImplementationOnce(async () => jsonResponse({ error: 'stale_gap', code: 'stale_gap' }, 409));
@@ -216,8 +216,17 @@ describe('GapCorrectionPanel', () => {
     await act(async () => {
       (container!.querySelector('[data-testid="gap-panel-submit-item-1"]') as HTMLButtonElement).click();
     });
-    // The panel reloads instead of erroring: the form returns bound to
-    // the latest gap, with the product name and the new reason visible.
+    expect(container!.querySelector<HTMLTextAreaElement>('#gap-item-1-description')!.value).toBe('Operator-supplied description');
+    expect(container!.querySelector('[data-testid="gap-panel-error-item-1"]')).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const reload = Array.from(container!.querySelectorAll('button')).find(button => button.textContent === 'Reload latest request')!;
+    await act(async () => { reload.click(); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(container!.querySelector<HTMLTextAreaElement>('#gap-item-1-description')!.value).toBe('Operator-supplied description');
+    confirm.mockReturnValue(true);
+    await act(async () => { reload.click(); });
+    // Reloading is now deliberate rather than silently discarding the edit.
     await vi.waitFor(() => {
       expect(container!.textContent).toMatch(/someone else recorded first/);
     });

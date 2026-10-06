@@ -172,7 +172,8 @@ export function buildFamilyCards(
         blocked: view.state === 'blocked' || blockedMembers.length > 0,
         blockedReason: view.blockedReason,
         members,
-        actionItems: dedupeById([...waitingActions, ...blockedActions], (a) => a.itemId),
+        // A member in both sets is a blocker, never just a processing wait.
+        actionItems: dedupeById([...blockedActions, ...waitingActions], (a) => a.itemId),
       });
       continue;
     }

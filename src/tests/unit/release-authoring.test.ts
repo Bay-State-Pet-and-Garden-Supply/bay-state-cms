@@ -214,3 +214,41 @@ describe('release authoring — end-to-end against a temp releases root', () => 
     fs.rmSync(result.candidateDir, { recursive: true, force: true });
   });
 });
+
+describe('release authoring — attributeAllowedValueAdds (governed vocabulary widening)', () => {
+  const readSpecies = (out: Record<string, string>, attributeId: string): { allowedValues: string[]; valueAliases: Array<{ alias: string; mapsTo: string }> } => {
+    const attrs = JSON.parse(out['attributes.json']) as { entries: Array<{ id: string; allowedValues: string[]; valueAliases: Array<{ alias: string; mapsTo: string }> }> };
+    return attrs.entries.find(a => a.id === attributeId)!;
+  };
+
+  it('appends values in order and lets aliases target them in the same change-set', () => {
+    const files = readSourceFiles();
+    const out = applyChangeSetToFiles(files, {
+      newReleaseId: 'x',
+      attributeAllowedValueAdds: [{ attributeId: 'flavor', values: ['Rabbit', 'Venison'] }],
+      valueAliasAdds: [{ attributeId: 'flavor', alias: 'rabbit meat', mapsTo: 'Rabbit' }],
+    });
+    const flavor = readSpecies(out, 'flavor');
+    expect(flavor.allowedValues.slice(-2)).toEqual(['Rabbit', 'Venison']);
+    expect(flavor.valueAliases).toContainEqual({ alias: 'rabbit meat', mapsTo: 'Rabbit' });
+  });
+
+  it('refuses unknown, uncontrolled, duplicate, non-canonical, and colliding values', () => {
+    const files = readSourceFiles();
+    const attempt = (changeSet: ReleaseChangeSet) => () => applyChangeSetToFiles(files, changeSet);
+    expect(attempt({ newReleaseId: 'x', attributeAllowedValueAdds: [{ attributeId: 'nope', values: ['A'] }] })).toThrow(/unknown attribute id/);
+    expect(attempt({ newReleaseId: 'x', attributeAllowedValueAdds: [{ attributeId: 'brand', values: ['A'] }] })).toThrow(/not a controlled attribute/);
+    expect(attempt({ newReleaseId: 'x', attributeAllowedValueAdds: [{ attributeId: 'flavor', values: ['Chicken'] }] })).toThrow(/already exists/);
+    expect(attempt({ newReleaseId: 'x', attributeAllowedValueAdds: [{ attributeId: 'flavor', values: ['  Rabbit  '] }] })).toThrow(/not canonical/);
+    expect(attempt({ newReleaseId: 'x', attributeAllowedValueAdds: [{ attributeId: 'flavor', values: ['Rabbit', 'rabbit'] }] })).toThrow(/collision/);
+  });
+
+  it('is deterministic across identical runs', () => {
+    const run = () => applyChangeSetToFiles(readSourceFiles(), {
+      newReleaseId: 'x',
+      createdAtOverride: '2026-10-06T00:00:00.000Z',
+      attributeAllowedValueAdds: [{ attributeId: 'flavor', values: ['Rabbit'] }],
+    });
+    expect(run()['attributes.json']).toBe(run()['attributes.json']);
+  });
+});

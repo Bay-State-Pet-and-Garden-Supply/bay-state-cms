@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 1,
+ "goldContractVersion": 1,
+ "artifactKind": "fresh-development-gold-support",
+ "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+ "authorityBinding": {
+  "release": "bay-state-v8",
+  "configHash": "098499155c24642ddfa061dfc0455528267109ed6c062af42009ec7d51d37ab3",
+  "catalogGitCommit": "9d8b54cf83d42e00e988f08efae7f280ebd76b69",
+  "taxonomy": "docs/audits/jev-representative-v4/taxonomy.json",
+  "sourceBank": "docs/audits/jev-representative-v4/source-development.json",
+  "sourceBankSha256": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1",
+  "supplemental": "docs/audits/jev-representative-v4/source-development-supplemental.json",
+  "supplementalSha256": "7cca68efc7074b019a48172b3e3db0937bd2872a1059150a916c919f0481f801"
+ },
+ "status": "complete-fresh-23",
+ "requestedIndependentFamilyCount": 23,
+ "reviewedIndependentFamilyCount": 23,
+ "entryCount": 23,
+ "independentFamilyIds": [
+  "family-0000ff39e204c84dc45b13ff8b3e39c3",
+  "family-014bfa289c90dccd0fa2d45fc863d04f",
+  "family-02347ff4380256fe96f1b706de137fe4",
+  "family-0b62d0c05013fa6637b2df3c4ac60dcc",
+  "family-0c7354ebe0641c5091c6282625731781",
+  "family-0dc1de2649e2bcd9e067bfba0cd07070",
+  "family-10f3622f15771bf4dc33ae0bd1b3c8dc",
+  "family-24cb6db2351f0c9bb5e8b7e50288d4bf",
+  "family-2d430c49e7e935ba78f1f540a1bfcf12",
+  "family-2eebe81009b1a4df365dc5e5623f4bc4",
+  "family-4787e4641caf71e67037df30a84bfab2",
+  "family-4f6d5eba6f1ba63eaa5eb6f4b9789c39",
+  "family-5a31a166598f0818bac9d2cd03046fcc",
+  "family-698fc0b7b51025f77531d8f1b6ed28e0",
+  "family-78ae7158aefdcc39dd2399bc1d13e521",
+  "family-824fb94f871499d9a3ed21d42c6f3aaa",
+  "family-93417821491848e16c419e83a5c8b01e",
+  "family-a1323a004e17fecf0fd299dcc6e7f7a4",
+  "family-a223b9a5575603b61442d784cc5ca60d",
+  "family-a661b1bce3610a49748d8e0d6c186384",
+  "family-bead2225cd3cd213fd99e36575f86f0b",
+  "family-c16a187ffa64c028c14e783d3aa6a72c",
+  "family-d4ae2376f177d11a3fbe12f9e430da01"
+ ],
+ "byGoldState": {
+  "known-type": 16,
+  "no-fit": 7
+ },
+ "byStratum": {
+  "neighbors": 9,
+  "care": 14
+ },
+ "byType": {
+  "dog-toys": 2,
+  "no-fit": 7,
+  "pet-beds": 2,
+  "dog-waste-bags": 4,
+  "grooming": 8
+ },
+ "below20Classes": {
+  "dog-toys": 2,
+  "no-fit": 7,
+  "pet-beds": 2,
+  "dog-waste-bags": 4,
+  "grooming": 8
+ },
+ "frozenConditionalInputs": {
+  "speciesCardinality": {
+   "profile-grooming": "multiple",
+   "profile-supplements": "multiple",
+   "defaultSingle": "all-other-72-profiles"
+  }
+ },
+ "supplementalNote": "Supplemental family family-a223b9a5575603b61442d784cc5ca60d is a variant of primary family family-a223b9a5575603b61442d784cc5ca60d; never independent support, excluded from gold/adjudication counts.",
+ "note": "V4-bank DEV adjudication, all 23 primary families source-reviewed; no sampling, no variants. Agent adjudication, NOT human approval. PUBLIC: ids are not store UPCs."
+}

@@ -71,7 +71,7 @@ function assertAttestationFresh(workspaceId: string, workspacePath: string): voi
 const FIELD_REGISTRY_FILE = 'store/field-registry.json';
 const PRODUCTS_DIR = 'products';
 const DELIMITER_CANDIDATES = [',', ';', '|', '/', '>', '\n'] as const;
-const MULTI_VALUE_FIELD_PREFIX = /^ProductField([1-9]|1[0-9]|2[0-5])$/;
+const MULTI_VALUE_FIELD_PREFIX = /^ProductField([1-9]|[12][0-9]|3[0-2])$/;
 const PAGE_NAME_PATTERN = /<Name>([^<]*)<\/Name>/g;
 const SAMPLE_SKU_CAP = 10;
 

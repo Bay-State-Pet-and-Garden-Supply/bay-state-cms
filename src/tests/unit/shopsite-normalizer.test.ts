@@ -180,7 +180,7 @@ describe('ShopSite Normalization Preservation', () => {
     expect(encoded.xml).toContain('<DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
   });
 
-  it('should omit MoreInformationText and the More Info flag when there is no description', () => {
+  it('should omit MoreInformationText when there is no description but always emit the More Info flag', () => {
     const customXml = `<Product>
       <SKU>NODESC</SKU>
       <Name>No Description</Name>
@@ -190,7 +190,9 @@ describe('ShopSite Normalization Preservation', () => {
     expect(product.core.description).toBeNull();
     const encoded = ShopSiteProductCodec.encode(product);
     expect(encoded.xml).not.toContain('<MoreInformationText>');
-    expect(encoded.xml).not.toContain('<DisplayMoreInformationPage>');
+    // The flag is emitted for every product (default checked) — the live
+    // store sets it on all products, so it is never silently dropped.
+    expect(encoded.xml).toContain('<DisplayMoreInformationPage>checked</DisplayMoreInformationPage>');
     // ProductDescription still carries the product name per upload convention.
     expect(encoded.xml).toContain('<ProductDescription><![CDATA[No Description]]></ProductDescription>');
   });

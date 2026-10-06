@@ -75,14 +75,14 @@ describe('export-status derivation', () => {
     const pres = exportStatusPresentation('approved');
     expect(pres.canCreateDrafts).toBe(true);
     expect(pres.canOpenChangeSet).toBe(false);
-    expect(pres.heading).toContain('awaiting export drafts');
+    expect(pres.heading).toContain('awaiting CMS drafts');
   });
 
   it('labels ready_to_export as change-set review stage', () => {
     const pres = exportStatusPresentation('ready_to_export');
     expect(pres.canCreateDrafts).toBe(false);
     expect(pres.canOpenChangeSet).toBe(true);
-    expect(pres.heading).toBe('Ready to export');
+    expect(pres.heading).toBe('CMS drafts created');
   });
 
   it('labels completed with verified language only', () => {
@@ -92,7 +92,7 @@ describe('export-status derivation', () => {
   });
 
   it('maps honest action labels', () => {
-    expect(exportActionLabel('approved')).toBe('Create export drafts');
+    expect(exportActionLabel('approved')).toBe('Create CMS drafts');
     expect(exportActionLabel('ready_to_export')).toBe('Open Change Set Review');
   });
 });

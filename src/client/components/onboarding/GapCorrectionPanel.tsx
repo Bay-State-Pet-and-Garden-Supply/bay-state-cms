@@ -25,6 +25,7 @@ export interface GapCorrectionPanelProps {
   itemId: string;
   itemName: string;
   onChanged?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 type Status =
@@ -41,29 +42,47 @@ function fieldLabel(field: string): string {
   return field;
 }
 
-export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectionPanelProps) {
+export function GapCorrectionPanel({ itemId, itemName, onChanged, onDirtyChange }: GapCorrectionPanelProps) {
   const [status, setStatus] = useState<Status>({ kind: 'loading' });
   const [values, setValues] = useState<Record<string, string>>({});
   const [key, setKey] = useState(() => generateGapIdempotencyKey());
   const mounted = useRef(true);
+  const initialValues = useRef<Record<string, string>>({});
+  const changedCallback = useRef(onChanged);
+  changedCallback.current = onChanged;
+  const [mustReload, setMustReload] = useState(false);
+  const dirty = status.kind !== 'accepted' && status.kind !== 'none' &&
+    Object.keys(values).some(field => values[field] !== (initialValues.current[field] ?? ''));
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => { onDirtyChange?.(false); }, [onDirtyChange]);
+  useEffect(() => {
+    if (!dirty) return;
+    const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', protect);
+    return () => window.removeEventListener('beforeunload', protect);
+  }, [dirty]);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (notifyChanged = false) => {
     setStatus({ kind: 'loading' });
     try {
       const { gap } = await getPreparationGap(itemId);
       if (!mounted.current) return;
       if (!gap || gap.status !== 'open') {
         setStatus({ kind: 'none' });
+        if (notifyChanged) changedCallback.current?.();
         return;
       }
       const initial: Record<string, string> = {};
       for (const f of gap.missingFields) initial[f] = gap.correctionEnvelope?.values[f] ?? '';
+      initialValues.current = initial;
+      setMustReload(false);
       setValues(initial);
       setStatus({ kind: 'ready', gap });
+      if (notifyChanged) changedCallback.current?.();
     } catch (err) {
       if (!mounted.current) return;
       setStatus({
@@ -78,7 +97,7 @@ export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectio
 
   const submit = useCallback(async () => {
     const current = status.kind === 'ready' || status.kind === 'error' ? status.gap : null;
-    if (!current) return;
+    if (!current || mustReload) return;
     setStatus({ kind: 'submitting' });
     try {
       const result = await submitGapCorrection(
@@ -98,24 +117,23 @@ export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectio
       // A new key per attempt: retries never replay a failed command.
       setKey(generateGapIdempotencyKey());
       const message = err instanceof OnboardingApiError && err.code === 'stale_gap'
-        ? 'This request changed while you worked — reloading the latest gap.'
+        ? 'This request changed while you worked. Your correction is kept; reload the latest request before resubmitting.'
         : err instanceof Error ? err.message : 'Correction failed.';
       if (err instanceof OnboardingApiError && err.code === 'stale_gap') {
-        void load();
-        return;
+        setMustReload(true);
       }
       setStatus({ kind: 'error', message, gap: current });
     }
-  }, [itemId, key, load, onChanged, status, values]);
+  }, [itemId, key, mustReload, onChanged, status, values]);
 
   if (status.kind === 'loading') {
-    return <p className="bws-muted" role="status">Checking listing readiness…</p>;
+    return <p className="bws-muted" role="status" data-onboarding-dirty={dirty ? 'true' : 'false'}>Checking listing readiness…</p>;
   }
   if (status.kind === 'none') {
     return <p className="bws-muted" data-testid={`gap-panel-clear-${itemId}`}>No open listing gaps for this product.</p>;
   }
   if (status.kind === 'submitting') {
-    return <p className="bws-muted" role="status">Submitting correction and resuming preparation…</p>;
+    return <p className="bws-muted" role="status" data-onboarding-dirty={dirty ? 'true' : 'false'}>Submitting correction and resuming preparation…</p>;
   }
   if (status.kind === 'accepted') {
     return (
@@ -131,14 +149,14 @@ export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectio
   const gap = status.kind === 'ready' ? status.gap : status.gap;
   if (!gap) {
     return (
-      <div role="alert" data-testid={`gap-panel-error-${itemId}`}>
+      <div role="alert" data-testid={`gap-panel-error-${itemId}`} data-onboarding-dirty={dirty ? 'true' : 'false'}>
         <p>{status.kind === 'error' ? status.message : 'Could not load the listing gap.'}</p>
         <button type="button" onClick={() => void load()}>Retry</button>
       </div>
     );
   }
   return (
-    <div data-testid={`gap-panel-${itemId}`}>
+    <div data-testid={`gap-panel-${itemId}`} data-onboarding-dirty={dirty ? 'true' : 'false'}>
       <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>
         Listing help needed — {itemName}
       </h4>
@@ -149,6 +167,12 @@ export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectio
       {status.kind === 'error' && (
         <p role="alert" data-testid={`gap-panel-error-${itemId}`}>{status.message}</p>
       )}
+      {mustReload && <button type="button" onClick={() => {
+        if (dirty && !window.confirm('Discard unsaved listing corrections and reload this request?')) return;
+        initialValues.current = {};
+        setValues({});
+        void load(true);
+      }}>Reload latest request</button>}
       <form
         onSubmit={(e) => { e.preventDefault(); void submit(); }}
         aria-label={`Correct listing information for ${itemName}`}
@@ -179,6 +203,7 @@ export function GapCorrectionPanel({ itemId, itemName, onChanged }: GapCorrectio
         ))}
         <button
           type="submit"
+          disabled={mustReload}
           data-testid={`gap-panel-submit-${itemId}`}
           style={{
             fontSize: '0.8125rem',

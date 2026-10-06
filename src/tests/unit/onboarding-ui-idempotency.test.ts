@@ -95,13 +95,42 @@ describe('onboarding UI idempotency — client operation paths (M4)', () => {
     expect(url1).not.toBe(url2);
   });
 
-  it('ReadyToExportView does not import promoteBatchItems (static check)', async () => {
+  it('ReadyToExportView routes through governed createExportDrafts with Idempotency-Key forwarding (no promote path)', async () => {
     const fs = await import('node:fs');
     const content = fs.readFileSync('src/client/components/onboarding/approved/ReadyToExportView.tsx', 'utf8');
+    // Forbidden legacy path: ReadyToExport must never bypass via promote.
     expect(content).not.toContain('promoteBatchItems');
+    expect(content).not.toContain('/promote');
+    // Governed code path: existing client operation seam.
     expect(content).toContain('createExportDrafts');
-    expect(content.toLowerCase()).toContain('idempotency');
-    expect(content).toContain('exportIdempotencyKeyRef');
+    // API idempotency forwarding, independent of implementation variable names:
+    // the view mints a key via the shared helper and forwards it as the
+    // governed idempotency option on retry-capable create calls.
+    expect(content).toContain('createIdempotencyKey');
+    expect(content).toContain('idempotencyKey');
+    // Retry retention: a ref holds the in-flight attempt so an unconfirmed
+    // outcome retries the same request (reused key) instead of minting a new one.
+    expect(content).toMatch(/\.current\s*=\s*\{\s*key:/);
+    expect(content).toContain('retryPending');
+  });
+
+  it('ReadyToExportView create path forwards a stable Idempotency-Key via the client seam (behavior)', async () => {
+    // Isolated behavior check against the existing client operation seam:
+    // same logical attempt reuses its key on retry, a new attempt mints anew —
+    // no dependence on internal ref variable names.
+    await createExportDrafts('batch-r', ['r1', 'r2'], { idempotencyKey: 'retry-key-1' });
+    await createExportDrafts('batch-r', ['r1', 'r2'], { idempotencyKey: 'retry-key-1' });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const [, opts1] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const [, opts2] = fetchSpy.mock.calls[1] as [string, RequestInit];
+    const h1 = (opts1.headers as Record<string, string>)['Idempotency-Key'];
+    const h2 = (opts2.headers as Record<string, string>)['Idempotency-Key'];
+    expect(h1).toBe('retry-key-1');
+    expect(h2).toBe('retry-key-1');
+    fetchSpy.mockClear();
+    await createExportDrafts('batch-r', ['r1', 'r2', 'r3'], { idempotencyKey: 'retry-key-2' });
+    const [, opts3] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect((opts3.headers as Record<string, string>)['Idempotency-Key']).toBe('retry-key-2');
   });
 
   it('ApprovedView retains Idempotency-Key per logical operation (static check)', async () => {

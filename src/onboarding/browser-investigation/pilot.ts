@@ -364,6 +364,14 @@ interface PilotReport {
   provider: string;
   actingModel: { provider: string; model: string };
   modelCalls: number;
+  /**
+   * Tier-1 render opt-in (#237): true when the run allowed the render
+   * machinery behind the explicit non-default switch
+   * (`BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`). False means deterministic
+   * Tier 0 only — rendered-required work then refuses with
+   * `render_deferred` and the report never claims rendered evidence.
+   */
+  renderOptIn: boolean;
   startedAt: string;
   endedAt: string;
   durationMs: number;
@@ -421,6 +429,14 @@ export interface PilotDeps extends PilotGateOptions {
   createVersion: (input: Record<string, unknown>) => { id: string; domain: string; version: number };
   stores?: PilotStores;
   now?: () => string;
+  /**
+   * Tier-1 render opt-in (#237): mirrors the harness's explicit
+   * non-default switch. The production CLI sets this from
+   * `BAYSTATE_INVESTIGATION_ALLOW_RENDER=1`; tests set it explicitly.
+   * Recorded verbatim in the report so Tier-0-only runs can never be
+   * mistaken for rendered runs.
+   */
+  renderOptIn?: boolean;
 }
 
 interface PilotOutcome {
@@ -516,6 +532,7 @@ interface ReportContext {
   isolationReason: string;
   startedAt: string;
   endedAt: string;
+  renderOptIn: boolean;
 }
 
 function buildReport(
@@ -537,6 +554,7 @@ function buildReport(
     provider: textOr(record?.provider, 'local_browser_harness'),
     actingModel: actingModelOf(record),
     modelCalls: record?.usage?.modelCalls ?? 0,
+    renderOptIn: ctx.renderOptIn,
     startedAt: ctx.startedAt,
     endedAt: ctx.endedAt,
     durationMs: elapsedMs(ctx.startedAt, ctx.endedAt),
@@ -634,6 +652,12 @@ function finish(ctx: RunContext, passed: boolean, failureCode: string | null): P
   if (passed) {
     ctx.state.notes.push('no activation, release, or image attestation was performed or claimed');
   }
+  if (ctx.deps.renderOptIn === true) {
+    ctx.state.notes.push(
+      'Tier-1 rendered investigation was opted in (BAYSTATE_INVESTIGATION_ALLOW_RENDER=1); ' +
+        'rendered observations, if any, are recorded as page_rendered evidence, never as Tier 0 findings',
+    );
+  }
   return {
     exitCode: passed ? 0 : 1,
     report: buildReport(
@@ -642,6 +666,7 @@ function finish(ctx: RunContext, passed: boolean, failureCode: string | null): P
         isolationReason: ctx.isolationReason,
         startedAt: ctx.startedAt,
         endedAt: nowIsoOf(ctx),
+        renderOptIn: ctx.deps.renderOptIn ?? false,
       },
       ctx.state,
       passed,

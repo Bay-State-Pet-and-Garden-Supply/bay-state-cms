@@ -13,7 +13,7 @@
  * helper copy). No alive badge, no concurrency, no last-poll, no
  * oldest-claim — those claims do not exist in this v1.
  */
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { colors, fonts, rounded, typography } from '../../theme';
 import { formatCount } from './batch-workspace-logic';
 import { LINEAR_STAGES } from './linear-workspace-logic';
@@ -61,6 +61,8 @@ export function ExecutionStrip({
   } = useExecutionStrip({ batchId, budgets, fetchSnapshot, createEventSource });
   const [expanded, setExpanded] = useState(defaultExpanded);
   const activityListId = useId();
+  const activityRegionId = useId();
+  const activityToggleRef = useRef<HTMLButtonElement | null>(null);
 
   const activityCount = timeline.filter((item) => item.kind === 'activity').length;
   const totalLabel = snapshot ? formatCount(snapshot.matchingTotal) : null;
@@ -106,7 +108,7 @@ export function ExecutionStrip({
             border: `1px solid ${snapshot?.executionState === 'running' ? '#bbf7d0' : colors.cardBorder}`,
           }}
         >
-          Execution: {snapshot ? labelExecutionPermission(snapshot.executionState) : '…'}
+          Execution: {labelExecutionPermission(snapshot?.executionState)}
         </span>
         <span data-testid="strip-counts" style={{ fontWeight: 600, color: colors.ledgerCharcoal }}>
           {snapshot ? (
@@ -169,10 +171,17 @@ export function ExecutionStrip({
         </button>
         <button
           type="button"
+          ref={activityToggleRef}
           data-testid="strip-activity-toggle"
           aria-expanded={expanded}
-          aria-controls={activityListId}
+          aria-controls={activityRegionId}
           onClick={() => setExpanded((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && expanded) {
+              event.stopPropagation();
+              setExpanded(false);
+            }
+          }}
           style={{
             backgroundColor: colors.whiteSurface,
             border: `1px solid ${colors.cardBorder}`,
@@ -221,8 +230,17 @@ export function ExecutionStrip({
       )}
 
       {expanded && (
-        <div style={{ marginTop: 8 }}>
-          <p data-testid="strip-disclosure" style={{ ...typography.viewSubtitle, margin: '0 0 8px 0', fontSize: '0.75rem' }}>
+        <div
+          id={activityRegionId}
+          style={{ marginTop: 8, minWidth: 0 }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              setExpanded(false);
+              activityToggleRef.current?.focus();
+            }
+          }}
+        >          <p data-testid="strip-disclosure" style={{ ...typography.viewSubtitle, margin: '0 0 8px 0', fontSize: '0.75rem' }}>
             {LIVE_ACTIVITY_DISCLOSURE}
           </p>
           {timeline.length === 0 ? (

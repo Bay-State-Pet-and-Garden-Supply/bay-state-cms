@@ -111,7 +111,7 @@ describe('Review drawer filename preview (issue #109)', () => {
     expect(looksGood?.disabled).toBe(true);
     expect(r.text()).toContain('Filename warning needs an explicit decision');
     await act(async () => {
-      r.queryAll('button').find(b => b.textContent === 'Accept filename & approve')?.click();
+      r.queryAll('button').find(b => b.textContent === 'Accept filename & mark reviewed')?.click();
     });
     expect(onAccept).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -139,7 +139,7 @@ describe('Review drawer filename preview (issue #109)', () => {
       />,
     );
     const labels = r.queryAll('button').map(b => b.textContent);
-    expect(labels).not.toContain('Accept filename & approve');
+    expect(labels).not.toContain('Accept filename & mark reviewed');
     expect(labels).toContain('Defer');
     expect(r.text()).toContain('not available for catalog collisions');
     r.unmount();

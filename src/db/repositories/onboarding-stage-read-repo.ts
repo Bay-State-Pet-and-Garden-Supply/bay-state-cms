@@ -13,7 +13,7 @@
 import { getDb } from '../connection';
 import { mapCohortRow, mapCohortMemberRow } from './curation-cohort-repo';
 import type { CurationCohort, CurationCohortMember } from '../../shared/schemas/cohorts';
-import type { OnboardingReviewState } from './onboarding-review-repo';
+import { listExportDraftLinks, type ExportDraftLink, type OnboardingReviewState } from './onboarding-review-repo';
 import type { ExtractionBinding } from './onboarding-extraction-repo';
 
 export interface ExecutedStatement {
@@ -489,4 +489,10 @@ export function loadV2ChangeSetStatusBySkus(workspaceId: string, skus: string[])
     if (!prev || (RANK[row.status] ?? 0) > (RANK[prev] ?? 0)) result.set(row.sku, row.status);
   }
   return result;
+}
+
+/** One scoped record-linkage read, tracked like the other v2 context sources. */
+export function loadV2ExportDraftLinks(workspaceId: string, itemIds: string[]): Map<string, ExportDraftLink> {
+  if (itemIds.length === 0) return new Map();
+  return tracked('all', `SELECT linked onboarding export drafts (<${itemIds.length}> items)`, () => listExportDraftLinks(workspaceId, itemIds));
 }

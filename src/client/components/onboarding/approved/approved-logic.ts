@@ -96,28 +96,36 @@ export function exportStatusPresentation(category: WorkStateCategory): ExportSta
     case 'approved':
       return {
         category,
-        heading: 'Approved & awaiting export drafts',
+        heading: 'Approved · awaiting CMS drafts',
         description:
-          'Approved products that have not yet been turned into ShopSite export drafts.',
+          'Approved listings awaiting CMS product draft creation. Approval does not export or publish products.',
         canCreateDrafts: true,
         canOpenChangeSet: false,
       };
     case 'ready_to_export':
       return {
         category,
-        heading: 'Ready to export',
+        heading: 'CMS drafts created',
         description:
-          'Export drafts were created for these products. Review the change set and run the export package when ready.',
+          'CMS drafts have been created. Change-set approval, export, and publication remain separate steps.',
         canCreateDrafts: false,
         canOpenChangeSet: true,
       };
     case 'completed':
       return {
         category,
-        heading: 'Exported',
-        description: 'The export operation succeeded and was verified.',
+        heading: 'Export verified',
+        description: 'The downstream export operation succeeded and was verified by the server.',
         canCreateDrafts: false,
         canOpenChangeSet: true,
+      };
+    case 'skipped':
+      return {
+        category,
+        heading: 'Skipped · all stages',
+        description: 'Products deliberately skipped anywhere in this batch. No approval or draft-creation action applies.',
+        canCreateDrafts: false,
+        canOpenChangeSet: false,
       };
     default:
       return {
@@ -133,7 +141,7 @@ export function exportStatusPresentation(category: WorkStateCategory): ExportSta
 export function exportActionLabel(category: WorkStateCategory): string {
   switch (category) {
     case 'approved':
-      return 'Create export drafts';
+      return 'Create CMS drafts';
     case 'ready_to_export':
       return 'Open Change Set Review';
     default:

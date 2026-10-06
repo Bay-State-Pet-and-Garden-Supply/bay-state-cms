@@ -25,8 +25,8 @@ This reference bridges the documented ShopSite product fields to their XML tags,
 |-------|---------|--------|--------------|--------------|
 | SKU | `SKU` / `sku` | ✅ 🔄 ⬆️ | `.sku` | decode: CORE_FIELDS set (product-codec.ts:51-63). decode mapping (product-codec.ts:222-291). encode (ShopSiteProductCodec.encode) |
 | Name | `Name` / `name` | ✅ 🔄 ⬆️ | `.core.name` | decode: CORE_FIELDS set (product-codec.ts:51-63). decode mapping (product-codec.ts:222-291). encode (ShopSiteProductCodec.encode) |
-| ProductGUID | `ProductGUID` | ✅ 🔄 | `.shopsite.productGuid` | decode: CORE_FIELDS set (product-codec.ts:51-63), mapped at :222-291. Parsed into the model but **not re-emitted** by encode (known labels are excluded from the unknown-elements re-emit) |
-| ProductID | `ProductID` | ✅ 🔄 | `.shopsite.productId` | decode: CORE_FIELDS set (product-codec.ts:51-63), mapped at :222-291. Parsed into the model but **not re-emitted** by encode |
+| ProductGUID | `ProductGUID` | ✅ 🔄 ⬆️ | `.shopsite.productGuid` | decode: CORE_FIELDS set (product-codec.ts:51-63). Parsed into the model and re-emitted by encode §23 (identity block, live element order) |
+| ProductID | `ProductID` | ✅ 🔄 ⬆️ | `.shopsite.productId` | decode: CORE_FIELDS set (product-codec.ts:51-63). Parsed into the model and re-emitted by encode §23 |
 | FileName | `FileName` | ✅ 🔄 ⬆️ | `.core.seo.fileName` | decode: `fields['FileName']` → `.core.seo.fileName` (product-codec.ts:222-291). encode §19: `normalizeFileName(options?.fileName) ?? resolveBaseFileName(product)` (product-codec.ts:568-570; `src/shopsite/file-name.ts`) — the stored value feeds resolution, it is not ignored |
 
 **Note on `FileName`:** Encode resolves the filename as `normalizeFileName(options?.fileName) ?? resolveBaseFileName(product)` (`product-codec.ts:568-570`; helpers `slugifyFileName`, `normalizeFileName`, `resolveBaseFileName`, `uniquifyFileNames` in `src/shopsite/file-name.ts`). `<FileName>` is skipped in the unknown-elements re-emit loop (`product-codec.ts:605`) to avoid double emission.
@@ -134,11 +134,14 @@ All display/style fields are **pass-through only**. They survive round-trips in 
 | Minimum Quantity | `MinimumQuantity` | ✅ 📦 ⚠️ | `customFields['MinimumQuantity']` → preserved → DTD default | decode: CORE_FIELDS set (product-codec.ts:51-63). encode §4 precedence: `customFields['MinimumQuantity']` → preserved `unknownElements['MinimumQuantity']` → `builtInDefaultValue('MinimumQuantity')` (`0`) (product-codec.ts:453-459; `src/shopsite/built-in-output-policy.ts:64`). Always emitted; set `customFields['MinimumQuantity']` to override |
 
 **Known divergences (encode behavior, `ShopSiteProductCodec.encode`):**
-1. `MinimumQuantity` (product-codec.ts:453-459) — always emitted; precedence `customFields` → preserved → DTD default `0`
-2. `ProductType` (product-codec.ts:491-497) — always emitted; precedence `customFields` → preserved → DTD default `Tangible`
-3. `MoreInformationText` (product-codec.ts:531-549) — precedence `customFields` → preserved → `.core.description`, plus auto-emitted `<DisplayMoreInformationPage>` checked/uncheck
-4. `FileName` (product-codec.ts:568-570) — resolved via `normalizeFileName(options?.fileName) ?? resolveBaseFileName(product)`, not emitted from the stored value directly
-5. `ProductDescription` (product-codec.ts:481-487) — emitted from the product **name** (CDATA) per catalog upload convention, not from `.core.description`
+1. `MinimumQuantity` — always emitted; precedence `customFields` → preserved → DTD default `0`
+2. `ProductType` — always emitted exactly ONCE; precedence `customFields` → preserved → DTD default `Tangible` (the unknown-elements loop skips `ProductType` so it is never duplicated)
+3. `MoreInformationText` — precedence `customFields` → preserved → `.core.description`; emitted only when content exists
+4. `FileName` — resolved via `normalizeFileName(options?.fileName) ?? resolveBaseFileName(product)`, not emitted from the stored value directly
+5. `ProductDescription` — emitted from the product **name** (CDATA) per catalog upload convention, not from `.core.description`
+6. `DisplayMoreInformationPage` — emitted for EVERY product (default `checked`); `customFields`/preserved opt-outs (`uncheck`/`no`/`0`/`false`) are honored
+7. Nested top-level blocks that are not leaf scalars (`QuantityPricing`, `CrossSell`, `AddToPages`, `OptionMenus`, `QBImport`, …) are preserved as RAW XML in `preserved.advancedBlocks` via a CDATA/comment-aware scanner and re-emitted verbatim (§21). They are never stringified — a `"[object Object]"` value must never appear in preserved data or output; `assertNoPreservedCorruption` gates every upload/export path.
+8. `ProductID`/`ProductGUID` — re-emitted from `shopsite.productId`/`productGuid` (§23) when present.
 
 ---
 

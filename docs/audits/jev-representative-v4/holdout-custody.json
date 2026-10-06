@@ -1,0 +1,42 @@
+{
+  "version": "jev-representative-v4-holdout-custody-receipt",
+  "total": 5,
+  "source": 5,
+  "goldReviewed": 5,
+  "typeSufficient": 3,
+  "typeInsufficient": 2,
+  "typeQuarantined": 0,
+  "quarantine": 0,
+  "labeled": false,
+  "classSupportFloor": false,
+  "pageComplete": 0,
+  "pageUnknown": 5,
+  "policiesPublishedBeforeHoldout": false,
+  "holdoutInference": false,
+  "modelCalls": 0,
+  "authorityHash": "78f550f0b31c51c5a3c4b5f614e0bc953a90fdbe49749b7b39d6cd2ceeeef2de",
+  "catalogHash": "9d8b54cf",
+  "sourceHash": "1cb37b686b2e33c7cd2cd8e45e562b1c57f36897af7f536a6dbe64b3cb59f6d0",
+  "memberHash": "52001c08117083ee6b1baccd947d4aeee7721afd30ad07c424a569d505077912",
+  "privateArtifacts": [
+    {
+      "path": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v4-custody/gold-v1.json",
+      "sha": "20b22a5a288c2303f53680760e83210372b34445b74f83988309f49a5d48d3d8"
+    },
+    {
+      "path": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v4-custody/adjudication-v1.json",
+      "sha": "93c9c659061510ce941b04c1b24cef68690d0dea68c2264fa3b50bff04417591"
+    },
+    {
+      "path": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v4-custody/coverage-v1.json",
+      "sha": "c6d113c06924c07c27f9397c14891bb5e5d5142d1a8b5522fc4bfb9b1bfc973a"
+    },
+    {
+      "path": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v4-custody/citation-v1.json",
+      "sha": "ee73c90f398f8a2357789e74a2df55e2fdb8f404362b67c7c97c26df66d388c6"
+    }
+  ],
+  "publicPath": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-representative-v4/holdout-custody.json",
+  "status": "ineligible",
+  "peerPerformed": false
+}

@@ -6,6 +6,7 @@
  */
 
 import { getDb } from '../connection';
+import type { DbDatabase } from '../driver';
 import type {
   ProviderConnection,
   AiRoutingConfig,
@@ -211,10 +212,10 @@ export function upsertProviderConnection(conn: ProviderConnection): void {
   );
 }
 
-export function getProviderConnection(id: string): ProviderConnection | null {
-  const db = getDb();
+export function getProviderConnection(id: string, reader?: Pick<DbDatabase, 'query'>): ProviderConnection | null {
+  const db = reader ?? getDb();
   try {
-    ensureSeededDefaults();
+    if (!reader) ensureSeededDefaults();
     const row = db.query('SELECT * FROM provider_connections WHERE id = ?').get(id) as DbProviderConnection | undefined;
     if (!row) return null;
 
@@ -232,7 +233,7 @@ export function getProviderConnection(id: string): ProviderConnection | null {
       inferenceTimeoutMs: row.inference_timeout_ms,
     };
   } catch {
-    return DEFAULT_BUILTIN_CONNECTIONS[id] ?? null;
+    return reader ? null : DEFAULT_BUILTIN_CONNECTIONS[id] ?? null;
   }
 }
 

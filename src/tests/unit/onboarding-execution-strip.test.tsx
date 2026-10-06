@@ -511,4 +511,49 @@ describe('execution strip lifecycle (deterministic harness)', () => {
     // Every byte of data arrived through the injected seams.
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('activity is collapsed by default with an accessible disclosure + Escape', async () => {
+    const harness = createStripHarness();
+    await act(async () => {
+      root.render(
+        <ExecutionStrip
+          batchId="b1"
+          fetchSnapshot={harness.fetchSnapshot}
+          createEventSource={harness.factory}
+        />,
+      );
+    });
+    await settle();
+    // Collapsed default: no activity region, toggle announces collapsed.
+    expect(container.querySelector('[data-testid="strip-activity-list"]')).toBeNull();
+    const toggle = container.querySelector('[data-testid="strip-activity-toggle"]') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(text('strip-activity-toggle')).toContain('Live activity (0)');
+    // Expand, then Escape collapses.
+    await drive(() => { toggle.click(); });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await drive(() => {
+      toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('unknown execution state renders Unknown (never inferred liveness)', async () => {
+    const harness = createStripHarness();
+    await act(async () => {
+      root.render(
+        <ExecutionStrip
+          batchId="b1"
+          fetchSnapshot={harness.fetchSnapshot}
+          createEventSource={harness.factory}
+        />,
+      );
+    });
+    await settle();
+    await drive(() => { harness.instances[0].deliverOpen(); });
+    await drive(() => { harness.fetches[0].resolve(snap({ executionState: 'migrating' })); });
+    await drive(() => { harness.fetches[1].resolve(snap({ executionState: 'migrating' })); });
+    expect(text('strip-execution-state')).toContain('Execution: Unknown');
+    expect(text('strip-execution-state')).not.toMatch(/Running|worker health as activity/i);
+  });
 });

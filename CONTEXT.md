@@ -601,7 +601,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 ## Onboarding Pipeline
 
 **Onboarding Batch**:
-A group of products imported together from a spreadsheet. It is the primary view lens for the Pipeline Board — users navigate between batches to see items at different stages. It aggregates derived progress from its items but has no lifecycle control of its own.
+A group of products imported together from a spreadsheet and viewed together in a Batch Workspace. Its progress is derived from its Onboarding Items rather than a lifecycle of its own.
 _Avoid_: Active batch, processing unit, batch status
 
 **Pipeline Stage**:
@@ -741,7 +741,7 @@ _Avoid_: Unrestricted browser, direct-egress rendering, implied proxy
 The pipeline stage that synthesizes final clean store-ready titles (integrating spreadsheet hints, web scraped details, and local packaging OCR) and classifies products into internal product types and existing category pages.
 
 **Review** (v2 canonical `review_listings` / Review listings — owner-approved 2026-09-08):
-The pipeline stage that surfaces curated drafts in a review drawer for user approval. Items in this stage can be approved individually.
+The human quality-assurance stage for curated product listings. Recording a product as reviewed is distinct from approving its release and from creating its CMS draft.
 
 **Promotion** (v2 canonical `create_drafts` / Create drafts — owner-approved 2026-09-08):
 The pipeline stage that creates CMS product drafts and links them to page directories. Items in this stage remain visible in the Promotion column. When all items in a batch reach Promotion (or are skipped/failed), the batch auto-archives.
@@ -988,8 +988,16 @@ Catalog Product Classification extends the classification pipeline to existing S
 The operator-facing onboarding model adopted by ADR 0016. Automation owns progression; the Store Manager owns exceptions, final verification, and release decisions. The six internal Pipeline Stages remain the execution/diagnostics truth; this section governs how they are presented and operated.
 
 **Batch Workspace**:
-The primary Store Manager view for onboarding, replacing the Pipeline Board Kanban as the default operating model. Organized by operator meaning (Processing, Needs Attention, Waiting on Family, Ready for Review, Approved / Ready to Export) rather than by raw pipeline stage. Every product has exactly one current operator work-state, and Needs Attention is the most prominent queue while automation is active. The Pipeline Board remains available for diagnostics.
-_Avoid_: Six-column Kanban as the primary operating surface, stage-by-stage interpretation
+The primary Store Manager view of one Onboarding Batch, bringing together pipeline context, required human attention, preparation evidence, final review, and release decisions. Pipeline Stage and Operator Work-State describe different aspects of the same products rather than separate onboarding workflows.
+_Avoid_: Pipeline Board, independently scoped competing workspaces
+
+**Needs Attention**:
+The set of Onboarding Items requiring a human decision or correction before their current work can continue. Batch-wide attention spans Pipeline Stages; a product merely waiting on automatic processing or an unblocked sibling is not itself an attention task.
+_Avoid_: Failed products only, processing queue, all waiting products
+
+**Preparation Details**:
+Product-specific evidence and results from preparing a listing, including packaging OCR, family readiness, naming, product type, and field classification. Preparation Details are distinct from final human review and release approval.
+_Avoid_: Five preparation stages, batch completion checklist, approved listing
 
 **Operator Work-State**:
 The server-derived, human-facing projection of an onboarding item's state, owned by the server (never reverse-engineered by the client from `stage`, `stage_status`, error strings, source metadata, cohort state, or feature flags). Shape: `category` ∈ `processing | needs_attention | waiting_on_family | ready_for_review | approved | ready_to_export | completed | skipped`; optional `activity` ∈ `distributor_lookup | official_site_search | official_url_verification | extraction | curation | review | approval | export`; human `label`/`detail`; `attentionReason`/`attentionAction` (e.g. `verify_official_url`, `choose_official_url`, `setup_extractor_profile`, `retry_extraction`, `resolve_source_conflict`, `retry_processing`); optional `family` readiness `{ cohortId, label, memberCount, readyCount, blockedCount, waitingOnItemIds }`; `reviewState` ∈ `not_ready | unreviewed | reviewed | approved`. Example: `discovery/needs_input` + ambiguous candidates projects to Needs Attention / "Verify official product page"; `extraction/in_progress` projects to Processing / "Extracting product data"; `curation/pending` + cohort waiting on 2 siblings projects to Waiting on Family / "3 of 5 products ready".
@@ -1020,19 +1028,19 @@ The deliberate release decision applied to the reviewed selection (approve-all-r
 _Avoid_: Risk-based auto-approval, approving unreviewed products, conflating approval with export
 
 **Ready to Export**:
-The operator output/release area that demotes Promotion from a peer machine stage: approved products appear here with accurate pending/exporting/exported/failed states and retry for failures. Language matches the actual side effect (e.g. ShopSite draft creation); a product is never called `published` or `exported` until the underlying operation has succeeded and been verified. Approval and export are separate decisions.
-_Avoid_: Labeling approved items as published/exported, "Promotion" as a primary operator stage
+The operator work-state of a product whose CMS export draft has been created and awaits downstream export. It is distinct from approval, verified export, and publication.
+_Avoid_: Approved without a draft, already exported, published
 
 ### Terminology mapping (internal → human-facing)
 
 | Internal stage | Human-facing term |
 | --- | --- |
-| Sourcing | Distributor Lookup |
-| Discovery | Official Site Search / Verify Product Page |
-| Extraction | Extracting Product Data |
-| Curation | Curating Product Family |
-| Review | Review |
-| Promotion | Approved / Ready to Export / Exporting |
+| Sourcing | Identify & Route Sources |
+| Discovery | Find product page |
+| Extraction | Collect details |
+| Curation | Prepare listing |
+| Review | Review listings |
+| Promotion | Create drafts |
 
 ## Packaging OCR (2026-08-24 overhaul)
 

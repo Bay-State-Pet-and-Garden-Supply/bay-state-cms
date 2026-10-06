@@ -1,0 +1,175 @@
+{
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "binding": {
+    "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+    "release": "bay-state-v9",
+    "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+    "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+    "capturedAt": "2026-10-06T16:18:15.514Z",
+    "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+    "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+  },
+  "entries": [
+    {
+      "sku": "PUBLIC:ruffwear.com:7a02531f86d15d5f",
+      "familyId": "family-bead2225cd3cd213fd99e36575f86f0b",
+      "splitGroup": "test",
+      "sourceHash": "8470e5d4215df1d7c265a3601ec80ce27480d67987d75fc2ce96f31956ab155f",
+      "canonicalUrl": "https://ruffwear.com/products/webbing-remix-cactus-tug-toy"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:c85e7db84408a6ec",
+      "familyId": "family-4f6d5eba6f1ba63eaa5eb6f4b9789c39",
+      "splitGroup": "train",
+      "sourceHash": "1e96bc70f4afe4785c64a4eefe05b51dea44df573dcf8f718e5205d7d279b819",
+      "canonicalUrl": "https://ruffwear.com/products/webbing-remix-soft-flying-disc"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:b36d7e293f3e1ee5",
+      "familyId": "family-a223b9a5575603b61442d784cc5ca60d",
+      "splitGroup": "train",
+      "sourceHash": "d1396b0e748ce331dfdcd07ca884a4dc8e57dbc5eab99a6b3ec5ea03561b0ac6",
+      "canonicalUrl": "https://ruffwear.com/products/basecamp-dog-bowl-mat"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:a356f29052b12e15",
+      "familyId": "family-d4ae2376f177d11a3fbe12f9e430da01",
+      "splitGroup": "train",
+      "sourceHash": "e57bc6e9b5a51b567b52cd8ec8491d5f6a24b0f1a61b0f74925b736caa34879c",
+      "canonicalUrl": "https://ruffwear.com/products/kibble-kaddie-dog-food-travel-bag"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:fbdfa0be8d41f3cd",
+      "familyId": "family-0c7354ebe0641c5091c6282625731781",
+      "splitGroup": "test",
+      "sourceHash": "c7dcc990690c02befbbf7719cb288b15fa5cc550da984b45e79742340ecfcddf",
+      "canonicalUrl": "https://ruffwear.com/products/dirtbag-bed"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:5f23228aa68c8b2f",
+      "familyId": "family-02347ff4380256fe96f1b706de137fe4",
+      "splitGroup": "train",
+      "sourceHash": "9b4c72bdf2598a8b3c17a1f0a80158d62b668f15536c96a02f439c84e6eb7de7",
+      "canonicalUrl": "https://ruffwear.com/products/mt-everrest-cot"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:5c238b471d461c33",
+      "familyId": "family-2d430c49e7e935ba78f1f540a1bfcf12",
+      "splitGroup": "test",
+      "sourceHash": "ee6bd41c126565b5561395af52756ed47746738fcec2dda78ef9017de8b2b3f9",
+      "canonicalUrl": "https://ruffwear.com/products/bivy-portable-dog-bowl"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:31a0f5e6a390cb8d",
+      "familyId": "family-c16a187ffa64c028c14e783d3aa6a72c",
+      "splitGroup": "train",
+      "sourceHash": "961103cb2830ed0da9e34e1a95d890ae93333183715ec0aaf2746e1302f54a7c",
+      "canonicalUrl": "https://ruffwear.com/products/large-collapsible-water-bladder"
+    },
+    {
+      "sku": "PUBLIC:ruffwear.com:d2ec2ac7da1c4301",
+      "familyId": "family-24cb6db2351f0c9bb5e8b7e50288d4bf",
+      "splitGroup": "train",
+      "sourceHash": "e84cb7ae3d2c6becacdec28741257e69f4d0b758cd51be60ae6b00ea71f44a18",
+      "canonicalUrl": "https://ruffwear.com/products/the-beacon-safety-dog-light"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:4e6d23ef30273be0",
+      "familyId": "family-0b62d0c05013fa6637b2df3c4ac60dcc",
+      "splitGroup": "train",
+      "sourceHash": "d67d2017ce2d5725628beea6fa8c9c45aafc3edc986d836d124b8dfbb3348db1",
+      "canonicalUrl": "https://earthrated.com/products/odor-blocking-dog-poop-bags-refill-rolls-with-3x-protect"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:b002e86083719174",
+      "familyId": "family-0000ff39e204c84dc45b13ff8b3e39c3",
+      "splitGroup": "train",
+      "sourceHash": "ee9427057fa4f9041ea2b5a9b24c05c3241d88d4b6e38cd90e58be8c4caed5c0",
+      "canonicalUrl": "https://earthrated.com/products/peepads"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:6270cc60dfd3d21a",
+      "familyId": "family-0dc1de2649e2bcd9e067bfba0cd07070",
+      "splitGroup": "train",
+      "sourceHash": "26ca01d624445f431205412e10443eee9ef5d1dcc76f7d8d733ef2041fb15ce0",
+      "canonicalUrl": "https://earthrated.com/products/dog-poop-bags-with-handles-on-roll"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:426b60b6a318a407",
+      "familyId": "family-93417821491848e16c419e83a5c8b01e",
+      "splitGroup": "train",
+      "sourceHash": "b83d80fb0b30e6c8d8271e2b7ef782b7e7d6eae5ac4c84c37d7fadb4172468fc",
+      "canonicalUrl": "https://earthrated.com/products/coat-specific-3-in-1-dog-shampoo"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:debd72edb60f6e07",
+      "familyId": "family-014bfa289c90dccd0fa2d45fc863d04f",
+      "splitGroup": "train",
+      "sourceHash": "e2774750f318415fbfccf4c3b9e6166a9a4e7d150fab45ad100c153e2faac97b",
+      "canonicalUrl": "https://earthrated.com/products/waterless-dog-shampoo"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:7a96f15b7db29ed9",
+      "familyId": "family-a661b1bce3610a49748d8e0d6c186384",
+      "splitGroup": "train",
+      "sourceHash": "40e3a8cbfd8f70b681aa4590717fb6593842731471099ef6473378fe7e49850b",
+      "canonicalUrl": "https://earthrated.com/products/dog-deodorizing-spray"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:1ac771fa42bf640e",
+      "familyId": "family-4787e4641caf71e67037df30a84bfab2",
+      "splitGroup": "train",
+      "sourceHash": "28ee1da52dd7fc1b668d95fc06079844b02f91ac6077b9d8ce83703d49c873a8",
+      "canonicalUrl": "https://earthrated.com/products/shampoo-for-double-coated-dogs"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:1f1ed0341a3ef189",
+      "familyId": "family-5a31a166598f0818bac9d2cd03046fcc",
+      "splitGroup": "train",
+      "sourceHash": "716feba31a53eeec6666ae9ecb3c8e9d49afe46cc5a8ff57d85550e8a4913316",
+      "canonicalUrl": "https://earthrated.com/products/short-hair-dog-shampoo"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:b5abb3ce76063356",
+      "familyId": "family-78ae7158aefdcc39dd2399bc1d13e521",
+      "splitGroup": "train",
+      "sourceHash": "cb1ad4e1b36b3c0b4b1dc64f1bb32d1933ab28b008da66ce9ee8cf759abe1abc",
+      "canonicalUrl": "https://earthrated.com/products/eye-wipes"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:dce61981c59bcf5b",
+      "familyId": "family-a1323a004e17fecf0fd299dcc6e7f7a4",
+      "splitGroup": "train",
+      "sourceHash": "2495fdeacdd7ae8e2ae5e54081e81dca0c181415a710a0e02a773489206ffee0",
+      "canonicalUrl": "https://earthrated.com/products/ear-wipes"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:83729b8e5d3bb8d0",
+      "familyId": "family-2eebe81009b1a4df365dc5e5623f4bc4",
+      "splitGroup": "train",
+      "sourceHash": "86348fb69cdeea3d99133313a1ee81a1d5e88457c3b9868548657ed34beac20c",
+      "canonicalUrl": "https://earthrated.com/products/wipes"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:296bf8efe35fecda",
+      "familyId": "family-698fc0b7b51025f77531d8f1b6ed28e0",
+      "splitGroup": "test",
+      "sourceHash": "d571bee1e5ec28166e64f4b5f3b5cdf1aa6453af723f7f181f516490f7f6dcac",
+      "canonicalUrl": "https://earthrated.com/products/leash-dispenser-with-bags"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:12c39097063f5fd5",
+      "familyId": "family-10f3622f15771bf4dc33ae0bd1b3c8dc",
+      "splitGroup": "train",
+      "sourceHash": "4bb75d942aaa3ceaa346c488e49adcfd8f80b7a58a7f5d39322f4c95489554c2",
+      "canonicalUrl": "https://earthrated.com/products/bags-on-a-large-single-roll"
+    },
+    {
+      "sku": "PUBLIC:earthrated.com:7b85b2c72ae1d942",
+      "familyId": "family-824fb94f871499d9a3ed21d42c6f3aaa",
+      "splitGroup": "train",
+      "sourceHash": "6d6307f7b1d318d0c28be124aea050d67dc9d8d3f93663c22d2cee172d877a15",
+      "canonicalUrl": "https://earthrated.com/products/bag-refills"
+    }
+  ]
+}

@@ -82,6 +82,41 @@ export function listReviewStates(batchId: string): Map<string, OnboardingReviewS
   return new Map(rows.map(row => [row.item_id, mapRow(row)]));
 }
 
+export interface ExportDraftLink {
+  itemId: string;
+  changeSetId: string;
+  draftId: string;
+  status: string;
+}
+
+/** Read actual item→draft→change-set linkage. Completed export receipts own the
+ * immutable origin binding; editable product JSON is only a legacy fallback.
+ * A receipt alone is not a draft: its change set and matching record must exist. */
+export function listExportDraftLinks(workspaceId: string, itemIds: string[]): Map<string, ExportDraftLink> {
+  if (itemIds.length === 0) return new Map();
+  const rows = getDb().query(
+    `SELECT oi.id AS itemId, csi.id AS draftId, cs.id AS changeSetId, cs.status AS status
+     FROM onboarding_items oi JOIN onboarding_batches b ON b.id = oi.batch_id
+     JOIN change_sets cs ON cs.workspace_id = b.workspace_id AND cs.status != 'discarded'
+      JOIN change_set_items csi ON csi.change_set_id = cs.id AND csi.sku = oi.upc
+        AND csi.operation != 'discarded'
+      WHERE b.workspace_id = ? AND oi.id IN (${itemIds.map(() => '?').join(',')})
+        AND (
+          EXISTS (
+            SELECT 1 FROM onboarding_operation_receipts receipt
+            JOIN json_each(CASE WHEN json_valid(receipt.details_json) THEN receipt.details_json ELSE '{}' END, '$.created') origin
+            WHERE receipt.workspace_id = b.workspace_id AND receipt.batch_id = b.id
+              AND receipt.operation = 'export' AND receipt.status = 'completed'
+              AND json_extract(CASE WHEN json_valid(receipt.details_json) THEN receipt.details_json ELSE '{}' END, '$.changeSetId') = cs.id
+              AND origin.value = oi.id
+          )
+          OR CASE WHEN json_valid(csi.draft_json) THEN json_extract(csi.draft_json, '$.itemId') END = oi.id
+        )
+     ORDER BY CASE cs.status WHEN 'pushed' THEN 4 WHEN 'approved' THEN 3 WHEN 'reviewing' THEN 2 ELSE 1 END ASC, cs.created_at ASC`,
+  ).all(workspaceId, ...itemIds) as ExportDraftLink[];
+  return new Map(rows.map(row => [row.itemId, row]));
+}
+
 /**
  * Record a durable human review. Upsert semantics: re-review replaces the
  * review timestamp and CLEARS any prior approval (a fresh review supersedes
@@ -450,7 +485,7 @@ export function approveAndAdvanceItems(input: {
   return { approved, rejected, receiptId };
 }
 
-export function createExportDraftsWithReceipt(input: {
+export async function createExportDraftsWithReceipt(input: {
   itemIds: string[];
   batchId: string;
   requestedBy: string;
@@ -460,7 +495,7 @@ export function createExportDraftsWithReceipt(input: {
   workspaceId: string;
   requestHash: string;
   preRejected?: Array<{ itemId: string; reason: string }>;
-}): { created: string[]; rejected: Array<{ itemId: string; reason: string }>; receiptId?: string; changeSetId?: string } {
+}): Promise<{ created: string[]; rejected: Array<{ itemId: string; reason: string }>; receiptId?: string; changeSetId?: string }> {
   const db = getDb();
   const now = new Date().toISOString();
   const created: string[] = [];
@@ -471,6 +506,52 @@ export function createExportDraftsWithReceipt(input: {
   if (!requestHash) throw new Error('requestHash is required');
   if (!/^[a-f0-9]{64}$/.test(requestHash)) throw new Error('requestHash must be 64-hex');
 
+  const batch = db.query('SELECT workspace_id FROM onboarding_batches WHERE id = ?').get(input.batchId) as { workspace_id: string } | undefined;
+  if (!batch || batch.workspace_id !== input.workspaceId) throw new Error('batch_workspace_mismatch');
+  const workspace = db.query('SELECT workspace_path FROM workspace WHERE id = ?').get(input.workspaceId) as { workspace_path: string } | undefined;
+  if (!workspace) throw new Error('workspace_not_found');
+
+  // Replays must not redo asynchronous preparation. The same check below is
+  // still the transactional authority when two requests prepare concurrently.
+  if (input.idempotencyKey) {
+    const existing = db.query(
+      'SELECT id, request_hash, details_json, status FROM onboarding_operation_receipts WHERE workspace_id = ? AND batch_id = ? AND operation = ? AND idempotency_key = ?',
+    ).get(input.workspaceId, input.batchId, 'export', input.idempotencyKey) as { id: string; request_hash: string; details_json: string | null; status: string } | undefined;
+    if (existing) {
+      if (existing.request_hash !== requestHash || (existing.status === 'started' && !existing.details_json)) {
+        const code = existing.request_hash !== requestHash ? 'payload_mismatch' : 'operation_in_progress';
+        throw Object.assign(new Error(code), { code, existingReceiptId: existing.id });
+      }
+      const details = existing.details_json ? JSON.parse(existing.details_json) : {};
+      return { created: details.created ?? [], rejected: details.rejected ?? [], receiptId: existing.id, changeSetId: details.changeSetId };
+    }
+  }
+
+  // Item state and linked records guard *all* keys, rather than trusting a
+  // request receipt as the sole duplicate barrier. Re-read inside the final
+  // transaction, after the native promoter's asynchronous preparation.
+  const authorizeItem = (id: string): string | null => {
+    const item = db.query('SELECT batch_id, stage, stage_status, upc FROM onboarding_items WHERE id = ?').get(id) as
+      { batch_id: string; stage: string; stage_status: string; upc: string } | undefined;
+    if (!item) return 'item_not_found';
+    if (item.batch_id !== input.batchId) return 'item_not_in_batch';
+    const [stageA, stageB] = stagePredicateParams('create_drafts');
+    if ((item.stage !== stageA && item.stage !== stageB) || item.stage_status !== 'pending') return `not_eligible:${item.stage}/${item.stage_status}`;
+    const review = getReviewState(id);
+    if (review?.batchId !== input.batchId || !review.reviewedAt || !review.approvedAt || review.reviewInvalidatedAt) return 'not_approved';
+    return listExportDraftLinks(input.workspaceId, [id]).has(id) ? 'already_drafted' : null;
+  };
+  const eligible: string[] = [];
+  for (const id of new Set(input.itemIds)) {
+    const reason = authorizeItem(id);
+    if (reason) rejected.push({ itemId: id, reason });
+    else eligible.push(id);
+  }
+  const { prepareDraftPromotion } = await import('../../onboarding/draft-promoter');
+  const commitDrafts = eligible.length > 0
+    ? await prepareDraftPromotion(input.workspaceId, workspace.workspace_path, input.batchId, eligible, { receiptOwned: true, authorizeItem })
+    : null;
+
   db.transaction(() => {
     const wsId = input.workspaceId;
     const batchId = input.batchId;
@@ -480,6 +561,7 @@ export function createExportDraftsWithReceipt(input: {
         'SELECT id, request_hash, details_json, status FROM onboarding_operation_receipts WHERE workspace_id = ? AND batch_id = ? AND operation = ? AND idempotency_key = ?'
       ).get(wsId, batchId, 'export', input.idempotencyKey) as { id: string; request_hash: string; details_json: string | null; status: string | null } | undefined;
       if (existing) {
+        rejected.length = 0;
         if (existing.request_hash !== requestHash) {
           const err: any = new Error('payload_mismatch');
           err.code = 'payload_mismatch';
@@ -513,6 +595,7 @@ export function createExportDraftsWithReceipt(input: {
       } catch (e) {
         const dup = db.query('SELECT id, request_hash, details_json, status FROM onboarding_operation_receipts WHERE workspace_id = ? AND batch_id = ? AND operation = ? AND idempotency_key = ?').get(wsId, batchId, 'export', input.idempotencyKey) as { id: string; request_hash: string; details_json: string | null; status: string | null } | undefined;
         if (dup) {
+          rejected.length = 0;
           if (dup.request_hash !== requestHash) {
             const err: any = new Error('payload_mismatch');
             err.code = 'payload_mismatch';
@@ -547,37 +630,11 @@ export function createExportDraftsWithReceipt(input: {
       db.query(`INSERT INTO onboarding_operation_receipts (id, workspace_id, batch_id, operation, principal, role, created_at, idempotency_key, request_hash, details_json, status, started_at, completed_at) VALUES (?, ?, ?, 'export', ?, ?, ?, NULL, ?, NULL, 'started', ?, NULL)`).run(receiptId!, wsId, batchId, input.principal, input.role, now, requestHash, now);
     }
 
-    // Validate each item: must be approved and not invalidated, and in promotion pending, revalidate immediately before mutation
-    const validIds: string[] = [];
-    for (const id of input.itemIds) {
-      const itemRow = db.query(`SELECT id, batch_id, stage, stage_status, upc FROM onboarding_items WHERE id = ?`).get(id) as { id: string; batch_id: string; stage: string; stage_status: string; upc: string } | undefined;
-      if (!itemRow) { rejected.push({ itemId: id, reason: 'item_not_found' }); continue; }
-      if (itemRow.batch_id !== batchId) { rejected.push({ itemId: id, reason: 'item_not_in_batch' }); continue; }
-      // Must be in promotion pending (approved items) — not review, not already pushed.
-      // Slice 5a bridge (narrow D4 exception): dual-spelling promotion guard
-      // (same pattern as the claim predicate); required for the §5.5
-      // approval/export-draft receipt proof on v2 storage.
-      if (itemRow.stage !== 'promotion' && itemRow.stage !== 'create_drafts') { rejected.push({ itemId: id, reason: `not_eligible:${itemRow.stage}/${itemRow.stage_status}` }); continue; }
-      // Revalidate durable approval immediately before draft mutation (never auto-approve)
-      const reviewRow = db.query('SELECT reviewed_at, review_invalidated_at, approved_at FROM onboarding_review_state WHERE item_id = ?').get(id) as { reviewed_at: string | null; review_invalidated_at: string | null; approved_at: string | null } | undefined;
-      if (!reviewRow?.approved_at || reviewRow.review_invalidated_at) { rejected.push({ itemId: id, reason: 'not_approved' }); continue; }
-      validIds.push(id);
-    }
-
-    if (validIds.length > 0) {
-      // Create change set for this batch export
-      const csId = randomUUID();
-      const baseCommit = '0'.repeat(40);
-      db.query(`INSERT INTO change_sets (id, workspace_id, title, description, status, base_commit, created_at, updated_at) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)`).run(csId, wsId, `Onboarding: ${batchId}`, null, baseCommit, now, now);
-      changeSetId = csId;
-      for (const id of validIds) {
-        const item = db.query('SELECT upc FROM onboarding_items WHERE id = ?').get(id) as { upc: string } | undefined;
-        if (!item) { rejected.push({ itemId: id, reason: 'item_not_found' }); continue; }
-        // Unexpected draft-insert errors must escape the transaction to ensure all-or-nothing rollback (no partially persisted change_sets/audit/receipt)
-        const draftId = randomUUID();
-        db.query(`INSERT INTO change_set_items (id, change_set_id, sku, operation, draft_json, base_json, draft_hash, validation_status, created_at, updated_at) VALUES (?, ?, ?, 'create', ?, NULL, ?, 'pending', ?, ?)`).run(draftId, csId, item.upc, JSON.stringify({ itemId: id, upc: item.upc }), 'hash-' + id.slice(0,8), now, now);
-        created.push(id);
-      }
+    if (commitDrafts) {
+      const result = commitDrafts();
+      created.push(...result.created);
+      rejected.push(...result.failures.map(f => ({ itemId: f.itemId, reason: f.error })));
+      changeSetId = result.changeSetId ?? undefined;
     }
 
     // Merge pre-rejected for final envelope
@@ -606,6 +663,8 @@ export function createExportDraftsWithReceipt(input: {
     }
     const batchAid = randomUUID();
     db.query(`INSERT INTO audit_log (id, workspace_id, entity_type, entity_id, action, message, details_json, created_at) VALUES (?, ?, 'onboarding_batch', ?, 'create_export_drafts', ?, ?, ?)`).run(batchAid, wsId, batchId, `Export drafts: ${created.length} created, ${finalRejected.length} rejected`, JSON.stringify({ createdCount: created.length, rejectedCount: finalRejected.length, changeSetId, requestedBy: input.requestedBy }), now);
+    // Return the same complete rejection scope on first execution and replay.
+    rejected.splice(0, rejected.length, ...finalRejected);
   })();
 
   return { created, rejected, receiptId, changeSetId };

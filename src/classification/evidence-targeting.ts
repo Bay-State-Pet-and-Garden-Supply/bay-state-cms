@@ -20,6 +20,7 @@
  * so (none is configurable in this work item, so none is applied).
  */
 import type { ClassificationEvidence } from '../shared/types';
+import { PRESERVED_CONTENT_TAGS } from './preserved-content-tags';
 
 export type EvidenceRelation = 'supporting' | 'contradicting' | 'context';
 
@@ -63,6 +64,13 @@ export interface ValueAlias {
  */
 const GENERAL_TEXT_SOURCE_FIELDS = new Set(['name', 'title', 'description']);
 
+/**
+ * Preserved live-store content tags (`Specifications`, `MaterialsOrIngredients`,
+ * `HowToUse`, …). These enter target packets as CONTEXT only (they are free
+ * content blobs, never comparable assertions), bounded by `promptTextCap`.
+ */
+const PRODUCT_CONTENT_SOURCE_FIELDS = new Set<string>(PRESERVED_CONTENT_TAGS);
+
 export const ATTRIBUTE_ID_CANONICAL_MAP: Record<string, string> = {
   lifeStage: 'life-stage',
   'life-stage': 'life-stage',
@@ -95,6 +103,7 @@ export const PRODUCT_TYPE_CONTEXT_SOURCE_FIELDS = new Set([
 export function isPacketTextEvidence(evidence: ClassificationEvidence, includeProductTypeContext = false): boolean {
   const sf = evidence.sourceField;
   if (sf && GENERAL_TEXT_SOURCE_FIELDS.has(sf)) return true;
+  if (sf && PRODUCT_CONTENT_SOURCE_FIELDS.has(sf)) return true;
   if (includeProductTypeContext) {
     if (sf && PRODUCT_TYPE_CONTEXT_SOURCE_FIELDS.has(sf)) return true;
     if (evidence.attributeId && (

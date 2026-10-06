@@ -12,11 +12,14 @@ import { insertItems } from '../../db/repositories/onboarding-item-repo';
 import { markReviewed } from '../../db/repositories/onboarding-review-repo';
 import { findByScopedIdempotencyKey, computeRequestHash } from '../../db/repositories/onboarding-operation-receipt-repo';
 import onboardingWorkRoutes from '../../server/routes/onboarding-work-routes';
+import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
+import { assignProductToPageId, listVerifiedPageOptions } from '../../db/repositories/page-repo';
 
 let workspaceId: string;
 let workspacePath: string;
 let app: Hono;
 let origToken: string | undefined;
+let pageId: string;
 
 function makeWorkspace() {
   workspaceId = randomUUID();
@@ -34,8 +37,21 @@ function makeWorkspace() {
     bootstrapStatus: 'complete',
     baselineCommit: null,
   });
+  activatePageImportFromRecords({ workspaceId, sourceHash: 'd'.repeat(64), parserFormatVersion: 'pages-xml-1',
+    activatedBy: 'fixture', records: [{ identity: { kind: 'exported_guid', key: 'idem-fixture-toys', status: 'verified' },
+      name: 'Toys', parentRef: null, availability: 'available' }] });
+  pageId = listVerifiedPageOptions(workspaceId)[0].id;
   app = new Hono();
   app.route('/api', onboardingWorkRoutes);
+}
+
+// Receipt proofs exercise native catalog drafts, not placeholder payloads.
+function makeDraftReady(itemId: string) {
+  const item = getDb().query('SELECT upc, name FROM onboarding_items WHERE id = ?').get(itemId) as { upc: string; name: string };
+  getDb().query('UPDATE onboarding_items SET price = ?, extraction_data_json = ?, curation_data_json = ? WHERE id = ?').run(
+    '$12.50', JSON.stringify({ title: item.name, primaryImage: 'fixture/toy.jpg', additionalImages: [], customFields: {} }),
+    JSON.stringify({ curatedTitle: item.name, suggestedPages: ['Toys'] }), itemId);
+  assignProductToPageId(item.upc, pageId, 'Toys');
 }
 
 function makeReviewBatch(itemCount = 2): { batchId: string; itemIds: string[] } {
@@ -313,6 +329,7 @@ describe('approval idempotency and server-derived principal', () => {
     const db = getDb();
     const now = new Date().toISOString();
     for (const id of ids) {
+      makeDraftReady(id);
       db.run(
         `INSERT INTO onboarding_review_state (item_id, batch_id, reviewed_at, reviewed_by, review_invalidated_at, review_invalidation_reason, approved_at, approved_by, approval_origin, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 'test', ?, ?)`,
         [id, batch.id, now, 'tester', now, 'tester', now, now],
@@ -428,6 +445,7 @@ describe('approval idempotency and server-derived principal', () => {
     const batch = createBatch({ workspaceId, name: `ExportReval-${randomUUID().slice(0,4)}`, fileName: 'r.csv', totalItems: 0 });
     const approvedItem = insertItems(batch.id, [{ upc: `REVAL-A-${randomUUID().slice(0,4)}`, name: 'Approved', brandHint: 'Blue', sourceUrl: null, rowNumber: 1, stage: 'promotion' as const, stageStatus: 'pending' as const }], 'promotion' as any, 1)[0];
     const unapprovedItem = insertItems(batch.id, [{ upc: `REVAL-B-${randomUUID().slice(0,4)}`, name: 'Unapproved', brandHint: 'Blue', sourceUrl: null, rowNumber: 2, stage: 'promotion' as const, stageStatus: 'pending' as const }], 'promotion' as any, 1)[0];
+    makeDraftReady(approvedItem.id);
     const now2 = new Date().toISOString();
     db.run(
       `INSERT INTO onboarding_review_state (item_id, batch_id, reviewed_at, reviewed_by, review_invalidated_at, review_invalidation_reason, approved_at, approved_by, approval_origin, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 'test', ?, ?)`,
@@ -563,6 +581,7 @@ describe('approval idempotency and server-derived principal', () => {
     const db0 = getDb();
     const now = new Date().toISOString();
     for (const id of ids) {
+      makeDraftReady(id);
       db0.run(
         `INSERT INTO onboarding_review_state (item_id, batch_id, reviewed_at, reviewed_by, review_invalidated_at, review_invalidation_reason, approved_at, approved_by, approval_origin, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 'test', ?, ?)`,
         [id, batch.id, now, 'tester', now, 'tester', now, now],

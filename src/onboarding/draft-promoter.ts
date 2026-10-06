@@ -1337,8 +1337,24 @@ export async function promoteItems(
   batchId: string,
   itemIds: string[],
 ): Promise<{ changeSetId: string | null; count: number; failures: Array<{ itemId: string; error: string }> }> {
-  const db = getDb();
+  const commit = await prepareDraftPromotion(workspaceId, workspacePath, batchId, itemIds);
+  const { changeSetId, count, failures } = getDb().transaction(commit)();
+  return { changeSetId, count, failures };
+}
 
+/** Prepare async image work, then hand the synchronous native draft write to
+ * its transaction owner. Receipt commands commit drafts, completion, linkage,
+ * receipt and audit together; ordinary promotion retains its existing flow. */
+export async function prepareDraftPromotion(
+  workspaceId: string,
+  workspacePath: string,
+  batchId: string,
+  itemIds: string[],
+  options: {
+    receiptOwned?: boolean;
+    authorizeItem?: (itemId: string) => string | null;
+  } = {},
+): Promise<() => { changeSetId: string | null; count: number; created: string[]; failures: Array<{ itemId: string; error: string }> }> {
   const batch = findBatchById(batchId);
   if (!batch) {
     throw new Error(`Onboarding batch ${batchId} not found`);
@@ -1353,6 +1369,7 @@ export async function promoteItems(
   let changeSetId: string | null = null;
 
   let promotedCount = 0;
+  const created: string[] = [];
   const failures: Array<{ itemId: string; error: string }> = [];
 
   // Retrieve all items for the batch
@@ -1380,10 +1397,15 @@ export async function promoteItems(
   const namingSnapshot = buildFilenameOwnershipSnapshot(workspaceId, workspacePath);
   const passedItems: OnboardingItem[] = [];
   for (const item of itemsToPromote) {
+    const refusal = options.authorizeItem?.(item.id);
+    if (refusal) {
+      failures.push({ itemId: item.id, error: refusal });
+      continue;
+    }
     if (!item.extractionData) {
       const errMsg = 'Missing extraction data';
       console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
-      completePromotionStage(item.id, false, errMsg);
+      if (!options.receiptOwned) completePromotionStage(item.id, false, errMsg);
       failures.push({ itemId: item.id, error: errMsg });
       continue;
     }
@@ -1391,7 +1413,7 @@ export async function promoteItems(
     if (!gateInfo.ok) {
       const errMsg = gateInfo.reason!;
       console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
-      completePromotionStage(item.id, false, errMsg);
+      if (!options.receiptOwned) completePromotionStage(item.id, false, errMsg);
       failures.push({ itemId: item.id, error: errMsg });
       continue;
     }
@@ -1539,7 +1561,17 @@ export async function promoteItems(
   // deterministic and cheap; a refusal records the failure and skips the
   // draft (an item refused here never produces a change-set row even when
   // its images were already downloaded in (b)).
-  db.transaction(() => {
+  return () => {
+    // Receipt preparation cannot persist failures before its transaction.
+    // Record the native refusals now, but never overwrite state moved by a
+    // competing command while images were prepared.
+    if (options.receiptOwned) {
+      for (const failure of failures) {
+        const refusal = options.authorizeItem?.(failure.itemId);
+        if (refusal) failure.error = refusal;
+        else completePromotionStage(failure.itemId, false, failure.error);
+      }
+    }
     // ── Issue #107: batch-unique more-information file names ──────────
     // Assign every passed item a distinct FileName BEFORE drafting, so the
     // persisted draft (visible in Review) already carries a collision-free
@@ -1556,7 +1588,13 @@ export async function promoteItems(
     const { assigned: assignedFileNames, records: allocationRecords } =
       assignPromotionFileNamesWithAudit(passedItems, workspacePath, readProductFile, freshSnapshot);
     const allocationByItem = new Map(allocationRecords.map((r) => [r.itemId, r]));
-    for (const item of passedItems) {
+    for (const preparedItem of passedItems) {
+      const item = options.receiptOwned ? findItemById(preparedItem.id) ?? preparedItem : preparedItem;
+      const refusal = options.authorizeItem?.(item.id);
+      if (refusal) {
+        failures.push({ itemId: item.id, error: refusal });
+        continue;
+      }
       // ── Epic #46 review round 2 (HIGH): durable approval re-checked at the
       // FINAL draft-write authority ──────────────────────────────────────
       // `passedItems` were evaluated before the async image pre-pass (b).
@@ -1925,8 +1963,12 @@ export async function promoteItems(
       }
       coreProduct.productOnPages = pageNames;
 
-      const draftJsonStr = deterministicStringify(product);
-      const draftHash = hashJson(product);
+      // Persist the originating item on receipt-created catalog drafts. This
+      // is record linkage (not a receipt-derived success projection), retained
+      // alongside the complete native Product payload for result inspection.
+      const linkedProduct = options.receiptOwned ? { ...product, itemId: item.id } : product;
+      const draftJsonStr = deterministicStringify(linkedProduct);
+      const draftHash = hashJson(linkedProduct);
       const baseJsonStr = existingApproved ? deterministicStringify(existingApproved) : null;
       const operation = existingApproved ? 'update' : 'create';
 
@@ -2012,17 +2054,18 @@ export async function promoteItems(
       completePromotionStage(item.id, true);
       
       promotedCount++;
+      created.push(item.id);
     }
 
     // Archive batch if all items are done (stage-based)
     if (isBatchComplete(batchId)) {
       setBatchArchived(batchId, true);
     }
-  })();
-
-  return {
-    changeSetId,
-    count: promotedCount,
-    failures,
+    return {
+      changeSetId,
+      count: promotedCount,
+      created,
+      failures,
+    };
   };
 }

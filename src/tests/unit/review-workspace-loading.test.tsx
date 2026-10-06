@@ -22,6 +22,9 @@ function makeQueueRow(i: number, overrides: Partial<ReviewQueueRow> = {}): Revie
     warningCodes: [],
     hasWarnings: false,
     reviewGateStatus: 'ready',
+    stage: 'review_listings',
+    stageStatus: 'pending',
+    actions: { canEdit: true, canCompleteReview: true, canApprove: false },
     ...overrides,
   };
 }
@@ -30,6 +33,8 @@ function makeDetail(itemId: string) {
   return {
     item: {
       itemId,
+      stage: 'review_listings',
+      stageStatus: 'pending',
       name: `Product ${itemId}`,
       price: '19.99',
       quantity: 5,

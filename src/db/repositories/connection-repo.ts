@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../connection';
+import type { DbDatabase } from '../driver';
 
 export interface ShopSiteConnectionRow {
   id: string;
@@ -13,8 +14,7 @@ export interface ShopSiteConnectionRow {
   lastTestError: string | null;
 }
 
-export function findConnection(workspaceId: string): ShopSiteConnectionRow | null {
-  const db = getDb();
+export function findConnection(workspaceId: string, db: Pick<DbDatabase, 'query'> = getDb()): ShopSiteConnectionRow | null {
   const row = db.query('SELECT * FROM connection WHERE workspace_id = ? LIMIT 1').get(workspaceId) as Record<string, unknown> | undefined;
   return row ? mapRow(row) : null;
 }

@@ -59,6 +59,16 @@ export interface WorkerBrowserConfig {
 
   /** Proxy URLs (comma-separated). Empty array = no proxy. */
   proxyUrls: string[];
+
+  /**
+   * Extra Chromium launch flags (whitespace-separated). Empty by default.
+   * Only `--`-prefixed flags are honored; anything else is ignored. The
+   * Tier 1 render worker sets `--ignore-certificate-errors` through this
+   * knob so the in-container browser accepts the per-run validating-proxy
+   * credential (upstream TLS is still validated by the proxy's broker).
+   * Optional so hand-built configs keep working; absent means none.
+   */
+  extraLaunchArgs?: string[];
 }
 
 // ─── Defaults ──────────────────────────────────────────────────────────────
@@ -73,6 +83,7 @@ const DEFAULTS: WorkerBrowserConfig = {
   dwellMs: 2_000,
   maxRequestRetries: 2,
   proxyUrls: [],
+  extraLaunchArgs: [],
 };
 
 // ─── Parser ────────────────────────────────────────────────────────────────
@@ -83,6 +94,15 @@ function parseProxyUrls(raw: string | undefined): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** Whitespace-separated `--` launch flags only (anything else is dropped). */
+function parseExtraLaunchArgs(raw: string | undefined): string[] {
+  if (!raw || raw.trim() === '') return [];
+  return raw
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.startsWith('--'));
 }
 
 /**
@@ -117,6 +137,7 @@ export function loadWorkerBrowserConfig(): WorkerBrowserConfig {
     dwellMs: envInt('BAYSTATE_CMS_WORKER_DWELL_MS', DEFAULTS.dwellMs),
     maxRequestRetries: envInt('BAYSTATE_CMS_WORKER_MAX_RETRIES', DEFAULTS.maxRequestRetries),
     proxyUrls: parseProxyUrls(process.env.BAYSTATE_CMS_WORKER_PROXY_URLS),
+    extraLaunchArgs: parseExtraLaunchArgs(process.env.BAYSTATE_CMS_WORKER_EXTRA_LAUNCH_ARGS),
   };
 }
 

@@ -7,6 +7,9 @@
  */
 import { hashCanonicalJson } from '../shared/stable-id';
 import type { Product } from '../shared/types';
+import {
+  buildPreservedContentFields,
+} from './preserved-content-tags';
 import type { NormalizedEvidenceInput } from './product-evidence-extractor';
 import type { PageRow } from '../db/repositories/page-repo';
 import { extractPageNamesFromBlock } from '../shopsite/product-codec';
@@ -65,11 +68,20 @@ export function buildCatalogProductEvidenceInput(
   const existingPages = ownPageNames.map(pageName => ({ pageId: pageName, pageName }));
   const existingPageNames = existingPages.map(p => p.pageName);
 
-  // Brand: check common custom field locations
+  // Brand: check common custom field locations, then the native <Brand> tag
+  // (preserved in unknownElements — the classifier previously missed it).
+  const preservedUnknown = product.shopsite?.preserved?.unknownElements ?? {};
   const brand = product.customFields?.['ProductField16']
     ?? product.customFields?.Brand
     ?? product.customFields?.brand
-    ?? null;
+    ?? (typeof preservedUnknown['Brand'] === 'string' && preservedUnknown['Brand'].trim().length > 0
+      ? String(preservedUnknown['Brand'])
+      : null);
+
+  // Rich content preserved from the live store (`Specifications`,
+  // `MaterialsOrIngredients`, `HowToUse`, …) — surfaced as bounded context
+  // evidence; never target-matching, never a source of canned values.
+  const preservedContent = buildPreservedContentFields(preservedUnknown);
 
   // Build bullet points from description (split on newlines/sentences if long)
   const bulletPoints: string[] = [];
@@ -86,6 +98,7 @@ export function buildCatalogProductEvidenceInput(
     bulletPoints,
     searchKeywords: product.core.seo?.searchKeywords ?? null,
     customFields: product.customFields ?? {},
+    preservedContent,
     primaryImage: product.core.media?.primary ?? null,
     additionalImages: product.core.media?.additional ?? [],
     sourceUrl: null, // No source URL for catalog products

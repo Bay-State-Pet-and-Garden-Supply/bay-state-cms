@@ -34,6 +34,15 @@
  * explicit flag + isolation + explicit domain/URLs/expected, and records
  * only what was actually performed — no activation, release, or attestation
  * is ever inferred. Without the flag this script performs no network.
+ *
+ * Tier-1 rendered investigation (#237) is deferred by default and stays
+ * deferred here unless the operator ALSO exports
+ * BAYSTATE_INVESTIGATION_ALLOW_RENDER=1, which opts this run's harness
+ * into the render machinery and records `renderOptIn: true` in the
+ * report. Rendered navigation proof is outstanding (see
+ * docs/plans/browser-investigation-pilot.md Tier-1 section); until it
+ * lands, a Tier-1 pilot records what the render path actually did —
+ * including `render_deferred` or gap outcomes — without claiming success.
  */
 import { readFileSync } from 'node:fs';
 import { checkIsolationAvailable } from '../src/onboarding/browser-investigation/isolation.ts';
@@ -58,7 +67,14 @@ if (import.meta.main === true) {
   // Production wiring (mirrors browser-investigation-routes): the real
   // containerized local harness is the default provider. The fake is never
   // registered here, so no pilot run can ever produce fabricated evidence.
-  registerInvestigationProvider(new LocalBrowserHarnessProvider());
+  //
+  // Tier-1 rendered investigation (#237) stays deferred by default: pass
+  // BAYSTATE_INVESTIGATION_ALLOW_RENDER=1 explicitly to opt the harness
+  // into the render machinery for this run. The opt-in is recorded
+  // verbatim in the report (`renderOptIn`) so a Tier-0-only run can never
+  // be mistaken for a rendered run.
+  const renderOptIn = process.env.BAYSTATE_INVESTIGATION_ALLOW_RENDER === '1';
+  registerInvestigationProvider(new LocalBrowserHarnessProvider(renderOptIn ? { allowTier1Render: true } : {}));
   const cli = parsePilotArgv(process.argv.slice(2));
   if (!cli.ok) {
     console.error(cli.reason);
@@ -75,6 +91,7 @@ if (import.meta.main === true) {
     representativeUrls: cli.value.representativeUrls,
     holdoutUrls: cli.value.holdoutUrls,
     expectedByUrl: expected.value,
+    renderOptIn,
     ...(cli.value.workspaceId ? { workspaceId: cli.value.workspaceId } : {}),
     ...(cli.value.actor ? { actor: cli.value.actor } : {}),
     env: process.env as Record<string, string | undefined>,

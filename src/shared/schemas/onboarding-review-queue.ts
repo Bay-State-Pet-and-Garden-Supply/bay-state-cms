@@ -1,7 +1,8 @@
 // fallow-ignore-file unused-export
 import { z } from 'zod';
 import { sha256 } from '../hash';
-import { SourceTypeEnum } from './onboarding';
+import { SourceTypeEnum, StageStatusEnum } from './onboarding';
+import { StageV2Enum } from '../onboarding-stage-vocabulary';
 import { ReviewStateEnum } from './onboarding-work-state';
 
 // ── ReviewGateStatusEnum ────────────────────────────────────────────────────────
@@ -36,6 +37,14 @@ export const ReviewQueueRowSchema = z
     warningCodes: z.array(z.string()).default([]),
     hasWarnings: z.boolean().default(false),
     reviewGateStatus: ReviewGateStatusEnum,
+    /** Current command context; absent on older responses means unavailable. */
+    stage: StageV2Enum.optional(),
+    stageStatus: StageStatusEnum.optional(),
+    actions: z.object({
+      canCompleteReview: z.boolean(),
+      canApprove: z.boolean(),
+      canEdit: z.boolean(),
+    }).strict().optional(),
   })
   .strict();
 export type ReviewQueueRow = z.infer<typeof ReviewQueueRowSchema>;
@@ -73,6 +82,26 @@ export const ReviewQueueCountsSchema = z
   .strict();
 export type ReviewQueueCounts = z.infer<typeof ReviewQueueCountsSchema>;
 
+/** Active queue totals respecting non-status filters, before pagination. */
+export const ReviewQueueStatusTotalsSchema = z.object({
+  unreviewed: z.number().int().nonnegative(),
+  reviewed: z.number().int().nonnegative(),
+  approved: z.number().int().nonnegative(),
+}).strict();
+export type ReviewQueueStatusTotals = z.infer<typeof ReviewQueueStatusTotalsSchema>;
+
+/** Batch-wide active review scope, independent of all filters and pagination. */
+export const ReviewQueueProgressSchema = z.object({
+  total: z.number().int().nonnegative(),
+  reviewed: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
+}).strict().superRefine((value, ctx) => {
+  if (value.reviewed + value.remaining !== value.total) {
+    ctx.addIssue({ code: 'custom', message: 'Review progress must reconcile with total' });
+  }
+});
+export type ReviewQueueProgress = z.infer<typeof ReviewQueueProgressSchema>;
+
 // ── ReviewQueueFiltersSchema ────────────────────────────────────────────────────
 export const ReviewQueueFiltersSchema = z
   .object({
@@ -85,6 +114,8 @@ export const ReviewQueueFiltersSchema = z
     q: z.string().optional(),
     limit: z.number().int().min(1).max(100).default(50).optional(),
     cursor: z.string().optional(),
+    /** Bounded inspector context, not a predicate or part of cursor identity. */
+    selectedItemId: z.string().min(1).max(128).optional(),
   })
   .strict();
 export type ReviewQueueFilters = z.infer<typeof ReviewQueueFiltersSchema>;
@@ -94,8 +125,12 @@ export const ReviewQueuePageSchema = z
   .object({
     batchId: z.string(),
     rows: z.array(ReviewQueueRowSchema),
+    /** Null proves the requested selection left this scope; absent is legacy coverage. */
+    selectedRow: ReviewQueueRowSchema.nullable().optional(),
     nextCursor: z.string().nullable(),
     counts: ReviewQueueCountsSchema,
+    statusTotals: ReviewQueueStatusTotalsSchema.optional(),
+    progress: ReviewQueueProgressSchema.optional(),
     projectionHealth: ProjectionHealthSchema,
   })
   .strict();

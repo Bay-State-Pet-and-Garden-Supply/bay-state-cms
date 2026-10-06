@@ -348,10 +348,10 @@ describe('Onboarding Batch URL Persistence', () => {
     expect(container.textContent).toContain('Batch not found');
   });
 
-  it('initializes the entire-batch Review destination from legacy URL tab parameter on refresh', async () => {
+  it('initializes the direct working Review stage from legacy URL tab parameter on refresh', async () => {
     window.history.replaceState(null, '', '/?view=onboarding&batch=batch-1&tab=review');
-    // The review destination mounts the real ReviewWorkspace; keep network
-    // deterministic — wrapper + banner assertions must not depend on fetch.
+    // The working review stage mounts the real ReviewWorkspace; keep network
+    // deterministic — wrapper + stage assertions must not depend on fetch.
     const realFetch = globalThis.fetch;
     (globalThis as any).fetch = () => Promise.reject(new Error('no server in test'));
     try {
@@ -361,11 +361,21 @@ describe('Onboarding Batch URL Persistence', () => {
       });
 
       expect(container.textContent).toContain('Batch Alpha');
-      // Legacy ?tab=review resolves to the frozen full-batch review
-      // destination (Table C), not the old tab strip.
-      const reviewDestination = container.querySelector('[data-testid="linear-operation-review"]');
-      expect(reviewDestination).not.toBeNull();
-      expect(container.querySelector('[data-testid="linear-scope-banner"]')).not.toBeNull();
+      // Legacy ?tab=review canonicalizes to the direct working Review stage
+      // (spec #332), not a separate entire-batch Review destination.
+      const workingReview = container.querySelector('[data-testid="working-stage-review_listings"]');
+      expect(workingReview).not.toBeNull();
+      expect(workingReview?.getAttribute('hidden')).toBeNull();
+      // Separate entire-batch destination is retired.
+      expect(container.querySelector('[data-testid="linear-operation-review"]')).toBeNull();
+      expect(container.querySelector('[data-testid="linear-scope-banner"]')).toBeNull();
+      // Canonical direct stage URL preserves shell routing state.
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('stage')).toBe('review_listings');
+      expect(params.get('stageVersion')).toBe('2');
+      expect(params.get('tab')).toBeNull();
+      expect(params.get('batch')).toBe('batch-1');
+      expect(params.get('view')).toBe('onboarding');
     } finally {
       globalThis.fetch = realFetch;
     }

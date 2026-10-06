@@ -1,0 +1,58 @@
+{
+  "newReleaseId": "bay-state-v9",
+  "notes": [
+    "Owner-approved CMS↔ShopSite alignment (2026-10-06):",
+    "PF32 is pipe-joined UPC/barcode data — product-cross-sell mapping removed, not_exported (read-only).",
+    "PF8 carries feeding-instruction/ingredient HTML — nutrition mapping removed, not_exported (read-only).",
+    "species vocabulary widened: Wild Bird, Caged Bird, Farm Animal, Small Pet, Bee.",
+    "Delimited '|' serialization adopted for the CMS-owned multi-value slots (live store uses pipes).",
+    "Species membership cardinality normalized to single (profile-pet-food-supplements, profile-accessories-grooming) so the derived target matches the compiler's single-select contract.",
+    "Retires safety-toe-type export intent (already not_exported; remains for the next gold contract revision)."
+  ],
+  "attributeEdits": [
+    {
+      "attributeId": "product-cross-sell",
+      "name": "UPC List (read-only)",
+      "description": "Read-only: live PF32 carries pipe-joined UPC/barcode lists, not cross-sell data. Never written by the CMS.",
+      "exportDisposition": { "kind": "not_exported" }
+    },
+    {
+      "attributeId": "nutrition",
+      "description": "Read-only: live PF8 carries feeding-instruction/ingredient HTML. Never overwritten by classification.",
+      "exportDisposition": { "kind": "not_exported" }
+    }
+  ],
+  "mappingRemoves": [
+    { "attributeId": "product-cross-sell" },
+    { "attributeId": "nutrition" },
+    { "attributeId": "species" },
+    { "attributeId": "life-stage" },
+    { "attributeId": "dietary-features" },
+    { "attributeId": "health-benefits" },
+    { "attributeId": "flavor" },
+    { "attributeId": "color" },
+    { "attributeId": "product-feature" },
+    { "attributeId": "material" },
+    { "attributeId": "food-form" },
+    { "attributeId": "category" }
+  ],
+  "mappingAdds": [
+    { "attributeId": "species", "catalogField": "ProductField17", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "life-stage", "catalogField": "ProductField18", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "dietary-features", "catalogField": "ProductField20", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "health-benefits", "catalogField": "ProductField21", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "food-form", "catalogField": "ProductField22", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "flavor", "catalogField": "ProductField23", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "category", "catalogField": "ProductField24", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "product-feature", "catalogField": "ProductField26", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "material", "catalogField": "ProductField28", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } },
+    { "attributeId": "color", "catalogField": "ProductField29", "serialization": { "kind": "delimited", "delimiter": "|", "escapePolicy": "reject", "prefix": "", "suffix": "" } }
+  ],
+  "attributeAllowedValueAdds": [
+    { "attributeId": "species", "values": ["Wild Bird", "Caged Bird", "Farm Animal", "Small Pet", "Bee"] }
+  ],
+  "profileCardinalityPatches": [
+    { "profileId": "profile-pet-food-supplements", "attributeId": "species", "cardinality": "single" },
+    { "profileId": "profile-accessories-grooming", "attributeId": "species", "cardinality": "single" }
+  ]
+}

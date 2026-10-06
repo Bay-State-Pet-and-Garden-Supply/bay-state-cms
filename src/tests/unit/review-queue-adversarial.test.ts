@@ -8,6 +8,8 @@ import {
   ReviewQueueCountsSchema,
   ReviewQueueFiltersSchema,
   ReviewQueuePageSchema,
+  ReviewQueueStatusTotalsSchema,
+  ReviewQueueProgressSchema,
   ReviewQueueCursorError,
   encodeReviewQueueCursor,
   decodeReviewQueueCursor,
@@ -45,6 +47,18 @@ describe('Adversarial Schema Stress Tests', () => {
   it('verifies base row is valid', () => {
     const parsed = ReviewQueueRowSchema.parse(baseValidRow);
     expect(parsed.itemId).toBe('item-adv-100');
+  });
+
+  it('validates additive command context while rejecting injected authority and malformed totals', () => {
+    const actions = { canCompleteReview: true, canApprove: false, canEdit: true };
+    expect(ReviewQueueRowSchema.safeParse({ ...baseValidRow, stage: 'review_listings', stageStatus: 'completed', actions }).success).toBe(true);
+    expect(ReviewQueueRowSchema.safeParse({ ...baseValidRow, actions: { ...actions, bypassGate: true } }).success).toBe(false);
+    expect(ReviewQueueRowSchema.safeParse({ ...baseValidRow, actions: { ...actions, canApprove: 'true' } }).success).toBe(false);
+    expect(ReviewQueueRowSchema.safeParse({ ...baseValidRow, stage: 'review' }).success).toBe(false);
+    expect(ReviewQueueStatusTotalsSchema.safeParse({ unreviewed: 3, reviewed: 1, approved: -1 }).success).toBe(false);
+    expect(ReviewQueueStatusTotalsSchema.safeParse({ unreviewed: 3, reviewed: 1, approved: 2, total: 6 }).success).toBe(false);
+    expect(ReviewQueueProgressSchema.safeParse({ total: 5, reviewed: 3, remaining: 3 }).success).toBe(false);
+    expect(ReviewQueueProgressSchema.safeParse({ total: 5, reviewed: 6, remaining: -1 }).success).toBe(false);
   });
 
   describe('Strict Rejection of Prohibited Detail Blobs and Injected Keys', () => {

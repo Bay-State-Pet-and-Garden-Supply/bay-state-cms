@@ -115,6 +115,36 @@ final-phase flag/URL matrix (retired ledger) green; full regression ladder
 green or baseline-documented in the §7 packet. No server/storage/migration
 change in this slice; no storage activation executed.
 
+## UI simplification addendum — direct task screens (OWNER-APPROVED 2026-09-30; implemented in working tree)
+
+The owner approved simplifying the existing six-stage Batch Workspace rather
+than replacing its primary stage navigation. Each stage tab becomes the actual
+working screen: Review contains the existing queue/inspector and explicit
+approval of reviewed products; Create drafts contains draft creation and
+outcomes; Prepare listing is a product-first list with real selected-product
+preparation details. A batch-wide Needs attention panel resolves exceptions
+without changing the underlying stage or discarding working context.
+
+This narrowly supersedes the earlier separation between stage lists and
+separately navigated full-batch operation destinations, placeholder preparation
+section composition, and the requirement to leave review/approval presentation
+frozen. Existing six-stage vocabulary, single-shell ownership, server-derived
+state, automated progression, family barriers, and command-time review,
+approval, and draft-creation authority are retained. Review-history filters may
+include approved products that have advanced to Create drafts; that scope is
+explicit and never redefines their Pipeline Stage.
+
+The header exposes compact recorded status and initially collapsed existing
+ephemeral activity. This simplification does not authorize new worker
+observation infrastructure, a durable execution tail, heartbeat/health claims,
+or processing-policy changes. The approved target and verification decisions
+are in [the UI simplification spec](../plans/onboarding-ui-simplification.md).
+Related implementation tickets #278–#286 have been reconciled to governing
+spec #332 while preserving the existing parent #277. The working-tree cutover
+and scoped verification are complete; repository-wide checks have separately
+documented blockers. See the [verification report](../audits/onboarding-ui-simplification-332.md)
+for results rather than treating this design record as a release certificate.
+
 ## Open risks
 
 Carried from plan §10/§12: rename miss (mitigated by single re-exported `STAGE_ORDER` step 0 of Slice 4 + scoped grep + compat suite), second-authority drift (existing-paths-only), tail growth/secrets (cap/TTL/allowlist), SSE storms (debounce + bounded replay ≤100), family/cohort mis-key (same-commit rename + compat), dirty-worktree discipline, scout-handoff evidence gap (direct reads substituted).

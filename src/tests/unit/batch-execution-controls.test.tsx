@@ -49,24 +49,61 @@ afterEach(() => {
 });
 
 describe('BatchExecutionControls', () => {
-  it('renders Start ready + Start all from draft (not flag-gated)', () => {
+  it('renders Start branded products with overflow-collapsed Start all from draft', () => {
     const el = renderControls('draft');
-    expect(el.querySelector('[data-testid="batch-start-ready"]')).not.toBeNull();
-    expect(el.querySelector('[data-testid="batch-start-all"]')).not.toBeNull();
+    const ready = el.querySelector('[data-testid="batch-start-ready"]');
+    expect(ready).not.toBeNull();
+    expect(ready?.textContent).toContain('Start branded products');
+    expect(ready?.getAttribute('title')).toContain('Start branded products');
+    // Advanced action starts collapsed in the overflow disclosure.
+    expect(el.querySelector('[data-testid="batch-start-all"]')).toBeNull();
+    const toggle = el.querySelector('[data-testid="batch-start-overflow-toggle"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(el.querySelector('[data-testid="batch-pause"]')).toBeNull();
     expect(el.querySelector('[data-testid="batch-resume"]')).toBeNull();
   });
 
-  it('renders Pause (not Start) from running', () => {
+  it('opens the overflow disclosure to reach Start all products (confirm-guarded)', () => {
+    const el = renderControls('draft');
+    const toggle = el.querySelector('[data-testid="batch-start-overflow-toggle"]') as HTMLButtonElement;
+    act(() => {
+      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const all = el.querySelector('[data-testid="batch-start-all"]');
+    expect(all).not.toBeNull();
+    expect(all?.textContent).toContain('Start all products');
+    expect(all?.getAttribute('title')).toContain('requires confirmation');
+  });
+
+  it('keeps Start branded + overflow reachable while running (held items releasable)', () => {
     const el = renderControls('running');
+    expect(el.querySelector('[data-testid="batch-start-ready"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="batch-start-overflow-toggle"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="batch-pause"]')).not.toBeNull();
-    expect(el.querySelector('[data-testid="batch-start-ready"]')).toBeNull();
     expect(el.querySelector('[data-testid="batch-start-all"]')).toBeNull();
   });
 
-  it('renders Resume from paused', () => {
+  it('renders Resume alongside Start actions from paused', () => {
     const el = renderControls('paused');
     expect(el.querySelector('[data-testid="batch-resume"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="batch-start-ready"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="batch-pause"]')).toBeNull();
+  });
+
+  it('collapses the overflow on Escape', () => {
+    const el = renderControls('draft');
+    const toggle = el.querySelector('[data-testid="batch-start-overflow-toggle"]') as HTMLButtonElement;
+    act(() => {
+      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(el.querySelector('[data-testid="batch-start-overflow"]')).not.toBeNull();
+    act(() => {
+      el.querySelector('[data-testid="batch-start-overflow"]')!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
+    });
+    expect(el.querySelector('[data-testid="batch-start-overflow"]')).toBeNull();
   });
 });

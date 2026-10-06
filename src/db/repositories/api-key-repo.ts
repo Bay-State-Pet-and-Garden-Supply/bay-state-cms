@@ -1,5 +1,6 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
+import type { DbDatabase } from '../driver';
 
 export interface ApiKeyRow {
   id: string;
@@ -48,8 +49,7 @@ export function upsertApiKey(
   return { id, service, api_key: apiKey, base_url: baseUrl ?? null, model: model ?? null, created_at: now, updated_at: now };
 }
 
-export function getApiKey(service: string): ApiKeyRow | undefined {
-  const db = getDb();
+export function getApiKey(service: string, db: Pick<DbDatabase, 'query'> = getDb()): ApiKeyRow | undefined {
   return db.query('SELECT * FROM api_keys WHERE service = ?').get(service) as ApiKeyRow | undefined;
 }
 

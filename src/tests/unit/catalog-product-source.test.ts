@@ -58,6 +58,46 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 }
 
 describe('catalog-product-source', () => {
+  it('surfaces the native <Brand> tag and preserved content as evidence input', () => {
+    const product = makeProduct({
+      customFields: {},
+      shopsite: {
+        ...makeProduct().shopsite!,
+        preserved: {
+          unknownElements: {
+            Brand: 'Kaytee',
+            Specifications: '<h4>GUARANTEED ANALYSIS</h4><p>Crude Protein 14%</p>',
+            HowToUse: '<p>Feed daily.</p>',
+            Warranty: '',
+          },
+          advancedBlocks: {},
+          rawAttributes: {},
+        },
+      },
+    });
+
+    const source = buildCatalogProductEvidenceInput(product, '/tmp/ws');
+    expect(source.normalizedInput.brand).toBe('Kaytee');
+    expect(source.normalizedInput.preservedContent).toEqual({
+      Specifications: '<h4>GUARANTEED ANALYSIS</h4><p>Crude Protein 14%</p>',
+      HowToUse: '<p>Feed daily.</p>',
+    });
+  });
+
+  it('prefers ProductField16 over the native <Brand> tag', () => {
+    const product = makeProduct({
+      shopsite: {
+        ...makeProduct().shopsite!,
+        preserved: {
+          unknownElements: { Brand: 'Legacy Brand' },
+          advancedBlocks: {},
+          rawAttributes: {},
+        },
+      },
+    });
+    expect(buildCatalogProductEvidenceInput(product, '/tmp/ws').normalizedInput.brand).toBe('Kaytee');
+  });
+
   it('builds evidence input from the product’s OWN ProductOnPages only', () => {
     const productA = makeProduct();
     const productB = makeProduct({

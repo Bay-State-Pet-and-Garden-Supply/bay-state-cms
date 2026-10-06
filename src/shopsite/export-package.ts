@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ShopSiteProductCodec } from './product-codec';
+import { ShopSiteProductCodec, assertNoPreservedCorruption } from './product-codec';
 import { deterministicStringify } from '../git/deterministic-json';
 import { createImagesZip, assertZipHasImages } from './zip-generator';
 import type { Product } from '../shared/types';
@@ -33,7 +33,9 @@ export async function createExportPackage(
     fs.mkdirSync(exportDir, { recursive: true });
   }
 
-  // Generate XML
+  // Generate XML. Fail closed when drafts still carry the "[object Object]"
+  // sentinel: a corrupted export would destroy live preserved blocks on upload.
+  assertNoPreservedCorruption(products);
   const xml = ShopSiteProductCodec.encodeMany(products, {
     xmlVersion: options?.xmlVersion,
     newProductTag: options?.newProductTag,
