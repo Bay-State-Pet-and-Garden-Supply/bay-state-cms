@@ -150,6 +150,30 @@ export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[]
 
   const evidenceTokens = new Set(tokenize(text, stopWords));
 
+  // Single-winner fast path: single mode with default top-1 keeps only
+  // `matches[0]` downstream, and the full sort is total (confidence desc,
+  // label asc) — tracking the maximum in one scan yields exactly `sorted[0]`
+  // without scoring the full array or sorting. Custom maxResults still
+  // takes the general path.
+  if (selectionMode === 'single' && maxResults === 1 && stopWords === undefined) {
+    let best: MatchedOption | null = null;
+    for (const opt of options) {
+      const tokens = tokenizedLabel(opt.label);
+      let hits = 0;
+      for (const t of tokens) if (evidenceTokens.has(t)) hits++;
+      const score = tokens.length === 0 ? 0 : hits / tokens.length;
+      const confidence = Math.min(0.85, 0.45 + score * 0.35);
+      if (!best || confidence > best.confidence ||
+          (confidence === best.confidence && opt.label.localeCompare(best.label) < 0)) {
+        // matchedTokens only materialize for the winner (losers are discarded
+        // unseen) — identical observable output for the top-1 caller.
+        best = { value: opt.value, label: opt.label, confidence, matchedTokens: tokens.filter(t => evidenceTokens.has(t)) };
+      }
+    }
+    if (!best || !(best.confidence > 0 || best.matchedTokens.length > 0)) return [];
+    return [best];
+  }
+
   const scored = options
     .map(opt => {
       const tokens = tokenizedLabel(opt.label, stopWords);
