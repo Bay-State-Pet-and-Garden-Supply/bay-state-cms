@@ -153,6 +153,47 @@ describe('Curation Target Matcher', () => {
       const result = matchKeywordOptions({ options, text: 'ab', selectionMode: 'single' });
       expect(result).toEqual([]);
     });
+
+    it('scores duplicate label tokens with full multiplicity on repeated calls (stable arrays engage the index)', () => {
+      // Regression: the inverted index once dedup-counted postings, scoring
+      // 'Chicken Chicken' 0.625 instead of the direct 0.8. Same array three
+      // times: first call direct, later calls indexed — outputs must agree.
+      const dupOptions = [
+        { value: 'dup', label: 'Chicken Chicken' },
+        { value: 'plain', label: 'Beef' },
+      ];
+      const text = 'made with real chicken and rice';
+      const first = matchKeywordOptions({ options: dupOptions, text, selectionMode: 'single' });
+      expect(first[0].confidence).toBeCloseTo(0.8, 10);
+      expect(first[0].matchedTokens).toEqual(['chicken', 'chicken']);
+      for (let i = 0; i < 3; i++) {
+        expect(matchKeywordOptions({ options: dupOptions, text, selectionMode: 'single' })).toEqual(first);
+        expect(matchKeywordOptions({ options: dupOptions, text, selectionMode: 'multiple', maxResults: 5 })).toEqual(
+          matchKeywordOptions({ options: dupOptions.map(o => ({ ...o })), text, selectionMode: 'multiple', maxResults: 5 }),
+        );
+      }
+    });
+
+    it('breaks full ties in array order on repeated calls (duplicate labels)', () => {
+      // Two identical labels tying at top: the direct stable sort keeps
+      // array order; the index must not leak touch order through.
+      const tieOptions = [
+        { value: 'x1', label: 'Thank you!' },
+        { value: 'x2', label: 'Thank you!' },
+        { value: 'x3', label: 'Alpha' },
+      ];
+      const text = 'thank you for shopping alpha beta';
+      const first = matchKeywordOptions({ options: tieOptions, text, selectionMode: 'single' });
+      const multi = matchKeywordOptions({ options: tieOptions, text, selectionMode: 'multiple', maxResults: 3 });
+      for (let i = 0; i < 3; i++) {
+        expect(matchKeywordOptions({ options: tieOptions, text, selectionMode: 'single' })).toEqual(first);
+        expect(matchKeywordOptions({ options: tieOptions, text, selectionMode: 'multiple', maxResults: 3 })).toEqual(multi);
+      }
+      // Three-way tie at 0.8: min label 'Alpha' wins, then the identical
+      // pair in array order.
+      expect(first[0].value).toBe('x3');
+      expect(multi.map(m => m.value)).toEqual(['x3', 'x1', 'x2']);
+    });
   });
 
   describe('matchAttributeOptions', () => {

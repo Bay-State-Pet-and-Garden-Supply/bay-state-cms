@@ -169,7 +169,8 @@ function tokenizedLabel(label: string, stopWords?: Set<string>): string[] {
 // index and rescans directly rather than risking stale postings.
 interface KeywordTokenIndex {
   optionTokens: string[][];
-  postings: Map<string, number[]>;
+  /** token -> [option index, occurrences of the token in that option's label]. */
+  postings: Map<string, Array<[index: number, count: number]>>;
   optionCount: number;
 }
 const keywordIndexSeen = new WeakSet<object>();
@@ -179,12 +180,14 @@ function buildKeywordTokenIndex(
   options: Array<{ value: string; label: string }>,
 ): KeywordTokenIndex {
   const optionTokens = options.map(opt => tokenizedLabel(opt.label));
-  const postings = new Map<string, number[]>();
+  const postings = new Map<string, Array<[number, number]>>();
   for (let i = 0; i < optionTokens.length; i++) {
-    for (const token of new Set(optionTokens[i])) {
+    const counts = new Map<string, number>();
+    for (const token of optionTokens[i]) counts.set(token, (counts.get(token) ?? 0) + 1);
+    for (const [token, count] of counts) {
       const list = postings.get(token);
-      if (list) list.push(i);
-      else postings.set(token, [i]);
+      if (list) list.push([i, count]);
+      else postings.set(token, [[i, count]]);
     }
   }
   return { optionTokens, postings, optionCount: options.length };
@@ -223,7 +226,7 @@ function matchKeywordTop1Indexed(
   for (const token of evidenceTokens) {
     const posting = index.postings.get(token);
     if (!posting) continue;
-    for (const i of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + 1);
+    for (const [i, count] of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + count);
   }
   if (hitCounts.size === 0) {
     // Every option scores 0.45 with no hits: the total sort (confidence
@@ -266,7 +269,7 @@ function matchKeywordGeneralIndexed(
   for (const token of evidenceTokens) {
     const posting = index.postings.get(token);
     if (!posting) continue;
-    for (const i of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + 1);
+    for (const [i, count] of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + count);
   }
   const scored: Array<{ option: MatchedOption; index: number }> = [];
   for (const [i, hits] of hitCounts) {
