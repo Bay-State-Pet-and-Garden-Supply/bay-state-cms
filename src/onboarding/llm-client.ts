@@ -27,7 +27,8 @@
  */
 
 import { getApiKey } from '../db/repositories/api-key-repo';
-import { getFullAiRoutingConfig, isAiComputeConfigured } from '../db/repositories/provider-connection-repo';
+import { getFullAiRoutingConfig, getProviderConnection, isAiComputeConfigured } from '../db/repositories/provider-connection-repo';
+import { hashCanonicalJson } from '../shared/stable-id';
 import { dispatchWorkloadChat } from '../ai/inference-dispatcher';
 import { AiPolicyDeniedError } from '../ai/network-transport';
 import { isConnectionUsable, type ProviderConnection, type ModelTarget } from '../ai/provider-connections';
@@ -75,6 +76,24 @@ export interface LlmConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+}
+
+/** Optional operation-scoped constraints, checked at every protected HTTP boundary. */
+export interface LlmDispatchGuard {
+  provider: string;
+  model: string;
+  credentialRef: string;
+  dispatchIdentityHash?: string;
+  attemptBudget: { tryConsumeAttempt: () => boolean };
+  signal: AbortSignal;
+  assertContext?: () => void;
+}
+
+export class LlmDispatchGuardError extends Error {
+  constructor(public readonly code: 'credential_reference_mismatch' | 'attempt_budget_exhausted' | 'deadline_exceeded' | 'store_context_mismatch') {
+    super(`Protected model dispatch denied (${code}).`);
+    this.name = 'LlmDispatchGuardError';
+  }
 }
 
 /** Default base URLs when a provider credential has none configured. */
@@ -323,6 +342,7 @@ function credentialForProvider(provider: string): {
   apiKey: string;
   baseUrl: string | null;
   model: string | null;
+  credentialRef: string;
 } | null {
   // AI Compute connection bridge: a provider string that names an enabled,
   // usable ProviderConnection resolves its credential/base URL from AI
@@ -334,7 +354,8 @@ function credentialForProvider(provider: string): {
     const aiConfig = getFullAiRoutingConfig();
     const conn = aiConfig.connections[provider];
     if (conn && isConnectionUsable(conn)) {
-      return { provider, apiKey: conn.credential || 'enabled', baseUrl: conn.baseUrl, model: null };
+      return { provider, apiKey: conn.credential || 'enabled', baseUrl: conn.baseUrl, model: null,
+        credentialRef: `provider_connections:${conn.id}` };
     }
   } catch {
     // DB unavailable → legacy lookup below
@@ -345,7 +366,42 @@ function credentialForProvider(provider: string): {
     return null;
   }
   const cred = resolveProviderCredential(provider);
-  return cred ? { provider, ...cred } : null;
+  return cred ? { provider, ...cred, credentialRef: `api_keys:${provider}` } : null;
+}
+
+/** Non-secret identity of the same credential source used by protected routing. */
+export function getLlmCredentialReference(provider: string): string | null {
+  return credentialForProvider(provider)?.credentialRef ?? null;
+}
+
+/** Bind the actual chat endpoint/pins without hashing or returning credentials. */
+export function getLlmDispatchIdentityHash(config: LlmConfig): string | null {
+  const credential = credentialForProvider(config.provider);
+  if (!credential || credential.apiKey !== config.apiKey) return null;
+  const connection = credential.credentialRef.startsWith('provider_connections:')
+    ? getProviderConnection(config.provider) : null;
+  if (connection?.transport === 'systemone') return null;
+  return hashCanonicalJson({ provider: config.provider, model: config.model, baseUrl: config.baseUrl,
+    credentialRef: credential.credentialRef,
+    connectionPolicy: connection ? {
+      transport: connection.transport, trustZone: connection.trustZone,
+      approvedHost: connection.approvedHost, approvedPort: connection.approvedPort ?? null,
+      connectTimeoutMs: connection.connectTimeoutMs ?? null, inferenceTimeoutMs: connection.inferenceTimeoutMs ?? null,
+    } : null });
+}
+
+function assertGuardedLlmAttempt(config: LlmConfig, guard?: LlmDispatchGuard): void {
+  if (!guard) return;
+  guard.assertContext?.();
+  if (guard.signal.aborted) throw new LlmDispatchGuardError('deadline_exceeded');
+  const credential = credentialForProvider(config.provider);
+  if (config.provider !== guard.provider || config.model !== guard.model ||
+      credential?.credentialRef !== guard.credentialRef || credential.apiKey !== config.apiKey ||
+      (guard.dispatchIdentityHash && getLlmDispatchIdentityHash(config) !== guard.dispatchIdentityHash)) {
+    throw new LlmDispatchGuardError('credential_reference_mismatch');
+  }
+  if (!guard.attemptBudget.tryConsumeAttempt()) throw new LlmDispatchGuardError(
+    guard.signal.aborted ? 'deadline_exceeded' : 'attempt_budget_exhausted');
 }
 
 /**
@@ -528,6 +584,8 @@ export interface CallLlmForTaskOptions {
    * legacy/non-cohort invocations — zero behavior change.
    */
   assertHeld?: () => void;
+  /** Explicit identity, attempt budget and cancellation for isolated evaluation callers. */
+  dispatchGuard?: LlmDispatchGuard;
   /** Workspace ID for general telemetry logging (defaults to 'default'). */
   workspaceId?: string;
 }
@@ -637,6 +695,7 @@ async function callLlmForTaskAudited(
   if (!ctx) {
     throw new Error('callLlmForTaskAudited requires a modelCall audit context.');
   }
+  options.dispatchGuard?.assertContext?.();
 
   // Fail closed when the run snapshot has no compatible frozen plan for this
   // operation (legacy schema-v1 snapshot, missing entry, version drift, or a
@@ -774,6 +833,7 @@ async function callLlmForTaskAudited(
   // throwing (fetch errors, non-OK responses, empty content).
   let terminalWritten = false;
   const markTerminal = (update: Parameters<typeof completeModelCall>[1]): boolean => {
+    options.dispatchGuard?.assertContext?.();
     // PR4 P1-1 seam: re-assert ownership before EVERY terminal write — a
     // stale owner (lease reclaimed mid-call) must never terminalize its
     // in-flight model-call row. A rejected assertion throws
@@ -784,8 +844,10 @@ async function callLlmForTaskAudited(
     return completeModelCall(callId, update);
   };
 
-  await acquireLlmSlot(config.provider);
+  let slotAcquired = false;
   try {
+    await acquireLlmSlot(config.provider, options.dispatchGuard?.signal);
+    slotAcquired = true;
     // Re-assert the frozen policy immediately at the transport boundary
     // (after the queue wait): tampering or route drift denies the call.
     if (options.modelPolicy) {
@@ -798,6 +860,7 @@ async function callLlmForTaskAudited(
 
     let response: Response;
     try {
+      assertGuardedLlmAttempt(config, options.dispatchGuard);
       response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -806,12 +869,15 @@ async function callLlmForTaskAudited(
         },
         body: JSON.stringify(requestBody),
         redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: options.dispatchGuard
+          ? AbortSignal.any([options.dispatchGuard.signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
       const isAbort =
         (err as { name?: string })?.name === 'AbortError' ||
-        (err as { message?: string })?.message?.includes('abort') === true;
+        (err as { message?: string })?.message?.includes('abort') === true ||
+        options.dispatchGuard?.signal.aborted === true;
       const terminal = isAbort ? MODEL_CALL_STATUS.cancelled : MODEL_CALL_STATUS.failed;
       markTerminal({
         status: terminal,
@@ -820,6 +886,7 @@ async function callLlmForTaskAudited(
         estimatedCostUsd: resolvedLocality === 'local' ? 0 : null,
         costBasis: resolvedLocality === 'local' ? COST_BASIS.localZero : COST_BASIS.unknown,
       });
+      if (options.dispatchGuard?.signal.aborted) throw new LlmDispatchGuardError('deadline_exceeded');
       throw err;
     }
 
@@ -851,6 +918,7 @@ async function callLlmForTaskAudited(
 
     const data = (await response.json()) as {
       choices: Array<{ message: { content: string } }>;
+      model?: unknown;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
     const content = data.choices?.[0]?.message?.content;
@@ -874,6 +942,7 @@ async function callLlmForTaskAudited(
 
     const terminalDurable = markTerminal({
       status: MODEL_CALL_STATUS.success,
+      resolvedModel: typeof data.model === 'string' && data.model.trim() ? data.model.trim() : null,
       durationMs: Date.now() - startedAt,
       promptTokens,
       completionTokens,
@@ -905,6 +974,9 @@ async function callLlmForTaskAudited(
     // write (the in-flight row stays `started`, crash-equivalent abandoned)
     // and the `HeartbeatLostError` propagates to abort the stale run.
     if (err instanceof HeartbeatLostError) throw err;
+    if (err instanceof LlmDispatchGuardError && err.code === 'store_context_mismatch') throw err;
+    const terminalError = options.dispatchGuard?.signal.aborted
+      ? new LlmDispatchGuardError('deadline_exceeded') : err;
     // Outer terminalization: any exception after the start row that did not
     // already write a terminal row (route re-assertion, JSON decode, etc.)
     // leaves a durable `failed` row. A stranded `started` row is impossible
@@ -912,9 +984,9 @@ async function callLlmForTaskAudited(
     if (!terminalWritten) {
       try {
         markTerminal({
-          status: MODEL_CALL_STATUS.failed,
+          status: options.dispatchGuard?.signal.aborted ? MODEL_CALL_STATUS.cancelled : MODEL_CALL_STATUS.failed,
           durationMs: Date.now() - startedAt,
-          errorMessage: redactTransportText(err instanceof Error ? err.message : String(err)),
+          errorMessage: redactTransportText(terminalError instanceof Error ? terminalError.message : String(terminalError)),
           estimatedCostUsd: resolvedLocality === 'local' ? 0 : null,
           costBasis: resolvedLocality === 'local' ? COST_BASIS.localZero : COST_BASIS.unknown,
         });
@@ -928,9 +1000,9 @@ async function callLlmForTaskAudited(
         );
       }
     }
-    throw err;
+    throw terminalError;
   } finally {
-    releaseLlmSlot(config.provider);
+    if (slotAcquired) releaseLlmSlot(config.provider);
   }
 }
 

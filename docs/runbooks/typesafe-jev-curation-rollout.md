@@ -75,8 +75,9 @@ The server automatically maps `process.env.TYPESAFE_API_KEY` to the `typesafe` p
 ## 4. Offline Evaluation & Canary Verification
 
 ### A. Adjudicated Benchmark Goldset
-The qualification suite evaluates against `src/tests/fixtures/benchmark-jev-qualification-goldset.json`.
-- **Entries:** 16 fully adjudicated, representative items covering food, treats, toys, animal care, pest control, lawn & garden, confusing neighbors, unknown types (`no-fit`), and incomplete evidence (`insufficient-evidence`, `unlabeled`).
+The qualification suite's historical seam fixture is
+`src/tests/fixtures/benchmark-jev-qualification-goldset.json`.
+- **Entries:** 16 previously inspected fixture items covering food, treats, toys, animal care, pest control, lawn & garden, confusing neighbors, unknown types (`no-fit`), and incomplete evidence (`insufficient-evidence`, `unlabeled`). This is not an independently supported representative release evaluation or a fresh blind holdout.
 - **Splits:** Strictly family-separated (`dev` and `holdout`) with verified zero split leakage across brand/product families.
 - **Targets:** Primary Product Types, Controlled Attributes (single & multi-value), and Category Pages with verified ShopSite page identities.
 
@@ -108,10 +109,14 @@ in `scripts/typesafe-curation-qualification.ts` is authoritative):
 | `--json` | Machine-readable output; human-readable report otherwise. |
 | `--live-capture` | Capture the candidate side from real Jev judgments. Requires `TYPESAFE_API_KEY` (≥ 8 chars); without it the candidate stays `blocked` (`jev_credentials_absent`) — never simulated. |
 | `--model=jev-1.13.0` | Requested Jev model for live capture (default: `TYPESAFE_EVALUATED_MODEL`, currently `jev-1.13.0` in `src/ai/systemone-transport.ts`). |
-| `--baseline-provider=<p> --baseline-model=<m>` | Capture the baseline side via the incumbent route (deterministic floor first, then the legacy chat ranker). BOTH flags are required; credentials resolve from the existing provider store and unresolvable credentials record `blocked`. |
+| `--baseline-provider=<p> --baseline-model=<m>` | Request the explicit incumbent chat route. Both flags, a frozen taxonomy, `--isolated-store` and `TYPESAFE_BASELINE_CREDENTIAL_REF` are required. Unavailable or mismatched credentials remain blocked. |
+| `--manifest=<path> --gold=<path> --taxonomy=<path>` | Load SHA-bound public development inputs and independently frozen authority. Representative replay is dev-only and refuses private/holdout paths. |
+| `--max-attempts=<n> --concurrency=<n> --deadline-ms=<n>` | Candidate request limits: defaults 600 actual HTTP attempts, concurrency at most 2, hard deadline 300000 ms. Finite integer limits are validated before capture. |
+| `--baseline-max-attempts=<n> --baseline-deadline-ms=<n>` | Separate incumbent limits, defaulting to the corresponding candidate limits. Its gold-free conservative upper-bound plan must fit before initialization or dispatch; JSON-repair requests consume the same budget. |
+| `--isolated-store=<path>` | Existing initialized evaluation database outside all code worktrees. Operational stores and symlink/hard-link aliases are denied before `initDb`; the active connection must match and stay the same instance. |
 | `--live-check` (or `TYPESAFE_LIVE_CHECK=1`) | Run the bounded live contract check as a subprocess (requires `TYPESAFE_API_KEY`); its actual result feeds the assessment. |
-| `--artifact-out=path` | Write the executed prediction artifact JSON to `path`. |
-| `--db=path` | Existing initialized workspace database for live incumbent credentials and run/audit persistence. |
+| `--artifact-out=path` | Create a new immutable prediction artifact in an existing public output directory; existing files are refused before dispatch and creation uses `wx`. |
+| `--db=path` | Legacy route-resolution argument; it does not replace the required `--isolated-store` or authorize use of an operational database. |
 
 The script reports:
 1. **Product Type Metrics:** Top-1 Accuracy, Coverage, Incorrect Proposals, Regressions against baseline.
@@ -137,16 +142,33 @@ candidate side is recorded as `blocked` (`jev_credentials_absent`), never
 mocked:
 
 ```bash
-TYPESAFE_API_KEY=... bun scripts/typesafe-curation-qualification.ts --live-capture --live-check --json
+bun scripts/typesafe-curation-qualification.ts --split=dev --live-capture --model=jev-1.13.0 --live-check --json
 ```
 
-To capture the incumbent baseline through its real provider path as well,
-add both incumbent flags (credentials resolve from the existing provider
-store):
+To request the incumbent baseline through its real provider path, provision an
+isolated evaluation context and an explicit non-secret reference to the
+credential it contains. References are `api_keys:<provider>` or
+`provider_connections:<connection-id>` and must match the actually resolved
+provider/model/source. Endpoint/pin configuration and the frozen policy are
+hashed into artifact identity; credentials are not hashed or printed.
+
+For example, after explicitly provisioning an isolated OpenAI evaluation store:
 
 ```bash
-bun scripts/typesafe-curation-qualification.ts --live-capture --baseline-provider=ollama --baseline-model=llama3 --json
+TYPESAFE_BASELINE_CREDENTIAL_REF=api_keys:openai \
+  bun scripts/typesafe-curation-qualification.ts --split=dev \
+  --baseline-provider=openai --baseline-model=gpt-4o-mini \
+  --isolated-store="$TYPESAFE_ISOLATED_STORE" --json
 ```
+
+This example does not provision credentials or select a different provider on
+failure. A full representative population may exceed the default conservative
+preflight: choose an explicitly approved bounded budget before running it.
+The capture API itself requires each live leg's budget and deadline; a key
+alone returns `jev_runtime_guard_unwired`. The incumbent requires the same
+wiring and rechecks credential/configuration and database authority before
+requests and audit writes. Missing returned-model identity, mixed model
+identities or any failed call remain blocked. Missing token usage remains null.
 
 *Note: Without `--live-check`/`--live-capture` and a valid
 `TYPESAFE_API_KEY`, the script intentionally marks the candidate side as
@@ -297,12 +319,14 @@ are a necessary statistical gate, not proof of every capability's fitted policy
 or of representative assortment coverage. Tiny fixture success and operational
 checkboxes cannot clear `statistical_gate_failed` / `statistical_gate_unverified`.
 
-Predictor `code-executed-v5` binds coded semantic abstentions into the immutable
+Predictor `code-executed-v7` binds coded semantic abstentions into the immutable
 artifact hash. A low-probability refusal is not a correct no-fit answer, and an
 insufficient-evidence answer is not a no-match answer. Unlabeled rows earn no
 accuracy credit. The paired primary metric is `productType.rawCorrectness` over
 the labeled fixed population, including abstentions, rather than only the subset
-answered by both providers. Older artifacts stay readable and retain their bytes.
+answered by both providers. It also binds the verified incumbent credential
+reference and non-secret route identity, using actual provider-returned model
+metadata. Older v5/v6 artifacts stay readable and retain their bytes.
 
 A development-only comparison cannot qualify release. A dirty runtime worktree
 cannot be certified by a receipt naming HEAD: the CLI reports

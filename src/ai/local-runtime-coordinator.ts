@@ -32,13 +32,46 @@ export function getMaxLocalConcurrency(): number {
  * Acquire a slot for local model execution.
  * Only blocks for provider 'ollama'; cloud providers proceed without queuing.
  */
-export async function acquireLocalSlot(provider: string): Promise<void> {
+export async function acquireLocalSlot(provider: string, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
   if (provider !== 'ollama') return;
 
   const maxConcurrency = getMaxLocalConcurrency();
+  if (signal && activeRequests >= maxConcurrency) {
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => signal.removeEventListener('abort', cancel);
+      const cancel = () => {
+        const index = requestQueue.indexOf(grant);
+        if (index >= 0) requestQueue.splice(index, 1);
+        cleanup();
+        reject(signal.reason);
+      };
+      const grant = () => {
+        if (signal.aborted) {
+          cancel();
+          requestQueue.shift()?.();
+          return;
+        }
+        if (activeRequests >= maxConcurrency) {
+          requestQueue.unshift(grant);
+          return;
+        }
+        // Reserve synchronously so cancellation after grant releases only
+        // this caller's slot, and never steals another queued caller's slot.
+        activeRequests += 1;
+        cleanup();
+        resolve();
+      };
+      requestQueue.push(grant);
+      signal.addEventListener('abort', cancel, { once: true });
+      if (signal.aborted) cancel();
+    });
+    return;
+  }
   while (activeRequests >= maxConcurrency) {
     await new Promise<void>((resolve) => requestQueue.push(resolve));
   }
+  signal?.throwIfAborted();
   activeRequests += 1;
 }
 

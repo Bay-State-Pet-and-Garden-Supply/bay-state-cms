@@ -114,11 +114,23 @@ comparison, transport budget/identity plumbing for that leg, actual offline
 Page/cohort seams, qualifying support, fitted policy publication and human
 canary approval.
 
+## Post-commit verification
+
+Commit `9d2441d828708876760b2b7b0e2952f349c4d958` now has fresh evidence from
+a clean detached checkout: TypeScript passed; focused checks passed 218 tests
+with one skip; the four compatibility suites passed 720 tests with one skip.
+The bounded actual live contract returned `jev-1.13.0` in one HTTP attempt.
+An actual loopback stored-disablement/lease exercise passed with request counts
+0 / 1 / 1 and no retries after either authority changed.
+See `jev-commit-verification-9d2441d8-2026-10-05.md` and its three JSON receipts.
+This refreshes those prerequisites for the committed implementation; it does
+not establish new V8 product accuracy or a globally green full test command.
+
 ## Release decision
 
 **#302 remains blocked and #312 remains gated.** Neither source collection,
 code completion nor an active taxonomy pin establishes production quality.
 No fitted policy/publication or holdout unseal is asserted. Qualification still
 needs adequately supported product evidence, complete Page/cohort labels,
-the actual incumbent comparison and fresh commit-bound compatibility/live/
-disablement receipts. Real-product canaries retain final Store Manager review.
+the actual incumbent comparison and actual production Page/cohort evaluation
+seams. Real-product canaries retain final Store Manager review.

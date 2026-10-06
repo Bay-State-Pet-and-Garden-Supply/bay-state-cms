@@ -11,7 +11,7 @@
  * Uses `category_classification` task routing for all target kinds
  * to avoid widening task-routing scope in this refactor.
  */
-import { getLlmConfigForTask, callLlmForTaskWithProvenance, defaultProtectedOperationForTask } from '../onboarding/llm-client';
+import { getLlmConfigForTask, callLlmForTaskWithProvenance, defaultProtectedOperationForTask, LlmDispatchGuardError, type LlmDispatchGuard } from '../onboarding/llm-client';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 import {
   ModelPolicyDeniedError,
@@ -87,6 +87,7 @@ export interface LlmRankOptionsParams {
    * behavior change.
    */
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
 }
 
 export interface LlmRankResult {
@@ -106,6 +107,7 @@ export interface LlmRankResult {
  * - The evidence text is too short (< 8 chars)
  */
 export async function llmRankOptions(params: LlmRankOptionsParams): Promise<LlmRankResult | null> {
+  params.dispatchGuard?.assertContext?.();
   const { targetLabel, options, selectionMode, evidenceText, maxValues, assertHeld } = params;
   const taskName = params.task ?? 'category_classification';
 
@@ -201,6 +203,7 @@ Return ONLY valid JSON in this exact shape: {"values":["exact allowed option"],"
         // PR4 P1-1: thread the caller's ownership assertion INTO the audited
         // transport so it re-asserts before its own durable audit writes.
         assertHeld,
+        dispatchGuard: params.dispatchGuard,
       },
     );
     // Ownership assertion IMMEDIATELY AFTER the transport returns and BEFORE
@@ -244,6 +247,7 @@ Return ONLY valid JSON in this exact shape: {"values":["exact allowed option"],"
             // PR4 P1-1: the retry transport re-asserts ownership before its
             // own durable audit writes exactly like the primary call.
             assertHeld,
+            dispatchGuard: params.dispatchGuard,
           },
         );
         assertHeld?.();
@@ -253,7 +257,7 @@ Return ONLY valid JSON in this exact shape: {"values":["exact allowed option"],"
         }
       } catch (err) {
         // Ownership loss during the retry is NEVER swallowed into an abstain.
-        if (err instanceof HeartbeatLostError) throw err;
+        if (err instanceof HeartbeatLostError || err instanceof LlmDispatchGuardError) throw err;
         // Retry also failed - fall through to null return below
       }
     }
@@ -310,7 +314,7 @@ Return ONLY valid JSON in this exact shape: {"values":["exact allowed option"],"
     // Ownership-loss exceptions must NOT be converted into an 'LLM unavailable
     // -> abstain' outcome: a stale owner aborts with NO further side effects,
     // and the cohort freeze propagates the HeartbeatLostError.
-    if (err instanceof HeartbeatLostError) throw err;
+    if (err instanceof HeartbeatLostError || err instanceof LlmDispatchGuardError) throw err;
     console.warn(`[CurationTargetRanker] LLM ranking failed for "${targetLabel}": ${redactTransportText(err.message)}`);
     return null;
   }

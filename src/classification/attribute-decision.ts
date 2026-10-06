@@ -62,6 +62,7 @@ import {
 import { matchAttributeOptions } from './curation-target-matcher';
 import { enrichProductDetails } from './detail-enrichment';
 import { llmRankOptions } from './curation-target-ranker';
+import type { LlmDispatchGuard } from '../onboarding/llm-client';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import {
   CanonicalBrandEvidenceValueSchema,
@@ -147,6 +148,7 @@ export interface AttributeDecisionParams {
   modelPolicy?: ModelPolicyView | null;
   confidenceFloor?: number;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
   productContext?: {
     name?: string;
     brand?: string | null;
@@ -1202,6 +1204,7 @@ async function callAttributeLegacyRanker(input: {
   snapshot: RuntimeClassificationSnapshot | null | undefined;
   runId: string;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
 }): Promise<Awaited<ReturnType<typeof llmRankOptions>>> {
   const { target, cardinality, options, text, effectivePolicy, snapshot, runId, assertHeld } = input;
     const llmResult = await llmRankOptions({
@@ -1227,6 +1230,7 @@ async function callAttributeLegacyRanker(input: {
           }
         : {}),
       assertHeld,
+      dispatchGuard: input.dispatchGuard,
     });
 
   return llmResult;
@@ -1311,6 +1315,7 @@ async function executeAttributeLegacyFallback(input: {
   snapshot: RuntimeClassificationSnapshot | null | undefined;
   runId: string;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
   attrId: string;
   evidenceIds: string[];
   supportingEvidenceIds: string[];
@@ -1359,6 +1364,7 @@ async function executeAttributeLegacyFallback(input: {
     snapshot,
     runId,
     assertHeld,
+    dispatchGuard: input.dispatchGuard,
   });
   return mapAttributeLlmResult({
     llmResult,
@@ -2190,6 +2196,7 @@ export async function resolveAttributeDecision(
       snapshot,
       runId,
       assertHeld,
+      dispatchGuard: params.dispatchGuard,
       attrId,
       evidenceIds,
       supportingEvidenceIds,

@@ -103,6 +103,8 @@ import {
 } from '../../classification/benchmark-evaluator';
 import { runLiveContractCheck } from '../../../scripts/typesafe-live-contract-check';
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
+import { createDevAttemptGuard } from '../../classification/jev-benchmark-replay';
+import { captureGuardedJevForTest } from '../helpers/qualification-capture';
 import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
 import type { ClassificationEvidence, ModelPolicyConfigV2, BenchmarkPredictionEntry, EvalMetrics } from '../../shared/schemas/classification';
 
@@ -1583,7 +1585,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const fetchBefore = globalThis.fetch;
       globalThis.fetch = mock;
       try {
-        const artifact = await captureQualificationPredictionsLive(
+        const artifact = await captureGuardedJevForTest(
           tinyQualificationEntries(),
           { jev: { apiKey: 'test-key-12345678' } },
           tinyQualificationTaxonomies(),
@@ -1626,12 +1628,35 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }
     });
 
+    it('blocks candidate requests when explicit credentials have no bound budget or deadline', async () => {
+      let fetchCalls = 0;
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        throw new Error('Unwired candidate must not dispatch.');
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries(),
+          { jev: { apiKey: 'test-key-12345678' } },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(0);
+        for (const prediction of artifact.predictions) {
+          expect(prediction.candidate.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+          expect(prediction.candidate.blockedCode).toBe('jev_runtime_guard_unwired');
+        }
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
     it('records live floors as abstentions, not failures (mocked HTTP)', async () => {
       const { mock } = mockJevFetchBehavior({ choiceProb: 0.3, noulProb: 0.1 });
       const fetchBefore = globalThis.fetch;
       globalThis.fetch = mock;
       try {
-        const artifact = await captureQualificationPredictionsLive(
+        const artifact = await captureGuardedJevForTest(
           tinyQualificationEntries(),
           { jev: { apiKey: 'test-key-12345678' } },
           tinyQualificationTaxonomies(),
@@ -1701,11 +1726,366 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       }
     });
 
+    it('refuses an incumbent credential reference that does not identify the resolved credential', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      let fetchCalls = 0;
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return Response.json({
+          choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        });
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          { baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:unrelated-provider', isolatedStore: dbPath } },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(0);
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(artifact.predictions[0].baseline.blockedCode).toBe('baseline_credential_reference_mismatch');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('bounds incumbent HTTP attempts including the ranker JSON repair request', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      let fetchCalls = 0;
+      let attempts = 0;
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return Response.json({
+          choices: [{ message: { content: 'not valid JSON' } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        });
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => attempts < 1 && (++attempts > 0) },
+            baselineDeadlineSignal: new AbortController().signal,
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(1);
+        expect(attempts).toBe(1);
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(artifact.predictions[0].baseline.blockedCode).toBe('baseline_attempt_budget_exhausted');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('preserves unknown incumbent token usage rather than reporting zero', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => Response.json({
+        model: 'qual-ollama-model',
+        choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+      })) as unknown as typeof fetch;
+      let attempts = 0;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 10 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(artifact.predictions[0].baseline.usage).toEqual({ inputTokens: null, outputTokens: null });
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('records the provider-returned incumbent model instead of assuming the requested route', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => Response.json({
+        model: 'qual-ollama-model-revision-2',
+        choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+        usage: { prompt_tokens: 40, completion_tokens: 8 },
+      })) as unknown as typeof fetch;
+      let attempts = 0;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 10 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(artifact.predictions[0].baseline.requestedModel).toBe('qual-ollama-model');
+        expect(artifact.predictions[0].baseline.resolvedModel).toBe('qual-ollama-model-revision-2');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('does not qualify an incumbent returned-model identity that the provider omitted', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => Response.json({
+        choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+        usage: { prompt_tokens: 40, completion_tokens: 8 },
+      })) as unknown as typeof fetch;
+      let attempts = 0;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 10 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(artifact.predictions[0].baseline.blockedCode).toBe('baseline_model_identity_unverified');
+        expect(artifact.predictions[0].baseline.resolvedModel).toBeNull();
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('binds the resolved incumbent credential source into prediction artifact identity', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => Response.json({
+        model: 'qual-ollama-model',
+        choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+        usage: { prompt_tokens: 40, completion_tokens: 8 },
+      })) as unknown as typeof fetch;
+      let attempts = 0;
+      const capture = (credentialRef: string) => captureQualificationPredictionsLive(
+        tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+        {
+          baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef, isolatedStore: dbPath },
+          baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 20 },
+          baselineDeadlineSignal: AbortSignal.timeout(30_000),
+        },
+        tinyQualificationTaxonomies(),
+      );
+      try {
+        const legacy = await capture('api_keys:ollama');
+        upsertProviderConnection({
+          id: 'ollama', label: 'Isolated incumbent connection fixture', transport: 'openai-compatible',
+          baseUrl: 'http://localhost:11434', credential: 'qual-test-ollama-key', trustZone: 'this_device',
+          approvedHost: 'localhost', approvedPort: 11434, enabled: true,
+        });
+        const connection = await capture('provider_connections:ollama');
+        expect(legacy.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(connection.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(connection.artifactHash).not.toBe(legacy.artifactHash);
+        expect(legacy.predictions[0].baseline.credentialRef).toBe('api_keys:ollama');
+        expect(connection.predictions[0].baseline.credentialRef).toBe('provider_connections:ollama');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('cancels an incumbent waiting for a local slot without waiting for another request to finish', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const previousLimit = process.env.BAYSTATE_CMS_MAX_LOCAL_CONCURRENCY;
+      process.env.BAYSTATE_CMS_MAX_LOCAL_CONCURRENCY = '1';
+      const fetchBefore = globalThis.fetch;
+      const entered = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        if (fetchCalls === 1) { entered.resolve(); await release.promise; }
+        return Response.json({
+          model: 'qual-ollama-model',
+          choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        });
+      }) as unknown as typeof fetch;
+      const capture = (signal: AbortSignal, suffix = '') => captureQualificationPredictionsLive(
+        tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01').map(entry => ({ ...entry, sku: entry.sku + suffix })),
+        {
+          baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+          baselineAttemptBudget: { tryConsumeAttempt: () => true },
+          baselineDeadlineSignal: signal,
+        },
+        tinyQualificationTaxonomies(),
+      );
+      const holding = capture(new AbortController().signal);
+      let waiting: ReturnType<typeof capture> | undefined;
+      try {
+        await entered.promise;
+        const deadline = new AbortController();
+        waiting = capture(deadline.signal, '-queued');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        deadline.abort();
+        const result = await Promise.race([
+          waiting.then(artifact => ({ kind: 'settled' as const, artifact })),
+          Bun.sleep(150).then(() => ({ kind: 'still_waiting' as const })),
+        ]);
+        expect(result.kind).toBe('settled');
+        if (result.kind === 'settled') {
+          expect(result.artifact.predictions[0].baseline.blockedCode).toBe('baseline_deadline_exceeded');
+        }
+        expect(fetchCalls).toBe(1);
+      } finally {
+        release.resolve();
+        await holding;
+        await waiting;
+        globalThis.fetch = fetchBefore;
+        if (previousLimit === undefined) delete process.env.BAYSTATE_CMS_MAX_LOCAL_CONCURRENCY;
+        else process.env.BAYSTATE_CMS_MAX_LOCAL_CONCURRENCY = previousLimit;
+      }
+    });
+
+    it('does not hide a later incumbent service failure behind an earlier successful stage', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return fetchCalls === 1 ? Response.json({
+          model: 'qual-ollama-model',
+          choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        }) : new Response('Synthetic service failure', { status: 502 });
+      }) as unknown as typeof fetch;
+      let attempts = 0;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 10 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBeGreaterThan(1);
+        expect(artifact.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_BLOCKED);
+        expect(artifact.predictions[0].baseline.failureCode).toBe(QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED);
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('refuses an incumbent whose declared isolated store does not match the active evaluation context', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return Response.json({
+          model: 'qual-ollama-model',
+          choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        });
+      }) as unknown as typeof fetch;
+      let attempts = 0;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama',
+              isolatedStore: '/tmp/unrelated-evaluation-store.db' },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 10 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(0);
+        expect(attempts).toBe(0);
+        expect(artifact.predictions[0].baseline.blockedCode).toBe('baseline_store_context_mismatch');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('binds incumbent endpoint configuration even when provider, model and credential reference are unchanged', async () => {
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      globalThis.fetch = (async () => Response.json({
+        model: 'qual-ollama-model',
+        choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+        usage: { prompt_tokens: 40, completion_tokens: 8 },
+      })) as unknown as typeof fetch;
+      let attempts = 0;
+      const capture = () => captureQualificationPredictionsLive(
+        tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+        {
+          baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+          baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 20 },
+          baselineDeadlineSignal: AbortSignal.timeout(30_000),
+        },
+        tinyQualificationTaxonomies(),
+      );
+      try {
+        const first = await capture();
+        upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11435', 'qual-ollama-model');
+        const second = await capture();
+        expect(first.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(second.predictions[0].baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(second.artifactHash).not.toBe(first.artifactHash);
+        expect(second.predictions[0].baseline.routeIdentityHash).not.toBe(first.predictions[0].baseline.routeIdentityHash);
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('enforces an expired incumbent deadline even before a delayed timer callback can run', async () => {
+      closeDb();
+      initDb(':memory:');
+      runMigrations();
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return Response.json({
+          model: 'qual-ollama-model',
+          choices: [{ message: { content: JSON.stringify({ values: ['Dry Dog Food'], confidence: 0.85 }) } }],
+          usage: { prompt_tokens: 40, completion_tokens: 8 },
+        });
+      }) as unknown as typeof fetch;
+      const guard = createDevAttemptGuard({ maxHttpAttempts: 10, hardDeadlineMs: 1 });
+      try {
+        const until = performance.now() + 10;
+        while (performance.now() < until) { /* Deliberately delay the timer with bounded CPU work. */ }
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: ':memory:' },
+            baselineAttemptBudget: guard,
+            baselineDeadlineSignal: guard.signal,
+          },
+          tinyQualificationTaxonomies(),
+        );
+        expect(fetchCalls).toBe(0);
+        expect(guard.audit().consumed).toBe(0);
+        expect(artifact.predictions[0].baseline.blockedCode).toBe('baseline_deadline_exceeded');
+      } finally {
+        guard.dispose();
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
     it('executes the incumbent ranker path when credentials exist and records its real outcome (mocked HTTP, real transport)', async () => {
       // Dummy local credential (detector-safe): proves the existing-store
       // resolution, not a real model account.
       upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
       let fetchCalls = 0;
+      let attempts = 0;
       const fetchBefore = globalThis.fetch;
       // Mocked OpenAI-compatible chat transport (shape only — the decision
       // boundaries, audit rows, mapping, and floors under test are the
@@ -1723,6 +2103,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
           : 'Dry Dog Food';
         return new Response(
           JSON.stringify({
+            model: 'qual-ollama-model',
             choices: [{ message: { content: JSON.stringify({ values: [pick], confidence: 0.85, scores: [0.85] }) } }],
             usage: { prompt_tokens: 40, completion_tokens: 8 },
           }),
@@ -1732,7 +2113,11 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       try {
         const artifact = await captureQualificationPredictionsLive(
           tinyQualificationEntries(),
-          { baselineRoute: { provider: 'ollama', model: 'qual-ollama-model' } },
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 20 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
           tinyQualificationTaxonomies(),
         );
         // REAL transport with run-bound audit rows: the ephemeral benchmark
@@ -1766,7 +2151,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
     const liveJevKey = process.env.TYPESAFE_API_KEY ?? '';
     const itLive = process.env.TYPESAFE_LIVE_CAPTURE_TEST === '1' && liveJevKey.length >= 8 ? it : it.skip;
     itLive('captures live Jev judgments against frozen gold evidence (opt-in keyed live capture, real network)', async () => {
-      const artifact = await captureQualificationPredictionsLive(
+      const artifact = await captureGuardedJevForTest(
         tinyQualificationEntries().slice(0, 1),
         { jev: { apiKey: liveJevKey, timeoutMs: 30_000 } },
         tinyQualificationTaxonomies(),
@@ -2210,7 +2595,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const fetchBefore = globalThis.fetch;
       globalThis.fetch = mockStep1Fetch(flavorChoice, 0.1);
       try {
-        const artifact = await captureQualificationPredictionsLive(
+        const artifact = await captureGuardedJevForTest(
           [entry], { jev: { apiKey: 'test-key-12345678' } }, step1Taxa(),
         );
         const p = artifact.predictions.find(x => x.sku === entry.sku)!;
@@ -2258,7 +2643,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       const fetchBefore = globalThis.fetch;
       globalThis.fetch = mockStep1Fetch({ kind: 'code', code: 'no_match', prob: 0.9 }, 0.1);
       try {
-        const artifact = await captureQualificationPredictionsLive(
+        const artifact = await captureGuardedJevForTest(
           [entry], { jev: { apiKey: 'test-key-12345678' } }, step1Taxa(),
         );
         const p = artifact.predictions.find(x => x.sku === entry.sku)!;
@@ -2540,7 +2925,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(withoutLatency(a.predictions)).toEqual(withoutLatency(b.predictions));
       const c = buildQualificationPredictionsFromCode([step1Entry('STEP1-HASH-01', goldA, 'Acme Beef Dry Dog Food stew')], taxa);
       expect(c.artifactHash).not.toBe(a.artifactHash);
-      expect(a.predictorVersion).toBe('code-executed-v6');
+      expect(a.predictorVersion).toBe('code-executed-v7');
     });
   });
 });

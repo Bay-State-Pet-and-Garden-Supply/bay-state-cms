@@ -28,6 +28,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { hashCanonicalJson, sha256Hex } from '../shared/stable-id';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import * as benchmarkRepo from '../db/repositories/benchmark-repo';
@@ -1229,14 +1231,14 @@ import {
   type ModelPolicyView,
   type ProtectedOperation,
 } from './model-policy-gateway';
-import { getLlmConfigForTask, type LlmConfig } from '../onboarding/llm-client';
+import { getLlmConfigForTask, getLlmCredentialReference, getLlmDispatchIdentityHash, LlmDispatchGuardError, type LlmConfig, type LlmDispatchGuard } from '../onboarding/llm-client';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 import { evaluateAttributeApplicability } from './applicability-evaluator';
 import { buildFrozenTaxonomyCandidates } from './benchmark-exporter';
 
 /** Honest capture v6: v5 plus per-target/page raw outcome metadata (coded semantic
  * abstention proof with probability, unresolved Noul/matcher silence) hashed into the artifact. */
-export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v6' as const;
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v7' as const;
 
 /**
  * Explicit prediction-source contract for qualification captures.
@@ -1389,6 +1391,9 @@ export interface ExecutedQualificationPrediction {
   requestedModel?: string | null;
   resolvedModel?: string | null;
   provider?: string | null;
+  /** Actual verified existing-store credential source; never the credential value. */
+  credentialRef?: string | null;
+  routeIdentityHash?: string | null;
   usage?: { inputTokens: number | null; outputTokens: number | null } | null;
 }
 
@@ -3181,11 +3186,17 @@ export interface QualificationBaselineLiveRoute {
   /** Chat provider for the incumbent ranker leg (credential from the existing store). */
   provider: string;
   model: string;
+  /** Explicit existing-store reference: api_keys:<provider> or provider_connections:<id>. */
+  credentialRef?: string | null;
+  isolatedStore?: string | null;
 }
 
 export interface QualificationLiveCaptureOptions {
   jev?: QualificationJevLiveCredentials | null;
   baselineRoute?: QualificationBaselineLiveRoute | null;
+  /** Separate incumbent-leg budget, consumed at every real request including JSON repair. */
+  baselineAttemptBudget?: SystemOneAttemptBudget | null;
+  baselineDeadlineSignal?: AbortSignal | null;
   /**
    * Candidate-leg per-HTTP-attempt budget, enforced inside the real request
    * path (before every dispatch + retry). Null/absent means the candidate
@@ -3809,6 +3820,7 @@ async function attemptBaselineChatStage(input: {
   view: ModelPolicyView;
   snapshot: RuntimeClassificationSnapshot;
   runId: string;
+  dispatchGuard: LlmDispatchGuard;
 }): Promise<LlmRankResult | null> {
   const stage = input.operation === 'product_type_ranking'
     ? 'primary_product_type_proposal'
@@ -3833,6 +3845,7 @@ async function attemptBaselineChatStage(input: {
       ruleVersion: RULE_VERSIONS[input.operation],
     },
     snapshot: input.snapshot,
+    dispatchGuard: input.dispatchGuard,
   });
 }
 
@@ -3841,7 +3854,7 @@ function checkBaselineChatCredentials(
   route: QualificationBaselineLiveRoute,
   view: ModelPolicyView,
   needs: BaselineLiveNeeds,
-): { ok: true; requestedModel: string } | { ok: false; code: string; detail: string } {
+): { ok: true; requestedModel: string; dispatchIdentityHash: string } | { ok: false; code: string; detail: string } {
   const blocked = (detail: string): { ok: false; code: string; detail: string } => ({
     ok: false,
     code: QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
@@ -3850,6 +3863,7 @@ function checkBaselineChatCredentials(
   const firstOperation: BaselineChatOperation = needs.type
     ? 'product_type_ranking'
     : needs.attrs.length > 0 ? 'attribute_ranking' : 'page_assignment';
+  if (!route.credentialRef?.trim()) return blocked('Live incumbent capture requires an explicit existing-store credential reference.');
   try {
     const config = resolveBaselineChatConfig(firstOperation, view);
     if (!config) {
@@ -3857,7 +3871,15 @@ function checkBaselineChatCredentials(
         `No usable chat provider for the baseline ranker leg (provider "${route.provider}"); configure existing provider credentials to capture baseline model judgments.`,
       );
     }
-    return { ok: true, requestedModel: config.model ?? route.model };
+    if (config.provider !== route.provider || config.model !== route.model ||
+        getLlmCredentialReference(config.provider) !== route.credentialRef.trim()) {
+      return { ok: false, code: 'baseline_credential_reference_mismatch',
+        detail: 'The resolved incumbent provider/model/credential source does not match the explicit route.' };
+    }
+    const dispatchIdentityHash = getLlmDispatchIdentityHash(config);
+    if (!dispatchIdentityHash) return { ok: false, code: 'baseline_chat_transport_required',
+      detail: 'The incumbent reference must identify an available chat transport, not System One.' };
+    return { ok: true, requestedModel: config.model, dispatchIdentityHash };
   } catch (err) {
     if (err instanceof ModelPolicyDeniedError) {
       return blocked(
@@ -3884,6 +3906,7 @@ async function captureBaselineTypeWithRealBoundary(input: {
   view: ModelPolicyView;
   snapshot: RuntimeClassificationSnapshot;
   runId: string;
+  dispatchGuard: LlmDispatchGuard;
 }): Promise<QualificationProductTypePrediction> {
   const { entry, taxa, view, snapshot, runId } = input;
   const evidence = qualificationEvidenceForBoundary(entry, runId);
@@ -3902,6 +3925,8 @@ async function captureBaselineTypeWithRealBoundary(input: {
     runId,
     snapshot,
     modelPolicy: view,
+    dispatchGuard: input.dispatchGuard,
+    assertHeld: input.dispatchGuard.assertContext,
   });
   if (decision.status === 'resolved' && decision.productTypeId) {
     return { productType: decision.productTypeId, abstained: false, confidence: decision.confidence };
@@ -3925,6 +3950,7 @@ async function captureBaselineAttributesWithRealBoundary(input: {
   effectiveTypeId: string | null;
   attrTargetIds: string[];
   fields: Array<{ targetId: string; value?: string; values?: string[] }>;
+  dispatchGuard: LlmDispatchGuard;
 }): Promise<void> {
   const { entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds, fields } = input;
   const evidence = qualificationEvidenceForBoundary(entry, runId);
@@ -3946,6 +3972,8 @@ async function captureBaselineAttributesWithRealBoundary(input: {
       snapshot,
       modelPolicy: view,
       productContext,
+      dispatchGuard: input.dispatchGuard,
+      assertHeld: input.dispatchGuard.assertContext,
     });
     if (decision.status !== 'resolved') continue;
     if (target.cardinality === 'multiple') {
@@ -3969,6 +3997,7 @@ async function captureBaselinePagesWithRealRanker(input: {
   view: ModelPolicyView;
   snapshot: RuntimeClassificationSnapshot;
   runId: string;
+  dispatchGuard: LlmDispatchGuard;
 }): Promise<string[]> {
   const pageOptions = input.taxa.pages.map(p => ({ value: p.pageId, label: p.pageName }));
   const ranked = await attemptBaselineChatStage({
@@ -3980,6 +4009,7 @@ async function captureBaselinePagesWithRealRanker(input: {
     view: input.view,
     snapshot: input.snapshot,
     runId: input.runId,
+    dispatchGuard: input.dispatchGuard,
   });
   const mapped = ranked && ranked.values.length > 0
     ? mapRankedLabelToOptionExactlyOne(ranked.values[0], pageOptions)
@@ -4003,6 +4033,7 @@ async function applyBaselineChatStagesWithRun(input: {
   runId: string;
   needs: BaselineLiveNeeds;
   stages: ReturnType<typeof runDeterministicBaselineStages>;
+  dispatchGuard: LlmDispatchGuard;
 }): Promise<{
   productType: string | null;
   abstained: boolean;
@@ -4018,7 +4049,7 @@ async function applyBaselineChatStagesWithRun(input: {
   let confidence = stages.type.confidence;
   let abstentionCode = stages.type.abstentionCode ?? null;
   if (needs.type) {
-    const type = await captureBaselineTypeWithRealBoundary({ entry, taxa, evidenceText, view, snapshot, runId });
+    const type = await captureBaselineTypeWithRealBoundary({ entry, taxa, evidenceText, view, snapshot, runId, dispatchGuard: input.dispatchGuard });
     productType = type.productType;
     abstained = type.abstained;
     confidence = type.confidence;
@@ -4043,6 +4074,7 @@ async function applyBaselineChatStagesWithRun(input: {
   const fields = [...invariants, ...retainedDeterministic];
   await captureBaselineAttributesWithRealBoundary({
     entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds: liveAttrIds, fields,
+    dispatchGuard: input.dispatchGuard,
   });
   fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
   // PAGE ABSTENTION PARITY: null effective type never attempts pages (coded
@@ -4051,7 +4083,7 @@ async function applyBaselineChatStagesWithRun(input: {
     ? { pageIds: [], pageOutcome: 'abstained-semantic', pageAbstentionCode: QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE, pageProbability: null }
     : stages.pages;
   if (needs.pages && effectiveTypeId !== null) {
-    const ranked = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId });
+    const ranked = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId, dispatchGuard: input.dispatchGuard });
     pages = ranked.length > 0
       ? { pageIds: ranked, pageOutcome: 'predicted', pageAbstentionCode: null, pageProbability: null }
       : { pageIds: [], pageOutcome: 'unresolved', pageAbstentionCode: 'unresolved', pageProbability: null };
@@ -4117,23 +4149,25 @@ function loadBaselineAuditRows(runId: string): ReturnType<typeof getModelCallsBy
 /** Token usage summed over success audit rows. */
 function sumBaselineAuditUsage(
   successes: ReturnType<typeof getModelCallsByRun>,
-): { inputTokens: number; outputTokens: number } {
+): { inputTokens: number | null; outputTokens: number | null } {
+  const total = (field: 'prompt_tokens' | 'completion_tokens'): number | null => {
+    if (successes.some(row => typeof row[field] !== 'number')) return null;
+    return successes.reduce((sum, row) => sum + (row[field] ?? 0), 0);
+  };
   return {
-    inputTokens: successes.reduce((sum, r) => sum + (r.prompt_tokens ?? 0), 0),
-    outputTokens: successes.reduce((sum, r) => sum + (r.completion_tokens ?? 0), 0),
+    inputTokens: total('prompt_tokens'),
+    outputTokens: total('completion_tokens'),
   };
 }
 
 /** Model identity from the first success row (null when unresolvable). */
 function resolveBaselineAuditIdentity(
   first: ReturnType<typeof getModelCallsByRun>[number],
-): { requestedModel: string; resolvedModel: string } | null {
+): { requestedModel: string; resolvedModel: string | null } | null {
   const requestedModel = first.requested_model ?? first.model ?? null;
-  // Legacy chat audit rows terminalize without `resolved_model` (the transport
-  // returns model identity but the row keeps it in `model`); the speaking
-  // model is the row's model (falling back to the requested route).
-  const resolvedModel = first.resolved_model ?? first.model ?? requestedModel;
-  if (!requestedModel || !resolvedModel) return null;
+  // The requested route is not evidence of the provider's returned identity.
+  const resolvedModel = first.resolved_model ?? null;
+  if (!requestedModel) return null;
   return { requestedModel, resolvedModel };
 }
 
@@ -4142,7 +4176,7 @@ function buildBaselineAuditProofFromSuccesses(
   successes: ReturnType<typeof getModelCallsByRun>,
 ): {
   requestedModel: string;
-  resolvedModel: string;
+  resolvedModel: string | null;
   provider: string;
   usage: { inputTokens: number | null; outputTokens: number | null };
 } | null {
@@ -4153,7 +4187,9 @@ function buildBaselineAuditProofFromSuccesses(
   const usage = sumBaselineAuditUsage(successes);
   return {
     requestedModel: identity.requestedModel,
-    resolvedModel: identity.resolvedModel,
+    resolvedModel: successes.every(row => row.resolved_model === identity.resolvedModel &&
+      (row.requested_model ?? row.model) === identity.requestedModel && row.provider === first.provider)
+      ? identity.resolvedModel : null,
     provider: first.provider ?? 'unknown',
     usage,
   };
@@ -4161,12 +4197,12 @@ function buildBaselineAuditProofFromSuccesses(
 
 function readBaselineAuditProof(runId: string): {
   requestedModel: string;
-  resolvedModel: string;
+  resolvedModel: string | null;
   provider: string;
   usage: { inputTokens: number | null; outputTokens: number | null };
 } | null {
   const rows = loadBaselineAuditRows(runId);
-  if (!rows) return null;
+  if (!rows || rows.some(row => row.status !== 'success')) return null;
   const successes = rows.filter(r => r.status === 'success');
   return buildBaselineAuditProofFromSuccesses(successes);
 }
@@ -4176,6 +4212,7 @@ function blockBaselineCaptureError(
   err: unknown,
   block: (code: string, detail: string) => ExecutedQualificationPrediction,
 ): ExecutedQualificationPrediction {
+  if (err instanceof LlmDispatchGuardError) return block(`baseline_${err.code}`, err.message);
   if (isApplicabilityUnresolvableError(err)) {
     return block(
       QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE,
@@ -4268,8 +4305,12 @@ function resolveBaselineLiveResult(
   if (!proof) {
     return block(
       QUALIFICATION_BLOCKED_LIVE_DISPATCH_FAILED,
-      'Baseline live path executed but no model judgment spoke (no success audit row); refusing live_captured.',
+      'Baseline live capture lacks complete successful audit proof; failed or missing calls cannot be hidden by an earlier successful stage.',
     );
+  }
+  if (!proof.resolvedModel) {
+    return { ...block('baseline_model_identity_unverified', 'Successful incumbent calls did not establish a consistent provider-returned model identity.'),
+      requestedModel: proof.requestedModel, resolvedModel: null, provider: proof.provider, usage: proof.usage };
   }
   return assembleLiveBaselinePrediction({
     productType: applied.productType,
@@ -4292,7 +4333,7 @@ function failBaselineLiveRun(
   err: unknown,
   block: (code: string, detail: string) => ExecutedQualificationPrediction,
 ): ExecutedQualificationPrediction {
-  if (runId) {
+  if (runId && !(err instanceof LlmDispatchGuardError && err.code === 'store_context_mismatch')) {
     try { completeRun(runId, 'failed', err instanceof Error ? err.message : String(err)); } catch { /* hygiene */ }
   }
   return blockBaselineCaptureError(err, block);
@@ -4344,12 +4385,30 @@ function loadBaselineLiveNeeds(
  * live_captured. An abstention WITH a speaking model stays `live_captured`
  * (abstained=true, failureCode null — an honest abstention, not a failure).
  */
+/** Verify the already-open database; never initialize or copy a store here. */
+async function verifiedBaselineDatabase(route: QualificationBaselineLiveRoute): Promise<ReturnType<typeof getDb>> {
+  const db = getDb();
+  if (db.filename === ':memory:') {
+    if (route.isolatedStore && route.isolatedStore !== ':memory:') throw new Error('baseline_store_context_mismatch');
+    return db;
+  }
+  if (!route.isolatedStore) throw new Error('baseline_store_context_mismatch');
+  const { assertIsolatedBaselineStore } = await import('./jev-benchmark-replay');
+  const root = path.resolve(import.meta.dir, '../..');
+  const isolated = assertIsolatedBaselineStore(route.isolatedStore, {
+    repositoryRoot: root, productionStorePaths: [path.join(root, 'storage/catalog/.shopsite-cms/app.db')],
+  });
+  if (fs.realpathSync(db.filename) !== isolated || getDb() !== db) throw new Error('baseline_store_context_mismatch');
+  return db;
+}
+
 async function captureBaselineEntryLive(
   entry: QualificationGoldOnlyEntry,
   taxa: QualificationTaxonomies,
   evidenceText: string,
   route: QualificationBaselineLiveRoute | null,
   view: ModelPolicyView | null,
+  dispatchGuard: LlmDispatchGuard | null,
 ): Promise<ExecutedQualificationPrediction> {
   const started = Date.now();
   const latency = (): number => Math.max(0, Date.now() - started);
@@ -4372,11 +4431,27 @@ async function captureBaselineEntryLive(
     ...blockedQualificationPrediction(code, detail),
     latencyMs: latency(),
   });
+  if (!route!.credentialRef?.trim()) return block(QUALIFICATION_BLOCKED_BASELINE_CREDENTIALS_ABSENT,
+    'Live incumbent capture requires an explicit existing-store credential reference.');
+  let evaluationDb: ReturnType<typeof getDb>;
+  try {
+    evaluationDb = await verifiedBaselineDatabase(route!);
+    if (getDb() !== evaluationDb) throw new Error('baseline_store_context_mismatch');
+  } catch {
+    return block('baseline_store_context_mismatch', 'No verified matching isolated evaluation database is active.');
+  }
   // Credential pre-check (same resolution the ranker uses): no usable
   // baseline model here means the side is blocked — the deterministic values
   // are discarded fail-closed rather than mixed with a guess.
   const credentials = checkBaselineChatCredentials(route!, view!, needs);
   if (!credentials.ok) return block(credentials.code, credentials.detail);
+  if (!dispatchGuard) return block('baseline_runtime_guard_unwired', 'Live incumbent capture requires a bound attempt budget and deadline.');
+  const boundGuard: LlmDispatchGuard = { ...dispatchGuard, dispatchIdentityHash: credentials.dispatchIdentityHash, assertContext: () => {
+    try {
+      if (getDb() === evaluationDb) return;
+    } catch { /* Missing authority also denies dispatch and audit writes. */ }
+    throw new LlmDispatchGuardError('store_context_mismatch');
+  } };
 
   // Ephemeral benchmark run with a frozen snapshot carrying a compatible
   // model-execution plan — the REAL boundaries require both for run-bound
@@ -4385,6 +4460,7 @@ async function captureBaselineEntryLive(
   let workspaceId: string;
   let snapshot: RuntimeClassificationSnapshot;
   try {
+    boundGuard.assertContext?.();
     ({ workspaceId, snapshot } = setupBaselineEphemeralContext(view!, taxa));
   } catch (err) {
     return block(
@@ -4398,10 +4474,18 @@ async function captureBaselineEntryLive(
     runId = run.id;
     const applied = await applyBaselineChatStagesWithRun({
       entry, taxa, evidenceText, view: view!, snapshot, runId, needs, stages,
+      dispatchGuard: boundGuard,
     });
+    boundGuard.assertContext?.();
     const proof = readBaselineAuditProof(runId);
-    completeBaselineSuccessQuietly(runId, applied.abstained);
-    return resolveBaselineLiveResult(applied, proof, latency(), block);
+    const result = resolveBaselineLiveResult(applied, proof, latency(), block);
+    if (result.source === QUALIFICATION_SOURCE_BLOCKED) {
+      try { completeRun(runId, 'failed', result.blockedCode ?? 'baseline_unverified'); } catch { /* hygiene */ }
+    } else {
+      completeBaselineSuccessQuietly(runId, applied.abstained);
+    }
+    return { ...result, credentialRef: dispatchGuard.credentialRef,
+      routeIdentityHash: hashCanonicalJson({ dispatchIdentityHash: credentials.dispatchIdentityHash, policyDigest: view!.policyDigest }) };
   } catch (err) {
     return failBaselineLiveRun(runId, err, block);
   }
@@ -4445,6 +4529,8 @@ function hashQualificationPredictions(
     requestedModel: side.requestedModel ?? null,
     resolvedModel: side.resolvedModel ?? null,
     provider: side.provider ?? null,
+    ...(side.credentialRef === undefined ? {} : { credentialRef: side.credentialRef }),
+    ...(side.routeIdentityHash === undefined ? {} : { routeIdentityHash: side.routeIdentityHash }),
     usage: side.usage ?? null,
   });
   const sorted = [...predictions].sort((a, b) => a.sku.localeCompare(b.sku));
@@ -4551,6 +4637,8 @@ export async function captureQualificationPredictionsLive(
   const taxa = resolved.taxonomies;
   const predictedAt = new Date().toISOString();
   const jev = resolveJevLiveTarget(options.jev);
+  const candidateGuardWired = !!options.attemptBudget &&
+    typeof options.attemptBudget.tryConsumeAttempt === 'function' && options.deadlineSignal instanceof AbortSignal;
   // The bound attempt guard + deadline ride the real request path end to end:
   // every candidate dispatch (type phase + attribute/page phase, chunked)
   // enforces them inside executeSystemOne. No guard + explicit credentials
@@ -4560,6 +4648,13 @@ export async function captureQualificationPredictionsLive(
     jev.deadlineSignal = options.deadlineSignal ?? null;
   }
   const view = options.baselineRoute ? buildBaselineChatPolicyView(options.baselineRoute) : null;
+  const baselineGuard: LlmDispatchGuard | null = options.baselineRoute?.credentialRef?.trim() &&
+      options.baselineAttemptBudget && typeof options.baselineAttemptBudget.tryConsumeAttempt === 'function' &&
+      options.baselineDeadlineSignal instanceof AbortSignal
+    ? { provider: options.baselineRoute.provider, model: options.baselineRoute.model,
+        credentialRef: options.baselineRoute.credentialRef.trim(),
+        attemptBudget: options.baselineAttemptBudget, signal: options.baselineDeadlineSignal }
+    : null;
   const predictions: Array<{
     sku: string;
     baseline: ExecutedQualificationPrediction;
@@ -4567,9 +4662,11 @@ export async function captureQualificationPredictionsLive(
   }> = [];
   for (const entry of entries) {
     const evidenceText = qualificationEvidenceText(entry);
-    const baseline = await captureBaselineEntryLive(entry, taxa, evidenceText, options.baselineRoute ?? null, view);
+    const baseline = await captureBaselineEntryLive(entry, taxa, evidenceText, options.baselineRoute ?? null, view, baselineGuard);
     const candidate = jev
-      ? await captureCandidateEntryLive(entry, taxa, jev)
+      ? candidateGuardWired
+        ? await captureCandidateEntryLive(entry, taxa, jev)
+        : blockedQualificationPrediction('jev_runtime_guard_unwired', 'Live candidate capture requires a bound attempt budget and deadline.')
       : blockedCandidateWithoutCredentials(entry, taxa);
     predictions.push({ sku: entry.sku, baseline, candidate });
   }

@@ -48,6 +48,7 @@ import {
 } from './evidence-targeting';
 import { matchKeywordOptions } from './curation-target-matcher';
 import { llmRankOptions } from './curation-target-ranker';
+import type { LlmDispatchGuard } from '../onboarding/llm-client';
 import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import type { ClassificationEvidence, ProposalDerivation } from '../shared/schemas/classification';
@@ -98,6 +99,7 @@ export interface ProductTypeDecisionParams {
   modelPolicy?: ModelPolicyView | null;
   confidenceFloor?: number;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
   deterministicMatch?: {
     productTypeId: string | null;
     confidence: number | null;
@@ -457,6 +459,7 @@ async function callProductTypeLegacyRanker(input: {
   snapshot: RuntimeClassificationSnapshot | null | undefined;
   runId: string;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
 }): Promise<Awaited<ReturnType<typeof llmRankOptions>>> {
   const { target, options, text, effectivePolicy, snapshot, runId, assertHeld } = input;
     // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
@@ -479,6 +482,7 @@ async function callProductTypeLegacyRanker(input: {
       } : null,
       snapshot,
       assertHeld,
+      dispatchGuard: input.dispatchGuard,
     });
   return llmResult;
 }
@@ -583,6 +587,7 @@ async function executeProductTypeLegacyFallback(input: {
   snapshot: RuntimeClassificationSnapshot | null | undefined;
   runId: string;
   assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
   evidenceIds: string[];
   supportingEvidenceIds: string[];
   contradictingEvidenceIds: string[];
@@ -607,6 +612,7 @@ async function executeProductTypeLegacyFallback(input: {
     snapshot,
     runId,
     assertHeld,
+    dispatchGuard: input.dispatchGuard,
   });
   return mapProductTypeLlmResult({
     llmResult,
@@ -1154,6 +1160,7 @@ export async function resolveProductTypeDecision(
       snapshot,
       runId,
       assertHeld,
+      dispatchGuard: params.dispatchGuard,
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,

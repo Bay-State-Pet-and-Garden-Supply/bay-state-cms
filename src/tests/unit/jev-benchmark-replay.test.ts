@@ -32,7 +32,8 @@ import {
   REPRESENTATIVE_TAXONOMY_PATH,
   INCUMBENT_DETERMINISTIC_FLOOR_LABEL,
 } from '../../classification/jev-benchmark-replay';
-import { buildQualificationPredictionsFromCode, captureQualificationPredictionsLive } from '../../classification/benchmark-prediction';
+import { buildQualificationPredictionsFromCode } from '../../classification/benchmark-prediction';
+import { captureGuardedJevForTest } from '../helpers/qualification-capture';
 import {
   attachFrozenAuthorityDetails,
   buildQualificationCandidateQuestionSet,
@@ -756,7 +757,7 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls);
     const taxa = makeNoulTaxa();
     const entry = makeNoulEntry(clips);
-    const first = await captureQualificationPredictionsLive(
+    const first = await captureGuardedJevForTest(
       [entry],
       { jev: { apiKey: 'fixture-guard-key-1', model: NOUL_MODEL } },
       taxa,
@@ -774,7 +775,7 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     }
     expect(species?.candidateProbabilities).toEqual(expectedProbs);
     expect(species?.probabilityDigest).toMatch(/^[0-9a-f]{64}$/);
-    const second = await captureQualificationPredictionsLive(
+    const second = await captureGuardedJevForTest(
       [makeNoulEntry(clips)],
       { jev: { apiKey: 'fixture-guard-key-1', model: NOUL_MODEL } },
       taxa,
@@ -787,7 +788,7 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     const calls = { count: 0 };
     stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls);
     const taxa = makeNoulTaxa({ compositionSpecies: true });
-    const empty = await captureQualificationPredictionsLive(
+    const empty = await captureGuardedJevForTest(
       [makeNoulEntry([])],
       { jev: { apiKey: 'fixture-guard-key-2', model: NOUL_MODEL } },
       taxa,
@@ -797,7 +798,7 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     expect(blocked?.values).toBeUndefined();
     expect(blocked?.abstentionCode).toBe('unsupported_claim');
     // Same claim attribute WITH canonical direct assertions resolves (guard intact, permission real).
-    const supported = await captureQualificationPredictionsLive(
+    const supported = await captureGuardedJevForTest(
       [makeNoulEntry([
         { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
         { source: 'official_structured_catalog', snippet: 'Cat', attributeId: 'species' },
@@ -814,7 +815,7 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls);
     const taxa = makeNoulTaxa({ compositionSpecies: true });
     const entry = makeNoulEntry(FLAVOR_ONLY_EVIDENCE);
-    const artifact = await captureQualificationPredictionsLive(
+    const artifact = await captureGuardedJevForTest(
       [entry],
       { jev: { apiKey: 'fixture-guard-key-3', model: NOUL_MODEL } },
       taxa,
@@ -1200,7 +1201,7 @@ describe('candidate product-type probability persistence (HTTP mocks, no live ca
   ) {
     const calls = { count: 0 };
     stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls, { key, prob });
-    const artifact = await captureQualificationPredictionsLive(
+    const artifact = await captureGuardedJevForTest(
       [makeNoulEntry(FOURPAWS_DUAL_EVIDENCE)],
       { jev: { apiKey, model: NOUL_MODEL } },
       makeNoulTaxa(),
@@ -1239,7 +1240,7 @@ describe('candidate product-type probability persistence (HTTP mocks, no live ca
     globalThis.fetch = (async () => {
       throw new Error('boom');
     }) as unknown as typeof fetch;
-    const artifact = await captureQualificationPredictionsLive(
+    const artifact = await captureGuardedJevForTest(
       [makeNoulEntry(FOURPAWS_DUAL_EVIDENCE)],
       { jev: { apiKey: 'fixture-type-key-c', model: NOUL_MODEL } },
       makeNoulTaxa(),

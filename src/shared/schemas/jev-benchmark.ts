@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { validateUrl } from '../../crawler/url-policy.js';
 
+/** Numeric replay limits must be finite; NaN/infinity never disable a guard. */
+export const JevReplayBudgetSchema = z.object({
+  maxHttpAttempts: z.number().int().nonnegative().safe(),
+  maxConcurrency: z.number().int().positive().safe(),
+  hardDeadlineMs: z.number().int().positive().max(2_147_483_647),
+}).strict();
+
 /**
  * Representative Jev benchmark (#302 steps 2/3): source-candidate + manifest
  * schemas. Allowlisted public inputs only — no prices, customer data,

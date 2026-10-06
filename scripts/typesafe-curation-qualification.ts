@@ -142,10 +142,20 @@ const maxAttemptsArg = flagValue('--max-attempts');
 const concurrencyArg = flagValue('--concurrency');
 const deadlineMsArg = flagValue('--deadline-ms');
 const isolatedStoreArg = flagValue('--isolated-store');
+const baselineMaxAttemptsArg = flagValue('--baseline-max-attempts');
+const baselineDeadlineMsArg = flagValue('--baseline-deadline-ms');
 if (splitArg && !['dev', 'holdout'].includes(splitArg)) throw new Error('--split must be dev or holdout.');
 if (representativeInputs && splitArg !== 'dev') throw new Error('Representative replay inputs are dev-only (--split=dev); holdout needs publication binding/custody explicit unseal.');
 if (Boolean(baselineProviderArg) !== Boolean(baselineModelArg)) throw new Error('Provide both baseline provider and model.');
 for (const p of [manifestArg, goldArg, taxonomyArg]) if (p) assertNoHoldoutAccess(p);
+if (artifactOutArg) {
+  assertNoHoldoutAccess(artifactOutArg);
+  assertNoHoldoutAccess(path.dirname(artifactOutArg));
+  if (fs.existsSync(artifactOutArg)) throw new Error('prediction_artifact_exists: capture outputs are immutable; choose a new artifact path.');
+  if (!fs.existsSync(path.dirname(artifactOutArg)) || !fs.statSync(path.dirname(artifactOutArg)).isDirectory()) {
+    throw new Error('prediction_artifact_parent_missing: provide an existing output directory.');
+  }
+}
 
 const GOLDSET_PATH = goldArg ?? path.resolve(
   import.meta.dir,
@@ -241,10 +251,25 @@ const baselineResolution = resolveBaselineRoute({
   credentialRef: process.env.TYPESAFE_BASELINE_CREDENTIAL_REF ?? null,
 });
 const baselineRoute = baselineResolution.route;
+const baselineBudget = baselineRoute ? defaultDevReplayBudget({
+  ...replayBudget,
+  ...(baselineMaxAttemptsArg ? { maxHttpAttempts: Number(baselineMaxAttemptsArg) } : {}),
+  ...(baselineDeadlineMsArg ? { hardDeadlineMs: Number(baselineDeadlineMsArg) } : {}),
+}) : null;
 if (baselineResolution.blockedReason) {
   console.error(`Note: ${baselineResolution.blockedReason}`);
 }
 if (baselineRoute) {
+  if (!frozenTaxonomy) throw new Error('baseline_live_requires_frozen_taxonomy: no live incumbent capture over a gold-union pool.');
+  // Safe upper bound, independent of gold and of the unknown model-selected
+  // type: every controlled target could need its primary + JSON-repair call.
+  const baselinePlannedAttempts = goldEntries.length * 2 *
+    (1 + frozenTaxonomy.attributeTargets.length + (frozenTaxonomy.pages.length > 0 ? 1 : 0));
+  const baselinePreflight = dryRunBudgetPreflight({
+    entryCount: goldEntries.length, plannedHttpAttempts: baselinePlannedAttempts, budget: baselineBudget!,
+  });
+  console.error(`Incumbent plan (conservative): at most ${baselinePlannedAttempts} HTTP attempts (max ${baselineBudget!.maxHttpAttempts}).`);
+  if (!baselinePreflight.allowed) throw new Error(`baseline_budget_preflight_denied: ${baselinePreflight.reason}`);
   // NEVER initialize the production DB for replay: live baselines run only
   // against the explicit isolated store.
   if (!isolatedStoreArg) throw new Error('baseline_live_requires_isolated_store: pass --isolated-store=<path> (production DB is never initialized for replay).');
@@ -259,6 +284,7 @@ if (baselineRoute) {
 // inside every real request attempt, primary + retry). Unwired/absent stays
 // blocked — the flag is the bound guard itself, never a global.
 const attemptGuard = isLiveCaptureFlag ? createDevAttemptGuard(replayBudget) : null;
+const baselineAttemptGuard = baselineBudget ? createDevAttemptGuard(baselineBudget) : null;
 let liveAllowed = false;
 if (isLiveCaptureFlag) {
   try {
@@ -291,19 +317,24 @@ const captureTaxonomy = devReplay
   ? withFrozenAuthorityDetails(devReplay.frozenSnapshot, devReplay.authorityDetails)
   : frozenTaxonomy;
 if (captureMode === 'live_captured' || baselineRoute) {
-  artifact = await captureQualificationPredictionsLive(
-    goldEntries,
-    {
-      jev: captureMode === 'live_captured' ? { apiKey, ...(modelArg ? { model: modelArg } : {}) } : null,
-      baselineRoute,
-      ...(attemptGuard ? { attemptBudget: { tryConsumeAttempt: () => attemptGuard.tryConsumeAttempt() }, deadlineSignal: attemptGuard.signal } : {}),
-    },
-    captureTaxonomy,
-  );
-  if (attemptGuard) {
-    const audit = attemptGuard.audit();
-    console.error(`Guard audit: ${audit.consumed} attempts consumed, ${audit.rejected} rejected (max ${audit.maxHttpAttempts}), deadlineFired=${audit.deadlineFired}.`);
-    attemptGuard.dispose();
+  try {
+    artifact = await captureQualificationPredictionsLive(
+      goldEntries,
+      {
+        jev: captureMode === 'live_captured' ? { apiKey, ...(modelArg ? { model: modelArg } : {}) } : null,
+        baselineRoute,
+        ...(attemptGuard ? { attemptBudget: { tryConsumeAttempt: () => attemptGuard.tryConsumeAttempt() }, deadlineSignal: attemptGuard.signal } : {}),
+        ...(baselineAttemptGuard ? { baselineAttemptBudget: baselineAttemptGuard, baselineDeadlineSignal: baselineAttemptGuard.signal } : {}),
+      },
+      captureTaxonomy,
+    );
+  } finally {
+    for (const [leg, guard] of [['Candidate', attemptGuard], ['Incumbent', baselineAttemptGuard]] as const) {
+      if (!guard) continue;
+      const audit = guard.audit();
+      console.error(`${leg} guard audit: ${audit.consumed} attempts consumed, ${audit.rejected} rejected (max ${audit.maxHttpAttempts}), deadlineFired=${audit.deadlineFired}.`);
+      guard.dispose();
+    }
   }
 } else {
   artifact = buildQualificationPredictionsFromCode(goldEntries, captureTaxonomy);
@@ -338,7 +369,7 @@ const statisticalGate = evaluateJevQualificationGate(goldset, { predictionSource
   pairedSeedDigest: artifact.artifactHash });
 
 if (artifactOutArg) {
-  fs.writeFileSync(artifactOutArg, JSON.stringify(artifact, null, 2));
+  fs.writeFileSync(artifactOutArg, JSON.stringify(artifact, null, 2), { flag: 'wx' });
 }
 
 // 3. Wire the REAL live-contract check result (opt-in, never required for CI).
@@ -785,6 +816,8 @@ const predictionProvenance = {
   sources: predictionSources,
   liveCaptureRequested: isLiveCaptureFlag,
   baselineRoute: baselineRoute ? `${baselineRoute.provider}/${baselineRoute.model}` : null,
+  requestBudgets: { candidate: replayBudget, incumbent: baselineBudget },
+  attemptAudits: { candidate: attemptGuard?.audit() ?? null, incumbent: baselineAttemptGuard?.audit() ?? null },
   offlineLatencyNote:
     'Offline latencies are measured in-process decision compute, not live model serving; live latency/cost are proven via the bounded live-contract check and staged canaries.',
   blockedNote:

@@ -23,9 +23,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { hashCanonicalJson } from '../shared/stable-id';
 import { assertGoldWithinFrozenTaxonomy } from './benchmark-exporter';
 import { FrozenTaxonomySnapshotSchema, type FrozenTaxonomySnapshot } from '../shared/schemas/classification';
+import { JevReplayBudgetSchema } from '../shared/schemas/jev-benchmark';
 import {
   parseQualificationGoldOnly,
   buildQualificationCandidateQuestionSet,
@@ -38,6 +40,7 @@ import {
 export const DEV_REPLAY_DEFAULT_MAX_HTTP_ATTEMPTS = 600;
 /** Max transport concurrency for dev replay. */
 export const DEV_REPLAY_MAX_CONCURRENCY = 2;
+export const DEV_REPLAY_DEFAULT_DEADLINE_MS = 300_000;
 /** Representative authority dir (public docs only). */
 export const REPRESENTATIVE_V1_DIR = 'docs/audits/jev-representative-v1';
 /** Default representative inputs (dev gold + full taxonomy bundle + binding). */
@@ -513,12 +516,17 @@ export interface ReplayBudget {
 }
 
 export function defaultDevReplayBudget(overrides: Partial<ReplayBudget> = {}): ReplayBudget {
-  return {
+  const parsed = JevReplayBudgetSchema.safeParse({
     maxHttpAttempts: DEV_REPLAY_DEFAULT_MAX_HTTP_ATTEMPTS,
     maxConcurrency: DEV_REPLAY_MAX_CONCURRENCY,
-    hardDeadlineMs: null,
     ...overrides,
-  };
+    hardDeadlineMs: overrides.hardDeadlineMs ?? DEV_REPLAY_DEFAULT_DEADLINE_MS,
+  });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new Error(`invalid_replay_budget: ${issue.path.join('.')}: ${issue.message}`);
+  }
+  return parsed.data;
 }
 
 export interface BudgetPreflightResult {
@@ -569,6 +577,11 @@ export function createDevAttemptGuard(args: {
   maxConcurrency?: number;
   hardDeadlineMs?: number | null;
 }): DevAttemptGuard {
+  const budget = defaultDevReplayBudget({
+    maxHttpAttempts: args.maxHttpAttempts,
+    ...(args.maxConcurrency === undefined ? {} : { maxConcurrency: args.maxConcurrency }),
+    hardDeadlineMs: args.hardDeadlineMs,
+  });
   if (args.maxConcurrency !== undefined && args.maxConcurrency > DEV_REPLAY_MAX_CONCURRENCY) {
     throw new Error(`concurrency_exceeded: max ${args.maxConcurrency} exceeds dev cap ${DEV_REPLAY_MAX_CONCURRENCY}.`);
   }
@@ -576,17 +589,27 @@ export function createDevAttemptGuard(args: {
   let rejected = 0;
   let deadlineFired = false;
   const controller = new AbortController();
+  const deadlineMs = budget.hardDeadlineMs ?? DEV_REPLAY_DEFAULT_DEADLINE_MS;
+  const deadlineAt = performance.now() + deadlineMs;
+  const expire = () => {
+    deadlineFired = true;
+    controller.abort(new Error(`dev replay hard deadline exceeded after ${budget.hardDeadlineMs}ms`));
+  };
   let timer: ReturnType<typeof setTimeout> | null = null;
-  if (args.hardDeadlineMs !== undefined && args.hardDeadlineMs !== null) {
-    timer = setTimeout(() => {
-      deadlineFired = true;
-      controller.abort(new Error(`dev replay hard deadline exceeded after ${args.hardDeadlineMs}ms`));
-    }, args.hardDeadlineMs);
+  if (budget.hardDeadlineMs !== null) {
+    timer = setTimeout(expire, budget.hardDeadlineMs);
     timer.unref?.();
   }
   return {
     tryConsumeAttempt: () => {
-      if (consumed >= args.maxHttpAttempts) {
+      // Timers can be delayed by synchronous preparation/JSON work. Check
+      // monotonic elapsed time at the actual boundary as well as the signal.
+      if (performance.now() >= deadlineAt) expire();
+      if (controller.signal.aborted) {
+        rejected += 1;
+        return false;
+      }
+      if (consumed >= budget.maxHttpAttempts) {
         rejected += 1;
         return false;
       }
@@ -594,7 +617,7 @@ export function createDevAttemptGuard(args: {
       return true;
     },
     signal: controller.signal,
-    audit: () => ({ consumed, rejected, maxHttpAttempts: args.maxHttpAttempts, deadlineFired }),
+    audit: () => ({ consumed, rejected, maxHttpAttempts: budget.maxHttpAttempts, deadlineFired }),
     dispose: () => {
       if (timer) clearTimeout(timer);
       controller.abort(new Error('dev replay guard disposed'));
@@ -738,7 +761,7 @@ export function resolveBaselineRoute(args: {
   model?: string | null;
   isolatedStore?: string | null;
   credentialRef?: string | null;
-}): { route: { provider: string; model: string } | null; blockedReason: string | null } {
+}): { route: { provider: string; model: string; credentialRef: string; isolatedStore: string } | null; blockedReason: string | null } {
   if (!args.provider && !args.model) return { route: null, blockedReason: null };
   if (!args.provider || !args.model) {
     return { route: null, blockedReason: 'baseline_live_requires_isolated_store: provide both provider and model.' };
@@ -749,7 +772,7 @@ export function resolveBaselineRoute(args: {
       blockedReason: 'baseline_live_requires_isolated_store: new baseline live capture needs --isolated-store + credential ref; staying on deterministic_floor (never a substituted provider).',
     };
   }
-  return { route: { provider: args.provider, model: args.model }, blockedReason: null };
+  return { route: { provider: args.provider, model: args.model, credentialRef: args.credentialRef.trim(), isolatedStore: args.isolatedStore.trim() }, blockedReason: null };
 }
 
 /** Validate isolation before a baseline runner can initialize its database. */
@@ -763,12 +786,31 @@ export function assertIsolatedBaselineStore(
   const stat = fs.statSync(resolved);
   if (!stat.isFile()) throw new Error('baseline_store_not_isolated: expected an existing database file.');
   const root = fs.realpathSync(options.repositoryRoot);
-  const relative = path.relative(root, resolved);
-  if ((!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)) ||
-      resolved.split(path.sep).includes('.shopsite-cms')) {
+  const roots = new Set([root]);
+  if (fs.existsSync(path.join(root, '.git'))) {
+    try {
+      const worktrees = execFileSync('git', ['worktree', 'list', '--porcelain', '-z'], {
+        cwd: root, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      for (const entry of worktrees.split('\0')) {
+        if (!entry.startsWith('worktree ')) continue;
+        const worktree = entry.slice('worktree '.length);
+        if (fs.existsSync(worktree)) roots.add(fs.realpathSync(worktree));
+      }
+    } catch {
+      throw new Error('baseline_store_not_isolated: repository worktree authority is unavailable.');
+    }
+  }
+  const repositoryLocal = [...roots].some(repository => {
+    const relative = path.relative(repository, resolved);
+    return !relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative);
+  });
+  if (repositoryLocal || resolved.split(path.sep).includes('.shopsite-cms')) {
     throw new Error('baseline_store_not_isolated: workspace databases cannot be initialized for evaluation.');
   }
-  for (const productionPath of options.productionStorePaths) {
+  const productionPaths = new Set([...options.productionStorePaths,
+    ...[...roots].map(repository => path.join(repository, 'storage/catalog/.shopsite-cms/app.db'))]);
+  for (const productionPath of productionPaths) {
     if (!fs.existsSync(productionPath)) continue;
     const production = fs.statSync(productionPath);
     if (production.dev === stat.dev && production.ino === stat.ino) {
