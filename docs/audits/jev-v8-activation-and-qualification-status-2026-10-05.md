@@ -128,6 +128,21 @@ not establish new V8 product accuracy or a globally green full test command.
 
 ## Release decision
 
+### Guarded-capture follow-up — 2026-10-06
+
+Reviewed source commit `5c295d40b74b08db4315321f522ef7d7e5504b75` closes the
+explicit incumbent reference/configuration/budget/context gaps and the public
+candidate API's missing-guard bypass. Predictor is v7; historical v6 captures
+are unchanged. See `jev-incumbent-execution-guard-2026-10-06.md` for the 12
+red/green regressions and honest remaining prerequisites.
+Fresh clean-checkout TypeScript passes, all four compatibility suites pass
+732 tests with one skip, and actual exact-model contract/disablement receipts
+are bound to that commit. Full tests remain exit 1; a separate focused run
+reproduced the four documented sourcing-observe failures. Vitest passed
+330 files / 4250 tests with one skip.
+Details: `jev-commit-verification-5c295d40-2026-10-06.md`.
+No actual incumbent comparison or new V8 accuracy/qualification occurred.
+
 **#302 remains blocked and #312 remains gated.** Neither source collection,
 code completion nor an active taxonomy pin establishes production quality.
 No fitted policy/publication or holdout unseal is asserted. Qualification still

@@ -1,0 +1,25 @@
+{
+  "kind": "controlled_live_http_boundary_exercise",
+  "commit": "5c295d40b74b08db4315321f522ef7d7e5504b75",
+  "recordedAt": "2026-10-06T01:50:07.935Z",
+  "networkMocksUsed": false,
+  "database": ":memory:",
+  "endpointTrustZone": "this_device",
+  "vendorInferencePerformed": false,
+  "productionConnectionModified": false,
+  "model": "jev-1.13.0",
+  "results": [
+    { "boundary": "disabled_before_dispatch_with_captured_enabled_object", "requests": 0, "denied": true, "errorClass": "AiPolicyDeniedError", "passed": true },
+    { "boundary": "stored_disablement_after_first_http_response", "requests": 1, "denied": true, "errorClass": "AiPolicyDeniedError", "passed": true },
+    { "boundary": "lease_loss_after_first_http_response", "requests": 1, "denied": true, "errorClass": "HeartbeatLostError", "passed": true }
+  ],
+  "totalHttpRequests": 2,
+  "passed": true,
+  "sourceHashes": {
+    "src/ai/systemone-transport.ts": "e75e5d7aae6af9e3cec78b7f3fd6407e6a43988014d12bb84f616323122c53c6",
+    "src/db/repositories/provider-connection-repo.ts": "7eeb2cbcd03cf3d4497b588295c328b8d21858cd97233a547964e7afa5aa771a",
+    "src/classification/systemone-decision-core.ts": "400eb4bc572d530c8b76c8a47b8e335a0963c6479bf1eba873549033e9160d82",
+    "src/classification/attribute-decision.ts": "d8eb1d1e652da6b614fe9ed8674419ab18da0090c5ad9b14c76a976e0e485fca",
+    "src/classification/page-decision.ts": "ed198092f291e5111f238cf187dd225192566e8b844d2c653eb8b8f38eadad73"
+  }
+}
