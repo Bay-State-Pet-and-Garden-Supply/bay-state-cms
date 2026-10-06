@@ -109,6 +109,30 @@ export function tokenize(text: string, stopWords?: Set<string>): string[] {
 export function normalizeOption(candidate: unknown, options: string[]): string | null {
   return matchCanonicalValue(candidate, options);
 }
+// ─── Label Token Cache ───────────────────────────────────────────────────────
+//
+// Option labels are fixed taxonomy strings re-tokenized on every entry.
+// Cache tokenized labels keyed by label content: call sites rebuild the
+// options array per entry, so array-identity keying would never hit — but
+// the labels themselves repeat (74 types, 212 pages), so a small
+// content-keyed map pays off. Tokenization is a pure function of (label)
+// under the default stop set. Bounded size with FIFO eviction. Custom
+// stop-word sets bypass the cache (content alone no longer proves tokens).
+const LABEL_TOKEN_CACHE_LIMIT = 1024;
+const labelTokenCache = new Map<string, string[]>();
+
+function tokenizedLabel(label: string, stopWords?: Set<string>): string[] {
+  if (stopWords !== undefined) return tokenize(label, stopWords);
+  const cached = labelTokenCache.get(label);
+  if (cached) return cached;
+  const tokens = tokenize(label);
+  if (labelTokenCache.size >= LABEL_TOKEN_CACHE_LIMIT) {
+    const oldest = labelTokenCache.keys().next();
+    if (!oldest.done) labelTokenCache.delete(oldest.value);
+  }
+  labelTokenCache.set(label, tokens);
+  return tokens;
+}
 
 // ─── Keyword / Token Overlap Matching ─────────────────────────────────────────
 
@@ -128,7 +152,7 @@ export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[]
 
   const scored = options
     .map(opt => {
-      const tokens = tokenize(opt.label, stopWords);
+      const tokens = tokenizedLabel(opt.label, stopWords);
       const hits = tokens.filter(t => evidenceTokens.has(t));
       const score = tokens.length === 0 ? 0 : hits.length / tokens.length;
       return {
@@ -159,6 +183,28 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ─── Word-Boundary Regex Cache ─────────────────────────────────────────────
+//
+// Attribute matching builds one RegExp per option per entry. The patterns
+// are pure functions of the option string, and the option pool is tiny and
+// fixed per target — cache compiled expressions by pattern source, bounded
+// with FIFO eviction. Case-insensitive flag is constant, so the source
+// string alone is the key.
+const WORD_REGEX_CACHE_LIMIT = 2048;
+const wordRegexCache = new Map<string, RegExp>();
+
+function wordBoundaryPattern(term: string): RegExp {
+  const cached = wordRegexCache.get(term);
+  if (cached) return cached;
+  const compiled = new RegExp(`\\b${escapeRegex(term.toLowerCase())}\\b`, 'i');
+  if (wordRegexCache.size >= WORD_REGEX_CACHE_LIMIT) {
+    const oldest = wordRegexCache.keys().next();
+    if (!oldest.done) wordRegexCache.delete(oldest.value);
+  }
+  wordRegexCache.set(term, compiled);
+  return compiled;
+}
+
 /**
  * Match attribute values from evidence text using word-boundary matching
  * and configured value aliases.
@@ -184,7 +230,7 @@ export function matchAttributeOptions(
   // 1. Word-boundary match against allowed values (direct)
   for (const opt of options) {
     if (seen.has(opt)) continue;
-    if (new RegExp('\\b' + escapeRegex(opt.toLowerCase()) + '\\b', 'i').test(textLower)) {
+    if (wordBoundaryPattern(opt).test(textLower)) {
       found.push({ value: opt, confidence: 0.6, matchedBy: 'direct' });
       seen.add(opt);
       if (selectionMode === 'single') break;
@@ -195,7 +241,7 @@ export function matchAttributeOptions(
   if (selectionMode === 'multiple' || found.length === 0) {
     for (const alias of attribute.valueAliases ?? []) {
       if (seen.has(alias.mapsTo)) continue;
-      if (new RegExp('\\b' + escapeRegex(alias.alias.toLowerCase()) + '\\b', 'i').test(textLower)) {
+      if (wordBoundaryPattern(alias.alias).test(textLower)) {
         // Fail closed: the alias target must be one of the exact allowed
         // option values — an alias pointing outside the set is never guessed
         // into a canonical ID.
