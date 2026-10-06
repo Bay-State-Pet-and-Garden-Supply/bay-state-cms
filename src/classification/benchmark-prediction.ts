@@ -2717,7 +2717,7 @@ function predictBaselineProductType(
     return { productType: null, abstained: true, confidence: 0, abstentionCode: taxonomies.productTypes.length ? 'insufficient_evidence' : 'missing_configuration' };
   }
   const matches = matchKeywordOptions({
-    options: taxonomies.productTypes.map(t => ({ value: t.id, label: t.label })),
+    options: qualificationQuestionTemplates(taxonomies).typeOptions,
     text: evidenceText,
     selectionMode: 'single',
   });
@@ -2774,6 +2774,9 @@ interface QualificationQuestionTemplates {
   resolvedByTarget: Map<string, ResolvedTarget>;
   choicePlanByTarget: Map<string, AttributeChoiceQuestionPlan>;
   pagePlanByType: Map<string | null, PageChoiceQuestionPlan | null>;
+  /** Shared matcher option arrays (built once per taxonomy — callers must not mutate). */
+  typeOptions: Array<{ value: string; label: string }>;
+  pageOptions: Array<{ value: string; label: string }>;
 }
 const questionTemplateCache = new WeakMap<QualificationTaxonomies, QualificationQuestionTemplates>();
 
@@ -2782,6 +2785,7 @@ function qualificationQuestionTemplates(
 ): QualificationQuestionTemplates {
   const cached = questionTemplateCache.get(taxonomies);
   if (cached) return cached;
+  const typeOptions = taxonomies.productTypes.map(t => ({ value: t.id, label: t.label }));
   const templates: QualificationQuestionTemplates = {
     productTypePlan: buildProductTypeChoiceQuestion(
       taxonomies.productTypes.map(t => ({
@@ -2796,6 +2800,8 @@ function qualificationQuestionTemplates(
     resolvedByTarget: new Map(),
     choicePlanByTarget: new Map(),
     pagePlanByType: new Map(),
+    typeOptions,
+    pageOptions: taxonomies.pages.map(p => ({ value: p.pageId, label: p.pageName })),
   };
   questionTemplateCache.set(taxonomies, templates);
   return templates;
@@ -3168,7 +3174,7 @@ function predictBaselinePages(
     return { pageIds: [], pageOutcome: 'unresolved', pageAbstentionCode: 'unresolved', pageProbability: null };
   }
   const matches = matchKeywordOptions({
-    options: taxonomies.pages.map(p => ({ value: p.pageId, label: p.pageName })),
+    options: qualificationQuestionTemplates(taxonomies).pageOptions,
     text: evidenceText,
     selectionMode: 'single',
   });
