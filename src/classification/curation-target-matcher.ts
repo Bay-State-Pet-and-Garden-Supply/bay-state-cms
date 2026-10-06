@@ -156,11 +156,159 @@ function tokenizedLabel(label: string, stopWords?: Set<string>): string[] {
   return tokens;
 }
 
-// ─── Keyword / Token Overlap Matching ─────────────────────────────────────────
+// ─── Inverted Label-Token Index ──────────────────────────────────────────
+//
+// The top-1 scans visit every option per entry (74 types, 212 pages), but
+// an entry's ~65 evidence tokens touch ~26 options on average — scoring
+// only options that share a token skips ~8× the work. The index is keyed
+// on options-array IDENTITY (WeakMaps, no leak, no bounds needed): stable
+// per-taxonomy arrays hit; one-shot caller arrays miss with ~zero cost.
+// Built lazily on second sighting so one-shot callers never pay index
+// construction. Default stop set only; custom sets take the direct paths.
+// Length-guarded: a caller-mutated array (length change) discards the
+// index and rescans directly rather than risking stale postings.
+interface KeywordTokenIndex {
+  optionTokens: string[][];
+  postings: Map<string, number[]>;
+  optionCount: number;
+}
+const keywordIndexSeen = new WeakSet<object>();
+const keywordIndexCache = new WeakMap<object, KeywordTokenIndex>();
+
+function buildKeywordTokenIndex(
+  options: Array<{ value: string; label: string }>,
+): KeywordTokenIndex {
+  const optionTokens = options.map(opt => tokenizedLabel(opt.label));
+  const postings = new Map<string, number[]>();
+  for (let i = 0; i < optionTokens.length; i++) {
+    for (const token of new Set(optionTokens[i])) {
+      const list = postings.get(token);
+      if (list) list.push(i);
+      else postings.set(token, [i]);
+    }
+  }
+  return { optionTokens, postings, optionCount: options.length };
+}
+
+function keywordIndexFor(
+  options: Array<{ value: string; label: string }>,
+): KeywordTokenIndex | null {
+  const cached = keywordIndexCache.get(options);
+  if (cached) return cached.optionCount === options.length ? cached : null;
+  if (!keywordIndexSeen.has(options)) {
+    keywordIndexSeen.add(options);
+    return null;
+  }
+  const built = buildKeywordTokenIndex(options);
+  keywordIndexCache.set(options, built);
+  return built;
+}
+
+// ─── Index-Accelerated Scoring (exact-equivalence paths) ─────────────────
+//
+// Both functions reproduce their direct-scan counterparts bit-for-bit:
+// scoring math, tie-breaks, filters, and padding are identical — only the
+// candidate enumeration changes (posting-touched options instead of all).
+// Soundness: an option with ≥1 hit scores confidence > 0.45, strictly
+// above every hitless option (0.45 exactly), so the global top-1 / top-N
+// always lies among touched options whenever any touch exists; the
+// no-touch fallback (all 0.45, min label wins) matches the total sort.
+
+function matchKeywordTop1Indexed(
+  options: Array<{ value: string; label: string }>,
+  index: KeywordTokenIndex,
+  evidenceTokens: Set<string>,
+): MatchedOption[] {
+  const hitCounts = new Map<number, number>();
+  for (const token of evidenceTokens) {
+    const posting = index.postings.get(token);
+    if (!posting) continue;
+    for (const i of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + 1);
+  }
+  if (hitCounts.size === 0) {
+    // Every option scores 0.45 with no hits: the total sort (confidence
+    // desc, label asc) yields the min-label option — same filter outcome
+    // (0.45 > 0 always passes).
+    let min: { value: string; label: string } | null = null;
+    for (const opt of options) {
+      if (!min || opt.label.localeCompare(min.label) < 0) min = opt;
+    }
+    if (!min) return [];
+    return [{ value: min.value, label: min.label, confidence: 0.45, matchedTokens: [] }];
+  }
+  let best: MatchedOption | null = null;
+  let bestIndex = -1;
+  for (const [i, hits] of hitCounts) {
+    const opt = options[i];
+    const tokens = index.optionTokens[i];
+    const score = tokens.length === 0 ? 0 : hits / tokens.length;
+    const confidence = Math.min(0.85, 0.45 + score * 0.35);
+    // Total order mirrors the direct sort (confidence desc, label asc)
+    // with array position as the final tie-break (the direct stable sort
+    // keeps full ties in array order; touch order must not leak through).
+    if (!best || confidence > best.confidence ||
+        (confidence === best.confidence && (opt.label.localeCompare(best.label) < 0 ||
+          (opt.label === best.label && i < bestIndex)))) {
+      best = { value: opt.value, label: opt.label, confidence, matchedTokens: tokens.filter(t => evidenceTokens.has(t)) };
+      bestIndex = i;
+    }
+  }
+  if (!best || !(best.confidence > 0 || best.matchedTokens.length > 0)) return [];
+  return [best];
+}
+function matchKeywordGeneralIndexed(
+  options: Array<{ value: string; label: string }>,
+  index: KeywordTokenIndex,
+  evidenceTokens: Set<string>,
+  maxResults: number,
+): MatchedOption[] {
+  const hitCounts = new Map<number, number>();
+  for (const token of evidenceTokens) {
+    const posting = index.postings.get(token);
+    if (!posting) continue;
+    for (const i of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + 1);
+  }
+  const scored: Array<{ option: MatchedOption; index: number }> = [];
+  for (const [i, hits] of hitCounts) {
+    const opt = options[i];
+    const tokens = index.optionTokens[i];
+    const matched = tokens.filter(t => evidenceTokens.has(t));
+    const score = tokens.length === 0 ? 0 : matched.length / tokens.length;
+    scored.push({
+      option: {
+        value: opt.value,
+        label: opt.label,
+        confidence: Math.min(0.85, 0.45 + score * 0.35),
+        matchedTokens: matched,
+      },
+      index: i,
+    });
+  }
+  // Triple order mirrors the direct stable sort: the direct path sorts the
+  // array-ordered full list by (confidence desc, label asc), so full ties
+  // resolve to array order — carried here as the explicit final key.
+  const kept = scored
+    .filter(s => s.option.confidence > 0 || s.option.matchedTokens.length > 0)
+    .sort((a, b) => b.option.confidence - a.option.confidence ||
+      a.option.label.localeCompare(b.option.label) || a.index - b.index)
+    .map(s => s.option);
+  if (kept.length >= maxResults) return kept.slice(0, maxResults);
+  // Fewer hits than requested: the direct tail is every hitless option at
+  // 0.45 in (label asc, array-order) sequence — collect ALL untouched
+  // (never stop at the first N in array order), sort, then take the head.
+  const touched = new Set(hitCounts.keys());
+  const padding: Array<{ option: MatchedOption; index: number }> = [];
+  for (let i = 0; i < options.length; i++) {
+    if (touched.has(i)) continue;
+    const opt = options[i];
+    padding.push({ option: { value: opt.value, label: opt.label, confidence: 0.45, matchedTokens: [] }, index: i });
+  }
+  padding.sort((a, b) => a.option.label.localeCompare(b.option.label) || a.index - b.index);
+  return [...kept, ...padding.map(p => p.option)].slice(0, maxResults);
+}
 
 /**
  * Score options against evidence text using word/token overlap.
- *
  * Each option label is tokenized; tokens present in the evidence text
  * count as hits. Score = hits / total option tokens.
  */
@@ -178,6 +326,8 @@ export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[]
   // without scoring the full array or sorting. Custom maxResults still
   // takes the general path.
   if (selectionMode === 'single' && maxResults === 1 && stopWords === undefined) {
+    const index = keywordIndexFor(options);
+    if (index) return matchKeywordTop1Indexed(options, index, evidenceTokens);
     let best: MatchedOption | null = null;
     for (const opt of options) {
       const tokens = tokenizedLabel(opt.label);
@@ -195,6 +345,10 @@ export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[]
     if (!best || !(best.confidence > 0 || best.matchedTokens.length > 0)) return [];
     return [best];
   }
+
+  const generalIndex = stopWords === undefined ? keywordIndexFor(options) : null;
+  if (generalIndex) return matchKeywordGeneralIndexed(options, generalIndex, evidenceTokens, maxResults);
+
 
   const scored = options
     .map(opt => {
