@@ -2736,7 +2736,6 @@ function predictBaselineProductType(
  */
 const JEV_NO_MATCH_KEY = 'no_match';
 const JEV_INSUFFICIENT_EVIDENCE_KEY = 'insufficient_evidence';
-
 /** Ordinary Choice capacity mirrored from production (255 total − 2 abstention). */
 const JEV_MAX_ORDINARY_CHOICE_CANDIDATES = 253;
 
@@ -2755,6 +2754,95 @@ export interface QualificationCandidateQuestionSet {
   pagePlan: PageChoiceQuestionPlan | null;
 }
 
+
+/**
+ * Entry-independent question-plan templates, memoized per taxonomies object
+ * identity. The product-type Choice, resolved attribute targets, and
+ * single-value Choice plans are pure functions of the frozen taxonomy —
+ * identical inputs rebuild byte-identical plans per entry. Caching them
+ * removes the per-entry object churn over the fixed 74-type / 212-page
+ * pools. Page plans additionally key on the effective type (instructions
+ * embed the type description; explicit null abstains per #302 parity).
+ *
+ * FREEZE CONTRACT: cached plans are shared across entries within one
+ * capture. Consumers MUST treat them as immutable (all existing consumers —
+ * floor wiring proof, live assembly, interpreters — read only). A fresh
+ * taxonomies object (new capture, new test) misses the cache and rebuilds.
+ */
+interface QualificationQuestionTemplates {
+  productTypePlan: ProductTypeChoiceQuestionPlan;
+  resolvedByTarget: Map<string, ResolvedTarget>;
+  choicePlanByTarget: Map<string, AttributeChoiceQuestionPlan>;
+  pagePlanByType: Map<string | null, PageChoiceQuestionPlan | null>;
+}
+const questionTemplateCache = new WeakMap<QualificationTaxonomies, QualificationQuestionTemplates>();
+
+function qualificationQuestionTemplates(
+  taxonomies: QualificationTaxonomies,
+): QualificationQuestionTemplates {
+  const cached = questionTemplateCache.get(taxonomies);
+  if (cached) return cached;
+  const templates: QualificationQuestionTemplates = {
+    productTypePlan: buildProductTypeChoiceQuestion(
+      taxonomies.productTypes.map(t => ({
+        value: t.id,
+        label: t.label,
+        // REAL configured definitions ride the EXISTING optional criteria
+        // slot (`label: description` suffix) — no builder/version change.
+        // Absent on legacy snapshots ⇒ byte-identical questions.
+        ...(typeof t.description === 'string' && t.description.length > 0 ? { description: t.description } : {}),
+      })),
+    ),
+    resolvedByTarget: new Map(),
+    choicePlanByTarget: new Map(),
+    pagePlanByType: new Map(),
+  };
+  questionTemplateCache.set(taxonomies, templates);
+  return templates;
+}
+
+function templateResolvedTarget(
+  templates: QualificationQuestionTemplates,
+  target: QualificationTaxonomies['attributeTargets'][number],
+  taxonomies: QualificationTaxonomies,
+): ResolvedTarget {
+  const cached = templates.resolvedByTarget.get(target.targetId);
+  if (cached) return cached;
+  const { resolved } = resolveQualificationAttributeTarget(target, taxonomies);
+  templates.resolvedByTarget.set(target.targetId, resolved);
+  return resolved;
+}
+
+function templateChoicePlan(
+  templates: QualificationQuestionTemplates,
+  target: QualificationTaxonomies['attributeTargets'][number],
+  resolved: ResolvedTarget,
+): AttributeChoiceQuestionPlan {
+  const cached = templates.choicePlanByTarget.get(target.targetId);
+  if (cached) return cached;
+  const plan = buildAttributeChoiceQuestion(resolved);
+  templates.choicePlanByTarget.set(target.targetId, plan);
+  return plan;
+}
+
+function templatePagePlan(
+  templates: QualificationQuestionTemplates,
+  taxonomies: QualificationTaxonomies,
+  effectiveTypeId: string | null | undefined,
+): PageChoiceQuestionPlan | null {
+  // PAGE ABSTENTION PARITY (issue #302): explicit null (no reviewed type)
+  // abstains — never a constructed Choice. Empty page pool: null.
+  if (taxonomies.pages.length === 0 || effectiveTypeId === null) return null;
+  const key = effectiveTypeId ?? null;
+  const cached = templates.pagePlanByType.get(key);
+  if (cached !== undefined) return cached;
+  const plan = buildPageChoiceQuestion(
+    taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+    effectiveTypeId ?? null,
+  );
+  templates.pagePlanByType.set(key, plan);
+  return plan;
+}
 /**
  * Build every shipped Jev question for one gold entry (pure construction —
  * the same builders production dispatches). Exported so wiring/shape tests
@@ -2779,16 +2867,8 @@ export function buildQualificationCandidateQuestionSet(
   taxonomies: QualificationTaxonomies,
   effectiveTypeId?: string | null,
 ): QualificationCandidateQuestionSet {
-  const productTypePlan = buildProductTypeChoiceQuestion(
-    taxonomies.productTypes.map(t => ({
-      value: t.id,
-      label: t.label,
-      // REAL configured definitions ride the EXISTING optional criteria
-      // slot (`label: description` suffix) — no builder/version change.
-      // Absent on legacy snapshots ⇒ byte-identical questions.
-      ...(typeof t.description === 'string' && t.description.length > 0 ? { description: t.description } : {}),
-    })),
-  );
+  const templates = qualificationQuestionTemplates(taxonomies);
+  const productTypePlan = templates.productTypePlan;
   // Pure-construction path has no resolved type yet: build all frozen
   // attributes (gold-free, wiring-only). Live capture passes the frozen
   // resolved type to narrow to applicable attributes only (fail-closed when
@@ -2818,7 +2898,7 @@ export function buildQualificationCandidateQuestionSet(
     // builders and the shipped multi-value policy consume it for
     // permission/grounding. Without details this is the stub (weaker
     // grounding, never gold).
-    const { resolved } = resolveQualificationAttributeTarget(target, taxonomies);
+    const resolved = templateResolvedTarget(templates, target, taxonomies);
     if (target.cardinality === 'multiple') {
       attributePlans.push({
         targetId: target.targetId,
@@ -2831,7 +2911,7 @@ export function buildQualificationCandidateQuestionSet(
         targetId: target.targetId,
         cardinality: target.cardinality,
         resolved,
-        choicePlan: buildAttributeChoiceQuestion(resolved),
+        choicePlan: templateChoicePlan(templates, target, resolved),
       });
     }
   }
@@ -2840,14 +2920,7 @@ export function buildQualificationCandidateQuestionSet(
   // production (`no_reviewed_product_type`) — never a constructed Choice.
   // The wiring-proof path (undefined, no resolved type yet) still builds the
   // Choice for shape coverage; live capture always passes an explicit type.
-  const pagePlan = taxonomies.pages.length === 0
-    ? null
-    : effectiveTypeId === null
-      ? null
-      : buildPageChoiceQuestion(
-        taxonomies.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
-        effectiveTypeId ?? null,
-      );
+  const pagePlan = templatePagePlan(templates, taxonomies, effectiveTypeId);
   return { productTypePlan, attributePlans, pagePlan };
 }
 
