@@ -97,7 +97,29 @@ export function tokenize(text: string, stopWords?: Set<string>): string[] {
     .filter(t => t.length > 2 && !stop.has(t));
 }
 
-// ─── Option Normalization ─────────────────────────────────────────────────────
+// ─── Evidence Token-Set Cache ────────────────────────────────────────────
+//
+// The product-type and page stages tokenize the SAME evidence text per
+// entry, and reclassification re-tokenizes the same products. Cache the
+// token SET keyed by text content (default stop set only — custom sets
+// bypass). Bounded FIFO; cached sets are frozen by contract (every reader
+// uses `.has()` only — no caller mutates the set).
+const EVIDENCE_TOKEN_CACHE_LIMIT = 512;
+const evidenceTokenCache = new Map<string, Set<string>>();
+
+function evidenceTokenSet(text: string, stopWords?: Set<string>): Set<string> {
+  if (stopWords !== undefined) return new Set(tokenize(text, stopWords));
+  const cached = evidenceTokenCache.get(text);
+  if (cached) return cached;
+  const set = new Set(tokenize(text));
+  if (evidenceTokenCache.size >= EVIDENCE_TOKEN_CACHE_LIMIT) {
+    const oldest = evidenceTokenCache.keys().next();
+    if (!oldest.done) evidenceTokenCache.delete(oldest.value);
+  }
+  evidenceTokenCache.set(text, set);
+  return set;
+}
+
 
 /**
  * Find the exact allowed option matching a candidate value (comparison-key
@@ -148,7 +170,7 @@ export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[]
 
   if (options.length === 0 || !text || text.length < 3) return [];
 
-  const evidenceTokens = new Set(tokenize(text, stopWords));
+  const evidenceTokens = evidenceTokenSet(text, stopWords);
 
   // Single-winner fast path: single mode with default top-1 keeps only
   // `matches[0]` downstream, and the full sort is total (confidence desc,

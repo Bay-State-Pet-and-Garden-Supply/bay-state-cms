@@ -2801,15 +2801,25 @@ function qualificationQuestionTemplates(
   return templates;
 }
 
+function templateCacheKey(
+  target: QualificationTaxonomies['attributeTargets'][number],
+): string {
+  // Profile-adjusted cardinality varies per effective type and rides the
+  // resolved config (selectionMode) — key on both so a type-adjusted copy
+  // never serves another type's cardinality.
+  return `${target.targetId}:${target.cardinality}`;
+}
+
 function templateResolvedTarget(
   templates: QualificationQuestionTemplates,
   target: QualificationTaxonomies['attributeTargets'][number],
   taxonomies: QualificationTaxonomies,
 ): ResolvedTarget {
-  const cached = templates.resolvedByTarget.get(target.targetId);
+  const key = templateCacheKey(target);
+  const cached = templates.resolvedByTarget.get(key);
   if (cached) return cached;
   const { resolved } = resolveQualificationAttributeTarget(target, taxonomies);
-  templates.resolvedByTarget.set(target.targetId, resolved);
+  templates.resolvedByTarget.set(key, resolved);
   return resolved;
 }
 
@@ -2818,10 +2828,11 @@ function templateChoicePlan(
   target: QualificationTaxonomies['attributeTargets'][number],
   resolved: ResolvedTarget,
 ): AttributeChoiceQuestionPlan {
-  const cached = templates.choicePlanByTarget.get(target.targetId);
+  const key = templateCacheKey(target);
+  const cached = templates.choicePlanByTarget.get(key);
   if (cached) return cached;
   const plan = buildAttributeChoiceQuestion(resolved);
-  templates.choicePlanByTarget.set(target.targetId, plan);
+  templates.choicePlanByTarget.set(key, plan);
   return plan;
 }
 
@@ -2843,6 +2854,7 @@ function templatePagePlan(
   templates.pagePlanByType.set(key, plan);
   return plan;
 }
+
 /**
  * Build every shipped Jev question for one gold entry (pure construction —
  * the same builders production dispatches). Exported so wiring/shape tests
