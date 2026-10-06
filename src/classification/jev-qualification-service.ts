@@ -41,6 +41,7 @@ import {
   qualificationApplicableTargetIds,
   isRawQualificationEntryEligible,
   type QualificationFieldAssignment,
+  type QualificationTaxonomies,
 } from './benchmark-prediction';
 // Shipped single-Choice probability floor (single definition site — the
 // scorer reuses it, never reimplements): coded abstentions below it prove nothing.
@@ -501,6 +502,32 @@ function tallyJevAttributeOutcome(
  *   are still visible as false positives, though uncovered applicable misses
  *   beyond gold cannot be seen — documented weaker separation).
  */
+/**
+ * Frozen applicable-id sets per (taxonomies, gold effective type). The
+ * mapping is pure over those two inputs and gold types repeat heavily, so
+ * memoizing removes the per-entry profile/condition rebuild. Cached arrays
+ * are frozen by contract (the single reader spreads into a new set+sort).
+ * Mapping-gap throws are never cached — scoring falls through to the union
+ * exactly like the uncached path.
+ */
+const applicableIdsCache = new WeakMap<object, Map<string | null, string[]>>();
+
+function cachedApplicableTargetIds(
+  frozenTaxonomies: QualificationTaxonomies,
+  goldEffectiveTypeId: string | null,
+): string[] {
+  let byType = applicableIdsCache.get(frozenTaxonomies);
+  if (!byType) {
+    byType = new Map();
+    applicableIdsCache.set(frozenTaxonomies, byType);
+  }
+  const cached = byType.get(goldEffectiveTypeId);
+  if (cached) return cached;
+  const applicable = qualificationApplicableTargetIds(frozenTaxonomies, goldEffectiveTypeId);
+  byType.set(goldEffectiveTypeId, applicable);
+  return applicable;
+}
+
 function resolveJevAttributeApplicableIds(
   entry: QualificationGoldEntry,
   frozenTaxonomies: ReturnType<typeof qualificationTaxonomiesFromFrozenSnapshot> | null,
@@ -514,7 +541,7 @@ function resolveJevAttributeApplicableIds(
       const goldEffectiveTypeId = entry.gold.productType.kind === 'known-type'
         ? entry.gold.productType.typeId
         : null;
-      const applicable = qualificationApplicableTargetIds(frozenTaxonomies, goldEffectiveTypeId);
+      const applicable = cachedApplicableTargetIds(frozenTaxonomies, goldEffectiveTypeId);
       return [...new Set([...applicable, ...predictedIds])].sort();
     } catch {
       // Scoring never blocks on mapping gaps — fall through to union.
