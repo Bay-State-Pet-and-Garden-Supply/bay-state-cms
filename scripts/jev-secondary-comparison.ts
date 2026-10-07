@@ -6,7 +6,7 @@ import { initDb, closeDb } from '../src/db/connection';
 import { runMigrations } from '../src/db/migrations';
 import { getProviderConnection, upsertProviderConnection } from '../src/db/repositories/provider-connection-repo';
 import { loadDevReplayInputs, createDevAttemptGuard, defaultDevReplayBudget, planDevReplayBudget, dryRunBudgetPreflight, assertNoHoldoutAccess } from '../src/classification/jev-benchmark-replay';
-import { captureQualificationPredictionsLive, withFrozenAuthorityDetails, parseQualificationGoldOnly, frozenAuthorityDetailsHash, hashDevReplaySourceInputs, assertQualificationArtifactIntegrity, type QualificationPredictionArtifact } from '../src/classification/benchmark-prediction';
+import { captureQualificationPredictionsLive, withFrozenAuthorityDetails, parseQualificationGoldOnly, frozenAuthorityDetailsHash, hashDevReplaySourceInputs, assertQualificationArtifactIntegrity, type QualificationPredictionArtifact, type QualificationGoldOnlyEntry } from '../src/classification/benchmark-prediction';
 import { evaluateJevOfflineComparison } from '../src/classification/jev-qualification-service';
 import { sha256Hex } from '../src/shared/stable-id';
 
@@ -43,8 +43,8 @@ assertNoHoldoutAccess(output);
 assertNoHoldoutAccess(path.dirname(output));
 if (fs.existsSync(output) || !fs.existsSync(path.dirname(output))) throw new Error('Comparison output must be new with an existing public parent.');
 
-function evaluateArtifact(artifact: QualificationPredictionArtifact) {
-  assertQualificationArtifactIntegrity(artifact, withFrozenAuthorityDetails(inputs.frozenSnapshot, inputs.authorityDetails));
+function evaluateArtifact(artifact: QualificationPredictionArtifact, entries: QualificationGoldOnlyEntry[]) {
+  assertQualificationArtifactIntegrity(artifact, withFrozenAuthorityDetails(inputs.frozenSnapshot, inputs.authorityDetails), entries);
   if (artifact.authorityHash !== inputs.authorityDetails.authorityHash ||
       artifact.authorityDetailsHash !== frozenAuthorityDetailsHash(inputs.authorityDetails) ||
       artifact.frozenTaxonomyHash !== inputs.frozenSnapshot.snapshotHash) {
@@ -88,7 +88,7 @@ if (rescore) {
     sourceArtifactHash: original.artifact.artifactHash, captureGoldSha256: sha256Hex(priorBytes),
     evaluatedGoldSha256: sha256Hex(fs.readFileSync(path.join(directory, 'development-gold-v8.json'), 'utf8')),
     sourceInputsHash: committedSourceInputsHash, sourceInputsUnchanged: true, predictionsUnchanged: true, additionalModelRequests: 0,
-    report: evaluateArtifact(original.artifact), candidateAudit: original.candidateAudit, comparatorAudit: original.comparatorAudit,
+    report: evaluateArtifact(original.artifact, inputs.goldEntries), candidateAudit: original.candidateAudit, comparatorAudit: original.comparatorAudit,
     pageCohortContext: 'isolated_single_choice_approximation', policiesPublishedBeforeHoldout: false, holdoutInference: false };
   fs.writeFileSync(output, JSON.stringify(result, null, 2), { flag: 'wx' });
   console.log(JSON.stringify({ output, artifactHash: result.sourceArtifactHash, additionalModelRequests: 0 }, null, 2));
@@ -114,7 +114,7 @@ try {
     attemptBudget: candidateGuard, deadlineSignal: candidateGuard.signal,
     baselineAttemptBudget: comparatorGuard, baselineDeadlineSignal: comparatorGuard.signal,
   }, withFrozenAuthorityDetails(inputs.frozenSnapshot, inputs.authorityDetails));
-  const report = evaluateArtifact(artifact);
+  const report = evaluateArtifact(artifact, inputs.goldEntries);
   const result = { ...plan, artifact, report, candidateAudit: candidateGuard.audit(), comparatorAudit: comparatorGuard.audit(),
     evaluatedGoldSha256: sha256Hex(fs.readFileSync(path.join(directory, 'development-gold-v8.json'), 'utf8')),
     sourceDatabaseReadonly: true, evaluationDatabase: ':memory:', credentialsPersisted: false,

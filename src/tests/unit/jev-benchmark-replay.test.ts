@@ -39,6 +39,7 @@ import {
   buildQualificationCandidateQuestionSet,
   buildQualificationPredictionsFromCode,
   hashDevReplaySourceInputs,
+  partitionCandidateQuestionsByPermittedEvidence,
   permittedEvidenceForQualificationTarget,
   qualificationEvidenceForBoundary,
   qualificationTaxonomiesFromFrozenSnapshot,
@@ -825,6 +826,131 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     const species = artifact.predictions[0].candidate.fieldAssignments.find(f => f.targetId === 'species');
     expect(species?.outcome).toBe('unresolved');
     expect(species?.values).toBeUndefined();
+  });
+
+  it('single-value claim without direct grounding stays unresolved (production parity)', async () => {
+    const calls = { count: 0 };
+    stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls);
+    const base: QualificationTaxonomies = {
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: [{ targetId: 'species', cardinality: 'single', options: ['Dog', 'Cat'] }],
+      pages: [],
+      typeAttributeProfiles: { grooming: 'p-groom' },
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: [{ attributeId: 'species', cardinality: 'single', required: false, applicabilityConditions: [] }],
+      }],
+      universalAttributeIds: [],
+    };
+    const taxa = attachFrozenAuthorityDetails(base, {
+      catalogFieldByTarget: { species: 'ProductField17' },
+      attributeConfigByTarget: {
+        species: {
+          valueAliases: [],
+          isClaim: true,
+          isCompositionAttribute: false,
+          visualEvidenceEligibility: 'eligible',
+        },
+      },
+    });
+    // Indirect-only grounding: the species clip names Dog but ships on a
+    // non-direct source, so the claim guard must hold the Choice unresolved.
+    const entry = makeNoulEntry([
+      { source: 'third_party_page', snippet: 'Dog', attributeId: 'species' },
+    ]);
+    const artifact = await captureGuardedJevForTest(
+      [entry],
+      { jev: { apiKey: 'fixture-choice-claim', model: NOUL_MODEL } },
+      taxa,
+    );
+    const species = artifact.predictions[0].candidate.fieldAssignments.find(f => f.targetId === 'species');
+    expect(species?.outcome).toBe('unresolved');
+    expect(species?.abstentionCode).toBe('unsupported_claim');
+    expect(species?.value).toBeUndefined();
+    // Same claim WITH a direct official clip resolves (guard intact, permission real).
+    const supported = await captureGuardedJevForTest(
+      [makeNoulEntry([
+        { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
+      ])],
+      { jev: { apiKey: 'fixture-choice-claim', model: NOUL_MODEL } },
+      taxa,
+    );
+    expect(supported.predictions[0].candidate.fieldAssignments.find(f => f.targetId === 'species')?.value).toBe('Dog');
+  });
+
+  it('candidate dispatch partitions by target-permitted evidence state (no shared union)', async () => {
+    const calls = { count: 0 };
+    const seenStates: Array<{ productType: unknown; evidenceText: string }> = [];
+    const outerFetch = globalThis.fetch;
+    stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls);
+    const innerFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const body = JSON.parse(String((init as { body?: unknown } | undefined)?.body ?? '{}')) as {
+        state?: { productType?: unknown; evidenceText?: unknown };
+      };
+      if (typeof body.state?.evidenceText === 'string') {
+        seenStates.push({ productType: body.state.productType, evidenceText: body.state.evidenceText });
+      }
+      return (innerFetch as typeof fetch)(url, init);
+    }) as unknown as typeof fetch;
+    const base: QualificationTaxonomies = {
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: [
+        { targetId: 'species', cardinality: 'single', options: ['Dog', 'Cat'] },
+        { targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] },
+      ],
+      pages: [],
+      typeAttributeProfiles: { grooming: 'p-groom' },
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: [
+          { attributeId: 'species', cardinality: 'single', required: false, applicabilityConditions: [] },
+          { attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] },
+        ],
+      }],
+      universalAttributeIds: [],
+    };
+    const taxa = attachFrozenAuthorityDetails(base, {
+      catalogFieldByTarget: { species: 'ProductField17', flavor: 'ProductField18' },
+      attributeConfigByTarget: {
+        species: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
+        flavor: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
+      },
+    });
+    const entry = makeNoulEntry([
+      { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
+      { source: 'official_product_page', snippet: 'Chicken', attributeId: 'flavor' },
+    ]);
+    // Pure partition proof (no credentials): per-target states never union.
+    const questions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, questions, 'grooming');
+    expect(groups.length).toBe(2);
+    for (const group of groups) {
+      expect(group.records.length).toBeGreaterThan(0);
+      expect(group.targetIds.length).toBe(1);
+      const [only] = group.targetIds;
+      expect(group.state.evidenceText.toLowerCase()).toContain(only === 'species' ? 'dog' : 'chicken');
+      expect(group.state.evidenceText.toLowerCase()).not.toContain(only === 'species' ? 'chicken' : 'dog');
+    }
+    // Live proof: the partitioned dispatch issues one state per group.
+    try {
+      await captureGuardedJevForTest(
+        [entry],
+        { jev: { apiKey: 'fixture-partition-key', model: NOUL_MODEL } },
+        taxa,
+      );
+    } finally {
+      globalThis.fetch = outerFetch;
+    }
+    expect(calls.count).toBeGreaterThan(1);
+    const attributeStates = seenStates.filter(s => s.productType === 'grooming');
+    expect(attributeStates.length).toBeGreaterThanOrEqual(2);
+    for (const item of attributeStates) {
+      const text = item.evidenceText.toLowerCase();
+      expect(text.includes('dog') !== text.includes('chicken')).toBe(true);
+    }
   });
 
   it('authority details ride the resolved target; stubs stay null/empty', () => {

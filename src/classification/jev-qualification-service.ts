@@ -564,6 +564,17 @@ function resolveJevAttributeApplicableIds(
  * an entry with no predictions and all applicable uncovered counts as a miss
  * (not correct, not an incorrect proposal); an abstention on
  * no-fit/insufficient-evidence with no predictions counts as correct.
+ *
+ * ALL-EXCLUDED choice (P1-3): an entry whose loop scores zero scorable
+ * targets (every slot inapplicable/unlabeled/legacy double-absent) is
+ * UNEVALUATED, never correct. This matches benchmark-evaluator semantics:
+ * `scoreEvaluatorFieldExample` returns `excluded` for such slots
+ * (benchmark-evaluator.ts `isExcludedFieldGold`) and the attribution caller
+ * returns early without tallying correctness (`verdict === 'excluded'`
+ * return), and the metrics path skips them via `isExcludedMetricsFieldSlot`
+ * (`continue`, no support). The entry's evaluated-count increment is undone
+ * and `attrUnevaluated` is bumped instead; set-metric slots already tallied
+ * for excluded targets are kept so extras stay visible as precision loss.
  */
 function accumulateJevAttributeStage(
   acc: JevComparisonAccumulator,
@@ -581,6 +592,7 @@ function accumulateJevAttributeStage(
   const candAttrMap = attributeValueSetsOf(entry.candidate.fieldAssignments);
   let allBaseFieldsCorrect = true;
   let allCandFieldsCorrect = true;
+  let scorableTargets = 0;
   for (const targetId of applicableIds) {
     const state = jevFieldStateOf(entry, targetId);
     const goldSet = goldAttrMap.get(targetId) ?? new Set<string>();
@@ -598,6 +610,7 @@ function accumulateJevAttributeStage(
     if (expectsJevFieldAbstention(state)) {
       // No-fit/insufficient-evidence: ONLY coded semantic-abstention proof at
       // sufficient probability is correct — an empty set alone proves nothing.
+      scorableTargets++;
       const expectedCode = expectedJevFieldAbstentionCode(state)!;
       scoreJevAttributeTarget(acc, goldSet, baseSet, candSet);
       baseExact = hasJevFieldAbstentionProof(entry.baseline, targetId, expectedCode);
@@ -606,6 +619,7 @@ function accumulateJevAttributeStage(
       if (!candExact) allCandFieldsCorrect = false;
       continue;
     }
+    scorableTargets++;
     const scored = scoreJevAttributeTarget(
       acc,
       goldSet,
@@ -616,6 +630,14 @@ function accumulateJevAttributeStage(
     candExact = scored.candExact;
     if (!baseExact) allBaseFieldsCorrect = false;
     if (!candExact) allCandFieldsCorrect = false;
+  }
+  if (scorableTargets === 0) {
+    // Entirely skipped loop: NOT a correct example (would otherwise score
+    // 100% with zero predictions). Unevaluated per the fixed-population
+    // contract — excluded slots are outside the eligible denominator.
+    acc.attrEvaluatedCount--;
+    acc.attrUnevaluated++;
+    return;
   }
   tallyJevAttributeOutcome(
     acc,

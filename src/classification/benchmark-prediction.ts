@@ -1180,6 +1180,7 @@ import {
   buildAttributeChoiceQuestion,
   buildAttributeNoulQuestions,
   evaluateMultiValueSelectionPolicy,
+  hasDirectProductEvidence,
   JEV_ATTRIBUTE_MIN_PROBABILITY,
   resolveAttributeDecision,
   type AttributeChoiceQuestionPlan,
@@ -1222,7 +1223,7 @@ import {
   SYSTEMONE_MULTI_MIN_PROBABILITY,
 } from './systemone-decision-core';
 import { llmRankOptions, type LlmRankResult } from './curation-target-ranker';
-import { normalizeAttributeId } from './evidence-targeting';
+import { buildEvidenceTargetPacket, normalizeAttributeId, tokenGroundingSupport } from './evidence-targeting';
 import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
 import {
   buildModelPolicyView,
@@ -2563,14 +2564,11 @@ function buildQualificationTypeState(entry: QualificationGoldOnlyEntry): {
  * Rich Jev state for attribute/page phases (mirrors BoundedAttributeState):
  * name + brand + the FROZEN resolved productType (never run alongside type
  * resolution — callers resolve PT first, freeze the effective type, then build
- * this state). Includes target-permitted evidence text (all frozen evidence is
- * permitted — the frozen taxonomy carries no visual-eligibility policy) plus
- * the joined evidence text production grounds on.
+ * this state). Legacy single-state shape (union snippets); partitioned
+ * dispatch supersedes it — each group carries its own target-permitted
+ * evidence text (visual-eligibility + attribute isolation applied).
  */
-function buildQualificationAttributeState(
-  entry: QualificationGoldOnlyEntry,
-  effectiveTypeId: string | null,
-): {
+export interface QualificationAttributeState {
   sku: string;
   name: string;
   brand: string | null;
@@ -2578,7 +2576,11 @@ function buildQualificationAttributeState(
   evidenceCount: number;
   evidenceText: string;
   snippets: string[];
-} {
+}
+function buildQualificationAttributeState(
+  entry: QualificationGoldOnlyEntry,
+  effectiveTypeId: string | null,
+): QualificationAttributeState {
   const snippets = entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
   return {
     sku: entry.sku,
@@ -3057,10 +3059,19 @@ function predictBaselineAttributes(
  * metadata: explicit no-match/insufficient_evidence selections become
  * `abstained-semantic` proof with the code + probability; below-floor values
  * and refusals become `unresolved` — never abstention credit).
+ *
+ * Production parity (`interpretAttributeEligibility` in
+ * `attribute-decision.ts`): the floor check rides first, then the chosen
+ * value regrounds through the shipped alias/catalog-field packet over the
+ * target-permitted evidence, and claim/composition targets need direct
+ * product support (shipped `hasDirectProductEvidence` check) — a
+ * claim-without-grounding Choice stays `unresolved` (`unsupported_claim`),
+ * never predicted.
  */
 function interpretLiveChoiceAttribute(
   plan: QualificationCandidateAttributePlan,
   answers: Record<string, SystemOneAnswer>,
+  permittedEvidence: ClassificationEvidence[],
 ): QualificationFieldAssignment | null {
   if (!plan.choicePlan) return null;
   const answer = requireChoiceAnswer(answers, plan.choicePlan.questionId);
@@ -3072,6 +3083,21 @@ function interpretLiveChoiceAttribute(
   const canonicalValue = choiceKeyToCanonicalId(plan.choicePlan.keyToIdMap, choiceKey, 'option value');
   if (prob < JEV_ATTRIBUTE_MIN_PROBABILITY) {
     return { targetId: plan.targetId, outcome: 'unresolved', abstentionCode: 'low_probability', probability: prob };
+  }
+  const attrId = plan.resolved.config.attributeId ?? plan.resolved.config.id;
+  const groundedPacket = buildEvidenceTargetPacket(permittedEvidence, {
+    attributeId: attrId,
+    sourceField: plan.resolved.config.catalogField ?? null,
+    selectionMode: 'single',
+    proposedValue: canonicalValue,
+    aliases: plan.resolved.attribute?.valueAliases ?? [],
+    isGroundingSupport: tokenGroundingSupport,
+  });
+  if (
+    (plan.resolved.attribute?.isClaim === true || plan.resolved.attribute?.isCompositionAttribute === true)
+    && !hasDirectProductEvidence(groundedPacket)
+  ) {
+    return { targetId: plan.targetId, outcome: 'unresolved', abstentionCode: 'unsupported_claim', probability: prob };
   }
   return { targetId: plan.targetId, value: canonicalValue, outcome: 'predicted', probability: prob };
 }
@@ -3141,13 +3167,10 @@ function interpretLiveCandidateAttributes(
 ): Array<QualificationFieldAssignment> {
   const out: Array<QualificationFieldAssignment> = [];
   for (const plan of plans) {
+    const targetPermitted = permittedEvidenceForQualificationTarget(evidence, plan.resolved.attribute, plan.targetId);
     const interpreted = plan.choicePlan
-      ? interpretLiveChoiceAttribute(plan, answers)
-      : interpretLiveNoulAttributes(
-        plan,
-        answers,
-        permittedEvidenceForQualificationTarget(evidence, plan.resolved.attribute, plan.targetId),
-      );
+      ? interpretLiveChoiceAttribute(plan, answers, targetPermitted)
+      : interpretLiveNoulAttributes(plan, answers, targetPermitted);
     if (interpreted) out.push(interpreted);
   }
   return out.sort((a, b) => a.targetId.localeCompare(b.targetId));
@@ -3403,6 +3426,79 @@ function assembleCandidateLiveQuestions(
   return records;
 }
 
+/**
+ * Partition one entry's candidate questions by target-permitted evidence
+ * state (production parity: batch independent questions ONLY when their
+ * permitted state is identical — `groupBatchItemsByState` in
+ * `attribute-decision.ts`; never union restricted evidence across targets).
+ * Exported so unit tests can prove the partition without credentials.
+ *
+ * Each returned group carries its own permitted-evidence state (name/brand/
+ * frozen type + that group's permitted snippets/text); records with no
+ * permitted evidence at all keep an explicit empty-evidence state (never a
+ * union refill). Callers dispatch one request series per group and merge
+ * answers. Groups hold stable question order.
+ */
+export interface PartitionedCandidateQuestionGroup {
+  state: QualificationAttributeState;
+  records: Array<{ questionId: string; question: QualificationLiveQuestion }>;
+  targetIds: string[];
+}
+export function partitionCandidateQuestionsByPermittedEvidence(
+  entry: QualificationGoldOnlyEntry,
+  questions: QualificationCandidateQuestionSet,
+  effectiveTypeId: string | null,
+): Array<PartitionedCandidateQuestionGroup> {
+  const boundaryEvidence = qualificationEvidenceForBoundary(entry, `qual-candidate-${entry.sku}`);
+  const byState = new Map<string, PartitionedCandidateQuestionGroup>();
+  const stateForTarget = (
+    attribute: ProductAttributeConfig | null | undefined,
+    targetId: string,
+  ): QualificationAttributeState => {
+    const permitted = permittedEvidenceForQualificationTarget(boundaryEvidence, attribute, targetId);
+    const snippets = permitted.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
+    return {
+      sku: entry.sku,
+      name: qualificationProductName(entry) || entry.sku,
+      brand: null,
+      productType: effectiveTypeId,
+      evidenceCount: permitted.length,
+      evidenceText: snippets.slice(0, 15).join('; ').slice(0, 4000),
+      snippets,
+    };
+  };
+  const pushRecord = (
+    targetId: string,
+    attribute: ProductAttributeConfig | null | undefined,
+    record: { questionId: string; question: QualificationLiveQuestion },
+  ): void => {
+    const state = stateForTarget(attribute, targetId);
+    const key = hashCanonicalJson(state);
+    const group = byState.get(key);
+    if (group) {
+      group.records.push(record);
+      if (!group.targetIds.includes(targetId)) group.targetIds.push(targetId);
+    } else {
+      byState.set(key, { state, records: [record], targetIds: [targetId] });
+    }
+  };
+  const planByQuestion = new Map<string, QualificationCandidateAttributePlan>();
+  for (const plan of questions.attributePlans) {
+    if (plan.choicePlan) planByQuestion.set(plan.choicePlan.questionId, plan);
+    for (const noul of plan.noulPlans ?? []) planByQuestion.set(noul.questionId, plan);
+  }
+  const pageTargetId = '__page__';
+  const ordered = assembleCandidateLiveQuestions(questions).filter(
+    r => r.questionId !== questions.productTypePlan.questionId,
+  );
+  for (const record of ordered) {
+    const plan = planByQuestion.get(record.questionId);
+    if (plan) pushRecord(plan.targetId, plan.resolved.attribute, record);
+    else pushRecord(pageTargetId, undefined, { ...record });
+  }
+  return [...byState.values()];
+}
+
 interface MergedLiveAnswers {
   answers: Record<string, SystemOneAnswer>;
   requestedModel: string;
@@ -3436,6 +3532,7 @@ async function dispatchCandidateLiveQuestions(
   let resolvedModel = target.model;
   let inputTokens = 0;
   let outputTokens = 0;
+  let firstDispatch = true;
   for (let offset = 0; offset < records.length; offset += CHUNK_SIZE) {
     const chunk = records.slice(offset, offset + CHUNK_SIZE);
     const questions: Record<string, QualificationLiveQuestion> = {};
@@ -3449,9 +3546,37 @@ async function dispatchCandidateLiveQuestions(
     );
     merged = { ...(merged ?? {}), ...result.answers };
     requestedModel = result.requestedModel;
-    if (offset === 0) resolvedModel = result.returnedModel;
+    if (firstDispatch) resolvedModel = result.returnedModel;
+    firstDispatch = false;
     inputTokens += result.usage.inputTokens;
     outputTokens += result.usage.outputTokens;
+  }
+  return { answers: merged ?? {}, requestedModel, resolvedModel, inputTokens, outputTokens };
+}
+
+/**
+ * Dispatch one entry's partitioned candidate groups (one request series per
+ * target-permitted evidence state — production parity), merging answers.
+ * Usage sums across groups; model identity comes from the first dispatch.
+ */
+async function dispatchPartitionedCandidateGroups(
+  target: ResolvedJevLiveTarget,
+  groups: Array<PartitionedCandidateQuestionGroup>,
+): Promise<MergedLiveAnswers> {
+  let merged: Record<string, SystemOneAnswer> | null = null;
+  let requestedModel = target.model;
+  let resolvedModel = target.model;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let firstDispatch = true;
+  for (const group of groups) {
+    const groupMerged = await dispatchCandidateLiveQuestions(target, group.records, group.state);
+    merged = { ...(merged ?? {}), ...groupMerged.answers };
+    requestedModel = groupMerged.requestedModel;
+    if (firstDispatch) resolvedModel = groupMerged.resolvedModel;
+    firstDispatch = false;
+    inputTokens += groupMerged.inputTokens;
+    outputTokens += groupMerged.outputTokens;
   }
   return { answers: merged ?? {}, requestedModel, resolvedModel, inputTokens, outputTokens };
 }
@@ -3676,14 +3801,13 @@ async function captureCandidateEntryLive(
     const typeMerged = await dispatchCandidateTypeMerged(target, typeRecords, typeState, typeOverLimit);
     const type = resolveLiveCandidateProductType(typeQuestions, typeMerged.answers, typeOverLimit);
     const effectiveTypeId = resolveCandidateEffectiveTypeId(type);
-    // Phase 2 — freeze the effective type, then build RICH attribute state and
-    // evaluate applicability (never gold). Pages consume the frozen type.
+    // Phase 2 — freeze the effective type, then partition attribute/page
+    // questions by target-permitted evidence state (production parity: batch
+    // independent questions ONLY when their permitted state is identical —
+    // never one shared union state). Pages consume the frozen type.
     const applicableQuestions = buildQualificationCandidateQuestionSet(entry, taxa, effectiveTypeId);
-    const attrPageRecords = assembleCandidateLiveQuestions(applicableQuestions).filter(
-      r => r.questionId !== typeQuestions.productTypePlan.questionId,
-    );
-    const attrState = buildQualificationAttributeState(entry, effectiveTypeId);
-    const attrMerged = await dispatchCandidateLiveQuestions(target, attrPageRecords, attrState);
+    const partitioned = partitionCandidateQuestionsByPermittedEvidence(entry, applicableQuestions, effectiveTypeId);
+    const attrMerged = await dispatchPartitionedCandidateGroups(target, partitioned);
     const merged = mergeCandidateLiveAnswers(typeMerged, attrMerged);
     // `live_captured` guarantees a model spoke: without resolvedModel + usage
     // the side is an abstention/failure, never live_captured (fail-closed).
@@ -4712,10 +4836,21 @@ export function hashDevReplaySourceInputs(
  * the caller's taxonomy input must reproduce `artifact.artifactHash`, else
  * the capture is scored under an identity describing different predictions.
  * Fail-closed — a mismatch throws before scoring or reusing the identity.
+ *
+ * The capture-time source-input commitment (`sourceInputsHash`, finding 2)
+ * is part of the checked identity (P1-1): `artifactHash` covers predictions
+ * + taxonomy + policy + authority but NOT the commitment, so without this
+ * gate a replaced/removed commitment would still verify. Current-version
+ * captures without a commitment are rejected; genuinely legacy captures
+ * (pre-commitment predictor version) fail closed with a rerun message —
+ * never silently accepted. Pass `entries` (the LOADED capture inputs) to
+ * verify the commitment binding; without them only presence is checked.
+ * The artifact digest itself is untouched (no scoring change).
  */
 export function assertQualificationArtifactIntegrity(
   artifact: QualificationPredictionArtifact,
   taxonomies?: QualificationTaxonomyInput,
+  entries?: QualificationGoldOnlyEntry[],
 ): void {
   if (!artifact || !Array.isArray(artifact.predictions) || typeof artifact.artifactHash !== 'string') {
     throw new Error('Captured comparison artifact is malformed.');
@@ -4723,9 +4858,16 @@ export function assertQualificationArtifactIntegrity(
   if (typeof artifact.entryCount === 'number' && artifact.predictions.length !== artifact.entryCount) {
     throw new Error('Captured comparison artifact identity does not match its predictions.');
   }
-  if (artifact.predictorVersion !== QUALIFICATION_PREDICTOR_VERSION ||
-    artifact.decisionPolicyHash !== qualificationDecisionPolicyHash()) {
+  if (artifact.predictorVersion !== QUALIFICATION_PREDICTOR_VERSION) {
+    throw new Error(
+      `Captured comparison artifact is a legacy capture (predictor ${typeof artifact.predictorVersion === 'string' ? artifact.predictorVersion : 'unknown'}, current ${QUALIFICATION_PREDICTOR_VERSION}): rerun live capture; refusing to score.`,
+    );
+  }
+  if (artifact.decisionPolicyHash !== qualificationDecisionPolicyHash()) {
     throw new Error('Captured comparison artifact identity does not match its predictions.');
+  }
+  if (typeof artifact.sourceInputsHash !== 'string' || artifact.sourceInputsHash.length === 0) {
+    throw new Error('Captured comparison artifact lacks a capture-time source-input commitment (legacy capture: rerun live capture).');
   }
   const stubEntries = artifact.predictions.map(({ sku }) => ({
     sku,
@@ -4740,6 +4882,14 @@ export function assertQualificationArtifactIntegrity(
     evidence: [],
   }) as QualificationGoldOnlyEntry);
   const resolved = resolveQualificationTaxonomies(taxonomies, stubEntries);
+  if (entries !== undefined) {
+    const commitmentDetails = resolved.taxonomies.frozenAuthorityDetails ?? null;
+    const recomputedCommitment = hashQualificationSourceInputs(entries, resolved,
+      commitmentDetails?.authorityHash ?? null, frozenAuthorityDetailsHash(commitmentDetails));
+    if (recomputedCommitment !== artifact.sourceInputsHash) {
+      throw new Error('Captured comparison artifact source-input commitment does not match its inputs.');
+    }
+  }
   const recomputed = hashQualificationPredictions(artifact.predictions, resolved);
   if (recomputed !== artifact.artifactHash) {
     throw new Error('Captured comparison artifact identity does not match its predictions.');

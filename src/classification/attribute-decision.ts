@@ -134,6 +134,18 @@ const DIRECT_EVIDENCE_SOURCES = new Set([
   'catalog_product',
 ]);
 
+/**
+ * True when a grounded target packet carries target-specific direct product
+ * evidence (claims/composition guard — exported as the production parity
+ * seam so the benchmark candidate interpreter reuses this shipped check
+ * instead of reimplementing the approved-source set).
+ */
+export function hasDirectProductEvidence(
+  packet: Pick<EvidenceTargetPacket, 'supporting'>,
+): boolean {
+  return packet.supporting.some(e => DIRECT_EVIDENCE_SOURCES.has(e.source));
+}
+
 const now = () => new Date().toISOString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────

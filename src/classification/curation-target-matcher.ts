@@ -165,16 +165,28 @@ function tokenizedLabel(label: string, stopWords?: Set<string>): string[] {
 // per-taxonomy arrays hit; one-shot caller arrays miss with ~zero cost.
 // Built lazily on second sighting so one-shot callers never pay index
 // construction. Default stop set only; custom sets take the direct paths.
-// Length-guarded: a caller-mutated array (length change) discards the
-// index and rescans directly rather than risking stale postings.
+// Length-guarded + content-guarded: a caller-mutated array (length change
+// or same-length content change, detected via the value/label fingerprint)
+// rebuilds the index rather than risking stale postings.
+// Fingerprinting runs only when a cached index exists or one is being
+// built, so one-shot callers stay ~zero-cost.
 interface KeywordTokenIndex {
   optionTokens: string[][];
   /** token -> [option index, occurrences of the token in that option's label]. */
   postings: Map<string, Array<[index: number, count: number]>>;
   optionCount: number;
+  /** Join of value/label pairs; rebuilt on mismatch. */
+  fingerprint: string;
 }
 const keywordIndexSeen = new WeakSet<object>();
 const keywordIndexCache = new WeakMap<object, KeywordTokenIndex>();
+
+function keywordFingerprint(options: Array<{ value: string; label: string }>): string {
+  // Joined value/label pairs: same-length caller mutations change the
+  // join. Runs only on second-or-later sightings of a stable array (never
+  // for one-shot callers), so the steady-state cost is one join per call.
+  return options.map(opt => `${opt.value} ${opt.label}`).join(' | ');
+}
 
 function buildKeywordTokenIndex(
   options: Array<{ value: string; label: string }>,
@@ -190,14 +202,22 @@ function buildKeywordTokenIndex(
       else postings.set(token, [[i, count]]);
     }
   }
-  return { optionTokens, postings, optionCount: options.length };
+  return { optionTokens, postings, optionCount: options.length, fingerprint: keywordFingerprint(options) };
 }
 
 function keywordIndexFor(
   options: Array<{ value: string; label: string }>,
 ): KeywordTokenIndex | null {
   const cached = keywordIndexCache.get(options);
-  if (cached) return cached.optionCount === options.length ? cached : null;
+  if (cached) {
+    // Same array, mutated in place (length change or same-length content
+  // change): a fingerprint mismatch rebuilds rather than serving stale
+  // postings or silently rescanning forever.
+    if (cached.optionCount === options.length && cached.fingerprint === keywordFingerprint(options)) return cached;
+    const rebuilt = buildKeywordTokenIndex(options);
+    keywordIndexCache.set(options, rebuilt);
+    return rebuilt;
+  }
   if (!keywordIndexSeen.has(options)) {
     keywordIndexSeen.add(options);
     return null;
@@ -249,9 +269,12 @@ function matchKeywordTop1Indexed(
     // Total order mirrors the direct sort (confidence desc, label asc)
     // with array position as the final tie-break (the direct stable sort
     // keeps full ties in array order; touch order must not leak through).
+    // Collation equality (localeCompare === 0, e.g. NFC pairs like
+    // 'café' vs 'café') — not string equality — decides the final
+    // tie-break, matching the general indexed path's comparator.
     if (!best || confidence > best.confidence ||
         (confidence === best.confidence && (opt.label.localeCompare(best.label) < 0 ||
-          (opt.label === best.label && i < bestIndex)))) {
+          (opt.label.localeCompare(best.label) === 0 && i < bestIndex)))) {
       best = { value: opt.value, label: opt.label, confidence, matchedTokens: tokens.filter(t => evidenceTokens.has(t)) };
       bestIndex = i;
     }
@@ -314,10 +337,14 @@ function matchKeywordGeneralIndexed(
  * Score options against evidence text using word/token overlap.
  * Each option label is tokenized; tokens present in the evidence text
  * count as hits. Score = hits / total option tokens.
+ *
+ * `maxResults` is clamped to >= 0 (a negative value yields `[]` on every
+ * path — direct, indexed top-1, and indexed general — rather than leaking
+ * `Array.slice` negative-end semantics inconsistently across paths).
  */
 export function matchKeywordOptions(params: MatchKeywordParams): MatchedOption[] {
   const { options, text, selectionMode, stopWords } = params;
-  const maxResults = params.maxResults ?? (selectionMode === 'multiple' ? 5 : 1);
+  const maxResults = Math.max(0, params.maxResults ?? (selectionMode === 'multiple' ? 5 : 1));
 
   if (options.length === 0 || !text || text.length < 3) return [];
 
