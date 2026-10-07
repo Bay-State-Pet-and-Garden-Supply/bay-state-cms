@@ -216,6 +216,16 @@ describe('jev v3 collector guards (pure, no network)', () => {
     expect(selectFetchUrls(['https://fixtures.test/about'], 10)).toEqual([]);
   });
 
+  it('selectFetchUrls admits category-harvested prequalified URLs past the score floor (proof still applies downstream)', () => {
+    // BigCommerce-style flat slugs score below the /products/ floor but are
+    // qualified by category-listing context; the JSON-LD identity proof in
+    // collectPage still rejects non-products.
+    const flat = 'https://fixtures.test/kong-classic';
+    expect(selectFetchUrls([flat], 10)).toEqual([]);
+    expect(selectFetchUrls([flat], 10, new Set([flat]))).toEqual([flat]);
+    expect(selectFetchUrls([flat, 'https://fixtures.test/about'], 10, new Set([flat]))).toEqual([flat]);
+  });
+
   it('parseSeedFile accepts validated domain-only seeds and rejects URLs/duplicates/overflow', () => {
     const good: Seed[] = [
       { domain: 'acme-pet-foods.com', brand: 'Acme', stratum: 'toys', sourceRule: 'sitemap + pages' },

@@ -385,19 +385,78 @@ async function collectFeedProducts(seed: Seed, exclusion: ReturnType<typeof load
   return out;
 }
 
-async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Promise<string[]> {
+async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Promise<{ urls: string[]; prequalified: Set<string> }> {
   const urls: string[] = [];
+  // Category-listing-harvested product candidates: admitted by page
+  // context (listings link products), still subject to the JSON-LD proof.
+  const prequalified = new Set<string>();
   const queue = [`https://${seed.domain}/sitemap.xml`];
   const seen = new Set<string>();
   const id = (k: string): string => `${seed.domain}:${k}`;
+  // BigCommerce/HTML fallback: stores whose XML sitemap 404s (e.g. custom
+  // themes) often still serve an HTML sitemap at /sitemap.php listing
+  // category pages. Tried once per seed, after the XML miss.
+  let htmlFallbackDone = false;
   while (queue.length > 0 && urls.length < 600 && seen.size < 20) {
     const url = queue.shift()!;
     if (seen.has(url)) continue;
     seen.add(url);
     const res = await fetchOnce(url, 'sitemap');
-    if (!res) { stats[id('sitemap-miss')] = (stats[id('sitemap-miss')] ?? 0) + 1; break; }
+    if (!res) {
+      stats[id('sitemap-miss')] = (stats[id('sitemap-miss')] ?? 0) + 1;
+      if (!htmlFallbackDone && url.endsWith('/sitemap.xml')) {
+        htmlFallbackDone = true;
+        queue.push(`https://${seed.domain}/sitemap.php`);
+        continue;
+      }
+      break;
+    }
     const $ = load(res.text, { xmlMode: true });
     const locs = $('loc').map((_, el) => $(el).text().trim()).get().filter(u => u.startsWith('https://'));
+    const isSitemapPhp = /sitemap\.php$/.test(url);
+    if (locs.length === 0 && (isSitemapPhp || !/\.xml(\.gz)?($|\?)/i.test(url))) {
+      // HTML sitemap page: harvest same-site anchors. Product-like links
+      // join the URL pool; category links recurse as discovery pages under
+      // the same seen/attempt caps. Every product URL still faces the
+      // JSON-LD identity proof in collectPage — discovery widens, proof
+      // does not weaken.
+      stats[id('sitemap-html')] = (stats[id('sitemap-html')] ?? 0) + 1;
+      const $$ = load(res.text);
+      const anchors = new Set<string>();
+      $$('a[href]').each((_, el) => {
+        const href = String($$(el).attr('href') ?? '').split('?')[0].split('#')[0];
+        if (href.startsWith('https://')) anchors.add(href);
+      });
+      for (const u of anchors) {
+        try {
+          if (!sameSite(u, `https://${seed.domain}`)) continue;
+        } catch { continue; }
+        if (scoreUrl(u) >= 3) {
+          if (urls.length < 600) urls.push(u);
+          continue;
+        }
+        if (NON_PRODUCT_HINT.test(u) || seen.has(u)) continue;
+        let pathname = '';
+        try { pathname = new URL(u).pathname; } catch { continue; }
+        if (/\/sitemap\.php$/.test(u) || !/\/[^./]+\/?$/.test(pathname)) continue;
+        if (isSitemapPhp) {
+          // Sitemap page: nav/category harvest. Recurse as discovery under
+          // the same seen/attempt caps.
+          if (seen.size < 20) queue.push(u);
+        } else if (urls.length < 600) {
+          // Category listing page: unknown same-site directory URLs are
+          // product CANDIDATES by context (the listing links products, not
+          // nav). They bypass the score floor but NOT the downstream
+          // selectFetchUrls economy filter or the JSON-LD identity proof
+          // in collectPage — a non-product fetch burns budgeted attempts
+          // and is rejected as excludedNonProduct.
+          stats[id('sitemap-html-candidates')] = (stats[id('sitemap-html-candidates')] ?? 0) + 1;
+          prequalified.add(u);
+          urls.push(u);
+        }
+      }
+      continue;
+    }
     stats[id('sitemap-locs')] = (stats[id('sitemap-locs')] ?? 0) + locs.length;
     const children = locs.filter(u => /\.xml(\.gz)?$/i.test(u));
     if (children.length > 0) {
@@ -413,7 +472,7 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
       }
     }
   }
-  return [...new Set(urls)];
+  return { urls: [...new Set(urls)], prequalified };
 }
 
 const PRODUCT_HINT = /(product|shop|store|collection|\/p\/|\/item|\/dp\/|\.html?$)/i;
@@ -451,12 +510,15 @@ export function partitionFeedRows(
  * Pre-fetch discovery filter: only product-like sitemap URLs are ever
  * fetched. Obvious nav/FAQ/ingredient/listing/cookie/policy URLs are
  * rejected BEFORE any costly fetch — there is no non-product fallback.
+ * Category-listing-harvested candidates (prequalified) bypass the score
+ * floor — their listing context is the qualification — but face the same
+ * JSON-LD identity proof downstream.
  */
-export function selectFetchUrls(sitemapUrls: string[], cap: number): string[] {
+export function selectFetchUrls(sitemapUrls: string[], cap: number, prequalified?: ReadonlySet<string>): string[] {
   const ranked = [...new Set(sitemapUrls)]
     .filter(u => u.startsWith('https://'))
     .map(u => ({ u, s: scoreUrl(u) }))
-    .filter(x => x.s >= 3)
+    .filter(x => x.s >= 3 || prequalified?.has(x.u))
     .sort((a, b) => b.s - a.s);
   return ranked.slice(0, cap).map(x => x.u);
 }
@@ -579,7 +641,8 @@ async function main(): Promise<void> {
     if (attemptCount >= ATTEMPT_CAP) break;
     // Sitemap first: feed verification requires an actual sitemap match.
     let sitemapUrls: string[] = [];
-    if (attemptCount < ATTEMPT_CAP) sitemapUrls = await collectSitemapUrls(seed, stats);
+    let prequalified = new Set<string>();
+    if (attemptCount < ATTEMPT_CAP) ({ urls: sitemapUrls, prequalified } = await collectSitemapUrls(seed, stats));
     stats[`${seed.domain}:sitemap-urls`] = sitemapUrls.length;
     const feedRows = await collectFeedProducts(seed, exclusion, stats);
     // Only sitemap-matched feed rows are admitted as verified feed evidence.
@@ -595,6 +658,7 @@ async function main(): Promise<void> {
     const pageQueue = selectFetchUrls(
       [...sitemapUrls, ...unverified.map(c => String(c.row.canonicalUrl))],
       250,
+      prequalified,
     );
     stats[`${seed.domain}:fetch-queued`] = pageQueue.length;
     let added = 0;
