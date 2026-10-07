@@ -1,0 +1,14 @@
+[
+  {
+    "domain": "earthanimal.com",
+    "brand": "Earth Animal",
+    "stratum": "care",
+    "sourceRule": "official sitemap + product pages (pilot: 40 page rows probed, care/grooming types)"
+  },
+  {
+    "domain": "mywoof.com",
+    "brand": "MyWoof",
+    "stratum": "toys",
+    "sourceRule": "official sitemap + product pages (pilot: 36 page rows probed, dog-toys need 18)"
+  }
+]

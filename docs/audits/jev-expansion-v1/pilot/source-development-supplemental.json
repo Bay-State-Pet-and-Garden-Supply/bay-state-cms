@@ -1,0 +1,104 @@
+[
+  {
+    "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+    "title": "Wisdom Air-Dried Turkey Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried Turkey Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky",
+    "sourceHash": "40241fb430af05d777725c4d4a4bc71114433415daa57f16cc6ce3849d0bb77f",
+    "retrievedAt": "2026-10-07T03:20:45.684Z",
+    "familyId": "family-06cacbc6492c269d00e939a3561edf5c",
+    "excerpts": [
+      {
+        "text": "Our Wisdom Turkey Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+    "title": "Beef Woof Puzzle Treats",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/woof-puzzle-treats-beef",
+    "productIdentity": "Woof: Beef Woof Puzzle Treats",
+    "sourceLocator": "https://mywoof.com/products/woof-puzzle-treats-beef",
+    "sourceHash": "1afc89a79240588c432b225178a5501ec8c03e4cdb66454c4dc93bee96ccfd3d",
+    "retrievedAt": "2026-10-07T03:20:50.739Z",
+    "familyId": "family-18bda88271f83f3c629505fcdb812fc3",
+    "excerpts": [
+      {
+        "text": "The perfect match for Forager puzzle toys, these irresistible treats fuel long-lasting fun.",
+        "locator": "https://mywoof.com/products/woof-puzzle-treats-beef JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+    "title": "Beef Love Nuggets",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/love-nuggets",
+    "productIdentity": "Woof: Beef Love Nuggets",
+    "sourceLocator": "https://mywoof.com/products/love-nuggets",
+    "sourceHash": "c2647306b4e12b0309f180ecb9514cf3de1533a99cd9b743a854147a1f8d7d98",
+    "retrievedAt": "2026-10-07T03:21:33.639Z",
+    "familyId": "family-5aa8360eb79871c8197a9150fb201cca",
+    "excerpts": [
+      {
+        "text": "Training treats for your on-the-go adventures!",
+        "locator": "https://mywoof.com/products/love-nuggets JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "High in protein, and made in the USA with human-grade ingredients.",
+        "locator": "https://mywoof.com/products/love-nuggets JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:7a15244a933d194f",
+    "title": "FlipMat Mini",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/flipmat-mini",
+    "productIdentity": "Woof: FlipMat Mini",
+    "sourceLocator": "https://mywoof.com/products/flipmat-mini",
+    "sourceHash": "6d861e6a2aeb7cd46e78fb444ce0fc86bdf2694f0bec748ff66143e3293cd26a",
+    "retrievedAt": "2026-10-07T03:21:02.053Z",
+    "familyId": "family-c7b46cc97b7f87a97680c07b4cfbb70c",
+    "excerpts": [
+      {
+        "text": "The FlipMat Mini is a dual-sided lick mat and slow feeder designed for on-the-go enrichment and delicious dogstraction.",
+        "locator": "https://mywoof.com/products/flipmat-mini JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+    "title": "Chicken Pops: 2 Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/chicken-pops-2pack",
+    "productIdentity": "Woof: Chicken Pops: 2 Pack",
+    "sourceLocator": "https://mywoof.com/products/chicken-pops-2pack",
+    "sourceHash": "a116923a2d14600e900a8dbcaa946e6d66c56ac2beac22648b9bb37fe4a12608",
+    "retrievedAt": "2026-10-07T03:21:32.238Z",
+    "familyId": "family-18d0390e575ece87c94048aa0734984c",
+    "excerpts": [
+      {
+        "text": "Our longest-lasting treats for The Pupsicle.",
+        "locator": "https://mywoof.com/products/chicken-pops-2pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA with human-grade ingredients.",
+        "locator": "https://mywoof.com/products/chicken-pops-2pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]

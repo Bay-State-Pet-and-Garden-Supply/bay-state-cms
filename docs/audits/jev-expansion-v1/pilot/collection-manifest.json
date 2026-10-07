@@ -1,0 +1,82 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 42,
+      "earthanimal.com:sitemap-locs": 204,
+      "earthanimal.com:sitemap-children": 2,
+      "earthanimal.com:sitemap-urls": 199,
+      "earthanimal.com:feed-rows": 0,
+      "earthanimal.com:feed-unverified": 75,
+      "earthanimal.com:fetch-queued": 75,
+      "excludedNonProduct": 35,
+      "earthanimal.com:page-rows": 40,
+      "mywoof.com:sitemap-locs": 1038,
+      "mywoof.com:sitemap-children": 32,
+      "mywoof.com:sitemap-urls": 600,
+      "mywoof.com:feed-rows": 0,
+      "mywoof.com:feed-unverified": 55,
+      "mywoof.com:fetch-queued": 55,
+      "mywoof.com:page-rows": 55
+    }
+  },
+  "attempts": {
+    "used": 139,
+    "cap": 400,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 139,
+      "totalSourceAttempts": 1624,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1624,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 90,
+    "devPrimary": 76,
+    "devSupplemental": 5,
+    "holdoutFamilies": 14,
+    "holdoutRows": 14
+  },
+  "commitments": {
+    "bankHash": "5e7350f07542bbc629b1633e841b5ca90f785d80abfa93c2b4ee7d2079dd1b29",
+    "holdoutHash": "709f2f4a0b53953e8a0058038ac925d117304bdcbf6627c66a10bbfe9e594a9f",
+    "memberHash": "16a9a0bbc1924e9fb333a4ec1f769892ac929c06680da3c9a910237b81cd76a1",
+    "ledgerHash": "a81f214c0d5593ed8b504390cb554ed6915319e947e9323747495db1b8759f7e",
+    "cumulativeHash": "2f01437f878a28574799609047006568264fe91dd4cd28e95e9fe5bb9261ea2b",
+    "devHash": "a215b6dcc7f686f50e88e477be1df18a5d61c7ad1e563a0ae097a2bd443c6c2e",
+    "devSuppHash": "cdce4cfc1893a6f9347f61ddf937f37e8ab06e43453e663b19523cd94303e850"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}
