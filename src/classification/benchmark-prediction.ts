@@ -1237,9 +1237,13 @@ import type { LlmTask } from '../db/repositories/llm-task-config-repo';
 import { evaluateAttributeApplicability } from './applicability-evaluator';
 import { buildFrozenTaxonomyCandidates } from './benchmark-exporter';
 
-/** Honest capture v6: v5 plus per-target/page raw outcome metadata (coded semantic
+/** Honest capture v7: v6 plus per-target/page raw outcome metadata (coded semantic
  * abstention proof with probability, unresolved Noul/matcher silence) hashed into the artifact. */
-export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v7' as const;
+export const QUALIFICATION_LEGACY_PRE_COMMITMENT_PREDICTOR_VERSION = 'code-executed-v7' as const;
+/** Honest capture v8: v7 plus the capture-time source-input commitment bound
+ * into the artifact digest, so a recomputed digest for changed evidence no
+ * longer verifies against the original predictions. */
+export const QUALIFICATION_PREDICTOR_VERSION = 'code-executed-v8' as const;
 
 /**
  * Explicit prediction-source contract for qualification captures.
@@ -1660,7 +1664,7 @@ export type QualificationTaxonomySource = 'frozen_snapshot' | 'gold_union';
 
 /** Immutable artifact binding executed predictions to their inputs. */
 export interface QualificationPredictionArtifact {
-  predictorVersion: typeof QUALIFICATION_PREDICTOR_VERSION;
+  predictorVersion: typeof QUALIFICATION_PREDICTOR_VERSION | typeof QUALIFICATION_LEGACY_PRE_COMMITMENT_PREDICTOR_VERSION;
   artifactHash: string;
   decisionPolicyHash: string;
   predictedAt: string;
@@ -2535,6 +2539,18 @@ function qualificationProductName(entry: QualificationGoldOnlyEntry): string {
   const first = entry.evidence.map(ev => ev.snippet ?? '').find(s => s.trim().length > 0);
   return first?.slice(0, 200) ?? entry.sku;
 }
+/**
+ * Per-target-permitted product name for Jev request state (re-review P1-4):
+ * the first permitted snippet for the dispatch group, mirroring production's
+ * first-wins name slot. Returns an explicit empty string when the group has
+ * no permitted snippets — callers apply the documented `|| sku` fallback —
+ * so an ineligible clip can never leak into a restricted target's state,
+ * including Noul instruction strings. Never a gold label.
+ */
+function qualificationPermittedProductName(permitted: ClassificationEvidence[]): string {
+  const first = permitted.map(ev => ev.snippet ?? '').find(s => s.trim().length > 0);
+  return first?.slice(0, 200) ?? '';
+}
 
 /** Rich Jev state for the product-type phase (mirrors BoundedProductTypeState). */
 function buildQualificationTypeState(entry: QualificationGoldOnlyEntry): {
@@ -2906,11 +2922,12 @@ export function buildQualificationCandidateQuestionSet(
       ).map(f => f.targetId),
     );
   const variableApplicable = applicable.filter(t => !invariantIds.has(t.targetId));
-  const productContext = {
-    name: qualificationProductName(entry),
-    brand: null,
-    productType: effectiveTypeId ?? null,
-  };
+  // Per-target-permitted Noul names (re-review P1-4): each multiple-
+  // cardinality target's Noul instruction strings carry the first snippet
+  // permitted for THAT target — never the first-unrestricted-snippet union
+  // name. A target with no permitted snippets falls back to the SKU (the
+  // same documented fallback the partitioned request state uses).
+  const boundaryEvidenceForNames = qualificationEvidenceForBoundary(entry, `qual-candidate-${entry.sku}`);
   const attributePlans: QualificationCandidateAttributePlan[] = [];
   for (const target of variableApplicable) {
     // REAL frozen authority (aliases, claim/composition flags, catalog
@@ -2920,6 +2937,13 @@ export function buildQualificationCandidateQuestionSet(
     // grounding, never gold).
     const resolved = templateResolvedTarget(templates, target, taxonomies);
     if (target.cardinality === 'multiple') {
+      const targetPermitted = permittedEvidenceForQualificationTarget(
+        boundaryEvidenceForNames,
+        resolved.attribute,
+        target.targetId,
+      );
+      const targetName = qualificationPermittedProductName(targetPermitted) || entry.sku;
+      const productContext = { name: targetName, brand: null, productType: effectiveTypeId ?? null };
       attributePlans.push({
         targetId: target.targetId,
         cardinality: target.cardinality,
@@ -3451,15 +3475,34 @@ export function partitionCandidateQuestionsByPermittedEvidence(
 ): Array<PartitionedCandidateQuestionGroup> {
   const boundaryEvidence = qualificationEvidenceForBoundary(entry, `qual-candidate-${entry.sku}`);
   const byState = new Map<string, PartitionedCandidateQuestionGroup>();
+  // Page-group evidence permissions (page-group P2): production keeps
+  // species/brand-attributed evidence for pages (`page-decision.ts:133,1818-
+  // 1822` via `evidence-targeting.ts:430-434` — records with an explicit
+  // page-context attributeId are included even without the source field),
+  // so the `__page__` attribute-isolation filter would starve page groups.
+  // Build page-group state with page-specific evidence permissions instead.
+  const PAGE_PERMITTED_ATTRIBUTE_IDS: Record<string, true> = { species: true, brand: true };
+  const permittedEvidenceForPageTarget = (): ClassificationEvidence[] =>
+    boundaryEvidence.filter(ev => {
+      const normId = normalizeAttributeId(ev.attributeId);
+      if (normId && PAGE_PERMITTED_ATTRIBUTE_IDS[normId]) return true;
+      if (ev.attributeId != null) return false;
+      return true;
+    });
   const stateForTarget = (
     attribute: ProductAttributeConfig | null | undefined,
     targetId: string,
   ): QualificationAttributeState => {
-    const permitted = permittedEvidenceForQualificationTarget(boundaryEvidence, attribute, targetId);
+    const permitted = targetId === '__page__'
+      ? permittedEvidenceForPageTarget()
+      : permittedEvidenceForQualificationTarget(boundaryEvidence, attribute, targetId);
     const snippets = permitted.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
     return {
       sku: entry.sku,
-      name: qualificationProductName(entry) || entry.sku,
+      // Per-target-permitted name (re-review P1-4): first permitted snippet
+      // for this group; explicit SKU fallback when the group has no
+      // permitted snippets — never the first-unrestricted-snippet union.
+      name: qualificationPermittedProductName(permitted) || entry.sku,
       brand: null,
       productType: effectiveTypeId,
       evidenceCount: permitted.length,
@@ -4177,15 +4220,20 @@ async function captureBaselineAttributesWithRealBoundary(input: {
 }): Promise<void> {
   const { entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds, fields } = input;
   const evidence = qualificationEvidenceForBoundary(entry, runId);
-  const productContext = {
-    name: qualificationProductName(entry),
-    brand: null,
-    productType: effectiveTypeId,
-  };
   for (const targetId of attrTargetIds) {
     const target = taxa.attributeTargets.find(t => t.targetId === targetId);
     if (!target) continue;
     const { resolved } = stubAttributeTarget(target);
+    // Per-target-permitted name (re-review P1-4): the baseline boundary
+    // also builds Noul instruction strings from productContext, so seed it
+    // with the first snippet permitted for THIS target (SKU fallback when
+    // the target has no permitted snippets) — never the union name.
+    const targetPermitted = permittedEvidenceForQualificationTarget(evidence, resolved.attribute, targetId);
+    const productContext = {
+      name: qualificationPermittedProductName(targetPermitted) || entry.sku,
+      brand: null,
+      productType: effectiveTypeId,
+    };
     const decision = await resolveAttributeDecision({
       target: resolved,
       cardinality: target.cardinality,
@@ -4715,8 +4763,14 @@ async function captureBaselineEntryLive(
 }
 
 /**
- * Hash semantic predictions only: per-entry wall-clock latency and
- * diagnostic `blockedDetail` text are real telemetry recorded on the
+ * Verified artifact identity (P1-1): the digest covers predictions +
+ * taxonomy + policy + authority AND the capture-time source-input
+ * commitment (`sourceInputsHash`, identity version `code-executed-v8`).
+ * Binding the commitment in means swapping in a recomputed digest for
+ * changed evidence no longer verifies against the original predictions —
+ * the digest moves with the swapped commitment while the stored
+ * `artifactHash` stays bound to the original. Per-entry wall-clock latency
+ * and diagnostic `blockedDetail` text are real telemetry recorded on the
  * artifact, but they must not affect identity — the same gold entries always
  * yield the same artifact hash. Source/identity markers (source, blockedCode,
  * requested/resolved model, provider, usage) ARE semantic and ARE hashed.
@@ -4732,6 +4786,7 @@ function hashQualificationPredictions(
     frozenTaxonomyHash: string | null;
     taxonomies: QualificationTaxonomies;
   },
+  sourceInputsHash: string,
 ): string {
   const hashableSide = (side: ExecutedQualificationPrediction): Record<string, unknown> => ({
     productType: side.productType,
@@ -4766,11 +4821,13 @@ function hashQualificationPredictions(
   const authorityHash = details?.authorityHash ?? null;
   const authorityDetailsHash = frozenAuthorityDetailsHash(details);
   return sha256Hex(JSON.stringify({
+    identityVersion: QUALIFICATION_PREDICTOR_VERSION,
     predictions: hashable,
     taxonomy: hashableTaxonomyProvenance(resolved),
     decisionPolicyHash: qualificationDecisionPolicyHash(),
     authorityHash,
     authorityDetailsHash,
+    sourceInputsHash,
   }));
 }
 
@@ -4838,14 +4895,15 @@ export function hashDevReplaySourceInputs(
  * Fail-closed — a mismatch throws before scoring or reusing the identity.
  *
  * The capture-time source-input commitment (`sourceInputsHash`, finding 2)
- * is part of the checked identity (P1-1): `artifactHash` covers predictions
- * + taxonomy + policy + authority but NOT the commitment, so without this
- * gate a replaced/removed commitment would still verify. Current-version
- * captures without a commitment are rejected; genuinely legacy captures
- * (pre-commitment predictor version) fail closed with a rerun message —
- * never silently accepted. Pass `entries` (the LOADED capture inputs) to
- * verify the commitment binding; without them only presence is checked.
- * The artifact digest itself is untouched (no scoring change).
+ * is BOUND into the verified identity (P1-1): current-version digests cover
+ * predictions + taxonomy + policy + authority + the commitment, so swapping
+ * in a recomputed commitment for changed evidence moves the digest while the
+ * stored `artifactHash` stays bound to the original — the swap is rejected.
+ * Genuinely legacy captures (`code-executed-v7`, pre-commitment digest)
+ * verify-or-fail-closed via the legacy digest path with a rerun message —
+ * never silently accepted, never re-scored as current. Pass `entries` (the
+ * LOADED capture inputs) to also verify the commitment binding; without
+ * them only the bound identity is checked.
  */
 export function assertQualificationArtifactIntegrity(
   artifact: QualificationPredictionArtifact,
@@ -4857,6 +4915,11 @@ export function assertQualificationArtifactIntegrity(
   }
   if (typeof artifact.entryCount === 'number' && artifact.predictions.length !== artifact.entryCount) {
     throw new Error('Captured comparison artifact identity does not match its predictions.');
+  }
+  if (artifact.predictorVersion === QUALIFICATION_LEGACY_PRE_COMMITMENT_PREDICTOR_VERSION) {
+    throw new Error(
+      `Captured comparison artifact is a legacy capture (predictor ${QUALIFICATION_LEGACY_PRE_COMMITMENT_PREDICTOR_VERSION}, current ${QUALIFICATION_PREDICTOR_VERSION}): rerun live capture; refusing to score.`,
+    );
   }
   if (artifact.predictorVersion !== QUALIFICATION_PREDICTOR_VERSION) {
     throw new Error(
@@ -4890,7 +4953,7 @@ export function assertQualificationArtifactIntegrity(
       throw new Error('Captured comparison artifact source-input commitment does not match its inputs.');
     }
   }
-  const recomputed = hashQualificationPredictions(artifact.predictions, resolved);
+  const recomputed = hashQualificationPredictions(artifact.predictions, resolved, artifact.sourceInputsHash);
   if (recomputed !== artifact.artifactHash) {
     throw new Error('Captured comparison artifact identity does not match its predictions.');
   }
@@ -4947,9 +5010,12 @@ export function buildQualificationPredictionsFromCode(
   if (predictions.length !== entries.length) {
     throw new Error('Qualification prediction artifact incomplete: missing entries.');
   }
+  const sourceInputsHash = hashQualificationSourceInputs(entries, resolved,
+    resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
+    frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails));
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
-    artifactHash: hashQualificationPredictions(predictions, resolved),
+    artifactHash: hashQualificationPredictions(predictions, resolved, sourceInputsHash),
     decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
     entryCount: entries.length,
@@ -4957,9 +5023,7 @@ export function buildQualificationPredictionsFromCode(
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,
     ...artifactAuthorityBinding(resolved),
-    sourceInputsHash: hashQualificationSourceInputs(entries, resolved,
-      resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
-      frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails)),
+    sourceInputsHash,
     predictions,
   };
 }
@@ -5021,9 +5085,12 @@ export async function captureQualificationPredictionsLive(
   if (predictions.length !== entries.length) {
     throw new Error('Qualification prediction artifact incomplete: missing entries.');
   }
+  const sourceInputsHash = hashQualificationSourceInputs(entries, resolved,
+    resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
+    frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails));
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
-    artifactHash: hashQualificationPredictions(predictions, resolved),
+    artifactHash: hashQualificationPredictions(predictions, resolved, sourceInputsHash),
     decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
     entryCount: entries.length,
@@ -5031,9 +5098,7 @@ export async function captureQualificationPredictionsLive(
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,
     ...artifactAuthorityBinding(resolved),
-    sourceInputsHash: hashQualificationSourceInputs(entries, resolved,
-      resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
-      frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails)),
+    sourceInputsHash,
     predictions,
   };
 }

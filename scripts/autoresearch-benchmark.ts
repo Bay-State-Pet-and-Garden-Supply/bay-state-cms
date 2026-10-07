@@ -52,9 +52,11 @@ const flag = (name: string): string | null => {
 // Pinned commitment: the deterministic artifact hash for the default
 // workload (replicas=40 over the frozen v9 corpus). Any code change that
 // alters matcher behavior changes this hash and fails the harness loudly
-// instead of silently benchmarking different work.
+// instead of silently benchmarking different work. Re-pinned deliberately
+// for the `code-executed-v8` identity (P1-1: the digest now also covers the
+// capture-time source-input commitment; matcher behavior unchanged).
 const PINNED: Record<string, string> = {
-  '40': '1361ff7429b9482c8502e36c85e0eb7bd4ba23bc38533a7d0d8895a5a3dea79c',
+  '40': '898d950f6b0a7d7b7f85e736be032efb8a4f6c90ca3800d3d07e4fa6c761b49e',
 };
 
 const replicas = Number(flag('--replicas') ?? '40');

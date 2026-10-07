@@ -339,6 +339,60 @@ describe('dev replay public boundary', () => {
     expect(preflight.allowed).toBe(true);
   });
 
+  it('partitioned planner authorizes the disjoint-states worst case (never undercounts)', () => {
+    // Four attributes × disjoint evidence states: one question per permitted
+    // group (4 groups), so any question-count-only bound (ceil(4/32) = 1
+    // batch) would authorize fewer requests than the partitioned dispatch
+    // requires. The planner must count groups, not questions.
+    const snapshot = {
+      snapshotHash: '0'.repeat(64),
+      source: 'test-disjoint-partition-fixture',
+      capturedAt: new Date().toISOString(),
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: ['alpha', 'bravo', 'charlie', 'delta'].map(targetId => ({
+        targetId,
+        cardinality: 'single' as const,
+        options: ['Yes Option Value', 'No Option Value'],
+      })),
+      pages: [],
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: ['alpha', 'bravo', 'charlie', 'delta'].map(attributeId => ({
+          attributeId,
+          cardinality: 'single' as const,
+          required: false,
+          applicabilityConditions: [],
+        })),
+      }],
+    };
+    const entry: QualificationGoldOnlyEntry = {
+      sku: 'FAKE:partition:1',
+      familyId: 'family-fake-partition',
+      split: 'dev',
+      assortment: 'test',
+      gold: {
+        productType: { kind: 'known-type', typeId: 'grooming' },
+        fieldAssignments: [],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      },
+      evidence: ['alpha', 'bravo', 'charlie', 'delta'].map(attributeId => ({
+        source: 'official_product_page',
+        snippet: `Clip for ${attributeId}`,
+        reliability: 'high',
+        attributeId,
+      })),
+    };
+    const plan = planDevReplayBudget([entry], snapshot as never);
+    const taxa = qualificationTaxonomiesFromFrozenSnapshot(snapshot as never);
+    const questions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, questions, 'grooming');
+    expect(groups.length).toBe(4);
+    const requiredBatches = 1 + groups.reduce((n, group) => n + Math.ceil(group.records.length / 32), 0);
+    expect(plan.dispatchBatches).toBeGreaterThanOrEqual(requiredBatches);
+    expect(plan.plannedHttpAttempts).toBeGreaterThanOrEqual(requiredBatches * 2);
+  });
+
   it('guard wiring is the bound guard itself, never a global flag', () => {
     const guard = createDevAttemptGuard({ maxHttpAttempts: 5 });
     try {
@@ -951,6 +1005,87 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
       const text = item.evidenceText.toLowerCase();
       expect(text.includes('dog') !== text.includes('chicken')).toBe(true);
     }
+  });
+  it('dispatch groups carry per-target-permitted names (no ineligible leak; SKU fallback)', () => {
+    const base: QualificationTaxonomies = {
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: [
+        { targetId: 'species', cardinality: 'single', options: ['Dog', 'Cat'] },
+        { targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] },
+      ],
+      pages: [],
+      typeAttributeProfiles: { grooming: 'p-groom' },
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: [
+          { attributeId: 'species', cardinality: 'single', required: false, applicabilityConditions: [] },
+          { attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] },
+        ],
+      }],
+      universalAttributeIds: [],
+    };
+    const taxa = attachFrozenAuthorityDetails(base, {
+      catalogFieldByTarget: { species: 'ProductField17', flavor: 'ProductField18' },
+      attributeConfigByTarget: {
+        species: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
+        flavor: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
+      },
+    });
+    const entry = makeNoulEntry([
+      { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
+      { source: 'official_product_page', snippet: 'Chicken', attributeId: 'flavor' },
+    ]);
+    const questions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, questions, 'grooming');
+    expect(groups.length).toBe(2);
+    for (const group of groups) {
+      const [only] = group.targetIds;
+      if (only === 'species') {
+        expect(group.state.name).toBe('Dog');
+        expect(group.state.name).not.toContain('Chicken');
+      } else {
+        expect(group.state.name).toBe('Chicken');
+        expect(group.state.name).not.toContain('Dog');
+      }
+    }
+    // Noul instruction strings ride the same per-target names: the flavor
+    // group has no species clip, so its instructions must not name Dog.
+    for (const plan of questions.attributePlans) {
+      for (const noul of plan.noulPlans ?? []) {
+        if (plan.targetId === 'species') expect(noul.instructions).toContain('"Dog"');
+        else expect(noul.instructions).not.toContain('"Dog"');
+      }
+    }
+    // Empty-permission fallback: a species-only entry leaves the flavor
+    // group with the SKU name (never an ineligible clip).
+    const speciesOnly = makeNoulEntry([
+      { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
+    ]);
+    const speciesOnlyQuestions = buildQualificationCandidateQuestionSet(speciesOnly, taxa, 'grooming');
+    const speciesOnlyGroups = partitionCandidateQuestionsByPermittedEvidence(speciesOnly, speciesOnlyQuestions, 'grooming');
+    const flavorGroup = speciesOnlyGroups.find(g => g.targetIds.includes('flavor'));
+    expect(flavorGroup).toBeDefined();
+    expect(flavorGroup?.state.evidenceCount).toBe(0);
+    expect(flavorGroup?.state.name).toBe(speciesOnly.sku);
+  });
+
+  it('page groups retain species/brand-attributed evidence (no starvation)', () => {
+    const taxa = makeNoulTaxa();
+    const entry = makeNoulEntry([
+      { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
+      { source: 'official_product_page', snippet: 'Acme', attributeId: 'brand' },
+      { source: 'official_product_page', snippet: 'Chicken kibble', attributeId: 'flavor' },
+    ]);
+    const questions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
+    expect(questions.pagePlan).not.toBeNull();
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, questions, 'grooming');
+    const pageGroup = groups.find(g => g.targetIds.includes('__page__'));
+    expect(pageGroup).toBeDefined();
+    expect(pageGroup?.state.evidenceCount).toBeGreaterThan(0);
+    expect(pageGroup?.state.evidenceText).toContain('Dog');
+    expect(pageGroup?.state.evidenceText).toContain('Acme');
+    expect(pageGroup?.state.evidenceText).not.toContain('Chicken');
   });
 
   it('authority details ride the resolved target; stubs stay null/empty', () => {

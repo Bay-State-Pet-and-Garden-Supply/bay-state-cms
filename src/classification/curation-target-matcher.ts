@@ -182,10 +182,12 @@ const keywordIndexSeen = new WeakSet<object>();
 const keywordIndexCache = new WeakMap<object, KeywordTokenIndex>();
 
 function keywordFingerprint(options: Array<{ value: string; label: string }>): string {
-  // Joined value/label pairs: same-length caller mutations change the
-  // join. Runs only on second-or-later sightings of a stable array (never
-  // for one-shot callers), so the steady-state cost is one join per call.
-  return options.map(opt => `${opt.value} ${opt.label}`).join(' | ');
+  // Length-prefixed value/label tuples: unambiguous under concatenation, so
+  // `[{value:'a beef',label:'Chicken'}]` vs `[{value:'a',label:'beef Chicken'}]`
+  // no longer share a join. Runs only on second-or-later sightings of a
+  // stable array (never for one-shot callers), so the steady-state cost is
+  // one join per call.
+  return options.map(opt => `${opt.value.length}:${opt.value}\0${opt.label.length}:${opt.label}`).join('\0');
 }
 
 function buildKeywordTokenIndex(

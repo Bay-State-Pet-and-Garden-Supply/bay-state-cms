@@ -252,6 +252,27 @@ describe('Curation Target Matcher', () => {
       );
     });
 
+    it('distinguishes value/label boundary collisions via the fingerprint (no stale index)', () => {
+      // `[{value:'a beef',label:'Chicken'}]` vs `[{value:'a',label:'beef Chicken'}]`
+      // share the naive `'value label'` join — the length-prefixed fingerprint
+      // must treat them as distinct index states.
+      const boundaryA = [{ value: 'a beef', label: 'Chicken' }];
+      const boundaryB = [{ value: 'a', label: 'beef Chicken' }];
+      const text = 'beef chicken dinner recipe guide';
+      const freshA = matchKeywordOptions({ options: boundaryA.map(o => ({ ...o })), text, selectionMode: 'single' });
+      const freshB = matchKeywordOptions({ options: boundaryB.map(o => ({ ...o })), text, selectionMode: 'single' });
+      expect(freshA).toEqual([{ value: 'a beef', label: 'Chicken', confidence: 0.8, matchedTokens: ['chicken'] }]);
+      expect(freshB).toEqual([{ value: 'a', label: 'beef Chicken', confidence: 0.8, matchedTokens: ['beef', 'chicken'] }]);
+      expect(freshA).not.toEqual(freshB);
+      // Stable-array form: engage the index on the colliding shape, mutate in
+      // place to the boundary twin, and require a rebuild (never stale hits).
+      const mutable = [{ value: 'a beef', label: 'Chicken' }];
+      expect(matchKeywordOptions({ options: mutable, text, selectionMode: 'single' })).toEqual(freshA);
+      expect(matchKeywordOptions({ options: mutable, text, selectionMode: 'single' })).toEqual(freshA);
+      mutable[0] = { value: 'a', label: 'beef Chicken' };
+      expect(matchKeywordOptions({ options: mutable, text, selectionMode: 'single' })).toEqual(freshB);
+    });
+
     it('clamps negative maxResults to [] on every path', () => {
       const negOptions = [
         { value: 'dry-dog-food', label: 'Dry Dog Food' },

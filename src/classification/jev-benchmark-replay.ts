@@ -31,6 +31,7 @@ import { JevReplayBudgetSchema } from '../shared/schemas/jev-benchmark';
 import {
   parseQualificationGoldOnly,
   buildQualificationCandidateQuestionSet,
+  partitionCandidateQuestionsByPermittedEvidence,
   qualificationTaxonomiesFromFrozenSnapshot,
   type FrozenAuthorityDetails,
   type QualificationGoldOnlyEntry,
@@ -720,9 +721,17 @@ export function planDevReplayBudget(
     );
     const pageRecords = typeSet.pagePlan ? 1 : 0;
     const phaseOne = typeRecords;
-    const phaseTwo = attrRecords + pageRecords;
-    totalQuestions += phaseOne + phaseTwo;
-    dispatchBatches += Math.ceil(phaseOne / CHUNK_SIZE) + Math.ceil(phaseTwo / CHUNK_SIZE);
+    totalQuestions += phaseOne + attrRecords + pageRecords;
+    // Partitioned dispatch (production parity): phase-two questions dispatch
+    // one request series per target-permitted evidence group, chunked at
+    // transport size — never one shared batch across states. The wiring set
+    // (all frozen attributes) is a superset of every effective-type
+    // applicable set partitioned by the same key, so each live group lands
+    // inside exactly one planning group: the per-group chunk sum can only
+    // overestimate live batches, never undercount them.
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, typeSet, null);
+    const phaseTwoBatches = groups.reduce((n, group) => n + Math.ceil(group.records.length / CHUNK_SIZE), 0);
+    dispatchBatches += Math.ceil(phaseOne / CHUNK_SIZE) + phaseTwoBatches;
   }
   return {
     entryCount: entries.length,

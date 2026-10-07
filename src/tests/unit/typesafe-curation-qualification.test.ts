@@ -2925,7 +2925,7 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
       expect(withoutLatency(a.predictions)).toEqual(withoutLatency(b.predictions));
       const c = buildQualificationPredictionsFromCode([step1Entry('STEP1-HASH-01', goldA, 'Acme Beef Dry Dog Food stew')], taxa);
       expect(c.artifactHash).not.toBe(a.artifactHash);
-      expect(a.predictorVersion).toBe('code-executed-v7');
+      expect(a.predictorVersion).toBe(QUALIFICATION_PREDICTOR_VERSION);
     });
   });
 });

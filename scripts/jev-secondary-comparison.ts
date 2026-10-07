@@ -77,11 +77,22 @@ if (rescore) {
   if (typeof committedSourceInputsHash !== 'string' || committedSourceInputsHash.length === 0) {
     throw new Error('Rescoring requires a capture-time source-input commitment (legacy capture: rerun live capture).');
   }
+  if (typeof original.artifact?.artifactHash !== 'string' || original.artifact.artifactHash.length === 0) {
+    throw new Error('Rescoring requires the bound capture artifact identity.');
+  }
   const priorBytes = fs.readFileSync(captureGold, 'utf8');
   const priorEntries = parseQualificationGoldOnly(JSON.parse(priorBytes));
   const currentSourceInputsHash = hashDevReplaySourceInputs(inputs.goldEntries, inputs.frozenSnapshot, inputs.authorityDetails);
   const priorSourceInputsHash = hashDevReplaySourceInputs(priorEntries, inputs.frozenSnapshot, inputs.authorityDetails);
   if (priorSourceInputsHash !== committedSourceInputsHash || currentSourceInputsHash !== committedSourceInputsHash) {
+    throw new Error('Rescoring cannot reuse predictions for changed source inputs.');
+  }
+  // Bound-identity check (P1-1): the envelope commitment must match the
+  // commitment bound inside the artifact. A recomputed commitment swapped
+  // into one layer but not the other is rejected here; a swap into both
+  // layers still fails because the stored `artifactHash` stays bound to the
+  // original commitment (re-verified by `evaluateArtifact` below).
+  if (original.artifact.sourceInputsHash !== committedSourceInputsHash) {
     throw new Error('Rescoring cannot reuse predictions for changed source inputs.');
   }
   const result = { ...plan, sourceCapture: rescore, sourceCaptureSha256: sha256Hex(originalBytes),
