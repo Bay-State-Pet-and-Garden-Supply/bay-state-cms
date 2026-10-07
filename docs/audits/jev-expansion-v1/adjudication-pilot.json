@@ -1,0 +1,559 @@
+{
+ "artifactKind": "adjudication-pilot-batch",
+ "status": "UNADJUDICATED \u2014 owner labels required (typeId | NO-FIT + field states + pages)",
+ "count": 24,
+ "entries": [
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:aqueon.com:855fdddac505ed9f",
+   "title": "Aquarium Starter Kit with LED Lighting 5.5",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/aquarium-starter-kits/aquarium-starter-kit-with-led",
+   "familyId": "family-0e8e5708d5f712ce2c64b4f3434ab2d2",
+   "excerpts": [
+    {
+     "text": "Other components included in this kit for a healthy aquatic environment to thrive is QuietFlow\u00ae filtration, a small filter cartridge, fish food and water care samples.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/aquarium-starter-kit-with-led JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "A setup guide is also included to walk you through the process of proper aquarium setup.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/aquarium-starter-kit-with-led JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "It is the perfect kit for first time and experienced fish keepers!",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/aquarium-starter-kit-with-led JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Aqueon\u00ae 5.5 LED Aquarium Kit offers a complete glass habitat with vibrant LED lighting to bring the aquarium to life.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/aquarium-starter-kit-with-led JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
+   "title": "Betta Food .95 ounces Pellet",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/betta-food",
+   "familyId": "family-db9081d6097d4e9948282e08d2ab1a54",
+   "excerpts": [
+    {
+     "text": "Betta Food from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Betta that will not cloud water if used as directed.",
+     "locator": "https://www.aqueon.com/products/food/betta-food JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Betta Food Aqueon Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+     "locator": "https://www.aqueon.com/products/food/betta-food JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "petfood",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:annamaet.com:5b2b80d25d806ced",
+   "title": "Annamaet Salcha Dog Treats : Poulet Formula with Chicken &amp; Duck - Annamaet Pet Foods",
+   "brand": "Annamaet",
+   "canonicalUrl": "https://annamaet.com/product/annamaet-salcha-dog-treats-poulet-formula-with-chicken-duck/",
+   "familyId": "family-c07f6cd1d9c9acdaa95444da10902aeb",
+   "excerpts": [
+    {
+     "text": "A baked, meat based treat made with the same formula as our Annamaet Salcha!",
+     "locator": "https://annamaet.com/product/annamaet-salcha-dog-treats-poulet-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "These healthy, grain free treats put the same high quality chicken that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend.",
+     "locator": "https://annamaet.com/product/annamaet-salcha-dog-treats-poulet-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "locator": "https://annamaet.com/product/annamaet-salcha-dog-treats-poulet-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Annamaet Salcha treats also contain added prebiotics and probiotics to help support microbiome gut health.",
+     "locator": "https://annamaet.com/product/annamaet-salcha-dog-treats-poulet-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "petfood",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:annamaet.com:85dda35a9cec115c",
+   "title": "Annamaet Aqualuk Dog Treats : Cold Water Formula with Salmon &amp; Herring - Annamaet Pet Foods",
+   "brand": "Annamaet",
+   "canonicalUrl": "https://annamaet.com/product/annamaet-aqualuk-dog-treats-cold-water-formula-with-salmon-herring/",
+   "familyId": "family-d049a75a3d38bad0174f3e5f10416a0b",
+   "excerpts": [
+    {
+     "text": "This baked, meat based treat is made with the same formula as our Annamaet Aqualuk!",
+     "locator": "https://annamaet.com/product/annamaet-aqualuk-dog-treats-cold-water-formula-with-salmon-herring/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "These healthy, grain free treats put the same high quality fish that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend.",
+     "locator": "https://annamaet.com/product/annamaet-aqualuk-dog-treats-cold-water-formula-with-salmon-herring/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "locator": "https://annamaet.com/product/annamaet-aqualuk-dog-treats-cold-water-formula-with-salmon-herring/ JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:19250472b1486603",
+   "title": "Calmness Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/calmness-herbal-drops",
+   "familyId": "family-b53d56e53d55d081976700b60132911d",
+   "excerpts": [
+    {
+     "text": "This gentle herbal blend helps promote relaxation, emotional balance, and a greater sense of calm for dogs and cats facing everyday stressful challenges.",
+     "locator": "https://earthanimal.com/products/calmness-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Bob Goldstein and our Master Herbalist in Vermont to help support the nervous system during times of stress.",
+     "locator": "https://earthanimal.com/products/calmness-herbal-drops JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
+   "title": "Flea & Tick Internal Powder",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/flea-tick-internal-powder",
+   "familyId": "family-dd4fdcb606389758b4ab19ec927f3504",
+   "excerpts": [
+    {
+     "text": "Bob Goldstein, Daily Internal Powder works from within to help create a natural skin scent that fleas and ticks avoid.",
+     "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Mix into your dog or cat\u2019s food every day to build consistent, inside-out protection.",
+     "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Use year-round as the foundation of your two-step routine.",
+     "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "petfood",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:annamaet.com:07632971cd379b45",
+   "title": "Annamaet ENHANCE Vitamin and Mineral Supplement 8.5oz - Annamaet Pet Foods",
+   "brand": "Annamaet",
+   "canonicalUrl": "https://annamaet.com/product/annamaet-enhance-vitamin-and-mineral-supplement-8-5oz/",
+   "familyId": "family-23d180a3bc95c92c6c9e58ebf5734144",
+   "excerpts": [
+    {
+     "text": "A uniquely formulated vitamin and mineral supplement designed to help balance your dog\u2019s raw or home-prepared diet.",
+     "locator": "https://annamaet.com/product/annamaet-enhance-vitamin-and-mineral-supplement-8-5oz/ JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:1b060ea8c1b0558e",
+   "title": "Goldfish Flakes 1.59 oz",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes",
+   "familyId": "family-3aff33508a08f82ed536bc2efa080bf9",
+   "excerpts": [
+    {
+     "text": "Nutrinsect\u2122 Goldfish Flakes are 100% fish-free, matching the food your goldfish prefer to eat in the wild.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "This helps you create a thriving ecosystem where your fish feels right at home.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:34225dff498f3625",
+   "title": "Aqueon PRO Betta Fish Food 0.95 Ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food",
+   "familyId": "family-dbc55e7df2b0924b70c84628825f4109",
+   "excerpts": [
+    {
+     "text": "Support your betta\u2019s health and vibrant coloration with Aqueon PRO Betta Fish Food.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Formulated with high-quality ingredients to provide complete daily nutrition for active, healthy betta fish.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon PRO Betta Fish Food Aqueon PRO Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Betta food is made of nutritious food ingredients that fish are naturally attracted to.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:aqueon.com:a511f6c8c441ca6e",
+   "title": "5-pound",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/decor/plant-and-shrimp-aquarium-substrate",
+   "familyId": "family-4affe94fb5d6d988cce8fe746dee74fe",
+   "excerpts": [
+    {
+     "text": "Made with a clay-based material, its unique spherical shape maintains its form over time and doesn't breakdown into compressed soil.",
+     "locator": "https://www.aqueon.com/products/decor/plant-and-shrimp-aquarium-substrate JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Aqueon Plant and Shrimp Aquarium Substrate is an ideal choice for freshwater aquatic environments.",
+     "locator": "https://www.aqueon.com/products/decor/plant-and-shrimp-aquarium-substrate JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Plant and Shrimp Aquarium Substrate Aqueon Plant and Shrimp Aquarium Substrate is an ideal choice for freshwater aquatic environments.",
+     "locator": "https://www.aqueon.com/products/decor/plant-and-shrimp-aquarium-substrate JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "The shape allows for newly budding and mature plants' root systems to grow and flourish; and an excellent option for aquascaping freshwater aquariums.",
+     "locator": "https://www.aqueon.com/products/decor/plant-and-shrimp-aquarium-substrate JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:drearth.com:09d677bd9c71e942",
+   "title": "House Plant Pump &amp;amp; Grow Liquid Plant Food",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/house-plant-pump-grow/",
+   "familyId": "family-dc605c9d23a8c0bbadec787ca97b12d1",
+   "excerpts": [
+    {
+     "text": "Simply apply two pumps directly to the soil and water within 24 hours and it will feed your plants 100% sustainable nutrients for two weeks.",
+     "locator": "https://drearth.com/product/house-plant-pump-grow/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Applying directly to the soil makes gardening easy with no mixing and no mess.",
+     "locator": "https://drearth.com/product/house-plant-pump-grow/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Sustainably made from the highest level Human Grade whole-foods.",
+     "locator": "https://drearth.com/product/house-plant-pump-grow/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "locator": "https://drearth.com/product/house-plant-pump-grow/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:aqueon.com:10f45937a1644715",
+   "title": "Aqueon PRO Goldfish Color Granules 3 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules",
+   "familyId": "family-23d75263b62f36e046f8d428ddf4e1e3",
+   "excerpts": [
+    {
+     "text": "Enhance your goldfish\u2019s natural color while providing complete daily nutrition with Aqueon PRO Goldfish Color Granules.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Aqueon PRO Goldfish Color Granules Give your goldfish something you can feel good about feeding with Aqueon PRO Goldfish Color Enhancing Granules, a complete daily diet designed to bring out vibrant color while supporting overall health and vitality.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "This sinking granule formula is ideal for midwater and bottom-feeding fish, allowing for a more natural and comfortable feeding experience throughout the aquarium.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "It helps enhance the rich reds, oranges, and natural tones of goldfish, keeping them looking bright, healthy, and active.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:aqueon.com:d981f8dacb00eb64",
+   "title": "standard-variant",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/lighting/planted-aquarium-clip-on-led-light",
+   "familyId": "family-a0c40bd90721d1e2ab36b6fce1751f7d",
+   "excerpts": [
+    {
+     "text": "Aqueon Planted Aquarium Clip-On LED Light is super thin and provides optimal lighting for a bright and thriving aquatic environment.",
+     "locator": "https://www.aqueon.com/products/lighting/planted-aquarium-clip-on-led-light JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Planted Aquarium Clip-On LED Light Aqueon Planted Aquarium Clip-On LED Light is super thin and provides optimal lighting for a bright and thriving aquatic environment.",
+     "locator": "https://www.aqueon.com/products/lighting/planted-aquarium-clip-on-led-light JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "This light fixture is designed to help lush plants grow.",
+     "locator": "https://www.aqueon.com/products/lighting/planted-aquarium-clip-on-led-light JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Each light contains a soft-touch switch and a versatile mounting screw which can be used with framed or frameless aquariums.",
+     "locator": "https://www.aqueon.com/products/lighting/planted-aquarium-clip-on-led-light JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:aqueon.com:f68f7182651dae09",
+   "title": "Bottom Feeder Foods 3 ounces Bottom Feeder Tablet",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/bottom-feeder-foods",
+   "familyId": "family-b5801c7718c261cb87e848419517f7e0",
+   "excerpts": [
+    {
+     "text": "Bottom Feeder Tablets Ideal for bottom dwelling fish such as plecostomus, loaches, catfish, shrimp and more.",
+     "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Aqueon Tablets sink and dissolve more slowly to continuously provide food that accommodates bottom-feeder's typical eating habits.",
+     "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Bottom Feeder Tablets from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Bottom Feeder.",
+     "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "If necessary, break tablets into pieces to prevent overfeeding.",
+     "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:mywoof.com:f94af1af1256c3c2",
+   "title": "FlipMat",
+   "brand": "Woof",
+   "canonicalUrl": "https://mywoof.com/products/flipmat",
+   "familyId": "family-c7b46cc97b7f87a97680c07b4cfbb70c",
+   "excerpts": [
+    {
+     "text": "The FlipMat is a dual-sided lick mat and slow feeder for delicious dogstraction and long-lasting engagement.",
+     "locator": "https://mywoof.com/products/flipmat JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "aquatics",
+   "sku": "PUBLIC:aqueon.com:188cb99b164d7d9d",
+   "title": "Quick Clean Technology Aquarium Kit",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/aquarium-starter-kits/quick-clean-aquarium",
+   "familyId": "family-32d96d1012ed707a23f40091324b51b5",
+   "excerpts": [
+    {
+     "text": "Aqueon\u00ae BettaBow 1 with Quick Clean Technology make first time fishkeeping easy.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/quick-clean-aquarium JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Betta will love this one gallon aquarium complete with low profile hood, elevated base, betta food and water care samples.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/quick-clean-aquarium JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "BettaBow 1 Aquarium Kit with Quick Clean Technology Aqueon&reg; BettaBow 1 with Quick Clean Technology make first time fishkeeping easy.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/quick-clean-aquarium JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Betta will love this one gallon aquarium complete with low profile hood, elevated base, betta food and water care samples.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/quick-clean-aquarium JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "aquatics",
+   "sku": "PUBLIC:aqueon.com:372a1a501a162d37",
+   "title": "Ammonia Aquarium Test Strips 50 Count",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/water-care/ammonia-test-strips",
+   "familyId": "family-86b372671848aedc6d284027066cf9c7",
+   "excerpts": [
+    {
+     "text": "Elevate your aquarium care with Aqueon\u00ae Ammonia Aquarium Test Strips, a must-have tool for ensuring a clean and healthy aquatic environment for your fish.",
+     "locator": "https://www.aqueon.com/products/water-care/ammonia-test-strips JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Ammonia Aquarium Test Strips Elevate your aquarium care with Aqueon\u00ae Ammonia Aquarium Test Strips, a must-have tool for ensuring a clean and healthy aquatic environment for your fish.",
+     "locator": "https://www.aqueon.com/products/water-care/ammonia-test-strips JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Accurate measurement of ammonia levels is essential, as high levels of ammonia can be toxic to fish, leading to stress, illness, and even fatalities.",
+     "locator": "https://www.aqueon.com/products/water-care/ammonia-test-strips JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "By regularly testing with Aqueon\u00ae Ammonia Aquarium Test Strips, you can identify any elevated ammonia levels and take the necessary corrective measures to maintain a healthy environment for your fish.",
+     "locator": "https://www.aqueon.com/products/water-care/ammonia-test-strips JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "cat",
+   "sku": "PUBLIC:kongcompany.com:1adf8cde867c3dbd",
+   "title": "Halloween Cat Luvs Mouse",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/halloween-cat-luvs-mouse/",
+   "familyId": "family-185de9fb0076cf7b2fad9c0ec4068d84",
+   "excerpts": [
+    {
+     "text": "Your cat will be hexed and obsessed with their new KONG Halloween Luvs Mouse!",
+     "locator": "https://www.kongcompany.com/halloween-cat-luvs-mouse/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Its long, oversized body is full of toil, trouble, and KONG Premium North American Catnip to spark energetic play.",
+     "locator": "https://www.kongcompany.com/halloween-cat-luvs-mouse/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Its multi-textured outer material and crinkling sounds make playtime longer and livelier, providing a healthy outlet for full-body wrestling and hind-paw kicking.",
+     "locator": "https://www.kongcompany.com/halloween-cat-luvs-mouse/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Wearing an adorable witches' hat, this Halloween Luvs Mouse makes a perfect gift for Halloween-loving kitties, ensuring they can partake in the spooky fun!",
+     "locator": "https://www.kongcompany.com/halloween-cat-luvs-mouse/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "cat",
+   "sku": "PUBLIC:kongcompany.com:bde740609dbbe13d",
+   "title": "Teaser Curlz",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/teaser-curlz/",
+   "familyId": "family-850b58adbf2b6365cb8183349c4f0981",
+   "excerpts": [
+    {
+     "text": "Crazy-fast recoil sealed into the durable woven spirals mean when your cat pounces onto the feather and ribbon target, they\u2019re rewarded with more wild, high-speed springing action launching them into further fun.",
+     "locator": "https://www.kongcompany.com/teaser-curlz/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "The corkscrew curl\u2019s the key to the kitty party at the end of this glittering wand.",
+     "locator": "https://www.kongcompany.com/teaser-curlz/ JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "collars-leashes",
+   "sku": "PUBLIC:kongcompany.com:0f074ed5772d85b9",
+   "title": "KONG Utility Safety Tether and Booster Seat",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/kong-ult-sfty-tether-booster/",
+   "familyId": "family-bde6a3041ea586eda429be22a0543ccc",
+   "excerpts": [
+    {
+     "text": "Traveling with your dog just got safer and more comfortable with the KONG Ultimate Safety Tether & Booster Seat providing a secure, elevated position for your dog, ensuring they have a clear view of their surroundings and keeping them safely restrained during the ride.We believe that this is the safest dog booster seat available and is a huge step forward in the safety of both dog and passengers in transit.",
+     "locator": "https://www.kongcompany.com/kong-ult-sfty-tether-booster/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Many other booster seats have a very flimsy tether which is simply stitched into the booster seat itself and under braking there is no direct anchor of your dog to a safety system.",
+     "locator": "https://www.kongcompany.com/kong-ult-sfty-tether-booster/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "The tether connects directly to your dog\u2019s harness.",
+     "locator": "https://www.kongcompany.com/kong-ult-sfty-tether-booster/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "The seat itself is sturdily built around the tether, we believe that protection of your dog is paramount and the primary function is to securely tether your dog.",
+     "locator": "https://www.kongcompany.com/kong-ult-sfty-tether-booster/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "equine-beds",
+   "sku": "PUBLIC:natureswaybirds.com:3192ce9c3883eccb",
+   "title": "Squirrel Shield Wrap Around Metal 18\" Squirrel Baffle",
+   "brand": "Squirrel Shield\u2122",
+   "canonicalUrl": "https://natureswaybirds.com/products/squirrel-shield-wrap-around-metal-squirrel-baffle-model-spbaf-1",
+   "familyId": "family-1038ff6812db7a13cedce2e3a006e452",
+   "excerpts": [
+    {
+     "text": "EASY INSTALLATION: No need to move pole or feeders for assembly, simply wrap baffle around bird feeder pole or shepherd hook and secure metal coupler SQUIRREL PROOF: Allow your feathered friends to feed undisturbed by undesirable critters with this cleverly designed pole mounted squirrel baffle that prevents squirrels from climbing up your bird feeder pole DURABLE MATERIALS: Steel construction with weather-resistant finish for a longer lasting baffle VERSATILE DESIGN: Fits poles with diameter of 1/2 inch to 1-1/2 inch, everything for pole mounting included: 18-inch metal baffle, 1 pole adapter, and 2 screws Dimensions: 7.25\"H x 18\"W x 18\"D Weight: 2.13 lbs.",
+     "locator": "https://www.natureswaybirds.com/products/squirrel-shield-wrap-around-metal-squirrel-baffle-model-spbaf-1 JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "oxbow",
+   "stratumHypothesis": "small-animal",
+   "sku": "PUBLIC:oxbowanimalhealth.com:372daf6b6ed19281",
+   "title": "Organic Bounty Adult Guinea Pig Food",
+   "brand": "Oxbow Animal Health",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/organic-bounty-adult-guinea-pig-food/",
+   "familyId": "family-f3ec700049e3376d67e006972136b8e6",
+   "excerpts": [
+    {
+     "text": "Oxbow\u2019s Organic Guinea Pig food is carefully crafted to model the complete nutrition a guinea pig would find in its natural environment.",
+     "locator": "https://oxbowanimalhealth.com/product/organic-bounty-adult-guinea-pig-food/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "We begin with hand-selected organic grass hay to promote effective digestion and add wholesome, organic ingredients and vital nutrients to nourish your small pet the way nature intended.",
+     "locator": "https://oxbowanimalhealth.com/product/organic-bounty-adult-guinea-pig-food/ JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "flea-tick",
+   "sku": "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
+   "title": "Flea & Tick Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-drops",
+   "familyId": "family-abab42c95c523cdd62100d33450cd500",
+   "excerpts": [
+    {
+     "text": "Bob Goldstein and our Master Herbalist, Flea & Tick Herbal Drops help make dogs and cats less appealing to fleas and ticks.",
+     "locator": "https://earthanimal.com/products/flea-tick-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "petfood",
+   "stratumHypothesis": "other",
+   "sku": "PUBLIC:annamaet.com:6795ea8fb6328eee",
+   "title": "Annamaet Hat - Annamaet Pet Foods",
+   "brand": "Annamaet",
+   "canonicalUrl": "https://annamaet.com/product/annamaet-hat/",
+   "familyId": "family-c34069830b1a95178c66102e33a5b8dc",
+   "excerpts": [
+    {
+     "text": "A clean, classic, snapback cap for people who feed their dogs well and aren't shy about it.",
+     "locator": "https://annamaet.com/product/annamaet-hat/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "The Annamaet structured cap features an embroidered logo on a beige and navy colorway that's built to go anywhere, dog park runs, feed store stops, early morning walks, or just keeping the sun out of your eyes while you fill the bowl.",
+     "locator": "https://annamaet.com/product/annamaet-hat/ JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  }
+ ]
+}
