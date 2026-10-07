@@ -387,6 +387,12 @@ async function collectFeedProducts(seed: Seed, exclusion: ReturnType<typeof load
 
 async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Promise<{ urls: string[]; prequalified: Set<string> }> {
   const urls: string[] = [];
+  // HTML-discovery candidates live in their own pool: the 600-cap sitemap
+  // pool can fill with unscored flat slugs before discovery runs, which
+  // would otherwise starve harvesting. Candidates are high-signal
+  // (category-listing context) and bounded separately.
+  const candidates: string[] = [];
+  const MAX_CANDIDATES = 400;
   // Category-listing-harvested product candidates: admitted by page
   // context (listings link products), still subject to the JSON-LD proof.
   const prequalified = new Set<string>();
@@ -397,7 +403,9 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
   // themes) often still serve an HTML sitemap at /sitemap.php listing
   // category pages. Tried once per seed, after the XML miss.
   let htmlFallbackDone = false;
-  while (queue.length > 0 && urls.length < 600 && seen.size < 20) {
+  let discoveryFetches = 0;
+  const MAX_DISCOVERY_FETCHES = 20;
+  while (queue.length > 0 && seen.size < 20 && discoveryFetches <= MAX_DISCOVERY_FETCHES) {
     const url = queue.shift()!;
     if (seen.has(url)) continue;
     seen.add(url);
@@ -414,6 +422,7 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
     const $ = load(res.text, { xmlMode: true });
     const locs = $('loc').map((_, el) => $(el).text().trim()).get().filter(u => u.startsWith('https://'));
     const isSitemapPhp = /sitemap\.php$/.test(url);
+    if (locs.length === 0) discoveryFetches++;
     if (locs.length === 0 && (isSitemapPhp || !/\.xml(\.gz)?($|\?)/i.test(url))) {
       // HTML sitemap page: harvest same-site anchors. Product-like links
       // join the URL pool; category links recurse as discovery pages under
@@ -443,16 +452,16 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
           // Sitemap page: nav/category harvest. Recurse as discovery under
           // the same seen/attempt caps.
           if (seen.size < 20) queue.push(u);
-        } else if (urls.length < 600) {
+        } else if (candidates.length < MAX_CANDIDATES) {
           // Category listing page: unknown same-site directory URLs are
           // product CANDIDATES by context (the listing links products, not
-          // nav). They bypass the score floor but NOT the downstream
-          // selectFetchUrls economy filter or the JSON-LD identity proof
-          // in collectPage — a non-product fetch burns budgeted attempts
-          // and is rejected as excludedNonProduct.
+          // nav). Separate pool so a full sitemap pool cannot starve
+          // harvesting. They bypass the score floor but NOT the JSON-LD
+          // identity proof in collectPage — a non-product fetch burns
+          // budgeted attempts and is rejected as excludedNonProduct.
           stats[id('sitemap-html-candidates')] = (stats[id('sitemap-html-candidates')] ?? 0) + 1;
           prequalified.add(u);
-          urls.push(u);
+          candidates.push(u);
         }
       }
       continue;
@@ -465,14 +474,31 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
         try { if (sameSite(u, `https://${seed.domain}`)) queue.push(u); } catch { /* skip */ }
       }
     } else {
+      let floorHits = 0;
       for (const u of locs) {
         if (urls.length >= 600) break;
         if (!sameSite(u, `https://${seed.domain}`)) continue;
         urls.push(u);
+        if (scoreUrl(u) >= 3) floorHits++;
+      }
+      // Zero-hit fallback: no sitemap URL passes the product floor (flat
+      // Magento-style slugs). Requeue listing-like URLs as HTML discovery
+      // pages under the same caps; their product anchors face the standard
+      // prequalified + JSON-LD proof gates. Bounded: seen-size cap applies.
+      if (floorHits === 0 && locs.length > 0) {
+        stats[id('sitemap-listing-fallback')] = 1;
+        for (const u of locs) {
+          if (seen.has(u) || NON_PRODUCT_HINT.test(u)) continue;
+          let pathname = '';
+          try { pathname = new URL(u).pathname; } catch { continue; }
+          if (!/\/[^./]+\/?$/.test(pathname)) continue;
+          try { if (sameSite(u, `https://${seed.domain}`)) queue.push(u); } catch { /* skip */ }
+          if (seen.size >= 20) break;
+        }
       }
     }
   }
-  return { urls: [...new Set(urls)], prequalified };
+  return { urls: [...new Set([...urls, ...candidates])], prequalified };
 }
 
 const PRODUCT_HINT = /(product|shop|store|collection|\/p\/|\/item|\/dp\/|\.html?$)/i;
