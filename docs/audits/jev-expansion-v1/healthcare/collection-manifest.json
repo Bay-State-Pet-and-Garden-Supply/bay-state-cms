@@ -1,0 +1,95 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 22,
+    "stats": {
+      "excludedPriorUrl": 196,
+      "excludedPriorFamily": 10,
+      "excludedNearDup": 14,
+      "excludedThinEvidence": 8,
+      "tropiclean.com:sitemap-locs": 165,
+      "tropiclean.com:sitemap-children": 4,
+      "tropiclean.com:sitemap-listing-fallback": 1,
+      "tropiclean.com:sitemap-urls": 158,
+      "tropiclean.com:feed-rows": 0,
+      "tropiclean.com:feed-unverified": 102,
+      "tropiclean.com:cache-leads": 0,
+      "tropiclean.com:fetch-queued": 102,
+      "excludedNonProduct": 93,
+      "tropiclean.com:page-rows": 92,
+      "naturvet.com:sitemap-locs": 118,
+      "naturvet.com:sitemap-children": 5,
+      "naturvet.com:sitemap-listing-fallback": 1,
+      "naturvet.com:sitemap-urls": 110,
+      "naturvet.com:feed-rows": 0,
+      "naturvet.com:feed-unverified": 82,
+      "naturvet.com:cache-leads": 0,
+      "naturvet.com:fetch-queued": 82,
+      "naturvet.com:page-rows": 0,
+      "earthbath.com:sitemap-locs": 130,
+      "earthbath.com:sitemap-children": 4,
+      "earthbath.com:sitemap-listing-fallback": 1,
+      "earthbath.com:sitemap-urls": 123,
+      "earthbath.com:feed-rows": 0,
+      "earthbath.com:feed-unverified": 59,
+      "earthbath.com:cache-leads": 0,
+      "earthbath.com:fetch-queued": 59,
+      "earthbath.com:page-rows": 58
+    }
+  },
+  "attempts": {
+    "used": 262,
+    "cap": 700,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 262,
+      "totalSourceAttempts": 1747,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1747,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 104,
+    "devPrimary": 72,
+    "devSupplemental": 19,
+    "holdoutFamilies": 32,
+    "holdoutRows": 35
+  },
+  "commitments": {
+    "bankHash": "e5bc023abcb18ec23c7f98e7416eb18d3160ee33177d9bea41b9081b288bf908",
+    "holdoutHash": "90a9ae5893ba5073691274dc1282753e101615484f284aa0ede23bf24798aa68",
+    "memberHash": "da42f7db17f9e5d06d587ed406357e054a89bd379afe5a28b5d779e4e4e78151",
+    "ledgerHash": "8930992411d5a6c23e55e9be84dd38ee69a59f6ae79120b695b827b581eeca14",
+    "cumulativeHash": "5f7c8c6b5d03248b97a6e9749c32f8073b6649cad7364a3ee97646a2a55a1854",
+    "devHash": "5318d57ba7edde35220576d9095f8180131178f41cebaaef277a6d9f68a2da34",
+    "devSuppHash": "9d2ac3940df632bb4b4aa6f4d08b11d1a39adc19ed1fe00e8ba1b98537fbf485"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}
