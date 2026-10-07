@@ -655,8 +655,13 @@ async function main(): Promise<void> {
     stats[`${seed.domain}:feed-unverified`] = unverified.length;
     // Unverified feed canonicals are official-domain discovery leads, not
     // verified evidence: they join the page-fetch queue for individual fetch.
+    // Feed canonicals come from the manufacturer's own catalog feed, so they
+    // join the prequalified set (listing-context equivalent); the JSON-LD
+    // proof still decides admission row by row.
+    const feedUrls = unverified.map(c => String(c.row.canonicalUrl));
+    for (const u of feedUrls) prequalified.add(u);
     const pageQueue = selectFetchUrls(
-      [...sitemapUrls, ...unverified.map(c => String(c.row.canonicalUrl))],
+      [...sitemapUrls, ...feedUrls],
       250,
       prequalified,
     );
