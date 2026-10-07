@@ -1,0 +1,54 @@
+[
+  {
+    "sku": "PUBLIC:oxbowanimalhealth.com:4a74f0b8f2f4851c",
+    "title": "Essentials Senior Rabbit Food",
+    "brand": "Oxbow Animal Health",
+    "canonicalUrl": "https://oxbowanimalhealth.com/product/essentials-senior-rabbit-food/",
+    "productIdentity": "Oxbow Animal Health: Essentials Senior Rabbit Food",
+    "sourceLocator": "https://oxbowanimalhealth.com/product/essentials-senior-rabbit-food/",
+    "sourceHash": "3ecc2c06f01322f6b3e072d8d160ba8352ed6cf4a118acb5c146bda067872700",
+    "retrievedAt": "2026-10-07T09:25:07.595Z",
+    "familyId": "family-69d5032d530fbeddeb373a53b180929a",
+    "excerpts": [
+      {
+        "text": "Essentials Senior Rabbit is specially formulated to support your aging rabbit’s needs.",
+        "locator": "https://oxbowanimalhealth.com/product/essentials-senior-rabbit-food/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "We start with 3 high-quality fiber sources to support the aging digestive system, complement with targeted levels of protein to maintain muscle, and add natural antioxidants to help maintain physical and mental sharpness and activity.",
+        "locator": "https://oxbowanimalhealth.com/product/essentials-senior-rabbit-food/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Essentials Senior Rabbit includes natural plant-based herbal ingredients like ginger root, turmeric and chamomile and provides 100% of your pet’s daily recommended vitamins and minerals with no artificial preservatives, colors, or flavors.",
+        "locator": "https://oxbowanimalhealth.com/product/essentials-senior-rabbit-food/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:oxbowanimalhealth.com:9738e69a0822e96a",
+    "title": "Real Prey Rewards | Ferret Treats | Turkey",
+    "brand": "Oxbow Animal Health",
+    "canonicalUrl": "https://oxbowanimalhealth.com/product/real-prey-rewards-ferret-treats-turkey/",
+    "productIdentity": "Oxbow Animal Health: Real Prey Rewards | Ferret Treats | Turkey",
+    "sourceLocator": "https://oxbowanimalhealth.com/product/real-prey-rewards-ferret-treats-turkey/",
+    "sourceHash": "59dc56cba8c04351c4879022e7bd766f84acb22306ac8dd817abe26187d9c030",
+    "retrievedAt": "2026-10-07T09:24:45.489Z",
+    "familyId": "family-607fbcdde45de09da53ba8ee63e3bbb4",
+    "excerpts": [
+      {
+        "text": "As a carnivore, your ferret requires the right nutritional balance of protein and fat to support a healthy, active lifestyle.",
+        "locator": "https://oxbowanimalhealth.com/product/real-prey-rewards-ferret-treats-turkey/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "That's why Prey Rewards™ are formulated with the high-quality protein and fat sources your carnivore needs, with a variety of chewy and crunchy textures for enrichment.",
+        "locator": "https://oxbowanimalhealth.com/product/real-prey-rewards-ferret-treats-turkey/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Feed Oxbow treats to add variety and enrichment to your ferret's diet.",
+        "locator": "https://oxbowanimalhealth.com/product/real-prey-rewards-ferret-treats-turkey/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]
