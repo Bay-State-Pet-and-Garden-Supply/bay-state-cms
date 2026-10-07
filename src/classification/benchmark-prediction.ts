@@ -3062,17 +3062,25 @@ function blockedCandidateWithoutCredentials(
  * the APPLICABLE frozen attributes for the frozen effective type (never gold).
  * Alias/claim-grounding settings ride the frozen authority resolution (the
  * same config the live boundary consumes) — bare stubs match direct text
- * only. Callers resolve Product Type first and pass the applicable subset.
+ * only. Each target matches against its own PERMITTED evidence text (frozen
+ * visual-eligibility + attribute isolation via
+ * `permittedEvidenceForQualificationTarget`), never the shared union: a
+ * prohibited visual clip must not resolve an alias and mark the target
+ * already-matched ahead of the live boundary. Callers resolve Product Type
+ * first and pass the applicable subset.
  */
 function predictBaselineAttributes(
   applicableTargets: QualificationTaxonomies['attributeTargets'],
-  evidenceText: string,
+  entry: QualificationGoldOnlyEntry,
   taxonomies: QualificationTaxonomies,
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
+  const boundaryEvidence = qualificationEvidenceForBoundary(entry, `qual-baseline-${entry.sku}`);
   for (const target of applicableTargets) {
     const { attribute } = resolveQualificationAttributeTarget(target, taxonomies);
-    const found = matchAttributeOptions(attribute, evidenceText, target.options, target.cardinality);
+    const permitted = permittedEvidenceForQualificationTarget(boundaryEvidence, attribute, target.targetId);
+    const permittedText = permitted.map(ev => ev.snippet ?? '').join(' ').trim();
+    const found = matchAttributeOptions(attribute, permittedText, target.options, target.cardinality);
     if (found.length === 0) continue;
     if (target.cardinality === 'multiple') {
       out.push({ targetId: target.targetId, values: found.map(f => f.value) });
@@ -3266,7 +3274,7 @@ function runDeterministicBaselineStages(
   // Invariants resolve first (shared split helper), matcher runs on variables.
   const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
   const { invariants, variableApplicable } = splitQualificationApplicableAndInvariants(taxa, effectiveTypeId, applicable);
-  const matched = predictBaselineAttributes(variableApplicable, evidenceText, taxa);
+  const matched = predictBaselineAttributes(variableApplicable, entry, taxa);
   const fields = [...invariants, ...matched].sort((a, b) => a.targetId.localeCompare(b.targetId));
   return {
     type,

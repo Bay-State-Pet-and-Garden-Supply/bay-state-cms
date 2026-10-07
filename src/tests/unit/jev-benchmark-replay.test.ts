@@ -1214,6 +1214,59 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     expect(stubbed.attribute.valueAliases).toEqual([]);
   });
 
+  it('baseline matcher uses target-permitted evidence: prohibited visual alias stays unmatched, permitted unattributed alias resolves', () => {
+    // Frozen authority: species is visual-ineligible with a poultry→Chicken
+    // alias. An alias-only PROHIBITED visual clip must not resolve the alias
+    // (target stays unmatched so the live boundary gets its chance); the same
+    // alias in permitted unattributed text still resolves.
+    const taxa = attachFrozenAuthorityDetails(
+      {
+        productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+        attributeTargets: [{ targetId: 'flavor', cardinality: 'single', options: ['Chicken', 'Beef'] }],
+        pages: [],
+        typeAttributeProfiles: { grooming: 'p-groom' },
+        attributeProfiles: [{
+          id: 'p-groom',
+          productTypeId: 'grooming',
+          attributes: [{ attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] }],
+        }],
+        universalAttributeIds: ['flavor'],
+      } as unknown as QualificationTaxonomies,
+      {
+        attributeConfigByTarget: {
+          flavor: {
+            valueAliases: [{ alias: 'poultry', mapsTo: 'Chicken' }],
+            isClaim: false,
+            isCompositionAttribute: false,
+            visualEvidenceEligibility: 'ineligible',
+          },
+        },
+      },
+    );
+    const visualAliasOnly: QualificationGoldOnlyEntry = {
+      sku: 'FAKE:baseline:visual-alias',
+      familyId: 'family-fake-baseline',
+      split: 'dev',
+      assortment: 'test',
+      gold: {
+        productType: { kind: 'known-type', typeId: 'grooming' },
+        fieldAssignments: [],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      },
+      evidence: [{ source: 'visual_product_evidence', snippet: 'poultry recipe photo', reliability: 'high', attributeId: null }],
+    };
+    const prohibited = buildQualificationPredictionsFromCode([visualAliasOnly], taxa);
+    expect(prohibited.predictions[0].baseline.fieldAssignments.find(f => f.targetId === 'flavor')).toBeUndefined();
+    const permittedAlias: QualificationGoldOnlyEntry = {
+      ...visualAliasOnly,
+      sku: 'FAKE:baseline:permitted-alias',
+      evidence: [{ source: 'official_product_page', snippet: 'poultry recipe', reliability: 'high', attributeId: null }],
+    };
+    const allowed = buildQualificationPredictionsFromCode([permittedAlias], taxa);
+    const assignment = allowed.predictions[0].baseline.fieldAssignments.find(f => f.targetId === 'flavor');
+    expect(assignment?.value ?? assignment?.values).toBe('Chicken');
+  });
+
   it('boundary converter normalizes sources without credibility boost; isolation holds', () => {
     const evidence = qualificationEvidenceForBoundary(
       makeNoulEntry(NATURVET_DUAL_EVIDENCE),

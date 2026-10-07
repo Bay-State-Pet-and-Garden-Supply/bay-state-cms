@@ -727,22 +727,22 @@ export function planDevReplayBudget(
   const typeOverLimit = taxa.productTypes.length > JEV_MAX_ORDINARY_CHOICE_CANDIDATES;
   for (const entry of entries) {
     const phaseOne = typeOverLimit ? 0 : 1;
-    // Phase-two bound FROM the live applicable set per entry: for every
-    // frozen effective type the dispatcher could freeze (live capture
-    // resolves the type from the model answer, so planning cannot know it),
-    // build the same applicable question set + permitted-evidence partition
+    // Phase-two bound FROM the live applicable set per entry: live capture
+    // freezes whatever type the model selects (never gold), so planning
+    // maximizes over EVERY freezable effective type — all frozen selectable
+    // type IDs plus the abstained (universals-only, null-type) set — by
+    // building the same applicable question set + permitted-evidence partition
     // the dispatcher builds (`buildQualificationCandidateQuestionSet(entry,
     // taxa, effectiveTypeId)` + `partitionCandidateQuestionsByPermittedEvidence`
-    // with the frozen type) and take the worst case. Profile cardinality flips
+    // with the frozen type) and taking the worst case. Profile cardinality flips
     // (single global target → multiple per-profile Noul plans) and authority
     // visual-eligibility splits change both record counts and group keys, so a
     // wiring-set superset argument cannot hold — only the per-type maximum is
-    // conservative by construction. Entries whose gold type is known use the
-    // single live set; unknown types fall back to the worst case over all
-    // frozen types plus the abstained (universals-only, null-type) set.
-    const knownTypeId = entry.gold.productType.kind === 'known-type' ? entry.gold.productType.typeId : null;
-    const candidateTypeIds: Array<string | null> = knownTypeId !== null
-      ? [knownTypeId]
+    // conservative by construction. Gold NEVER narrows the plan: relabeling
+    // gold for identical model inputs leaves the plan unchanged. When
+    // typeOverLimit forces type-stage abstention, only null is freezable.
+    const candidateTypeIds: Array<string | null> = typeOverLimit
+      ? [null]
       : [...taxa.productTypes.map(t => t.id), null];
     let phaseTwoQuestions = 0;
     let phaseTwoBatches = 0;
