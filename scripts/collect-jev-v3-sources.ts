@@ -396,6 +396,12 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
   // Category-listing-harvested product candidates: admitted by page
   // context (listings link products), still subject to the JSON-LD proof.
   const prequalified = new Set<string>();
+  // Prefix-density accumulator (function scope): dense cohorts can spread
+  // across multiple sitemap child files, so counts aggregate across
+  // batches and prequalify after the crawl. Content-hub first segments
+  // are never cohorts.
+  const prefixCohorts = new Map<string, string[]>();
+  const CONTENT_HUB = /^(learn|video|videos|blog|blogs|news|content|help|support|about|page|pages)(-|$)/i;
   const queue = [`https://${seed.domain}/sitemap.xml`];
   const seen = new Set<string>();
   const id = (k: string): string => `${seed.domain}:${k}`;
@@ -485,19 +491,53 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
       // Magento-style slugs). Requeue listing-like URLs as HTML discovery
       // pages under the same caps; their product anchors face the standard
       // prequalified + JSON-LD proof gates. Bounded: seen-size cap applies.
-      if (floorHits === 0 && locs.length > 0) {
-        stats[id('sitemap-listing-fallback')] = 1;
+      if (locs.length > 0) {
+        // Prefix-density accumulation: sub-floor same-site URLs grouped by
+        // first path segment across ALL batches (dense cohorts like /pt/
+        // spread over many child files). Evaluated post-crawl.
         for (const u of locs) {
-          if (seen.has(u) || NON_PRODUCT_HINT.test(u)) continue;
-          let pathname = '';
-          try { pathname = new URL(u).pathname; } catch { continue; }
-          if (!/\/[^./]+\/?$/.test(pathname)) continue;
-          try { if (sameSite(u, `https://${seed.domain}`)) queue.push(u); } catch { /* skip */ }
-          if (seen.size >= 20) break;
+          let same = false;
+          try { same = sameSite(u, `https://${seed.domain}`); } catch { continue; }
+          if (!same || scoreUrl(u) >= 3 || NON_PRODUCT_HINT.test(u)) continue;
+          let seg = '';
+          try {
+            const parts = new URL(u).pathname.split('/').filter(s => s.length > 0);
+            seg = parts[0] ?? '';
+          } catch { continue; }
+          if (!seg || CONTENT_HUB.test(seg)) continue;
+          const list = prefixCohorts.get(seg) ?? [];
+          list.push(u);
+          prefixCohorts.set(seg, list);
+        }
+        if (floorHits === 0) {
+          stats[id('sitemap-listing-fallback')] = 1;
+          for (const u of locs) {
+            if (seen.has(u) || NON_PRODUCT_HINT.test(u)) continue;
+            let pathname = '';
+            try { pathname = new URL(u).pathname; } catch { continue; }
+            if (!/\/[^./]+\/?$/.test(pathname)) continue;
+            try { if (sameSite(u, `https://${seed.domain}`)) queue.push(u); } catch { /* skip */ }
+            if (seen.size >= 20) break;
+          }
         }
       }
     }
   }
+  // Post-crawl: prequalify dense cohorts (200+ URLs under one segment).
+  // Catalog structure, not scattered slugs; JSON-LD proof still decides
+  // each URL individually.
+  let dense = 0;
+  for (const [seg, cohort] of [...prefixCohorts.entries()].sort(([, a], [, b]) => b.length - a.length)) {
+    if (cohort.length < 200) continue;
+    dense++;
+    stats[id(`sitemap-prefix-cohort:${seg}`)] = cohort.length;
+    for (const u of cohort) {
+      if (urls.length + candidates.length >= 1000) break;
+      prequalified.add(u);
+      candidates.push(u);
+    }
+  }
+  if (dense > 0) stats[id('sitemap-prefix-cohorts')] = dense;
   return { urls: [...new Set([...urls, ...candidates])], prequalified };
 }
 
