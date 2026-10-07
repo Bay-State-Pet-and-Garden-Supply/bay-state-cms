@@ -1,0 +1,1755 @@
+{
+ "artifactKind": "adjudicated-pilot-gold",
+ "status": "OWNER-ADJUDICATED 2026-10-07 via interactive pass; R11 plant-food-fertilizer recorded over lawn-fertilizer proposal (tightest frozen scope); R1/R10/R13/R16/R17/R20/R21/R24 NO-FIT (v10 gap items: aquarium-equipment/habitat, substrate, lighting, diagnostics, car-restraint, baffle, apparel); familyIds + split assignment deferred to generation freeze",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "entries": [
+  {
+   "sku": "PUBLIC:aqueon.com:855fdddac505ed9f",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Other components included in this kit for a healthy aquatic environment to thrive is QuietFlow\u00ae filtration, a small filter cartridge, fish food and water care samples.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "A setup guide is also included to walk you through the process of proper aquarium setup.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "It is the perfect kit for first time and experienced fish keepers!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon\u00ae 5.5 LED Aquarium Kit offers a complete glass habitat with vibrant LED lighting to bring the aquarium to life.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Betta Food from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Betta that will not cloud water if used as directed.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta Food Aqueon Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellet"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:5b2b80d25d806ced",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "A baked, meat based treat made with the same formula as our Annamaet Salcha!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These healthy, grain free treats put the same high quality chicken that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Annamaet Salcha treats also contain added prebiotics and probiotics to help support microbiome gut health.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Chicken"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:85dda35a9cec115c",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "This baked, meat based treat is made with the same formula as our Annamaet Aqualuk!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These healthy, grain free treats put the same high quality fish that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Fish"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:19250472b1486603",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "This gentle herbal blend helps promote relaxation, emotional balance, and a greater sense of calm for dogs and cats facing everyday stressful challenges.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Bob Goldstein and our Master Herbalist in Vermont to help support the nervous system during times of stress.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob Goldstein, Daily Internal Powder works from within to help create a natural skin scent that fleas and ticks avoid.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Mix into your dog or cat\u2019s food every day to build consistent, inside-out protection.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Use year-round as the foundation of your two-step routine.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "flea-tick-treatment"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:07632971cd379b45",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "A uniquely formulated vitamin and mineral supplement designed to help balance your dog\u2019s raw or home-prepared diet.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:1b060ea8c1b0558e",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Nutrinsect\u2122 Goldfish Flakes are 100% fish-free, matching the food your goldfish prefer to eat in the wild.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This helps you create a thriving ecosystem where your fish feels right at home.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Flake"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:34225dff498f3625",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Support your betta\u2019s health and vibrant coloration with Aqueon PRO Betta Fish Food.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Formulated with high-quality ingredients to provide complete daily nutrition for active, healthy betta fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Betta Fish Food Aqueon PRO Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta food is made of nutritious food ingredients that fish are naturally attracted to.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:a511f6c8c441ca6e",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Made with a clay-based material, its unique spherical shape maintains its form over time and doesn't breakdown into compressed soil.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon Plant and Shrimp Aquarium Substrate is an ideal choice for freshwater aquatic environments.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Plant and Shrimp Aquarium Substrate Aqueon Plant and Shrimp Aquarium Substrate is an ideal choice for freshwater aquatic environments.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The shape allows for newly budding and mature plants' root systems to grow and flourish; and an excellent option for aquascaping freshwater aquariums.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:09d677bd9c71e942",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Simply apply two pumps directly to the soil and water within 24 hours and it will feed your plants 100% sustainable nutrients for two weeks.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Applying directly to the soil makes gardening easy with no mixing and no mess.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Sustainably made from the highest level Human Grade whole-foods.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "plant-food-fertilizer"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:10f45937a1644715",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Enhance your goldfish\u2019s natural color while providing complete daily nutrition with Aqueon PRO Goldfish Color Granules.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Goldfish Color Granules Give your goldfish something you can feel good about feeding with Aqueon PRO Goldfish Color Enhancing Granules, a complete daily diet designed to bring out vibrant color while supporting overall health and vitality.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This sinking granule formula is ideal for midwater and bottom-feeding fish, allowing for a more natural and comfortable feeding experience throughout the aquarium.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "It helps enhance the rich reds, oranges, and natural tones of goldfish, keeping them looking bright, healthy, and active.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Sinking Granules"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:d981f8dacb00eb64",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Aqueon Planted Aquarium Clip-On LED Light is super thin and provides optimal lighting for a bright and thriving aquatic environment.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Planted Aquarium Clip-On LED Light Aqueon Planted Aquarium Clip-On LED Light is super thin and provides optimal lighting for a bright and thriving aquatic environment.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This light fixture is designed to help lush plants grow.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Each light contains a soft-touch switch and a versatile mounting screw which can be used with framed or frameless aquariums.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:f68f7182651dae09",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bottom Feeder Tablets Ideal for bottom dwelling fish such as plecostomus, loaches, catfish, shrimp and more.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon Tablets sink and dissolve more slowly to continuously provide food that accommodates bottom-feeder's typical eating habits.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Bottom Feeder Tablets from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Bottom Feeder.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "If necessary, break tablets into pieces to prevent overfeeding.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Tablet"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:f94af1af1256c3c2",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "The FlipMat is a dual-sided lick mat and slow feeder for delicious dogstraction and long-lasting engagement.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:188cb99b164d7d9d",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Aqueon\u00ae BettaBow 1 with Quick Clean Technology make first time fishkeeping easy.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta will love this one gallon aquarium complete with low profile hood, elevated base, betta food and water care samples.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "BettaBow 1 Aquarium Kit with Quick Clean Technology Aqueon&reg; BettaBow 1 with Quick Clean Technology make first time fishkeeping easy.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta will love this one gallon aquarium complete with low profile hood, elevated base, betta food and water care samples.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:372a1a501a162d37",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Elevate your aquarium care with Aqueon\u00ae Ammonia Aquarium Test Strips, a must-have tool for ensuring a clean and healthy aquatic environment for your fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Ammonia Aquarium Test Strips Elevate your aquarium care with Aqueon\u00ae Ammonia Aquarium Test Strips, a must-have tool for ensuring a clean and healthy aquatic environment for your fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Accurate measurement of ammonia levels is essential, as high levels of ammonia can be toxic to fish, leading to stress, illness, and even fatalities.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By regularly testing with Aqueon\u00ae Ammonia Aquarium Test Strips, you can identify any elevated ammonia levels and take the necessary corrective measures to maintain a healthy environment for your fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1adf8cde867c3dbd",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Your cat will be hexed and obsessed with their new KONG Halloween Luvs Mouse!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Its long, oversized body is full of toil, trouble, and KONG Premium North American Catnip to spark energetic play.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Its multi-textured outer material and crinkling sounds make playtime longer and livelier, providing a healthy outlet for full-body wrestling and hind-paw kicking.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Wearing an adorable witches' hat, this Halloween Luvs Mouse makes a perfect gift for Halloween-loving kitties, ensuring they can partake in the spooky fun!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bde740609dbbe13d",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Crazy-fast recoil sealed into the durable woven spirals mean when your cat pounces onto the feather and ribbon target, they\u2019re rewarded with more wild, high-speed springing action launching them into further fun.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The corkscrew curl\u2019s the key to the kitty party at the end of this glittering wand.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0f074ed5772d85b9",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Traveling with your dog just got safer and more comfortable with the KONG Ultimate Safety Tether & Booster Seat providing a secure, elevated position for your dog, ensuring they have a clear view of their surroundings and keeping them safely restrained during the ride.We believe that this is the safest dog booster seat available and is a huge step forward in the safety of both dog and passengers in transit.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Many other booster seats have a very flimsy tether which is simply stitched into the booster seat itself and under braking there is no direct anchor of your dog to a safety system.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The tether connects directly to your dog\u2019s harness.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The seat itself is sturdily built around the tether, we believe that protection of your dog is paramount and the primary function is to securely tether your dog.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3192ce9c3883eccb",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "EASY INSTALLATION: No need to move pole or feeders for assembly, simply wrap baffle around bird feeder pole or shepherd hook and secure metal coupler SQUIRREL PROOF: Allow your feathered friends to feed undisturbed by undesirable critters with this cleverly designed pole mounted squirrel baffle that prevents squirrels from climbing up your bird feeder pole DURABLE MATERIALS: Steel construction with weather-resistant finish for a longer lasting baffle VERSATILE DESIGN: Fits poles with diameter of 1/2 inch to 1-1/2 inch, everything for pole mounting included: 18-inch metal baffle, 1 pole adapter, and 2 screws Dimensions: 7.25\"H x 18\"W x 18\"D Weight: 2.13 lbs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:372daf6b6ed19281",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Oxbow\u2019s Organic Guinea Pig food is carefully crafted to model the complete nutrition a guinea pig would find in its natural environment.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "We begin with hand-selected organic grass hay to promote effective digestion and add wholesome, organic ingredients and vital nutrients to nourish your small pet the way nature intended.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "small-animal-feed-bedding"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Guinea Pig"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob Goldstein and our Master Herbalist, Flea & Tick Herbal Drops help make dogs and cats less appealing to fleas and ticks.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "flea-tick-treatment"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:6795ea8fb6328eee",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "A clean, classic, snapback cap for people who feed their dogs well and aren't shy about it.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The Annamaet structured cap features an embroidered logo on a beige and navy colorway that's built to go anywhere, dog park runs, feed store stops, early morning walks, or just keeping the sun out of your eyes while you fill the bowl.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  }
+ ]
+}
