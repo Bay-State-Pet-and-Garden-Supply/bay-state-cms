@@ -118,7 +118,7 @@ const JEV_PAGE_MULTI_UNCERTAIN_FLOOR = SYSTEMONE_MULTI_UNCERTAIN_FLOOR; // 0.40
 export const NO_MATCH_CHOICE_KEY = 'abstain_no_match';
 export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'abstain_insufficient_evidence';
 
-const PAGE_CONTEXT_SOURCE_FIELDS = [
+export const PAGE_CONTEXT_SOURCE_FIELDS = [
   'name',
   'title',
   'description',
@@ -130,7 +130,7 @@ const PAGE_CONTEXT_SOURCE_FIELDS = [
   'brand',
   'resolved_brand',
 ];
-const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
+export const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
 
 const now = () => new Date().toISOString();
 

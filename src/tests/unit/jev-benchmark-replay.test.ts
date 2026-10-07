@@ -393,6 +393,111 @@ describe('dev replay public boundary', () => {
     expect(plan.plannedHttpAttempts).toBeGreaterThanOrEqual(requiredBatches * 2);
   });
 
+  it('planner covers the profile-flipped cardinality case (global single → per-profile multiple)', () => {
+    // Global target cardinality is single, but the effective type's profile
+    // flips it to multiple: live builds one Noul question per option (2
+    // records) instead of one Choice. The planner must compute FROM the live
+    // applicable set per entry — never from the unwidened global pool.
+    const snapshot = {
+      snapshotHash: '0'.repeat(64),
+      source: 'test-cardinality-flip-fixture',
+      capturedAt: new Date().toISOString(),
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: [{
+        targetId: 'flavor',
+        cardinality: 'single' as const,
+        options: ['Chicken Flavor', 'Beef Flavor'],
+      }],
+      pages: [],
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: [{ attributeId: 'flavor', cardinality: 'multiple' as const, required: false, applicabilityConditions: [] }],
+      }],
+    };
+    const entry: QualificationGoldOnlyEntry = {
+      sku: 'FAKE:cardinality:1',
+      familyId: 'family-fake-cardinality',
+      split: 'dev',
+      assortment: 'test',
+      gold: {
+        productType: { kind: 'known-type', typeId: 'grooming' },
+        fieldAssignments: [],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      },
+      evidence: [{ source: 'official_product_page', snippet: 'Savory chicken kibble', reliability: 'high', attributeId: 'flavor' }],
+    };
+    const plan = planDevReplayBudget([entry], snapshot as never);
+    const taxa = qualificationTaxonomiesFromFrozenSnapshot(snapshot as never);
+    const liveQuestions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
+    const flavorPlan = liveQuestions.attributePlans.find(p => p.targetId === 'flavor');
+    expect(flavorPlan?.choicePlan).toBeUndefined();
+    expect(flavorPlan?.noulPlans?.length).toBe(2);
+    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, liveQuestions, 'grooming');
+    const requiredBatches = 1 + groups.reduce((n, group) => n + Math.ceil(group.records.length / 32), 0);
+    expect(requiredBatches).toBe(2);
+    expect(plan.dispatchBatches).toBeGreaterThanOrEqual(requiredBatches);
+    expect(plan.plannedHttpAttempts).toBeGreaterThanOrEqual(requiredBatches * 2);
+  });
+
+  it('planner matches live visual partitioning when authority details ride planning', () => {
+    // One target is visual-ineligible in the frozen authority: a visual clip
+    // supports the eligible target's group but is dropped from the
+    // ineligible target's state, so live partitions into two groups. Planning
+    // without the sidecar would stub both targets eligible (one merged group)
+    // and undercount the partitioned dispatch; with the sidecar it matches.
+    const snapshot = {
+      snapshotHash: '0'.repeat(64),
+      source: 'test-visual-partition-fixture',
+      capturedAt: new Date().toISOString(),
+      productTypes: [{ id: 'grooming', label: 'Grooming', attributeProfileId: 'p-groom' }],
+      attributeTargets: ['alpha', 'bravo'].map(targetId => ({
+        targetId,
+        cardinality: 'single' as const,
+        options: ['Yes Option Value', 'No Option Value'],
+      })),
+      pages: [],
+      attributeProfiles: [{
+        id: 'p-groom',
+        productTypeId: 'grooming',
+        attributes: ['alpha', 'bravo'].map(attributeId => ({
+          attributeId,
+          cardinality: 'single' as const,
+          required: false,
+          applicabilityConditions: [],
+        })),
+      }],
+    };
+    const entry: QualificationGoldOnlyEntry = {
+      sku: 'FAKE:visual:1',
+      familyId: 'family-fake-visual',
+      split: 'dev',
+      assortment: 'test',
+      gold: {
+        productType: { kind: 'known-type', typeId: 'grooming' },
+        fieldAssignments: [],
+        categoryPages: { pageIds: [], pageAssignments: [], state: 'known', completeness: 'complete' },
+      },
+      evidence: [{ source: 'visual_product_evidence', snippet: 'Glossy kibble photo', reliability: 'high', attributeId: null }],
+    };
+    const details: FrozenAuthorityDetails = {
+      attributeConfigByTarget: {
+        alpha: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'eligible' },
+        bravo: { valueAliases: [], isClaim: false, isCompositionAttribute: false, visualEvidenceEligibility: 'ineligible' },
+      },
+    };
+    const liveTaxa = qualificationTaxonomiesFromFrozenSnapshot(
+      withFrozenAuthorityDetails(snapshot as never, details),
+    );
+    const liveQuestions = buildQualificationCandidateQuestionSet(entry, liveTaxa, 'grooming');
+    const liveGroups = partitionCandidateQuestionsByPermittedEvidence(entry, liveQuestions, 'grooming');
+    expect(liveGroups.length).toBe(2);
+    const requiredBatches = 1 + liveGroups.reduce((n, group) => n + Math.ceil(group.records.length / 32), 0);
+    const plan = planDevReplayBudget([entry], snapshot as never, details);
+    expect(plan.dispatchBatches).toBeGreaterThanOrEqual(requiredBatches);
+    expect(plan.plannedHttpAttempts).toBeGreaterThanOrEqual(requiredBatches * 2);
+  });
+
   it('guard wiring is the bound guard itself, never a global flag', () => {
     const guard = createDevAttemptGuard({ maxHttpAttempts: 5 });
     try {
@@ -1070,11 +1175,11 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     expect(flavorGroup?.state.name).toBe(speciesOnly.sku);
   });
 
-  it('page groups retain species/brand-attributed evidence (no starvation)', () => {
+  it('page groups use production page evidence permissions (source-field branch included)', () => {
     const taxa = makeNoulTaxa();
     const entry = makeNoulEntry([
+      { source: 'official_product_page', snippet: 'Generic kibble for dogs' },
       { source: 'official_product_page', snippet: 'Dog', attributeId: 'species' },
-      { source: 'official_product_page', snippet: 'Acme', attributeId: 'brand' },
       { source: 'official_product_page', snippet: 'Chicken kibble', attributeId: 'flavor' },
     ]);
     const questions = buildQualificationCandidateQuestionSet(entry, taxa, 'grooming');
@@ -1082,10 +1187,15 @@ describe('candidate Noul permission/grounding (HTTP mocks, no live calls)', () =
     const groups = partitionCandidateQuestionsByPermittedEvidence(entry, questions, 'grooming');
     const pageGroup = groups.find(g => g.targetIds.includes('__page__'));
     expect(pageGroup).toBeDefined();
-    expect(pageGroup?.state.evidenceCount).toBeGreaterThan(0);
+    // Production permits all three: generic first snippet via the title
+    // source-field branch, species via the attribute-id branch, and the
+    // flavor-attributed description clip via the independent source-field
+    // branch (`buildPageEvidencePacket` with the shipped PAGE_CONTEXT_*
+    // constants — never the attribute filter with a synthetic ID).
+    expect(pageGroup?.state.evidenceCount).toBe(3);
+    expect(pageGroup?.state.evidenceText).toContain('Generic kibble for dogs');
     expect(pageGroup?.state.evidenceText).toContain('Dog');
-    expect(pageGroup?.state.evidenceText).toContain('Acme');
-    expect(pageGroup?.state.evidenceText).not.toContain('Chicken');
+    expect(pageGroup?.state.evidenceText).toContain('Chicken');
   });
 
   it('authority details ride the resolved target; stubs stay null/empty', () => {
@@ -1521,5 +1631,38 @@ describe('candidate product-type probability persistence (HTTP mocks, no live ca
     expect(candidate.typeProbability ?? null).toBeNull();
     expect(candidate.typeCandidateProbabilities ?? null).toBeNull();
     expect(candidate.typeProbabilityDigest ?? null).toBeNull();
+  });
+
+  it('over-limit with a silent attribute leg stays blocked (placeholder is not executed evidence)', async () => {
+    // (d) The type stage abstains over-limit without dispatch; when the
+    // attribute/page leg also speaks to no model (zero usage), the side is
+    // `blocked` — the placeholder's carried identity is not executed-model
+    // evidence for `live_captured`.
+    const calls = { count: 0 };
+    globalThis.fetch = (async () => {
+      calls.count += 1;
+      return new Response(
+        JSON.stringify({ model: NOUL_MODEL, answers: {}, usage: { input_tokens: 0, output_tokens: 0 } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    const overLimitTypes = Array.from({ length: 254 }, (_, i) => ({ id: `type-${i}`, label: `Type ${i}` }));
+    const taxa: QualificationTaxonomies = {
+      productTypes: overLimitTypes,
+      attributeTargets: [],
+      pages: [],
+      typeAttributeProfiles: Object.fromEntries(overLimitTypes.map(t => [t.id, null])),
+      attributeProfiles: [],
+      universalAttributeIds: [],
+    };
+    const artifact = await captureGuardedJevForTest(
+      [makeNoulEntry(FOURPAWS_DUAL_EVIDENCE)],
+      { jev: { apiKey: 'fixture-over-limit-key', model: NOUL_MODEL } },
+      taxa,
+    );
+    const candidate = artifact.predictions[0].candidate;
+    expect(candidate.source).toBe('blocked');
+    expect(candidate.abstained).toBe(true);
+    expect(candidate.typeProbability ?? null).toBeNull();
   });
 });

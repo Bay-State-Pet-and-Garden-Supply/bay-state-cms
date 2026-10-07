@@ -21,7 +21,7 @@ const inputs = loadDevReplayInputs({
 });
 const model = value('--model') ?? 'deepseek-flash';
 const budget = defaultDevReplayBudget();
-const candidatePlan = planDevReplayBudget(inputs.goldEntries, inputs.frozenSnapshot);
+const candidatePlan = planDevReplayBudget(inputs.goldEntries, inputs.frozenSnapshot, inputs.authorityDetails);
 const comparatorPlan = inputs.goldEntries.length * 2 *
   (1 + inputs.frozenSnapshot.attributeTargets.length + (inputs.frozenSnapshot.pages.length > 0 ? 1 : 0));
 for (const plannedHttpAttempts of [candidatePlan.plannedHttpAttempts, comparatorPlan]) {

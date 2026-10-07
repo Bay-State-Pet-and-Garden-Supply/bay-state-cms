@@ -217,7 +217,7 @@ const replayBudget = defaultDevReplayBudget({
   ...(deadlineMsArg ? { hardDeadlineMs: Number(deadlineMsArg) } : {}),
 });
 const devPlan = isLiveCaptureFlag && devReplay && frozenTaxonomy
-  ? planDevReplayBudget(goldEntries, devReplay.frozenSnapshot)
+  ? planDevReplayBudget(goldEntries, devReplay.frozenSnapshot, devReplay.authorityDetails)
   : null;
 if (devPlan) {
   console.error(`Plan: ${devPlan.entryCount} entries, ${devPlan.totalQuestions} questions, ${devPlan.dispatchBatches} batches, worst-case ${devPlan.plannedHttpAttempts} HTTP attempts (max ${replayBudget.maxHttpAttempts}).`);

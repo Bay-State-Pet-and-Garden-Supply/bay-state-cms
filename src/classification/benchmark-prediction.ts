@@ -1189,6 +1189,8 @@ import {
 import {
   buildPageChoiceQuestion,
   JEV_PAGE_SINGLE_THRESHOLD,
+  PAGE_CONTEXT_ATTRIBUTE_IDS,
+  PAGE_CONTEXT_SOURCE_FIELDS,
   PAGE_QUESTION_VERSION,
   PAGE_JUDGMENT_VERSION,
   NO_MATCH_CHOICE_KEY as PAGE_NO_MATCH_CHOICE_KEY,
@@ -1223,7 +1225,7 @@ import {
   SYSTEMONE_MULTI_MIN_PROBABILITY,
 } from './systemone-decision-core';
 import { llmRankOptions, type LlmRankResult } from './curation-target-ranker';
-import { buildEvidenceTargetPacket, normalizeAttributeId, tokenGroundingSupport } from './evidence-targeting';
+import { buildEvidenceTargetPacket, buildPageEvidencePacket, normalizeAttributeId, tokenGroundingSupport } from './evidence-targeting';
 import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
 import {
   buildModelPolicyView,
@@ -2755,7 +2757,7 @@ function predictBaselineProductType(
 const JEV_NO_MATCH_KEY = 'no_match';
 const JEV_INSUFFICIENT_EVIDENCE_KEY = 'insufficient_evidence';
 /** Ordinary Choice capacity mirrored from production (255 total − 2 abstention). */
-const JEV_MAX_ORDINARY_CHOICE_CANDIDATES = 253;
+export const JEV_MAX_ORDINARY_CHOICE_CANDIDATES = 253;
 
 /** One entry's full shipped-question construction (pure — no model, no network). */
 export interface QualificationCandidateAttributePlan {
@@ -3058,15 +3060,18 @@ function blockedCandidateWithoutCredentials(
 /**
  * Baseline attributes: shipped word-boundary alias/direct matching only, over
  * the APPLICABLE frozen attributes for the frozen effective type (never gold).
- * Callers resolve Product Type first and pass the applicable subset.
+ * Alias/claim-grounding settings ride the frozen authority resolution (the
+ * same config the live boundary consumes) — bare stubs match direct text
+ * only. Callers resolve Product Type first and pass the applicable subset.
  */
 function predictBaselineAttributes(
   applicableTargets: QualificationTaxonomies['attributeTargets'],
   evidenceText: string,
+  taxonomies: QualificationTaxonomies,
 ): Array<{ targetId: string; value?: string; values?: string[] }> {
   const out: Array<{ targetId: string; value?: string; values?: string[] }> = [];
   for (const target of applicableTargets) {
-    const { attribute } = stubAttributeTarget(target);
+    const { attribute } = resolveQualificationAttributeTarget(target, taxonomies);
     const found = matchAttributeOptions(attribute, evidenceText, target.options, target.cardinality);
     if (found.length === 0) continue;
     if (target.cardinality === 'multiple') {
@@ -3261,7 +3266,7 @@ function runDeterministicBaselineStages(
   // Invariants resolve first (shared split helper), matcher runs on variables.
   const applicable = applicableQualificationAttributeTargets(taxa, effectiveTypeId);
   const { invariants, variableApplicable } = splitQualificationApplicableAndInvariants(taxa, effectiveTypeId, applicable);
-  const matched = predictBaselineAttributes(variableApplicable, evidenceText);
+  const matched = predictBaselineAttributes(variableApplicable, evidenceText, taxa);
   const fields = [...invariants, ...matched].sort((a, b) => a.targetId.localeCompare(b.targetId));
   return {
     type,
@@ -3475,20 +3480,18 @@ export function partitionCandidateQuestionsByPermittedEvidence(
 ): Array<PartitionedCandidateQuestionGroup> {
   const boundaryEvidence = qualificationEvidenceForBoundary(entry, `qual-candidate-${entry.sku}`);
   const byState = new Map<string, PartitionedCandidateQuestionGroup>();
-  // Page-group evidence permissions (page-group P2): production keeps
-  // species/brand-attributed evidence for pages (`page-decision.ts:133,1818-
-  // 1822` via `evidence-targeting.ts:430-434` — records with an explicit
-  // page-context attributeId are included even without the source field),
-  // so the `__page__` attribute-isolation filter would starve page groups.
-  // Build page-group state with page-specific evidence permissions instead.
-  const PAGE_PERMITTED_ATTRIBUTE_IDS: Record<string, true> = { species: true, brand: true };
-  const permittedEvidenceForPageTarget = (): ClassificationEvidence[] =>
-    boundaryEvidence.filter(ev => {
-      const normId = normalizeAttributeId(ev.attributeId);
-      if (normId && PAGE_PERMITTED_ATTRIBUTE_IDS[normId]) return true;
-      if (ev.attributeId != null) return false;
-      return true;
+  // Page-group evidence permissions: production page evidence permissions
+  // (`buildPageEvidencePacket` with the shipped `PAGE_CONTEXT_*` constants —
+  // source-field branch included, so explicitly-attributed title/description
+  // clips a page permits still reach page judgment).
+  const permittedEvidenceForPageTarget = (): ClassificationEvidence[] => {
+    const packet = buildPageEvidencePacket(boundaryEvidence, {
+      pageContextSourceFields: PAGE_CONTEXT_SOURCE_FIELDS,
+      pageContextAttributeIds: PAGE_CONTEXT_ATTRIBUTE_IDS,
+      sourceField: null,
     });
+    return [...packet.supporting, ...packet.contradicting, ...packet.context];
+  };
   const stateForTarget = (
     attribute: ProductAttributeConfig | null | undefined,
     targetId: string,
@@ -3757,10 +3760,10 @@ function mergeCandidateLiveAnswers(
   };
 }
 
-/** True when no model spoke (fail-closed: never live_captured without identity + usage). */
-function isCandidateJudgmentSilent(merged: MergedLiveAnswers, typeOverLimit: boolean): boolean {
+/** True when no executed model spoke (fail-closed: never live_captured without identity + usage). */
+function isCandidateJudgmentSilent(merged: MergedLiveAnswers): boolean {
   if (!merged.resolvedModel) return true;
-  return merged.inputTokens === 0 && merged.outputTokens === 0 && !typeOverLimit;
+  return merged.inputTokens === 0 && merged.outputTokens === 0;
 }
 
 /** Blocked side for a silent live path (same coded reason as the inline branch). */
@@ -3852,9 +3855,10 @@ async function captureCandidateEntryLive(
     const partitioned = partitionCandidateQuestionsByPermittedEvidence(entry, applicableQuestions, effectiveTypeId);
     const attrMerged = await dispatchPartitionedCandidateGroups(target, partitioned);
     const merged = mergeCandidateLiveAnswers(typeMerged, attrMerged);
-    // `live_captured` guarantees a model spoke: without resolvedModel + usage
-    // the side is an abstention/failure, never live_captured (fail-closed).
-    if (isCandidateJudgmentSilent(merged, typeOverLimit)) {
+    // `live_captured` guarantees an executed model spoke: without
+    // resolvedModel + usage the side is blocked, even over-limit (the
+    // placeholder carries no executed judgment — fail-closed).
+    if (isCandidateJudgmentSilent(merged)) {
       return buildCandidateSilentBlocked(Math.max(0, Date.now() - started));
     }
     // Frozen boundary evidence (actual parsed source clips, never gold):
@@ -4220,15 +4224,22 @@ async function captureBaselineAttributesWithRealBoundary(input: {
 }): Promise<void> {
   const { entry, taxa, view, snapshot, runId, effectiveTypeId, attrTargetIds, fields } = input;
   const evidence = qualificationEvidenceForBoundary(entry, runId);
+  const applicableById = new Map(
+    applicableQualificationAttributeTargets(taxa, effectiveTypeId).map(t => [t.targetId, t]),
+  );
   for (const targetId of attrTargetIds) {
-    const target = taxa.attributeTargets.find(t => t.targetId === targetId);
-    if (!target) continue;
-    const { resolved } = stubAttributeTarget(target);
+    // Profile-adjusted cardinality (b) rides the frozen applicable set — never
+    // the raw global target — and frozen authority details (aliases,
+    // claim/composition, catalog field) resolve through the same helper the
+    // candidate leg consumes (c). Unknown ids fail closed (skipped, never guessed).
+    const applicableTarget = applicableById.get(targetId);
+    if (!applicableTarget) continue;
+    const { attribute, resolved } = resolveQualificationAttributeTarget(applicableTarget, taxa);
     // Per-target-permitted name (re-review P1-4): the baseline boundary
     // also builds Noul instruction strings from productContext, so seed it
     // with the first snippet permitted for THIS target (SKU fallback when
     // the target has no permitted snippets) — never the union name.
-    const targetPermitted = permittedEvidenceForQualificationTarget(evidence, resolved.attribute, targetId);
+    const targetPermitted = permittedEvidenceForQualificationTarget(evidence, attribute, targetId);
     const productContext = {
       name: qualificationPermittedProductName(targetPermitted) || entry.sku,
       brand: null,
@@ -4236,7 +4247,7 @@ async function captureBaselineAttributesWithRealBoundary(input: {
     };
     const decision = await resolveAttributeDecision({
       target: resolved,
-      cardinality: target.cardinality,
+      cardinality: applicableTarget.cardinality,
       evidence,
       sku: entry.sku,
       runId,
@@ -4247,7 +4258,7 @@ async function captureBaselineAttributesWithRealBoundary(input: {
       assertHeld: input.dispatchGuard.assertContext,
     });
     if (decision.status !== 'resolved') continue;
-    if (target.cardinality === 'multiple') {
+    if (applicableTarget.cardinality === 'multiple') {
       const values = decision.values ?? (decision.value ? [decision.value] : []);
       if (values.length > 0) fields.push({ targetId, values });
     } else if (decision.value) {
@@ -4350,10 +4361,18 @@ async function applyBaselineChatStagesWithRun(input: {
   fields.sort((a, b) => a.targetId.localeCompare(b.targetId));
   // PAGE ABSTENTION PARITY: null effective type never attempts pages (coded
   // abstention, never a bare empty set). Ranker silence is unresolved proof.
+  // Page needs are recomputed for the FROZEN resolved type: the pre-computed
+  // `needs.pages` was based on the deterministic stages (missing-type
+  // abstention when the matcher left no type), so a live type recovery that
+  // unlocks a real type MUST re-attempt pages even when the stale flag is
+  // false — and the stale missing-type abstention never carries across.
+  const pagesAttemptable = !isQualificationPredictionEmpty(taxa.pages.length, evidenceText);
+  const pagesNeedLive = effectiveTypeId !== null && pagesAttemptable &&
+    (needs.pages || stages.pages.pageAbstentionCode === QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE);
   let pages: QualificationPageOutcome = effectiveTypeId === null
     ? { pageIds: [], pageOutcome: 'abstained-semantic', pageAbstentionCode: QUALIFICATION_PAGE_ABSTENTION_NO_REVIEWED_TYPE_CODE, pageProbability: null }
     : stages.pages;
-  if (needs.pages && effectiveTypeId !== null) {
+  if (pagesNeedLive && effectiveTypeId !== null) {
     const ranked = await captureBaselinePagesWithRealRanker({ taxa, evidenceText, view, snapshot, runId, dispatchGuard: input.dispatchGuard });
     pages = ranked.length > 0
       ? { pageIds: ranked, pageOutcome: 'predicted', pageAbstentionCode: null, pageProbability: null }
@@ -5072,7 +5091,17 @@ export async function captureQualificationPredictionsLive(
     baseline: ExecutedQualificationPrediction;
     candidate: ExecutedQualificationPrediction;
   }> = [];
-  for (const entry of entries) {
+  // Freeze the capture inputs BEFORE the first await: per-entry captures run
+  // sequential awaits below, and the commitment must describe the loaded
+  // inputs the predictions ran against — never a caller-mutated array. (When
+  // no frozen taxonomy is supplied the candidate pool itself derives from
+  // these entries, so callers must still treat the input as immutable.)
+  const capturedEntries = entries.map(entry => ({
+    ...entry,
+    gold: entry.gold,
+    evidence: entry.evidence.map(ev => ({ ...ev })),
+  }));
+  for (const entry of capturedEntries) {
     const evidenceText = qualificationEvidenceText(entry);
     const baseline = await captureBaselineEntryLive(entry, taxa, evidenceText, options.baselineRoute ?? null, view, baselineGuard);
     const candidate = jev
@@ -5082,10 +5111,10 @@ export async function captureQualificationPredictionsLive(
       : blockedCandidateWithoutCredentials(entry, taxa);
     predictions.push({ sku: entry.sku, baseline, candidate });
   }
-  if (predictions.length !== entries.length) {
+  if (predictions.length !== capturedEntries.length) {
     throw new Error('Qualification prediction artifact incomplete: missing entries.');
   }
-  const sourceInputsHash = hashQualificationSourceInputs(entries, resolved,
+  const sourceInputsHash = hashQualificationSourceInputs(capturedEntries, resolved,
     resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
     frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails));
   return {
@@ -5093,7 +5122,7 @@ export async function captureQualificationPredictionsLive(
     artifactHash: hashQualificationPredictions(predictions, resolved, sourceInputsHash),
     decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
-    entryCount: entries.length,
+    entryCount: capturedEntries.length,
     captureMode: jev || view ? 'live_captured' : 'deterministic_floor',
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,

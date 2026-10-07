@@ -33,6 +33,8 @@ import {
   buildQualificationCandidateQuestionSet,
   partitionCandidateQuestionsByPermittedEvidence,
   qualificationTaxonomiesFromFrozenSnapshot,
+  withFrozenAuthorityDetails,
+  JEV_MAX_ORDINARY_CHOICE_CANDIDATES,
   type FrozenAuthorityDetails,
   type QualificationGoldOnlyEntry,
 } from './benchmark-prediction';
@@ -690,11 +692,12 @@ export function assertLiveCaptureAllowed(args: {
 
 /**
  * Exact worst-case HTTP plan for a dev replay: per entry, the real shipped
- * question builders run (type phase + attribute/page phase over the frozen
- * pool — never gold), records batch into transport chunks of 32, and every
- * chunk may spend the single retry. No candidate clipping: over-limit type
- * stages dispatch zero type questions (placeholder) while attributes/pages
- * still capture. questions/batches + max retry must fit the budget.
+ * question builders run (type phase + attribute/page phase over the LIVE
+ * applicable set per effective type — never gold), records batch into
+ * transport chunks of 32, and every chunk may spend the single retry. No
+ * candidate clipping: over-limit type stages dispatch zero type questions
+ * (placeholder) while attributes/pages still capture. questions/batches +
+ * max retry must fit the budget.
  */
 export interface DevReplayPlan {
   entryCount: number;
@@ -706,32 +709,59 @@ export interface DevReplayPlan {
 export function planDevReplayBudget(
   entries: QualificationGoldOnlyEntry[],
   frozenSnapshot: FrozenTaxonomySnapshot,
+  authorityDetails?: FrozenAuthorityDetails | null,
 ): DevReplayPlan {
   const CHUNK_SIZE = 32;
   const MAX_ATTEMPTS_PER_BATCH = 2;
-  const taxa = qualificationTaxonomiesFromFrozenSnapshot(frozenSnapshot);
+  // Live parity: the same authority sidecar the capture path attaches
+  // (`withFrozenAuthorityDetails` before `captureQualificationPredictionsLive`
+  // in both scripts) rides planning, so visual-eligibility partitioning
+  // matches the dispatcher exactly — never the weaker stub default.
+  const taxa = qualificationTaxonomiesFromFrozenSnapshot(
+    authorityDetails ? withFrozenAuthorityDetails(frozenSnapshot, authorityDetails) : frozenSnapshot,
+  );
   let totalQuestions = 0;
   let dispatchBatches = 0;
+  // Over-limit closed worlds dispatch zero type questions (placeholder carries
+  // no usage); mirror the dispatcher so phase one never over-authorizes.
+  const typeOverLimit = taxa.productTypes.length > JEV_MAX_ORDINARY_CHOICE_CANDIDATES;
   for (const entry of entries) {
-    const typeSet = buildQualificationCandidateQuestionSet(entry, taxa);
-    const typeRecords = typeSet.productTypePlan ? 1 : 0;
-    const attrRecords = typeSet.attributePlans.reduce(
-      (n, p) => n + (p.choicePlan ? 1 : 0) + (p.noulPlans?.length ?? 0),
-      0,
-    );
-    const pageRecords = typeSet.pagePlan ? 1 : 0;
-    const phaseOne = typeRecords;
-    totalQuestions += phaseOne + attrRecords + pageRecords;
-    // Partitioned dispatch (production parity): phase-two questions dispatch
-    // one request series per target-permitted evidence group, chunked at
-    // transport size — never one shared batch across states. The wiring set
-    // (all frozen attributes) is a superset of every effective-type
-    // applicable set partitioned by the same key, so each live group lands
-    // inside exactly one planning group: the per-group chunk sum can only
-    // overestimate live batches, never undercount them.
-    const groups = partitionCandidateQuestionsByPermittedEvidence(entry, typeSet, null);
-    const phaseTwoBatches = groups.reduce((n, group) => n + Math.ceil(group.records.length / CHUNK_SIZE), 0);
-    dispatchBatches += Math.ceil(phaseOne / CHUNK_SIZE) + phaseTwoBatches;
+    const phaseOne = typeOverLimit ? 0 : 1;
+    // Phase-two bound FROM the live applicable set per entry: for every
+    // frozen effective type the dispatcher could freeze (live capture
+    // resolves the type from the model answer, so planning cannot know it),
+    // build the same applicable question set + permitted-evidence partition
+    // the dispatcher builds (`buildQualificationCandidateQuestionSet(entry,
+    // taxa, effectiveTypeId)` + `partitionCandidateQuestionsByPermittedEvidence`
+    // with the frozen type) and take the worst case. Profile cardinality flips
+    // (single global target → multiple per-profile Noul plans) and authority
+    // visual-eligibility splits change both record counts and group keys, so a
+    // wiring-set superset argument cannot hold — only the per-type maximum is
+    // conservative by construction. Entries whose gold type is known use the
+    // single live set; unknown types fall back to the worst case over all
+    // frozen types plus the abstained (universals-only, null-type) set.
+    const knownTypeId = entry.gold.productType.kind === 'known-type' ? entry.gold.productType.typeId : null;
+    const candidateTypeIds: Array<string | null> = knownTypeId !== null
+      ? [knownTypeId]
+      : [...taxa.productTypes.map(t => t.id), null];
+    let phaseTwoQuestions = 0;
+    let phaseTwoBatches = 0;
+    for (const effectiveTypeId of candidateTypeIds) {
+      const applicableQuestions = buildQualificationCandidateQuestionSet(entry, taxa, effectiveTypeId);
+      const questionCount = applicableQuestions.attributePlans.reduce(
+        (n, p) => n + (p.choicePlan ? 1 : 0) + (p.noulPlans?.length ?? 0),
+        0,
+      ) + (applicableQuestions.pagePlan ? 1 : 0);
+      const groups = partitionCandidateQuestionsByPermittedEvidence(entry, applicableQuestions, effectiveTypeId);
+      const batches = groups.reduce((n, group) => n + Math.ceil(group.records.length / CHUNK_SIZE), 0);
+      if (questionCount > phaseTwoQuestions) phaseTwoQuestions = questionCount;
+      if (batches > phaseTwoBatches) phaseTwoBatches = batches;
+    }
+    totalQuestions += phaseOne + phaseTwoQuestions;
+    // Worst-case retries: every dispatched chunk may spend the single retry
+    // (primary + retry each consume the bound guard) — authorized attempts
+    // never undercount required requests.
+    dispatchBatches += (typeOverLimit ? 0 : Math.ceil(phaseOne / CHUNK_SIZE)) + phaseTwoBatches;
   }
   return {
     entryCount: entries.length,

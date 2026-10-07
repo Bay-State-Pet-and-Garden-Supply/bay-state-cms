@@ -2138,6 +2138,167 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         globalThis.fetch = fetchBefore;
       }
     });
+    it('re-attempts pages after a live type recovery unlocks a real type (mocked HTTP, real transport)', async () => {
+      // (a) The deterministic matcher leaves type AND pages unresolved for
+      // the unknown entry (missing-type page abstention); the live type
+      // boundary recovers a real type, so pages MUST be re-attempted even
+      // though the pre-computed needs.pages was false under the stale null
+      // type — the old missing-type abstention never carries across.
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      let attempts = 0;
+      const fetchBefore = globalThis.fetch;
+      let pageAttempts = 0;
+      globalThis.fetch = (async (_url: unknown, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { messages: Array<{ content: string }> };
+        const prompt = body.messages.map(m => m.content).join('\n');
+        if (prompt.includes('Dry Dog Food') && !prompt.includes('Chicken')) pageAttempts += 1;
+        const pick = prompt.includes('Dry Dog Food') && !prompt.includes('Chicken') ? 'Dry Dog Food'
+          : prompt.includes('Dry Dog Food') ? 'Dry Dog Food'
+          : prompt.includes('Chicken') ? 'Chicken'
+          : prompt.includes('dog') ? 'dog'
+          : 'Dry Dog Food';
+        return new Response(
+          JSON.stringify({
+            model: 'qual-ollama-model',
+            choices: [{ message: { content: JSON.stringify({ values: [pick], confidence: 0.85, scores: [0.85] }) } }],
+            usage: { prompt_tokens: 40, completion_tokens: 8 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+      try {
+        const artifact = await captureQualificationPredictionsLive(
+          tinyQualificationEntries().filter(entry => entry.sku === 'TINY-UNKNOWN-01'),
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 20 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          tinyQualificationTaxonomies(),
+        );
+        const baseline = artifact.predictions[0].baseline;
+        expect(baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        expect(baseline.abstained).toBe(false);
+        expect(pageAttempts).toBeGreaterThan(0);
+        expect(baseline.pageIds).toEqual(['page-dry-dog-food']);
+        expect(baseline.pageOutcome).toBe('predicted');
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('baseline matcher honors frozen alias settings; live boundary carries profile cardinality + authority (mocked HTTP)', async () => {
+      // (b)+(c) An alias-only mention matches deterministically only with the
+      // frozen authority attached (stub matches direct text alone), and the
+      // live leg executes the profile-adjusted cardinality through the same
+      // authority resolution (single-slot value, never a multi pick).
+      const taxaBase: QualificationTaxonomies = {
+        productTypes: [{ id: 'dog_food_dry', label: 'Dry Dog Food', attributeProfileId: 'dog_food_dry-profile' }],
+        attributeTargets: [{ targetId: 'flavor', cardinality: 'multiple', options: ['Chicken', 'Beef'] }],
+        pages: [],
+        typeAttributeProfiles: { dog_food_dry: 'dog_food_dry-profile' },
+        attributeProfiles: [{
+          id: 'dog_food_dry-profile',
+          productTypeId: 'dog_food_dry',
+          attributes: [{ attributeId: 'flavor', cardinality: 'single', required: false, applicabilityConditions: [] }],
+        }],
+        universalAttributeIds: [],
+        invariantAttributesByType: {},
+      };
+      const aliasEntry: QualificationGoldOnlyEntry = {
+        sku: 'TINY-ALIAS-01',
+        familyId: 'fam-tiny-alias',
+        split: 'dev',
+        assortment: 'food',
+        gold: {
+          productType: { kind: 'known-type', typeId: 'dog_food_dry' },
+          fieldAssignments: [{ targetId: 'flavor', value: 'Chicken', state: 'known' }],
+          categoryPages: { pageIds: [], pageAssignments: [] },
+        },
+        evidence: [{ source: 'official_page', snippet: 'Acme poultry Dry Dog Food for adult dogs', reliability: 'high', attributeId: null }],
+      };
+      const withAliases = {
+        ...taxaBase,
+        frozenAuthorityDetails: {
+          catalogFieldByTarget: { flavor: 'ProductField18' },
+          attributeConfigByTarget: {
+            flavor: {
+              valueAliases: [{ alias: 'poultry', mapsTo: 'Chicken' }],
+              isClaim: false,
+              isCompositionAttribute: false,
+              visualEvidenceEligibility: 'eligible' as const,
+            },
+          },
+        },
+      } satisfies QualificationTaxonomies;
+      const bareFloor = buildQualificationPredictionsFromCode([aliasEntry], taxaBase);
+      expect(bareFloor.predictions[0].baseline.fieldAssignments).toEqual([]);
+      const aliasFloor = buildQualificationPredictionsFromCode([aliasEntry], withAliases);
+      expect(aliasFloor.predictions[0].baseline.fieldAssignments).toEqual([{ targetId: 'flavor', value: 'Chicken' }]);
+      expect(aliasFloor.artifactHash).not.toBe(bareFloor.artifactHash);
+      // Live leg: the evidence below has NO direct/alias match, so the
+      // deterministic precedence inside the boundary cannot resolve first —
+      // the mock ranker speaks through the profile-adjusted single
+      // cardinality.
+      upsertApiKey('ollama', 'qual-test-ollama-key', 'http://localhost:11434', 'qual-ollama-model');
+      const fetchBefore = globalThis.fetch;
+      let attempts = 0;
+      globalThis.fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            model: 'qual-ollama-model',
+            choices: [{ message: { content: JSON.stringify({ values: ['Chicken', 'Beef'], confidence: 0.85, scores: [0.9, 0.3] }) } }],
+            usage: { prompt_tokens: 40, completion_tokens: 8 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+      try {
+        const liveEntry: QualificationGoldOnlyEntry = {
+          ...aliasEntry,
+          sku: 'TINY-ALIAS-02',
+          evidence: [{ source: 'official_page', snippet: 'Acme Dry Dog Food for adult dogs', reliability: 'high', attributeId: null }],
+        };
+        const artifact = await captureQualificationPredictionsLive(
+          [liveEntry],
+          {
+            baselineRoute: { provider: 'ollama', model: 'qual-ollama-model', credentialRef: 'api_keys:ollama', isolatedStore: dbPath },
+            baselineAttemptBudget: { tryConsumeAttempt: () => ++attempts <= 20 },
+            baselineDeadlineSignal: AbortSignal.timeout(30_000),
+          },
+          withAliases,
+        );
+        const baseline = artifact.predictions[0].baseline;
+        expect(baseline.source).toBe(QUALIFICATION_SOURCE_LIVE_CAPTURED);
+        const flavor = baseline.fieldAssignments.find(f => f.targetId === 'flavor');
+        // Profile says single: one value even though the ranker returned two.
+        expect(flavor?.value).toBe('Chicken');
+        expect(flavor?.values).toBeUndefined();
+      } finally {
+        globalThis.fetch = fetchBefore;
+      }
+    });
+
+    it('live capture commitment covers the frozen inputs (gold-free, evidence-sensitive)', async () => {
+      // (e) The capture-time commitment is computed from the frozen snapshot
+      // of the loaded inputs: gold relabels leave it untouched, evidence
+      // changes move it, and the artifact verifies against it.
+      const taxa = tinyQualificationTaxonomies();
+      const entries = tinyQualificationEntries();
+      const base = await captureQualificationPredictionsLive(entries, {}, taxa);
+      expect(base.sourceInputsHash).toMatch(/^[0-9a-f]{64}$/);
+      const relabeled = entries.map(entry => ({
+        ...entry,
+        gold: { ...entry.gold, productType: { kind: 'known-type' as const, typeId: 'changed-type' } },
+      }));
+      const relabeledArtifact = await captureQualificationPredictionsLive(relabeled, {}, taxa);
+      expect(relabeledArtifact.sourceInputsHash).toBe(base.sourceInputsHash);
+      const revised = entries.map(entry => entry.sku === 'TINY-DOG-01'
+        ? { ...entry, evidence: [{ source: 'revised', snippet: 'changed evidence snippet', reliability: 'high', attributeId: null }] }
+        : entry);
+      const revisedArtifact = await captureQualificationPredictionsLive(revised, {}, taxa);
+      expect(revisedArtifact.sourceInputsHash).not.toBe(base.sourceInputsHash);
+    });
 
     it('development CLI execution excludes holdout predictions before inference', () => {
       const command = Bun.spawnSync(['bun', 'scripts/typesafe-curation-qualification.ts', '--split=dev', '--json'], {
