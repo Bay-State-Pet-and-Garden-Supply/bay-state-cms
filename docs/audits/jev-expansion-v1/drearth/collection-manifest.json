@@ -1,0 +1,75 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "drearth.com:sitemap-locs": 332,
+      "drearth.com:sitemap-children": 5,
+      "drearth.com:sitemap-urls": 326,
+      "drearth.com:feed-rows": 0,
+      "drearth.com:feed-unverified": 0,
+      "drearth.com:fetch-queued": 73,
+      "excludedNonProduct": 9,
+      "drearth.com:page-rows": 64
+    }
+  },
+  "attempts": {
+    "used": 82,
+    "cap": 500,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 82,
+      "totalSourceAttempts": 1567,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1567,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 62,
+    "devPrimary": 52,
+    "devSupplemental": 1,
+    "holdoutFamilies": 10,
+    "holdoutRows": 11
+  },
+  "commitments": {
+    "bankHash": "28ee859de8d0e950f02b264e78a89cf8fff1343f49f85477ef481819aa695cd3",
+    "holdoutHash": "8de8e284ccba1f982d548eea42a70b1a6f6babccb6f63c001425978a5b1860f0",
+    "memberHash": "fc59e07bd0ed651b71c31f34320505f7e5274790f9f617f22b7fddb0b332ee60",
+    "ledgerHash": "ed4f59220affaee9d2e6d169cfa36e6d2fd13931ca5362fb26d695400d2c2f3f",
+    "cumulativeHash": "e181690435f6b442b472cfedbd051f82618b35d3aed1d32b8d5241a1c0453934",
+    "devHash": "7ab7bc808af7bc942a02f92987f58c986903106d045523f5f0552503b8c2711b",
+    "devSuppHash": "31a42deac36e94e198e0675a3f68bbbe0669656895678f2632a2402824dce19b"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}
