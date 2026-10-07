@@ -1,0 +1,1151 @@
+{
+ "artifactKind": "adjudication-batch-1",
+ "status": "UNADJUDICATED",
+ "count": 48,
+ "entries": [
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:earthanimal.com:64b9912c7ddd5847",
+   "title": "Healthy Weight Supplement",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/healthy-weight-supplement",
+   "familyId": "family-d3fbafcd373bec859d7398d238fc16f3",
+   "excerpts": [
+    {
+     "text": "Bob Goldstein to help support healthy weight and proper metabolism in dogs and cats.",
+     "locator": "https://earthanimal.com/products/healthy-weight-supplement JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "A daily powder crafted with an active blend of fiber and targeted nutrients to help support healthy weight loss, a sense of fullness, and proper metabolism alongside diet and exercise.",
+     "locator": "https://earthanimal.com/products/healthy-weight-supplement JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:kongcompany.com:023bc6dafd261a5e",
+   "title": "Tropics Rattlez Iguana",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/tropics-rattlez-iguana/",
+   "familyId": "family-7ff4a70eaa2a775517671701f1656ff6",
+   "excerpts": [
+    {
+     "text": "KONG Tropics Rattlez toys bring vibrant rainforest sounds and colors to your dog\u2019s playtime!",
+     "locator": "https://www.kongcompany.com/tropics-rattlez-iguana/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "With multisensory textures, squeakers, crinkle material, and an inner rattle, they\u2019re perfect for shaking, chomping, and fetching.",
+     "locator": "https://www.kongcompany.com/tropics-rattlez-iguana/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Built tough with dual layers and reinforced seams, these toys offer extra durability to withstand active play.",
+     "locator": "https://www.kongcompany.com/tropics-rattlez-iguana/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Designed to engage and entertain, they\u2019ll provide your pet with hours of fun and stimulation.",
+     "locator": "https://www.kongcompany.com/tropics-rattlez-iguana/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:kongcompany.com:045abe13da8615ea",
+   "title": "Fun Pack",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/fun-pack/",
+   "familyId": "family-324e95d11afa2569d67829770aa60ecc",
+   "excerpts": [
+    {
+     "text": "KONG Fun Pack is the perfect gift for the fall-loving dog in your life!",
+     "locator": "https://www.kongcompany.com/fun-pack/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Designed for a variety of play styles, this pack includes toys for fetching, tugging, and light chewing.",
+     "locator": "https://www.kongcompany.com/fun-pack/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "FetchStix is a toss and tug toy that's safer than wooden sticks.",
+     "locator": "https://www.kongcompany.com/fun-pack/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Scrunch Knots Fox has internal knots and stretchy sides to satisfy natural chewing and shaking instincts.",
+     "locator": "https://www.kongcompany.com/fun-pack/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+   "title": "KONG Extreme Ball w/Rope",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/kong-extreme-ball-w-rope/",
+   "familyId": "family-449958b85746b59079f7065246d27772",
+   "excerpts": [
+    {
+     "text": "The Extreme KONG Ball with Rope adds long-lasting diversity to games of fetch and tug.",
+     "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Made from KONG Extreme rubber, the ball is designed for durability for long-lasting interactive play.",
+     "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "The 100% cotton rope also rewards appropriate chewing behavior while massaging teeth and gum.",
+     "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "All of this adds up to playful bouts of mentally stimulating and enriching engagement.",
+     "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "dog-toys",
+   "sku": "PUBLIC:kongcompany.com:0cf7eaddd7ee28af",
+   "title": "Knots Frog",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/knots-frog-assorted/",
+   "familyId": "family-dacb3fa75adc3e087a2f55094b86a6d1",
+   "excerpts": [
+    {
+     "text": "Add a variety of fun to your dog\u2019s toy basket with KONG Knots Frog!",
+     "locator": "https://www.kongcompany.com/knots-frog-assorted/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "This oversized amphibian\u2019s full-body rope skeleton creates durability & heft for a variety of playstyles like tugging, thrashing, carrying, and gnawing.",
+     "locator": "https://www.kongcompany.com/knots-frog-assorted/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "A squeaker in the head entices extended playtime, while its soft, dual-plush fur invites cuddling during quiet time.",
+     "locator": "https://www.kongcompany.com/knots-frog-assorted/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Unique details like cute froggy fingers and embroidered facial features make this frog the perfect match for your dog.",
+     "locator": "https://www.kongcompany.com/knots-frog-assorted/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "petfood",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:annamaet.com:d59ffd323547f843",
+   "title": "Annamaet Lean Dog Treats : Reduced Fat Formula with Chicken &amp; Duck - Annamaet Pet Foods",
+   "brand": "Annamaet",
+   "canonicalUrl": "https://annamaet.com/product/annamaet-lean-dog-treats-reduced-fat-formula-with-chicken-duck/",
+   "familyId": "family-2e28f780d8486deeebe370f4da165631",
+   "excerpts": [
+    {
+     "text": "A reduced-fat treat baked with the same formula as our Annamaet Lean dog food!",
+     "locator": "https://annamaet.com/product/annamaet-lean-dog-treats-reduced-fat-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "These healthy, grain free treats are meat based and put the same high quality chicken that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend, without the added fat.",
+     "locator": "https://annamaet.com/product/annamaet-lean-dog-treats-reduced-fat-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "locator": "https://annamaet.com/product/annamaet-lean-dog-treats-reduced-fat-formula-with-chicken-duck/ JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:aqueon.com:4349863079f9ee38",
+   "title": "Betta Food .175 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/betta-treat",
+   "familyId": "family-d49c5f894d6e394d0abd33790e3fd610",
+   "excerpts": [
+    {
+     "text": "Betta Food from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Betta that will not cloud water if used as directed.",
+     "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Betta Treat Aqueon Betta Treat is dehydrated bloodworms, a highly nutritious treat that is a great source of protein for your betta and many other tropical fish.",
+     "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Be sure to also feed your betta a nutritious diet such as Aqueon PRO Betta formula or Aqueon Betta Pellets.",
+     "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:aqueon.com:56800fe522e3b74b",
+   "title": "Aqueon Pro Betta Treat 0.175 Ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat",
+   "familyId": "family-fe3bb63d38d59e7913da5d9cded8de05",
+   "excerpts": [
+    {
+     "text": "Reward your betta with Aqueon PRO Betta Treat.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "These protein-rich freeze-dried snacks provide a tasty supplement to daily feeding and help support overall health and vitality.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon PRO Betta Treat Give your betta something you can feel good about feeding with Aqueon PRO Betta Treat Freeze-Dried Bloodworms.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "This simple, thoughtful treat adds variety and nutrition to your fish\u2019s routine without guesswork.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+   "title": "Wisdom Air-Dried Holiday Feast Jerky",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky",
+   "familyId": "family-87df692b6ad1da01ba0b61527ecf956c",
+   "excerpts": [
+    {
+     "text": "Celebrate the season with Wisdom Holiday Feast Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Perfect for training, rewarding, or just because.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "dog-treats",
+   "sku": "PUBLIC:earthanimal.com:34db9cf0b6051cde",
+   "title": "No-Hide Holiday Feast Stix",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/no-hide-holiday-feast-stix",
+   "familyId": "family-63ab7a1b12cfa6fd47b15cf57b040d3f",
+   "excerpts": [
+    {
+     "text": "A long-lasting, 100% rawhide-free chew made with real, whole ingredients and flavored with humanely raised turkey, pumpkin, and cranberries, sized for extra small dogs and cats under 10 lbs.",
+     "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Chewing helps clean teeth and supports healthy gums, and every bite delivers the delicious chewing satisfaction you can feel good about.",
+     "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Irresistibly good and highly digestible.",
+     "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Made in the USA with globally sourced ingredients.",
+     "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
+   "title": "Flea & Tick Internal Herbal Powder (Yeast-Free)",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/flea-tick-internal-herbal-powder-yeast-free",
+   "familyId": "family-2e908ab933df84fe032466c1e9a7fa5a",
+   "excerpts": [
+    {
+     "text": "Bob Goldstein, Daily Herbal Internal Powder (Yeast-Free) works from within to help create a natural skin scent that fleas and ticks tend to avoid.",
+     "locator": "https://earthanimal.com/products/flea-tick-internal-herbal-powder-yeast-free JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:761741fbab59ddd3",
+   "title": "No More Runs Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/no-more-runs-herbal-drops",
+   "familyId": "family-789bd043ee10ed74c1be5646175eb96d",
+   "excerpts": [
+    {
+     "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of occasional digestive upset.",
+     "locator": "https://earthanimal.com/products/no-more-runs-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Crafted with soothing herbs traditionally used to help calm the digestive tract, support stool consistency, and promote digestive balance during flare-ups.",
+     "locator": "https://earthanimal.com/products/no-more-runs-herbal-drops JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
+   "title": "Flea & Tick Herbal Shampoo",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-shampoo",
+   "familyId": "family-b775fdf929a9edef2694f6d8d798e078",
+   "excerpts": [
+    {
+     "text": "Wash away dirt and unwanted pests with a gentle, cleansing shampoo that nourishes the skin and coat.",
+     "locator": "https://earthanimal.com/products/flea-tick-herbal-shampoo JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:85973f5bc751bbf5",
+   "title": "Allergy & Skin Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/allergy-skin-herbal-drops",
+   "familyId": "family-bfc1f4851c6cda1251d8dc894c79048b",
+   "excerpts": [
+    {
+     "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of seasonal sensitivities, itchy skin, and environmental challenges.",
+     "locator": "https://earthanimal.com/products/allergy-skin-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Crafted with herbs traditionally used to support a healthy histamine response, skin comfort, immune balance, and whole-body wellness from within.",
+     "locator": "https://earthanimal.com/products/allergy-skin-herbal-drops JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "grooming",
+   "sku": "PUBLIC:earthanimal.com:9de14d2658969f55",
+   "title": "Flea & Tick Herbal Spot-On for Cats",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-spot-on-for-cats",
+   "familyId": "family-9f443805a3a9054ce41e1318877ae768",
+   "excerpts": [
+    {
+     "text": "Bob Goldstein and crafted with aromatic herbs and essential oils to help repel fleas and ticks at the skin level.",
+     "locator": "https://earthanimal.com/products/flea-tick-herbal-spot-on-for-cats JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:57f8a2e679d296f0",
+   "title": "Betta Pellets 1.41 oz",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets",
+   "familyId": "family-17f8dd47c9354dc07fd2cd05ead11251",
+   "excerpts": [
+    {
+     "text": "Nutrinsect\u2122 Betta Pellets are 100% fish-free, matching the types of food your betta would naturally eat in the wild.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "The plant- and insect-based formula is designed for optimal palatability and color enhancement while providing your fish with their daily nutritional needs.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "This helps you create a beautiful aquarium ecosystem where your fish will thrive.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:6bdb84598327f1a9",
+   "title": "Cichlid Food 4.5 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing",
+   "familyId": "family-d6eb349b99473e454c975add5f930588",
+   "excerpts": [
+    {
+     "text": "Try Aqueon Cichlid Food made with premium ingredients, like shrimp meal to attract the most finicky cichlids.",
+     "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+     "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "A color enhancing formula to help promote brilliant colors in fish.",
+     "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:877b6b597c910863",
+   "title": "Aqueon PRO Cichlid Food Color Enhancing Mini 4.5 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing",
+   "familyId": "family-66fd18b26c90e740a964389a01ae7dc2",
+   "excerpts": [
+    {
+     "text": "Bring out the natural brilliance of your cichlids with Aqueon PRO Color Enhancing Cichlid Food.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "This nutrient-rich formula supports vibrant coloration, healthy growth, and overall wellness for active cichlid fish.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon PRO Cichlid Food Color Enhancing Support strong growth, vibrant color, and everyday health with Aqueon PRO Cichlid Pellets, a complete daily diet formulated to bring out the best in your cichlids.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "This advanced recipe features premium ingredients like shrimp meal, black soldier fly larvae, spirulina, and kelp to deliver balanced, protein-rich nutrition that supports energy, immune health, and long-term vitality while helping promote natural, vivid coloration.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
+   "title": "Aqueon PRO Bottom Feeder Tablets 3 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets",
+   "familyId": "family-a2de4ef3d4c58e031b8af9b1e8e0b526",
+   "excerpts": [
+    {
+     "text": "Provide targeted nutrition for catfish, loaches, plecos, and other bottom-feeding fish with Aqueon PRO Bottom Feeder Tablets.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Formulated to support healthy growth, vitality, and overall aquatic wellness.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon PRO Bottom Feeder Tablets Support the health and vitality of your bottom-dwelling fish with Aqueon PRO Bottom Feeder Tabs, a complete sinking diet designed to match the natural feeding behavior of species that graze along the substrate.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Ideal for plecostomus, loaches, catfish, shrimp, and other bottom feeders, these nutrient-rich tablets slowly sink and dissolve, providing a steady source of food throughout the day.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "food",
+   "sku": "PUBLIC:aqueon.com:ed8117f728bea3d0",
+   "title": "Goldfish Pellets 1.76 oz",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets",
+   "familyId": "family-7dc1b2d115c42d1eb7c05ca25d7cc54f",
+   "excerpts": [
+    {
+     "text": "Nutrinsect\u2122 Goldfish Pellets are 100% fish-free, matching the food your goldfish prefer to eat in the wild.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "This helps you create a thriving ecosystem where your fish feels right at home.",
+     "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:drearth.com:19b66ce7c4ecb591",
+   "title": "Succulence\u00ae Cactus &amp;amp; Succulent Plant Food",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/succulence-cactus-succulent-liquid-food/",
+   "familyId": "family-87ea44778874f9fa16ff2117addbc3ca",
+   "excerpts": [
+    {
+     "text": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "locator": "https://drearth.com/product/succulence-cactus-succulent-liquid-food/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "from the highest level Human Grade whole-foods.",
+     "locator": "https://drearth.com/product/succulence-cactus-succulent-liquid-food/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "locator": "https://drearth.com/product/succulence-cactus-succulent-liquid-food/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "locator": "https://drearth.com/product/succulence-cactus-succulent-liquid-food/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:drearth.com:1c86cc4e765bedb0",
+   "title": "Flower Girl\u00ae Bud &amp;amp; Bloom Booster",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/flower-girl-bud-bloom-booster/",
+   "familyId": "family-07e9dbe38b35f953792f4bc7852c450a",
+   "excerpts": [
+    {
+     "text": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "locator": "https://drearth.com/product/flower-girl-bud-bloom-booster/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "from the highest level Human Grade whole-foods.",
+     "locator": "https://drearth.com/product/flower-girl-bud-bloom-booster/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "locator": "https://drearth.com/product/flower-girl-bud-bloom-booster/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "locator": "https://drearth.com/product/flower-girl-bud-bloom-booster/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:drearth.com:1dc5340e9390c998",
+   "title": "Cactus &amp;amp; Succulent 3-Step Fertilizer Kit",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/succulence-kit/",
+   "familyId": "family-6aa24d49331a3ef944a6b0bc9184ba83",
+   "excerpts": [
+    {
+     "text": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "locator": "https://drearth.com/product/succulence-kit/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Sustainably made from the highest level Human Grade whole-foods.",
+     "locator": "https://drearth.com/product/succulence-kit/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "locator": "https://drearth.com/product/succulence-kit/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "locator": "https://drearth.com/product/succulence-kit/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "garden",
+   "sku": "PUBLIC:drearth.com:2328d90eab1ba1bc",
+   "title": "Natural Choice\u00ae All Purpose Compost",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/natural-choice-compost/",
+   "familyId": "family-4da47050fd9d2a9ade970e8429168951",
+   "excerpts": [
+    {
+     "text": "Description: Natural Choice\u00ae All Purpose Compost creates the perfect soil conditions to promote plant health and optimum growth.",
+     "locator": "https://drearth.com/product/natural-choice-compost/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Natural Choice\u00ae All Purpose Compost can be used for many projects in the garden: amendment for planting trees, shrubs, bare root planting, flowers, vegetables &amp; over seeding lawns.",
+     "locator": "https://drearth.com/product/natural-choice-compost/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "100% organic - no synthetic ingredients or GMO infested chicken manure.",
+     "locator": "https://drearth.com/product/natural-choice-compost/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Contains TruBiotic\u00ae beneficial soil microbes plus mycorrhizae.",
+     "locator": "https://drearth.com/product/natural-choice-compost/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:aqueon.com:e49adbc4f076d638",
+   "title": "4-ounce",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/water-care/shrimp-essentials",
+   "familyId": "family-dda43dfec8976006b8366a175b6fc377",
+   "excerpts": [
+    {
+     "text": "Shrimp and freshwater crayfish have exoskeletons that require additional nutrients for biological processes like molting and osmoregulation.",
+     "locator": "https://www.aqueon.com/products/water-care/shrimp-essentials JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Aqueon Shrimp Essentials replaces important trace minerals that are vital to invertebrates and are removed through chemical filtration as well as used by individual shrimp in the aquarium.",
+     "locator": "https://www.aqueon.com/products/water-care/shrimp-essentials JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Shrimp Essentials Aqueon Shrimp Essentials replaces important trace minerals that are vital to invertebrates and are removed through chemical filtration as well as used by individual shrimp in the aquarium.",
+     "locator": "https://www.aqueon.com/products/water-care/shrimp-essentials JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "These nutrients help the crustaceans cast off their old exoskeleton and harden the new one.",
+     "locator": "https://www.aqueon.com/products/water-care/shrimp-essentials JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:drearth.com:220a0d05d956dba4",
+   "title": "Final Stop\u00ae Pest Control Pet Spray",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/final-stop-pest-control-pet-spray/",
+   "familyId": "family-cd76ef15b737d20374f27c99567f4c5d",
+   "excerpts": [
+    {
+     "text": "Earth Final Stop All Natural Insect Control Pet Spray intended for use directly on pets such as cats and dogs and their bedding areas.",
+     "locator": "https://drearth.com/product/final-stop-pest-control-pet-spray/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Your customers want safety and strength and we've carefully selected natural ingredients to safely and efficiently eliminate pesky pet-related insect issues.",
+     "locator": "https://drearth.com/product/final-stop-pest-control-pet-spray/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Organic formula contains no harmful synthetic ingredients for dogs, cats, and household animals.",
+     "locator": "https://drearth.com/product/final-stop-pest-control-pet-spray/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Deters fleas, ticks, mosquitoes, flies, gnats, mites, and other biting insects.",
+     "locator": "https://drearth.com/product/final-stop-pest-control-pet-spray/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:drearth.com:c628be60145d275a",
+   "title": "Final Stop\u00ae Disease Control Fungicide Ready to Spray",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/disease-control-rts/",
+   "familyId": "family-9d54239d7f24fc3dba2f016d5204cc76",
+   "excerpts": [
+    {
+     "text": "Our unique combination of natural ingredients kills and controls powdery mildew and other mold.",
+     "locator": "https://drearth.com/product/disease-control-rts/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "OMRI listed for use in organic gardening.",
+     "locator": "https://drearth.com/product/disease-control-rts/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "concentrate covers 3750 square feet with a dilution rate of 2oz.",
+     "locator": "https://drearth.com/product/disease-control-rts/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Earth\u00ae Final Stop\u00ae Disease Control Fungicide is a protective dormant spray that provides year-round disease control on trees, shrubs, lawns flowers and edibles.",
+     "locator": "https://drearth.com/product/disease-control-rts/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "drearth",
+   "stratumHypothesis": "pest-control",
+   "sku": "PUBLIC:drearth.com:ec38bdb69f71a4ed",
+   "title": "Final Stop\u00ae Disease Control Fungicide Black Label",
+   "brand": "Dr Earth",
+   "canonicalUrl": "https://drearth.com/product/final-stop-disease-control-fungicide-black-label/",
+   "familyId": "family-27c5b9cbc7098d7d967b0ffb3a25bbb9",
+   "excerpts": [
+    {
+     "text": "Our unique combination of natural ingredients kills and controls powdery mildew and other mold.",
+     "locator": "https://drearth.com/product/final-stop-disease-control-fungicide-black-label/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "OMRI listed for use in organic gardening.",
+     "locator": "https://drearth.com/product/final-stop-disease-control-fungicide-black-label/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Earth\u00ae Final Stop\u00ae Disease Control Fungicide is a protective dormant spray that provides year-round disease control on trees, shrubs, lawns flowers and edibles.",
+     "locator": "https://drearth.com/product/final-stop-disease-control-fungicide-black-label/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Kills on contact while providing continued protection for weeks.",
+     "locator": "https://drearth.com/product/final-stop-disease-control-fungicide-black-label/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:natureswaybirds.com:037f39c3c9d63bbe",
+   "title": "9\" Decorative Hook",
+   "brand": "Wild Wings",
+   "canonicalUrl": "https://natureswaybirds.com/products/9-decorative-hook-model-wwhang-9-1",
+   "familyId": "family-2f3311b5d8d44a7af799e40905ee7b1d",
+   "excerpts": [
+    {
+     "text": "SECURLY ADD LENGTH: With a 22 pound capacity, enjoy the convenience of hanging your bird feeders at the height you can easily view.",
+     "locator": "https://www.natureswaybirds.com/products/9-decorative-hook-model-wwhang-9-1 JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "WIDE APPLICATION: Endless uses of the chain and hooks, hang outdoor d\u00e9cor, outdoor lights, lanterns, wind chimes, hummingbird feeders, planters, holiday decorations, and more!",
+     "locator": "https://www.natureswaybirds.com/products/9-decorative-hook-model-wwhang-9-1 JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "DURABLE MATERIALS: Weather-resistant black powder-coated metal for a hanger that can withstand the elements, suitable for outdoor or indoor use.",
+     "locator": "https://www.natureswaybirds.com/products/9-decorative-hook-model-wwhang-9-1 JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "CUSTOMIZE YOUR HANGING: 9 inch length, customize the location of your hanging d\u00e9cor to most small branches or over railings.",
+     "locator": "https://www.natureswaybirds.com/products/9-decorative-hook-model-wwhang-9-1 JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:natureswaybirds.com:0bd90cbcad1e0f97",
+   "title": "Red Tulip Hummingbird Feeder Replacement Flowers w/ Cleaning Brush, 9 ct",
+   "brand": "Nature's Way",
+   "canonicalUrl": "https://natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-tulip-red-9",
+   "familyId": "family-dd0556a1790bdbc7a2be02561f6f81ce",
+   "excerpts": [
+    {
+     "text": "CUSTOMIZE YOUR FEEDER: Refresh or personalize your hummingbird feeder with 9 lifelike Tulip flower ports featuring a soft, flexible Leak Free\u2122 fit for comfortable feeding.",
+     "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-tulip-red-9 JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "IMPROVED FEEDING COMFORT: Flexible port petals provide a gentle feeding surface that mimics natural blooms and keeps hummingbirds comfortable while feeding.",
+     "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-tulip-red-9 JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "UNIVERSAL COMPATIBILITY: Fits all current Nature\u2019s Way hummingbird feeders and any alternative feeder that accepts a standard 1/4\" port opening.",
+     "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-tulip-red-9 JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "DURABLE, LONG-LASTING MATERIALS: High-quality, UV-stabilized materials maintain color, shape, and leak resistance through seasons of nectar feeding.",
+     "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-tulip-red-9 JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:natureswaybirds.com:0d4757c68b0e3b6a",
+   "title": "Country Cottage Metal Gazebo Bird Feeder",
+   "brand": "Nature's Way",
+   "canonicalUrl": "https://natureswaybirds.com/products/country-cottage-gazebo-bird-feeder-model-gaz-h1",
+   "familyId": "family-67b0273868ec9574b7f66f4f2fc7e6b9",
+   "excerpts": [
+    {
+     "text": "ATTRACTIVE DESIGN: Charming country cottage gazebo-style feeder with fold-out perches and 1.56 qt seed capacity creates a standout focal point in any backyard.",
+     "locator": "https://www.natureswaybirds.com/products/country-cottage-gazebo-bird-feeder-model-gaz-h1 JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "KEEP THE BIRDS HAPPY: Channeled base with drainage holes helps reduce moisture and keep seed fresher, while the seed diverter directs seed to the feeding area for easier access.",
+     "locator": "https://www.natureswaybirds.com/products/country-cottage-gazebo-bird-feeder-model-gaz-h1 JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "VERSATILE FEEDING ACCESS: Fold-out perches and balanced spacing accommodate both small and large backyard bird species.",
+     "locator": "https://www.natureswaybirds.com/products/country-cottage-gazebo-bird-feeder-model-gaz-h1 JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "DURABLE MATERIALS: Sturdy metal roof and base with a powder-coated finish provide reliable outdoor performance through changing seasons.",
+     "locator": "https://www.natureswaybirds.com/products/country-cottage-gazebo-bird-feeder-model-gaz-h1 JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "wild-bird",
+   "sku": "PUBLIC:natureswaybirds.com:0db4aebd62f4968a",
+   "title": "Antique Teal Mason Jar Glass Top-Fill Dish Hummingbird Feeder",
+   "brand": "Wild Wings",
+   "canonicalUrl": "https://natureswaybirds.com/products/mason-jar-hummingbird-feeder-antique-teal-model-wwmjf4-teal",
+   "familyId": "family-03089344dcf79121127a952778646b9f",
+   "excerpts": [
+    {
+     "text": "ATTRACTIVE DESIGN: Add farmhouse charm to your garden with this compact teal mason jar style feeder, 4 flexible pink flower shaped feeding ports to feed multiple hummingbirds, 6 oz.",
+     "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-antique-teal-model-wwmjf4-teal JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "DURABLE MATERIALS: High quality glass nectar reservoir, flexible feeding ports for hummingbird comfort, stainless steel lid and hanger for a long lasting feeder.",
+     "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-antique-teal-model-wwmjf4-teal JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "DESIGNED FOR EASY FEEDING: Hummingbirds\u2019 tongues can extend up to twice the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+     "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-antique-teal-model-wwmjf4-teal JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Dimensions: Feeder 2.5\"H x 5\"W x 5\"D Weight: 1 lbs Capacity: up to 6 oz Feed to Use: Nectar Attracts: Hummingbirds",
+     "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-antique-teal-model-wwmjf4-teal JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "aquatics",
+   "sku": "PUBLIC:aqueon.com:4e24fca20ec1bff1",
+   "title": "LED MiniBow Kit SmartClean\u00ae",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/aquarium-starter-kits/bettabow-smartclean",
+   "familyId": "family-8e1b4762b2d3304fdf9e11b49c4d1d30",
+   "excerpts": [
+    {
+     "text": "Aqueon\u00ae LED BettaBow Kit with SmartClean\u00ae Technology are great for first time and experienced fish keeper.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/bettabow-smartclean JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "LED BettaBow\u2122 Kits with SmartClean\u00ae Technology Aqueon\u00ae LED BettaBow Kit with SmartClean\u00ae Technology are great for first time and experienced fish keeper.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/bettabow-smartclean JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "This kit includes a clear acrylic vessel, low profile LED hood, elevated base, aquarium divider, water care and food samples to get you started.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/bettabow-smartclean JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "These desktop aquariums are great for bedrooms, living room, home offices and more.",
+     "locator": "https://www.aqueon.com/products/aquarium-starter-kits/bettabow-smartclean JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "aquatics",
+   "sku": "PUBLIC:aqueon.com:5160127066b93db5",
+   "title": "Monster Fish Medley 3.5 ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/monster-fish-medley",
+   "familyId": "family-e9d708ee6aecd5c5f132c1cee7617bbe",
+   "excerpts": [
+    {
+     "text": "Ideal for catfish, arowana, oscars and other large cichlids, Aqueon Monster Fish Medley is quick and convenient daily nutrition in a resealable pouch.",
+     "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Monster Fish Medley Ideal for catfish, arowana, oscars and other large cichlids.",
+     "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon Monster Fish Medley is a quick and convenient daily nutrition in a resealable pouch.",
+     "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Natural river shrimp and mealworms are high in protein and attract fish while floating at the surface.",
+     "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "aquatics",
+   "sku": "PUBLIC:aqueon.com:9acf25d51dcd4b28",
+   "title": "Aqueon PRO Shrimp Rings Food 1.65 Ounces",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food",
+   "familyId": "family-b1ec621a060eb77f99deac1560a775cf",
+   "excerpts": [
+    {
+     "text": "Support the health and vitality of freshwater shrimp and bottom-feeding fish with Aqueon PRO Shrimp Rings.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "These nutrient-rich rings provide a tasty supplemental food source to encourage natural feeding behaviors and overall wellness.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Aqueon PRO Shrimp Rings Food Aqueon PRO Shrimp Rings deliver complete daily nutrition for freshwater shrimp in a unique dual-sided feeding ring.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Designed to support natural grazing behavior, each ring combines herbivore and omnivore nutrition in one format to simplify feeding while promoting overall shrimp health.",
+     "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "healthcare",
+   "stratumHypothesis": "cat",
+   "sku": "PUBLIC:earthbath.com:65f83843fb751764",
+   "title": "Microfiber Paw Towel",
+   "brand": "earthbath",
+   "canonicalUrl": "https://earthbath.com/products/paw-towel",
+   "familyId": "family-722ae9ad19792dc08983f8cceb739e31",
+   "excerpts": [
+    {
+     "text": "Use with earthbath Paw Wash to give your dog or cat a 5-star pampering experience.",
+     "locator": "https://earthbath.com/products/paw-towel JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "This super-soft Paw Towel is made of microfiber for exceptional absorbability.",
+     "locator": "https://earthbath.com/products/paw-towel JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "cat",
+   "sku": "PUBLIC:kongcompany.com:fcf78c943c71a0b7",
+   "title": "Purrsuit Whirlwind",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/purrsuit-whirlwind/",
+   "familyId": "family-7bc21e8d5137ced11a7f11b72fd939b5",
+   "excerpts": [
+    {
+     "text": "KONG Purrsuit Whirlwind entices a cat\u2019s chase and capture play by unpredictably spinning itself across hard surfaces while actively twitching its long tail.",
+     "locator": "https://www.kongcompany.com/purrsuit-whirlwind/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "This irresistible invitation sparks a cats\u2019 stalk and pounce instincts for extended bouts of solo fun.",
+     "locator": "https://www.kongcompany.com/purrsuit-whirlwind/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Uniquely designed to bump out from corners this toy also features an auto timer that stops the movement after 15 minutes.",
+     "locator": "https://www.kongcompany.com/purrsuit-whirlwind/ JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "collars-leashes",
+   "sku": "PUBLIC:kongcompany.com:22c2b9aae1730979",
+   "title": "Travel 2-in-1 Bench Seat Cover & Dog Hammock - Standard Vehicles",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/travel-2-in-1-bench-seat-cover-dog-hammock/",
+   "familyId": "family-254a760c9c861fc0ba414c2080507cba",
+   "excerpts": [
+    {
+     "text": "Many of us have our dogs secured safely in the rear seats of our cars but car interiors are of course delicate areas.",
+     "locator": "https://www.kongcompany.com/travel-2-in-1-bench-seat-cover-dog-hammock/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "It also has easy access points so that you can locate your seat belt tethers.",
+     "locator": "https://www.kongcompany.com/travel-2-in-1-bench-seat-cover-dog-hammock/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "The seat cover also has a front seat barrier which is optional to use, it secures over the front head rests to form an enclosed \u201chammock\u201d (not suspended) area for your dog or dogs.",
+     "locator": "https://www.kongcompany.com/travel-2-in-1-bench-seat-cover-dog-hammock/ JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "Let\u2019s face it, all cars are expensive now!",
+     "locator": "https://www.kongcompany.com/travel-2-in-1-bench-seat-cover-dog-hammock/ JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "kong",
+   "stratumHypothesis": "collars-leashes",
+   "sku": "PUBLIC:kongcompany.com:421c0a115bba5eb7",
+   "title": "KONG Retractable Leash Terrain Black",
+   "brand": "KONG",
+   "canonicalUrl": "https://www.kongcompany.com/kong-retractable-leash-terrain-black/",
+   "familyId": "family-66efee057dfc34df3a40902e44c85458",
+   "excerpts": [
+    {
+     "text": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+     "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-black/ JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "equine-beds",
+   "sku": "PUBLIC:natureswaybirds.com:6dafbde3f59f9299",
+   "title": "Squirrel Shield Dual-Mount Transparent 16\" Squirrel Baffle",
+   "brand": "Squirrel Shield\u2122",
+   "canonicalUrl": "https://natureswaybirds.com/products/squirrel-shield-16-inch-dual-mount-transparent-squirrel-baffle-model-spbaf-2",
+   "familyId": "family-bdc0bdd18de15431cb0d903a2001f15b",
+   "excerpts": [
+    {
+     "text": "DUAL PURPOSE: Use as a weather guard above your feeders to shelter birds while still having an unobstructed view, or use as well as a squirrel defender to keep undesirable critters from reaching seed!",
+     "locator": "https://www.natureswaybirds.com/products/squirrel-shield-16-inch-dual-mount-transparent-squirrel-baffle-model-spbaf-2 JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "SQUIRREL PROOF: Feathered friends can feed undisturbed by with the cleverly designed dual mount baffle, suspend above feeder as a squirrel defender and weather guard or attach to pole below to block squirrels access DURABLE MATERIALS: UV stabilized quality transparent plastic minimizes obstruction of bird viewing VERSATILE DESIGN: Fits poles with diameter of 3/4 inch to 1-1/4 inch, everything for hanging or pole mounting included: 16-inch transparent baffle, 1 double hook, 1 mount adapter, and 3 screws Dimensions: 3.25\"H x 16\"W x 16\"D Weight: 1.5 lbs.",
+     "locator": "https://www.natureswaybirds.com/products/squirrel-shield-16-inch-dual-mount-transparent-squirrel-baffle-model-spbaf-2 JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "naturesway",
+   "stratumHypothesis": "equine-beds",
+   "sku": "PUBLIC:natureswaybirds.com:8f4874c06805a377",
+   "title": "Ribbed Rose Glass Gravity Hummingbird Feeder",
+   "brand": "Nature's Way",
+   "canonicalUrl": "https://natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5",
+   "familyId": "family-e32e3d5ab94deb9353814a4f81cec6eb",
+   "excerpts": [
+    {
+     "text": "ATTRACTIVE CLASSIC DESIGN: High quality glass nectar container with intricate design, 7 flexible flower shaped feeding ports, 28 oz.",
+     "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "capacity with 7 hummingbird perches to accommodate multiple hummingbirds.",
+     "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "ONLY FEED THE HUMMINGBIRDS: Built-in ant moat stops them from reaching the nectar and feeder's base dish shape and expertly designed flower ports create a naturally bee-resistant design.",
+     "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "DURABLE MATERIALS: High quality glass nectar reservoir, UV-stabilized plastic won't rust, flexible feeding ports for maximum hummingbird comfort, and powder-coated steel hanger for a long lasting feeder.",
+     "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "oxbow",
+   "stratumHypothesis": "small-animal",
+   "sku": "PUBLIC:oxbowanimalhealth.com:39a9d9a510ed5688",
+   "title": "Garden Select Young Rabbit Food",
+   "brand": "Oxbow Animal Health",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/garden-select-young-rabbit-food/",
+   "familyId": "family-b9fd82486fa175bf1add2360405a9da7",
+   "excerpts": [
+    {
+     "text": "We start with high fiber, protein rich Oxbow hays for energy and healthy digestion and add balanced sources of protein and calcium to help support muscle and bone development.",
+     "locator": "https://oxbowanimalhealth.com/product/garden-select-young-rabbit-food/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Garden Select\u00ae Young Rabbit provides 100% of your pet\u2019s daily recommended vitamins and minerals with no artificial preservatives, colors or flavors.",
+     "locator": "https://oxbowanimalhealth.com/product/garden-select-young-rabbit-food/ JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Garden Select\u00ae Young Rabbit blends enticing garden favorites with non-GMO (non-genetically engineered) ingredients to support healthy growth and development.",
+     "locator": "https://oxbowanimalhealth.com/product/garden-select-young-rabbit-food/ JSON-LD Product + product-description#excerpt-2"
+    }
+   ]
+  },
+  {
+   "bank": "oxbow",
+   "stratumHypothesis": "small-animal",
+   "sku": "PUBLIC:oxbowanimalhealth.com:5122efe5915739c3",
+   "title": "Pure Comfort White Bedding",
+   "brand": "Oxbow Animal Health",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/pure-comfort-white-bedding/",
+   "familyId": "family-0b203cec5df82e915957aed0b06c645a",
+   "excerpts": [
+    {
+     "text": "Oxbow\u2019s Pure Comfort White bedding is made of 100% pure, never-printed paper to create a clean, safe, and ultra-soft bedding material for pets of all sizes.",
+     "locator": "https://oxbowanimalhealth.com/product/pure-comfort-white-bedding/ JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Pure Comfort provides superb odor control and moisture absorption, making clean up easy.",
+     "locator": "https://oxbowanimalhealth.com/product/pure-comfort-white-bedding/ JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "petfood2",
+   "stratumHypothesis": "flea-tick",
+   "sku": "PUBLIC:stellaandchewys.com:9695b2f49d315fbb",
+   "title": "Tummy Ticklin\u2019 Turkey Freeze-Dried Raw Dinner Morsels for Cats",
+   "brand": "Stella &amp; Chewy&#39;s DTC",
+   "canonicalUrl": "https://stellaandchewys.com/products/tummy-ticklin-turkey-freeze-dried-raw-dinner-morsels",
+   "familyId": "family-12745b7440e52b4fcfe2dac5b6b0eeae",
+   "excerpts": [
+    {
+     "text": "Raw, cage-free turkey98% turkey, nutrient-rich organs, &amp; bonePea-free, lentil-free, and potato-freeTaurine addedFortified with added vitamins &amp; mineralsProbiotics for optimal digestion100% complete &amp; balanced dietAvailable Sizes: 3.5 oz., 8 oz., 18 oz.",
+     "locator": "https://www.stellaandchewys.com/products/tummy-ticklin-turkey-freeze-dried-raw-dinner-morsels JSON-LD Product + product-description#excerpt-0"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "other",
+   "sku": "PUBLIC:aqueon.com:4e64798fc1744d60",
+   "title": "Betta Light LED",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/lighting/betta-light-led",
+   "familyId": "family-23e75c898a0ce8cc199b0add0cf356c1",
+   "excerpts": [
+    {
+     "text": "Aqueon\u00ae Betta LED Light is perfect for small desktops up to 3 gallons in size for general illumination.",
+     "locator": "https://www.aqueon.com/products/lighting/betta-light-led JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Betta Light LED Aqueon\u00ae Betta LED Light is perfect for small desktops up to 3 gallons in size for general illumination.",
+     "locator": "https://www.aqueon.com/products/lighting/betta-light-led JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "This small but versatile light had 3 modes LED of illumination, using soft touch operation \u2013 Blue only, White Only, All On.",
+     "locator": "https://www.aqueon.com/products/lighting/betta-light-led JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "The light can operate using Micro USB-B Cable or three AAA batteries, both sold separately.",
+     "locator": "https://www.aqueon.com/products/lighting/betta-light-led JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "aqueon",
+   "stratumHypothesis": "other",
+   "sku": "PUBLIC:aqueon.com:886ec5e992188065",
+   "title": "1-65-ounce",
+   "brand": "Aqueon",
+   "canonicalUrl": "https://www.aqueon.com/products/food/omnivore-shrimp-food",
+   "familyId": "family-bb65b8ed1eb79d678a5715099cf020ed",
+   "excerpts": [
+    {
+     "text": "The Omnivore Shrimp Discs are a protein-based food, ideal for shrimp in the Genus Caridina, such as Crystal and Bee Shrimp.",
+     "locator": "https://www.aqueon.com/products/food/omnivore-shrimp-food JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Omnivore Shrimp Food The Omnivore Shrimp Discs are a protein-based food, ideal for shrimp in the Genus Caridina, such as Crystal and Bee Shrimp.",
+     "locator": "https://www.aqueon.com/products/food/omnivore-shrimp-food JSON-LD Product + product-description#excerpt-1"
+    },
+    {
+     "text": "Formulated with no fish meal to mimic a more natural diet and boosted with color enhancers and Bentonite Clay for exoskeleton development.",
+     "locator": "https://www.aqueon.com/products/food/omnivore-shrimp-food JSON-LD Product + product-description#excerpt-2"
+    },
+    {
+     "text": "The higher protein levels are also beneficial for shrimp carrying eggs, commonly known as \u201cberried\u201d.",
+     "locator": "https://www.aqueon.com/products/food/omnivore-shrimp-food JSON-LD Product + product-description#excerpt-3"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "other",
+   "sku": "PUBLIC:earthanimal.com:56777142fca2b134",
+   "title": "Immune Support Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/immune-support-herbal-drops",
+   "familyId": "family-0990e425971a4d591c73f642fb4ed9a3",
+   "excerpts": [
+    {
+     "text": "Bob and our Master Herbalist in Vermont to help support dogs and cats during times of seasonal change, environmental stress, aging, and everyday immune system challenges.",
+     "locator": "https://earthanimal.com/products/immune-support-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Crafted with herbs traditionally used to support healthy immune function, the body's natural defenses, microbiome balance, and overall vitality.",
+     "locator": "https://earthanimal.com/products/immune-support-herbal-drops JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  },
+  {
+   "bank": "pilot",
+   "stratumHypothesis": "other",
+   "sku": "PUBLIC:earthanimal.com:7a69aef1be7fa195",
+   "title": "No More Worms Herbal Drops",
+   "brand": "Earth Animal",
+   "canonicalUrl": "https://earthanimal.com/products/no-more-worms-herbal-drops",
+   "familyId": "family-08f04273caf8956ab7cbda62992d7b11",
+   "excerpts": [
+    {
+     "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of intestinal imbalance, parasite exposure, and digestive challenges.",
+     "locator": "https://earthanimal.com/products/no-more-worms-herbal-drops JSON-LD Product + product-description#excerpt-0"
+    },
+    {
+     "text": "Crafted with herbs traditionally used to support intestinal cleansing, digestive balance, and a healthy internal environment.",
+     "locator": "https://earthanimal.com/products/no-more-worms-herbal-drops JSON-LD Product + product-description#excerpt-1"
+    }
+   ]
+  }
+ ]
+}

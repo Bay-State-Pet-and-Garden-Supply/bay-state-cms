@@ -1,0 +1,3557 @@
+{
+ "artifactKind": "adjudicated-batch-1-gold",
+ "status": "OWNER-ADJUDICATED 2026-10-07 batch 1 (48 rows). R39 recorded collars-leashes (walking leash); R44 cat-food-wet (complete raw dinner for cats). familyIds + split deferred to generation freeze.",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "entries": [
+  {
+   "sku": "PUBLIC:earthanimal.com:64b9912c7ddd5847",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob Goldstein to help support healthy weight and proper metabolism in dogs and cats.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "A daily powder crafted with an active blend of fiber and targeted nutrients to help support healthy weight loss, a sense of fullness, and proper metabolism alongside diet and exercise.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:023bc6dafd261a5e",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "KONG Tropics Rattlez toys bring vibrant rainforest sounds and colors to your dog\u2019s playtime!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "With multisensory textures, squeakers, crinkle material, and an inner rattle, they\u2019re perfect for shaking, chomping, and fetching.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Built tough with dual layers and reinforced seams, these toys offer extra durability to withstand active play.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Designed to engage and entertain, they\u2019ll provide your pet with hours of fun and stimulation.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:045abe13da8615ea",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "KONG Fun Pack is the perfect gift for the fall-loving dog in your life!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Designed for a variety of play styles, this pack includes toys for fetching, tugging, and light chewing.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "FetchStix is a toss and tug toy that's safer than wooden sticks.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Scrunch Knots Fox has internal knots and stretchy sides to satisfy natural chewing and shaking instincts.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "The Extreme KONG Ball with Rope adds long-lasting diversity to games of fetch and tug.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Made from KONG Extreme rubber, the ball is designed for durability for long-lasting interactive play.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The 100% cotton rope also rewards appropriate chewing behavior while massaging teeth and gum.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "All of this adds up to playful bouts of mentally stimulating and enriching engagement.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0cf7eaddd7ee28af",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Add a variety of fun to your dog\u2019s toy basket with KONG Knots Frog!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This oversized amphibian\u2019s full-body rope skeleton creates durability & heft for a variety of playstyles like tugging, thrashing, carrying, and gnawing.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "A squeaker in the head entices extended playtime, while its soft, dual-plush fur invites cuddling during quiet time.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Unique details like cute froggy fingers and embroidered facial features make this frog the perfect match for your dog.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:d59ffd323547f843",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "A reduced-fat treat baked with the same formula as our Annamaet Lean dog food!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These healthy, grain free treats are meat based and put the same high quality chicken that you insist on in your pet\u2019s bowl, at your fingertips whenever you want to indulge your best friend, without the added fat.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These canine cookies are balanced with vitamins and minerals including L-Carnitine, a natural amino acid which helps maintain lean muscle mass and supports healthy cognitive function.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Chicken"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4349863079f9ee38",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Betta Food from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Betta that will not cloud water if used as directed.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta Treat Aqueon Betta Treat is dehydrated bloodworms, a highly nutritious treat that is a great source of protein for your betta and many other tropical fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Be sure to also feed your betta a nutritious diet such as Aqueon PRO Betta formula or Aqueon Betta Pellets.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:56800fe522e3b74b",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Reward your betta with Aqueon PRO Betta Treat.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These protein-rich freeze-dried snacks provide a tasty supplement to daily feeding and help support overall health and vitality.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Betta Treat Give your betta something you can feel good about feeding with Aqueon PRO Betta Treat Freeze-Dried Bloodworms.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This simple, thoughtful treat adds variety and nutrition to your fish\u2019s routine without guesswork.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Celebrate the season with Wisdom Holiday Feast Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Perfect for training, rewarding, or just because.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:34db9cf0b6051cde",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "A long-lasting, 100% rawhide-free chew made with real, whole ingredients and flavored with humanely raised turkey, pumpkin, and cranberries, sized for extra small dogs and cats under 10 lbs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Chewing helps clean teeth and supports healthy gums, and every bite delivers the delicious chewing satisfaction you can feel good about.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Irresistibly good and highly digestible.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Made in the USA with globally sourced ingredients.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob Goldstein, Daily Herbal Internal Powder (Yeast-Free) works from within to help create a natural skin scent that fleas and ticks tend to avoid.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "flea-tick-treatment"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:761741fbab59ddd3",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of occasional digestive upset.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Crafted with soothing herbs traditionally used to help calm the digestive tract, support stool consistency, and promote digestive balance during flare-ups.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Wash away dirt and unwanted pests with a gentle, cleansing shampoo that nourishes the skin and coat.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:85973f5bc751bbf5",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of seasonal sensitivities, itchy skin, and environmental challenges.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Crafted with herbs traditionally used to support a healthy histamine response, skin comfort, immune balance, and whole-body wellness from within.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:9de14d2658969f55",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob Goldstein and crafted with aromatic herbs and essential oils to help repel fleas and ticks at the skin level.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "flea-tick-treatment"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:57f8a2e679d296f0",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Nutrinsect\u2122 Betta Pellets are 100% fish-free, matching the types of food your betta would naturally eat in the wild.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The plant- and insect-based formula is designed for optimal palatability and color enhancement while providing your fish with their daily nutritional needs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This helps you create a beautiful aquarium ecosystem where your fish will thrive.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:6bdb84598327f1a9",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Try Aqueon Cichlid Food made with premium ingredients, like shrimp meal to attract the most finicky cichlids.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "A color enhancing formula to help promote brilliant colors in fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:877b6b597c910863",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bring out the natural brilliance of your cichlids with Aqueon PRO Color Enhancing Cichlid Food.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This nutrient-rich formula supports vibrant coloration, healthy growth, and overall wellness for active cichlid fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Cichlid Food Color Enhancing Support strong growth, vibrant color, and everyday health with Aqueon PRO Cichlid Pellets, a complete daily diet formulated to bring out the best in your cichlids.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This advanced recipe features premium ingredients like shrimp meal, black soldier fly larvae, spirulina, and kelp to deliver balanced, protein-rich nutrition that supports energy, immune health, and long-term vitality while helping promote natural, vivid coloration.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Provide targeted nutrition for catfish, loaches, plecos, and other bottom-feeding fish with Aqueon PRO Bottom Feeder Tablets.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Formulated to support healthy growth, vitality, and overall aquatic wellness.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Bottom Feeder Tablets Support the health and vitality of your bottom-dwelling fish with Aqueon PRO Bottom Feeder Tabs, a complete sinking diet designed to match the natural feeding behavior of species that graze along the substrate.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Ideal for plecostomus, loaches, catfish, shrimp, and other bottom feeders, these nutrient-rich tablets slowly sink and dissolve, providing a steady source of food throughout the day.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:ed8117f728bea3d0",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Nutrinsect\u2122 Goldfish Pellets are 100% fish-free, matching the food your goldfish prefer to eat in the wild.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "And because the food is so digestible, it leads to less waste, better water quality, and more active fish.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This helps you create a thriving ecosystem where your fish feels right at home.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:19b66ce7c4ecb591",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "from the highest level Human Grade whole-foods.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "plant-food-fertilizer"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1c86cc4e765bedb0",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "from the highest level Human Grade whole-foods.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "plant-food-fertilizer"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1dc5340e9390c998",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Earth Liquid fertilizers are the most sustainable source of nutrients you can put in your garden.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Sustainably made from the highest level Human Grade whole-foods.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By collecting human-grade ingredients from supermarkets, we upcycle would-be food grade waste into premium fertilizer.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "By harvesting the nutrients from today\u2019s food scraps to grow tomorrow\u2019s food, we are not only creating a premium product, we are helping to preserve our planet.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "plant-food-fertilizer"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:2328d90eab1ba1bc",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Description: Natural Choice\u00ae All Purpose Compost creates the perfect soil conditions to promote plant health and optimum growth.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Natural Choice\u00ae All Purpose Compost can be used for many projects in the garden: amendment for planting trees, shrubs, bare root planting, flowers, vegetables &amp; over seeding lawns.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "100% organic - no synthetic ingredients or GMO infested chicken manure.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Contains TruBiotic\u00ae beneficial soil microbes plus mycorrhizae.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "potting-soil"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:e49adbc4f076d638",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Shrimp and freshwater crayfish have exoskeletons that require additional nutrients for biological processes like molting and osmoregulation.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon Shrimp Essentials replaces important trace minerals that are vital to invertebrates and are removed through chemical filtration as well as used by individual shrimp in the aquarium.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Shrimp Essentials Aqueon Shrimp Essentials replaces important trace minerals that are vital to invertebrates and are removed through chemical filtration as well as used by individual shrimp in the aquarium.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These nutrients help the crustaceans cast off their old exoskeleton and harden the new one.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:220a0d05d956dba4",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Earth Final Stop All Natural Insect Control Pet Spray intended for use directly on pets such as cats and dogs and their bedding areas.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Your customers want safety and strength and we've carefully selected natural ingredients to safely and efficiently eliminate pesky pet-related insect issues.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Organic formula contains no harmful synthetic ingredients for dogs, cats, and household animals.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Deters fleas, ticks, mosquitoes, flies, gnats, mites, and other biting insects.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "flea-tick-treatment"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:c628be60145d275a",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Our unique combination of natural ingredients kills and controls powdery mildew and other mold.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "OMRI listed for use in organic gardening.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "concentrate covers 3750 square feet with a dilution rate of 2oz.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Earth\u00ae Final Stop\u00ae Disease Control Fungicide is a protective dormant spray that provides year-round disease control on trees, shrubs, lawns flowers and edibles.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "insect-control"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:drearth.com:ec38bdb69f71a4ed",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Our unique combination of natural ingredients kills and controls powdery mildew and other mold.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "OMRI listed for use in organic gardening.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Earth\u00ae Final Stop\u00ae Disease Control Fungicide is a protective dormant spray that provides year-round disease control on trees, shrubs, lawns flowers and edibles.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Kills on contact while providing continued protection for weeks.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "insect-control"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:037f39c3c9d63bbe",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "SECURLY ADD LENGTH: With a 22 pound capacity, enjoy the convenience of hanging your bird feeders at the height you can easily view.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "WIDE APPLICATION: Endless uses of the chain and hooks, hang outdoor d\u00e9cor, outdoor lights, lanterns, wind chimes, hummingbird feeders, planters, holiday decorations, and more!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DURABLE MATERIALS: Weather-resistant black powder-coated metal for a hanger that can withstand the elements, suitable for outdoor or indoor use.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "CUSTOMIZE YOUR HANGING: 9 inch length, customize the location of your hanging d\u00e9cor to most small branches or over railings.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0bd90cbcad1e0f97",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "CUSTOMIZE YOUR FEEDER: Refresh or personalize your hummingbird feeder with 9 lifelike Tulip flower ports featuring a soft, flexible Leak Free\u2122 fit for comfortable feeding.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "IMPROVED FEEDING COMFORT: Flexible port petals provide a gentle feeding surface that mimics natural blooms and keeps hummingbirds comfortable while feeding.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "UNIVERSAL COMPATIBILITY: Fits all current Nature\u2019s Way hummingbird feeders and any alternative feeder that accepts a standard 1/4\" port opening.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DURABLE, LONG-LASTING MATERIALS: High-quality, UV-stabilized materials maintain color, shape, and leak resistance through seasons of nectar feeding.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0d4757c68b0e3b6a",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "ATTRACTIVE DESIGN: Charming country cottage gazebo-style feeder with fold-out perches and 1.56 qt seed capacity creates a standout focal point in any backyard.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "KEEP THE BIRDS HAPPY: Channeled base with drainage holes helps reduce moisture and keep seed fresher, while the seed diverter directs seed to the feeding area for easier access.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "VERSATILE FEEDING ACCESS: Fold-out perches and balanced spacing accommodate both small and large backyard bird species.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DURABLE MATERIALS: Sturdy metal roof and base with a powder-coated finish provide reliable outdoor performance through changing seasons.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0db4aebd62f4968a",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "ATTRACTIVE DESIGN: Add farmhouse charm to your garden with this compact teal mason jar style feeder, 4 flexible pink flower shaped feeding ports to feed multiple hummingbirds, 6 oz.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DURABLE MATERIALS: High quality glass nectar reservoir, flexible feeding ports for hummingbird comfort, stainless steel lid and hanger for a long lasting feeder.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DESIGNED FOR EASY FEEDING: Hummingbirds\u2019 tongues can extend up to twice the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Dimensions: Feeder 2.5\"H x 5\"W x 5\"D Weight: 1 lbs Capacity: up to 6 oz Feed to Use: Nectar Attracts: Hummingbirds",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4e24fca20ec1bff1",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Aqueon\u00ae LED BettaBow Kit with SmartClean\u00ae Technology are great for first time and experienced fish keeper.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "LED BettaBow\u2122 Kits with SmartClean\u00ae Technology Aqueon\u00ae LED BettaBow Kit with SmartClean\u00ae Technology are great for first time and experienced fish keeper.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This kit includes a clear acrylic vessel, low profile LED hood, elevated base, aquarium divider, water care and food samples to get you started.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These desktop aquariums are great for bedrooms, living room, home offices and more.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:5160127066b93db5",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Ideal for catfish, arowana, oscars and other large cichlids, Aqueon Monster Fish Medley is quick and convenient daily nutrition in a resealable pouch.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Monster Fish Medley Ideal for catfish, arowana, oscars and other large cichlids.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon Monster Fish Medley is a quick and convenient daily nutrition in a resealable pouch.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Natural river shrimp and mealworms are high in protein and attract fish while floating at the surface.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:9acf25d51dcd4b28",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Support the health and vitality of freshwater shrimp and bottom-feeding fish with Aqueon PRO Shrimp Rings.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "These nutrient-rich rings provide a tasty supplemental food source to encourage natural feeding behaviors and overall wellness.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Aqueon PRO Shrimp Rings Food Aqueon PRO Shrimp Rings deliver complete daily nutrition for freshwater shrimp in a unique dual-sided feeding ring.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Designed to support natural grazing behavior, each ring combines herbivore and omnivore nutrition in one format to simplify feeding while promoting overall shrimp health.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:65f83843fb751764",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Use with earthbath Paw Wash to give your dog or cat a 5-star pampering experience.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This super-soft Paw Towel is made of microfiber for exceptional absorbability.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:fcf78c943c71a0b7",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "KONG Purrsuit Whirlwind entices a cat\u2019s chase and capture play by unpredictably spinning itself across hard surfaces while actively twitching its long tail.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This irresistible invitation sparks a cats\u2019 stalk and pounce instincts for extended bouts of solo fun.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Uniquely designed to bump out from corners this toy also features an auto timer that stops the movement after 15 minutes.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-toys"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:22c2b9aae1730979",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Many of us have our dogs secured safely in the rear seats of our cars but car interiors are of course delicate areas.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "It also has easy access points so that you can locate your seat belt tethers.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The seat cover also has a front seat barrier which is optional to use, it secures over the front head rests to form an enclosed \u201chammock\u201d (not suspended) area for your dog or dogs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Let\u2019s face it, all cars are expensive now!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "car-restraint"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:421c0a115bba5eb7",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "collars-leashes"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6dafbde3f59f9299",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "DUAL PURPOSE: Use as a weather guard above your feeders to shelter birds while still having an unobstructed view, or use as well as a squirrel defender to keep undesirable critters from reaching seed!",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "SQUIRREL PROOF: Feathered friends can feed undisturbed by with the cleverly designed dual mount baffle, suspend above feeder as a squirrel defender and weather guard or attach to pole below to block squirrels access DURABLE MATERIALS: UV stabilized quality transparent plastic minimizes obstruction of bird viewing VERSATILE DESIGN: Fits poles with diameter of 3/4 inch to 1-1/4 inch, everything for hanging or pole mounting included: 16-inch transparent baffle, 1 double hook, 1 mount adapter, and 3 screws Dimensions: 3.25\"H x 16\"W x 16\"D Weight: 1.5 lbs.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8f4874c06805a377",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "ATTRACTIVE CLASSIC DESIGN: High quality glass nectar container with intricate design, 7 flexible flower shaped feeding ports, 28 oz.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "capacity with 7 hummingbird perches to accommodate multiple hummingbirds.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "ONLY FEED THE HUMMINGBIRDS: Built-in ant moat stops them from reaching the nectar and feeder's base dish shape and expertly designed flower ports create a naturally bee-resistant design.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "DURABLE MATERIALS: High quality glass nectar reservoir, UV-stabilized plastic won't rust, flexible feeding ports for maximum hummingbird comfort, and powder-coated steel hanger for a long lasting feeder.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:39a9d9a510ed5688",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "We start with high fiber, protein rich Oxbow hays for energy and healthy digestion and add balanced sources of protein and calcium to help support muscle and bone development.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Garden Select\u00ae Young Rabbit provides 100% of your pet\u2019s daily recommended vitamins and minerals with no artificial preservatives, colors or flavors.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Garden Select\u00ae Young Rabbit blends enticing garden favorites with non-GMO (non-genetically engineered) ingredients to support healthy growth and development.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "small-animal-feed-bedding"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Rabbit"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5122efe5915739c3",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Oxbow\u2019s Pure Comfort White bedding is made of 100% pure, never-printed paper to create a clean, safe, and ultra-soft bedding material for pets of all sizes.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Pure Comfort provides superb odor control and moisture absorption, making clean up easy.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "small-animal-feed-bedding"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Small Animal"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:9695b2f49d315fbb",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Raw, cage-free turkey98% turkey, nutrient-rich organs, &amp; bonePea-free, lentil-free, and potato-freeTaurine addedFortified with added vitamins &amp; mineralsProbiotics for optimal digestion100% complete &amp; balanced dietAvailable Sizes: 3.5 oz., 8 oz., 18 oz.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "cat-food-wet"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Cat"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4e64798fc1744d60",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Aqueon\u00ae Betta LED Light is perfect for small desktops up to 3 gallons in size for general illumination.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Betta Light LED Aqueon\u00ae Betta LED Light is perfect for small desktops up to 3 gallons in size for general illumination.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "This small but versatile light had 3 modes LED of illumination, using soft touch operation \u2013 Blue only, White Only, All On.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The light can operate using Micro USB-B Cable or three AAA batteries, both sold separately.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:886ec5e992188065",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "The Omnivore Shrimp Discs are a protein-based food, ideal for shrimp in the Genus Caridina, such as Crystal and Bee Shrimp.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Omnivore Shrimp Food The Omnivore Shrimp Discs are a protein-based food, ideal for shrimp in the Genus Caridina, such as Crystal and Bee Shrimp.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Formulated with no fish meal to mimic a more natural diet and boosted with color enhancers and Bentonite Clay for exoskeleton development.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "The higher protein levels are also beneficial for shrimp carrying eggs, commonly known as \u201cberried\u201d.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:56777142fca2b134",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob and our Master Herbalist in Vermont to help support dogs and cats during times of seasonal change, environmental stress, aging, and everyday immune system challenges.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Crafted with herbs traditionally used to support healthy immune function, the body's natural defenses, microbiome balance, and overall vitality.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:7a69aef1be7fa195",
+   "familyId": "pending-fresh-generation",
+   "split": "dev",
+   "assortment": null,
+   "evidence": [
+    {
+     "snippet": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of intestinal imbalance, parasite exposure, and digestive challenges.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    },
+    {
+     "snippet": "Crafted with herbs traditionally used to support intestinal cleansing, digestive balance, and a healthy internal environment.",
+     "source": "official_product_page",
+     "attributeId": null,
+     "reliability": "high"
+    }
+   ],
+   "gold": {
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "categoryPages": {
+     "state": "unknown",
+     "completeness": "unknown",
+     "pageIds": [],
+     "pageAssignments": []
+    }
+   }
+  }
+ ]
+}
