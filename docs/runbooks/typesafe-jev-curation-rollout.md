@@ -5,7 +5,8 @@ Operator guide and operational authority for qualifying, rolling out, troublesho
 Scope:
 - Curation stage decision-making: Primary Product Type, Controlled Attributes (Single- & Multi-Value), and Category Pages/Cohorts.
 - Primary provider: TypeSafe Jev (`jev-1.13.0` via System One transport).
-- Authority & governance: ADR 0004, ADR 0013, ADR 0033.
+- Active taxonomy authority: `bay-state-v9` — 74 classifiable product types, 18-value species vocabulary, `safety-toe-type` export intent retired (`not_exported`, no export mapping). Earlier releases are history, not authority.
+- Authority & governance: ADR 0004, ADR 0013, ADR 0033, ADR 0039 (reconciles ADR 0033's qualification appendix for v9 authority, bound `code-executed-v8` captures, and partitioned candidate dispatch; where they conflict, ADR 0039 governs).
 
 ---
 
@@ -35,6 +36,10 @@ without a separate confidence. Neither measure grants approval authority.
 Current Choice floor is 0.50. Store-specific calibration and acceptance must be
 established from development evidence and a separately qualified holdout. Vendor
 probability is not proof of empirical correctness for this store's assortment.
+Standing example: on the adjudicated leash-clip hard negative
+(`docs/audits/jev-representative-v9/adjudication-brief-leash-clip.md`) both the
+candidate (0.60) and the baseline (0.85) confidently proposed `dog-waste-bags`
+against a no-fit gold — high vendor probability on both sides, both wrong.
 
 ---
 
@@ -74,12 +79,23 @@ The server automatically maps `process.env.TYPESAFE_API_KEY` to the `typesafe` p
 
 ## 4. Offline Evaluation & Canary Verification
 
-### A. Adjudicated Benchmark Goldset
+### A. Adjudicated Benchmark Goldset and the v9 Representative Corpus
 The qualification suite's historical seam fixture is
 `src/tests/fixtures/benchmark-jev-qualification-goldset.json`.
 - **Entries:** 16 previously inspected fixture items covering food, treats, toys, animal care, pest control, lawn & garden, confusing neighbors, unknown types (`no-fit`), and incomplete evidence (`insufficient-evidence`, `unlabeled`). This is not an independently supported representative release evaluation or a fresh blind holdout.
 - **Splits:** Strictly family-separated (`dev` and `holdout`) with verified zero split leakage across brand/product families.
 - **Targets:** Primary Product Types, Controlled Attributes (single & multi-value), and Category Pages with verified ShopSite page identities.
+
+The representative development corpus for the live `bay-state-v9` authority is
+`docs/audits/jev-representative-v9/` (gold `development-gold-v9.json`): **23
+rows (16 known-type / 7 no-fit)**, 8 controlled field targets, 212 frozen
+pages, 74 profiles — sealed by an independent peer re-derivation receipt
+(`development-peer-receipt.json`, authority/config/commitment hashes bound).
+It is append-only by supersession: a new generation supersedes it with a fresh
+peer receipt; rows are never appended to the frozen corpus. Corpus expansion
+toward qualification scale (200-row sealed holdout, 20-per-class support) is
+specified in `corpus-expansion-spec.md`; until its gates clear, blocked
+verdicts stand.
 
 ### B. Running the Offline Comparison
 Run the qualification CLI runner (default is CI-safe and offline: the
@@ -117,6 +133,16 @@ in `scripts/typesafe-curation-qualification.ts` is authoritative):
 | `--live-check` (or `TYPESAFE_LIVE_CHECK=1`) | Run the bounded live contract check as a subprocess (requires `TYPESAFE_API_KEY`); its actual result feeds the assessment. |
 | `--artifact-out=path` | Create a new immutable prediction artifact in an existing public output directory; existing files are refused before dispatch and creation uses `wx`. |
 | `--db=path` | Legacy route-resolution argument; it does not replace the required `--isolated-store` or authorize use of an operational database. |
+Candidate dispatch is **partitioned**: the live leg sends one request series
+per target-permitted evidence group
+(`partitionCandidateQuestionsByPermittedEvidence` in
+`src/classification/benchmark-prediction.ts` — production parity), superseding
+the legacy single shared request state. The replay budget preflight plans
+per-group chunk sums (32-question chunks, 2 attempts each), which can only
+overestimate live batches, never undercount them: a planned fit guarantees the
+live run fits, and a planned overage is denied before dispatch
+(`candidate_overbudget … denied before dispatch`). Budget conservatism is
+structural, not a tuning choice.
 
 The script reports:
 1. **Product Type Metrics:** Top-1 Accuracy, Coverage, Incorrect Proposals, Regressions against baseline.
@@ -319,14 +345,26 @@ are a necessary statistical gate, not proof of every capability's fitted policy
 or of representative assortment coverage. Tiny fixture success and operational
 checkboxes cannot clear `statistical_gate_failed` / `statistical_gate_unverified`.
 
-Predictor `code-executed-v7` binds coded semantic abstentions into the immutable
-artifact hash. A low-probability refusal is not a correct no-fit answer, and an
-insufficient-evidence answer is not a no-match answer. Unlabeled rows earn no
-accuracy credit. The paired primary metric is `productType.rawCorrectness` over
-the labeled fixed population, including abstentions, rather than only the subset
-answered by both providers. It also binds the verified incumbent credential
-reference and non-secret route identity, using actual provider-returned model
-metadata. Older v5/v6 artifacts stay readable and retain their bytes.
+Predictor `code-executed-v8` binds coded semantic abstentions AND a
+capture-time source-input commitment (`sourceInputsHash` over the loaded
+capture inputs — identity, evidence, resolved taxonomy provenance; gold labels
+never enter) into the immutable artifact digest. A low-probability refusal is
+not a correct no-fit answer, and an insufficient-evidence answer is not a
+no-match answer. Unlabeled rows earn no accuracy credit. The paired primary
+metric is `productType.rawCorrectness` over the labeled fixed population,
+including abstentions, rather than only the subset answered by both
+providers. It also binds the verified incumbent credential reference and
+non-secret route identity, using actual provider-returned model metadata.
+Older v5/v6 artifacts stay readable and retain their bytes.
+
+**Rescore contract change (fail-closed):** rescoring verifies the bound
+identity before scoring (`assertQualificationArtifactIntegrity`). Legacy
+`code-executed-v7` (pre-commitment) artifacts are refused with a rerun
+message — never silently accepted, never re-scored as current. A recomputed
+commitment for changed evidence no longer verifies against the original
+predictions: swapping evidence without recapture is rejected, so an artifact
+proves its predictions were scored against the inputs it was captured on.
+Original immutable prediction artifacts remain readable as bytes.
 
 A development-only comparison cannot qualify release. A dirty runtime worktree
 cannot be certified by a receipt naming HEAD: the CLI reports
@@ -375,11 +413,13 @@ failures, so `offlineEvaluationPassed` is false and
 |---|---|---|
 | `abstentionCode: service_failure` | HTTP 5xx, network timeout, or TypeSafe API outage. | The model call fails closed; proposal is marked as abstained. Check TypeSafe status. At most one bounded transient retry runs inside the operation deadline; persistent failures abstain. |
 | `abstentionCode: candidate_limit_exceeded` | The number of taxonomy options exceeds 253 candidates. | Jev Choice supports up to 253 ordinary options + 2 abstention options. The system fails closed (first-N clipping is forbidden). Prune taxonomy or group into hierarchical sub-types. |
-| `abstentionCode: no_match` | The product does not fit any configured product type or category page (`no_fit`). | Expected semantic abstention. Operator reviews in drawer to either create a new taxonomy node or assign a custom category. |
+| `abstentionCode: no_match` | The product does not fit any configured product type or category page (`no_fit`). | Expected semantic abstention. Operator reviews in drawer to either create a new taxonomy node or assign a custom category. Standing boundary rule (ADR 0039): classify an accessory by what it is, not merely by what it supports — an accessory-for-X (e.g. a leash-clip dispenser that holds waste bags but contains none) is `dog-waste-bags` no-fit, not a member. Assign a type only when its stated scope includes the accessory itself. |
 | `abstentionCode: insufficient_evidence` | Evidence text or package OCR lacks required differentiating details. | Expected semantic abstention. Supplement evidence in Sourcing or proceed with manual drawer entry. |
 | `abstentionCode: low_probability` | Top candidate probability fell below threshold ($< 0.50$ for Product Type / single-value Choice, $< 0.70$ for multi-value Noul). | Expected guardrail. Prevents low-confidence hallucination. Operator adjudicates in drawer. |
 | `AiMisconfigurationError: Model mismatch` | Provider returned a model name differing from requested pin `jev-1.13.0`. | Pinned model substitution is forbidden. Check provider connection model settings. |
 | `HeartbeatLostError` | Run execution lease expired during long dispatch. | The run immediately fails closed without writing uncommitted proposals to avoid race conditions. |
+| `Captured comparison artifact … rerun live capture` (legacy `code-executed-v7`) | Artifact predates the source-input commitment; rescore refuses it. | Rerun live capture under `code-executed-v8`. Never hand-edit the artifact version or hash — a recomputed commitment for changed evidence will not verify. |
+| `source-input commitment does not match its inputs` | Capture inputs changed after capture (evidence/taxonomy/authority drift). | Recapture against the current inputs. The artifact proves the inputs it was captured on; it cannot be rebound to new ones. |
 
 ---
 
@@ -414,13 +454,16 @@ and performs no vendor inference or production-connection mutation.
 ### Provenance Guarantee
 Existing and in-flight classification runs are permanently linked to their original `config_snapshot_hash` and `classification_model_calls` audit rows. Changing route settings or disabling connections never alters or rewrites the provenance of historical runs.
 
+### Taxonomy Authority Rollback
+Classification authority is the pinned `activeTaxonomyRevision` in the store classification state (currently `bay-state-v9`). Reverting authority to a prior release re-pins that revision through the existing verified release-activation workflow — it never edits a frozen release bundle or rewrites run provenance. Re-verify qualification evidence after any authority change: captures bound to v9 inputs do not transfer to another release.
+
 ---
 
 ## 7. Model, Question & Threshold Upgrade Procedures
 
 ### Upgrading Jev Model Pins (e.g. `jev-1.13.0` → `jev-1.14.0`)
 1. Add the new versioned pin to `TYPESAFE_KNOWN_MODELS` in `src/ai/systemone-transport.ts`.
-2. Fit the proposed model/question/probability policy on development examples:
+2. Fit the proposed model/question/probability policy on development examples — the representative v9 corpus (`docs/audits/jev-representative-v9/`, 23 rows), never the 16-entry seam fixture alone:
    ```bash
     bun scripts/typesafe-curation-qualification.ts --split=dev
    ```
