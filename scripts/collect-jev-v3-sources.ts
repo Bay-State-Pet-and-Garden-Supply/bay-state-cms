@@ -236,8 +236,12 @@ function singleProductIdentity(html: string, finalUrl: string): ProductPageIdent
     if (!value || typeof value !== 'object') return;
     const record = value as Record<string, unknown>;
     const types = Array.isArray(record['@type']) ? record['@type'] : [record['@type']];
-    if (types.includes('Product') && typeof record.name === 'string' && record.name.trim()) {
-      products.push(record as unknown as ProductPageIdentity);
+    // Sitecore-style markup capitalizes schema.org keys (Name/Url/
+    // Description); accept both casings as the same vocabulary.
+    const name = typeof record.name === 'string' ? record.name
+      : typeof record.Name === 'string' ? (record.Name as string) : null;
+    if (types.includes('Product') && name && name.trim()) {
+      products.push({ ...(record as unknown as ProductPageIdentity), name });
     }
     // Do not promote ItemList/recommendation elements into primary products.
     visit(record['@graph']);
@@ -608,6 +612,9 @@ export function candidateFromPageHtml(
   const descriptions = $('[itemprop="description"], .product-description, .full-description, [data-product-description]')
     .map((_, element) => cleanText($(element).html() ?? '')).get().filter(Boolean);
   if (typeof product.description === 'string') descriptions.unshift(cleanText(product.description));
+  else if (typeof (product as unknown as Record<string, unknown>).Description === 'string') {
+    descriptions.unshift(cleanText(String((product as unknown as Record<string, unknown>).Description)));
+  }
   const bodyText = [...new Set(descriptions)].join(' ');
   if (bodyText.length < 80) { stats.excludedThinEvidence = (stats.excludedThinEvidence ?? 0) + 1; return null; }
   const excerpts = pickExcerpts(bodyText, `${finalUrl} JSON-LD Product + product-description`);

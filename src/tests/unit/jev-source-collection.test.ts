@@ -123,6 +123,16 @@ describe('jev v3 source extractor (collector seam)', () => {
     expect(text).not.toContain('cookies');
     expect(text).not.toContain('Copyright');
   });
+
+  it('accepts Sitecore-cased schema.org keys (Name/Description) as the same vocabulary', () => {
+    const html = VALID_PRODUCT_HTML
+      .replace('"name":"Fixture Brand Salmon Recipe Dry Dog Food 25 lb"', '"Name":"Fixture Brand Salmon Recipe Dry Dog Food 25 lb"')
+      .replace('"description":"Complete and balanced dry dog food with real salmon as the first ingredient."', '"Description":"Complete and balanced dry dog food with real salmon as the first ingredient."');
+    const candidate = extract('https://fixtures.test/products/salmon-recipe', html);
+    expect(candidate).not.toBeNull();
+    const excerpts = candidate!.row.excerpts as Array<{ text: string }>;
+    expect(excerpts.map(e => e.text).join(' ')).toContain('real salmon as the first ingredient');
+  });
 });
 
 describe('jev v3 collector guards (pure, no network)', () => {
