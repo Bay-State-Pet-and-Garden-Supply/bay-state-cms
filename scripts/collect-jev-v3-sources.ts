@@ -697,6 +697,29 @@ async function main(): Promise<void> {
       throw new Error(`invalid_seed_file: cannot load ${seedFile}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
     }
   }
+  // Cached-URL input: official URLs harvested earlier (e.g. the local
+  // sitemap_cache) for domains whose live sitemap is now unreachable
+  // (WAF/JS). JSON map domain -> URL list. Injected as discovery leads
+  // for that seed's domain only; same gates (score floor or prequalified
+  // context, JSON-LD proof) apply. Never a substitute for fetching.
+  const urlFile = arg('--url-file');
+  let cachedUrlsByDomain: Record<string, string[]> = {};
+  if (urlFile) {
+    try {
+      const rawUrls = JSON.parse(fs.readFileSync(urlFile, 'utf-8'));
+      if (typeof rawUrls !== 'object' || rawUrls === null || Array.isArray(rawUrls)) {
+        throw new Error('expected a {domain: string[]} map');
+      }
+      for (const [domain, list] of Object.entries(rawUrls)) {
+        if (!DOMAIN_RE.test(domain) || !Array.isArray(list) || list.some(u => typeof u !== 'string')) {
+          throw new Error(`invalid entry for "${domain}": expected string[]`);
+        }
+        cachedUrlsByDomain[domain.toLowerCase()] = (list as string[]).filter(u => u.startsWith('https://'));
+      }
+    } catch (e) {
+      throw new Error(`invalid_url_file: cannot load ${urlFile}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+    }
+  }
   const priorCustody = arg('--prior-custody') ?? PRIOR_CUSTODY_DEFAULT;
   const exclusion = loadExclusion(priorCustody);
   const stats: Record<string, number> = { excludedPriorUrl: 0, excludedPriorFamily: 0, excludedNearDup: 0, excludedThinEvidence: 0 };
@@ -726,8 +749,13 @@ async function main(): Promise<void> {
     // proof still decides admission row by row.
     const feedUrls = unverified.map(c => String(c.row.canonicalUrl));
     for (const u of feedUrls) prequalified.add(u);
+    // Local-cache leads: same-domain official URLs from an earlier harvest.
+    // Same gates as everything else; counted in stats for audit.
+    const cachedLeads = (cachedUrlsByDomain[seed.domain.toLowerCase()] ?? [])
+      .filter(u => { try { return sameSite(u, `https://${seed.domain}`); } catch { return false; } });
+    stats[`${seed.domain}:cache-leads`] = cachedLeads.length;
     const pageQueue = selectFetchUrls(
-      [...sitemapUrls, ...feedUrls],
+      [...sitemapUrls, ...feedUrls, ...cachedLeads],
       250,
       prequalified,
     );
