@@ -272,7 +272,7 @@ function matchKeywordGeneralIndexed(
     for (const [i, count] of posting) hitCounts.set(i, (hitCounts.get(i) ?? 0) + count);
   }
   const scored: Array<{ option: MatchedOption; index: number }> = [];
-  for (const [i, hits] of hitCounts) {
+  for (const i of hitCounts.keys()) {
     const opt = options[i];
     const tokens = index.optionTokens[i];
     const matched = tokens.filter(t => evidenceTokens.has(t));

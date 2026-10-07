@@ -43,6 +43,7 @@ describe('bay-state-v6 — archived rejected proposal', () => {
       'bay-state-v5',
       'bay-state-v7',
       'bay-state-v8',
+      'bay-state-v9',
     ]);
   });
 
