@@ -1,0 +1,75 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "becopets.com:sitemap-locs": 153,
+      "becopets.com:sitemap-children": 2,
+      "becopets.com:sitemap-urls": 148,
+      "becopets.com:feed-rows": 0,
+      "becopets.com:feed-unverified": 53,
+      "becopets.com:fetch-queued": 53,
+      "excludedNonProduct": 53,
+      "becopets.com:page-rows": 0
+    }
+  },
+  "attempts": {
+    "used": 111,
+    "cap": 500,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 111,
+      "totalSourceAttempts": 1596,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1596,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+  },
+  "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "dbfc49dc9678e9d60561f85e0d27c7706d576e7c7ae4501e64bbfdcd54c3b71c",
+    "cumulativeHash": "dc3d3d5f70f10a87586194dc371bdef5b2e73bc6b20d0f5e2c2a615cc4e63c4e",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}
