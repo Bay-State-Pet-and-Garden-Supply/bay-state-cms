@@ -37,12 +37,25 @@ case-variants merged where obvious.
 | canning-preserving | — | 36 |
 | chicken-poultry-supplies | — | 114 |
 | pet-tags (ID tags) | 90 | 90 |
-| collectibles | 89 | — |
 | reptile-food-supplies | 206 | — |
 | horse-health-wellness | 177 | — |
 | wildlife-food | 17 | — |
 | hydration (water systems) | 7 | — |
 | knives-tools | 5 | — |
+
+## Tier 1 support check (2026-10-07)
+
+Banked support falls short of 20-per-class for 4 of 7 Tier 1 types:
+substrate (1), equipment (3), water-testing (9), car-restraint (13).
+Lighting (131, mostly Perky-Pet glass + Aqueon LED spill), baffles (18),
+and merch (315, mostly packaging spill) clear the bar.
+Car-restraint brands probed dead: Kurgo (total sitemap miss), Sleepypod
+(25/25 proof failures). Aquarium depth is exhausted at Aqueon (sitemap
+fully harvested).
+
+Recommendation: mint Tier 1 as **provisional types** (boundary rule +
+pilot gold, collection ongoing) or hold for v11. Owner taxonomy decision;
+do not lower the 20-per-class bar silently.
 
 ## Anti-patterns (do NOT promote to types)
 
