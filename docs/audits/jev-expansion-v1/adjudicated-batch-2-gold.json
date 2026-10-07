@@ -1,6 +1,6 @@
 {
  "artifactKind": "adjudicated-batch-2-gold",
- "status": "OWNER-ADJUDICATED 2026-10-07 batch 2 (47 rows). Corrections recorded: R26 parts flipped to NO-FIT (overrides batch-1 R30 precedent \u2014 parts excluded); R33 NO-FIT litter gap (no v9 type); R34 cat-food-wet over treats call (complete dinner); R35-36 car-restraint incl. walking leash (tension with batch-1 R39 collars-leashes \u2014 boundary note pending). familyIds + split deferred.",
+ "status": "OWNER-ADJUDICATED 2026-10-07 batch 2 (47 rows). Corrections recorded: R26 parts flipped to NO-FIT (overrides batch-1 R30 precedent \u2014 parts excluded); R33 NO-FIT litter gap (no v9 type); R34 cat-food-wet over treats call (complete dinner); R35-36 car-restraint incl. walking leash (tension with batch-1 R39 collars-leashes \u2014 boundary note pending). familyIds + split deferred. Amendment 2026-10-07: idx35 (retractable walking leash) re-labeled collars-leashes per travel-system-membership rule (car-restraint requires travel-system membership); idx34 Swivel Tether stays car-restraint.",
  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
  "entries": [
   {
@@ -2643,7 +2643,7 @@
    "gold": {
     "productType": {
      "kind": "known-type",
-     "typeId": "car-restraint"
+     "typeId": "collars-leashes"
     },
     "fieldAssignments": [
      {

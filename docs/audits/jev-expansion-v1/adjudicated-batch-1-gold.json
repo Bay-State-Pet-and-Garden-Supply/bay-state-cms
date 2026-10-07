@@ -1,6 +1,6 @@
 {
  "artifactKind": "adjudicated-batch-1-gold",
- "status": "OWNER-ADJUDICATED 2026-10-07 batch 1 (48 rows). R39 recorded collars-leashes (walking leash); R44 cat-food-wet (complete raw dinner for cats). familyIds + split deferred to generation freeze.",
+ "status": "OWNER-ADJUDICATED 2026-10-07 batch 1 (48 rows). R39 recorded collars-leashes (walking leash); R44 cat-food-wet (complete raw dinner for cats). familyIds + split deferred to generation freeze. Amendment 2026-10-07: idx29 (replacement flower ports) re-labeled NO-FIT per parts-excluded standing rule.",
  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
  "entries": [
   {
@@ -2201,8 +2201,8 @@
    ],
    "gold": {
     "productType": {
-     "kind": "known-type",
-     "typeId": "wild-bird-feeders"
+     "kind": "no-fit",
+     "typeId": null
     },
     "fieldAssignments": [
      {
