@@ -1,0 +1,70 @@
+{
+ "artifactKind": "exposure-quarantine",
+ "status": "QUARANTINED 2026-10-08: 8 rows share normalized canonical URLs with v1/v2 public banks (6 reviewer-found + 2 same-family earthbath). Removed from gold; retained here for audit. Counts below post-quarantine: 111 rows.",
+ "rows": [
+  {
+   "from": "adjudicated-batch-1-gold.json",
+   "sku": "PUBLIC:earthbath.com:65f83843fb751764",
+   "type": {
+    "kind": "no-fit",
+    "typeId": null
+   }
+  },
+  {
+   "from": "adjudicated-batch-1-gold.json",
+   "sku": "PUBLIC:oxbowanimalhealth.com:39a9d9a510ed5688",
+   "type": {
+    "kind": "known-type",
+    "typeId": "small-animal-feed-bedding"
+   }
+  },
+  {
+   "from": "adjudicated-batch-1-gold.json",
+   "sku": "PUBLIC:stellaandchewys.com:9695b2f49d315fbb",
+   "type": {
+    "kind": "known-type",
+    "typeId": "cat-food-wet"
+   }
+  },
+  {
+   "from": "adjudicated-batch-2-gold.json",
+   "sku": "PUBLIC:earthbath.com:022a1f8f4abc85d1",
+   "type": {
+    "kind": "known-type",
+    "typeId": "grooming"
+   }
+  },
+  {
+   "from": "adjudicated-batch-2-gold.json",
+   "sku": "PUBLIC:earthbath.com:07786bb60910d7db",
+   "type": {
+    "kind": "known-type",
+    "typeId": "grooming"
+   }
+  },
+  {
+   "from": "adjudicated-batch-2-gold.json",
+   "sku": "PUBLIC:earthbath.com:0feabc120e7eb276",
+   "type": {
+    "kind": "known-type",
+    "typeId": "grooming"
+   }
+  },
+  {
+   "from": "adjudicated-batch-2-gold.json",
+   "sku": "PUBLIC:earthbath.com:1064abe5cc207fcc",
+   "type": {
+    "kind": "known-type",
+    "typeId": "grooming"
+   }
+  },
+  {
+   "from": "adjudicated-batch-2-gold.json",
+   "sku": "PUBLIC:stellaandchewys.com:92685d0e492b5037",
+   "type": {
+    "kind": "known-type",
+    "typeId": "cat-food-wet"
+   }
+  }
+ ]
+}

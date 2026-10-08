@@ -1,11 +1,11 @@
 {
  "artifactKind": "adjudicated-pilot-gold",
- "status": "OWNER-ADJUDICATED 2026-10-07 via interactive pass; R11 plant-food-fertilizer recorded over lawn-fertilizer proposal (tightest frozen scope); R1/R10/R13/R16/R17/R20/R21/R24 NO-FIT (v10 gap items: aquarium-equipment/habitat, substrate, lighting, diagnostics, car-restraint, baffle, apparel); familyIds + split assignment deferred to generation freeze",
+ "status": "OWNER-ADJUDICATED 2026-10-07 via interactive pass; R11 plant-food-fertilizer recorded over lawn-fertilizer proposal (tightest frozen scope); R1/R10/R13/R16/R17/R20/R21/R24 NO-FIT (v10 gap items: aquarium-equipment/habitat, substrate, lighting, diagnostics, car-restraint, baffle, apparel); familyIds + split assignment deferred to generation freeze Amendment 2026-10-08: food-form canonicalized (Pellet->Pellets); Flake/Sinking Granules/Tablet -> no-fit (no covering frozen value); species Guinea Pig -> Small Animal. Amendment 2026-10-08: field states derived from frozen profile membership + invariants + excerpt evidence (insufficient-evidence/no-fit replace blanket inapplicable on applicable targets). Amendment 2026-10-08: quarantined 0 v1-URL-exposed rows (see quarantined-exposed-rows.json). Amendment 2026-10-08 (re-review): chicken x2 + pellets x5 + PRO Betta Treat restored to known; PRO Bottom Feeder Tablets -> no-fit (Tablet gap, cf. pilot). Batch-1 idx6 Betta Food stays insufficient-evidence (title is staple food; treat text is cross-sell). Amendment 2026-10-08: real familyIds materialized from adjudication files (split=dev preserved, 0 unresolved).",
  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
  "entries": [
   {
    "sku": "PUBLIC:aqueon.com:855fdddac505ed9f",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-0e8e5708d5f712ce2c64b4f3434ab2d2",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -83,7 +83,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-db9081d6097d4e9948282e08d2ab1a54",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -108,16 +108,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
       "state": "known",
-      "value": "Pellet"
+      "value": "Pellets"
      },
      {
       "targetId": "fuel-type",
@@ -129,7 +129,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -151,7 +151,7 @@
   },
   {
    "sku": "PUBLIC:annamaet.com:5b2b80d25d806ced",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-c07f6cd1d9c9acdaa95444da10902aeb",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -188,7 +188,7 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
@@ -197,7 +197,8 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -209,7 +210,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -231,7 +232,7 @@
   },
   {
    "sku": "PUBLIC:annamaet.com:85dda35a9cec115c",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-d049a75a3d38bad0174f3e5f10416a0b",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -262,16 +263,17 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
       "state": "known",
-      "value": "Fish"
+      "value": "Salmon"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -283,7 +285,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -305,7 +307,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:19250472b1486603",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-b53d56e53d55d081976700b60132911d",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -330,15 +332,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -350,7 +353,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -372,7 +375,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dd4fdcb606389758b4ab19ec927f3504",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -445,7 +448,7 @@
   },
   {
    "sku": "PUBLIC:annamaet.com:07632971cd379b45",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-23d180a3bc95c92c6c9e58ebf5734144",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -464,15 +467,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -484,7 +488,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -492,7 +496,8 @@
      },
      {
       "targetId": "species",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Dog"
      }
     ],
     "categoryPages": {
@@ -505,7 +510,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:1b060ea8c1b0558e",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-3aff33508a08f82ed536bc2efa080bf9",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -542,16 +547,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "known",
-      "value": "Flake"
+      "state": "no-fit"
      },
      {
       "targetId": "fuel-type",
@@ -563,7 +567,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -585,7 +589,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:34225dff498f3625",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dbc55e7df2b0924b70c84628825f4109",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -622,15 +626,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -642,7 +646,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -664,7 +668,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:a511f6c8c441ca6e",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-4affe94fb5d6d988cce8fe746dee74fe",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -742,7 +746,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:09d677bd9c71e942",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dc605c9d23a8c0bbadec787ca97b12d1",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -803,7 +807,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -820,7 +824,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:10f45937a1644715",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-23d75263b62f36e046f8d428ddf4e1e3",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -857,16 +861,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "known",
-      "value": "Sinking Granules"
+      "state": "no-fit"
      },
      {
       "targetId": "fuel-type",
@@ -878,7 +881,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -900,7 +903,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:d981f8dacb00eb64",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-a0c40bd90721d1e2ab36b6fce1751f7d",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -978,7 +981,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:f68f7182651dae09",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-b5801c7718c261cb87e848419517f7e0",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1015,16 +1018,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "known",
-      "value": "Tablet"
+      "state": "no-fit"
      },
      {
       "targetId": "fuel-type",
@@ -1036,7 +1038,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1058,7 +1060,7 @@
   },
   {
    "sku": "PUBLIC:mywoof.com:f94af1af1256c3c2",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-c7b46cc97b7f87a97680c07b4cfbb70c",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1119,7 +1121,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:188cb99b164d7d9d",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-32d96d1012ed707a23f40091324b51b5",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1197,7 +1199,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:372a1a501a162d37",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-86b372671848aedc6d284027066cf9c7",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1275,7 +1277,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:1adf8cde867c3dbd",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-185de9fb0076cf7b2fad9c0ec4068d84",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1354,7 +1356,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:bde740609dbbe13d",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-850b58adbf2b6365cb8183349c4f0981",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1421,7 +1423,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:0f074ed5772d85b9",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-bde6a3041ea586eda429be22a0543ccc",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1499,7 +1501,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:3192ce9c3883eccb",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-1038ff6812db7a13cedce2e3a006e452",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1559,7 +1561,7 @@
   },
   {
    "sku": "PUBLIC:oxbowanimalhealth.com:372daf6b6ed19281",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-f3ec700049e3376d67e006972136b8e6",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1592,7 +1594,7 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -1608,12 +1610,12 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
       "state": "known",
-      "value": "Guinea Pig"
+      "value": "Small Animal"
      }
     ],
     "categoryPages": {
@@ -1626,7 +1628,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-abab42c95c523cdd62100d33450cd500",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1687,7 +1689,7 @@
   },
   {
    "sku": "PUBLIC:annamaet.com:6795ea8fb6328eee",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-c34069830b1a95178c66102e33a5b8dc",
    "split": "dev",
    "assortment": null,
    "evidence": [

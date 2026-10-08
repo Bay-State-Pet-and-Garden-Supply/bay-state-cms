@@ -1,11 +1,11 @@
 {
  "artifactKind": "adjudicated-batch-1-gold",
- "status": "OWNER-ADJUDICATED 2026-10-07 batch 1 (48 rows). R39 recorded collars-leashes (walking leash); R44 cat-food-wet (complete raw dinner for cats). familyIds + split deferred to generation freeze. Amendment 2026-10-07: idx29 (replacement flower ports) re-labeled NO-FIT per parts-excluded standing rule.",
+ "status": "OWNER-ADJUDICATED 2026-10-07 batch 1 (48 rows). R39 recorded collars-leashes (walking leash); R44 cat-food-wet (complete raw dinner for cats). familyIds + split deferred to generation freeze. Amendment 2026-10-07: idx29 (replacement flower ports) re-labeled NO-FIT per parts-excluded standing rule. Amendment 2026-10-08 (review remediation): batch-1 idx37 + batch-2 idx34 car-restraint -> NO-FIT (type absent from frozen v9); batch-2 idx23 oral drops potting-soil -> supplements; batch-2 idx28 suet feeder -> wild-bird-feeders; batch-2 idx16 herbicide -> weed-control; batch-1 idx24 shrimp minerals fish-food -> NO-FIT (water treatment). Amendment 2026-10-08: species Rabbit -> Small Animal (frozen alias). Amendment 2026-10-08: field states derived from frozen profile membership + invariants + excerpt evidence (insufficient-evidence/no-fit replace blanket inapplicable on applicable targets). Amendment 2026-10-08: quarantined 3 v1-URL-exposed rows (see quarantined-exposed-rows.json). Amendment 2026-10-08 (re-review): chicken x2 + pellets x5 + PRO Betta Treat restored to known; PRO Bottom Feeder Tablets -> no-fit (Tablet gap, cf. pilot). Batch-1 idx6 Betta Food stays insufficient-evidence (title is staple food; treat text is cross-sell). Amendment 2026-10-08: real familyIds materialized from adjudication files (split=dev preserved, 0 unresolved).",
  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
  "entries": [
   {
    "sku": "PUBLIC:earthanimal.com:64b9912c7ddd5847",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-d3fbafcd373bec859d7398d238fc16f3",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -30,15 +30,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -50,7 +51,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -72,7 +73,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:023bc6dafd261a5e",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-7ff4a70eaa2a775517671701f1656ff6",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -151,7 +152,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:045abe13da8615ea",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-324e95d11afa2569d67829770aa60ecc",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -230,7 +231,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-449958b85746b59079f7065246d27772",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -309,7 +310,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:0cf7eaddd7ee28af",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dacb3fa75adc3e087a2f55094b86a6d1",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -388,7 +389,7 @@
   },
   {
    "sku": "PUBLIC:annamaet.com:d59ffd323547f843",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-2e28f780d8486deeebe370f4da165631",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -419,7 +420,7 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
@@ -428,7 +429,8 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -440,7 +442,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -462,7 +464,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:4349863079f9ee38",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-d49c5f894d6e394d0abd33790e3fd610",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -493,15 +495,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -513,7 +515,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -535,7 +537,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:56800fe522e3b74b",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-fe3bb63d38d59e7913da5d9cded8de05",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -572,15 +574,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -592,7 +595,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -614,7 +617,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-87df692b6ad1da01ba0b61527ecf956c",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -639,15 +642,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -659,7 +663,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -681,7 +685,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:34db9cf0b6051cde",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-63ab7a1b12cfa6fd47b15cf57b040d3f",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -718,15 +722,17 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Turkey"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Treat"
      },
      {
       "targetId": "fuel-type",
@@ -738,7 +744,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -760,7 +766,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-2e908ab933df84fe032466c1e9a7fa5a",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -821,7 +827,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:761741fbab59ddd3",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-789bd043ee10ed74c1be5646175eb96d",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -846,15 +852,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -866,7 +873,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -888,7 +895,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-b775fdf929a9edef2694f6d8d798e078",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -949,7 +956,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:85973f5bc751bbf5",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-bfc1f4851c6cda1251d8dc894c79048b",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -974,15 +981,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -994,7 +1002,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1016,7 +1024,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:9de14d2658969f55",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-9f443805a3a9054ce41e1318877ae768",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1077,7 +1085,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:57f8a2e679d296f0",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-17f8dd47c9354dc07fd2cd05ead11251",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1114,15 +1122,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Pellets"
      },
      {
       "targetId": "fuel-type",
@@ -1134,7 +1143,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1156,7 +1165,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:6bdb84598327f1a9",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-d6eb349b99473e454c975add5f930588",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1187,15 +1196,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Pellets"
      },
      {
       "targetId": "fuel-type",
@@ -1207,7 +1217,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1229,7 +1239,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:877b6b597c910863",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-66fd18b26c90e740a964389a01ae7dc2",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1266,15 +1276,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Pellets"
      },
      {
       "targetId": "fuel-type",
@@ -1286,7 +1297,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1308,7 +1319,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-a2de4ef3d4c58e031b8af9b1e8e0b526",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1345,15 +1356,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "no-fit"
      },
      {
       "targetId": "fuel-type",
@@ -1365,7 +1376,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1387,7 +1398,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:ed8117f728bea3d0",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-7dc1b2d115c42d1eb7c05ca25d7cc54f",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1424,15 +1435,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Pellets"
      },
      {
       "targetId": "fuel-type",
@@ -1444,7 +1456,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -1466,7 +1478,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:19b66ce7c4ecb591",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-87ea44778874f9fa16ff2117addbc3ca",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1527,7 +1539,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -1544,7 +1556,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:1c86cc4e765bedb0",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-07e9dbe38b35f953792f4bc7852c450a",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1605,7 +1617,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -1622,7 +1634,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:1dc5340e9390c998",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-6aa24d49331a3ef944a6b0bc9184ba83",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1683,7 +1695,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -1700,7 +1712,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:2328d90eab1ba1bc",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-4da47050fd9d2a9ade970e8429168951",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1761,7 +1773,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -1778,7 +1790,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:e49adbc4f076d638",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dda43dfec8976006b8366a175b6fc377",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1809,8 +1821,8 @@
    ],
    "gold": {
     "productType": {
-     "kind": "known-type",
-     "typeId": "fish-food"
+     "kind": "no-fit",
+     "typeId": null
     },
     "fieldAssignments": [
      {
@@ -1843,8 +1855,7 @@
      },
      {
       "targetId": "species",
-      "state": "known",
-      "value": "Fish"
+      "state": "inapplicable"
      }
     ],
     "categoryPages": {
@@ -1857,7 +1868,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:220a0d05d956dba4",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-cd76ef15b737d20374f27c99567f4c5d",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1936,7 +1947,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:c628be60145d275a",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-9d54239d7f24fc3dba2f016d5204cc76",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -1997,7 +2008,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -2014,7 +2025,7 @@
   },
   {
    "sku": "PUBLIC:drearth.com:ec38bdb69f71a4ed",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-27c5b9cbc7098d7d967b0ffb3a25bbb9",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2075,7 +2086,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -2092,7 +2103,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:037f39c3c9d63bbe",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-2f3311b5d8d44a7af799e40905ee7b1d",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2170,7 +2181,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:0bd90cbcad1e0f97",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-dd0556a1790bdbc7a2be02561f6f81ce",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2248,7 +2259,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:0d4757c68b0e3b6a",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-67b0273868ec9574b7f66f4f2fc7e6b9",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2293,7 +2304,7 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -2309,11 +2320,12 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Bird"
      }
     ],
     "categoryPages": {
@@ -2326,7 +2338,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:0db4aebd62f4968a",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-03089344dcf79121127a952778646b9f",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2371,7 +2383,7 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -2387,11 +2399,12 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Bird"
      }
     ],
     "categoryPages": {
@@ -2404,7 +2417,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:4e24fca20ec1bff1",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-8e1b4762b2d3304fdf9e11b49c4d1d30",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2482,7 +2495,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:5160127066b93db5",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-e9d708ee6aecd5c5f132c1cee7617bbe",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2519,15 +2532,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -2539,7 +2552,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -2561,7 +2574,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:9acf25d51dcd4b28",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-b1ec621a060eb77f99deac1560a775cf",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2598,15 +2611,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -2618,7 +2631,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -2639,74 +2652,8 @@
    }
   },
   {
-   "sku": "PUBLIC:earthbath.com:65f83843fb751764",
-   "familyId": "pending-fresh-generation",
-   "split": "dev",
-   "assortment": null,
-   "evidence": [
-    {
-     "snippet": "Use with earthbath Paw Wash to give your dog or cat a 5-star pampering experience.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    },
-    {
-     "snippet": "This super-soft Paw Towel is made of microfiber for exceptional absorbability.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    }
-   ],
-   "gold": {
-    "productType": {
-     "kind": "no-fit",
-     "typeId": null
-    },
-    "fieldAssignments": [
-     {
-      "targetId": "breed-size",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "flavor",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "food-form",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "fuel-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "hose-length",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "life-stage",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "packaging-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "species",
-      "state": "inapplicable"
-     }
-    ],
-    "categoryPages": {
-     "state": "unknown",
-     "completeness": "unknown",
-     "pageIds": [],
-     "pageAssignments": []
-    }
-   }
-  },
-  {
    "sku": "PUBLIC:kongcompany.com:fcf78c943c71a0b7",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-7bc21e8d5137ced11a7f11b72fd939b5",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2779,7 +2726,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:22c2b9aae1730979",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-254a760c9c861fc0ba414c2080507cba",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2810,8 +2757,8 @@
    ],
    "gold": {
     "productType": {
-     "kind": "known-type",
-     "typeId": "car-restraint"
+     "kind": "no-fit",
+     "typeId": null
     },
     "fieldAssignments": [
      {
@@ -2844,8 +2791,7 @@
      },
      {
       "targetId": "species",
-      "state": "known",
-      "value": "Dog"
+      "state": "inapplicable"
      }
     ],
     "categoryPages": {
@@ -2858,7 +2804,7 @@
   },
   {
    "sku": "PUBLIC:kongcompany.com:421c0a115bba5eb7",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-66efee057dfc34df3a40902e44c85458",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2919,7 +2865,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:6dafbde3f59f9299",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-bdc0bdd18de15431cb0d903a2001f15b",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -2985,7 +2931,7 @@
   },
   {
    "sku": "PUBLIC:natureswaybirds.com:8f4874c06805a377",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-e32e3d5ab94deb9353814a4f81cec6eb",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3030,7 +2976,7 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -3046,84 +2992,12 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "species",
-      "state": "inapplicable"
-     }
-    ],
-    "categoryPages": {
-     "state": "unknown",
-     "completeness": "unknown",
-     "pageIds": [],
-     "pageAssignments": []
-    }
-   }
-  },
-  {
-   "sku": "PUBLIC:oxbowanimalhealth.com:39a9d9a510ed5688",
-   "familyId": "pending-fresh-generation",
-   "split": "dev",
-   "assortment": null,
-   "evidence": [
-    {
-     "snippet": "We start with high fiber, protein rich Oxbow hays for energy and healthy digestion and add balanced sources of protein and calcium to help support muscle and bone development.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    },
-    {
-     "snippet": "Garden Select\u00ae Young Rabbit provides 100% of your pet\u2019s daily recommended vitamins and minerals with no artificial preservatives, colors or flavors.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    },
-    {
-     "snippet": "Garden Select\u00ae Young Rabbit blends enticing garden favorites with non-GMO (non-genetically engineered) ingredients to support healthy growth and development.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    }
-   ],
-   "gold": {
-    "productType": {
-     "kind": "known-type",
-     "typeId": "small-animal-feed-bedding"
-    },
-    "fieldAssignments": [
-     {
-      "targetId": "breed-size",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "flavor",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "food-form",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "fuel-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "hose-length",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "life-stage",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
       "state": "known",
-      "value": "Rabbit"
+      "value": "Bird"
      }
     ],
     "categoryPages": {
@@ -3136,7 +3010,7 @@
   },
   {
    "sku": "PUBLIC:oxbowanimalhealth.com:5122efe5915739c3",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-0b203cec5df82e915957aed0b06c645a",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3169,7 +3043,7 @@
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "no-fit"
      },
      {
       "targetId": "fuel-type",
@@ -3185,7 +3059,7 @@
      },
      {
       "targetId": "packaging-type",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "species",
@@ -3202,69 +3076,8 @@
    }
   },
   {
-   "sku": "PUBLIC:stellaandchewys.com:9695b2f49d315fbb",
-   "familyId": "pending-fresh-generation",
-   "split": "dev",
-   "assortment": null,
-   "evidence": [
-    {
-     "snippet": "Raw, cage-free turkey98% turkey, nutrient-rich organs, &amp; bonePea-free, lentil-free, and potato-freeTaurine addedFortified with added vitamins &amp; mineralsProbiotics for optimal digestion100% complete &amp; balanced dietAvailable Sizes: 3.5 oz., 8 oz., 18 oz.",
-     "source": "official_product_page",
-     "attributeId": null,
-     "reliability": "high"
-    }
-   ],
-   "gold": {
-    "productType": {
-     "kind": "known-type",
-     "typeId": "cat-food-wet"
-    },
-    "fieldAssignments": [
-     {
-      "targetId": "breed-size",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "flavor",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "food-form",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "fuel-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "hose-length",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "life-stage",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "packaging-type",
-      "state": "inapplicable"
-     },
-     {
-      "targetId": "species",
-      "state": "known",
-      "value": "Cat"
-     }
-    ],
-    "categoryPages": {
-     "state": "unknown",
-     "completeness": "unknown",
-     "pageIds": [],
-     "pageAssignments": []
-    }
-   }
-  },
-  {
    "sku": "PUBLIC:aqueon.com:4e64798fc1744d60",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-23e75c898a0ce8cc199b0add0cf356c1",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3342,7 +3155,7 @@
   },
   {
    "sku": "PUBLIC:aqueon.com:886ec5e992188065",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-bb65b8ed1eb79d678a5715099cf020ed",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3379,15 +3192,15 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "fuel-type",
@@ -3399,7 +3212,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -3421,7 +3234,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:56777142fca2b134",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-0990e425971a4d591c73f642fb4ed9a3",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3446,15 +3259,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -3466,7 +3280,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
@@ -3488,7 +3302,7 @@
   },
   {
    "sku": "PUBLIC:earthanimal.com:7a69aef1be7fa195",
-   "familyId": "pending-fresh-generation",
+   "familyId": "family-08f04273caf8956ab7cbda62992d7b11",
    "split": "dev",
    "assortment": null,
    "evidence": [
@@ -3513,15 +3327,16 @@
     "fieldAssignments": [
      {
       "targetId": "breed-size",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "flavor",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "food-form",
-      "state": "inapplicable"
+      "state": "known",
+      "value": "Supplement"
      },
      {
       "targetId": "fuel-type",
@@ -3533,7 +3348,7 @@
      },
      {
       "targetId": "life-stage",
-      "state": "inapplicable"
+      "state": "insufficient-evidence"
      },
      {
       "targetId": "packaging-type",
