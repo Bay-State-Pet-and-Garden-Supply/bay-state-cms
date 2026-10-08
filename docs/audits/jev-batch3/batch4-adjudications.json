@@ -1,0 +1,661 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "sourceEvidencePolicies": {
+  "b4-7-public": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  }
+ },
+ "entries": [
+  {
+   "sku": "PUBLIC:mannapro.com:db95d1145ef4a8b4",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "poultry-coops-equipment"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Poultry"
+    }
+   ],
+   "rationale": "Hanging poultry drinker (twist-lock fountain with hanger/carry-handle serving 32 poultry or gamebirds); poultry-coops-equipment member with Poultry invariant. Complete watering good, not a part, so boundary rule 1 does not exclude it. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Features a twist-lock system and a hanger/carry-handle Accommodates up to 32 poultry or gamebirds",
+     "locator": "https://mannapro.com/products/manna-pro-hanging-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a hanging poultry watering device: poultry equipment, not a stock tank or feeder"
+    },
+    {
+     "targetId": "species",
+     "quote": "Accommodates up to 32 poultry or gamebirds",
+     "locator": "https://mannapro.com/products/manna-pro-hanging-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit poultry scope corroborates frozen invariant species=Poultry"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:a39e236f49a55273",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "poultry-coops-equipment"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Poultry"
+    }
+   ],
+   "rationale": "Flock Party 3.5-gallon hanging drinker (twist-lock fountain with hanger/carry-handle serving 56 poultry or gamebirds); poultry-coops-equipment member with Poultry invariant. Complete watering good, not a part, so boundary rule 1 does not exclude it. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Features a twist-lock system and a hanger/carry-handle",
+     "locator": "https://mannapro.com/products/flock-party-hanging-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a hanging poultry watering device: poultry equipment, not a stock tank or feeder"
+    },
+    {
+     "targetId": "species",
+     "quote": "Accommodates up to 56 poultry or gamebirds",
+     "locator": "https://mannapro.com/products/flock-party-hanging-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit poultry scope corroborates frozen invariant species=Poultry"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:c5a898903f9b29da",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "horse-treats-supplements"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Horse"
+    }
+   ],
+   "rationale": "Apple and oat horse treats (crunchy nuggets, reward wording, no complete-ration claim); horse-treats-supplements member with Horse invariant per boundary rule 3 (treats are non-complete rewards). Flavor and food-form are profile nonmembers so inapplicable. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Apple &amp; Oat Flavored Horse Treats Made with Real Apple Pomace for a Tasty Treat",
+     "locator": "https://mannapro.com/products/tasty-delites-horse-treats JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a flavored horse treat reward, not a complete ration"
+    },
+    {
+     "targetId": "species",
+     "quote": "Apple &amp; Oat Flavored Horse Treats",
+     "locator": "https://mannapro.com/products/tasty-delites-horse-treats JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit horse scope corroborates frozen invariant species=Horse"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:ec1bf2e5c9b1655a",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "cattle-feed"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Cattle"
+    }
+   ],
+   "rationale": "Calf milk replacer (22% protein with probiotics, fed day 2 through weaning); complete pre-weaning ration so cattle-feed member per boundary rule 3 (package language, not form, decides; calf is a young bovine). No explicit feed-form token and no package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Calf Milk Replacer with 22% Protein and Probiotics Feed Day 2 through Weaning",
+     "locator": "https://mannapro.com/products/suckle-pro JSON-LD Product + product-description#excerpt-0",
+     "reason": "milk replacer fed as the day-2-through-weaning diet: complete calf ration, not a treat or supplement"
+    },
+    {
+     "targetId": "species",
+     "quote": "Calf Milk Replacer with 22% Protein and Probiotics",
+     "locator": "https://mannapro.com/products/suckle-pro JSON-LD Product + product-description#excerpt-0",
+     "reason": "calf names a young bovine, corroborating frozen invariant species=Cattle"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:22488ebd5bb7f464",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "livestock-health-dewormers"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Goat"
+    }
+   ],
+   "rationale": "Medicated dewormer feed for all goats breaking the cycle of major gastrointestinal worms; livestock-health-dewormers member. Species Goat from the explicit all-goats scope. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Medicated Dewormer Feed: No need for shots or drenches",
+     "locator": "https://mannapro.com/products/positive-pellet-goat-de-wormer JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a medicated dewormer health good, not a feed ration"
+    },
+    {
+     "targetId": "species",
+     "quote": "For All Goats: Safe for meat, dairy, pregnant &amp; lactating does",
+     "locator": "https://mannapro.com/products/positive-pellet-goat-de-wormer JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit all-goats scope fixes a single canonical species=Goat"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:de23e874eb99115c",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "horse-treats-supplements"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Horse"
+    }
+   ],
+   "rationale": "Horse treats with superfoods and real fruit (reward wording horses love, no complete-ration claim); horse-treats-supplements member with Horse invariant per boundary rule 3 (treats are non-complete rewards). BerryMint names no canonical flavor but flavor is a profile nonmember so inapplicable. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Healthy treats with superfoods",
+     "locator": "https://mannapro.com/products/nutrigood-fruitsnax-berrymint-oats JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a treat reward, not a complete ration"
+    },
+    {
+     "targetId": "species",
+     "quote": "Great taste horses love",
+     "locator": "https://mannapro.com/products/nutrigood-fruitsnax-berrymint-oats JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit horse scope corroborates frozen invariant species=Horse"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8fbd5063896a4c8f",
+   "productType": {
+    "kind": "no-fit",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Multi-species (9 species) milk replacer fed as the day-2-through-weaning diet; genuine frozen-type no-fit: every frozen complete-feed type is species-scoped and the replacer is a complete diet rather than a supplement, so no member type covers it. Taxonomy gap flagged; all eight targets inapplicable.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Milk Replacer with Probiotics for 9 Species of Young Animals Feed Day 2 through Weaning",
+     "locator": "https://mannapro.com/products/nurse-all-multi-species-milk-replacer JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a complete-diet milk replacer spanning nine species; no species-scoped frozen feed type and no generic replacer type covers it"
+    },
+    {
+     "targetId": "species",
+     "quote": "for 9 Species of Young Animals",
+     "locator": "https://mannapro.com/products/nurse-all-multi-species-milk-replacer JSON-LD Product + product-description#excerpt-0",
+     "reason": "nine-species scope rules out every single-species frozen feed type"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:ca64dc855e1f4302",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "goat-sheep-feed"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Sheep"
+    }
+   ],
+   "rationale": "Lamb milk replacer with probiotics fed day 2 through weaning; complete pre-weaning ration so goat-sheep-feed member per boundary rule 3 (package language, not form, decides; lambs are young sheep). No explicit feed-form token and no package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Milk Replacer with Probiotics for Lambs Feed Day 2 through Weaning",
+     "locator": "https://mannapro.com/products/lamb-milk-replacer-with-probiotics JSON-LD Product + product-description#excerpt-0",
+     "reason": "milk replacer fed as the day-2-through-weaning diet: complete lamb ration, not a treat or supplement"
+    },
+    {
+     "targetId": "species",
+     "quote": "Milk Replacer with Probiotics for Lambs",
+     "locator": "https://mannapro.com/products/lamb-milk-replacer-with-probiotics JSON-LD Product + product-description#excerpt-0",
+     "reason": "lambs are young sheep, fixing a single canonical species=Sheep"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:af52e4052428be4a",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "goat-sheep-feed"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Goat"
+    }
+   ],
+   "rationale": "Probiotic milk replacer for kids fed day 2 to weaning; complete pre-weaning ration so goat-sheep-feed member per boundary rule 3 (package language, not form, decides; kids are young goats). No explicit feed-form token and no package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Probiotic milk replacer for kids Feed from day 2 to weaning",
+     "locator": "https://mannapro.com/products/kid-milk-replacer JSON-LD Product + product-description#excerpt-0",
+     "reason": "milk replacer fed as the day-2-to-weaning diet: complete kid ration, not a treat or supplement"
+    },
+    {
+     "targetId": "species",
+     "quote": "Probiotic milk replacer for kids",
+     "locator": "https://mannapro.com/products/kid-milk-replacer JSON-LD Product + product-description#excerpt-0",
+     "reason": "kids are young goats, fixing a single canonical species=Goat"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:48d519402800173f",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "poultry-coops-equipment"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Poultry"
+    }
+   ],
+   "rationale": "Free Range 3.5-gallon plastic poultry drinker (twist-lock fountain with hanger/carry-handle serving 56 poultry or gamebirds); poultry-coops-equipment member with Poultry invariant. Complete watering good, not a part, so boundary rule 1 does not exclude it. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Features a twist-lock system and a hanger/carry-handle Accommodates up to 56 poultry or gamebirds",
+     "locator": "https://mannapro.com/products/free-range-3-gallon-plastic-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a hanging poultry watering device: poultry equipment, not a stock tank or feeder"
+    },
+    {
+     "targetId": "species",
+     "quote": "Accommodates up to 56 poultry or gamebirds",
+     "locator": "https://mannapro.com/products/free-range-3-gallon-plastic-poultry-drinker JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit poultry scope corroborates frozen invariant species=Poultry"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:3934f1f1f9f7b0f5",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "supplements"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "flavor",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "food-form",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Poultry"
+    }
+   ],
+   "rationale": "Probiotic chick grit for digestive support in young poultry; supplements member (digestive-aid supplement, not a ration, so not poultry-feed per boundary rule 3 completeness test: grit grinds feed rather than feeding). Species Poultry explicit. Small particle-size wording is not a canonical breed-size, no flavor or form token names a canonical value, and chick-age wording maps to no canonical life-stage: all insufficient.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Digestive support for young poultry",
+     "locator": "https://mannapro.com/products/chick-grit-with-probiotics JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a digestive-support probiotic aid, a supplemental good rather than a feed ration"
+    },
+    {
+     "targetId": "species",
+     "quote": "Digestive support for young poultry",
+     "locator": "https://mannapro.com/products/chick-grit-with-probiotics JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit young-poultry scope fixes a single canonical species=Poultry"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  }
+ ]
+}

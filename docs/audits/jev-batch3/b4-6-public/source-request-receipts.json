@@ -1,0 +1,34 @@
+{
+  "artifactKind": "source-request-receipts-public",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "urlIdentity": "sha256-only: public receipts never carry raw held URLs",
+  "receipts": [
+    {
+      "seq": 848,
+      "urlSha256": "ced7a77d8d42cff4a421f83598681d68d196a9d5eb1dffb946b900cde39491b8",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-6",
+      "at": "2026-10-08T18:39:30.412Z",
+      "status": 200,
+      "finalUrlSha256": "ced7a77d8d42cff4a421f83598681d68d196a9d5eb1dffb946b900cde39491b8",
+      "error": null,
+      "bytes": 2064,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 849,
+      "urlSha256": "98ce89cd5887b46f62156199ce479bcbe977c23d51795ebae76e3e19f691fefc",
+      "kind": "feed",
+      "worker": "main-stage-B4-6",
+      "at": "2026-10-08T18:39:30.569Z",
+      "status": 200,
+      "finalUrlSha256": "98ce89cd5887b46f62156199ce479bcbe977c23d51795ebae76e3e19f691fefc",
+      "error": null,
+      "bytes": 2064,
+      "outcomeMissing": false
+    }
+  ]
+}

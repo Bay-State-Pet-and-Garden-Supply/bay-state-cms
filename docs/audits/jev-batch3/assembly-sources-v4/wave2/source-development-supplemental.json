@@ -1,0 +1,32 @@
+[
+  {
+    "sku": "PUBLIC:ruffwear.com:ad226040e48228b9",
+    "title": "Basecamp™️ Dog Bowl Mat",
+    "brand": "Ruff Wear Inc",
+    "canonicalUrl": "https://ruffwear.com/products/basecamp-mat",
+    "productIdentity": "Ruff Wear Inc: Basecamp™️ Dog Bowl Mat",
+    "sourceLocator": "https://ruffwear.com/products/basecamp-mat",
+    "sourceHash": "7cba6168252f980a853f44aff5602146c99d7aa1395de7a5180d16a17d9a4b54",
+    "retrievedAt": "2026-10-07T04:54:23.310Z",
+    "familyId": "family-a223b9a5575603b61442d784cc5ca60d",
+    "excerpts": [
+      {
+        "text": "Adventures begin at basecamp, and the Basecamp™ Dog Bowl Mat is where your canine sidekick can go to refresh and refuel for the next excursion to the mountains, river, or trail.",
+        "locator": "https://ruffwear.com/products/basecamp-mat JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "This food and water bowl footprint has a recycled TPE-coated grip base and sturdy walls for containing spills and withstanding being stepped on by eager dogs.",
+        "locator": "https://ruffwear.com/products/basecamp-mat JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "It fits two bowls side-by-side and features a topo map design to inspire future outdoor explorations.",
+        "locator": "https://ruffwear.com/products/basecamp-mat JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Exterior: 20.5 in x 12.5 in x 1.25 in (52 x 32 x 3 cm)Interior: 18 in x 10.25 in x 1 in (46 x 26 x 2.5 cm)",
+        "locator": "https://ruffwear.com/products/basecamp-mat JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]

@@ -1,0 +1,66 @@
+{
+  "artifactKind": "batch4-capture-stage-record",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "planRevision": "2026-10-08-batch4-draft2",
+  "planSha256": "8d6a503198ab916bf24df269ae3566fadc2befe0ba71a46ef1a3fe71ea2f2b9a",
+  "authorization": "user GO in current conversation (≤400)",
+  "probes": [
+    {
+      "order": 1,
+      "domain": "hillspet.com",
+      "quota": 60,
+      "result": "dry: sitemap-miss x2, 0 queued"
+    },
+    {
+      "order": 2,
+      "domain": "tasteofthewildpetfood.com",
+      "quota": 60,
+      "result": "dry: 885 locs, 250 queued, 0 proof-pass"
+    },
+    {
+      "order": 3,
+      "domain": "orijenpetfoods.com",
+      "quota": 50,
+      "result": "dry: sitemap-miss x2, 0 queued"
+    },
+    {
+      "order": 4,
+      "domain": "acana.com",
+      "quota": 50,
+      "result": "dry: sitemap-miss x2, 0 queued"
+    },
+    {
+      "order": 5,
+      "domain": "westpaw.com",
+      "quota": 40,
+      "result": "dry: 199 locs, 78 queued, 0 proof-pass"
+    },
+    {
+      "order": 6,
+      "domain": "scotts.com",
+      "quota": 40,
+      "result": "dry: 0 locs"
+    },
+    {
+      "order": 7,
+      "domain": "mannapro.com",
+      "quota": 40,
+      "result": "HIT: 34 rows, 11 dev + 23 held, 0 ghosts (fresh scatter)"
+    },
+    {
+      "order": 8,
+      "domain": "merrickpetcare.com",
+      "quota": 60,
+      "result": "dry: 343 locs, 1 queued, 0 rows (R-tranche spent per approved plan + user GO)"
+    }
+  ],
+  "windowAfter": {
+    "spent": 895,
+    "remaining": 305,
+    "max": 1200,
+    "batch4Spend": 158
+  },
+  "novelDevRowsBatch4": 11,
+  "foodPattern": "0/5 food probes hit (hillspet/tasteofthewild/orijen/acana/merrick): sitemap-miss + proof-wall pattern holds; food deficits need a different acquisition strategy (distributor-record? manual?) — no further blind food probing recommended",
+  "nextSteps": "adjudicate 11 novel rows → expansion-v4 assembly with rev2 packet + v3 peer-review precedent; canary runs already authorized"
+}

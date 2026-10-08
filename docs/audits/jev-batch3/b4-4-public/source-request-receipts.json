@@ -1,0 +1,58 @@
+{
+  "artifactKind": "source-request-receipts-public",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "urlIdentity": "sha256-only: public receipts never carry raw held URLs",
+  "receipts": [
+    {
+      "seq": 804,
+      "urlSha256": "543f5e31462f48979fdc6ca4dbab22371c997ccb1019f2644078a742e84d6e8b",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-4",
+      "at": "2026-10-08T18:39:03.090Z",
+      "status": 301,
+      "finalUrlSha256": "74ba0edf8e9a8a4e0b5aa3173064aee4ab724981dec7b4eb4168b8be6947d5d1",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 805,
+      "urlSha256": "74ba0edf8e9a8a4e0b5aa3173064aee4ab724981dec7b4eb4168b8be6947d5d1",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-4",
+      "at": "2026-10-08T18:39:03.335Z",
+      "status": 404,
+      "finalUrlSha256": null,
+      "error": null,
+      "bytes": 0,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 806,
+      "urlSha256": "5e4bb155a84844be112003411500df45798b5b11d7fcbddfdc01392782d646ae",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-4",
+      "at": "2026-10-08T18:39:03.558Z",
+      "status": 404,
+      "finalUrlSha256": null,
+      "error": null,
+      "bytes": 0,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 807,
+      "urlSha256": "2787f034ea7784cd6cdc854efed5aae8810717262ba77f11b66a5dfad8969bbe",
+      "kind": "feed",
+      "worker": "main-stage-B4-4",
+      "at": "2026-10-08T18:39:03.741Z",
+      "status": 404,
+      "finalUrlSha256": null,
+      "error": null,
+      "bytes": 0,
+      "outcomeMissing": false
+    }
+  ]
+}

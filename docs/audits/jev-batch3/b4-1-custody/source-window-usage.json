@@ -1,0 +1,11 @@
+{
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "windowDir": "/tmp/baystate-batch3-window",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "windowSpentBefore": 737,
+  "thisInvocationSpent": 2,
+  "windowSpentAfter": 739,
+  "windowRemaining": 461
+}

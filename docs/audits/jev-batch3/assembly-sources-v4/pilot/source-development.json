@@ -1,0 +1,1638 @@
+[
+  {
+    "sku": "PUBLIC:earthanimal.com:34db9cf0b6051cde",
+    "title": "No-Hide Holiday Feast Stix",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/no-hide-holiday-feast-stix",
+    "productIdentity": "Earth Animal: No-Hide Holiday Feast Stix",
+    "sourceLocator": "https://earthanimal.com/products/no-hide-holiday-feast-stix",
+    "sourceHash": "d3cdbdfee3676a55a01e0579ab2fd24fecee98bb9026dcf6154569e84acfe0f7",
+    "retrievedAt": "2026-10-07T03:20:12.965Z",
+    "familyId": "family-63ab7a1b12cfa6fd47b15cf57b040d3f",
+    "excerpts": [
+      {
+        "text": "A long-lasting, 100% rawhide-free chew made with real, whole ingredients and flavored with humanely raised turkey, pumpkin, and cranberries, sized for extra small dogs and cats under 10 lbs.",
+        "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Chewing helps clean teeth and supports healthy gums, and every bite delivers the delicious chewing satisfaction you can feel good about.",
+        "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Irresistibly good and highly digestible.",
+        "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Made in the USA with globally sourced ingredients.",
+        "locator": "https://earthanimal.com/products/no-hide-holiday-feast-stix JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+    "title": "Wisdom Air-Dried Holiday Feast Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried Holiday Feast Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky",
+    "sourceHash": "5108c991530174c038adaf25a445749341287bcd47baa84d6c46e0068b6ae62b",
+    "retrievedAt": "2026-10-07T03:20:13.791Z",
+    "familyId": "family-87df692b6ad1da01ba0b61527ecf956c",
+    "excerpts": [
+      {
+        "text": "Celebrate the season with Wisdom Holiday Feast Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding, or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+    "title": "Wisdom Air-Dried Pumpkin Spice Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried Pumpkin Spice Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky",
+    "sourceHash": "9caa84e4c50b288d97d436e0fe6ffa83a726f2ab68554dcb4c3765790c0bd282",
+    "retrievedAt": "2026-10-07T03:20:14.119Z",
+    "familyId": "family-38813b5423d895849d727ee47738daa7",
+    "excerpts": [
+      {
+        "text": "Celebrate the season with Wisdom Pumpkin Spice Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding, or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:64c8b91f9265495a",
+    "title": "No-Hide Pumpkin Spice Stix",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix",
+    "productIdentity": "Earth Animal: No-Hide Pumpkin Spice Stix",
+    "sourceLocator": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix",
+    "sourceHash": "6710b4832b102f257fa1d499537882e70aae5b035c39d8415eb4cd98707176a5",
+    "retrievedAt": "2026-10-07T03:20:14.892Z",
+    "familyId": "family-3e183dfcaae4fa9603c04d091c1e61a0",
+    "excerpts": [
+      {
+        "text": "A long-lasting, 100% rawhide-free chew made with real, whole ingredients and flavored with seasonal pumpkin and cinnamon, sized for extra small dogs and cats under 10 lbs.",
+        "locator": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Chewing helps clean teeth and supports healthy gums, and every bite delivers the delicious chewing satisfaction you can feel good about.",
+        "locator": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Irresistibly good and highly digestible.",
+        "locator": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Made in the USA with globally sourced ingredients.",
+        "locator": "https://earthanimal.com/products/no-hide-pumpkin-spice-stix JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:4b3342782d79228d",
+    "title": "Chicken & Salmon Recipe Wet Cat Food",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate",
+    "productIdentity": "Earth Animal: Chicken & Salmon Recipe Wet Cat Food",
+    "sourceLocator": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate",
+    "sourceHash": "954f4e48742714f8b3f420fbe83f5c4235c4f5db5066733615d35238e9b104f1",
+    "retrievedAt": "2026-10-07T03:20:15.447Z",
+    "familyId": "family-857cb526c8c098cf46e3ca6f3862580e",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein with whole-food ingredients and postbiotics for gut health.",
+        "locator": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made with vegetable broth for a moisture-rich, soft, finely finished consistency that's easy on digestion and delivers a rich, satisfying taste cats find genuinely irresistible.",
+        "locator": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Complete and balanced for every life stage, from kitten to senior.",
+        "locator": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "G.A.P rated chicken and sustainably sourced salmon Homestyle Paté.",
+        "locator": "https://earthanimal.com/products/chicken-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:25ed6e44b5d97332",
+    "title": "Artisan Game Bird Recipe Wet Cat Food",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate",
+    "productIdentity": "Earth Animal: Artisan Game Bird Recipe Wet Cat Food",
+    "sourceLocator": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate",
+    "sourceHash": "da44b65760c5ba6e6eba68295d7b9edbea96f973d5a5ab1b413e6c4b3761de0b",
+    "retrievedAt": "2026-10-07T03:20:15.820Z",
+    "familyId": "family-68ce009cc5ae76ef4b93515cdb828168",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein with whole-food ingredients and postbiotics for gut health.",
+        "locator": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made with vegetable broth for a moisture-rich, soft, finely finished consistency that's easy on digestion and delivers a rich, satisfying taste cats find genuinely irresistible.",
+        "locator": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Complete and balanced for every life stage, from kitten to senior.",
+        "locator": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Humanely raised, cage-free duck, quail and goose Homestyle Paté.",
+        "locator": "https://earthanimal.com/products/artisan-game-bird-wet-cat-food-pate JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:f489d212cf060c88",
+    "title": "Coastal Salmon Recipe Wet Cat Food",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate",
+    "productIdentity": "Earth Animal: Coastal Salmon Recipe Wet Cat Food",
+    "sourceLocator": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate",
+    "sourceHash": "52f732c60889ab3bb9edba823782e704045f93b225c1100b39df3409664a5cba",
+    "retrievedAt": "2026-10-07T03:20:16.251Z",
+    "familyId": "family-9d5c5c7db99945b305441857e610b006",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein with whole-food ingredients and postbiotics for gut health.",
+        "locator": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made with vegetable broth for a moisture-rich, soft, finely finished consistency that's easy on digestion and delivers a rich, satisfying taste cats find genuinely irresistible.",
+        "locator": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Complete and balanced for every life stage, from kitten to senior.",
+        "locator": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Sustainably sourced salmon Homestyle Pâté.",
+        "locator": "https://earthanimal.com/products/coastal-salmon-wet-cat-food-pate JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:cbc9f21635e3ab42",
+    "title": "Turkey Harvest Recipe Wet Cat Food",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate",
+    "productIdentity": "Earth Animal: Turkey Harvest Recipe Wet Cat Food",
+    "sourceLocator": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate",
+    "sourceHash": "fac91d6da1941bdab927fdbcb210d7e2b3542a28bfcfb4cba3629abfa2deb3ab",
+    "retrievedAt": "2026-10-07T03:20:16.766Z",
+    "familyId": "family-abae9424166742c7ca3053c45bffb42e",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein with whole-food ingredients and postbiotics for gut health.",
+        "locator": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made with vegetable broth for a moisture-rich, soft, finely finished consistency that's easy on digestion and delivers a rich, satisfying taste cats find genuinely irresistible.",
+        "locator": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Complete and balanced for every life stage, from kitten to senior.",
+        "locator": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Humanely raised, G.A.P-rated turkey Homestyle Paté.",
+        "locator": "https://earthanimal.com/products/turkey-harvest-wet-cat-food-pate JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:dc0ed7e031fc8cfe",
+    "title": "Flea & Tick Herbal Topical Powder",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-topical-powder",
+    "productIdentity": "Earth Animal: Flea & Tick Herbal Topical Powder",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-herbal-topical-powder",
+    "sourceHash": "f7b8ea3f0c58fd80fe4dc294e6abc4b3bb53594b550d3f82e2fda65defda7edf",
+    "retrievedAt": "2026-10-07T03:20:18.713Z",
+    "familyId": "family-345466ecd84c16562dc2c6c821d50da6",
+    "excerpts": [
+      {
+        "text": "Fast, effective prevention without synthetic chemicals or pesticides.",
+        "locator": "https://earthanimal.com/products/flea-tick-herbal-topical-powder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Formulated by Dr Bob Goldstein and powered by aromatic herbs, limestone and silica.",
+        "locator": "https://earthanimal.com/products/flea-tick-herbal-topical-powder JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+    "title": "Wisdom Air-Dried From the Soil Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried From the Soil Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky",
+    "sourceHash": "d5e95e6c978e4dcb0cd7d6c9170db32314683a26977a8c34d19b1bc8ff38167a",
+    "retrievedAt": "2026-10-07T03:20:23.266Z",
+    "familyId": "family-52c6b757af582fc6a5f99e45c00cf233",
+    "excerpts": [
+      {
+        "text": "Our Wisdom From the Soil Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+    "title": "Wisdom Air-Dried From the Seed Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried From the Seed Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky",
+    "sourceHash": "95b3c42e5e29882a74df7d2819d85fe2e2acc890a935c45dd7bfa960c2a35379",
+    "retrievedAt": "2026-10-07T03:20:23.743Z",
+    "familyId": "family-35eb6156b434fb48bb0df91e3acc51f1",
+    "excerpts": [
+      {
+        "text": "Our Wisdom From the Seed Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+    "title": "Wisdom Air-Dried From the Land Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried From the Land Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky",
+    "sourceHash": "356af6abe1126bf4690b1786b743788955cd7e229db96e5197ca99b04e26539e",
+    "retrievedAt": "2026-10-07T03:20:25.468Z",
+    "familyId": "family-8cec435635bbafda2ad07b00785f2dfc",
+    "excerpts": [
+      {
+        "text": "Our Wisdom From the Land Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+    "title": "Wisdom Air-Dried Chicken Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried Chicken Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky",
+    "sourceHash": "52c7ccfeafd4d7643293699e0c60389232754ece77105c7aed1fb1bf20824aef",
+    "retrievedAt": "2026-10-07T03:20:25.787Z",
+    "familyId": "family-06cacbc6492c269d00e939a3561edf5c",
+    "excerpts": [
+      {
+        "text": "Our Wisdom Chicken Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:7a69aef1be7fa195",
+    "title": "No More Worms Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/no-more-worms-herbal-drops",
+    "productIdentity": "Earth Animal: No More Worms Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/no-more-worms-herbal-drops",
+    "sourceHash": "2dfa9c27dd8e434f1cfd0196800d9f0541cf6b1bf876cddcf078f3f48ebfe09d",
+    "retrievedAt": "2026-10-07T03:20:26.654Z",
+    "familyId": "family-08f04273caf8956ab7cbda62992d7b11",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of intestinal imbalance, parasite exposure, and digestive challenges.",
+        "locator": "https://earthanimal.com/products/no-more-worms-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with herbs traditionally used to support intestinal cleansing, digestive balance, and a healthy internal environment.",
+        "locator": "https://earthanimal.com/products/no-more-worms-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:761741fbab59ddd3",
+    "title": "No More Runs Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/no-more-runs-herbal-drops",
+    "productIdentity": "Earth Animal: No More Runs Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/no-more-runs-herbal-drops",
+    "sourceHash": "e1e16b16dd79689c5f5dc52f3257b7510fbfa01ceb0c1183f76e91cd189dde69",
+    "retrievedAt": "2026-10-07T03:20:27.067Z",
+    "familyId": "family-789bd043ee10ed74c1be5646175eb96d",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of occasional digestive upset.",
+        "locator": "https://earthanimal.com/products/no-more-runs-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with soothing herbs traditionally used to help calm the digestive tract, support stool consistency, and promote digestive balance during flare-ups.",
+        "locator": "https://earthanimal.com/products/no-more-runs-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+    "title": "Skin Herbal Relief",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/skin-herbal-relief",
+    "productIdentity": "Earth Animal: Skin Herbal Relief",
+    "sourceLocator": "https://earthanimal.com/products/skin-herbal-relief",
+    "sourceHash": "cfdcf2e432f5b190ce03f370b74e2a2488c38db0b0509a66c521cf0084ec0025",
+    "retrievedAt": "2026-10-07T03:20:29.227Z",
+    "familyId": "family-89384dc34725d83dd6aff798689127f3",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein and our Master Herbalist in Vermont to help gently support dogs and cats during times of skin irritation, hot spots, wounds, dryness, and environmental discomfort.",
+        "locator": "https://earthanimal.com/products/skin-herbal-relief JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Thoughtfully crafted with soothing botanicals traditionally used to calm, protect, and support the skin's natural healing and renewal.",
+        "locator": "https://earthanimal.com/products/skin-herbal-relief JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:b80818f9f7c7ba97",
+    "title": "Cough, Wheeze, & Sneeze Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/cough-wheeze-sneeze-herbal-drops",
+    "productIdentity": "Earth Animal: Cough, Wheeze, & Sneeze Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/cough-wheeze-sneeze-herbal-drops",
+    "sourceHash": "770419e509c58863ce23685a3addf370786e346c960d4df1d52e9101ca8122f9",
+    "retrievedAt": "2026-10-07T03:20:30.180Z",
+    "familyId": "family-b8af99cc06162f2e4b312ab76bb048ae",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help support dogs and cats during times of respiratory stress, environmental irritation, and occasional coughing or wheezing.",
+        "locator": "https://earthanimal.com/products/cough-wheeze-sneeze-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with herbs traditionally used to help soothe the airways, support healthy lung function, and maintain normal respiratory comfort.",
+        "locator": "https://earthanimal.com/products/cough-wheeze-sneeze-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:24900911d0788bbb",
+    "title": "Clean Mouth, Gums & Breath Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/clean-mouth-gums-breath-herbal-drops",
+    "productIdentity": "Earth Animal: Clean Mouth, Gums & Breath Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/clean-mouth-gums-breath-herbal-drops",
+    "sourceHash": "4aa9448ee0fe386424e3cd86b945f4d6af19734270d5201a3fe7c831dc2a124a",
+    "retrievedAt": "2026-10-07T03:20:30.581Z",
+    "familyId": "family-baaeb4df4140ac94c1b583c9f45f9bb9",
+    "excerpts": [
+      {
+        "text": "Bob to support oral health naturally, gently and every day.",
+        "locator": "https://earthanimal.com/products/clean-mouth-gums-breath-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Oral health impacts more than just breath, it plays an important role in overall wellbeing.",
+        "locator": "https://earthanimal.com/products/clean-mouth-gums-breath-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Daily support helps maintain balance, reduce buildup, and support healthy gums and teeth before discomfort begins.",
+        "locator": "https://earthanimal.com/products/clean-mouth-gums-breath-herbal-drops JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:b5d3330c0ff3d595",
+    "title": "Clean Eyes Cleanser",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/clean-eyes-cleanser",
+    "productIdentity": "Earth Animal: Clean Eyes Cleanser",
+    "sourceLocator": "https://earthanimal.com/products/clean-eyes-cleanser",
+    "sourceHash": "fed2f5f976079616e790ffcd33db871f887a5c1dafc78111cadd70254453535e",
+    "retrievedAt": "2026-10-07T03:20:31.100Z",
+    "familyId": "family-1a559ff91939bac405ba8d56ebe2426a",
+    "excerpts": [
+      {
+        "text": "Formulated by our Master Herbalist in Vermont to help gently cleanse and care for the eyes of dogs and cats.",
+        "locator": "https://earthanimal.com/products/clean-eyes-cleanser JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with soothing botanicals traditionally used to help cleanse and remove discharge around the eye, reduce staining, and soothe the delicate eye area.",
+        "locator": "https://earthanimal.com/products/clean-eyes-cleanser JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:85973f5bc751bbf5",
+    "title": "Allergy & Skin Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/allergy-skin-herbal-drops",
+    "productIdentity": "Earth Animal: Allergy & Skin Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/allergy-skin-herbal-drops",
+    "sourceHash": "0262eb1bee0d9f8d30981dd28eb7b5bc5a2e3cdee47aa2562bab85021915404f",
+    "retrievedAt": "2026-10-07T03:20:31.616Z",
+    "familyId": "family-bfc1f4851c6cda1251d8dc894c79048b",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of seasonal sensitivities, itchy skin, and environmental challenges.",
+        "locator": "https://earthanimal.com/products/allergy-skin-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with herbs traditionally used to support a healthy histamine response, skin comfort, immune balance, and whole-body wellness from within.",
+        "locator": "https://earthanimal.com/products/allergy-skin-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+    "title": "Wisdom Air-Dried From the Air Recipe Jerky",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky",
+    "productIdentity": "Earth Animal: Wisdom Air-Dried From the Air Recipe Jerky",
+    "sourceLocator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky",
+    "sourceHash": "f1207bb5069347fa5734475ba01217d6715c5b15c2a6a4d0c22119ec339511a1",
+    "retrievedAt": "2026-10-07T03:20:37.152Z",
+    "familyId": "family-9617cb8246f186902ee1370c312195a1",
+    "excerpts": [
+      {
+        "text": "Our Wisdom From the Air Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Perfect for training, rewarding or just because.",
+        "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:64b9912c7ddd5847",
+    "title": "Healthy Weight Supplement",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/healthy-weight-supplement",
+    "productIdentity": "Earth Animal: Healthy Weight Supplement",
+    "sourceLocator": "https://earthanimal.com/products/healthy-weight-supplement",
+    "sourceHash": "aa29563d4c8d3d3e3f3f107788e56e41aa2e1b62a3f9775ca84c72e423094a16",
+    "retrievedAt": "2026-10-07T03:20:38.943Z",
+    "familyId": "family-d3fbafcd373bec859d7398d238fc16f3",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein to help support healthy weight and proper metabolism in dogs and cats.",
+        "locator": "https://earthanimal.com/products/healthy-weight-supplement JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "A daily powder crafted with an active blend of fiber and targeted nutrients to help support healthy weight loss, a sense of fullness, and proper metabolism alongside diet and exercise.",
+        "locator": "https://earthanimal.com/products/healthy-weight-supplement JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:8202beff5e999d77",
+    "title": "Healthy Digestion Supplement",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/healthy-digestion-supplement",
+    "productIdentity": "Earth Animal: Healthy Digestion Supplement",
+    "sourceLocator": "https://earthanimal.com/products/healthy-digestion-supplement",
+    "sourceHash": "3b202ca4245e1d48827ef2e22aa8f93739aabd59dce2f204894ee8e44f0267fa",
+    "retrievedAt": "2026-10-07T03:20:39.269Z",
+    "familyId": "family-7b65aa269c07a0c8f7131349d65ccb1a",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein to support healthy digestion, gut balance, and everyday digestive comfort in dogs and cats.",
+        "locator": "https://earthanimal.com/products/healthy-digestion-supplement JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Thoughtfully crafted with fiber, prebiotics, probiotics, digestive enzymes, and targeted nutrients to help maintain a balanced gut microbiome, support healthy stool quality, and promote digestive wellness from within.",
+        "locator": "https://earthanimal.com/products/healthy-digestion-supplement JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
+    "title": "Flea & Tick Internal Powder",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-internal-powder",
+    "productIdentity": "Earth Animal: Flea & Tick Internal Powder",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-internal-powder",
+    "sourceHash": "16c992891e73695fa70c6f4492b610ed5c7008b4be9446bbeb9e1af76b9a6b8d",
+    "retrievedAt": "2026-10-07T03:20:39.641Z",
+    "familyId": "family-dd4fdcb606389758b4ab19ec927f3504",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein, Daily Internal Powder works from within to help create a natural skin scent that fleas and ticks avoid.",
+        "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Mix into your dog or cat’s food every day to build consistent, inside-out protection.",
+        "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Use year-round as the foundation of your two-step routine.",
+        "locator": "https://earthanimal.com/products/flea-tick-internal-powder JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
+    "title": "Flea & Tick Internal Herbal Powder (Yeast-Free)",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-internal-herbal-powder-yeast-free",
+    "productIdentity": "Earth Animal: Flea & Tick Internal Herbal Powder (Yeast-Free)",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-internal-herbal-powder-yeast-free",
+    "sourceHash": "cd8457d1f5c9518464625c0142a584fac0c703dbf037e76017471ca332548ba7",
+    "retrievedAt": "2026-10-07T03:20:40.007Z",
+    "familyId": "family-2e908ab933df84fe032466c1e9a7fa5a",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein, Daily Herbal Internal Powder (Yeast-Free) works from within to help create a natural skin scent that fleas and ticks tend to avoid.",
+        "locator": "https://earthanimal.com/products/flea-tick-internal-herbal-powder-yeast-free JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:9de14d2658969f55",
+    "title": "Flea & Tick Herbal Spot-On for Cats",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-spot-on-for-cats",
+    "productIdentity": "Earth Animal: Flea & Tick Herbal Spot-On for Cats",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-herbal-spot-on-for-cats",
+    "sourceHash": "6c1ccd13770c8b5f3c95bd0b2b57855c5b1e8793dbe49f153f6a5d75a8969454",
+    "retrievedAt": "2026-10-07T03:20:40.433Z",
+    "familyId": "family-9f443805a3a9054ce41e1318877ae768",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein and crafted with aromatic herbs and essential oils to help repel fleas and ticks at the skin level.",
+        "locator": "https://earthanimal.com/products/flea-tick-herbal-spot-on-for-cats JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
+    "title": "Flea & Tick Herbal Shampoo",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-shampoo",
+    "productIdentity": "Earth Animal: Flea & Tick Herbal Shampoo",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-herbal-shampoo",
+    "sourceHash": "a96f1321df6fef6fbac3e5f1b8cfd918787ba93041bbcdadbaf1b06884219bab",
+    "retrievedAt": "2026-10-07T03:20:40.876Z",
+    "familyId": "family-b775fdf929a9edef2694f6d8d798e078",
+    "excerpts": [
+      {
+        "text": "Wash away dirt and unwanted pests with a gentle, cleansing shampoo that nourishes the skin and coat.",
+        "locator": "https://earthanimal.com/products/flea-tick-herbal-shampoo JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
+    "title": "Flea & Tick Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/flea-tick-herbal-drops",
+    "productIdentity": "Earth Animal: Flea & Tick Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/flea-tick-herbal-drops",
+    "sourceHash": "4f9886195f391ba6b114b5db84aa2b33930528a75ce49e1b92f1525e8427393e",
+    "retrievedAt": "2026-10-07T03:20:41.343Z",
+    "familyId": "family-abab42c95c523cdd62100d33450cd500",
+    "excerpts": [
+      {
+        "text": "Bob Goldstein and our Master Herbalist, Flea & Tick Herbal Drops help make dogs and cats less appealing to fleas and ticks.",
+        "locator": "https://earthanimal.com/products/flea-tick-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:cb850b380c352fb9",
+    "title": "Urinary & Kidney Relief Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/urinary-kidney-relief-herbal-drops",
+    "productIdentity": "Earth Animal: Urinary & Kidney Relief Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/urinary-kidney-relief-herbal-drops",
+    "sourceHash": "bbe8e49fb2244143e75b98ef693cda0d58231fd46c0306968fc540a1125fe492",
+    "retrievedAt": "2026-10-07T03:20:42.265Z",
+    "familyId": "family-2e1193cf87c6892e1e70456ee153263d",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help gently support dogs and cats during times of urinary discomfort, bladder weakness, and age-related urinary challenges.",
+        "locator": "https://earthanimal.com/products/urinary-kidney-relief-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Thoughtfully crafted with herbs traditionally used to support healthy urinary flow, bladder function, kidney health, and normal elimination.",
+        "locator": "https://earthanimal.com/products/urinary-kidney-relief-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:dfe2740a44ca9624",
+    "title": "Stop Eating Stool Supplement",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/stop-eating-stool-supplement",
+    "productIdentity": "Earth Animal: Stop Eating Stool Supplement",
+    "sourceLocator": "https://earthanimal.com/products/stop-eating-stool-supplement",
+    "sourceHash": "56b8712c667228acb2c2278f6db278223ba31c0d4db223be3fca48b91558dd70",
+    "retrievedAt": "2026-10-07T03:20:42.617Z",
+    "familyId": "family-542d168016125c10c2f214d6999f5277",
+    "excerpts": [
+      {
+        "text": "Supporting digestion from within helps promote better balance, nutrient absorption, and overall digestive wellness",
+        "locator": "https://earthanimal.com/products/stop-eating-stool-supplement JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Bob to support digestion from within and help address stool eating at its source.",
+        "locator": "https://earthanimal.com/products/stop-eating-stool-supplement JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Stool eating can sometimes be linked to incomplete digestion or unmet nutritional needs.",
+        "locator": "https://earthanimal.com/products/stop-eating-stool-supplement JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:29777e1d38ba6c7e",
+    "title": "Clean Ears Cleanser",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/clean-ears-cleanser",
+    "productIdentity": "Earth Animal: Clean Ears Cleanser",
+    "sourceLocator": "https://earthanimal.com/products/clean-ears-cleanser",
+    "sourceHash": "6d38949908ad458ea0e6beba251ea342a20d4c067208f67f16ee8dfe3058ee0c",
+    "retrievedAt": "2026-10-07T03:20:44.122Z",
+    "familyId": "family-ad8c006f2b60f88a35d62136021d2b59",
+    "excerpts": [
+      {
+        "text": "Formulated by our Master Herbalist in Vermont to help gently cleanse and care for the ears of dogs and cats.",
+        "locator": "https://earthanimal.com/products/clean-ears-cleanser JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with soothing herbs and oil in a witch hazel base, traditionally used to help reduce wax buildup, quiet occasional inflammation, and remove discharge.",
+        "locator": "https://earthanimal.com/products/clean-ears-cleanser JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:19250472b1486603",
+    "title": "Calmness Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/calmness-herbal-drops",
+    "productIdentity": "Earth Animal: Calmness Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/calmness-herbal-drops",
+    "sourceHash": "05e5e36755d9d7beee9517bd1991bc657df8c728b6bd512d8dc8ff77891d16ac",
+    "retrievedAt": "2026-10-07T03:20:44.491Z",
+    "familyId": "family-b53d56e53d55d081976700b60132911d",
+    "excerpts": [
+      {
+        "text": "This gentle herbal blend helps promote relaxation, emotional balance, and a greater sense of calm for dogs and cats facing everyday stressful challenges.",
+        "locator": "https://earthanimal.com/products/calmness-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Bob Goldstein and our Master Herbalist in Vermont to help support the nervous system during times of stress.",
+        "locator": "https://earthanimal.com/products/calmness-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:8d57449fa9131d3e",
+    "title": "Aches & Discomfort Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/aches-discomfort-herbal-drops",
+    "productIdentity": "Earth Animal: Aches & Discomfort Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/aches-discomfort-herbal-drops",
+    "sourceHash": "c4457e5e857ca47eb432ac6d36d02f7a4aca54ad504d2c8f855c3b547f2411ff",
+    "retrievedAt": "2026-10-07T03:20:44.878Z",
+    "familyId": "family-2228c3ee917bc4db19fb932a411c153f",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help support dogs and cats during times of occasional stiffness, soreness, and physical discomfort from everyday activity, aging, or exercise.",
+        "locator": "https://earthanimal.com/products/aches-discomfort-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with herbs used to support mobility, joint comfort, and a healthy inflammatory response.",
+        "locator": "https://earthanimal.com/products/aches-discomfort-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:56777142fca2b134",
+    "title": "Immune Support Herbal Drops",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/immune-support-herbal-drops",
+    "productIdentity": "Earth Animal: Immune Support Herbal Drops",
+    "sourceLocator": "https://earthanimal.com/products/immune-support-herbal-drops",
+    "sourceHash": "6f396688018fc2724bb6dd640e71002243b0b22e8d0336177ddb2e91b435b3dd",
+    "retrievedAt": "2026-10-07T03:20:45.229Z",
+    "familyId": "family-0990e425971a4d591c73f642fb4ed9a3",
+    "excerpts": [
+      {
+        "text": "Bob and our Master Herbalist in Vermont to help support dogs and cats during times of seasonal change, environmental stress, aging, and everyday immune system challenges.",
+        "locator": "https://earthanimal.com/products/immune-support-herbal-drops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted with herbs traditionally used to support healthy immune function, the body's natural defenses, microbiome balance, and overall vitality.",
+        "locator": "https://earthanimal.com/products/immune-support-herbal-drops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:earthanimal.com:f823b646f6a27e56",
+    "title": "No-Hide Strawberries & Cream Stix",
+    "brand": "Earth Animal",
+    "canonicalUrl": "https://earthanimal.com/products/no-hide-strawberries-cream-stix",
+    "productIdentity": "Earth Animal: No-Hide Strawberries & Cream Stix",
+    "sourceLocator": "https://earthanimal.com/products/no-hide-strawberries-cream-stix",
+    "sourceHash": "a2e934246add294943afd98c1f76497dd44116be89c5c2c9877151325d134be3",
+    "retrievedAt": "2026-10-07T03:20:47.177Z",
+    "familyId": "family-52e5eea1805c7facb0c181a817ed8cbd",
+    "excerpts": [
+      {
+        "text": "A long-lasting, 100% rawhide-free chew made with real, whole ingredients and strawberries and goat milk, sized for extra small dogs and cats under 10 lbs.",
+        "locator": "https://earthanimal.com/products/no-hide-strawberries-cream-stix JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Chewing helps clean teeth and supports healthy gums, and every bite delivers the delicious chewing satisfaction you can feel good about.",
+        "locator": "https://earthanimal.com/products/no-hide-strawberries-cream-stix JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Irresistibly good and highly digestible.",
+        "locator": "https://earthanimal.com/products/no-hide-strawberries-cream-stix JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Made in the USA with globally sourced ingredients.",
+        "locator": "https://earthanimal.com/products/no-hide-strawberries-cream-stix JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:e8d3521b0dfaa656",
+    "title": "Pupsicle Mix Basic Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/pupsicle-mix-basic-pack",
+    "productIdentity": "Woof: Pupsicle Mix Basic Pack",
+    "sourceLocator": "https://mywoof.com/products/pupsicle-mix-basic-pack",
+    "sourceHash": "2a234e99d93a5b4fcef46fe8c0f6ee62f8909222c03f42ebcfa9811381d80dc8",
+    "retrievedAt": "2026-10-07T03:20:49.864Z",
+    "familyId": "family-f01addb5a67904733a7abea23e8b3d3c",
+    "excerpts": [
+      {
+        "text": "Includes DIY Treat Tray, Treat Mix, and Shaker Bottle.",
+        "locator": "https://mywoof.com/products/pupsicle-mix-basic-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Everything you need to make easy, delicious DIY refills for the Pupsicle.",
+        "locator": "https://mywoof.com/products/pupsicle-mix-basic-pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+    "title": "Chicken Woof Puzzle Treats",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/puzzle-treats",
+    "productIdentity": "Woof: Chicken Woof Puzzle Treats",
+    "sourceLocator": "https://mywoof.com/products/puzzle-treats",
+    "sourceHash": "05a19f15fbb8eb61daa064da3d2ea85a8c41f087e8f81f5a20104b48045fc64f",
+    "retrievedAt": "2026-10-07T03:21:06.736Z",
+    "familyId": "family-18bda88271f83f3c629505fcdb812fc3",
+    "excerpts": [
+      {
+        "text": "The perfect match for Woof puzzle toys, these irresistible treats fuel long-lasting fun.",
+        "locator": "https://mywoof.com/products/puzzle-treats JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+    "title": "Chicken Love Nuggets",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/chicken-love-nuggets",
+    "productIdentity": "Woof: Chicken Love Nuggets",
+    "sourceLocator": "https://mywoof.com/products/chicken-love-nuggets",
+    "sourceHash": "fb4053da2c8a58b07401adb2748d8e900929cb6e017e2ddbdca15cad6bbbbe84",
+    "retrievedAt": "2026-10-07T03:20:51.786Z",
+    "familyId": "family-5aa8360eb79871c8197a9150fb201cca",
+    "excerpts": [
+      {
+        "text": "Training treats for your on-the-go adventures!",
+        "locator": "https://mywoof.com/products/chicken-love-nuggets JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "High in protein, and made in the USA with human-grade ingredients.",
+        "locator": "https://mywoof.com/products/chicken-love-nuggets JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:86437b267b3f57f4",
+    "title": "Grill & Chill Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/chill-grill-pack",
+    "productIdentity": "Woof: Grill & Chill Pack",
+    "sourceLocator": "https://mywoof.com/products/chill-grill-pack",
+    "sourceHash": "a353dfea9abf9736441b31b46e67cc5e08bcd3e55b1f4f6553fac06670e951ef",
+    "retrievedAt": "2026-10-07T03:20:53.232Z",
+    "familyId": "family-bf8963dd3319d44c8b6a10f379068b82",
+    "excerpts": [
+      {
+        "text": "The limited-edition Tie Dye Pupsicle and BBQ Calming Pops for your dog's chillest summer ever.",
+        "locator": "https://mywoof.com/products/chill-grill-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:9250a22d60847445",
+    "title": "Happier Chewing Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/happy-chewer-pack",
+    "productIdentity": "Woof: Happier Chewing Pack",
+    "sourceLocator": "https://mywoof.com/products/happy-chewer-pack",
+    "sourceHash": "f29b1fd9a2665f85544d04324b341368c64dd21b22ee86d032fd02f02836c47d",
+    "retrievedAt": "2026-10-07T03:20:55.269Z",
+    "familyId": "family-ae0737cfece6bb52d374d6ba41317f39",
+    "excerpts": [
+      {
+        "text": "Channel their instincts with safer, satisfying toys and chews.",
+        "locator": "https://mywoof.com/products/happy-chewer-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:c03f852cc760351e",
+    "title": "The Daily Ritual",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-daily-ritual",
+    "productIdentity": "Woof: The Daily Ritual",
+    "sourceLocator": "https://mywoof.com/products/the-daily-ritual",
+    "sourceHash": "e90d00facda065a915a2eebfd764fae8ead6dc592746fec5a64238662113bb12",
+    "retrievedAt": "2026-10-07T03:20:56.909Z",
+    "familyId": "family-063924e4eb1ef18428a7b988734939cc",
+    "excerpts": [
+      {
+        "text": "Meet your pup’s new wellness routine: start with mental enrichment, finish with tasty, teeth-cleaning chewtime.",
+        "locator": "https://mywoof.com/products/the-daily-ritual JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:879d921a77b0f841",
+    "title": "On the Go Travel Kit",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/on-the-go-travel-kit",
+    "productIdentity": "Woof: On the Go Travel Kit",
+    "sourceLocator": "https://mywoof.com/products/on-the-go-travel-kit",
+    "sourceHash": "48ebba8372220432a172d45c29dffce46051a419e3a10b55f510d77e81adf0b5",
+    "retrievedAt": "2026-10-07T03:20:57.817Z",
+    "familyId": "family-85c0197f35e020422a78e3c1a1c8f161",
+    "excerpts": [
+      {
+        "text": "Everything you need to keep your pup calm, busy, and ready for everyday adventures.",
+        "locator": "https://mywoof.com/products/on-the-go-travel-kit JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:83c37faabbaebb72",
+    "title": "FlipMat Basics Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/flipmat-basics-pack",
+    "productIdentity": "Woof: FlipMat Basics Pack",
+    "sourceLocator": "https://mywoof.com/products/flipmat-basics-pack",
+    "sourceHash": "a075b35b24885c741cecb64f27cfa56efd007fc2d527dd51ec2c0364b52c51c3",
+    "retrievedAt": "2026-10-07T03:20:58.725Z",
+    "familyId": "family-78f9c78e4bfe70f251d4621ef098c3ae",
+    "excerpts": [
+      {
+        "text": "LickWells and FlipMat make daily enrichment their favorite part of their day.",
+        "locator": "https://mywoof.com/products/flipmat-basics-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+    "title": "Pumpkin Butter LickWells",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/lickwells-pumpkin",
+    "productIdentity": "Woof: Pumpkin Butter LickWells",
+    "sourceLocator": "https://mywoof.com/products/lickwells-pumpkin",
+    "sourceHash": "d9628aef99a2ddf3d8186559d3b02e38faed10debd04f84a958e98cf4fff5f46",
+    "retrievedAt": "2026-10-07T03:20:59.470Z",
+    "familyId": "family-6912322501aabf2793c25f0e503de72f",
+    "excerpts": [
+      {
+        "text": "A ready-to-lick squeezable spread made with real pumpkin and wholesome superfoods.",
+        "locator": "https://mywoof.com/products/lickwells-pumpkin JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:451cbb134686a558",
+    "title": "Doggy Dental LickWells",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/lickwells-doggydental",
+    "productIdentity": "Woof: Doggy Dental LickWells",
+    "sourceLocator": "https://mywoof.com/products/lickwells-doggydental",
+    "sourceHash": "87cecdaacddd4f9697840d850a2d0b7f3cf42dfc3783e2dc932939b0738d6c82",
+    "retrievedAt": "2026-10-07T03:21:01.103Z",
+    "familyId": "family-84c8724f3820719bd40ae3eda4f3054d",
+    "excerpts": [
+      {
+        "text": "An easy, squeezy dental supplement for fresher breath, healthier gums, and cleaner teeth.",
+        "locator": "https://mywoof.com/products/lickwells-doggydental JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:f94af1af1256c3c2",
+    "title": "FlipMat",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/flipmat",
+    "productIdentity": "Woof: FlipMat",
+    "sourceLocator": "https://mywoof.com/products/flipmat",
+    "sourceHash": "b141d6a6756ee728e08ffabca5b3fec62065fa16a8dcc1c69dfc65bf23c778c4",
+    "retrievedAt": "2026-10-07T03:21:02.843Z",
+    "familyId": "family-c7b46cc97b7f87a97680c07b4cfbb70c",
+    "excerpts": [
+      {
+        "text": "The FlipMat is a dual-sided lick mat and slow feeder for delicious dogstraction and long-lasting engagement.",
+        "locator": "https://mywoof.com/products/flipmat JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+    "title": "Free Range Bully Sticks",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/bully-sticks",
+    "productIdentity": "Woof: Free Range Bully Sticks",
+    "sourceLocator": "https://mywoof.com/products/bully-sticks",
+    "sourceHash": "6961b109202e24d597dd1ae08378b87841cced723a681214cbb3051c989a80be",
+    "retrievedAt": "2026-10-07T03:21:03.588Z",
+    "familyId": "family-d2de003974f652507c5d0faa57809f23",
+    "excerpts": [
+      {
+        "text": "Free-range, grass-fed BullySafe Bully Sticks at a great price for extra tasty chew time.",
+        "locator": "https://mywoof.com/products/bully-sticks JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:b6a67596be3a61d4",
+    "title": "Sushi Roll Pupsicle Mix",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/sushi-roll-pupsicle-mix",
+    "productIdentity": "Woof: Sushi Roll Pupsicle Mix",
+    "sourceLocator": "https://mywoof.com/products/sushi-roll-pupsicle-mix",
+    "sourceHash": "1dfcf82b59a041adebf0bcaa126a41770cb13219d07c9a4e349e11114e173c15",
+    "retrievedAt": "2026-10-07T03:21:04.354Z",
+    "familyId": "family-254f7a1c162bcc7f7ea2fd594a6b0d07",
+    "excerpts": [
+      {
+        "text": "This drool-worthy blend features real salmon, cod, and trout for an ocean-fresh taste dogs can't resist.",
+        "locator": "https://mywoof.com/products/sushi-roll-pupsicle-mix JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:1bc4349fd3c46651",
+    "title": "Red Treat Tray",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/red-treat-tray",
+    "productIdentity": "Woof: Red Treat Tray",
+    "sourceLocator": "https://mywoof.com/products/red-treat-tray",
+    "sourceHash": "118e5436832d95ab9a239eab1abdd1f586f441697df4432ebecb1eeee35c5a57",
+    "retrievedAt": "2026-10-07T03:21:05.304Z",
+    "familyId": "family-38b8375e46a0f2c8ebdcaca7ae7bf910",
+    "excerpts": [
+      {
+        "text": "Freezable dog treat mold for making your own Pupsicle treats!",
+        "locator": "https://mywoof.com/products/red-treat-tray JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Quick to clean, convenient to fill, and a fun way to spoil your dog!",
+        "locator": "https://mywoof.com/products/red-treat-tray JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:0249f30bf5dce503",
+    "title": "Healthier Enrichment Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/healthier-enrichment-bundle",
+    "productIdentity": "Woof: Healthier Enrichment Pack",
+    "sourceLocator": "https://mywoof.com/products/healthier-enrichment-bundle",
+    "sourceHash": "aec6e00ac1396fff079c28bc2d271d179a7988214e069794c3f97f4a21017200",
+    "retrievedAt": "2026-10-07T03:21:05.977Z",
+    "familyId": "family-f94b5d46f01b2909e55c86b4d3a7741c",
+    "excerpts": [
+      {
+        "text": "Our top 2-in-1 toys, best selling Pupsicle, and treats fuel every kind of (enriching!) play.",
+        "locator": "https://mywoof.com/products/healthier-enrichment-bundle JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:2b11d3c15f279b1c",
+    "title": "Pupsicle Mix Starter Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/pupsicle-mix-starter-pack",
+    "productIdentity": "Woof: Pupsicle Mix Starter Pack",
+    "sourceLocator": "https://mywoof.com/products/pupsicle-mix-starter-pack",
+    "sourceHash": "894b6b37bea2f79b92b679478b87760de09b1db7b7c88c36dddf7be71af2dac7",
+    "retrievedAt": "2026-10-07T03:21:09.808Z",
+    "familyId": "family-4bcd7dba5119e29b043ac7cfaad08249",
+    "excerpts": [
+      {
+        "text": "Mix up your pup’s favorite treats for the best-selling Pupsicle!",
+        "locator": "https://mywoof.com/products/pupsicle-mix-starter-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Includes the Pupsicle, DIY Treat Tray, Treat Mix, Shaker Bottle, and Love Nuggets.",
+        "locator": "https://mywoof.com/products/pupsicle-mix-starter-pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+    "title": "Pupsicle Pops",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/pupsicle-pops",
+    "productIdentity": "Woof: Pupsicle Pops",
+    "sourceLocator": "https://mywoof.com/products/pupsicle-pops",
+    "sourceHash": "89580d2f71b763bd46e8da9ac3504055c363731b34a49a7813e28ec9d936124f",
+    "retrievedAt": "2026-10-07T03:21:10.549Z",
+    "familyId": "family-01d54c6186e84be04ddfebccdcd82a06",
+    "excerpts": [
+      {
+        "text": "Our longest-lasting treats for The Pupsicle.",
+        "locator": "https://mywoof.com/products/pupsicle-pops JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA with high-quality ingredients.",
+        "locator": "https://mywoof.com/products/pupsicle-pops JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:d3d835ca877da5a2",
+    "title": "Dental Mix Alpha Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/dental_mix_alpha_pack",
+    "productIdentity": "Woof: Dental Mix Alpha Pack",
+    "sourceLocator": "https://mywoof.com/products/dental_mix_alpha_pack",
+    "sourceHash": "fe2c82fe118c153469b61c403240da8b6568eb2b5d219af0e8fc14c37894b765",
+    "retrievedAt": "2026-10-07T03:21:11.772Z",
+    "familyId": "family-382592a9f36108efed9793715dbc945f",
+    "excerpts": [
+      {
+        "text": "Packed with the Pupsicle for long-lasting lick time, and the Bite n' Brush - a toothbrush for dogs!",
+        "locator": "https://mywoof.com/products/dental_mix_alpha_pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:0ec4e1fc31ccf22e",
+    "title": "Dental Mix Starter Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/dental_mix_starter_pack",
+    "productIdentity": "Woof: Dental Mix Starter Pack",
+    "sourceLocator": "https://mywoof.com/products/dental_mix_starter_pack",
+    "sourceHash": "7027e71cd412aa2bd7c49f6ea6ca944b20f0cb55be44ffb24102fc8d99c056c2",
+    "retrievedAt": "2026-10-07T03:21:12.679Z",
+    "familyId": "family-fdfb3abe69a7b7a6162293f122a5a8b0",
+    "excerpts": [
+      {
+        "text": "A science-backed solution to make oral care fun.",
+        "locator": "https://mywoof.com/products/dental_mix_starter_pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Includes the Pupsicle, pre-made refill Pops, and more!",
+        "locator": "https://mywoof.com/products/dental_mix_starter_pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:01c56405e139fc74",
+    "title": "The LickMat",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/lickmat",
+    "productIdentity": "Woof: The LickMat",
+    "sourceLocator": "https://mywoof.com/products/lickmat",
+    "sourceHash": "d2c1a0d2d3c9e0c53116975f72a0eb258a9651e1fd7bf92cbf824cd25513c162",
+    "retrievedAt": "2026-10-07T03:21:14.003Z",
+    "familyId": "family-981298205ed05daeacf51070a9950015",
+    "excerpts": [
+      {
+        "text": "Let your pup lick their stress away with the MyWoof™️ LickMat.",
+        "locator": "https://mywoof.com/products/lickmat JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:61ab9023a57b922f",
+    "title": "Party Pupsicles",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-party-pupsicle",
+    "productIdentity": "Woof: Party Pupsicles",
+    "sourceLocator": "https://mywoof.com/products/the-party-pupsicle",
+    "sourceHash": "27c61ee3364cd9dc9eb530c0c92b66c50af9e333d6b47a1c7dafb509e0cffebd",
+    "retrievedAt": "2026-10-07T03:21:15.593Z",
+    "familyId": "family-c3e748157d8922ab9c58bc1e53f4bcd7",
+    "excerpts": [
+      {
+        "text": "Long lasting quiet in a beautifully designed dog toy.",
+        "locator": "https://mywoof.com/products/the-party-pupsicle JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Easy to clean & easy to fill with DIY or pre-made treats.",
+        "locator": "https://mywoof.com/products/the-party-pupsicle JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:f62e952068ba933c",
+    "title": "The BullySafe Starter Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-bullysafe-bully-5-pack",
+    "productIdentity": "Woof: The BullySafe Starter Pack",
+    "sourceLocator": "https://mywoof.com/products/the-bullysafe-bully-5-pack",
+    "sourceHash": "78a6c7dade1328bb275af304ef9d6a643b58e0329af3d05183f3f169c0ba0ba7",
+    "retrievedAt": "2026-10-07T03:21:16.468Z",
+    "familyId": "family-baded6f0ad5e156af34e29925c6827d5",
+    "excerpts": [
+      {
+        "text": "A durable chew holder for safer, longer-lasting play plus 5 free-range, premium Bully Sticks.",
+        "locator": "https://mywoof.com/products/the-bullysafe-bully-5-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:02817607056d042a",
+    "title": "Calming Pupsicle Mix",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/calming-pupsicle-mix",
+    "productIdentity": "Woof: Calming Pupsicle Mix",
+    "sourceLocator": "https://mywoof.com/products/calming-pupsicle-mix",
+    "sourceHash": "aad4bc4eea789522f780d3ad5be41fa6e4b7c5780187a1457e0c75475fd2736c",
+    "retrievedAt": "2026-10-07T03:21:18.039Z",
+    "familyId": "family-e9e65d348fc52b9cea92a494f0f64689",
+    "excerpts": [
+      {
+        "text": "Support stress relief and relaxation with this just-add-water recipe for calm pups, no matter the situation.",
+        "locator": "https://mywoof.com/products/calming-pupsicle-mix JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:a3e61fa84ecba7f2",
+    "title": "Bacon & Cheese Pupsicle Mix",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/bacon-cheese-pupsicle-mix",
+    "productIdentity": "Woof: Bacon & Cheese Pupsicle Mix",
+    "sourceLocator": "https://mywoof.com/products/bacon-cheese-pupsicle-mix",
+    "sourceHash": "191d1a3201f323fcd25c51f969ff7ff2f312da2ca5a15d60556dd2e504d418c9",
+    "retrievedAt": "2026-10-07T03:21:18.820Z",
+    "familyId": "family-677dc475509b5bcadb8545285d2cfce1",
+    "excerpts": [
+      {
+        "text": "Just add water for all the pup-approved flavors of a homemade bacon cheeseburger.",
+        "locator": "https://mywoof.com/products/bacon-cheese-pupsicle-mix JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:4a85ab295e6b4b02",
+    "title": "The Dental Play Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-dental-play-pack",
+    "productIdentity": "Woof: The Dental Play Pack",
+    "sourceLocator": "https://mywoof.com/products/the-dental-play-pack",
+    "sourceHash": "68c528e080216228acb31a98342e7512d6064437cfbe022e5ed153c988b44919",
+    "retrievedAt": "2026-10-07T03:21:19.844Z",
+    "familyId": "family-5dc4583f3bbc4ded5566a37edd9372dd",
+    "excerpts": [
+      {
+        "text": "Our MOST popular products in one offering.",
+        "locator": "https://mywoof.com/products/the-dental-play-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Get long lasting distraction AND a toothbrush your pup will actually use in one convenient pack.",
+        "locator": "https://mywoof.com/products/the-dental-play-pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:de3c7d813c048914",
+    "title": "Bite n' Brush Refills",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/bite-n-brush-refills",
+    "productIdentity": "Woof: Bite n' Brush Refills",
+    "sourceLocator": "https://mywoof.com/products/bite-n-brush-refills",
+    "sourceHash": "0262d085aeb80540c73619468b36a0130e5558e27c75d0df2ac07daf4c1d5d28",
+    "retrievedAt": "2026-10-07T03:21:21.583Z",
+    "familyId": "family-b28b131330f811c3f67bf395c5be24b1",
+    "excerpts": [
+      {
+        "text": "You brush your teeth—now your dog can brush theirs!",
+        "locator": "https://mywoof.com/products/bite-n-brush-refills JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Bite n’ Brush Refills give your dog cleaner teeth with every bite.",
+        "locator": "https://mywoof.com/products/bite-n-brush-refills JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:70d38a0398240e4f",
+    "title": "Bite n' Brush",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/bite-n-brush-toy",
+    "productIdentity": "Woof: Bite n' Brush",
+    "sourceLocator": "https://mywoof.com/products/bite-n-brush-toy",
+    "sourceHash": "4858460585409206b681b8dd70113a8a0c7957da00b0af670de3812d53a4c99f",
+    "retrievedAt": "2026-10-07T03:21:22.307Z",
+    "familyId": "family-8e575f7ab0126959ae2d28642a37734b",
+    "excerpts": [
+      {
+        "text": "You brush your teeth, now your dog can brush theirs!",
+        "locator": "https://mywoof.com/products/bite-n-brush-toy JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "The Bite n’ Brush turns chewing into brushing with every bite.",
+        "locator": "https://mywoof.com/products/bite-n-brush-toy JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:e9cdb836826fa100",
+    "title": "The BullySafe Better Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-bullysafe-bully-10-pack",
+    "productIdentity": "Woof: The BullySafe Better Pack",
+    "sourceLocator": "https://mywoof.com/products/the-bullysafe-bully-10-pack",
+    "sourceHash": "60aad51655cfae907f94b25a8bd98e096bad228332c95656345a2ee473041e20",
+    "retrievedAt": "2026-10-07T03:21:23.157Z",
+    "familyId": "family-f1c7237c95b860d1b275feb37e9d82bd",
+    "excerpts": [
+      {
+        "text": "A durable chew holder for safer, longer-lasting play plus 10 free-range, premium Bully Sticks.",
+        "locator": "https://mywoof.com/products/the-bullysafe-bully-10-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:fe1ebcf4e900e2f2",
+    "title": "BullySafe",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/the-bullysafe",
+    "productIdentity": "Woof: BullySafe",
+    "sourceLocator": "https://mywoof.com/products/the-bullysafe",
+    "sourceHash": "0dffb843ec8e5f75fdfc9f782f697bc36a112603322b3197ea3194a27f792a94",
+    "retrievedAt": "2026-10-07T03:21:23.876Z",
+    "familyId": "family-6845d6f2ee8eb90f24da911e8f6c382d",
+    "excerpts": [
+      {
+        "text": "A durable chew holder for safer & longer-lasting play.",
+        "locator": "https://mywoof.com/products/the-bullysafe JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Designed for chews of all sizes, especially Woof Bully Sticks!",
+        "locator": "https://mywoof.com/products/the-bullysafe JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+    "title": "Allergy & Immunity Pops",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/allergy-immunity-pops",
+    "productIdentity": "Woof: Allergy & Immunity Pops",
+    "sourceLocator": "https://mywoof.com/products/allergy-immunity-pops",
+    "sourceHash": "93133e04928a8d71a7ee1d4a222b8be53e5f4b4b3032fbda2685d88543b98a0c",
+    "retrievedAt": "2026-10-07T03:21:24.763Z",
+    "familyId": "family-279661543b7f9906672e7013e74c1760",
+    "excerpts": [
+      {
+        "text": "Long-lasting play boosted with essential nutrients for seasonal allergy relief and natural immune support.",
+        "locator": "https://mywoof.com/products/allergy-immunity-pops JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+    "title": "Hip & Joint Pops",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/hip-joint-pops",
+    "productIdentity": "Woof: Hip & Joint Pops",
+    "sourceLocator": "https://mywoof.com/products/hip-joint-pops",
+    "sourceHash": "1c37382dfb70f76570a031363cfc1392182cd9c8ab03f09fc9d8f6ee764f0d70",
+    "retrievedAt": "2026-10-07T03:21:25.545Z",
+    "familyId": "family-15f7ae720514b7e867f285ebfe184f34",
+    "excerpts": [
+      {
+        "text": "Long-lasting play boosted with the research-backed actives to support joint health, recovery, and mobility.",
+        "locator": "https://mywoof.com/products/hip-joint-pops JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:c17910cdfdaaa11a",
+    "title": "Stocking Stuffer",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/stocking-stuffer",
+    "productIdentity": "Woof: Stocking Stuffer",
+    "sourceLocator": "https://mywoof.com/products/stocking-stuffer",
+    "sourceHash": "aa54c054caeb1c87267b40270b05dcd27dda75e3fb0a3aee0de27f156d3481e8",
+    "retrievedAt": "2026-10-07T03:21:26.461Z",
+    "familyId": "family-53da844c0daeffcc734b825a8c60a64f",
+    "excerpts": [
+      {
+        "text": "A gift guaranteed to surprise and delight any dog (and their people)!",
+        "locator": "https://mywoof.com/products/stocking-stuffer JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Includes the award-winning Pupsicle and our long-lasting, nutritious Refill Pops.",
+        "locator": "https://mywoof.com/products/stocking-stuffer JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:887ffebec0fc0879",
+    "title": "Salmon Oil",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/salmon-oil",
+    "productIdentity": "Woof: Salmon Oil",
+    "sourceLocator": "https://mywoof.com/products/salmon-oil",
+    "sourceHash": "95446ca1b91a353eb063268e3243ebba0f4b0a5bf6f4a751353952a5cbe2413a",
+    "retrievedAt": "2026-10-07T03:21:27.343Z",
+    "familyId": "family-f49cafddae525e65bc5534f9ccef93fd",
+    "excerpts": [
+      {
+        "text": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+        "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+    "title": "Pupsicle Pops: Mix Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/pops-mix-pack",
+    "productIdentity": "Woof: Pupsicle Pops: Mix Pack",
+    "sourceLocator": "https://mywoof.com/products/pops-mix-pack",
+    "sourceHash": "b70b4612f3c5cffc6bd9dbc2ce3e5268c5b654cf5a422ac88d772e19ee67f0cb",
+    "retrievedAt": "2026-10-07T03:21:28.205Z",
+    "familyId": "family-a19c8c98be0315cec5d8fb24b5ab75ee",
+    "excerpts": [
+      {
+        "text": "Our longest-lasting treats for The Pupsicle.",
+        "locator": "https://mywoof.com/products/pops-mix-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Save 10% per bag and try out both our beef and chicken Pop flavors with this mixed 2 pack.",
+        "locator": "https://mywoof.com/products/pops-mix-pack JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Made in the USA with human-grade ingredients.",
+        "locator": "https://mywoof.com/products/pops-mix-pack JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:b5922cb3b52f3258",
+    "title": "Gift Card",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/gift-card",
+    "productIdentity": "Woof: Gift Card",
+    "sourceLocator": "https://mywoof.com/products/gift-card",
+    "sourceHash": "ba22f8e0380d9a50c2f459988c68575e4c1aeed9a40479cff4db5b343cfb9a29",
+    "retrievedAt": "2026-10-07T03:21:29.633Z",
+    "familyId": "family-c52c4fad37255d5ae92399afb1a0138a",
+    "excerpts": [
+      {
+        "text": "Gift cards are delivered by email and contain checkout redemption instructions.",
+        "locator": "https://mywoof.com/products/gift-card JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Our gift cards have no additional processing fees.",
+        "locator": "https://mywoof.com/products/gift-card JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+    "title": "Beef Pops: 2 Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/beef-pupsicle-pops-2-pack",
+    "productIdentity": "Woof: Beef Pops: 2 Pack",
+    "sourceLocator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack",
+    "sourceHash": "c5dc3a30fda1fc5dd5931f4d95009d4ff9cf6c0c8b6ea87548d77f6a152c4cf3",
+    "retrievedAt": "2026-10-07T03:21:31.516Z",
+    "familyId": "family-18d0390e575ece87c94048aa0734984c",
+    "excerpts": [
+      {
+        "text": "Our longest-lasting treats for The Pupsicle.",
+        "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA with human-grade ingredients.",
+        "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+    "title": "Super Strips",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/super-strips",
+    "productIdentity": "Woof: Super Strips",
+    "sourceLocator": "https://mywoof.com/products/super-strips",
+    "sourceHash": "aad1f5affd1ca08187b8b727d0d45f945457e2781540ae152ec1428e41a50c94",
+    "retrievedAt": "2026-10-07T03:21:32.928Z",
+    "familyId": "family-cf358f385b94a4d4942451b4abd21c00",
+    "excerpts": [
+      {
+        "text": "Protein-rich MyWoof™️ Super Strips - treats for training, boosting a meal, or just because!",
+        "locator": "https://mywoof.com/products/super-strips JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA by family-owned producers.",
+        "locator": "https://mywoof.com/products/super-strips JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:8057f9379556f4d2",
+    "title": "Pupsicle Treat Tray",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/treat-tray",
+    "productIdentity": "Woof: Pupsicle Treat Tray",
+    "sourceLocator": "https://mywoof.com/products/treat-tray",
+    "sourceHash": "c64fc74c1b4d6668daf5ab911540c470b721e76ec8644c6d6eedaa7c7a68f606",
+    "retrievedAt": "2026-10-07T03:21:34.304Z",
+    "familyId": "family-9b7493a34f462dda58d73b2defbe7d59",
+    "excerpts": [
+      {
+        "text": "Freezable dog treat mold for making your own Pupsicle treats!",
+        "locator": "https://mywoof.com/products/treat-tray JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Quick to clean, convenient to fill, and a fun way to spoil your dog!",
+        "locator": "https://mywoof.com/products/treat-tray JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:9ecc522e65f8c812",
+    "title": "The Pupsicle Alpha Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/alpha-pack",
+    "productIdentity": "Woof: The Pupsicle Alpha Pack",
+    "sourceLocator": "https://mywoof.com/products/alpha-pack",
+    "sourceHash": "53da9be2d763834eb5ecbf5474e04b35135121662dbeae29c2f3e61366fb2ee7",
+    "retrievedAt": "2026-10-07T03:21:35.264Z",
+    "familyId": "family-a57104f63442962fa809186bccec449d",
+    "excerpts": [
+      {
+        "text": "Includes the Pupsicle, pre-made Refill Pops, DIY Treat Tray, Bully Sticks & so much more!",
+        "locator": "https://mywoof.com/products/alpha-pack JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Our top-selling bundle & very best deal!",
+        "locator": "https://mywoof.com/products/alpha-pack JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:e632134c77981d38",
+    "title": "Pupsicle Starter Pack",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/starter-pack",
+    "productIdentity": "Woof: Pupsicle Starter Pack",
+    "sourceLocator": "https://mywoof.com/products/starter-pack",
+    "sourceHash": "2df25f33b013c6047f8c2be7a02a4f0ba096605b5cff2daecff77cce2cb1489c",
+    "retrievedAt": "2026-10-07T03:21:36.535Z",
+    "familyId": "family-ddf1c539d592e069dd123b5a2f62c123",
+    "excerpts": [
+      {
+        "text": "Includes the Pupsicle, DIY Treat Tray, Love Nuggets, & pre-made Refill Pops.",
+        "locator": "https://mywoof.com/products/starter-pack JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  },
+  {
+    "sku": "PUBLIC:mywoof.com:149256257c696d2a",
+    "title": "Digital Gift Card",
+    "brand": "Woof",
+    "canonicalUrl": "https://mywoof.com/products/woof-gift-card",
+    "productIdentity": "Woof: Digital Gift Card",
+    "sourceLocator": "https://mywoof.com/products/woof-gift-card",
+    "sourceHash": "93926941d4f21e6eb0c784d07497e295c87f32f2ce15060b92d24f8a75770edd",
+    "retrievedAt": "2026-10-07T03:21:38.071Z",
+    "familyId": "family-6afb9bac79df43826d07a0becd382ce0",
+    "excerpts": [
+      {
+        "text": "The gift of dog goodness for the loved ones in your life.",
+        "locator": "https://mywoof.com/products/woof-gift-card JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]

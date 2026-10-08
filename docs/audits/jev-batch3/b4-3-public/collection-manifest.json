@@ -1,0 +1,94 @@
+{
+  "version": "jev-source-window-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-expansion-v2/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "ownerDecisionsPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "publicPriorFamilies": 2913,
+    "publicPriorUrls": 4312,
+    "stagedFamilies": 18,
+    "stagedUrls": 19,
+    "stagedBanks": [
+      "docs/audits/jev-batch3/p1-public/source-development.json",
+      "docs/audits/jev-batch3/p1-public/source-development-supplemental.json",
+      "docs/audits/jev-batch3/p3-public/source-development.json",
+      "docs/audits/jev-batch3/m2-public/source-development.json",
+      "docs/audits/jev-batch3/m8-public/source-development.json"
+    ],
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2",
+      "jev-representative-v3",
+      "jev-representative-v4",
+      "jev-representative-v9",
+      "jev-expansion-v1"
+    ],
+    "privateCustodyParsed": false,
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "orijenpetfoods.com:sitemap-miss": 2,
+      "orijenpetfoods.com:feed-miss": 1,
+      "orijenpetfoods.com:feed-rows": 0,
+      "orijenpetfoods.com:feed-unverified": 0,
+      "orijenpetfoods.com:cache-leads": 0,
+      "orijenpetfoods.com:fetch-queued": 0,
+      "orijenpetfoods.com:page-rows": 0
+    }
+  },
+  "sourceWindow": {
+    "windowDir": "/tmp/baystate-batch3-window",
+    "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+    "maxHttpAttempts": 1200,
+    "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+    "ownerDecisionsPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+    "windowSpentBefore": 799,
+    "thisInvocationSpent": 4,
+    "windowSpentAfter": 803,
+    "windowRemaining": 397,
+    "invocationCap": 50,
+    "invocationSeqs": [
+      800,
+      801,
+      802,
+      803
+    ]
+  },
+  "historicalAccounting": "unverified: this run prints ONLY its approved window; no prior/global totals are claimed",
+  "remainingExposureCaveat": "old sealed banks cannot be certified eligible by this work; prior private overlap is unverified; new captures must not implicitly certify them",
+  "counts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+  },
+  "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "8377eeb417557142207114314b3d2eff952b1d150d5e809540df58d1be0badff",
+    "usageHash": "c35c476cd7bdaf2199d35fce0de4cc5db3024e48a0fffd8255d89c179b138bdb",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "receiptsHash": "848e40d315c6d02c67db6db649b7c8e7394ec4532e96e136a668f4460c1d2298"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "publicReceiptUrls": "sha256-only",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

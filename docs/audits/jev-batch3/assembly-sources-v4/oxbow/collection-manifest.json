@@ -1,0 +1,76 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 15,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "oxbowanimalhealth.com:sitemap-locs": 611,
+      "oxbowanimalhealth.com:sitemap-children": 6,
+      "oxbowanimalhealth.com:sitemap-urls": 599,
+      "oxbowanimalhealth.com:feed-miss": 1,
+      "oxbowanimalhealth.com:feed-rows": 0,
+      "oxbowanimalhealth.com:feed-unverified": 0,
+      "oxbowanimalhealth.com:fetch-queued": 225,
+      "excludedNonProduct": 10,
+      "oxbowanimalhealth.com:page-rows": 200
+    }
+  },
+  "attempts": {
+    "used": 217,
+    "cap": 600,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 217,
+      "totalSourceAttempts": 1702,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1702,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 198,
+    "devPrimary": 170,
+    "devSupplemental": 2,
+    "holdoutFamilies": 28,
+    "holdoutRows": 28
+  },
+  "commitments": {
+    "bankHash": "f4c0cd815e461ea13971a77e5960e39d3ed257a2afd2695420fa9c1a57b5c690",
+    "holdoutHash": "6f4dc3f9ef5ff7303fbc16bdc83ee83c37e4df02173c98e3840c2df2c66fa3d4",
+    "memberHash": "9530170a18c2a0d5121c1b97f468514b557e65849aa3c850666336f79a6a6462",
+    "ledgerHash": "ac0f22c6c82f98890f2f69cf79e919b636749696d14c26438d4dd4f900be9aa2",
+    "cumulativeHash": "fbc259df53fa7da6d87da7db8b5ed379563e73d871396cbd9d0b9d129160cde2",
+    "devHash": "80799482c86734920bddd6879eae444609a2e2fcccb20f1fa8929cd2549ef28b",
+    "devSuppHash": "a725f2117d67af21273d3ed8aa3454cb2d1b5fe1317a2197cd6a4e3b3841e7df"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

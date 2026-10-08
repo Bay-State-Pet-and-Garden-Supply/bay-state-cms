@@ -1,0 +1,61 @@
+{
+ "selectionPolicy": "Most complete captured source, then earliest retrieval, then SKU; no gold-based choice, fact merging or variant/family rekeying.",
+ "entries": [
+  {
+   "sku": "PUBLIC:instinctpetfood.com:006e6572ef09312f",
+   "retainedSku": "PUBLIC:instinctpetfood.com:f6e10a33ffe8c66b",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/freshraw-patties-chicken",
+   "productIdentity": "Instinct: FreshRaw Patties Cage-Free Chicken Recipe",
+   "familyId": "family-256caca08f7934383a2c499c93fe622c"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:c366368d7da60f95",
+   "retainedSku": "PUBLIC:instinctpetfood.com:23cc6de86e6c7486",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/minced-cups-chicken",
+   "productIdentity": "Instinct: Minced Cups Chicken Recipe",
+   "familyId": "family-c602686396841423b9b1067a138e7e69"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:24c8e8f619a51c96",
+   "retainedSku": "PUBLIC:instinctpetfood.com:97026f1afb28dc06",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/minced-cups-tuna",
+   "productIdentity": "Instinct: Minced Cups Tuna Recipe",
+   "familyId": "family-c602686396841423b9b1067a138e7e69"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:d2779cd051ae5bed",
+   "retainedSku": "PUBLIC:instinctpetfood.com:2aa6521fb9bf62b1",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/minced-cups-rabbit",
+   "productIdentity": "Instinct: Minced Cups Rabbit Recipe",
+   "familyId": "family-c602686396841423b9b1067a138e7e69"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:312817e5601a91cd",
+   "retainedSku": "PUBLIC:instinctpetfood.com:dff9ba3c509dc14e",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/freshraw-patties-beef",
+   "productIdentity": "Instinct: FreshRaw Patties Grass-Fed Beef Recipe",
+   "familyId": "family-49989bb03cd3c0e4b670d9429d656c81"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:4ed314241fbbbe33",
+   "retainedSku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef",
+   "productIdentity": "Instinct: Freshly Crafted Meals Grass-Fed Beef Recipe",
+   "familyId": "family-e934ff73af6cb5f74e1a9d582b7460b4"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:f90f7d3cc4eb49ba",
+   "retainedSku": "PUBLIC:instinctpetfood.com:80e04caaacfd508d",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/minced-cups-salmon",
+   "productIdentity": "Instinct: Minced Cups Salmon Recipe",
+   "familyId": "family-c602686396841423b9b1067a138e7e69"
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:ddf47d058bd3cdfe",
+   "retainedSku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken",
+   "productIdentity": "Instinct: Freshly Crafted Meals Cage-Free Chicken Recipe",
+   "familyId": "family-1cf1b2dc0e490e54b63ecf226db3e490"
+  }
+ ]
+}

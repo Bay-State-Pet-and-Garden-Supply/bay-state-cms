@@ -1,0 +1,38 @@
+{
+  "artifactKind": "compatibility-receipt-commit-bound",
+  "recordedAt": "2026-10-08T18:37:57.179Z",
+  "expectedCommit": "b71022438f7b28fd5fbb58e7179fb74775940b76",
+  "expectedCommitSource": "git HEAD at suite execution (Batch3 reviewed-subset commit)",
+  "runtimeWorktreeClean": false,
+  "runtimeWorktreeNote": "Unrelated deslop deletions remain unstaged in worktree; all suite files + suite-covered code paths are committed at b7102243. Re-run after a clean checkout for a strict clean-tree receipt if the gate requires it.",
+  "suites": [
+    {
+      "suiteId": "other-providers",
+      "commit": "b71022438f7b28fd5fbb58e7179fb74775940b76",
+      "passed": true,
+      "executedAt": "2026-10-08T18:37:57.179Z",
+      "detail": "116 pass / 0 fail (typesafe-systemone, llm-client-task-routing, typesafe-product-type-seam, typesafe-page-seam; bun test)"
+    },
+    {
+      "suiteId": "deterministic-rules",
+      "commit": "b71022438f7b28fd5fbb58e7179fb74775940b76",
+      "passed": true,
+      "executedAt": "2026-10-08T18:37:57.179Z",
+      "detail": "100 pass / 1 skip / 0 fail (typesafe-curation-qualification, benchmark-evaluator, jev-benchmark-preparation; bun test)"
+    },
+    {
+      "suiteId": "frozen-snapshots",
+      "commit": "b71022438f7b28fd5fbb58e7179fb74775940b76",
+      "passed": true,
+      "executedAt": "2026-10-08T18:37:57.179Z",
+      "detail": "105 pass / 0 fail (jev-benchmark-replay, classification-runtime-snapshot, runtime-snapshot-v2; bun test)"
+    },
+    {
+      "suiteId": "legacy-reads",
+      "commit": "b71022438f7b28fd5fbb58e7179fb74775940b76",
+      "passed": true,
+      "executedAt": "2026-10-08T18:37:57.179Z",
+      "detail": "59 pass / 0 fail (jev-representative-v9, release-v6/v7/v8/v9, release-authoring; bun test)"
+    }
+  ]
+}

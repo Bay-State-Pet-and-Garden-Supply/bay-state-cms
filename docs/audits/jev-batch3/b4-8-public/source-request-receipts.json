@@ -1,0 +1,82 @@
+{
+  "artifactKind": "source-request-receipts-public",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "urlIdentity": "sha256-only: public receipts never carry raw held URLs",
+  "receipts": [
+    {
+      "seq": 890,
+      "urlSha256": "b159c900108d6e1ad8b6cbe44f55282d1d818879836b4476d69828d77159f854",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:45.411Z",
+      "status": 301,
+      "finalUrlSha256": "dcefb56232e3e3811965c749aca7a8aaade14e0c5733185b9d9999c3f8328f62",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 891,
+      "urlSha256": "dcefb56232e3e3811965c749aca7a8aaade14e0c5733185b9d9999c3f8328f62",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:45.503Z",
+      "status": 200,
+      "finalUrlSha256": "dcefb56232e3e3811965c749aca7a8aaade14e0c5733185b9d9999c3f8328f62",
+      "error": null,
+      "bytes": 462,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 892,
+      "urlSha256": "f29b9b2ffcb8c24a5737383c439b40ce98ffe2dd6d62385090ceae4fd45ec6ab",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:45.740Z",
+      "status": 200,
+      "finalUrlSha256": "f29b9b2ffcb8c24a5737383c439b40ce98ffe2dd6d62385090ceae4fd45ec6ab",
+      "error": null,
+      "bytes": 124616,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 893,
+      "urlSha256": "5815fece6f9bc24189299f1edf83d1dcddf936246e09b5ed2be38a7a836ee771",
+      "kind": "feed",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:45.898Z",
+      "status": 301,
+      "finalUrlSha256": "dfa2b6980c958e071aa226e5aa03d0e59470a5a6ee0fe01a4f51bf02986e01eb",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 894,
+      "urlSha256": "dfa2b6980c958e071aa226e5aa03d0e59470a5a6ee0fe01a4f51bf02986e01eb",
+      "kind": "feed",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:45.971Z",
+      "status": 404,
+      "finalUrlSha256": null,
+      "error": null,
+      "bytes": 0,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 895,
+      "urlSha256": "752f2113382ef2e77eb42f1dea453783641a45c2c8b084bf81d7b13b974664b8",
+      "kind": "page",
+      "worker": "main-stage-B4-8",
+      "at": "2026-10-08T18:39:46.455Z",
+      "status": 200,
+      "finalUrlSha256": "752f2113382ef2e77eb42f1dea453783641a45c2c8b084bf81d7b13b974664b8",
+      "error": null,
+      "bytes": 136712,
+      "outcomeMissing": false
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "aqueon.com:sitemap-locs": 325,
+      "aqueon.com:sitemap-urls": 325,
+      "aqueon.com:feed-miss": 1,
+      "aqueon.com:feed-rows": 0,
+      "aqueon.com:feed-unverified": 0,
+      "aqueon.com:cache-leads": 0,
+      "aqueon.com:fetch-queued": 114,
+      "excludedNonProduct": 77,
+      "aqueon.com:page-rows": 37
+    }
+  },
+  "attempts": {
+    "used": 121,
+    "cap": 500,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 121,
+      "totalSourceAttempts": 1606,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1606,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 33,
+    "devPrimary": 29,
+    "devSupplemental": 3,
+    "holdoutFamilies": 4,
+    "holdoutRows": 5
+  },
+  "commitments": {
+    "bankHash": "39028256c57068d671da29d028a6abb1c495b327be250398e0c9f747660fe28b",
+    "holdoutHash": "3d6e67e5e957094acb09e74c825996ee4f1873f83f6edeb818b75c68e425229d",
+    "memberHash": "9d00762d0f09d2dbf4ed653907ad734e2cabb50f534c553b0056f128bc874958",
+    "ledgerHash": "98e6f6e5dc5a2d6aa809d644b090a24481636f431eca75a26630cdf5d5e204ca",
+    "cumulativeHash": "9b9d25ea82c803996401c577c876398843928160ead3ddf8b36594129a95f5c3",
+    "devHash": "f3615840ebfb41347b0ed8ad8dda6ff830b83bfcdcc2acf7ab318283866bbccd",
+    "devSuppHash": "ae6625457bef58db4167424d53f7abfdff727d785af1131a4e605e36a6038724"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

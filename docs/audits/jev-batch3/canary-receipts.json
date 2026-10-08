@@ -1,0 +1,35 @@
+{
+  "artifactKind": "canary-stage-receipts",
+  "batch": "NEWFORNICK0090626",
+  "productTypeReviewed": true,
+  "attributesReviewed": true,
+  "cohortPagesReviewed": true,
+  "evidence": {
+    "spine": {
+      "itemId": "8968ce21-0fb6-4968-8761-86f53bb24de7",
+      "upc": "683547121034",
+      "runId": "8ddc0a4d-2f06-4e27-9a08-331ff4ed3ba4",
+      "reviewer": "nick",
+      "origin": "human_review",
+      "decisions": 8
+    },
+    "cohort": {
+      "cohortId": "716e4533-ec33-47ad-b0bb-ea0e761287c1",
+      "members": 6,
+      "family": "NutriSource PureVita LID (3 adult + 3 puppy)",
+      "runs": [
+        "a756df8d",
+        "b25bbe02",
+        "d617b7a6",
+        "4a6bc273",
+        "2386c60e",
+        "eff5e129"
+      ],
+      "reviewer": "nick",
+      "origin": "human_review",
+      "coordinatedDecisions": "6 types + 6 brands + 6 pages (Dog Food Dry) + invariants/abstentions; 6 naming abstentions deferred per owner choice (manual titles open)"
+    }
+  },
+  "source": "human review via structured gate walkthrough + submitProposalDecisions (human_review origin)",
+  "recordedAt": "2026-10-08T19:29:30.906Z"
+}

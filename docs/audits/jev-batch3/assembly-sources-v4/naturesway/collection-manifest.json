@@ -1,0 +1,74 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "natureswaybirds.com:sitemap-locs": 123,
+      "natureswaybirds.com:sitemap-children": 2,
+      "natureswaybirds.com:sitemap-urls": 118,
+      "natureswaybirds.com:feed-rows": 0,
+      "natureswaybirds.com:feed-unverified": 219,
+      "natureswaybirds.com:fetch-queued": 219,
+      "natureswaybirds.com:page-rows": 219
+    }
+  },
+  "attempts": {
+    "used": 443,
+    "cap": 600,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 443,
+      "totalSourceAttempts": 1928,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1928,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 208,
+    "devPrimary": 175,
+    "devSupplemental": 11,
+    "holdoutFamilies": 33,
+    "holdoutRows": 33
+  },
+  "commitments": {
+    "bankHash": "ea7f8ce6c9180286450f790afda4090da23dabe372c51096f9270026e732d722",
+    "holdoutHash": "71fc18ddbab2a0648a4197f3875c61f6645db4db27f148192f817aa286f650a5",
+    "memberHash": "c2f48af76db3c33a4c052a8e4833184cce7b771f9756d5c225998aadb369d28e",
+    "ledgerHash": "6c6e7746758f36b039baa4e1ffb69a3e9da632fd6870ef0d229f5f9be3ca9cad",
+    "cumulativeHash": "273ef52674ef920b4c76fdd878dc97cc6b3839772284e97a72756b5b820f4f4e",
+    "devHash": "e44899f5923c224f612fb00e477bd6dc22788790d47b9cb724f01a48aeaf9717",
+    "devSuppHash": "182fffca4c0e20170153fc5e2bff700c9426283c719d61b6ccd2c3b1aa00ddb8"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

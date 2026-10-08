@@ -1,0 +1,309 @@
+{
+ "artifactKind": "generation-development-peer-receipt",
+ "receiptVersion": 4,
+ "generation": "docs/audits/jev-expansion-v4/",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "authorityBinding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v9",
+  "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+  "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+  "capturedAt": "2026-10-06T16:18:15.514Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "recommendation": "RECOMMEND-FREEZE",
+ "recommendationReason": "Zero substantive defects found across all seven verification areas (merge, assembly, labels, pages, carryover, immutability, containment). All counts, SKU sets, hashes, labels, page derivations, and carryover bytes recompute exactly. Standing blockers below remain for the human freeze decision; this agent inspection is not a human approval and makes no qualification claim.",
+ "scope": {
+  "assembly": "997 gold entries all split=dev; 1233 public rows (1099 primary + 134 supplemental) across 20 assembly banks; 1009 adjudicated = 998 v3-merge + 11 Batch4 novel; 8 dup + 4 service exclusions; labels propagate merged -> development-adjudication -> gold with zero drift; 64/64 enriched rows overlaid with 190 excerpts; pages derived per rev2 packet (860 known-complete / 85 partial-partial / 52 unknown-partial); 137 pageReasons; 40 source files + 9 prior files hash-verified",
+  "excluded": [
+   "sealed custody bytes (all *-custody dirs, holdout-inputs, membership, candidate-banks): not parsed",
+   "production DB, network, browser, inference: not used",
+   "code/docs/corpus/custody edits, builds, tests, lint: not performed"
+  ],
+  "paths": [
+   "docs/audits/jev-expansion-v4/",
+   "docs/audits/jev-batch3/merged-adjudications-v4.json",
+   "docs/audits/jev-batch3/batch4-adjudications.json",
+   "docs/audits/jev-batch3/novel-dev-b4-11.json",
+   "docs/audits/jev-batch3/b4-7-public/",
+   "docs/audits/jev-batch3/assembly-sources-v4/",
+   "docs/audits/jev-expansion-v2/page-rule-packet-rev2.json",
+   "docs/audits/jev-expansion-v1/boundary-rules.md",
+   "docs/audits/jev-expansion-v3/"
+  ]
+ },
+ "counts": {
+  "publicSourceRows": 1233,
+  "priorPublicIdentityExclusions": 224,
+  "adjudicatedRows": 1009,
+  "nonProductExclusions": 4,
+  "developmentRows": 997,
+  "developmentFamilies": 930,
+  "duplicateCapturesExcluded": 8,
+  "knownRows": 711,
+  "noFitRows": 222,
+  "insufficientRows": 64,
+  "representedKnownTypes": 31,
+  "classesAtTwentyRows": 10,
+  "completePageGoldRows": 860,
+  "partialPageGoldRows": 137,
+  "unknownPageGoldRows": 0,
+  "pageStatePartial": 85,
+  "pageStateUnknown": 52,
+  "pageRulesApplied": true,
+  "pageRulePacketVersion": "page-rule-packet-v2",
+  "pageRulePacketSha256": "7d69f58129da9199676fc7b40ad6316aa68880f679afee862699ab929e6d35d4",
+  "enrichmentApplied": true,
+  "enrichmentEvidenceSha256": "5c3acb00032c1b243e98ff31d3bd00b8770bdedc9f2fada13118f71dd19e4c07",
+  "enrichmentRowsOverlaid": 64,
+  "enrichmentExcerptsAppended": 190,
+  "qualificationEligibleRows": 0,
+  "fieldStatesInsufficient": 772,
+  "fieldStatesKnown": 740,
+  "fieldStatesInapplicable": 6159,
+  "fieldStatesNoFit": 305,
+  "batch4Entries": 11,
+  "batch4Novel": 11,
+  "batch4Known": 10,
+  "batch4NoFit": 1,
+  "excludedLocatorLeaks": 0,
+  "containmentFindings": 0
+ },
+ "deltasVsV3": {
+  "developmentRows": "+11 (986 -> 997)",
+  "developmentFamilies": "+11 (919 -> 930)",
+  "knownRows": "+10 (701 -> 711)",
+  "noFitRows": "+1 (221 -> 222)",
+  "insufficientRows": "+0 (64 -> 64)",
+  "representedKnownTypes": "+3 (28 -> 31; new: cattle-feed, goat-sheep-feed, poultry-coops-equipment)",
+  "completePageGoldRows": "+11 (849 -> 860; all 11 novel known-complete)",
+  "partialPageGoldRows": "+0 (137 -> 137)"
+ },
+ "hashCommitments": {
+  "v4-development-manifest": "5a209b8901cb2673ef24e34d5b8216cd5805ce3fe7bcb9b4a2461c3f114759e5",
+  "v4-taxonomy": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "v4-source-development": "dafbbfda4fa71e8f514fa1fceea3cb8caa04382e5e04e9b6fa6bc2787d43227b",
+  "v4-development-gold": "ecc3192e8bc5ff79807f9500b7ba9f2dc77ac609fedd7a80846dc4d8a050cf64",
+  "v4-development-adjudication": "677ae507a0f01035acf03081092673872e7c60ece2ad5f42f1ca67431b1d1ffd",
+  "v4-development-support": "ef7aa0c50c613acf92e56f35e1a542c4f47e13d1f46a4913fc2f19ae758b798a",
+  "v4-excluded-prior-identities": "55ac62b49cb174fad56a60841b0e2818c407f4468b4d4c9a46bb60c213299323",
+  "v4-duplicate-captures": "6c72a3cd5c1f96bbeb39c2169abf7fef510fdc542539d5316fb9b67602e4af5f",
+  "batch4-merged-adjudications-v4": "640a8518999444861855f7ac1ebc5028fe40a1d4003111d9c4709b2295cbbb02",
+  "batch4-batch4-adjudications": "ac4c8ba76ba464fe81a9b74e8b09630342582a7c0f0d6f7ae16090d0b011b0e5",
+  "batch4-novel-dev-b4-11": "bd13d3247e5977fba43f9886c0c8c90a3c6d3863b05d0380a3e2964a432cf2a0",
+  "packet-page-rule-packet-rev2-whole-file": "7d69f58129da9199676fc7b40ad6316aa68880f679afee862699ab929e6d35d4",
+  "v3-development-manifest": "5d8fef2b9a07e01b522d2bc3903dd089aead3409725affefc70b347090ffd911",
+  "v3-development-gold": "ed5b196069cf290fdb5d31c5ec9cc748aede911c8e1e9561305a7a71b806515d",
+  "v3-development-adjudication": "ce33724b32e6a04b016d62bd9674862b304e1b96bfaf6e3ecf22513645768e7c",
+  "v3-source-development": "5fda76a927d7460114a0bb00ec98567287be71f0587aefe33d0c87f98a703483",
+  "v3-development-support": "77d1743aa7476d29d9815680b9634387cfe1920b38b13ec717ce6a66121c0627",
+  "batch3-merged-adjudications": "4447a7ab749449e28040f7715ae06fac0fc8092a5773226f34369f4f61c42a33",
+  "batch3-batch3-adjudications": "64bae0d4b3d34335c45770242956a5a448b9e8fae9c5d391df5a221da07186c8",
+  "batch3-novel-dev-19": "7bcd21d1bc61fc8587a4adc6257f83f7e365446f7b469c9ae3fefc560bcada93",
+  "packet-v1-whole-file": "315606bb7a163b86f0a2b5d1c692b675dd5c794cc2692531908d6c72a637ebf2",
+  "owner-approved-decisions": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "v2-development-adjudication": "3395332f00d1c89cb04b6b0f2906a81fdbb0a6194dfc7fe7b7d7c8dc43061de3",
+  "v2-development-gold": "8ef4383ba29b4111c1545f9b2106e90bb026b900fb9c0af5abf98af73f03c304",
+  "v2-development-manifest": "8badff4ebca19499408d1f2d9fd04ac551be68d6de89aa535989ced3b95d2d37",
+  "v2-development-support": "b12ee8ad397ac9a584fa9a82d8375bc5063c6b29c21c5af434f060899cb3033a",
+  "v2-source-development": "8622b357793e737117de2cca9905bee9efd64a0a0da6335fe22faee2d13df242"
+ },
+ "areas": {
+  "merge": {
+   "verdict": "pass",
+   "detail": "Programmatic SKU diff: merged-v4 prefix[0:998] equals v3 base entries exactly (order + full entry bytes); tail[998:] equals batch4-adjudications SKUs equals novel-dev-b4-11 SKUs equals b4-7-public source rows (11 mannapro, same order); novel/base overlap 0; v4 unique 1009. 998+11=1009 exact, 0 dropped/extra/altered. 20/20 assembly banks present with manifest devPrimary matching file row counts; b4-7-public included (11 rows, cmp-identical to top-level bank); 19 shared banks byte-identical to v3 assembly (57/57 files)."
+  },
+  "assembly": {
+   "verdict": "pass",
+   "detail": "All 7 manifest declaredInputs sha256 recompute exactly; rev2 packet whole-file sha matches manifest+gold+support bindings. Counts recomputed: 997 dev / 930 families / 8 dup / 4 service (explicit non-product reasons) / 711 known / 222 no-fit / 64 insufficient / 31 types / 10 floors / 860 complete / 137 partial / 0 unknown. Equations close: 1233 (1099 primary + 134 supplemental) - 224 = 1009 = 1005 + 4; 1009 - 8 - 4 = 997 = 711+222+64 = 860+137. Overlay 64 rows / 190 locators summed from manifest; field states 772/740/6159/305 match support. 40/40 sourceFiles + 9/9 priorFiles hash-verified; sourceAdjudicationSha256 binds merged-v4 exactly."
+  },
+  "labels": {
+   "verdict": "pass",
+   "detail": "All 11 novel rows adjudicated against frozen v9 taxonomy + boundary-rules.md: 10 known-type (poultry-coops-equipment 3, horse-treats-supplements 2, cattle-feed 1, livestock-health-dewormers 1, goat-sheep-feed 2, supplements 1) + 1 no-fit. All typeIds resolve; every inapplicable targets a facet-profile nonmember; every insufficient-evidence targets a profile member with no canonical token; all 22 basis quotes byte-verbatim in novel excerpts (22/22 bound). Independent adjudication concurs: Nurse All multi-species replacer is a genuine taxonomy gap (no multi-species feed type; rule-3 completeness bars supplements routing) -> no-fit correct; Suckle Pro/lamb/kid replacers correctly in species feed types per rule 3; Chick Grit correctly supplements (non-ration aid); drinkers correctly poultry-coops-equipment (rule 1 not triggered). Labels propagate merged->adjudication->gold with zero drift on all 11."
+  },
+  "pages": {
+   "verdict": "pass",
+   "detail": "Rev2 packet: 212 rules (139 eligible / 73 excluded / 0 unresolved), all completeness closed, 19 applied decisions, ownerDecisionsRequired empty. All 11 novel rows re-derived by hand from packet predicates: 11/11 match gold (3x Farm Animal Chicken & Poultry, 3x Sheep & Goat, 1x Cow, 2x dual-horse co-assign within cap 4, 2x correct closed-empty: Nurse All no-fit and Chick Grit Poultry-supplement coverage gap). Distribution recomputed 860/137/0; state split 860 known / 85 partial / 52 unknown; all 222 no-fit + 64 insufficient known-complete-empty; cap-4 respected; all 137 partial rows known-type with 137 pageReasons."
+  },
+  "carryover": {
+   "verdict": "pass",
+   "detail": "Full-population compare (beyond the 30-row minimum): all 986 v3 gold rows present in v4 gold byte-identical (0 missing, 0 differing); v4-only SKUs exactly the 11 novel; deterministic 39-row sample (first 10 + last 10 + 19 novel-dev-19) also exact in adjudication. V3 hash bindings carried unchanged: taxonomy, excluded-prior-identities, duplicate-captures byte-identical (cmp clean) across v3 receipt/manifest and v4 manifest."
+  },
+  "immutability": {
+   "verdict": "pass",
+   "detail": "All v3 receipt hash commitments recompute: 5/5 v3 files, batch3 merged/batch3/novel-19, v1 packet, owner decisions, and 8/8 v2 files (gold/adjudication/manifest/support/dup/excluded/source/taxonomy) MATCH. V4 taxonomy byte-identical to v2/v3 (ffd09bd0). 60 assembly files across 20 banks; 40 bound source files + 9 prior files all hash-verified."
+  },
+  "containment": {
+   "verdict": "pass",
+   "detail": "Zero non-PUBLIC SKUs in v4 source/gold/adjudication; zero custody-window markers; all gold splits dev; novel bank rows match b4-7 collection-manifest (devPrimary 11); no sealed-custody payload bytes parsed in this review."
+  }
+ },
+ "novelBatch4": [
+  {
+   "sku": "PUBLIC:mannapro.com:db95d1145ef4a8b4",
+   "title": "Manna Pro Hanging Poultry Drinker",
+   "kind": "known-type",
+   "typeId": "poultry-coops-equipment",
+   "page": "known/complete [Farm Animal Chicken & Poultry]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:a39e236f49a55273",
+   "title": "Flock Party Hanging Drinker, 3.5 Gallon",
+   "kind": "known-type",
+   "typeId": "poultry-coops-equipment",
+   "page": "known/complete [Farm Animal Chicken & Poultry]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:c5a898903f9b29da",
+   "title": "Tasty Delites Horse Treats",
+   "kind": "known-type",
+   "typeId": "horse-treats-supplements",
+   "page": "known/complete [Horse Treats, Horse Vitamins & Supplements]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:ec1bf2e5c9b1655a",
+   "title": "Suckle Pro calf milk replacer",
+   "kind": "known-type",
+   "typeId": "cattle-feed",
+   "page": "known/complete [Farm Animal Cow]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:22488ebd5bb7f464",
+   "title": "Positive Pellet Goat De-Wormer",
+   "kind": "known-type",
+   "typeId": "livestock-health-dewormers",
+   "page": "known/complete [Farm Animal Sheep & Goat]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:de23e874eb99115c",
+   "title": "Nutrigood FruitSnax BerryMint & Oats",
+   "kind": "known-type",
+   "typeId": "horse-treats-supplements",
+   "page": "known/complete [Horse Treats, Horse Vitamins & Supplements]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:8fbd5063896a4c8f",
+   "title": "Nurse All Multi-Species Milk Replacer",
+   "kind": "no-fit",
+   "typeId": null,
+   "page": "known/complete [] (closed-empty; genuine taxonomy gap: no multi-species feed type)"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:ca64dc855e1f4302",
+   "title": "Lamb Milk Replacer + Probiotics",
+   "kind": "known-type",
+   "typeId": "goat-sheep-feed",
+   "page": "known/complete [Farm Animal Sheep & Goat]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:af52e4052428be4a",
+   "title": "Kid Milk Replacer",
+   "kind": "known-type",
+   "typeId": "goat-sheep-feed",
+   "page": "known/complete [Farm Animal Sheep & Goat]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:48d519402800173f",
+   "title": "Free Range 3.5 Gal Poultry Drinker",
+   "kind": "known-type",
+   "typeId": "poultry-coops-equipment",
+   "page": "known/complete [Farm Animal Chicken & Poultry]"
+  },
+  {
+   "sku": "PUBLIC:mannapro.com:3934f1f1f9f7b0f5",
+   "title": "Chick Grit with Probiotics",
+   "kind": "known-type",
+   "typeId": "supplements",
+   "page": "known/complete [] (closed-empty; Poultry-supplement packet coverage gap, not a label error)"
+  }
+ ],
+ "findings": [
+  {
+   "topic": "page-bucket-semantics",
+   "severity": "observation",
+   "detail": "Carried from v3 (unchanged): manifest/support partialPageGoldRows=137/unknownPageGoldRows=0 follows assembler completeness bucketing, not gold state bucketing; 137 = 85 partial-state + 52 unknown-state rows. This receipt records pageStatePartial=85/pageStateUnknown=52. No gold, packet, or derivation defect."
+  },
+  {
+   "topic": "stale-flip-annotation",
+   "severity": "observation",
+   "detail": "Carried from v3 (unchanged, still present in v4 development-adjudication): PUBLIC:kongcompany.com:b258b750797a14bd identityIssues still reads ['no species token in captured title/excerpts; primary scope unclear'] though rationale+basis state enrichment resolved the gap. Human-readable annotation only; labels, citations, pages unaffected."
+  },
+  {
+   "topic": "packet-self-hash-scope",
+   "severity": "observation",
+   "detail": "Packet-tail integrity.packetSha256 (b875e8ba...) differs from whole-file pageRulePacketSha256 (7d69f581...) bound identically in manifest, gold header, and support; v3 receipt verified the self-hash under loader trailing-block-excision semantics. Different documented scopes; derivation basis intact. No defect."
+  },
+  {
+   "topic": "source-development-naming",
+   "severity": "observation",
+   "detail": "V4 source-development.json holds 997 dev-only rows (post-exclusion), same convention as v3 (986 rows); raw 1233 reconstructible only from assembly-sources-v4 banks. Name suggests raw source; contents are dev-only. Accounting reconciles exactly; consider a header note at next regeneration. No defect."
+  },
+  {
+   "topic": "overlay-traceability",
+   "severity": "observation",
+   "detail": "64/64 overlays + 190 excerpts verified by summation from manifest enrichmentOverlay.entries; gold/adjudication/support carry no per-row overlay flag, so overlaid rows are enumerable only via the manifest list. Carried excerpts visible as elevated evidence counts on sampled overlay SKUs. No data defect."
+  },
+  {
+   "topic": "smartpak-evidence-limitations",
+   "severity": "observation",
+   "detail": "Carried from v2/v3 receipts (unchanged, parent-owned): smartpak staged source.evidenceLimitations claims 'official manufacturer product page' for retailer rows; false at source level. Raw text preserved byte-identical; gold evidence correctly uses third_party_page/medium. No v4 regression."
+  },
+  {
+   "topic": "taxonomy-gap-signal",
+   "severity": "observation",
+   "detail": "Nurse All multi-species milk replacer (PUBLIC:mannapro.com:8fbd5063896a4c8f) no-fit exposes a genuine taxonomy gap: no multi-species/generic milk-replacer feed type exists despite a Farm Animal species enum value. Recorded as a candidate new-type signal for taxonomy owners, not a labeling error. No defect."
+  }
+ ],
+ "unresolvedBlockers": [
+  "Class floors unmet: 21 of 31 represented known types below 20 rows; absent/under-supported classes not silently qualified.",
+  "Sealed source custody (prior batches + Batch4 held rows) is unlabeled/uninspected bytes, not qualified holdout gold; held-row minimums unverified by this receipt.",
+  "Fitted per-capability policies, live comparison, and human canaries remain required; this agent receipt is not human approval.",
+  "SmartPak staged evidenceLimitations producer string still false at source level; parent-owned fix outstanding (carried from v2).",
+  "No qualification claims made; qualificationEligibleRows=0."
+ ],
+ "verifiedAssertions": {
+  "allSplitDev": true,
+  "authorityHashConsistent": true,
+  "batch4CitationsBindVerbatim22of22": true,
+  "batch4LabelsConcur11of11": true,
+  "canonicalValuesAdmissible": true,
+  "classSupportRowsFamiliesFloorsExact": true,
+  "duplicateRetainersSourceOnlyEarliestRetrieval": true,
+  "enrichmentOverlayExact64Rows190Excerpts": true,
+  "excludedLocatorLeaksZero": true,
+  "familyIdsPreserved": true,
+  "fieldStateCountsExact": true,
+  "goldSourceSkuSetsEqual": true,
+  "knownCountsExact": true,
+  "labelsPropagateWithZeroDrift": true,
+  "manifestDeclaredShasMatch": true,
+  "mergeSkuSetsExactNoDroppedNoExtra": true,
+  "noFitInsufficientPagesCompleteEmpty": true,
+  "novelRowsPlacedInB47Bank": true,
+  "nurseAllNoFitGenuineTaxonomyGap": true,
+  "packetBindingsVerified": true,
+  "pageDistributionRecomputed860_85_52": true,
+  "pageHandDerivationsMatch11of11Novel": true,
+  "priorExclusionsDisjointAndMatched": true,
+  "priorFilesShasVerified9of9": true,
+  "rawSourceIdentityByteIdentical": true,
+  "rowFamilyTypeCountsExact": true,
+  "sourceFilesShasVerified40of40": true,
+  "taxonomyByteIdenticalToV2V3": true,
+  "v3CarryoverExact986of986": true,
+  "v3SharedBanksUnchanged57of57": true,
+  "v2BytesUnchanged8of8Spot": true,
+  "v3BytesUnchanged9of9Spot": true,
+  "zeroContainmentFindings": true
+ },
+ "peerPerformed": true,
+ "humanApproval": false,
+ "inspectionIdentity": {
+  "kind": "agent",
+  "agent": "V4PeerReview"
+ },
+ "modelCalls": 0,
+ "networkCalls": 0,
+ "status": "peer-reviewed-development-only-RECOMMEND-FREEZE"
+}

@@ -1,0 +1,1387 @@
+{
+ "reason": "previously public canonical product identity",
+ "sourceFiles": [
+  {
+   "path": "docs/audits/jev-representative-v1/source-development.json",
+   "sha256": "4e957c46d91aa0bd16d39c61e4c3c1e29dd14d5487907257881b52587c2ffb4d"
+  },
+  {
+   "path": "docs/audits/jev-representative-v1/source-development-supplemental.json",
+   "sha256": "e43b8a5d8e5288db5b55b4fd655d0376260a6ce07037d783ab14aae92fa89b89"
+  },
+  {
+   "path": "docs/audits/jev-representative-v2/source-development.json",
+   "sha256": "4e957c46d91aa0bd16d39c61e4c3c1e29dd14d5487907257881b52587c2ffb4d"
+  },
+  {
+   "path": "docs/audits/jev-representative-v3/source-development.json",
+   "sha256": "c030c6cd788d2b8bf7bf29f79cad0b97302a40ba83976bb061982bc4e1c8f265"
+  },
+  {
+   "path": "docs/audits/jev-representative-v3/source-development-supplemental.json",
+   "sha256": "d21068f461982a6f3d635d927136a3ec1f8e27cf17cc7d8834625ed2176605b6"
+  },
+  {
+   "path": "docs/audits/jev-representative-v4/source-development.json",
+   "sha256": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1"
+  },
+  {
+   "path": "docs/audits/jev-representative-v4/source-development-supplemental.json",
+   "sha256": "7cca68efc7074b019a48172b3e3db0937bd2872a1059150a916c919f0481f801"
+  },
+  {
+   "path": "docs/audits/jev-representative-v9/source-development.json",
+   "sha256": "e79655ac941036d24057400c634fe474e6e9e088869c6612b425437fbab889c1"
+  },
+  {
+   "path": "docs/audits/jev-representative-v9/source-development-supplemental.json",
+   "sha256": "7cca68efc7074b019a48172b3e3db0937bd2872a1059150a916c919f0481f801"
+  }
+ ],
+ "entries": [
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:c5acf1700f98696c",
+   "familyId": "family-b4d75f1e3c36086404c7c908cc2991db",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-hypoallergenic-pet-grooming-4-kit"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:fde1dfd7cecd6ba9",
+   "familyId": "family-41ddb7d595c7a97f30601b4445efe3b7",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-oxymed-medicated-anti-itch-shampoo-for-pets-20oz"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:7d823e0c8c5ba46b",
+   "familyId": "family-5ff0fdbacefbc57aed9c292d820613de",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-fresh-breath-triple-flex-toothbrush-sm"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:0d192857469e5370",
+   "familyId": "family-6ec9db9670d44d0fc8be1f5aa5beae12",
+   "canonicalUrl": "https://tropiclean.com/products/papaya-coconut-2-in-1-shampoo-conditioner"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:1a8f41ba61b70ece",
+   "familyId": "family-3655a908d541a79b035ce6019efd8107",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-no-brushing-peanut-butter-dental-oral-care-gel-dogs-2z"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:837a25054d95bb8d",
+   "familyId": "family-9bb56b838b91fc03735c4cd8edce29b3",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-berry-coconut-deep-cleansing-shampoo-for-pets-1-g"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:1aa19b8a5ed054ef",
+   "familyId": "family-3109fa7db7b03fc5e24e15736d73b55e",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-aloe-coconut-deodorizing-shampoo-for-pets-1-g"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:b54e49d02dee279c",
+   "familyId": "family-150dd70ebbaaeddd992fd41e88c56ab1",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-natural-flea-and-tick-max-soothing-shampoo-for-dogs-20oz"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:dc537cbf4faf14da",
+   "familyId": "family-9b90688a7bc92bb0d51bba735907ee75",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-oxymed-medicated-anti-itch-shampoo-for-pets-1-g"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:1a93ad7d5e2f2243",
+   "familyId": "family-d0413720b0cb4635058ffb8a6ee7eb2e",
+   "canonicalUrl": "https://tropiclean.com/products/watermelon-2-in-1-shampoo-conditioner"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:478b6590873242ee",
+   "familyId": "family-5ed676ce405b6fe4607f65f786d16b79",
+   "canonicalUrl": "https://tropiclean.com/products/hypoallergenic-unscented-cat-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:2edba9c3ab053ffc",
+   "familyId": "family-0590df467d8b169628ab0d61da92516f",
+   "canonicalUrl": "https://tropiclean.com/products/watermelon-deodorizing-spray"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:3f56b7b4272d2cf8",
+   "familyId": "family-1cf5cc19503c5448698453e71a7ac599",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-fresh-breath-enticers-peanut-butter-dental-oral-care-kit-for-dogs"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:b1b27be59e7edf96",
+   "familyId": "family-5fb275fe95551418f6971df4f793e177",
+   "canonicalUrl": "https://tropiclean.com/products/hypoallergenic-unscented-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:97f720b0e3838e1f",
+   "familyId": "family-b72035fc2f3ce3e643d15f14f8a1497c",
+   "canonicalUrl": "https://tropiclean.com/products/pineapple-itch-relief-shampoo-conditioner"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:1db102e92a8400e8",
+   "familyId": "family-26f31533caa3136a70c69e1b1bc07cf5",
+   "canonicalUrl": "https://tropiclean.com/products/mango-kiwi-deep-cleansing-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:378bd5a8011f1a69",
+   "familyId": "family-546d2cc479504aa3310c26b505278fb4",
+   "canonicalUrl": "https://tropiclean.com/products/blackberry-pear-tearless-hypoallergenic-puppy-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:f5cc16326e800c05",
+   "familyId": "family-bfc64018def8351afe72a0fa3617f591",
+   "canonicalUrl": "https://tropiclean.com/products/papaya-coconut-all-purpose-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:63db63ded5c5fab5",
+   "familyId": "family-658aa57b0d9f5d16207612a51fb3a38f",
+   "canonicalUrl": "https://earthbath.com/products/puppy-travel-grooming-kit"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:65f83843fb751764",
+   "familyId": "family-722ae9ad19792dc08983f8cceb739e31",
+   "canonicalUrl": "https://earthbath.com/products/paw-towel"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:07786bb60910d7db",
+   "familyId": "family-42c46057477e104986c0fac8333ce6a3",
+   "canonicalUrl": "https://earthbath.com/products/sensitive-cat-duo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:d0be84cde8c3a428",
+   "familyId": "family-0bb89c726ba30e7d8eac51d953605f9b",
+   "canonicalUrl": "https://earthbath.com/products/puppy-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:4a8ae6af1bd8bbdc",
+   "familyId": "family-da03130c1eeb379bad301aeb6b1ca864",
+   "canonicalUrl": "https://earthbath.com/products/shed-control-shampoo-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:402613cd129a607a",
+   "familyId": "family-ac68060263ce2570cdd4e222e26c947d",
+   "canonicalUrl": "https://earthbath.com/products/shed-control-conditioner"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:022a1f8f4abc85d1",
+   "familyId": "family-10065d8b5d075036eeaa216e379e5891",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-shampoo-vanilla-almond"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:43ced09a629c19af",
+   "familyId": "family-a51c7bc6e86d25d11a9d7d75c26155a5",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-shampoo-fragrance-free"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:e7559762b481ee20",
+   "familyId": "family-ea97c88c3004edb7d998706e9c29f6a8",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-conditioner"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:e56adb87673b8009",
+   "familyId": "family-1d93e58c40bd2881d84d224f475e889d",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-conditioner-fragrance-free"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:ad0f15e00247062f",
+   "familyId": "family-4e70a96c2795197e41dc35c9e449b0d8",
+   "canonicalUrl": "https://earthbath.com/products/hypoallergenic-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:cd8dcad08a1da0c7",
+   "familyId": "family-98d941e81546c343175818cfc73a7a2e",
+   "canonicalUrl": "https://earthbath.com/products/hot-spot-relief-shampoo-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:e50958590f9a0cb6",
+   "familyId": "family-b8562b94a1c9fdcf4e72b39bb757e039",
+   "canonicalUrl": "https://earthbath.com/products/deodorizing-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:0feabc120e7eb276",
+   "familyId": "family-fdfc9fcd198274164876237fb10c77b7",
+   "canonicalUrl": "https://earthbath.com/products/hypoallergenic-dog-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:8bcf74a19d6ff3f4",
+   "familyId": "family-e954854a23aa9629bf50a04380dbe97c",
+   "canonicalUrl": "https://earthbath.com/products/waterless-dog-grooming-foam"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:5cf6d0b2b2c4169a",
+   "familyId": "family-00a66d6702db32964e3a0a3c6c95e656",
+   "canonicalUrl": "https://earthbath.com/products/deodorizing-spray-mediterranean-magic"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:52400180c5b139ec",
+   "familyId": "family-eff0e9b7fd07aebb9c295c3daf79b001",
+   "canonicalUrl": "https://earthbath.com/products/deodorizing-spray-mango-tango"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:2329c839b7505c8c",
+   "familyId": "family-63bce11fa9722c7c69a5db89f4340bf9",
+   "canonicalUrl": "https://earthbath.com/products/dirty-dog-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:55f4767469c53016",
+   "familyId": "family-89f12d3bb23396acc048fc959d8f10df",
+   "canonicalUrl": "https://earthbath.com/products/hypoallergenic-cat-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:874a5c6c8e2b27f4",
+   "familyId": "family-a18f0a5abeee41df70e0b9b0a6de9094",
+   "canonicalUrl": "https://earthbath.com/products/conditioning-cat-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:1064abe5cc207fcc",
+   "familyId": "family-fb49b7559ea5f1a79711f07799203ea1",
+   "canonicalUrl": "https://earthbath.com/products/hypoallergenic-cat-wipes"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:e285aaaa514e2e52",
+   "familyId": "family-26ef8aebcb9541eeaa2a9a2dd4ca885d",
+   "canonicalUrl": "https://earthbath.com/products/puppy-spray"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:9c719e1eca70fb39",
+   "familyId": "family-3655a908d541a79b035ce6019efd8107",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-no-brushing-peanut-butter-dental-oral-care-gel-dogs-4z"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:94073ac868f1c2f5",
+   "familyId": "family-9bb56b838b91fc03735c4cd8edce29b3",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-berry-coconut-deep-cleansing-shampoo-for-pets-2"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:tropiclean.com:a23693503a03a8cf",
+   "familyId": "family-3109fa7db7b03fc5e24e15736d73b55e",
+   "canonicalUrl": "https://tropiclean.com/products/tropiclean-aloe-coconut-deodorizing-shampoo-for-pets-2"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:ed66c50d2083433c",
+   "familyId": "family-42c46057477e104986c0fac8333ce6a3",
+   "canonicalUrl": "https://earthbath.com/products/sensitive-dog-duo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:54349bb70a3c69ed",
+   "familyId": "family-da03130c1eeb379bad301aeb6b1ca864",
+   "canonicalUrl": "https://earthbath.com/products/shed-control-shampoo-with-shea-butter"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:c97984485553ed5a",
+   "familyId": "family-ac68060263ce2570cdd4e222e26c947d",
+   "canonicalUrl": "https://earthbath.com/products/shed-control-conditioner-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:3da4bd8026e17050",
+   "familyId": "family-10065d8b5d075036eeaa216e379e5891",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-shampoo-vanilla-almond-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:7ac089d8bd882034",
+   "familyId": "family-a51c7bc6e86d25d11a9d7d75c26155a5",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-shampoo-fragrance-free-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:57b29c80a7f5dd88",
+   "familyId": "family-ea97c88c3004edb7d998706e9c29f6a8",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-conditioner-vanilla-almond-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:68c8bea2d498a772",
+   "familyId": "family-1d93e58c40bd2881d84d224f475e889d",
+   "canonicalUrl": "https://earthbath.com/products/oatmeal-aloe-conditioner-fragrance-free-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:5d49864b07976b20",
+   "familyId": "family-4e70a96c2795197e41dc35c9e449b0d8",
+   "canonicalUrl": "https://earthbath.com/products/hypoallergenic-shampoo-groomer"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:d7e1dfe3bceffae3",
+   "familyId": "family-98d941e81546c343175818cfc73a7a2e",
+   "canonicalUrl": "https://earthbath.com/products/tea-tree-hot-spot-relief-shampoo"
+  },
+  {
+   "bank": "healthcare",
+   "sku": "PUBLIC:earthbath.com:8b53859ee422e8fa",
+   "familyId": "family-b8562b94a1c9fdcf4e72b39bb757e039",
+   "canonicalUrl": "https://earthbath.com/products/deodorizing-shampoo-groomer"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:337dbed5b331a6f8",
+   "familyId": "family-b41a05c09dbab5192e57c2924d0df42c",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-birthday-party-pack/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:071da5577f8039f8",
+   "familyId": "family-69d5032d530fbeddeb373a53b180929a",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/essentials-adult-rabbit-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:1e96769a12e3a227",
+   "familyId": "family-2c39096d1e6cc3cf2c8e56bc517fed32",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/garden-select-adult-rabbit-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0d8fac076e4c667f",
+   "familyId": "family-b477055c59dbbaa90091976370297b0d",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-garden-dig-box/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:44e35b90e9eede64",
+   "familyId": "family-8278e6ecb9b77a98d55cf1d31f8f11d9",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/simple-harvest-adult-rabbit-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:3e2583216a3080a2",
+   "familyId": "family-052035459b60cb3e4055264f4a5eb2ad",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-design-your-own-hideaway-house/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:39a9d9a510ed5688",
+   "familyId": "family-b9fd82486fa175bf1add2360405a9da7",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/garden-select-young-rabbit-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:20f23e1e9ff16fd9",
+   "familyId": "family-228d9509808b7ff02d05040ab8ccc8ae",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-bundle/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:46f301f2ffe9d715",
+   "familyId": "family-e65f61370342b17e3fae0feda107e38d",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-wobble-teaser/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:447637a267e79ee7",
+   "familyId": "family-820a43d4a56a63f32d9edd81eabf65a3",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/simple-harvest-young-rabbit-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0a2f064e88e71bc8",
+   "familyId": "family-1fc3ee7cd370549df54aac244bf89a75",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-wooden-puzzler/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:1ebb5a6ba3c8c2be",
+   "familyId": "family-573d3544c5d5a8eff85382dd96ad61b2",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hay-corral/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0882089b70c8b152",
+   "familyId": "family-fb5c4eb7b690d8d66255aaf5acee4a82",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-party-pack/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:09826db0595a23d5",
+   "familyId": "family-99de98db947a68ab28f2a3b3c86f0cc2",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-natural-activity-mobile/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0564f220d5d3b1c8",
+   "familyId": "family-b1e95c30b0f98dcca20f35921cc2b383",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-pull-n-seek/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:10920ab30e767bb5",
+   "familyId": "family-1259bb9f4f25d6eea9bd19841368b586",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-woven-hideout/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0c9bd71fda114c47",
+   "familyId": "family-a2db09f609c2c6ab519361b09a1f56b1",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-forage-bowl/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:3b9160a7afc6bfda",
+   "familyId": "family-0b52713daa3d541be349cc82a9533032",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-lollipop-apple/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:09d2cfc5f9def6a2",
+   "familyId": "family-fe04b9ea25bdbb5f9d7e9c803f2f58f7",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-leakproof-play-yard-floor-cover/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0bea32acbe89f4ab",
+   "familyId": "family-71e9bf241ac935eb13cafc16d9f99d3e",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/simple-harvest-adult-rat-food/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0b811c9174d21364",
+   "familyId": "family-61a6d3dc0cde0b490717c47004e20739",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-crazy-hay-ball/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:25a401ea92d5b0c9",
+   "familyId": "family-f39c47fa3558ecbbc18929b728583d65",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-lollipop-carrot/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0ae5b285096790e4",
+   "familyId": "family-f7999074319e75974059220a30e78180",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-attachable-quiet-wheel/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:232c6aa607b84759",
+   "familyId": "family-97e26337bea7a6c930ad06164a17ba16",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-maraca-chew/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:21728d96bb53c18b",
+   "familyId": "family-4e4312d6332ab29286ff8ae1578d5833",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-popsicle/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:05335aa4db2f6832",
+   "familyId": "family-94193a964d3e3bb7b2c4c65cd89e2a11",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-crinkle-barrel-with-apple-sticks/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:29b1d8d72383b937",
+   "familyId": "family-68f2f14702f95d417c6f3ff8d9b9ad85",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apples-stix/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:477593d8ed8fbfdd",
+   "familyId": "family-e837ac52c5df2e55ee2a8005bbe82cd4",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hay-forager/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:2b5194955ab4efd1",
+   "familyId": "family-8be2d0ec09c65fa1e5e455c5dfe5d315",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-honeycomb-hammock/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:35dca0139d84b5ed",
+   "familyId": "family-951a57a1096c617e75009abd6cbf7605",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-deluxe-color-dangly/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:1bd7aced68164c14",
+   "familyId": "family-c174575a662cbf5bb6bab7fa36a06de9",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-orange-slice/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:013af5c713ec2da5",
+   "familyId": "family-6c487f08a2ad8d2cd437054bbf5d8698",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hanging-bulrush-bunches/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:3b2c5d540a45e5df",
+   "familyId": "family-aa15a64377a5dbdee89ddd4b092ee0ad",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hay-o/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:19fb2ba6858b9366",
+   "familyId": "family-b3e55992756c1e7f40bf252d77b2051f",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-stix-hay/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:2a2508bd0c99ecd6",
+   "familyId": "family-05c30085db68963311c33cad60f62594",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-woody-combo/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:0be76217aeb3f68c",
+   "familyId": "family-dfeef14c3b5af415bb54c34a4944743f",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-magic-timothy-wand/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:1e76d3b2311b9d42",
+   "familyId": "family-e21a8497514b6fb9236b5ebf8c182f36",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-orange-timothy-carrot/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:2a23a55ebe52e61c",
+   "familyId": "family-8f095956ed03f41706f11839a524e099",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-willow-play-cube/"
+  },
+  {
+   "bank": "oxbow",
+   "sku": "PUBLIC:oxbowanimalhealth.com:02e9d554c0f2770d",
+   "familyId": "family-67a094991609feea826db62ea8444d78",
+   "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-wood-disk-dangler/"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:bf2b4f64e6e98267",
+   "familyId": "family-95973e35b1cd53d05f4713532150092d",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-kibble-for-kittens-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:ccdbfd34074d0a47",
+   "familyId": "family-bd803ad5e7418840c7a5a0c81ba3710d",
+   "canonicalUrl": "https://instinctpetfood.com/products/rawboost-shakers-for-dogs-gut-health"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:945f120ca771bc8c",
+   "familyId": "family-3c4cb1af6b91114b675da615a35cbdb4",
+   "canonicalUrl": "https://instinctpetfood.com/products/rawboost-shakers-for-cats-digestive-health"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:7a6632c5e00e8c46",
+   "familyId": "family-945f8eded6ef9aff9e6849a6731d694b",
+   "canonicalUrl": "https://instinctpetfood.com/products/raw-boost-kibble-for-cats-indoor-health-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:bc9237cadc598816",
+   "familyId": "family-1ac3a39874d34f299765ccacf5a612df",
+   "canonicalUrl": "https://instinctpetfood.com/products/raw-boost-kibble-for-cats-healthy-weight"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:88fdeacc59518109",
+   "familyId": "family-0c43c2d35ddfff4f6290c23c42b232ba",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-wet-dog-food-for-small-breed-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:9168b657d952d2df",
+   "familyId": "family-fc63d6ad31ad1d41efa2c576ec311db0",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-pates-for-cats-lamb"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:ab67b7c5b694da00",
+   "familyId": "family-dbf01961edc197f0f0aaa07924f2f690",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-wet-food-for-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:3c17d75ede814d3c",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-kibble-for-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:bd42394c8337303f",
+   "familyId": "family-8b4b8748e2ff6d5d9baf85048a052e6d",
+   "canonicalUrl": "https://instinctpetfood.com/products/flaked-entrees-variety-pack"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:a36e4fe6669e4168",
+   "familyId": "family-cc05616c617dd0ce1aa20b6767b6897d",
+   "canonicalUrl": "https://instinctpetfood.com/products/split-cups-pate-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:316ad14392e85894",
+   "familyId": "family-d60ff40b14490b0c9b50cf27a545cb81",
+   "canonicalUrl": "https://instinctpetfood.com/products/freshraw-meals-sampler"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:cbfb7794377eb841",
+   "familyId": "family-6a7f28dfcbbb812548bcb585429b93b1",
+   "canonicalUrl": "https://instinctpetfood.com/products/duos-snuggle-booster"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:014a12a2d77ee33b",
+   "familyId": "family-f03efd824625123218cc0e5c24ad18a1",
+   "canonicalUrl": "https://stellaandchewys.com/products/cage-free-duck-duck-goose-meal-mixer-superblends"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0d8c8a42937d239e",
+   "familyId": "family-246ff53f3eaa65c56ae1f167ebc7ed74",
+   "canonicalUrl": "https://stellaandchewys.com/products/cage-free-chicken-meal-mixer-superblends"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d5189e10e343beb3",
+   "familyId": "family-ca925eb84be7f401e4e76e793f5e286f",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-morsels-n-gravy-chicken-chicken-liver-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ab54049c37f569b8",
+   "familyId": "family-2da8be4963933953e6a80958dbd06f8b",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-jerky-nuggets-beef-lamb-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:578cdc8138de11a2",
+   "familyId": "family-0cced746a59bf4112e74288fb430539c",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-beef-chicken-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:2ad820d539f82dc9",
+   "familyId": "family-84a56ba56bb4d04891161b85b15b7f67",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-chicken-chicken-liver-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d3b3c0fbf5e81d4b",
+   "familyId": "family-7b7695b12bba60d4fbc905be6f45ca00",
+   "canonicalUrl": "https://stellaandchewys.com/products/grass-fed-beef-meal-mixer-superblends"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f369baaac02ff92b",
+   "familyId": "family-12f22f5b34c159f8bf69545c4c26e225",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-tuna-pumpkin-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:75bf751a6a55e3af",
+   "familyId": "family-439e7dd301baac5251642a19c269c043",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-chicken-salmon-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:2533ff7668fdbdb6",
+   "familyId": "family-1b0f07be457520a47f76b54c1ac5a391",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-purrfect-pate-2-8-oz-canned-variety-pack"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:c7c24d0c9100b302",
+   "familyId": "family-fe3208df521ab0e026bc8df5a2bd3ed2",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-savory-shreds-2-8-oz-canned-variety-pack"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:51d3b8604e8e769d",
+   "familyId": "family-11143a28013d952f50ce31d86a0e7dfb",
+   "canonicalUrl": "https://stellaandchewys.com/products/just-jerky-bites-real-chicken-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:3d8c18a75aa5c754",
+   "familyId": "family-a065295b451b8479be52881aba0337be",
+   "canonicalUrl": "https://stellaandchewys.com/products/grass-fed-beef-raw-coated-biscuits"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f0795a26f0bb63b7",
+   "familyId": "family-13df324a28c827c5598ecc721ffefad2",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-salmon-tuna-mackerel-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:5ab4e6d47a244162",
+   "familyId": "family-2d2331a7cd1ba891bb32742275ee3b83",
+   "canonicalUrl": "https://stellaandchewys.com/products/gourmet-stew-chicken-carrot-broccoli-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:584b3bee30671b57",
+   "familyId": "family-1e361e52c53c9f86d5b0c313f2415eb6",
+   "canonicalUrl": "https://stellaandchewys.com/products/gourmet-stew-duck-carrot-spinach-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:b5d0f944393ebc56",
+   "familyId": "family-76a037cf692d30306abdda6129b8c34c",
+   "canonicalUrl": "https://stellaandchewys.com/products/marie-s-magical-breakfast-sprinkles-breakfast-burger"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ec261cf5825ebe04",
+   "familyId": "family-ec844366c31a06ec523d78a9866385b4",
+   "canonicalUrl": "https://stellaandchewys.com/products/marie-s-magical-breakfast-sprinkles-bacon-egg-cheese"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:8fd7c7226c27b806",
+   "familyId": "family-661c2b4e5a158e002c5fae1921222a1e",
+   "canonicalUrl": "https://stellaandchewys.com/products/dental-delights-large-chicken-parsley-flavor"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:795d639865bffdd1",
+   "familyId": "family-4877744c405fb48fa13d641041581823",
+   "canonicalUrl": "https://stellaandchewys.com/products/freshmade-savory-sea-gently-cooked-dog-food"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f9a8284680351d58",
+   "familyId": "family-6d89acc5b38cdc0cb09fdb3e1a194e42",
+   "canonicalUrl": "https://stellaandchewys.com/products/freshmade-pork-quinoa-gently-cooked-dog-food"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:db4a95156271123e",
+   "familyId": "family-2d783e517356485d42ffde0904765ef9",
+   "canonicalUrl": "https://stellaandchewys.com/products/freshmade-wholesome-grains-beef-barley-turkey"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0d4779238f738539",
+   "familyId": "family-e4a98a1cecd134230374148c8828f225",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-stews-variety-pack"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:92685d0e492b5037",
+   "familyId": "family-958e95c34b6471249299f1b61f8f591c",
+   "canonicalUrl": "https://stellaandchewys.com/products/bountiful-beef-freeze-dried-raw-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:9cefa6f5b1fcef50",
+   "familyId": "family-52d05d2e2db6934c9ae4bcb9d94e588b",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-coated-chicken-duck-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:1b0fc3a5c28b9e65",
+   "familyId": "family-557e524e6cb398667a735a7c4067318f",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-coated-beef-beef-liver-lamb-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:3ed9d7419a23ac44",
+   "familyId": "family-71bae21d997552ca0181e6c55a7a4bf8",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-blend-puppy-chicken-salmon-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:919ed8e44673f9f1",
+   "familyId": "family-f27e304a73ac5f44e6505e0eae24386f",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-blend-chicken-duck-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f9c7190e2a4bf1f2",
+   "familyId": "family-3b8bce147b15d2fcf6c46c0f529b7ead",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-blend-beef-beef-liver-lamb-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:a003597635eac209",
+   "familyId": "family-40379a74aa3b492ce82849afa83da52d",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-wholesome-grains-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ea36a0f6d02d0a4d",
+   "familyId": "family-7180a6fc76193941bf0f0769890788aa",
+   "canonicalUrl": "https://stellaandchewys.com/products/fresh-made-chick-a-lickn"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:a6a81f6c98cf5fa5",
+   "familyId": "family-2fe731063d780ce2e54563210a85b8a1",
+   "canonicalUrl": "https://stellaandchewys.com/products/fresh-made-gobblin-good"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ece45bddd194d311",
+   "familyId": "family-7d2b044419a17ef169f5202013ca803e",
+   "canonicalUrl": "https://stellaandchewys.com/products/fresh-made-meat-a-palooza"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:1e0d320e00309b5d",
+   "familyId": "family-fc0638d92834a9158d83679989e27a68",
+   "canonicalUrl": "https://stellaandchewys.com/products/gourmet-pate-duck-chicken-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:fb8eddb5b7861e4b",
+   "familyId": "family-347d041d1e01a20aeb5127488582c81f",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-chicken-beef-stew"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:4753ed57c7b41967",
+   "familyId": "family-03b6d2919acf685cb1579dfd98dd6cd1",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-blend-wholesome-grains-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f766e4217faa1f8c",
+   "familyId": "family-c7a9c92affeecbc3c8d78984f2926161",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-blend-grain-legume-free-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:97fc377c969f0506",
+   "familyId": "family-d1fca220a280abb056ec6c2107ab34f4",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-wholesome-grains-ocean-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:77cbc2a7308a236e",
+   "familyId": "family-f3ba6148ca0711efa897501bbb03bb84",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-wholesome-grains-red-meat-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:e9bb9eb4637c213d",
+   "familyId": "family-c29a3c5c6801ddad34d34a34b6f67dae",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-grain-legume-free-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ae975927a8b2c799",
+   "familyId": "family-52b82ca8cdebe155b693bbc632a22225",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-grain-legume-free-ocean-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:402c7541b81a4105",
+   "familyId": "family-a7bdfbc01dc7b3974c32eb699d7d5fd2",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-grain-legume-free-red-meat-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d696122c822537fa",
+   "familyId": "family-cbf00f7072e75c30bdb47dd151984eb0",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-chicken-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:51187351999e28cd",
+   "familyId": "family-153fa05f2f1a53c762c91a832959e56b",
+   "canonicalUrl": "https://stellaandchewys.com/products/bountiful-bone-broth-grass-fed-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:70da89a4b8a61c0e",
+   "familyId": "family-83672aa612c858e2c805062f79b7b5ea",
+   "canonicalUrl": "https://stellaandchewys.com/products/bountiful-bone-broth-cage-free-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:72c399dd0e6b25c8",
+   "familyId": "family-0590df9dd60e962206c7b9cf10114541",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-chicken-chicken-liver-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:bd0f1e99e91fd3ad",
+   "familyId": "family-05af890eaeda5d3c4f63cb6bfe5336d9",
+   "canonicalUrl": "https://stellaandchewys.com/products/yummy-lickin-salmon-chicken-freeze-dried-raw-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:ab6705e2193898c6",
+   "familyId": "family-83a6b9fd154b1fda459a101c4b7b4d8e",
+   "canonicalUrl": "https://stellaandchewys.com/products/sea-licious-salmon-cod-freeze-dried-raw-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:9695b2f49d315fbb",
+   "familyId": "family-12745b7440e52b4fcfe2dac5b6b0eeae",
+   "canonicalUrl": "https://stellaandchewys.com/products/tummy-ticklin-turkey-freeze-dried-raw-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:fd46aacbc0388214",
+   "familyId": "family-5c69c88e407c066441e2a093796798da",
+   "canonicalUrl": "https://stellaandchewys.com/products/duck-duck-goose-freeze-dried-raw-cat-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:30ce19e4ee285264",
+   "familyId": "family-14d0416d9e1d808b4c0b6da8a2d3567c",
+   "canonicalUrl": "https://stellaandchewys.com/products/chick-chick-chicken-freeze-dried-raw-dinner-morsels"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:22b98a6a7bb83638",
+   "familyId": "family-98d9e40156ce8be9db4990c04252de7b",
+   "canonicalUrl": "https://stellaandchewys.com/products/maries-magical-dinner-dust-salmon-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f05bfb4a233e4622",
+   "familyId": "family-e63e540036865c809b7cddbde932be8c",
+   "canonicalUrl": "https://stellaandchewys.com/products/maries-magical-dinner-dust-cat-cage-free-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:49ab897a8d171c22",
+   "familyId": "family-7a8688f74b9682965138477148154378",
+   "canonicalUrl": "https://stellaandchewys.com/products/stellas-solutions-cat-skin-coat-support"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f031ff63d59c3da1",
+   "familyId": "family-acc654da6a3e5c73b0a03b22a7d7c90a",
+   "canonicalUrl": "https://stellaandchewys.com/products/stellas-solutions-cat-digestive-support"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:82bc967bd7a382b3",
+   "familyId": "family-ac2a6a2dd2a87360883dadde237a014d",
+   "canonicalUrl": "https://stellaandchewys.com/products/beef-heart-treats"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:c3ea2e52124c4082",
+   "familyId": "family-fdd9804406a5106ad6b3c8543ebc67c2",
+   "canonicalUrl": "https://stellaandchewys.com/products/game-bird-wild-weenies"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:48e1e131d871b716",
+   "familyId": "family-8ee0352b0a5e4856416304c41aa1e9c9",
+   "canonicalUrl": "https://stellaandchewys.com/products/red-meat-wild-weenies"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d8ba5eab437e386d",
+   "familyId": "family-5042a6f438c0e37ed578323e866272a7",
+   "canonicalUrl": "https://stellaandchewys.com/products/wholesome-grains-raw-blend-baked-kibble-cage-free-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:30b67cbf49094664",
+   "familyId": "family-a120f232f3531a03b3a6ec0b94bffac5",
+   "canonicalUrl": "https://stellaandchewys.com/products/wholesome-grains-raw-blend-baked-kibble-red-meat-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:b41da5cd20ddeec0",
+   "familyId": "family-33a7a4d91bae2b1cbf7917a4cb1324f8",
+   "canonicalUrl": "https://stellaandchewys.com/products/small-breed-beef-recipe-with-pumpkin-quinoa-raw-coated-kibble-wholesome-grains"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:07d67bfb48167ec7",
+   "familyId": "family-b680b8b47a0fd016576dca111b57a416",
+   "canonicalUrl": "https://stellaandchewys.com/products/beef-recipe-with-pumpkin-quinoa-raw-coated-kibble-wholesome-grains"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0ea6fd22a009d39f",
+   "familyId": "family-25b9c87a13a0a07c1d0d8904780f7ad6",
+   "canonicalUrl": "https://stellaandchewys.com/products/cage-free-chicken-raw-coated-kibble-for-puppies"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:5fab9af9081e45bc",
+   "familyId": "family-531bb9754cb9aadad8dfe93d8262b581",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-caught-whitefish-raw-coated-kibble"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:4898e23c9d4cd0ab",
+   "familyId": "family-91e1cad69aea28bebde4c27697353838",
+   "canonicalUrl": "https://stellaandchewys.com/products/cage-free-chicken-raw-coated-kibble-for-small-breeds"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:ea5806f667695ab3",
+   "familyId": "family-95973e35b1cd53d05f4713532150092d",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-kibble-for-kittens-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:b55958e6ebcc063f",
+   "familyId": "family-945f8eded6ef9aff9e6849a6731d694b",
+   "canonicalUrl": "https://instinctpetfood.com/products/raw-boost-kibble-for-cats-indoor-health-rabbit"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:50a1d54c5e76ce6d",
+   "familyId": "family-945f8eded6ef9aff9e6849a6731d694b",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/raw-boost-kibble-for-cats-indoor-health-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:968bd34032c9fe0b",
+   "familyId": "family-1ac3a39874d34f299765ccacf5a612df",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/raw-boost-kibble-for-cats-healthy-weight"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:888f4c34ed2036c7",
+   "familyId": "family-0c43c2d35ddfff4f6290c23c42b232ba",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-wet-dog-food-for-small-breed-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:20e76a50f846ddb1",
+   "familyId": "family-0c43c2d35ddfff4f6290c23c42b232ba",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-wet-dog-food-for-small-breed-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:9fb3aa15e3179d93",
+   "familyId": "family-0c43c2d35ddfff4f6290c23c42b232ba",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-wet-dog-food-for-small-breed-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:3196161133f007f0",
+   "familyId": "family-fc63d6ad31ad1d41efa2c576ec311db0",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-pates-for-cats-venison"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:435c21571d2e2c4a",
+   "familyId": "family-fc63d6ad31ad1d41efa2c576ec311db0",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-pates-for-cats-lamb"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:5a52dd1b344baf2a",
+   "familyId": "family-fc63d6ad31ad1d41efa2c576ec311db0",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-pates-for-cats-venison"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:73277fa9f2df0a21",
+   "familyId": "family-dbf01961edc197f0f0aaa07924f2f690",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-wet-food-for-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:7ad7c6ac2d846628",
+   "familyId": "family-dbf01961edc197f0f0aaa07924f2f690",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-wet-food-for-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:76476b056dbc3a54",
+   "familyId": "family-dbf01961edc197f0f0aaa07924f2f690",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-wet-food-for-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:990c9f12ddda9c35",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-kibble-for-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:9bbd5732f2597e37",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://instinctpetfood.com/products/original-kibble-for-dogs-salmon"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:791c910d8c7fb5b0",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-kibble-for-dogs-beef"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:cec909ebd3d8e96a",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-kibble-for-dogs-chicken"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:1111aa439f7b72b5",
+   "familyId": "family-e885f522617e597f50567b54b8a90333",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/original-kibble-for-dogs-salmon"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:d903943ee3c9ce12",
+   "familyId": "family-8b4b8748e2ff6d5d9baf85048a052e6d",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/flaked-entrees-variety-pack"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:38ced0f1bb14a13b",
+   "familyId": "family-cc05616c617dd0ce1aa20b6767b6897d",
+   "canonicalUrl": "https://instinctpetfood.com/products/split-cups-pate-duck"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:32c46ae79a21c419",
+   "familyId": "family-cc05616c617dd0ce1aa20b6767b6897d",
+   "canonicalUrl": "https://instinctpetfood.com/products/split-cups-pate-salmon"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:e07b53f196b7749c",
+   "familyId": "family-d60ff40b14490b0c9b50cf27a545cb81",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/freshraw-meals-sampler"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:instinctpetfood.com:5f406e39519b21e7",
+   "familyId": "family-6a7f28dfcbbb812548bcb585429b93b1",
+   "canonicalUrl": "https://www.instinctpetfood.com/products/duos-snuggle-booster"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:416e02733f01a1db",
+   "familyId": "family-2da8be4963933953e6a80958dbd06f8b",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-jerky-nuggets-chicken-duck-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d80ce7fe12ec0c2c",
+   "familyId": "family-0cced746a59bf4112e74288fb430539c",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-chicken-duck-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:9023bb735f9b8a42",
+   "familyId": "family-0cced746a59bf4112e74288fb430539c",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-chicken-salmon-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:3099c98a12f890a8",
+   "familyId": "family-0cced746a59bf4112e74288fb430539c",
+   "canonicalUrl": "https://stellaandchewys.com/products/lil-bites-savory-stews-chicken-turkey-dinner-in-broth"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:9d27ea88c380d196",
+   "familyId": "family-439e7dd301baac5251642a19c269c043",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-chicken-tuna-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:40d6cd3d2e8e9754",
+   "familyId": "family-439e7dd301baac5251642a19c269c043",
+   "canonicalUrl": "https://stellaandchewys.com/products/carnivore-cravings-duck-chicken-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:eac07b31cb53e0e0",
+   "familyId": "family-11143a28013d952f50ce31d86a0e7dfb",
+   "canonicalUrl": "https://stellaandchewys.com/products/just-jerky-bites-real-salmon-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:1e319ad4d2ca2d82",
+   "familyId": "family-a065295b451b8479be52881aba0337be",
+   "canonicalUrl": "https://stellaandchewys.com/products/grass-fed-lamb-raw-coated-biscuits"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:f40cef6daa0f5ac5",
+   "familyId": "family-661c2b4e5a158e002c5fae1921222a1e",
+   "canonicalUrl": "https://stellaandchewys.com/products/dental-delights-medium-chicken-parsley-flavor"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:524a5901621c5414",
+   "familyId": "family-661c2b4e5a158e002c5fae1921222a1e",
+   "canonicalUrl": "https://stellaandchewys.com/products/dental-delights-small-chicken-parsley-flavor"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:7c1149b7cf9b6f95",
+   "familyId": "family-52d05d2e2db6934c9ae4bcb9d94e588b",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-coated-whitefish-salmon-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:bc00dcbc60a47dcf",
+   "familyId": "family-f27e304a73ac5f44e6505e0eae24386f",
+   "canonicalUrl": "https://stellaandchewys.com/products/raw-blend-whitefish-salmon-superfoods"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:693d470e2d98469e",
+   "familyId": "family-40379a74aa3b492ce82849afa83da52d",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-wholesome-grains-puppy-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:dc531d709ae2c649",
+   "familyId": "family-fc0638d92834a9158d83679989e27a68",
+   "canonicalUrl": "https://stellaandchewys.com/products/gourmet-pate-puppy-chicken-salmon-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:a6e0d32735a770a0",
+   "familyId": "family-347d041d1e01a20aeb5127488582c81f",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-chicken-lamb-stew"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:c6d8a77b5bfaa739",
+   "familyId": "family-347d041d1e01a20aeb5127488582c81f",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-chicken-turkey-stew"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:d064901555132f83",
+   "familyId": "family-c29a3c5c6801ddad34d34a34b6f67dae",
+   "canonicalUrl": "https://stellaandchewys.com/products/wild-red-raw-coated-grain-legume-free-puppy-prairie-recipe"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0679298fa2590484",
+   "familyId": "family-ac2a6a2dd2a87360883dadde237a014d",
+   "canonicalUrl": "https://stellaandchewys.com/products/chicken-heart-treats"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:68ad710f0245cee5",
+   "familyId": "family-ac2a6a2dd2a87360883dadde237a014d",
+   "canonicalUrl": "https://stellaandchewys.com/products/lamb-heart-treats"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0496c7a1de468700",
+   "familyId": "family-b680b8b47a0fd016576dca111b57a416",
+   "canonicalUrl": "https://stellaandchewys.com/products/chicken-recipe-with-pumpkin-quinoa-raw-coated-kibble-wholesome-grains"
+  },
+  {
+   "bank": "petfood2",
+   "sku": "PUBLIC:stellaandchewys.com:0216302d73dccdb9",
+   "familyId": "family-25b9c87a13a0a07c1d0d8904780f7ad6",
+   "canonicalUrl": "https://stellaandchewys.com/products/cage-free-duck-raw-coated-kibble"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:7a02531f86d15d5f",
+   "familyId": "family-bead2225cd3cd213fd99e36575f86f0b",
+   "canonicalUrl": "https://ruffwear.com/products/webbing-remix-cactus-tug-toy"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:c85e7db84408a6ec",
+   "familyId": "family-4f6d5eba6f1ba63eaa5eb6f4b9789c39",
+   "canonicalUrl": "https://ruffwear.com/products/webbing-remix-soft-flying-disc"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:b36d7e293f3e1ee5",
+   "familyId": "family-a223b9a5575603b61442d784cc5ca60d",
+   "canonicalUrl": "https://ruffwear.com/products/basecamp-dog-bowl-mat"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:a356f29052b12e15",
+   "familyId": "family-d4ae2376f177d11a3fbe12f9e430da01",
+   "canonicalUrl": "https://ruffwear.com/products/kibble-kaddie-dog-food-travel-bag"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:fbdfa0be8d41f3cd",
+   "familyId": "family-0c7354ebe0641c5091c6282625731781",
+   "canonicalUrl": "https://ruffwear.com/products/dirtbag-bed"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:5f23228aa68c8b2f",
+   "familyId": "family-02347ff4380256fe96f1b706de137fe4",
+   "canonicalUrl": "https://ruffwear.com/products/mt-everrest-cot"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:5c238b471d461c33",
+   "familyId": "family-2d430c49e7e935ba78f1f540a1bfcf12",
+   "canonicalUrl": "https://ruffwear.com/products/bivy-portable-dog-bowl"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:31a0f5e6a390cb8d",
+   "familyId": "family-c16a187ffa64c028c14e783d3aa6a72c",
+   "canonicalUrl": "https://ruffwear.com/products/large-collapsible-water-bladder"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:d2ec2ac7da1c4301",
+   "familyId": "family-24cb6db2351f0c9bb5e8b7e50288d4bf",
+   "canonicalUrl": "https://ruffwear.com/products/the-beacon-safety-dog-light"
+  },
+  {
+   "bank": "wave2",
+   "sku": "PUBLIC:ruffwear.com:ad226040e48228b9",
+   "familyId": "family-a223b9a5575603b61442d784cc5ca60d",
+   "canonicalUrl": "https://ruffwear.com/products/basecamp-mat"
+  }
+ ]
+}

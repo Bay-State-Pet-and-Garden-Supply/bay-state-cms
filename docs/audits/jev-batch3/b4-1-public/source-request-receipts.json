@@ -1,0 +1,34 @@
+{
+  "artifactKind": "source-request-receipts-public",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "urlIdentity": "sha256-only: public receipts never carry raw held URLs",
+  "receipts": [
+    {
+      "seq": 738,
+      "urlSha256": "49f32453c5a19da2fffe703eb88b3975a18dca6b03fc24349dd95a7c993491a6",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-1",
+      "at": "2026-10-08T18:38:12.194Z",
+      "status": 301,
+      "finalUrlSha256": "87e4551b159d087e2aab886d35d8106711443349a77cb218eb2506aadde359f3",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 739,
+      "urlSha256": "87e4551b159d087e2aab886d35d8106711443349a77cb218eb2506aadde359f3",
+      "kind": "sitemap",
+      "worker": "main-stage-B4-1",
+      "at": "2026-10-08T18:38:12.304Z",
+      "status": 403,
+      "finalUrlSha256": null,
+      "error": "host-denied",
+      "bytes": 0,
+      "outcomeMissing": false
+    }
+  ]
+}

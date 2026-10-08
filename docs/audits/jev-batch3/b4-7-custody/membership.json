@@ -1,0 +1,274 @@
+[
+  {
+    "familyId": "family-2c89239dc4e6e7643ebdc4bab83dff33",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:d038f71280ff909b",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b2cab2da6f7bd1083da5cc15690783fe",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:db95d1145ef4a8b4",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6dd02a60bfcc4fcac96b28becef76278",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:6226963a03e2022a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-681aac46b965ff7678f2e6b4943a371b",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:a39e236f49a55273",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-604524924258bbc8fd5d2265f05f66ea",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:b0916a9c9ea19c5c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c0d6344fd72a44e15a7bda809aa8a734",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:c63093e58895ccd1",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-f6124d60be5757d22536b8aa7f84f457",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:64bb1cd7cc96385c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-046501009ab67c70cf043b13895ac031",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:c5a898903f9b29da",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3499df5485026443caa48bca92941bf4",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:ec1bf2e5c9b1655a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1211d1505b72395625c912e9590b1a6c",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:fefd49c08c81f260",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-054b3431a43d69022a380918041de3c6",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:eabd9b70931f8b31",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-0e472334139394760ce4bab31cdd701d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:7ad4c842c48e26fd",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-07515b8439451ad2b01201ea6095d7b4",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:1c9ed694f0b0eb00",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-bb23edb6918a2c571681acbae8ee515a",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:22488ebd5bb7f464",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-feb5e92552a7ecc09605da3ff553e1dc",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:87f1e19f2d249861",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-10a858053469addc31736bbf91b5c4db",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:c93c482f3127b6db",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-f51a85ac974ae0caaece08972b0a3879",
+    "split": "test",
+    "primarySku": "PUBLIC:mannapro.com:de23e874eb99115c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-821f3826730571bf4208f4d46b4193dc",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:d347ea7059a3e3ef",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-be5992ae13b4e09e2e7e36683d52ead1",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:8fbd5063896a4c8f",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-e62933059df2febb774c2f2f03562099",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:3bcf9255f8cdef80",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ae9f139e3b42a92b4b5dcfa51b88bb20",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:aa66e684b05154ca",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c9c6a5833e594d722c32a171fdb44f50",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:a4e363f0bdd94b4a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-080017f87c87571b45693127297dd97d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:f235585758510bf9",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-238fc1d4bff2ba73a4718104e5a570f3",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:ca64dc855e1f4302",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-7257ea1d76a4f7b219f9f86ab2d73476",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:af52e4052428be4a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-00a704f278aaeb2a0ad8cdb6f8b63cdf",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:90e0f698b484fc2c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-0692cb5e94f727fc5ae2de1e8fbd2477",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:2a06ef3c8236fd81",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-a53e9d4f88e8e6c518064a40806fdc59",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:58d3fa128952f469",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-299a6e1229cb355147ac07e89ca7b6a0",
+    "split": "train",
+    "primarySku": "PUBLIC:mannapro.com:48d519402800173f",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-7e3aedf94a65915e370c2a5abbefbec9",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:b7d15c6b09bb1c3c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-281d411ebb1c6428e00aa9cfd3e737ac",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:56fb38a86c52ecda",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-146f3d5e1ac21cbe568e47ea5a375a83",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:ae913f079bb967c9",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1938709e5330c855e59cc42806a5dc69",
+    "split": "holdout",
+    "primarySku": "PUBLIC:mannapro.com:264e053019dbc4d9",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-23b4e7d07d0958720686ad84d5a6a888",
+    "split": "test",
+    "primarySku": "PUBLIC:mannapro.com:3934f1f1f9f7b0f5",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  }
+]
