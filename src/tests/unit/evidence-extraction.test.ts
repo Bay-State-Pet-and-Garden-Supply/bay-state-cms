@@ -353,6 +353,48 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
     expect(evidence.find(e => e.sourceField === 'flavor')!.value).toBe('Beef');
   });
 
+  it('live distributor item emits spreadsheet identity rows (name/brand) before the early return', async () => {
+    const { evidenceExtractionStage } = await import('../../classification/stages/evidence-extraction');
+    const { createBatch } = await import('../../db/repositories/onboarding-batch-repo');
+    const { insertItems, updateItemExtractionData, listItemsByBatch } = await import('../../db/repositories/onboarding-item-repo');
+    const { getDb } = await import('../../db/connection');
+    const batchId = createBatch({ workspaceId, name: 'Dist Spreadsheet Batch', fileName: 'dist-sheet.xlsx', totalItems: 1 }).id;
+    const [item] = insertItems(batchId, [
+      { upc: '300000000003', name: 'PURE VITA GF LAMB/PMKN 25LB', brandHint: 'NutriSource', rowNumber: 1 },
+    ]);
+    getDb().query('UPDATE onboarding_items SET source_type = ? WHERE id = ?').run('distributor_record', item.id);
+    updateItemExtractionData(item.id, JSON.stringify({
+      title: 'NutriSource PureVita LID Dry Dog Food',
+      brand: 'NutriSource',
+      weight: '25.00',
+      sourceType: 'distributor_record',
+      sourceUrl: null,
+      distributorRecordProvenance: {
+        sourcingGenerationId: 'gen-sheet',
+        evidenceHash: DIST_HASH,
+        acceptedEvidenceAttemptIds: ['a1'],
+        providerIds: ['phillips'],
+        catalogVersions: ['v1'],
+      },
+    }));
+    const loaded = listItemsByBatch(batchId)[0];
+    const result = await evidenceExtractionStage.execute(
+      { sku: loaded.upc, onboardingItemId: loaded.id, evidence: [], acceptedProposals: [], allProposals: [] },
+      {
+        workspacePath,
+        workspaceId,
+        runId: 'run-sheet',
+        configSnapshotRef: { id: 'cfg', hash: 'h'.repeat(64), sourceCommit: null, createdAt: new Date().toISOString() },
+      } as never,
+    );
+    expect(result.status).toBe('succeeded');
+    const evidence = (result as { status: 'succeeded'; output: { evidence: Array<Record<string, any>> } }).output.evidence;
+    const sheetName = evidence.find(e => e.source === 'spreadsheet' && e.sourceField === 'name');
+    expect(sheetName!.value).toBe('PURE VITA GF LAMB/PMKN 25LB');
+    const sheetBrand = evidence.find(e => e.source === 'spreadsheet' && e.sourceField === 'brand');
+    expect(sheetBrand!.value).toBe('NutriSource');
+  });
+
   it('frozen V2 distributor member emits merchandising fields with distributor provenance (Amendment B)', async () => {
     const { evidenceExtractionStage } = await import('../../classification/stages/evidence-extraction');
     const member = makeDistributorMember();

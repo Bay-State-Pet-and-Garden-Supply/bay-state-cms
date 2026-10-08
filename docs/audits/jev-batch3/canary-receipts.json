@@ -28,8 +28,22 @@
       "reviewer": "nick",
       "origin": "human_review",
       "coordinatedDecisions": "6 types + 6 brands + 6 pages (Dog Food Dry) + invariants/abstentions; 6 naming abstentions deferred per owner choice (manual titles open)"
+    },
+    "cohortRerun": {
+      "reason": "distributor evidence fix (spreadsheet identity now emitted before early return); re-runs produced size-bearing titles, zero naming abstentions",
+      "runs": [
+        "a173b54e",
+        "9f10c7e8",
+        "16d002fe",
+        "ca5907bf",
+        "b357e9d5",
+        "7e6f1074"
+      ],
+      "pages": "Dog Food Dry accepted all 6 (3 direct 90-92%, 2 corrected from Pet Nutrition 71-72% per cross-run consistency + packet D-DRY-WET, 1 P6 abstention resolved to Dog Food Dry child); reviewer nick/human_review with per-decision notes",
+      "flavor": "Lamb resolved all 6 from spreadsheet name tokens (evidence match) — fix side benefit",
+      "naming": "6 missing_size abstentions GONE (no manual titles needed); prior deferred naming decisions superseded by fresh runs"
     }
   },
   "source": "human review via structured gate walkthrough + submitProposalDecisions (human_review origin)",
-  "recordedAt": "2026-10-08T19:29:30.906Z"
+  "recordedAt": "2026-10-08T23:26:03.009Z"
 }

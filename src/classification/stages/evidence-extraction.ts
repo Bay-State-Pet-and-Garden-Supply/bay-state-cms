@@ -557,7 +557,36 @@ export const evidenceExtractionStage: StageDefinition = {
         pushMerch('unit_of_measure', extData.unitOfMeasure ?? null);
         pushMerch('ingredients', extData.ingredients ?? null);
       }
-      return { status: 'succeeded', output: { evidence, proposals: [], abstained: false } };
+      // Distributor runs take the early return below — push the spreadsheet
+      // identity rows here too, or downstream detectors that read the
+      // 'spreadsheet' source (naming variant guarantee, brand matching) starve
+      // on distributor items whose distributor title lacks size tokens.
+      // Same shape + provenance as the official_page path below.
+      const distSheetName = itemRow.name ? String(itemRow.name) : null;
+      const distSheetExpected = itemRow.expected_name ? String(itemRow.expected_name) : null;
+      const distSheetBrand = itemRow.brand_hint ? String(itemRow.brand_hint) : null;
+      const pushSheet = (sourceField: string, value: string | null, extra: Record<string, unknown> = {}): void => {
+        if (!value) return;
+        evidence.push({
+          id: crypto.randomUUID(),
+          runId: context.runId,
+          stageName: 'evidence_extraction',
+          productSku: input.sku,
+          attributeId: null,
+          source: 'spreadsheet',
+          reliability: 'medium',
+          sourceUrl: null,
+          sourceField,
+          snippet: value.slice(0, 300),
+          value,
+          metadata: { provenance: 'spreadsheet_import', ...extra },
+          capturedAt: now(),
+        } as ClassificationEvidence);
+      };
+      pushSheet('name', distSheetName);
+      if (distSheetExpected && distSheetExpected !== distSheetName) pushSheet('expected_name', distSheetExpected, { refinement: 'discovery_consolidation' });
+      pushSheet('brand', distSheetBrand);
+       return { status: 'succeeded', output: { evidence, proposals: [], abstained: false } };
     }
 
     // Parent #101 (manual-evidence route): operator-transcribed rows emit
