@@ -1,0 +1,3441 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "inputSha256": "58c2c72c1c5c96a692f58d6787c920134a860d947fdd1909cc772328ebd9daa0",
+ "reviewedSkus": [
+  "PUBLIC:earthanimal.com:34db9cf0b6051cde",
+  "PUBLIC:earthanimal.com:016d0082f8541b23",
+  "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+  "PUBLIC:earthanimal.com:64c8b91f9265495a",
+  "PUBLIC:earthanimal.com:4b3342782d79228d",
+  "PUBLIC:earthanimal.com:25ed6e44b5d97332",
+  "PUBLIC:earthanimal.com:f489d212cf060c88",
+  "PUBLIC:earthanimal.com:cbc9f21635e3ab42",
+  "PUBLIC:earthanimal.com:dc0ed7e031fc8cfe",
+  "PUBLIC:earthanimal.com:8b7272b268a3e898",
+  "PUBLIC:earthanimal.com:b740df811b848a07",
+  "PUBLIC:earthanimal.com:dc3698163612a1e0",
+  "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+  "PUBLIC:earthanimal.com:7a69aef1be7fa195",
+  "PUBLIC:earthanimal.com:761741fbab59ddd3",
+  "PUBLIC:earthanimal.com:9e4b443662444d99",
+  "PUBLIC:earthanimal.com:b80818f9f7c7ba97",
+  "PUBLIC:earthanimal.com:24900911d0788bbb",
+  "PUBLIC:earthanimal.com:b5d3330c0ff3d595",
+  "PUBLIC:earthanimal.com:85973f5bc751bbf5",
+  "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+  "PUBLIC:earthanimal.com:64b9912c7ddd5847",
+  "PUBLIC:earthanimal.com:8202beff5e999d77",
+  "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
+  "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
+  "PUBLIC:earthanimal.com:9de14d2658969f55",
+  "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
+  "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
+  "PUBLIC:earthanimal.com:cb850b380c352fb9",
+  "PUBLIC:earthanimal.com:dfe2740a44ca9624",
+  "PUBLIC:earthanimal.com:29777e1d38ba6c7e",
+  "PUBLIC:earthanimal.com:19250472b1486603",
+  "PUBLIC:earthanimal.com:8d57449fa9131d3e",
+  "PUBLIC:earthanimal.com:56777142fca2b134",
+  "PUBLIC:earthanimal.com:f823b646f6a27e56",
+  "PUBLIC:mywoof.com:e8d3521b0dfaa656",
+  "PUBLIC:mywoof.com:cf237f552509710d",
+  "PUBLIC:mywoof.com:aee00d09d5e6f623",
+  "PUBLIC:mywoof.com:86437b267b3f57f4",
+  "PUBLIC:mywoof.com:9250a22d60847445",
+  "PUBLIC:mywoof.com:c03f852cc760351e",
+  "PUBLIC:mywoof.com:879d921a77b0f841",
+  "PUBLIC:mywoof.com:83c37faabbaebb72",
+  "PUBLIC:mywoof.com:30e63188938026ab",
+  "PUBLIC:mywoof.com:451cbb134686a558",
+  "PUBLIC:mywoof.com:f94af1af1256c3c2",
+  "PUBLIC:mywoof.com:e4d71d655c117314",
+  "PUBLIC:mywoof.com:b6a67596be3a61d4",
+  "PUBLIC:mywoof.com:1bc4349fd3c46651",
+  "PUBLIC:mywoof.com:0249f30bf5dce503",
+  "PUBLIC:mywoof.com:2b11d3c15f279b1c",
+  "PUBLIC:mywoof.com:cb10e730d4cb8125",
+  "PUBLIC:mywoof.com:d3d835ca877da5a2",
+  "PUBLIC:mywoof.com:0ec4e1fc31ccf22e",
+  "PUBLIC:mywoof.com:01c56405e139fc74",
+  "PUBLIC:mywoof.com:61ab9023a57b922f",
+  "PUBLIC:mywoof.com:f62e952068ba933c",
+  "PUBLIC:mywoof.com:02817607056d042a",
+  "PUBLIC:mywoof.com:a3e61fa84ecba7f2",
+  "PUBLIC:mywoof.com:4a85ab295e6b4b02",
+  "PUBLIC:mywoof.com:de3c7d813c048914",
+  "PUBLIC:mywoof.com:70d38a0398240e4f",
+  "PUBLIC:mywoof.com:e9cdb836826fa100",
+  "PUBLIC:mywoof.com:fe1ebcf4e900e2f2",
+  "PUBLIC:mywoof.com:e31179bcbdd141e3",
+  "PUBLIC:mywoof.com:54834d058d70426f",
+  "PUBLIC:mywoof.com:c17910cdfdaaa11a",
+  "PUBLIC:mywoof.com:887ffebec0fc0879",
+  "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+  "PUBLIC:mywoof.com:b5922cb3b52f3258",
+  "PUBLIC:mywoof.com:1c7b5985537469e4",
+  "PUBLIC:mywoof.com:091cf2b7009cabc2",
+  "PUBLIC:mywoof.com:8057f9379556f4d2",
+  "PUBLIC:mywoof.com:9ecc522e65f8c812",
+  "PUBLIC:mywoof.com:e632134c77981d38",
+  "PUBLIC:mywoof.com:149256257c696d2a",
+  "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+  "PUBLIC:mywoof.com:24090d9d0cd56b77",
+  "PUBLIC:mywoof.com:6f384e1ea6e24426",
+  "PUBLIC:mywoof.com:7a15244a933d194f",
+  "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+  "PUBLIC:kongcompany.com:c5acb12fc8bb7f2d",
+  "PUBLIC:kongcompany.com:045abe13da8615ea",
+  "PUBLIC:kongcompany.com:d7bb56af2a6323fe",
+  "PUBLIC:kongcompany.com:1525aa94eecc022e",
+  "PUBLIC:kongcompany.com:40e2fa6ec67b15fc",
+  "PUBLIC:kongcompany.com:0cf7eaddd7ee28af",
+  "PUBLIC:kongcompany.com:907dbc85cb7c0b73",
+  "PUBLIC:kongcompany.com:0f1f7c7b8d7815c2",
+  "PUBLIC:kongcompany.com:3d16ebd00d93e470",
+  "PUBLIC:kongcompany.com:7c9223bb363a3340",
+  "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+  "PUBLIC:kongcompany.com:1577011117c2bc5d",
+  "PUBLIC:kongcompany.com:0ec9b3874a2e0196",
+  "PUBLIC:kongcompany.com:023bc6dafd261a5e",
+  "PUBLIC:kongcompany.com:d7784a8f7a2f0c69",
+  "PUBLIC:kongcompany.com:66b8bb0b0f1faa69",
+  "PUBLIC:kongcompany.com:bb3116d0f440e39f",
+  "PUBLIC:kongcompany.com:d2a6e94862be45b2",
+  "PUBLIC:kongcompany.com:2cb1a1049429f974",
+  "PUBLIC:kongcompany.com:3e64e07c2c3df6ed",
+  "PUBLIC:kongcompany.com:94d6c92d9d6b7e4b",
+  "PUBLIC:kongcompany.com:3c595ad2fde2730d",
+  "PUBLIC:kongcompany.com:c71b12bac448ac52",
+  "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+  "PUBLIC:kongcompany.com:65b41b3012603083",
+  "PUBLIC:kongcompany.com:5493141ca5191af8",
+  "PUBLIC:kongcompany.com:07bc630467fd386a",
+  "PUBLIC:kongcompany.com:250579ddc35e9a36",
+  "PUBLIC:kongcompany.com:6eda563109c56269",
+  "PUBLIC:kongcompany.com:f5ac9322dc830143",
+  "PUBLIC:kongcompany.com:84d16fcfcca64cc1",
+  "PUBLIC:kongcompany.com:06650cf6893f14ed",
+  "PUBLIC:kongcompany.com:5c491d9ca5b427bf",
+  "PUBLIC:kongcompany.com:28bfb0ab3b22252d",
+  "PUBLIC:kongcompany.com:c75ac1312bbe7438",
+  "PUBLIC:kongcompany.com:6f74f37fd91d9b5f",
+  "PUBLIC:kongcompany.com:2a452b2564d591e3",
+  "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+  "PUBLIC:kongcompany.com:86ff46b04a5e4995",
+  "PUBLIC:kongcompany.com:8673e77190b0718a",
+  "PUBLIC:kongcompany.com:40975cca5f87a21d",
+  "PUBLIC:kongcompany.com:1ee6ad54333780ec",
+  "PUBLIC:kongcompany.com:b258b750797a14bd",
+  "PUBLIC:kongcompany.com:c2097336ee8e8ca1",
+  "PUBLIC:kongcompany.com:6b0dedf126a50803",
+  "PUBLIC:kongcompany.com:d52d66f91818398e",
+  "PUBLIC:kongcompany.com:17207a7170a4f44c",
+  "PUBLIC:kongcompany.com:9e191a9d68399de2",
+  "PUBLIC:kongcompany.com:5fb765dbca4fc3c0",
+  "PUBLIC:kongcompany.com:e8df07979c4b9369",
+  "PUBLIC:kongcompany.com:c48a825e2f8e3888",
+  "PUBLIC:kongcompany.com:89eaf0e07e0c2df9",
+  "PUBLIC:kongcompany.com:980a77006a7911dd",
+  "PUBLIC:kongcompany.com:566dd7269361ef52",
+  "PUBLIC:kongcompany.com:aa7fb906021c6c0e",
+  "PUBLIC:kongcompany.com:e23e153a05330e77",
+  "PUBLIC:kongcompany.com:bde740609dbbe13d",
+  "PUBLIC:kongcompany.com:bbd0ec446f8ca214",
+  "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+  "PUBLIC:kongcompany.com:e960c71a760de067",
+  "PUBLIC:kongcompany.com:77033f9c2e1b5c4c",
+  "PUBLIC:kongcompany.com:a79e69bd7c233518",
+  "PUBLIC:kongcompany.com:4c30d4fa0327301d",
+  "PUBLIC:kongcompany.com:d74aa2b75bfef08c",
+  "PUBLIC:kongcompany.com:d36b24ed2800a25d",
+  "PUBLIC:kongcompany.com:58158fc0a5635a54",
+  "PUBLIC:kongcompany.com:94517cdf5f8ce983",
+  "PUBLIC:kongcompany.com:b8f1ba61089d7cda",
+  "PUBLIC:kongcompany.com:fcf78c943c71a0b7",
+  "PUBLIC:kongcompany.com:6853f612a4e130ba",
+  "PUBLIC:kongcompany.com:1adf8cde867c3dbd",
+  "PUBLIC:kongcompany.com:8fe1efe984478efd",
+  "PUBLIC:kongcompany.com:c2c759971e1abc3b",
+  "PUBLIC:kongcompany.com:8569246aac944ec0",
+  "PUBLIC:kongcompany.com:3c81e423da3ee416",
+  "PUBLIC:kongcompany.com:882ebb1f269feb20",
+  "PUBLIC:kongcompany.com:f6fc2b86fba5fef2",
+  "PUBLIC:kongcompany.com:b512be9615d78919",
+  "PUBLIC:kongcompany.com:c1ab934f82870d0f",
+  "PUBLIC:kongcompany.com:8fa01335f371a6db",
+  "PUBLIC:kongcompany.com:ffc03c959a37c5ee",
+  "PUBLIC:kongcompany.com:a555506f67096fe8",
+  "PUBLIC:kongcompany.com:a38d2401740a325e",
+  "PUBLIC:kongcompany.com:4d0269a1babb551e",
+  "PUBLIC:kongcompany.com:c4c0f2f9c1c37543",
+  "PUBLIC:kongcompany.com:e8ee26c3eb47c304",
+  "PUBLIC:kongcompany.com:4b380078ec914c3c",
+  "PUBLIC:kongcompany.com:d3c68e1f733dbeda",
+  "PUBLIC:kongcompany.com:cd5210ab1886e91d",
+  "PUBLIC:kongcompany.com:22c2b9aae1730979",
+  "PUBLIC:kongcompany.com:eb8948f31173a1ea",
+  "PUBLIC:kongcompany.com:0f074ed5772d85b9",
+  "PUBLIC:kongcompany.com:f9dd6ebf29a224c8",
+  "PUBLIC:kongcompany.com:6b8b2e8cdcd263c4",
+  "PUBLIC:kongcompany.com:421c0a115bba5eb7",
+  "PUBLIC:kongcompany.com:55f92e583c12518d",
+  "PUBLIC:kongcompany.com:fe703329267a50a9",
+  "PUBLIC:kongcompany.com:7a4042566d7c3aed",
+  "PUBLIC:kongcompany.com:c0b2c771c832d73c",
+  "PUBLIC:kongcompany.com:d47bff0b1c004152",
+  "PUBLIC:kongcompany.com:f3e801b987fd1c25",
+  "PUBLIC:kongcompany.com:a6ae89f59abffd70",
+  "PUBLIC:kongcompany.com:e8024dd2b76c2368",
+  "PUBLIC:kongcompany.com:2d3680b10cea9326",
+  "PUBLIC:kongcompany.com:fd478c7a33932018",
+  "PUBLIC:kongcompany.com:83249f614a6a225d",
+  "PUBLIC:kongcompany.com:83b75af75d2b5b59",
+  "PUBLIC:kongcompany.com:4905236763368905",
+  "PUBLIC:kongcompany.com:00b9e90296b79a83",
+  "PUBLIC:kongcompany.com:12a66c8be8223b37",
+  "PUBLIC:kongcompany.com:66b63bcfe9f1d8a5",
+  "PUBLIC:kongcompany.com:4a8e728a17efa059",
+  "PUBLIC:kongcompany.com:a0f3843fe85c824a",
+  "PUBLIC:kongcompany.com:53fdb50b8191fffd",
+  "PUBLIC:kongcompany.com:22f868cb95c970ed",
+  "PUBLIC:kongcompany.com:998d52715314e91d",
+  "PUBLIC:kongcompany.com:d1915468aa054b21",
+  "PUBLIC:kongcompany.com:f4b74d1062565d1e",
+  "PUBLIC:kongcompany.com:9e26ba45b30e9c51",
+  "PUBLIC:kongcompany.com:bea92ac032ac8486",
+  "PUBLIC:annamaet.com:85dda35a9cec115c",
+  "PUBLIC:annamaet.com:d59ffd323547f843",
+  "PUBLIC:annamaet.com:5b2b80d25d806ced",
+  "PUBLIC:annamaet.com:07632971cd379b45",
+  "PUBLIC:annamaet.com:6795ea8fb6328eee",
+  "PUBLIC:instinctpetfood.com:9dcb85b2bcc8356e",
+  "PUBLIC:instinctpetfood.com:af4fffb44c44980a",
+  "PUBLIC:instinctpetfood.com:dd660ea34da6efdc",
+  "PUBLIC:instinctpetfood.com:cf9d48cddf116bf9",
+  "PUBLIC:instinctpetfood.com:fe3689c1c89b4140",
+  "PUBLIC:instinctpetfood.com:d0e1ee32b6281bec",
+  "PUBLIC:instinctpetfood.com:23cc6de86e6c7486",
+  "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+  "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+  "PUBLIC:instinctpetfood.com:dff9ba3c509dc14e",
+  "PUBLIC:instinctpetfood.com:f6e10a33ffe8c66b",
+  "PUBLIC:stellaandchewys.com:49808cab429444d6",
+  "PUBLIC:stellaandchewys.com:513cec37083cf7d8",
+  "PUBLIC:stellaandchewys.com:a683da6da82a74e7",
+  "PUBLIC:stellaandchewys.com:cfb69c0518c72ced",
+  "PUBLIC:stellaandchewys.com:76ee2e89221bb587",
+  "PUBLIC:stellaandchewys.com:02107199fceeae95",
+  "PUBLIC:stellaandchewys.com:5cc05289d5c8c864",
+  "PUBLIC:stellaandchewys.com:581221abc322e824",
+  "PUBLIC:stellaandchewys.com:6a9c8548620135b8",
+  "PUBLIC:stellaandchewys.com:bda03e4f7604c72d",
+  "PUBLIC:stellaandchewys.com:4007bf5a70ca3e6b",
+  "PUBLIC:stellaandchewys.com:e9c3060541f8139e",
+  "PUBLIC:stellaandchewys.com:02ef1be17a261ea0",
+  "PUBLIC:stellaandchewys.com:1f035c3f277303a8",
+  "PUBLIC:stellaandchewys.com:fd21f02c65d47964",
+  "PUBLIC:stellaandchewys.com:abb61930634d345b",
+  "PUBLIC:stellaandchewys.com:78eceebbcdc0f9e1",
+  "PUBLIC:stellaandchewys.com:3b42790c25267494",
+  "PUBLIC:stellaandchewys.com:82983471fe413cd0",
+  "PUBLIC:stellaandchewys.com:ce39c86e68951c6b",
+  "PUBLIC:instinctpetfood.com:2aa6521fb9bf62b1",
+  "PUBLIC:instinctpetfood.com:80e04caaacfd508d",
+  "PUBLIC:instinctpetfood.com:97026f1afb28dc06",
+  "PUBLIC:instinctpetfood.com:c366368d7da60f95",
+  "PUBLIC:instinctpetfood.com:d2779cd051ae5bed",
+  "PUBLIC:instinctpetfood.com:f90f7d3cc4eb49ba",
+  "PUBLIC:instinctpetfood.com:24c8e8f619a51c96",
+  "PUBLIC:instinctpetfood.com:4ed314241fbbbe33",
+  "PUBLIC:instinctpetfood.com:ddf47d058bd3cdfe",
+  "PUBLIC:instinctpetfood.com:312817e5601a91cd",
+  "PUBLIC:instinctpetfood.com:006e6572ef09312f",
+  "PUBLIC:stellaandchewys.com:ae4ef430dd562bc6",
+  "PUBLIC:stellaandchewys.com:a6a547c3be19fbbf",
+  "PUBLIC:stellaandchewys.com:9ff281b6c9e0d96a",
+  "PUBLIC:stellaandchewys.com:97520b924c42f0e6",
+  "PUBLIC:stellaandchewys.com:90e34c1676ea07a1",
+  "PUBLIC:stellaandchewys.com:9a3a74a2b8cb1f41",
+  "PUBLIC:stellaandchewys.com:6e850d95f4166ccf",
+  "PUBLIC:stellaandchewys.com:5f949942c9b3010c",
+  "PUBLIC:stellaandchewys.com:ebb45fcddf0b1a27",
+  "PUBLIC:stellaandchewys.com:6c784c8148f3bb98",
+  "PUBLIC:stellaandchewys.com:4b449050ed1e040e",
+  "PUBLIC:stellaandchewys.com:667c64ea9ad8c75c",
+  "PUBLIC:stellaandchewys.com:f4f69249795c7a60",
+  "PUBLIC:stellaandchewys.com:1174f8152cf482ba",
+  "PUBLIC:stellaandchewys.com:1c646e8309516886"
+ ],
+ "rows": [
+  {
+   "sku": "PUBLIC:earthanimal.com:34db9cf0b6051cde",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:64c8b91f9265495a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:4b3342782d79228d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:25ed6e44b5d97332",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:f489d212cf060c88",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:cbc9f21635e3ab42",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:dc0ed7e031fc8cfe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:7a69aef1be7fa195",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:761741fbab59ddd3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:b80818f9f7c7ba97",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:24900911d0788bbb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:b5d3330c0ff3d595",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:85973f5bc751bbf5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:64b9912c7ddd5847",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:8202beff5e999d77",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:1ead73bb8a1c9094",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:629efd8f3f6cb6dc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:9de14d2658969f55",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:851936e2fa8cf1c0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:f17c833f0cbea3d9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:cb850b380c352fb9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:dfe2740a44ca9624",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:29777e1d38ba6c7e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:19250472b1486603",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:8d57449fa9131d3e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:56777142fca2b134",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:f823b646f6a27e56",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e8d3521b0dfaa656",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:86437b267b3f57f4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:9250a22d60847445",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:c03f852cc760351e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:879d921a77b0f841",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:83c37faabbaebb72",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:451cbb134686a558",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:f94af1af1256c3c2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:b6a67596be3a61d4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:1bc4349fd3c46651",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:0249f30bf5dce503",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:2b11d3c15f279b1c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:d3d835ca877da5a2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:0ec4e1fc31ccf22e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:01c56405e139fc74",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:61ab9023a57b922f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:f62e952068ba933c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:02817607056d042a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:a3e61fa84ecba7f2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:4a85ab295e6b4b02",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:de3c7d813c048914",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:70d38a0398240e4f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e9cdb836826fa100",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:fe1ebcf4e900e2f2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:c17910cdfdaaa11a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:887ffebec0fc0879",
+   "verdict": "revise",
+   "issues": [
+    "flavor wrongly known=Salmon: the captured excerpt states ingredient/composition wording ('Wild Alaskan Salmon Oil is rich in omegas and fatty acids') and never states a product flavor; oil-as-ingredient cannot be promoted to flavor"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:mywoof.com:887ffebec0fc0879",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Supplement"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Ingestible salmon oil health supplement for pups; supplements member; no product flavor stated in captured evidence; no life-stage/breed-size signals.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "ingestible oil rich in omegas and fatty acids for joints, coat and overall health: health-support supplement identity"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "ingestible health-support oil identity establishes food-form=Supplement"
+     },
+     {
+      "targetId": "species",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "explicit 'great for your pup's joints' (pup diminutive of puppy, canonical alias to Dog) fixes single-select species=Dog"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "salmon-oil wording is ingredient/composition language; no product flavor stated in captured title/excerpts"
+     },
+     {
+      "targetId": "life-stage",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "no life-stage signal"
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Our Wild Alaskan Salmon Oil is rich in omegas and fatty acids - great for your pup's joints, coat, and overall health.",
+      "locator": "https://mywoof.com/products/salmon-oil JSON-LD Product + product-description#excerpt-0",
+      "reason": "no breed-size signal"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:b5922cb3b52f3258",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:8057f9379556f4d2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:9ecc522e65f8c812",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e632134c77981d38",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:149256257c696d2a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:7a15244a933d194f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c5acb12fc8bb7f2d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:045abe13da8615ea",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d7bb56af2a6323fe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1525aa94eecc022e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:40e2fa6ec67b15fc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0cf7eaddd7ee28af",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:907dbc85cb7c0b73",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0f1f7c7b8d7815c2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:3d16ebd00d93e470",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:7c9223bb363a3340",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1577011117c2bc5d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0ec9b3874a2e0196",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:023bc6dafd261a5e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d7784a8f7a2f0c69",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:66b8bb0b0f1faa69",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bb3116d0f440e39f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d2a6e94862be45b2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:2cb1a1049429f974",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:3e64e07c2c3df6ed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:94d6c92d9d6b7e4b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:3c595ad2fde2730d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c71b12bac448ac52",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token (no dog/puppy/canine or cat wording), so dog-toys vs cat-toys membership is unresolvable; invariant species=Dog asserted without any species evidence"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Bouncing/fetching character ball toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Each character\u2019s raised features add a variety of erratic rolling and bouncing action\u2014with fins, tails, hands, and more\u2014that boost the fetching fun.",
+      "locator": "https://www.kongcompany.com/grinz-puffer-fish/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a fetching toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:65b41b3012603083",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:5493141ca5191af8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable; species basis additionally claims explicit species wording that the cited quote does not contain"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Ball-with-rope fetch/tug toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The Extreme KONG Ball with Rope adds long-lasting diversity to games of fetch and tug.",
+      "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a fetch/tug ball toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:250579ddc35e9a36",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6eda563109c56269",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:f5ac9322dc830143",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:84d16fcfcca64cc1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:06650cf6893f14ed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:5c491d9ca5b427bf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:28bfb0ab3b22252d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c75ac1312bbe7438",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6f74f37fd91d9b5f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable (sibling row with near-identical copy is insufficient-evidence)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Plush squeaker toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "A soft cuddly exterior make this toy great for cuddle time as well.",
+      "locator": "https://www.kongcompany.com/dr-noyz-duck/ JSON-LD Product + product-description#excerpt-3",
+      "reason": "captured evidence identifies a soft cuddly squeaker toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Squeak-and-shake plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The KONG Wubba Ballistic Friends are the cutest and toughest interactive squeak and shake toys available.",
+      "locator": "https://www.kongcompany.com/wubba-friends-ballistic/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies an interactive squeak and shake toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:86ff46b04a5e4995",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:8673e77190b0718a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Tug/shake/fetch plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Ideal for indoor tugging, shaking and fetching fun, this adorable undersea pal\u2019s great for snuggling, too, thanks to his super-soft plush.",
+      "locator": "https://www.kongcompany.com/wubba-octopus/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a tugging/shaking/fetching plush toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1ee6ad54333780ec",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Knotted-rope thrash toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+      "locator": "https://www.kongcompany.com/floppy-knots-hippo/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "captured evidence identifies a floppy thrash toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c2097336ee8e8ca1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Ballistic squeak/plush play toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Ballistic Alligator is designed with durable ballistic material and is built for long-lasting play.",
+      "locator": "https://www.kongcompany.com/ballistic-alligator/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a durable play toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d52d66f91818398e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:17207a7170a4f44c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly dog-toys: captured title/excerpts carry no species token, so dog-toys vs cat-toys membership is unresolvable"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Bouncy fetch ball with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG FlexBall brings an energetic bounce to fetching fun!",
+      "locator": "https://www.kongcompany.com/flexball-sport-ball/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a fetching ball toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:5fb765dbca4fc3c0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e8df07979c4b9369",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c48a825e2f8e3888",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:89eaf0e07e0c2df9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly cat-toys: captured title/excerpts carry no standalone Cat token, so dog-toys vs cat-toys membership is unresolvable; the catnip excerpt describes toy contents, which alone cannot establish Cat scope"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "5-toys-in-1 crinkly play set with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents alone cannot establish Cat scope.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Pull-A-Partz Sushi\u2019s 5-toys-in-1 deliver an endless feast of multi-sensory fun based on a crinkly sushi board that invites healthy wrestling.",
+      "locator": "https://www.kongcompany.com/pull-a-partz-sushi/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "captured evidence identifies a crinkly play set but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no standalone species token in captured title/excerpts; catnip wording describes toy contents, not species scope; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:566dd7269361ef52",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:aa7fb906021c6c0e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e23e153a05330e77",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bde740609dbbe13d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bbd0ec446f8ca214",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly cat-toys: captured title/excerpts carry no standalone Cat token, so dog-toys vs cat-toys membership is unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Connects Window Boxing is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+      "locator": "https://www.kongcompany.com/connects-window-boxing/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a portable play gym but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+   "verdict": "revise",
+   "issues": [
+    "product type wrongly cat-toys: captured title/excerpts carry no standalone Cat token, so dog-toys vs cat-toys membership is unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+    "productType": {
+     "kind": "insufficient-evidence",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Connects Punching Bag is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+      "locator": "https://www.kongcompany.com/connects-punching-bag/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "captured evidence identifies a portable play gym but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+     }
+    ],
+    "identityIssues": [
+     "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:77033f9c2e1b5c4c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:a79e69bd7c233518",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:4c30d4fa0327301d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d74aa2b75bfef08c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d36b24ed2800a25d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:58158fc0a5635a54",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:94517cdf5f8ce983",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b8f1ba61089d7cda",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:fcf78c943c71a0b7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6853f612a4e130ba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1adf8cde867c3dbd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:8fe1efe984478efd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c2c759971e1abc3b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:8569246aac944ec0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:3c81e423da3ee416",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:882ebb1f269feb20",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:f6fc2b86fba5fef2",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote contains no dog wording ('explicit dog wording' claim is false for the cited quote); re-point the basis at excerpt-2, which does state the dog wording; label values unchanged"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:f6fc2b86fba5fef2",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Known-type dog-treats. Baked biscuit treating-moment snack sized to fit KONG toys; reward use makes it treats over food per boundary rule 3. Species Dog and food-form Treat are frozen invariants. Flavor is no-fit: named combined bacon-and-cheddar-cheese flavor cannot be represented by one component or Assorted under single-select; mixtures cannot be arbitrarily simplified. Breed-size/life-stage applicable members with no value in evidence, hence insufficient-evidence; fuel-type/hose-length/packaging-type are profile nonmembers hence inapplicable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Bacon and Cheese Snacks are made with irresistible bacon and cheddar cheese flavor for a biscuit that is hard to beat.",
+      "locator": "https://www.kongcompany.com/snacks-bacon-cheese/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "treats identity: baked biscuit snack for treating moments"
+     },
+     {
+      "targetId": "species",
+      "quote": "This larger size is specially shaped and sized to fit your dog\u2019s large KONG rubber toy.",
+      "locator": "https://www.kongcompany.com/snacks-bacon-cheese/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "explicit 'fit your dog's large KONG rubber toy' corroborates frozen invariant species=Dog"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "KONG Bacon and Cheese Snacks are made with irresistible bacon and cheddar cheese flavor for a biscuit that is hard to beat.",
+      "locator": "https://www.kongcompany.com/snacks-bacon-cheese/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "biscuit/treats wording corroborates frozen invariant food-form=Treat"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "KONG Bacon and Cheese Snacks are made with irresistible bacon and cheddar cheese flavor for a biscuit that is hard to beat.",
+      "locator": "https://www.kongcompany.com/snacks-bacon-cheese/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "explicit combined product flavor (bacon and cheddar cheese); single-select with no combined value => no-fit"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b512be9615d78919",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c1ab934f82870d0f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:8fa01335f371a6db",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote contains no dog wording ('explicit dogs wording' claim is false for the cited quote); re-point the basis at excerpt-0, which does state the dog wording; label values unchanged"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:8fa01335f371a6db",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Known-type dog-treats. Oven-baked creamy-crunchy snack nuggets for training/reward; reward use makes them treats over food per boundary rule 3. Species Dog and food-form Treat are frozen invariants. Flavor is no-fit: the named Peanut Butter & Pretzel product flavor is a combined value with no frozen entry (pretzel has no mapping); single-select cannot represent it by choosing Peanut Butter alone. Breed-size/life-stage applicable members with no value in evidence, hence insufficient-evidence; fuel-type/hose-length/packaging-type are profile nonmembers hence inapplicable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "At just 4 calories a pop, they\u2019re great for training or any time you\u2019d like to show some love.",
+      "locator": "https://www.kongcompany.com/kong-kitchen-creamy-peanut-butter-pretzel/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "treats identity: snack nuggets for training and reward"
+     },
+     {
+      "targetId": "species",
+      "quote": "These nuggets are so irresistibly creamy-crunchy-craveable, we put them in a special jar dogs can\u2019t open (yet).",
+      "locator": "https://www.kongcompany.com/kong-kitchen-creamy-peanut-butter-pretzel/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "explicit 'special jar dogs can't open' corroborates frozen invariant species=Dog"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "KONG Kitchen PB & Pretzels delivers a crunchy-on-the-outside, creamy-on-the-inside oven-baked real peanut butter snack.",
+      "locator": "https://www.kongcompany.com/kong-kitchen-creamy-peanut-butter-pretzel/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "snack wording corroborates frozen invariant food-form=Treat"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "KONG Kitchen Creamy Peanut Butter & Pretzel",
+      "locator": "https://www.kongcompany.com/kong-kitchen-creamy-peanut-butter-pretzel/",
+      "reason": "explicit combined product flavor (peanut butter and pretzel); no combined frozen value => no-fit"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:ffc03c959a37c5ee",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:a555506f67096fe8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:a38d2401740a325e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:4d0269a1babb551e",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote contains no dog wording ('explicit dogs wording' claim is false for the cited quote); re-point the basis at excerpt-2, which does state the dog wording; label values unchanged"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:4d0269a1babb551e",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Chicken"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Known-type dog-treats. All-natural jerky reward for stuffing into rubber toys and snacking between meals; reward use makes it treats over food per boundary rule 3. Species Dog and food-form Treat are frozen invariants. Flavor Chicken is explicit in the product name. Breed-size/life-stage applicable members with no value in evidence, hence insufficient-evidence; fuel-type/hose-length/packaging-type are profile nonmembers hence inapplicable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG Jerky provides a mentally stimulating, irresistible all-natural treat that is designed for stuffing into KONG Classic rubber shaped and other toys.",
+      "locator": "https://www.kongcompany.com/jerky-chicken/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "treats identity: all-natural jerky reward for stuffing toys"
+     },
+     {
+      "targetId": "species",
+      "quote": "Just stuff partially into KONG Classic and other KONG Rubber toys to invite dogs to play and extend the enjoyment.",
+      "locator": "https://www.kongcompany.com/jerky-chicken/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "explicit 'invite dogs to play' corroborates frozen invariant species=Dog"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "KONG Jerky provides a mentally stimulating, irresistible all-natural treat that is designed for stuffing into KONG Classic rubber shaped and other toys.",
+      "locator": "https://www.kongcompany.com/jerky-chicken/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "treat wording corroborates frozen invariant food-form=Treat"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "Jerky Chicken",
+      "locator": "https://www.kongcompany.com/jerky-chicken/",
+      "reason": "explicit product flavor (Chicken) stated in the sold product name"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c4c0f2f9c1c37543",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote contains no dog wording ('explicit dog wording' claim is false for the cited quote); re-point the basis at excerpt-1, which does state the dog wording; label values unchanged"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:c4c0f2f9c1c37543",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "known",
+      "value": "Peanut Butter"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Known-type dog-treats. Squeezable paste reward for KONG toys and training; reward use makes it treats over food per boundary rule 3. Species Dog and food-form Treat are frozen invariants. Flavor Peanut Butter is explicit in the product name/ingredients wording. Breed-size/life-stage applicable members with no value in evidence, hence insufficient-evidence; fuel-type/hose-length/packaging-type are profile nonmembers hence inapplicable.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "KONG STUFF\u2019N Real Peanut Butter is made with human-grade ingredients.",
+      "locator": "https://www.kongcompany.com/stuff-n-real-peanut-butter/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "treats identity: squeezable reward paste added to dog toys and used in training"
+     },
+     {
+      "targetId": "species",
+      "quote": "Our convenient tubes also work great during training, allowing you to reward your dog straight from the nozzle; a little squeeze is all you need.",
+      "locator": "https://www.kongcompany.com/stuff-n-real-peanut-butter/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "explicit 'reward your dog straight from the nozzle' corroborates frozen invariant species=Dog"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "KONG STUFF\u2019N Real Peanut Butter is made with human-grade ingredients.",
+      "locator": "https://www.kongcompany.com/stuff-n-real-peanut-butter/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "reward wording corroborates frozen invariant food-form=Treat"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "KONG STUFF\u2019N Real Peanut Butter is made with human-grade ingredients.",
+      "locator": "https://www.kongcompany.com/stuff-n-real-peanut-butter/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "explicit product flavor (peanut butter) stated by the manufacturer"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e8ee26c3eb47c304",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:4b380078ec914c3c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d3c68e1f733dbeda",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:cd5210ab1886e91d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:22c2b9aae1730979",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:eb8948f31173a1ea",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:0f074ed5772d85b9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:f9dd6ebf29a224c8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6b8b2e8cdcd263c4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:421c0a115bba5eb7",
+   "verdict": "revise",
+   "issues": [
+    "species wrongly known=Dog: captured title/excerpts carry no species token (no dog/puppy/canine wording), and the species basis falsely claims 'explicit dogs wording' the cited quote does not contain"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:421c0a115bba5eb7",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "collars-leashes"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "rationale": "Retractable tape walking leash for everyday neighborhood/trail walks; collars-leashes member by leash identity; species unstated in captured evidence.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-black/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "retractable walking leash/lead for neighborhood walks and trails: leash identity places it in collars-leashes"
+     },
+     {
+      "targetId": "species",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-black/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "no species scope stated in captured title/excerpts; single-select species unresolvable"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:55f92e583c12518d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:fe703329267a50a9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:7a4042566d7c3aed",
+   "verdict": "revise",
+   "issues": [
+    "species wrongly known=Dog: captured title/excerpts carry no species token (no dog/puppy/canine wording), and the species basis falsely claims 'explicit dogs wording' the cited quote does not contain"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:7a4042566d7c3aed",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "collars-leashes"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "rationale": "Retractable tape walking leash for everyday neighborhood/trail walks; collars-leashes member by leash identity; species unstated in captured evidence.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-grey/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "retractable walking leash/lead for neighborhood walks and trails: leash identity places it in collars-leashes"
+     },
+     {
+      "targetId": "species",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-grey/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "no species scope stated in captured title/excerpts; single-select species unresolvable"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:c0b2c771c832d73c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d47bff0b1c004152",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:f3e801b987fd1c25",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:a6ae89f59abffd70",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e8024dd2b76c2368",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:2d3680b10cea9326",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:fd478c7a33932018",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:83249f614a6a225d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:83b75af75d2b5b59",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:4905236763368905",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:00b9e90296b79a83",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:12a66c8be8223b37",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:66b63bcfe9f1d8a5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:4a8e728a17efa059",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:a0f3843fe85c824a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:53fdb50b8191fffd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:22f868cb95c970ed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:998d52715314e91d",
+   "verdict": "revise",
+   "issues": [
+    "species wrongly known=Dog: captured title/excerpts carry no species token (no dog/puppy/canine wording), and the species basis falsely claims 'explicit dogs wording' the cited quote does not contain"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:998d52715314e91d",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "collars-leashes"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "rationale": "Retractable tape walking leash for everyday neighborhood/trail walks; collars-leashes member by leash identity; species unstated in captured evidence.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-blue/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "retractable walking leash/lead for neighborhood walks and trails: leash identity places it in collars-leashes"
+     },
+     {
+      "targetId": "species",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-blue/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "no species scope stated in captured title/excerpts; single-select species unresolvable"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d1915468aa054b21",
+   "verdict": "revise",
+   "issues": [
+    "species wrongly known=Dog: captured title/excerpts carry no species token (no dog/puppy/canine wording), and the species basis falsely claims 'explicit dogs wording' the cited quote does not contain"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:kongcompany.com:d1915468aa054b21",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "collars-leashes"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "rationale": "Retractable tape walking leash for everyday neighborhood/trail walks; collars-leashes member by leash identity; species unstated in captured evidence.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-red/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "retractable walking leash/lead for neighborhood walks and trails: leash identity places it in collars-leashes"
+     },
+     {
+      "targetId": "species",
+      "quote": "Perfect for everyday use around the neighborhood and popular walking trails, the KONG Terrain features a soft grip handle and offers 16 ft/5m of freedom on a wide, black tape.",
+      "locator": "https://www.kongcompany.com/kong-retractable-leash-terrain-red/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "no species scope stated in captured title/excerpts; single-select species unresolvable"
+     }
+    ],
+    "identityIssues": [
+     "no species token in captured title/excerpts"
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:f4b74d1062565d1e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:9e26ba45b30e9c51",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bea92ac032ac8486",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:85dda35a9cec115c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:d59ffd323547f843",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:5b2b80d25d806ced",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:07632971cd379b45",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:annamaet.com:6795ea8fb6328eee",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:9dcb85b2bcc8356e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:af4fffb44c44980a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:dd660ea34da6efdc",
+   "verdict": "revise",
+   "issues": [
+    "flavor wrongly known=Chicken: captured evidence names cage-free chicken as a recipe ingredient plus green mussel listed among functional whole-food ingredients, but neither the generic recipe title nor the composition explicitly declares a product flavor, so no canonical flavor value is evidenced"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:instinctpetfood.com:dd660ea34da6efdc",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "dog-treats"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Non-complete freeze-dried mixer fed as topper or treat for dogs; dog-treats member; no product flavor explicitly declared in captured evidence.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Feed as a topper or treat - because a little boost goes a long way.",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-3",
+      "reason": "non-complete topper/treat positioning"
+     },
+     {
+      "targetId": "product-type",
+      "quote": "A little boost goes a long way - top their kibble with raw for a delicious boost of flavor and nutrition Provides guaranteed levels of natural Glucosamine and Chondroitin to help support healthy hips and joints Made with cage-free chicken plus vibrant, functional, whole-food ingredients like flaxseed, New Zealand green mussel, turmeric & fenugreek Never cooked \u2013 fresh, raw ingredients are freeze-dried at peak freshness to preserve nutrients and flavor Irresistible taste perfect for picky dogs - feed as a flavorful topper to enhance mealtime, or give as a tasty treat",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-4",
+      "reason": "dog audience topper/treat use"
+     },
+     {
+      "targetId": "species",
+      "quote": "A little boost goes a long way - top their kibble with raw for a delicious boost of flavor and nutrition Provides guaranteed levels of natural Glucosamine and Chondroitin to help support healthy hips and joints Made with cage-free chicken plus vibrant, functional, whole-food ingredients like flaxseed, New Zealand green mussel, turmeric & fenugreek Never cooked \u2013 fresh, raw ingredients are freeze-dried at peak freshness to preserve nutrients and flavor Irresistible taste perfect for picky dogs - feed as a flavorful topper to enhance mealtime, or give as a tasty treat",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-4",
+      "reason": "explicit 'perfect for picky dogs' fixes single-select species=Dog"
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Feed as a topper or treat - because a little boost goes a long way.",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-3",
+      "reason": "configured dog-treats invariant food-form=Treat; topper-or-treat positioning is the treat-form member"
+     },
+     {
+      "targetId": "flavor",
+      "quote": "Made with cage-free chicken plus vibrant, functional whole-food ingredients like flaxseed, New Zealand Green Mussel, turmeric, and fenugreek, this recipe supports healthy hip and joint mobility.",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-1",
+      "reason": "recipe/ingredient composition names chicken plus functional whole-food ingredients including green mussel, but no explicit product flavor is declared; insufficient evidence for any canonical flavor"
+     },
+     {
+      "targetId": "life-stage",
+      "quote": "A little boost goes a long way - top their kibble with raw for a delicious boost of flavor and nutrition Provides guaranteed levels of natural Glucosamine and Chondroitin to help support healthy hips and joints Made with cage-free chicken plus vibrant, functional, whole-food ingredients like flaxseed, New Zealand green mussel, turmeric & fenugreek Never cooked \u2013 fresh, raw ingredients are freeze-dried at peak freshness to preserve nutrients and flavor Irresistible taste perfect for picky dogs - feed as a flavorful topper to enhance mealtime, or give as a tasty treat",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-4",
+      "reason": "no life-stage signal in captured title/excerpts"
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "A little boost goes a long way - top their kibble with raw for a delicious boost of flavor and nutrition Provides guaranteed levels of natural Glucosamine and Chondroitin to help support healthy hips and joints Made with cage-free chicken plus vibrant, functional, whole-food ingredients like flaxseed, New Zealand green mussel, turmeric & fenugreek Never cooked \u2013 fresh, raw ingredients are freeze-dried at peak freshness to preserve nutrients and flavor Irresistible taste perfect for picky dogs - feed as a flavorful topper to enhance mealtime, or give as a tasty treat",
+      "locator": "https://www.instinctpetfood.com/products/rawboost-mixers-mobility-support JSON-LD Product + product-description#excerpt-4",
+      "reason": "no breed-size signal in captured title/excerpts"
+     }
+    ],
+    "identityIssues": [
+     "Source describes freeze-dried raw preparation while frozen dog-treats invariant is Treat; Treat preserved per completeness rule; format gap flagged."
+    ],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:cf9d48cddf116bf9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:fe3689c1c89b4140",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:d0e1ee32b6281bec",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:23cc6de86e6c7486",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:dff9ba3c509dc14e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:f6e10a33ffe8c66b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:49808cab429444d6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:513cec37083cf7d8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:a683da6da82a74e7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:cfb69c0518c72ced",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:76ee2e89221bb587",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:02107199fceeae95",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:5cc05289d5c8c864",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:581221abc322e824",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:6a9c8548620135b8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:bda03e4f7604c72d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:4007bf5a70ca3e6b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:e9c3060541f8139e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:02ef1be17a261ea0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:1f035c3f277303a8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:fd21f02c65d47964",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:abb61930634d345b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:78eceebbcdc0f9e1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:3b42790c25267494",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:82983471fe413cd0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:ce39c86e68951c6b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:2aa6521fb9bf62b1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:80e04caaacfd508d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:97026f1afb28dc06",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:c366368d7da60f95",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:d2779cd051ae5bed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:f90f7d3cc4eb49ba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:24c8e8f619a51c96",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:4ed314241fbbbe33",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:ddf47d058bd3cdfe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:312817e5601a91cd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:006e6572ef09312f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:ae4ef430dd562bc6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:a6a547c3be19fbbf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:9ff281b6c9e0d96a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:97520b924c42f0e6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:90e34c1676ea07a1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:9a3a74a2b8cb1f41",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:6e850d95f4166ccf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:5f949942c9b3010c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:ebb45fcddf0b1a27",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:6c784c8148f3bb98",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:4b449050ed1e040e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:667c64ea9ad8c75c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:f4f69249795c7a60",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:1174f8152cf482ba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:stellaandchewys.com:1c646e8309516886",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  }
+ ],
+ "counts": {
+  "total": 263,
+  "accept": 242,
+  "revise": 21
+ },
+ "openBlockers": [
+  "Authority gap (no label change): dog-treats/cat-treats species+food-form invariants vs dual-species and mix/freeze-dried-raw evidence flagged per-row in identityIssues; frozen values preserved."
+ ]
+}

@@ -1,0 +1,1250 @@
+{
+  "scope": "approved source-window enrichment of existing retained public64; never new independent support or held candidates",
+  "ownerDecisionPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+  "counts": {
+    "pilot": 22,
+    "kong": 13,
+    "petfood2": 2,
+    "oxbow": 23,
+    "naturesway": 2,
+    "smartpak": 2
+  },
+  "rows": [
+    {
+      "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky",
+      "title": "Wisdom Air-Dried Holiday Feast Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried Holiday Feast Jerky",
+      "rationale": "Jerky treat with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky",
+      "title": "Wisdom Air-Dried Pumpkin Spice Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried Pumpkin Spice Jerky",
+      "rationale": "Jerky treat with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky",
+      "title": "Wisdom Air-Dried From the Soil Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried From the Soil Recipe Jerky",
+      "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky",
+      "title": "Wisdom Air-Dried From the Seed Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried From the Seed Recipe Jerky",
+      "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky",
+      "title": "Wisdom Air-Dried From the Land Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried From the Land Recipe Jerky",
+      "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky",
+      "title": "Wisdom Air-Dried Chicken Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried Chicken Recipe Jerky",
+      "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/skin-herbal-relief",
+      "title": "Skin Herbal Relief",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Skin Herbal Relief",
+      "rationale": "Skin-benefit herbal relief for dogs and cats, but the two captured excerpts establish only the skin condition scope, not the administration route: neither states topical application nor ingestible dosing, so grooming (topical skin/coat care) vs supplements (ingestible support) membership cannot be resolved without inventing the route.",
+      "identityIssues": [
+        "route of administration unstated in captured title/excerpts: no topical-application or ingestible-dosing language, so grooming vs supplements membership unresolvable; dual 'dogs and cats' scope also unrepresentable on single-select species if typed"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky",
+      "title": "Wisdom Air-Dried From the Air Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried From the Air Recipe Jerky",
+      "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/puzzle-treats",
+      "title": "Chicken Woof Puzzle Treats",
+      "brand": "Woof",
+      "productIdentity": "Woof: Chicken Woof Puzzle Treats",
+      "rationale": "Puzzle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/chicken-love-nuggets",
+      "title": "Chicken Love Nuggets",
+      "brand": "Woof",
+      "productIdentity": "Woof: Chicken Love Nuggets",
+      "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/lickwells-pumpkin",
+      "title": "Pumpkin Butter LickWells",
+      "brand": "Woof",
+      "productIdentity": "Woof: Pumpkin Butter LickWells",
+      "rationale": "Squeezable pumpkin spread with no species signal in captured title/excerpts; frozen treat/supplement membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/bully-sticks",
+      "title": "Free Range Bully Sticks",
+      "brand": "Woof",
+      "productIdentity": "Woof: Free Range Bully Sticks",
+      "rationale": "Bully-stick chews with no species signal in captured title/excerpts; dog-treats membership unresolvable without choosing an unsupported scope.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/pupsicle-pops",
+      "title": "Pupsicle Pops",
+      "brand": "Woof",
+      "productIdentity": "Woof: Pupsicle Pops",
+      "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/allergy-immunity-pops",
+      "title": "Allergy & Immunity Pops",
+      "brand": "Woof",
+      "productIdentity": "Woof: Allergy & Immunity Pops",
+      "rationale": "Functional pops with no species signal in captured title/excerpts; treat-vs-supplement membership and dog-vs-cat scope both unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/hip-joint-pops",
+      "title": "Hip & Joint Pops",
+      "brand": "Woof",
+      "productIdentity": "Woof: Hip & Joint Pops",
+      "rationale": "Functional pops with no species signal in captured title/excerpts; treat-vs-supplement membership and dog-vs-cat scope both unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/pops-mix-pack",
+      "title": "Pupsicle Pops: Mix Pack",
+      "brand": "Woof",
+      "productIdentity": "Woof: Pupsicle Pops: Mix Pack",
+      "rationale": "Pupsicle treats (beef and chicken Pop flavors) with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/beef-pupsicle-pops-2-pack",
+      "title": "Beef Pops: 2 Pack",
+      "brand": "Woof",
+      "productIdentity": "Woof: Beef Pops: 2 Pack",
+      "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/super-strips",
+      "title": "Super Strips",
+      "brand": "Woof",
+      "productIdentity": "Woof: Super Strips",
+      "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky",
+      "title": "Wisdom Air-Dried Turkey Recipe Jerky",
+      "brand": "Earth Animal",
+      "productIdentity": "Earth Animal: Wisdom Air-Dried Turkey Recipe Jerky",
+      "rationale": "Turkey jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/woof-puzzle-treats-beef",
+      "title": "Beef Woof Puzzle Treats",
+      "brand": "Woof",
+      "productIdentity": "Woof: Beef Woof Puzzle Treats",
+      "rationale": "Puzzle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/love-nuggets",
+      "title": "Beef Love Nuggets",
+      "brand": "Woof",
+      "productIdentity": "Woof: Beef Love Nuggets",
+      "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/chicken-pops-2pack",
+      "title": "Chicken Pops: 2 Pack",
+      "brand": "Woof",
+      "productIdentity": "Woof: Chicken Pops: 2 Pack",
+      "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/dr-noyz-teddy-bear/",
+      "title": "Dr. Noyz Teddy Bear",
+      "brand": "KONG",
+      "productIdentity": "KONG: Dr. Noyz Teddy Bear",
+      "rationale": "Plush squeaker toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:1577011117c2bc5d",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/kong-extreme-tires/",
+      "title": "KONG Extreme Tires",
+      "brand": "KONG",
+      "productIdentity": "KONG: KONG Extreme Tires",
+      "rationale": "Tire chew/fetch toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/grinz-puffer-fish/",
+      "title": "Grinz Puffer Fish",
+      "brand": "KONG",
+      "productIdentity": "KONG: Grinz Puffer Fish",
+      "rationale": "Bouncing/fetching character ball toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/kong-extreme-ball-w-rope/",
+      "title": "KONG Extreme Ball w/Rope",
+      "brand": "KONG",
+      "productIdentity": "KONG: KONG Extreme Ball w/Rope",
+      "rationale": "Ball-with-rope fetch/tug toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/dr-noyz-duck/",
+      "title": "Dr. Noyz Duck",
+      "brand": "KONG",
+      "productIdentity": "KONG: Dr. Noyz Duck",
+      "rationale": "Plush squeaker toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/wubba-friends-ballistic/",
+      "title": "Wubba Friends Ballistic",
+      "brand": "KONG",
+      "productIdentity": "KONG: Wubba Friends Ballistic",
+      "rationale": "Squeak-and-shake plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/wubba-octopus/",
+      "title": "Wubba Octopus",
+      "brand": "KONG",
+      "productIdentity": "KONG: Wubba Octopus",
+      "rationale": "Tug/shake/fetch plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/floppy-knots-hippo/",
+      "title": "Floppy Knots Hippo",
+      "brand": "KONG",
+      "productIdentity": "KONG: Floppy Knots Hippo",
+      "rationale": "Knotted-rope thrash toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/ballistic-alligator/",
+      "title": "Ballistic Alligator",
+      "brand": "KONG",
+      "productIdentity": "KONG: Ballistic Alligator",
+      "rationale": "Ballistic squeak/plush play toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/flexball-sport-ball/",
+      "title": "Flexball Sport Ball",
+      "brand": "KONG",
+      "productIdentity": "KONG: Flexball Sport Ball",
+      "rationale": "Bouncy fetch ball with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable.",
+      "identityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/pull-a-partz-sushi/",
+      "title": "Pull-A-Partz Sushi",
+      "brand": "KONG",
+      "productIdentity": "KONG: Pull-A-Partz Sushi",
+      "rationale": "5-toys-in-1 crinkly play set with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents alone cannot establish Cat scope.",
+      "identityIssues": [
+        "no standalone species token in captured title/excerpts; catnip wording describes toy contents, not species scope; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/connects-window-boxing/",
+      "title": "Connects Window Boxing",
+      "brand": "KONG",
+      "productIdentity": "KONG: Connects Window Boxing",
+      "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope.",
+      "identityIssues": [
+        "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/connects-punching-bag/",
+      "title": "Connects Punching Bag",
+      "brand": "KONG",
+      "productIdentity": "KONG: Connects Punching Bag",
+      "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope.",
+      "identityIssues": [
+        "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+      ],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+      "bank": "petfood2",
+      "canonicalUrl": "https://instinctpetfood.com/products/freshly-crafted-meals-beef",
+      "title": "Freshly Crafted Meals Grass-Fed Beef Recipe",
+      "brand": "Instinct",
+      "productIdentity": "Instinct: Freshly Crafted Meals Grass-Fed Beef Recipe",
+      "rationale": "Human-grade dog meal with no fridge/freezer needed; captured excerpts never state Dry, Wet, Frozen, or Treat form, so no frozen dry/wet/treat invariant can be applied without relabeling. Form gap: insufficient-evidence.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+      "bank": "petfood2",
+      "canonicalUrl": "https://instinctpetfood.com/products/freshly-crafted-meals-chicken",
+      "title": "Freshly Crafted Meals Cage-Free Chicken Recipe",
+      "brand": "Instinct",
+      "productIdentity": "Instinct: Freshly Crafted Meals Cage-Free Chicken Recipe",
+      "rationale": "Human-grade dog meal with no fridge/freezer needed; captured excerpts never state Dry, Wet, Frozen, or Treat form. Form gap: insufficient-evidence.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/",
+      "title": "Enriched Life &#8211; Forage Pot",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Forage Pot",
+      "rationale": "Forage-pot enrichment item; title suggests a forage/hay vessel but captured excerpts state only generic explore/play/hide/chew enrichment; cannot tell feeder hardware, feed, or toy; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/",
+      "title": "Enriched Life &#8211; Timothy Party Pack",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Timothy Party Pack",
+      "rationale": "Timothy party-pack enrichment; title suggests timothy-hay content but captured excerpts state only generic enrichment; feed identity/form/packaging unstated; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/",
+      "title": "Enriched Life &#8211; Apple Stick Dangly",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Apple Stick Dangly",
+      "rationale": "Apple-stick dangly hanging item; stick suggests chew but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable chew unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/",
+      "title": "Enriched Life &#8211; Timmy Pops",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Timmy Pops",
+      "rationale": "Timmy-pops enrichment; title suggests a timothy-based pop/treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/",
+      "title": "Enriched Life &#8211; Hanging Mulberry Chew",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Hanging Mulberry Chew",
+      "rationale": "Hanging mulberry chew; chew suggests chew toy/consumable but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/",
+      "title": "Enriched Life &#8211; Celebration Cone",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Celebration Cone",
+      "rationale": "Celebration-cone enrichment; title suggests an edible/cone treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/",
+      "title": "Enriched Life &#8211; Crunchy Carrot",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Crunchy Carrot",
+      "rationale": "Crunchy-carrot enrichment; title suggests an edible carrot chew/treat but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/",
+      "title": "Enriched Life &#8211; The Treat House",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; The Treat House",
+      "rationale": "Treat-house enrichment structure; title suggests a treat-holding hide but captured excerpts state only generic enrichment; feeder/hide/treat roles unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/",
+      "title": "Enriched Life &#8211; Treasure Barrel",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Treasure Barrel",
+      "rationale": "Treasure-barrel enrichment; title suggests a barrel feeder/toy but captured excerpts state only generic enrichment; type unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/",
+      "title": "Enriched Life &#8211; Timothy Apple Slice",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Timothy Apple Slice",
+      "rationale": "Timothy-apple-slice enrichment; title suggests an edible timothy/apple slice but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/",
+      "title": "Enriched Life &#8211; Ox Blocks",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Ox Blocks",
+      "rationale": "Ox-blocks enrichment; title suggests a block-form feed/treat but captured excerpts state only generic enrichment; block feed identity unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/",
+      "title": "Enriched Life &#8211; Roll Arounds",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Roll Arounds",
+      "rationale": "Roll-arounds enrichment; title suggests rolling feeder/toy but captured excerpts state only generic enrichment; type unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/",
+      "title": "Enriched Life &#8211; Nesting Disks",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Nesting Disks",
+      "rationale": "Nesting-disks enrichment; title suggests nesting/bedding material but captured excerpts state only generic enrichment; bedding vs toy unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/",
+      "title": "Enriched Life &#8211; Timothy Star Dish",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Timothy Star Dish",
+      "rationale": "Timothy-star-dish enrichment; title suggests a hay dish/feeder but captured excerpts state only generic enrichment; feeder vs feed unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/",
+      "title": "Enriched Life &#8211; Hanging Sunflower Chew",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Hanging Sunflower Chew",
+      "rationale": "Hanging sunflower chew; chew suggests chew toy/consumable but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/",
+      "title": "Enriched Life &#8211; Hideaway Hay Barn",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Hideaway Hay Barn",
+      "rationale": "Hideaway hay-barn enrichment; title suggests a hay shelter/feeder but captured excerpts state only generic enrichment; hide/feeder/feed roles unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/",
+      "title": "Enriched Life &#8211; Pick Up Stix Trio",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Pick Up Stix Trio",
+      "rationale": "Pick-up-stix trio enrichment; sticks suggest chews but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/",
+      "title": "Enriched Life &#8211; Natural Kabob",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Natural Kabob",
+      "rationale": "Natural kabob enrichment; title suggests a hanging kabob feeder/chew but captured excerpts state only generic enrichment; feeder/chew/toy unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/",
+      "title": "Enriched Life &#8211; Timothy Surprise",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Timothy Surprise",
+      "rationale": "Timothy-surprise enrichment; title suggests timothy-hay content but captured excerpts state only generic enrichment; feed identity unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/",
+      "title": "Enriched Life &#8211; Twisty Rings",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Twisty Rings",
+      "rationale": "Twisty-rings enrichment; title suggests ring chews/toys but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/",
+      "title": "Enriched Life &#8211; Willow Bundle",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Willow Bundle",
+      "rationale": "Willow-bundle enrichment; willow suggests chew sticks but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/",
+      "title": "Enriched Life &#8211; Celebration Present",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Celebration Present",
+      "rationale": "Celebration-present enrichment; title suggests an edible gift/treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/",
+      "title": "Enriched Life &#8211; Celebration Salad",
+      "brand": "Oxbow Animal Health",
+      "productIdentity": "Oxbow Animal Health: Enriched Life &#8211; Celebration Salad",
+      "rationale": "Celebration-salad enrichment; title suggests an edible salad/treat but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+      "bank": "naturesway",
+      "canonicalUrl": "https://natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia",
+      "title": "11” Recycled Glass Hanging Combination Bird Feeder and Bath - Violet Begonia",
+      "brand": "EcoCycle™",
+      "productIdentity": "EcoCycle™: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Violet Begonia",
+      "rationale": "Dual-use combination bath-or-feeder (title: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Violet Begonia): evidence explicitly establishes BOTH a bird-bath use and a seed-feeder use with no stated primary scope, so a single frozen type (wild-bird-feeders vs bird-houses-baths) cannot be determined from captured evidence. insufficient-evidence; no field can be adjudicated without a type.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+      "bank": "naturesway",
+      "canonicalUrl": "https://natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia",
+      "title": "11” Recycled Glass Hanging Combination Bird Feeder and Bath - Turquoise Dahlia",
+      "brand": "EcoCycle™",
+      "productIdentity": "EcoCycle™: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Turquoise Dahlia",
+      "rationale": "Dual-use combination bath-or-feeder (title: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Turquoise Dahlia): evidence explicitly establishes BOTH a bird-bath use and a seed-feeder use with no stated primary scope, so a single frozen type (wild-bird-feeders vs bird-houses-baths) cannot be determined from captured evidence. insufficient-evidence; no field can be adjudicated without a type.",
+      "identityIssues": [],
+      "sourceEvidencePolicies": {
+        "source": "official_product_page",
+        "titleReliability": "high",
+        "descriptionReliability": "high",
+        "excludedLocators": []
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:smartpakequine.com:84866e619a6b75f8",
+      "bank": "smartpak",
+      "canonicalUrl": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513",
+      "title": "Fromm&amp;reg; Four-Star Nutritionals&amp;reg; Beef Frittata Veg",
+      "brand": "SmartPak",
+      "productIdentity": "SmartPak: Fromm&amp;reg; Four-Star Nutritionals&amp;reg; Beef Frittata Veg",
+      "rationale": "Fromm Beef Frittata Veg dry-food recipe. Surviving primary retailer text establishes a dry-food recipe but no primary clip or title text states the species, and dog-food membership would require brand knowledge (prohibited). Unresolved dog-vs-cat/other scope after UGC exclusion, not positive absence from every frozen type; all eight slots inapplicable.",
+      "identityIssues": [
+        "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+        "Species/flavor/food-form positives removed: species had only brand-knowledge grounding and no primary species evidence remains; Beef title flavor and dry-recipe form cannot carry a species-invariant type without species. Unresolved scope, not a positive no-fit."
+      ],
+      "sourceEvidencePolicies": {
+        "source": "third_party_page",
+        "titleReliability": "medium",
+        "descriptionReliability": "medium",
+        "excludedLocators": [
+          "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513 JSON-LD Product + product-description#excerpt-1"
+        ]
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    },
+    {
+      "sku": "PUBLIC:smartpakequine.com:9957f401db23876c",
+      "bank": "smartpak",
+      "canonicalUrl": "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416",
+      "title": "BIXBI&amp;reg; Pocket Trainer&amp;reg; Treats",
+      "brand": "BIXBI®",
+      "productIdentity": "BIXBI®: BIXBI&amp;reg; Pocket Trainer&amp;reg; Treats",
+      "rationale": "Pocket Trainer treats framed as training incentive with soft texture. Surviving primary retailer text names treats/training use but no species; Dog membership would rest on UGC and brand knowledge (both prohibited). Unresolved dog-vs-cat/other scope after UGC exclusion, not positive absence from every frozen type; all eight slots inapplicable.",
+      "identityIssues": [
+        "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+        "Species signal was UGC-only (my dogs / senior dog friends); excluded, leaving no primary species evidence. No flavor value was ever evidenced in primary text. Unresolved scope, not a positive no-fit."
+      ],
+      "sourceEvidencePolicies": {
+        "source": "third_party_page",
+        "titleReliability": "medium",
+        "descriptionReliability": "medium",
+        "excludedLocators": [
+          "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-0",
+          "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-1",
+          "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-2",
+          "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-3",
+          "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-6"
+        ]
+      },
+      "explicitAlreadyPublic": true,
+      "newIndependentSupport": false
+    }
+  ]
+}

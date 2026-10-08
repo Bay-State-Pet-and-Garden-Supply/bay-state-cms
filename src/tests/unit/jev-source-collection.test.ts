@@ -14,11 +14,13 @@ import { describe, it, expect } from 'bun:test';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import {
   candidateFromPageHtml,
+  canonicalProductUrlKey,
   deriveAuthorityHash,
   findExistingArtifacts,
   isAllowedSourceUrl,
+  isExcludedProductUrl,
+  loadPublicExclusion,
   normalizeDeniedHost,
-  parseAttemptCap,
   parseSeedFile,
   partitionFeedRows,
   sameProductUrl,
@@ -26,6 +28,7 @@ import {
   type Candidate,
   type Seed,
 } from '../../../scripts/collect-jev-v3-sources';
+import { parseInvocationCap, SOURCE_WINDOW_MAX } from '../../../scripts/lib/source-request-window';
 
 const SEED: Seed = {
   domain: 'fixtures.test',
@@ -136,13 +139,16 @@ describe('jev v3 source extractor (collector seam)', () => {
 });
 
 describe('jev v3 collector guards (pure, no network)', () => {
-  it('parseAttemptCap defaults, accepts the approved allocation, and rejects NaN/negative/zero/fractional/over-cap', () => {
-    expect(parseAttemptCap(null)).toBe(1500);
-    expect(parseAttemptCap('1500')).toBe(1500);
-    expect(parseAttemptCap('100')).toBe(100);
-    for (const bad of ['0', '-5', '1.5', 'abc', '', 'NaN', '1501', '1000000', '10e2']) {
-      expect(() => parseAttemptCap(bad), `"${bad}"`).toThrow(/invalid_attempt_cap/);
+  it('parseInvocationCap defaults to remaining window, rejects NaN/negative/zero/fractional/over-cap/over-remaining', () => {
+    expect(SOURCE_WINDOW_MAX).toBe(1200);
+    expect(parseInvocationCap(null, 1200)).toBe(1200);
+    expect(parseInvocationCap(null, 37)).toBe(37);
+    expect(parseInvocationCap('100', 1200)).toBe(100);
+    for (const bad of ['0', '-5', '1.5', 'abc', '', 'NaN', '1201', '1000000', '10e2']) {
+      expect(() => parseInvocationCap(bad, 1200), `"${bad}"`).toThrow(/invalid_attempt_cap/);
     }
+    expect(() => parseInvocationCap('38', 37)).toThrow(/exceeds remaining window/);
+    expect(() => parseInvocationCap(null, 0)).toThrow(/source_window_exhausted/);
   });
 
   it('normalizeDeniedHost collapses apex/www and case so a denial sticks across hops', () => {
@@ -166,6 +172,22 @@ describe('jev v3 collector guards (pure, no network)', () => {
     const found = findExistingArtifacts('/custody', '/public', exists);
     expect(found).toEqual(['/custody/holdout-inputs.json', '/public/source-development.json']);
     expect(findExistingArtifacts('/custody', '/public', () => false)).toEqual([]);
+  });
+
+  it('findExistingArtifacts covers the new window receipts, not the removed cumulative ledger', () => {
+    const exists = (p: string): boolean =>
+      p.endsWith('source-window-usage.json') || p.endsWith('source-request-receipts.json') || p.endsWith('cumulative-source-ledger.json');
+    expect(findExistingArtifacts('/custody', '/public', exists)).toEqual([
+      '/custody/source-window-usage.json',
+      '/public/source-request-receipts.json',
+    ]);
+  });
+
+  it('loadPublicExclusion rejects private-looking or missing stage banks without reading custody', () => {
+    for (const bad of ['stage/holdout-inputs.json', 'stage/membership.json', 'some-custody-bank.json']) {
+      expect(() => loadPublicExclusion([bad])).toThrow(/private_exclusion_rejected/);
+    }
+    expect(() => loadPublicExclusion(['does/not/exist-bank.json'])).toThrow(/missing_stage_bank/);
   });
 
   it('deriveAuthorityHash is canonical (key-order stable) and rejects non-taxonomy input', () => {
@@ -254,5 +276,39 @@ describe('jev v3 collector guards (pure, no network)', () => {
     ]) {
       expect(() => parseSeedFile(bad)).toThrow();
     }
+  });
+});
+
+describe('jev v3 prior-source exclusion (canonical identity, no network)', () => {
+  // The sealed spelling carries a changed SKU: the exclusion must key on
+  // product-URL identity (apex/www + trailing slash), never the SKU or the
+  // raw string, and the gate must fire BEFORE any fetch.
+  const sealed = 'https://fixtures.test/products/salmon-recipe';
+  const exclusion = {
+    byFamily: new Set<string>(),
+    byUrl: new Set([canonicalProductUrlKey(sealed) as string]),
+  };
+
+  it('canonicalProductUrlKey collapses apex/www and trailing-slash spellings to one identity', () => {
+    expect(canonicalProductUrlKey('https://www.fixtures.test/products/salmon-recipe/')).toBe(
+      canonicalProductUrlKey(sealed),
+    );
+    expect(canonicalProductUrlKey('https://fixtures.test/products/other')).not.toBe(
+      canonicalProductUrlKey(sealed),
+    );
+    expect(canonicalProductUrlKey('not a url')).toBeNull();
+  });
+
+  it('excludes a sealed product under any URL spelling before fetch, while a genuinely different path stays fetchable', () => {
+    for (const spelling of [
+      'https://fixtures.test/products/salmon-recipe',
+      'https://www.fixtures.test/products/salmon-recipe',
+      'https://fixtures.test/products/salmon-recipe/',
+      'https://www.fixtures.test/products/salmon-recipe/',
+    ]) {
+      expect(isExcludedProductUrl(spelling, exclusion)).toBe(true);
+    }
+    expect(isExcludedProductUrl('https://fixtures.test/products/tuna-recipe', exclusion)).toBe(false);
+    expect(isExcludedProductUrl('https://other.test/products/salmon-recipe', exclusion)).toBe(false);
   });
 });

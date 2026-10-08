@@ -1,0 +1,389 @@
+{
+  "artifactKind": "full-spec-completion-readiness",
+  "status": "BLOCKED-NO-FREEZE-NOT-QUALIFIED",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "counts": {
+    "publicSourceRows": 1203,
+    "priorPublicIdentityExclusions": 224,
+    "adjudicatedRows": 979,
+    "nonProductExclusions": 4,
+    "developmentRows": 967,
+    "developmentFamilies": 901,
+    "duplicateCapturesExcluded": 8,
+    "knownRows": 685,
+    "noFitRows": 218,
+    "insufficientRows": 64,
+    "representedKnownTypes": 27,
+    "classesAtTwentyRows": 10,
+    "completePageGoldRows": 0,
+    "qualificationEligibleRows": 0
+  },
+  "fieldSupport": {
+    "breed-size": {
+      "known": 1,
+      "no-fit": 22,
+      "insufficient-evidence": 85,
+      "inapplicable": 859
+    },
+    "flavor": {
+      "known": 17,
+      "no-fit": 46,
+      "insufficient-evidence": 45,
+      "inapplicable": 859
+    },
+    "food-form": {
+      "known": 108,
+      "no-fit": 206,
+      "insufficient-evidence": 27,
+      "inapplicable": 626
+    },
+    "fuel-type": {
+      "known": 0,
+      "no-fit": 0,
+      "insufficient-evidence": 0,
+      "inapplicable": 967
+    },
+    "hose-length": {
+      "known": 0,
+      "no-fit": 0,
+      "insufficient-evidence": 0,
+      "inapplicable": 967
+    },
+    "life-stage": {
+      "known": 8,
+      "no-fit": 0,
+      "insufficient-evidence": 100,
+      "inapplicable": 859
+    },
+    "packaging-type": {
+      "known": 6,
+      "no-fit": 0,
+      "insufficient-evidence": 448,
+      "inapplicable": 513
+    },
+    "species": {
+      "known": 579,
+      "no-fit": 29,
+      "insufficient-evidence": 32,
+      "inapplicable": 327
+    }
+  },
+  "developmentPeer": {
+    "performed": true,
+    "humanApproval": false,
+    "recommendation": "NO-FREEZE",
+    "receiptPath": "docs/audits/jev-expansion-v2/development-peer-receipt.json",
+    "reviewInputBindings": [
+      {
+        "name": "pet-products",
+        "path": "docs/audits/jev-expansion-v2/reviews/inputs/pet-products.json",
+        "sha256": "58c2c72c1c5c96a692f58d6787c920134a860d947fdd1909cc772328ebd9daa0"
+      },
+      {
+        "name": "aquatics-smallpets",
+        "path": "docs/audits/jev-expansion-v2/reviews/inputs/aquatics-smallpets.json",
+        "sha256": "ae67d0ed0008a3e96ce323cc9b91802e7835279555f8a2b87acad329b5198186"
+      },
+      {
+        "name": "bird-bee-products",
+        "path": "docs/audits/jev-expansion-v2/reviews/inputs/bird-bee-products.json",
+        "sha256": "742b54607c5214a80bc1dbf8d3a0aaa92b161128758327952df6567e9378ad30"
+      },
+      {
+        "name": "garden-care-products",
+        "path": "docs/audits/jev-expansion-v2/reviews/inputs/garden-care-products.json",
+        "sha256": "1966779bb51c6ef98328b12ced0a283cd952a6e1e32a5f26fa83f8b06c9c182b"
+      },
+      {
+        "name": "equine-products",
+        "path": "docs/audits/jev-expansion-v2/reviews/inputs/equine-products.json",
+        "sha256": "dcf58be1207457f654916db4f8b589b34b6ab68c016baeeab80e634c1d6be6ce"
+      }
+    ]
+  },
+  "gates": [
+    {
+      "gate": "frozen authority, exact canonical values and source identities",
+      "status": "scoped checks pass",
+      "evidence": [
+        "development-peer-receipt.json",
+        "canonical-identity-audit.json",
+        "corpus-runtime-proof.json"
+      ]
+    },
+    {
+      "gate": "proper source-backed disposition per development product",
+      "status": "partial",
+      "known": 685,
+      "genuineNoFit": 218,
+      "insufficientNeedsEnrichment": 64,
+      "noForcedNearestFits": true
+    },
+    {
+      "gate": "complete page gold",
+      "status": "blocked",
+      "completeRows": 0,
+      "unknownRows": 967,
+      "verifiedPages": 212,
+      "merchantIntentMissing": [
+        {
+          "id": "eligible-page-authority",
+          "evidence": "Verified identities include merchandise, contact/search, examples, directories, services and promotions; no owner-approved eligibility flag is supplied.",
+          "ownerKnowledgeMissing": "Approve listing IDs and proposed exclusions; resolve Facebook duplicates, examples, brand directories, and transactional rental/propane/service roles."
+        },
+        {
+          "id": "closed-subject-boundaries",
+          "evidence": "Boots/Muck Boots differs; Dry Dog Food mentions wet food; Raw Dog Food includes treats/supplements; Mulch & Loam title is Lawn Care; Bakery/crunchy pages overlap; cleanup/healthcare/gardening are compound subjects.",
+          "ownerKnowledgeMissing": "Approve inclusion/exclusion predicates for broad, compound, conflicting and overlapping subjects, including accessory/member and food/treat boundaries. Adequate existing copy can be adopted into deterministic rules rather than requiring manual labels for every SKU."
+        },
+        {
+          "id": "assignment-selection-policy",
+          "evidence": "No non-null export or taxonomy parent references; requested bundle.pageAssignmentPolicy absent, advisory/guidance present.",
+          "ownerKnowledgeMissing": "Set most-specific-only versus multiple matching scopes, required Shop All and brand co-assignments, max-4 selection and tie-breaking. Flat owner-approved precedence can close scope without hierarchy; actual hierarchy is required only if the chosen rule uses it."
+        },
+        {
+          "id": "brand-promotional-seasonal-membership",
+          "evidence": "Example, ordinary and featured Purina coexist; brand pages lack title/body. Featured Products, offers and broad seasonal pages lack closed selection criteria.",
+          "ownerKnowledgeMissing": "Specify eligible brand/brand-line pages and approved aliases, selected featured/offer/seasonal sets or predicates, and validity period. includeBrandPages does not authorize arbitrary fallback."
+        },
+        {
+          "id": "species-and-known-type-boundaries",
+          "evidence": "Advisory species list omits horse/farm/wildlife while verified pages explicitly name those subjects, chicks and bees; Category Page requires known Primary Product Type.",
+          "ownerKnowledgeMissing": "Clarify supported farm/horse/wildlife, amphibian, live-animal and service-item scope without minting taxonomy, discarding verified pages or bypassing known-type requirements."
+        },
+        {
+          "id": "item-specific-completeness",
+          "evidence": "Export requestedFields omits Product Links and Links To Page; source explicitly records productMembershipGold=false and assignmentScopeClosed=false. No direct item evidence was inspected in this page-only review.",
+          "ownerKnowledgeMissing": "After accepting closed eligibility, subject and selection rules, derive complete required page-ID sets using independently adjudicated direct evidence for each eligible source item. Missing knowledge is merchandising intent, not necessarily 979 manual page labels; existing assignments, if later available, remain hypotheses rather than gold."
+        }
+      ]
+    },
+    {
+      "gate": "at least20 supported evaluated classes",
+      "status": "blocked",
+      "representedKnownTypes": 27,
+      "classesAtTwentyRows": 10,
+      "minimumAdditionalKnownDispositionsToTwentyClasses": 65,
+      "smallestTenDeficits": [
+        {
+          "typeId": "fly-control-equine",
+          "rows": 19,
+          "minimumAdditionalRows": 1
+        },
+        {
+          "typeId": "fish-food",
+          "rows": 18,
+          "minimumAdditionalRows": 2
+        },
+        {
+          "typeId": "supplements",
+          "rows": 18,
+          "minimumAdditionalRows": 2
+        },
+        {
+          "typeId": "cat-toys",
+          "rows": 17,
+          "minimumAdditionalRows": 3
+        },
+        {
+          "typeId": "bird-houses-baths",
+          "rows": 16,
+          "minimumAdditionalRows": 4
+        },
+        {
+          "typeId": "flea-tick-treatment",
+          "rows": 11,
+          "minimumAdditionalRows": 9
+        },
+        {
+          "typeId": "potting-soil",
+          "rows": 11,
+          "minimumAdditionalRows": 9
+        },
+        {
+          "typeId": "collars-leashes",
+          "rows": 10,
+          "minimumAdditionalRows": 10
+        },
+        {
+          "typeId": "dog-food-wet",
+          "rows": 8,
+          "minimumAdditionalRows": 12
+        },
+        {
+          "typeId": "cat-treats",
+          "rows": 7,
+          "minimumAdditionalRows": 13
+        }
+      ],
+      "predeclaredEvaluatedClassSet": false,
+      "all74TypesNeedSources": false,
+      "inferenceCandidateUniverseMustRemainFull": true
+    },
+    {
+      "gate": "sealed holdout custody and qualification",
+      "status": "custody-byte-checks-only",
+      "banks": 15,
+      "hashAndModeVerifiedFiles": 60,
+      "declaredUnlabeledRows": 309,
+      "declaredFamilies": 266,
+      "literalClassMinimumRows": 400,
+      "necessaryMinimumAdditionalHeldRows": 91,
+      "labelsClassesAndExposureUnverified": true,
+      "privatePayloadRead": false
+    },
+    {
+      "gate": "source budget accounting",
+      "status": "blocked",
+      "declaredNewPerBankSum": 3472,
+      "inheritedBaseCountedOnce": 1485,
+      "declaredAccountingSourceUpperBound": 4957,
+      "declaredAccountingGlobalUpperBound": 6370,
+      "globalDeclaredCap": 3200,
+      "transportDisjointnessLedgerUnverified": true,
+      "newSourceCaptureRequestsThisIteration": 0,
+      "needs": "Reconcile public request accounting or owner-authorize a separately bounded new source window; do not inspect private payloads to reconcile"
+    },
+    {
+      "gate": "development-fitted policies before holdout inspection",
+      "status": "blocked",
+      "policiesFitted": false,
+      "policiesPublished": false,
+      "engineeringDefaultsAreNotFitted": true
+    },
+    {
+      "gate": "immutable actual provider capture",
+      "status": "bounded diagnostic only",
+      "pairedPublicRows": 3,
+      "candidateRequestedAndReturned": "jev-1.13.0",
+      "candidateAttemptsConsumed": 5,
+      "candidateBound": 12,
+      "baselineProvider": "deepseek-cloud",
+      "baselineRequestedModel": "deepseek-v4-flash",
+      "baselineReturnedModel": "deepseek-flash",
+      "baselineCredentialReference": "provider_connections:deepseek-cloud",
+      "baselineAttemptsConsumed": 11,
+      "baselineBound": 60,
+      "representativeOrCohortQualified": false,
+      "insufficientGoldRowOverProposedByBoth": true,
+      "evidence": "diagnostic-live-public-3.json"
+    },
+    {
+      "gate": "full-population paired replay budget",
+      "status": "blocked-before-dispatch",
+      "entries": 967,
+      "candidatePlannedAttempts": 3868,
+      "candidateCeiling": 600,
+      "noPopulationTruncation": true,
+      "noSilentBudgetIncrease": true
+    },
+    {
+      "gate": "raw benchmark and production gate assessment",
+      "status": "exercised, blocked",
+      "evidence": "full-population-offline-gate.json",
+      "notes": "all967 offline, candidate blocked; not real quality. Zero held examples. Runbook hash is the version tested at historical timestamp, not current attestation.",
+      "blockerCodes": [
+        "policy_publication_unverified",
+        "connection_disablement_unverified",
+        "holdout_evaluation_missing",
+        "offline_evaluation_failed",
+        "harmful_regressions_detected",
+        "service_failures_detected",
+        "statistical_gate_failed",
+        "compatibility_unverified",
+        "qualified_code_uncommitted",
+        "live_contract_check_incomplete",
+        "canary_product_type_unreviewed",
+        "canary_attributes_unreviewed",
+        "canary_cohort_pages_unreviewed"
+      ]
+    },
+    {
+      "gate": "actual pinned API compatibility",
+      "status": "bounded real contract smoke passed",
+      "requestedModel": "jev-1.13.0",
+      "returnedModel": "jev-1.13.0",
+      "attempts": 1,
+      "retried": false,
+      "inputTokens": 551,
+      "outputTokens": 109,
+      "notQualityEvidence": true,
+      "notCommitBoundCompatibilityReceipt": true
+    },
+    {
+      "gate": "stored connection disablement before dispatch and retry",
+      "status": "isolated actual transport smoke passed",
+      "beforeDispatchActualRequests": 0,
+      "beforeRetryActualRequests": 1,
+      "errorCode": "connection_disabled",
+      "localFaultStatus": 529,
+      "evidence": "runtime-kill-switch-proof.json",
+      "notProductionCanary": true
+    },
+    {
+      "gate": "ordered actual-source canaries and human final approval",
+      "status": "prepared, not executed or signed off",
+      "validUnheldDistributorInputs": 51,
+      "validOfficialInputs": 0,
+      "coordinatedFamilySize": 6,
+      "plan": "ordered-source-ready-canary-plan.json",
+      "freshHumanSignoffs": false,
+      "seededFixturesExcluded": true
+    },
+    {
+      "gate": "committed implementation and fresh compatibility receipts",
+      "status": "blocked",
+      "runtimeWorktreeClean": false,
+      "operatorReceiptsAbsent": true,
+      "requiredSuiteIds": [
+        "other-providers",
+        "deterministic-rules",
+        "frozen-snapshots",
+        "legacy-reads"
+      ]
+    },
+    {
+      "gate": "#312 retirement",
+      "status": "blocked by actual #302",
+      "liveComparatorRetained": true
+    }
+  ],
+  "verification": {
+    "typecheck": "passed after lint-only cleanup and state-type restoration",
+    "changedCodeEslint": "passed after18 unused/dead-assignment cleanup",
+    "focusedNativeBun": {
+      "passed": 307,
+      "skipped": 1,
+      "failed": 0,
+      "files": 12,
+      "note": "before lint-only cleanup; runtime behavior unchanged by that cleanup"
+    },
+    "actualCliAssemblyAndRefusal": true,
+    "actualOfflineQualificationAll967": true,
+    "actualLiveOverbudgetCliRefusal": true,
+    "realJevAndIncumbentRuntimeCapture": true,
+    "actualLocalDisablementBoundarySmoke": true,
+    "productionMutated": false,
+    "ownedPrivateCloneAndThrowawayScriptsRemoved": true,
+    "privateHoldoutPayloadRead": false
+  },
+  "ownerDecisionsNeeded": [
+    "explicit bounded new product-source allowance or reconciled existing ledger",
+    "complete merchant eligibility/subject/overlap/seasonal/farm page contract",
+    "fresh attributed Store Manager decisions after ordered current-code runs"
+  ],
+  "evidencePaths": [
+    "development-manifest.json",
+    "development-peer-receipt.json",
+    "canonical-identity-audit.json",
+    "source-ledger-audit.json",
+    "page-scope-review.json",
+    "sealed-custody-metadata.json",
+    "diagnostic-live-public-3.json",
+    "corpus-runtime-proof.json",
+    "runtime-kill-switch-proof.json",
+    "full-population-offline-gate.json",
+    "source-ready-canary-inventory.json",
+    "ordered-source-ready-canary-plan.json"
+  ]
+}

@@ -2,7 +2,7 @@
  * Opt-in live contract check for the TypeSafe System One API (ticket #295).
  *
  * Bounded by construction: one synthetic state, one pinned model, at most
- * two questions, at most two HTTP attempts (one retry), hard timeout.
+ * three questions, at most two HTTP attempts (one retry), hard timeout.
  * Never runs in ordinary CI — requires TYPESAFE_LIVE_CHECK=1 plus a real
  * TYPESAFE_API_KEY. Validates live compatibility only (endpoint shape,
  * Choice/Noul answers, model identity, usage); it is not classification

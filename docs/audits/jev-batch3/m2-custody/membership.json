@@ -1,0 +1,34 @@
+[
+  {
+    "familyId": "family-8ed7574b1ae1b5e08d63de0d719301db",
+    "split": "train",
+    "primarySku": "PUBLIC:wellnesspetfood.com:80c2b8d375e06c36",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-17ed43356120ee02bf05ea97bcf48301",
+    "split": "holdout",
+    "primarySku": "PUBLIC:wellnesspetfood.com:979aeea176d5f15f",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-840d1cef0f9cb63b01aec301fdc2c22c",
+    "split": "train",
+    "primarySku": "PUBLIC:wellnesspetfood.com:df586456a8e1bbab",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9e877667747096eb445067005043fa4f",
+    "split": "test",
+    "primarySku": "PUBLIC:wellnesspetfood.com:8ec14cae358fc3d8",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  }
+]

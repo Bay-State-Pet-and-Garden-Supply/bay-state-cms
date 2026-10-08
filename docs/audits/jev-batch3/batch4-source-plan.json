@@ -1,0 +1,416 @@
+{
+  "approvals": {
+    "captureBlockedUntil": [
+      "fresh-reviewer-approval-of-this-batch4-plan"
+    ],
+    "planner": "Batch4Planner-2026-10-08"
+  },
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "captureAuthorization": "NO-CAPTURE. Batch4 planning ONLY. No spend, no fetch, no dry-run-ledger effects until a fresh reviewer approval lands on this revision. Default if unapproved: window closes at 737 spent and Batch3 finals stand.",
+  "deficitMath": {
+    "basis": "docs/audits/jev-expansion-v3/development-support.json v3 classSupport (post-Batch3 gold) + assignment standing deficits",
+    "classes": [
+      {
+        "floor": 20,
+        "have": 6,
+        "need": 14,
+        "probes": [
+          1,
+          2,
+          3,
+          4,
+          8
+        ],
+        "typeId": "dog-food-dry"
+      },
+      {
+        "floor": 20,
+        "have": 7,
+        "need": 13,
+        "probes": [
+          1,
+          2,
+          3,
+          4,
+          8
+        ],
+        "typeId": "cat-treats"
+      },
+      {
+        "floor": 20,
+        "have": 7,
+        "need": 13,
+        "probes": [
+          7
+        ],
+        "typeId": "livestock-health-dewormers"
+      },
+      {
+        "floor": 20,
+        "have": 8,
+        "need": 12,
+        "probes": [
+          1,
+          2,
+          8
+        ],
+        "typeId": "dog-food-wet"
+      },
+      {
+        "floor": 20,
+        "have": 8,
+        "need": 12,
+        "probes": [
+          6
+        ],
+        "typeId": "insect-control"
+      },
+      {
+        "floor": 20,
+        "have": 10,
+        "need": 10,
+        "probes": [
+          5
+        ],
+        "typeId": "collars-leashes"
+      },
+      {
+        "floor": 20,
+        "have": 11,
+        "need": 9,
+        "probes": [],
+        "typeId": "flea-tick-treatment"
+      },
+      {
+        "floor": 20,
+        "have": 13,
+        "need": 7,
+        "probes": [
+          6
+        ],
+        "typeId": "potting-soil"
+      },
+      {
+        "floor": 20,
+        "have": 16,
+        "need": 4,
+        "probes": [],
+        "typeId": "bird-houses-baths"
+      },
+      {
+        "floor": 20,
+        "have": 17,
+        "need": 3,
+        "probes": [
+          5
+        ],
+        "typeId": "cat-toys"
+      },
+      {
+        "floor": 20,
+        "have": 18,
+        "need": 2,
+        "probes": [],
+        "typeId": "fish-food"
+      },
+      {
+        "floor": 20,
+        "have": 18,
+        "need": 2,
+        "probes": [],
+        "typeId": "supplements"
+      },
+      {
+        "floor": 20,
+        "have": 19,
+        "need": 1,
+        "probes": [],
+        "typeId": "fly-control-equine"
+      }
+    ],
+    "furtherSubFloor": "additional sub-floor classes per v3 development-support.json (e.g. cat-food-dry, livestock-feeders, lawn-fertilizer, weed-control, horse-treats-supplements) are NOT covered by these quotas and stay open",
+    "namedNeedSum": 102,
+    "note": "102 = 14+13+13+12+12+10+9+7+4+3+2+2+1. Floor minimum, not a promise: adjudication decides each row, no forced nearest fits. Quotas below cannot close every class; plan targets progress on the largest deficits, quota permitting.",
+    "uncoveredNote": "flea-tick-treatment +9 has NO probe in this draft: farnam (Batch3 care) is dry and re-proposal is forbidden, and no fresh care domain appears in collector code lists; a NEW care-manufacturer proposal is deferred to reviewer rather than invented here. bird-houses-baths +4 / fish-food +2 / supplements +2 / fly-control-equine +1 are likewise uncovered by these quotas and stay open alongside further sub-floor classes."
+  },
+  "forensics": {
+    "pattern": "3-dry-food-probe pattern (M1/M3/M4 dry, M2 hit) is an UPSTREAM discovery-shape failure, not adjudication: all three drys never queued a page fetch, so page proof and adjudication never engaged. The 4 dry deficit probes split: M5 empty sitemap, M6 content-cohort false rescue + uniform proof failure, M7 score-floor strangulation + proof failure on the trickle, M9 discovery-exhaustion (listing-fallback harvest consumed the 20-cap; zero page fetches, proof never engaged per 20/20 sitemap-kind receipts). Neither failure mode is fixed by re-proposing the same domains.",
+    "probes": [
+      {
+        "abandon": "early-abandon dry per 0/40 rule (21 discovery attempts, 0 page)",
+        "code": "scoreUrl :710-716 (no /products?/ => <3), selectFetchUrls :746-754 (floor 3), dense-cohort prequal :689-704 (no 200+ cohort), feed gate :724-744",
+        "diagnosis": "DISCOVERY-SHAPE / SCORE-FLOOR failure. 806 sitemap locs all scored <3 (catalog not under /products?/, no 200+ single-segment dense cohort to prequalify), so selectFetchUrls queued ZERO; 19 HTML listing-fallback fetches surfaced zero product URLs; feed absent (feed-miss). All 21 spent on sitemap/discovery kinds; zero page attempts, zero proof engagements.",
+        "manifest": "docs/audits/jev-batch3/m1-public/collection-manifest.json",
+        "spent": 21,
+        "stage": "M1-frommfamily.com-DRY",
+        "stats": {
+          "feed-miss": 1,
+          "fetch-queued": 0,
+          "page-rows": 0,
+          "sitemap-html": 19,
+          "sitemap-listing-fallback": 1,
+          "sitemap-locs": 806
+        }
+      },
+      {
+        "code": "collectSitemapUrls :551-705 (index/child crawl, MAX_DISCOVERY_FETCHES), same gates as M1",
+        "diagnosis": "EMPTY-SITEMAP failure. Sitemap endpoint returned only 5 locs (stub index / JS-rendered catalog / partial child crawl); nothing to score or queue. Abandoned after 3 attempts per rule; no page proof engaged.",
+        "manifest": "docs/audits/jev-batch3/m3-public/collection-manifest.json",
+        "spent": 3,
+        "stage": "M3-canidae.com-DRY",
+        "stats": {
+          "feed-miss": 1,
+          "fetch-queued": 0,
+          "page-rows": 0,
+          "sitemap-listing-fallback": 1,
+          "sitemap-locs": 5
+        }
+      },
+      {
+        "code": "fetchOnce :256-322 (per-hop reserve+record; misses still spend), sitemap discovery :551-705",
+        "diagnosis": "SITEMAP-MISS / handful barrier. Both sitemap discovery attempts missed (absent sitemap.xml+robots or bot-gated denial); no HTML fallback locs recorded; feed absent. Zero discovery, zero queue. Consistent with WAF/bot-gate or missing sitemap, NOT proven which.",
+        "manifest": "docs/audits/jev-batch3/m4-public/collection-manifest.json",
+        "spent": 2,
+        "stage": "M4-purina.com-DRY",
+        "stats": {
+          "feed-miss": 1,
+          "fetch-queued": 0,
+          "page-rows": 0,
+          "sitemap-miss": 2
+        }
+      },
+      {
+        "code": "same discovery gates PASSED here: prefix-cohort product-catalog 338 prequalified (:689-704), selectFetchUrls queued 60, candidateFromPageHtml :758-798 + singleProductIdentity :338-369 proof passed 4",
+        "diagnosis": "HIT (contrast). Shaped sitemap (918 locs, 3 children) + dense product-catalog cohort (338) cleared the score floor; 60 queued, 17 excludedNonProduct at proof, 4 page-rows => 4 families => 3 dev + 1 held. Food converts ONLY when discovery shape clears the floor AND pages carry exactly-one-Product JSON-LD proof.",
+        "manifest": "docs/audits/jev-batch3/m2-public/collection-manifest.json",
+        "spent": 48,
+        "stage": "M2-wellnesspetfood.com-HIT",
+        "stats": {
+          "excludedNonProduct": 17,
+          "fetch-queued": 60,
+          "page-rows": 4,
+          "sitemap-html-candidates": 400,
+          "sitemap-locs": 918,
+          "sitemap-prefix-cohort:product-catalog": 338
+        }
+      },
+      {
+        "code": "sitemap discovery :551-705",
+        "diagnosis": "EMPTY-SITEMAP failure. Sitemap returned 0 locs (empty body / blocked index). 5 discovery attempts, zero queue, abandoned per rule.",
+        "manifest": "docs/audits/jev-batch3/m5-public/collection-manifest.json",
+        "spent": 5,
+        "stage": "M5-espoma.com-DRY",
+        "stats": {
+          "fetch-queued": 0,
+          "page-rows": 0,
+          "sitemap-locs": 0
+        }
+      },
+      {
+        "code": "dense-cohort prequal :689-704 rescued stable-talk (224); selectFetchUrls queued 229; all 229 burned at candidateFromPageHtml :758-798 / singleProductIdentity :338-369 proof or bodyText<80 thin gate",
+        "diagnosis": "CONTENT-COHORT FALSE RESCUE + UNIFORM PROOF FAILURE. The 200+ dense-cohort rule prequalified a content-hub segment (stable-talk reads as articles/blog, not products); full 40-cap burned on page fetches; 22 failed proof outright as non-product, the rest failed proof/thin gates (page-rows 0). Cohort density is catalog structure, NOT product signal: proof still decides each URL and decided none.",
+        "manifest": "docs/audits/jev-batch3/m6-public/collection-manifest.json",
+        "spent": 40,
+        "stage": "M6-farnam.com-DRY",
+        "stats": {
+          "excludedNonProduct": 22,
+          "fetch-queued": 229,
+          "page-rows": 0,
+          "sitemap-html-candidates": 8,
+          "sitemap-locs": 391,
+          "sitemap-prefix-cohort:stable-talk": 224
+        }
+      },
+      {
+        "code": "scoreUrl :710-716 + selectFetchUrls :746-754 admitted only 4/439; proof singleProductIdentity :338-369 rejected 3 as non-product",
+        "diagnosis": "SCORE-FLOOR STRANGULATION + proof failure on the trickle. 439 locs but URL shape without /products?/ scored <3 with no dense cohort rescue, so only 4 queued; 3 failed JSON-LD proof, fourth failed thin/proof gates. Early-abandon dry after 7 spent per rule.",
+        "manifest": "docs/audits/jev-batch3/m7-public/collection-manifest.json",
+        "spent": 7,
+        "stage": "M7-coastalpet.com-DRY",
+        "stats": {
+          "excludedNonProduct": 3,
+          "fetch-queued": 4,
+          "page-rows": 0,
+          "sitemap-locs": 439
+        }
+      },
+      {
+        "code": "sitemap-miss path => listing-fallback HTML harvest (18 pages => 209 candidates => 145 queued) consumed the full 20-cap on sitemap-kind discovery; receipts 20/20 kind=sitemap (18x200 + 404 + 301, seqs 718-737 contiguous), zero page-kind fetches (discovery loop collectSitemapUrls :551-705 vs selectFetchUrls/collectPage proof path never reached)",
+        "diagnosis": "DISCOVERY-EXHAUSTION (corrected per M9 receipts: 20/20 kind=sitemap, 18x200 + 404 + 301, seqs 718-737, zero page-kind, proof never engaged). Sitemap-miss x2 forced listing-fallback harvesting: 18 HTML listing pages yielded 209 candidates, 145 queued as leads \u2014 but harvest fetches consumed the entire 20-attempt cap before any page fetch, so the 145 queued leads were never fetched and the JSON-LD proof/thin gates (candidateFromPageHtml :758-798, singleProductIdentity :338-369) never ran on this domain. Lesson: fallback discovery without a reserved page budget burns caps \u2014 cap discovery harvest separately or gate queue-before-harvest. The prior draft's proof-failure claim for M9 was wrong and is withdrawn.",
+        "manifest": "docs/audits/jev-batch3/m9-public/collection-manifest.json",
+        "spent": 20,
+        "stage": "M9-outwardhound.com-DRY",
+        "stats": {
+          "fetch-queued": 145,
+          "page-rows": 0,
+          "sitemap-html": 18,
+          "sitemap-html-candidates": 209,
+          "sitemap-miss": 2
+        }
+      },
+      {
+        "code": "same as M2: cohort dog101 (391) prequalified, 250 queued (cap-bound 20 spent), proof passed 6",
+        "diagnosis": "HIT (contrast). Dense product cohort dog101 (391) prequalified, 250 queued (cap-bound 20 fetches), proof passed 6: 10 excludedNonProduct at proof, 6 page-rows => 6 families => 4 dev + 2 held. Replicates the M2 lesson: shape + proof, not effort, decides.",
+        "manifest": "docs/audits/jev-batch3/m8-public/collection-manifest.json",
+        "spent": 20,
+        "stage": "M8-nylabone.com-HIT",
+        "stats": {
+          "excludedNonProduct": 10,
+          "fetch-queued": 250,
+          "page-rows": 6,
+          "sitemap-locs": 645,
+          "sitemap-prefix-cohort:dog101": 391
+        }
+      }
+    ]
+  },
+  "gates": {
+    "abandonRule": "abandon any probe at 0 page-rows after 40 page attempts (rev4 beco/earthborn precedent carried); quota-40 probes abandon at cap with 0 rows",
+    "devPrimaryFamilies": "ALL progress counted on kept DEV-PRIMARY families post-split post-exclusion only; raw candidate counts diagnostic-only, never gates",
+    "enrichment": "none planned in Batch4 (no refetch, no new excerpts)",
+    "exclusion": "public-only loadPublicExclusion (collect-jev-v3-sources.ts:463-496; private branch REMOVED, --prior-custody rejected :856-857) chaining ALL v2 PRIOR_PUBLIC_BANKS plus every Batch3 public dev bank (p1/p3/m2/m8-public); each Batch4 probe additionally excludes earlier Batch4 probe outputs via --exclude-bank",
+    "foodGate": "run probes 1-2 FIRST; if BOTH return 0 fetch-queued (sitemap-barrier signature per M1/M3/M4 forensics), PAUSE remaining food probes and return to reviewer before burning probes 3-4/8; if >=1 queues, proceed in order",
+    "freshFirst": "every probe seed is a domain never harvested in any prior bank; RE-HARVEST FORBIDDEN except reviewer-approved gap fill with stated ghost-risk justification (ghost ruling carried)",
+    "ghostDedupe": "Batch3 sealed rows stay sealed; at future unseal (after fitted-policy publication + independent labeling + separation proof) Batch3 sealed counts MUST be familyId-deduped vs Batch1/2 holdouts; ghost rows contribute ZERO to any floor; sealed rows never inspectable, never dev-usable, never re-split, never re-seeded",
+    "ledger": "single Main-kept immutable append-only attempt ledger, every hop kind-tagged (sitemap/feed/page/enrich), cumulative hard stop 1200 (463 remainder); per-invocation --attempt-cap = remaining window",
+    "noReharvestOfDryProbes": "frommfamily/canidae/purina/espoma/farnam/coastal/outwardhound are NOT re-proposed: their manifests prove discovery/proof barriers that repetition would re-burn; food purpose is carried ONLY by fresh domains under the food gate",
+    "noVerifiedEndpointClaims": "no seed is claimed verified; code-listed seeds are official-manufacturer standing only; NEW seeds are explicitly flagged with official-domain justification; yields UNVERIFIED (probes, not sources)",
+    "probeCaps": "per-probe hard cap = its quota; global hard stop 463 remainder within cumulative 1200",
+    "splitVariance5x": "for any probe needing K known rows in a class, plan >=5xK raw kept NOVEL in-stratum families before the 80/20 split (seed 42) + adjudication attrition, quota permitting; report dev-yield rate + novel-family rate per probe; honesty clause: 220 food-quota cannot guarantee 5x on need-14 classes, so closure is NOT promised"
+  },
+  "planId": "batch4-source-plan",
+  "probes": [
+    {
+      "deficitTargets": [
+        "dog-food-dry",
+        "dog-food-wet",
+        "cat-treats"
+      ],
+      "domain": "hillspet.com",
+      "order": 1,
+      "provenance": "code-listed scripts/generate-gold-benchmark.ts:131 (Hill's Science Diet); official manufacturer domain; fresh (never harvested)",
+      "quota": 60,
+      "stratum": "food"
+    },
+    {
+      "deficitTargets": [
+        "dog-food-dry",
+        "dog-food-wet",
+        "cat-treats"
+      ],
+      "domain": "tasteofthewildpetfood.com",
+      "order": 2,
+      "provenance": "code-listed scripts/generate-gold-benchmark.ts:133; official manufacturer domain; fresh",
+      "quota": 60,
+      "stratum": "food"
+    },
+    {
+      "deficitTargets": [
+        "dog-food-dry",
+        "cat-treats"
+      ],
+      "domain": "orijenpetfoods.com",
+      "order": 3,
+      "provenance": "code-listed scripts/generate-gold-benchmark.ts:135; official manufacturer domain; fresh",
+      "quota": 50,
+      "stratum": "food"
+    },
+    {
+      "deficitTargets": [
+        "dog-food-dry",
+        "cat-treats"
+      ],
+      "domain": "acana.com",
+      "order": 4,
+      "provenance": "code-listed scripts/generate-gold-benchmark.ts:136; official manufacturer domain; fresh",
+      "quota": 50,
+      "stratum": "food"
+    },
+    {
+      "deficitTargets": [
+        "cat-toys",
+        "collars-leashes"
+      ],
+      "domain": "westpaw.com",
+      "order": 5,
+      "provenance": "code-listed scripts/collect-jev-v3-sources.ts:80 SEEDS + rev4 held substitute; official manufacturer domain; fresh (never run)",
+      "quota": 40,
+      "stratum": "toys"
+    },
+    {
+      "deficitTargets": [
+        "potting-soil",
+        "insect-control"
+      ],
+      "domain": "scotts.com",
+      "order": 6,
+      "provenance": "NEW-PROPOSAL: official manufacturer domain of Scotts/Miracle-Gro/Ortho garden products; never harvested in any bank; yields UNVERIFIED; no endpoint claimed verified",
+      "quota": 40,
+      "stratum": "garden"
+    },
+    {
+      "deficitTargets": [
+        "livestock-health-dewormers"
+      ],
+      "domain": "mannapro.com",
+      "order": 7,
+      "provenance": "NEW-PROPOSAL: official manufacturer domain of Manna Pro livestock/farm products; never harvested in any bank; yields UNVERIFIED; no endpoint claimed verified",
+      "quota": 40,
+      "stratum": "neighbors"
+    },
+    {
+      "deficitTargets": [
+        "dog-food-dry",
+        "dog-food-wet",
+        "cat-treats"
+      ],
+      "domain": "merrickpetcare.com",
+      "onExplicitRGrantOnly": true,
+      "order": 8,
+      "provenance": "code-listed scripts/generate-gold-benchmark.ts:139; official manufacturer domain; fresh",
+      "quota": 60,
+      "stratum": "food"
+    }
+  ],
+  "quotas": {
+    "baseQuotas": "60+60+50+50+40+40+40 = 340 (orders 1-7; releasable from M-unspent 234 + slack 106-of-125; NO R needed)",
+    "baseSum": 340,
+    "ceiling": 463,
+    "conditionalRQuota": "60 (order 8; draws on R-104 ONLY on explicit grant; 44 of R stays sealed)",
+    "conditionalRSum": 60,
+    "spend ceilings": "base approval => window 737+340=1077, balance 123 sealed; with R tranche => window 737+400=1137, balance 63 sealed",
+    "totalMax": 400
+  },
+  "rReleaseRequest": {
+    "ask": "explicit reviewer grant of 60 of the sealed R-104 for probe order 8 ONLY, inside this plan's approval; the other 44 of R plus any unspent balance stay sealed",
+    "fallback": "reviewer may approve base-only (340, no R touch): plan is complete and executable without R; R-104 stays fully sealed",
+    "status": "R 104 STAYS SEALED unless this grant lands in the fresh approval (completion-ack Batch4 ruling carried)"
+  },
+  "reviewerMustVerify": [
+    "all 8 seed domains official-manufacturer, plan-listed, fresh (never harvested); 2 NEW proposals explicitly flagged with justification",
+    "probe quotas 340 base / 400 with R-tranche, both <= 463; per-probe caps + 0/40 abandon + food gate + global hard stop",
+    "3-dry-food-probe + 4-dry-deficit-probe forensics accepted before any food-domain spend (forensics section above)",
+    "all gates count kept dev-primary families post-split post-exclusion; 5x NOVEL variance rule encoded quota-permitting with per-probe yield reporting",
+    "fresh-first only; no re-harvest except reviewer-approved gap fill with ghost-risk justification; dry Batch3 M domains not re-proposed",
+    "ghost-dedupe-at-unseal + sealed-rows-never-usable restated and recorded",
+    "public-only + chained exclusion, private branch removed; immutable ledger; no old-holdout use toward any minimum",
+    "no verified-endpoint claims for any unprobed seed; yields unverified",
+    "R-104 draw (60) granted-or-denied explicitly inside the approval; base plan valid either way",
+    "NO-CAPTURE until this approval lands"
+  ],
+  "revision": "2026-10-08-batch4-draft2",
+  "seedFiles": "Main creates local seed-file JSONs per probe post-approval (domains-only, max 24, parseSeedFile :104-111); not authored in this planning step",
+  "standingResultsCarried": "Batch3 finals: 19 novel dev (P1 11 drearth + P3 1 kong + M2 3 wellness + M8 4 nylabone), E 64/64 enriched, 123 gross sealed (~104 ghosts), window 737/1200 (enrich 68/sitemap 179/feed 28/page 462, 0 missing, contiguous)",
+  "status": "DRAFT-PLANNER-ONLY-NO-CAPTURE-PENDING-FRESH-REVIEWER-APPROVAL",
+  "substitutesWithinCeiling": [
+    "nutro.com (food, code-listed generate-gold-benchmark.ts:138)",
+    "royalcanin.com (food, code-listed :140)",
+    "schleich-s.com (neighbors, code-listed collector SEEDS :84)"
+  ],
+  "windowRemainder": {
+    "composition": "R 104 (sealed) + slack 125 (unallocated, unspendable without release) + M-unspent 234 = 463",
+    "max": 1200,
+    "remaining": 463,
+    "spent": 737
+  }
+}

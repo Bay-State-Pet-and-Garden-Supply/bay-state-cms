@@ -1,0 +1,2934 @@
+[
+  {
+    "sku": "PUBLIC:kongcompany.com:988bc04fa317aaf6",
+    "title": "KONG Extreme",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/kong-extreme/",
+    "productIdentity": "KONG: KONG Extreme",
+    "sourceLocator": "https://www.kongcompany.com/kong-extreme/",
+    "sourceHash": "5e03d18ee372a99dbca3ccbdadff3a6ed3af62f3d5c1aff84f9ecefdf16e3940",
+    "retrievedAt": "2026-10-08T12:18:04.873Z",
+    "familyId": "family-8156b1051e525b8c41d9246aa420bd32",
+    "excerpts": [
+      {
+        "text": "The KONG Extreme dog toy represents the most durable strength of KONG rubber.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Designed for the toughest of chewers, the KONG Extreme offers enrichment and helps satisfy dogs’ instinctual needs.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The KONG unique, ultra-durable, natural rubber formula is designed for determined chewers, while the erratic bounce fulfills a dog’s need to play.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Be sure to stuff with tempting bits of kibble and entice with a dash of peanut butter.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Add to the fun by adding KONG Snacks and top with KONG Easy Treat.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Stuff and Freeze for a longer-lasting challenge.",
+        "locator": "https://www.kongcompany.com/kong-extreme/ JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:351dc9d9b890eb7d",
+    "title": "KONG Extreme Goodie Bone",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/kong-extreme-goodie-bone/",
+    "productIdentity": "KONG: KONG Extreme Goodie Bone",
+    "sourceLocator": "https://www.kongcompany.com/kong-extreme-goodie-bone/",
+    "sourceHash": "ab857bd13e2088d78aeea94d1966821aa8480c8f9298b3d71c849921ac757ed0",
+    "retrievedAt": "2026-10-08T12:18:05.385Z",
+    "familyId": "family-fd7c6dab9f9e459b9cbbfd398f0afe02",
+    "excerpts": [
+      {
+        "text": "The KONG Extreme Goodie Bone™ toy delights dogs that are the toughest of chewers and that delight in chew sessions.",
+        "locator": "https://www.kongcompany.com/kong-extreme-goodie-bone/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made from the most durable KONG Extreme unique, natural black rubber formula this bone is designed for determined chewers.",
+        "locator": "https://www.kongcompany.com/kong-extreme-goodie-bone/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The KONG Extreme Goodie Bone™ also features patented Goodie Grippers ™ that turn this entertaining toy into a fun treat dispensing challenge that can be stuffed with your dog’s favorite kibble.",
+        "locator": "https://www.kongcompany.com/kong-extreme-goodie-bone/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Stuff with KONG Snacks™ and entice with a bit of KONG Easy Treat™.",
+        "locator": "https://www.kongcompany.com/kong-extreme-goodie-bone/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:b4a546f12a9fdbde",
+    "title": "Licks",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/licks/",
+    "productIdentity": "KONG: Licks",
+    "sourceLocator": "https://www.kongcompany.com/licks/",
+    "sourceHash": "bbcf5ec7b3cd57897ce86b738b3139d6284db6a4334745f6d1c69c8f74fa733f",
+    "retrievedAt": "2026-10-08T12:18:06.004Z",
+    "familyId": "family-61418148ed2214f84661404a6cf121bd",
+    "excerpts": [
+      {
+        "text": "KONG Licks ridges and grooves hold Easy Treat, peanut butter, kibble, etc.",
+        "locator": "https://www.kongcompany.com/licks/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Plus, licking releases endorphins that help soothe dogs.",
+        "locator": "https://www.kongcompany.com/licks/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Two suction cups stick to flat surfaces for a movable feast of fun.",
+        "locator": "https://www.kongcompany.com/licks/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Different ridge shapes hold variety of food, keeps pups interested and helps clean tongue and teeth.",
+        "locator": "https://www.kongcompany.com/licks/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Fights boredom and occupies distraction during exams, baths and nail trims.",
+        "locator": "https://www.kongcompany.com/licks/ JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:7df6784a16175c5a",
+    "title": "Wild Knots Bear, Assorted Colors",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/wild-knots-bear/",
+    "productIdentity": "KONG: Wild Knots Bear, Assorted Colors",
+    "sourceLocator": "https://www.kongcompany.com/wild-knots-bear/",
+    "sourceHash": "30bf805896f70180dbf71c1a83ea49b00568d6e41441054c9e6a81501e9d10d5",
+    "retrievedAt": "2026-10-08T12:18:06.460Z",
+    "familyId": "family-b273b390817cd51a8b491aacfdea9a43",
+    "excerpts": [
+      {
+        "text": "Wild Knots bears are sure to be a hit with dogs and their pet parents.",
+        "locator": "https://www.kongcompany.com/wild-knots-bear/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Dogs love the knotted skeleton, and the reinforced plush body provides extra durability.",
+        "locator": "https://www.kongcompany.com/wild-knots-bear/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "KONG Wild Knots have less stuffing for less mess and they squeak to entice play.",
+        "locator": "https://www.kongcompany.com/wild-knots-bear/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "KONG Wild Knots are soft and cuddly on the outside while durable and strong on the inside.",
+        "locator": "https://www.kongcompany.com/wild-knots-bear/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:fdb14591c90d07c9",
+    "title": "CoreStrength Ball",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/corestrength-ball/",
+    "productIdentity": "KONG: CoreStrength Ball",
+    "sourceLocator": "https://www.kongcompany.com/corestrength-ball/",
+    "sourceHash": "83f559d6c14bcb19c26d79c089b20fa1142e7d9b9f98ab273e134478b70ef1df",
+    "retrievedAt": "2026-10-08T12:18:06.920Z",
+    "familyId": "family-6392e2529dc83181c0da105c2a8a105a",
+    "excerpts": [
+      {
+        "text": "The durable KONG-crafted multilayered core stands-up to long-lasting chew sessions while meeting a dog’s natural chewing instincts.",
+        "locator": "https://www.kongcompany.com/corestrength-ball/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "The reinforced layers within the core add extra toughness making it great for chewers.",
+        "locator": "https://www.kongcompany.com/corestrength-ball/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Ideal for independent play and interactive toss and retrieve, KONG CoreStrength is sure to delight the most playful of dogs.",
+        "locator": "https://www.kongcompany.com/corestrength-ball/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "KONG CoreStrength is built to last and is sure to bring excitement while providing extended play sessions along the way.",
+        "locator": "https://www.kongcompany.com/corestrength-ball/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "The exterior textured words add to the fun and have the added benefit of cleaning teeth and gums.",
+        "locator": "https://www.kongcompany.com/corestrength-ball/ JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:a1253feefd1cd42e",
+    "title": "Wubba",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/wubba/",
+    "productIdentity": "KONG: Wubba",
+    "sourceLocator": "https://www.kongcompany.com/wubba/",
+    "sourceHash": "46463699314aeb050c6ccc2a64b3297b2efe3d3dcca2e29185b29e62f50607ba",
+    "retrievedAt": "2026-10-08T12:18:07.432Z",
+    "familyId": "family-0b65d67b3cafc10b393d10e0d2bd2bac",
+    "excerpts": [
+      {
+        "text": "The KONG Wubba™ is a fun, interactive tug and toss toy that is great for interactive or solo play.",
+        "locator": "https://www.kongcompany.com/wubba/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "It’s long floppy tails are ideal for shaking and tugging instincts as well as games of fetch.",
+        "locator": "https://www.kongcompany.com/wubba/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "A durable reinforced nylon exterior combines with unique ball shapes for play sessions that last longer.",
+        "locator": "https://www.kongcompany.com/wubba/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Dogs love to squeak the Wubba™ and add to the fun by shaking the flapping tails back and forth making every game different from the next.",
+        "locator": "https://www.kongcompany.com/wubba/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:9aa9471bbfbeeeb0",
+    "title": "Halloween Snuzzles Mini Pumpkin",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/",
+    "productIdentity": "KONG: Halloween Snuzzles Mini Pumpkin",
+    "sourceLocator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/",
+    "sourceHash": "7b0b012a70c8e27c36b5f74603e23c3e21dc19779d13902dc9f6075cf4e23e35",
+    "retrievedAt": "2026-10-08T12:18:08.868Z",
+    "familyId": "family-1707343bfe8ed413e8d0d5f37b6b2db5",
+    "excerpts": [
+      {
+        "text": "Their full-body squeakers spark dogs' natural instincts for light chewing and tugging.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Each delightful bite is dense and squishy, which makes your dog's chew sessions longer and livelier.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "And thanks to these characters' flat shape, they're easy for dogs to pick up, play, and squeak the day away.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "They make an ideal gift for small dogs, allowing them to join in on the trick-or-treating fun.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "KONG Halloween Snuzzles Mini characters are plump-full of Spooky fun!",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "With their soft and velvety exterior, these cuddly companions are also perfect for snuggles after a long play session.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Plus, they make great comfort toys to show off to friends.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-pumpkin/ JSON-LD Product + product-description#excerpt-6"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:159f73629d96f545",
+    "title": "Halloween Snuzzles Mini Monster Purple",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/",
+    "productIdentity": "KONG: Halloween Snuzzles Mini Monster Purple",
+    "sourceLocator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/",
+    "sourceHash": "57debfe516885c10b9770ed4f6a4aca41fa5018e82fc4678b4c58bf9772ca7e1",
+    "retrievedAt": "2026-10-08T12:18:09.234Z",
+    "familyId": "family-c56da6a52dead702d1448602b8fa4f7b",
+    "excerpts": [
+      {
+        "text": "Their full-body squeakers spark dogs' natural instincts for light chewing and tugging.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Each delightful bite is dense and squishy, which makes your dog's chew sessions longer and livelier.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "And thanks to these characters' flat shape, they're easy for dogs to pick up, play, and squeak the day away.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "They make an ideal gift for small dogs, allowing them to join in on the trick-or-treating fun.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "KONG Halloween Snuzzles Mini characters are plump-full of Spooky fun!",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "With their soft and velvety exterior, these cuddly companions are also perfect for snuggles after a long play session.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Plus, they make great comfort toys to show off to friends.",
+        "locator": "https://www.kongcompany.com/halloween-snuzzles-mini-monster-purple/ JSON-LD Product + product-description#excerpt-6"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:f5cb1a8ae70b822f",
+    "title": "Halloween Knots Snake Purple",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/halloween-knots-snake-purple/",
+    "productIdentity": "KONG: Halloween Knots Snake Purple",
+    "sourceLocator": "https://www.kongcompany.com/halloween-knots-snake-purple/",
+    "sourceHash": "85e94338a93bee8bd0a8cc6ff2662554f0d972af5b9fe961238dbe6e621ad392",
+    "retrievedAt": "2026-10-08T12:18:09.787Z",
+    "familyId": "family-74d516e20b8241e7fe504bea12768421",
+    "excerpts": [
+      {
+        "text": "This low-stuff plush snake is built to endure pulling and light chewing.",
+        "locator": "https://www.kongcompany.com/halloween-knots-snake-purple/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "It features an internal knotted rope that caters to dogs' playful instincts to thrash, tug, and wrestle.",
+        "locator": "https://www.kongcompany.com/halloween-knots-snake-purple/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Varied textures and squeakers keep play sessions going, but this floppy friend is the perfect snuggle buddy when naptime comes.",
+        "locator": "https://www.kongcompany.com/halloween-knots-snake-purple/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Our adorable snake makes a fantastically floppy trick-or-treating companion, allowing your dog to join in on the spooky fun.",
+        "locator": "https://www.kongcompany.com/halloween-knots-snake-purple/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "KONG Halloween Knots Snake has its knots all tied up and is ready to play all night long!",
+        "locator": "https://www.kongcompany.com/halloween-knots-snake-purple/ JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:5e42937ac23f36b4",
+    "title": "Knots Chicken",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/knots-chicken/",
+    "productIdentity": "KONG: Knots Chicken",
+    "sourceLocator": "https://www.kongcompany.com/knots-chicken/",
+    "sourceHash": "fa5fb611d8435cd7de3f17b1018db143cdeeb034ca44ffdbb3bcfaeb2f14edb3",
+    "retrievedAt": "2026-10-08T12:18:10.244Z",
+    "familyId": "family-8511046a9a18da13f65b4add38e34a2d",
+    "excerpts": [
+      {
+        "text": "Knots Chickens are joining the KONG® family of durable plush toys!",
+        "locator": "https://www.kongcompany.com/knots-chicken/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Soft and cuddly on the outside with a strong, knotted rope skeleton inside, a reinforced plush body, and two squeakers—these chickens are perfect for dogs who like to shake, tug, toss, gum, and carry their toys.",
+        "locator": "https://www.kongcompany.com/knots-chicken/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Less stuffing for less mess if your dog loves it a little too much.",
+        "locator": "https://www.kongcompany.com/knots-chicken/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:ac35526140dd42da",
+    "title": "Comfort Jumbo Highland Cow, Assorted Colors",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/comfort-jumbo-highland-cow-assorted/",
+    "productIdentity": "KONG: Comfort Jumbo Highland Cow, Assorted Colors",
+    "sourceLocator": "https://www.kongcompany.com/comfort-jumbo-highland-cow-assorted/",
+    "sourceHash": "556dfa67c0cc28aa6b430e0f05d9798977bfc8604bd7652b964f3ccd066cac3e",
+    "retrievedAt": "2026-10-08T12:18:10.715Z",
+    "familyId": "family-2ecfbf9e1766daf7d840d8120833e3d5",
+    "excerpts": [
+      {
+        "text": "A giant plush body—with various fabric textures, 3 squeakers, and crinkle material inside each hoof and floppy hair—keeps dogs of all sizes entertained with multisensory features during playtime.",
+        "locator": "https://www.kongcompany.com/comfort-jumbo-highland-cow-assorted/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "KONG Comfort Jumbo Highland Cow gives cool-cow vibes with its wild shaggy fur and floppy hair swoop.",
+        "locator": "https://www.kongcompany.com/comfort-jumbo-highland-cow-assorted/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "When the party’s over, this cow’s laid-back attitude is perfect for chilling and cuddling during naptime.",
+        "locator": "https://www.kongcompany.com/comfort-jumbo-highland-cow-assorted/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:330281b6f63eee44",
+    "title": "KONG Stuff-A-Ball",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/kong-stuff-a-ball/",
+    "productIdentity": "KONG: KONG Stuff-A-Ball",
+    "sourceLocator": "https://www.kongcompany.com/kong-stuff-a-ball/",
+    "sourceHash": "8929e1baaeff3ab452e5447a2502e27a1d25ccfb2b29e9af605f824092846959",
+    "retrievedAt": "2026-10-08T12:18:11.632Z",
+    "familyId": "family-5a502751bf0d9803cecd8399ecd6cd95",
+    "excerpts": [
+      {
+        "text": "Whether it's a treat-dispensing toy, a waste bin or underneath the dinner table, scavenging for food is simply part of their nature.",
+        "locator": "https://www.kongcompany.com/kong-stuff-a-ball/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Its slots can be stuffed with KONG Easy Treat, KONG Snacks, kibble or other yummy treats to turn it into a fun scavenging challenge.",
+        "locator": "https://www.kongcompany.com/kong-stuff-a-ball/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The Stuff-A-Ball is made with high-quality natural rubber, allowing it to withstand countless hours of chewing—and unlike nylon, hard plastics, sticks or bones, rubber doesn't splinter and is gentle on dogs' teeth and gums.",
+        "locator": "https://www.kongcompany.com/kong-stuff-a-ball/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "With a KONG Stuff-A-Ball, your pup can satisfy this instinct with appropriate behavior.",
+        "locator": "https://www.kongcompany.com/kong-stuff-a-ball/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:ac7014297e1189e9",
+    "title": "Scrunch Knots Squirrel",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/scrunch-knots-squirrel/",
+    "productIdentity": "KONG: Scrunch Knots Squirrel",
+    "sourceLocator": "https://www.kongcompany.com/scrunch-knots-squirrel/",
+    "sourceHash": "ffdc87ac97c5994f047c2e39e8a79c6d4aacff0df8ef24d5fb5cd2cfed5703df",
+    "retrievedAt": "2026-10-08T12:18:12.082Z",
+    "familyId": "family-61df036e19f326a32142fabc2fac89a1",
+    "excerpts": [
+      {
+        "text": "KONG Scrunch Knots are realistic pet toys that keep dogs coming back for more.",
+        "locator": "https://www.kongcompany.com/scrunch-knots-squirrel/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Plush material scrunches around the internal coiled rope, while stretchy sides create natural movement to entice play.",
+        "locator": "https://www.kongcompany.com/scrunch-knots-squirrel/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The internal knots satisfy natural instincts and these toys contain no stuffing for less mess.",
+        "locator": "https://www.kongcompany.com/scrunch-knots-squirrel/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:d3a318b1404deffd",
+    "title": "Floppy Knots Fox",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/floppy-knots-fox/",
+    "productIdentity": "KONG: Floppy Knots Fox",
+    "sourceLocator": "https://www.kongcompany.com/floppy-knots-fox/",
+    "sourceHash": "909a5352ee9edb968a5208b40bce9c5cef4c953436324e0d853e39a9e2e7d4ea",
+    "retrievedAt": "2026-10-08T12:18:12.552Z",
+    "familyId": "family-b2ec90e32fecd8526485fc42fe3c51ad",
+    "excerpts": [
+      {
+        "text": "The realistic feel of the internal knotted rope satisfies natural instincts while the varied textures and squeakers gear up for play.",
+        "locator": "https://www.kongcompany.com/floppy-knots-fox/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+        "locator": "https://www.kongcompany.com/floppy-knots-fox/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "With minimal stuffing for less mess get ready for entertaining games and grins.",
+        "locator": "https://www.kongcompany.com/floppy-knots-fox/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:6db93d8eb0018bd7",
+    "title": "Signature Balls 2-pk",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/signature-balls-2-pk/",
+    "productIdentity": "KONG: Signature Balls 2-pk",
+    "sourceLocator": "https://www.kongcompany.com/signature-balls-2-pk/",
+    "sourceHash": "efda500e63d96809e745b7e1a4e6daa5e24502c6827841ba3baf207d6e0c1e3f",
+    "retrievedAt": "2026-10-08T12:18:13.025Z",
+    "familyId": "family-4758bb6422c4fb10486200ccd0d5b57f",
+    "excerpts": [
+      {
+        "text": "The KONG Signature ball brings ultra-durability and an uber-bounce to games of fetch and retrieve.",
+        "locator": "https://www.kongcompany.com/signature-balls-2-pk/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Dogs that are driven to fetch will delight in play sessions with the KONG Signature Ball and with a durable construction its sure to last for those dogs that can never get enough retrieving fun.",
+        "locator": "https://www.kongcompany.com/signature-balls-2-pk/ JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:c83abf282d6d680e",
+    "title": "Jumbler Tug",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/jumbler-tug/",
+    "productIdentity": "KONG: Jumbler Tug",
+    "sourceLocator": "https://www.kongcompany.com/jumbler-tug/",
+    "sourceHash": "a90787c228bb166cd09811de219bb4c4f320a5cbf2b09a7a9f610653e65f3749",
+    "retrievedAt": "2026-10-08T12:18:13.581Z",
+    "familyId": "family-158e641dfee486689ce94f50f8b4be81",
+    "excerpts": [
+      {
+        "text": "KONG Jumbler Tug Bone’s rolling interior tennis ball and loud squeak spark tug-and-fetch fun.",
+        "locator": "https://www.kongcompany.com/jumbler-tug/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "This durable toy is built to last through tough play with two handles that make tugging and shaking easy for long-lasting rounds of interactive play.",
+        "locator": "https://www.kongcompany.com/jumbler-tug/ JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:ec8f2fbc15526803",
+    "title": "SafeStix, Assorted Colors",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/safestix/",
+    "productIdentity": "KONG: SafeStix, Assorted Colors",
+    "sourceLocator": "https://www.kongcompany.com/safestix/",
+    "sourceHash": "a740719381cbb60497eca204dcc0486078369ae23a5190c5738b5acb216011b0",
+    "retrievedAt": "2026-10-08T12:18:14.089Z",
+    "familyId": "family-4f5923a17ad4681d053634d4e39da71b",
+    "excerpts": [
+      {
+        "text": "KONG Safestix are a safer alternative to wooden sticks.",
+        "locator": "https://www.kongcompany.com/safestix/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Designed with a durable material they are sure to provide endless fetch and tug play sessions.",
+        "locator": "https://www.kongcompany.com/safestix/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Rounded ends make them safer for interactive play.",
+        "locator": "https://www.kongcompany.com/safestix/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "The additional flexing and bouncing add to the engagement while the ability to float extends playtime fun.",
+        "locator": "https://www.kongcompany.com/safestix/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:42e7deae80cac600",
+    "title": "KONG Binkie Pink",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/kong-binkie-pink/",
+    "productIdentity": "KONG: KONG Binkie Pink",
+    "sourceLocator": "https://www.kongcompany.com/kong-binkie-pink/",
+    "sourceHash": "8f92f1bd148cdd6eee24eccd595832940aff27ebc8a3239c4992f9c7d668dd94",
+    "retrievedAt": "2026-10-08T12:18:14.599Z",
+    "familyId": "family-b24bd77f49861288714e28de1747dad8",
+    "excerpts": [
+      {
+        "text": "As their teeth grow in, their gums become sore, leading them to chew on just about anything in sight.",
+        "locator": "https://www.kongcompany.com/kong-binkie-pink/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Giving them a soft rubber toy, like a KONG Puppy Binkie, can help soothe their discomfort and save your shoes from becoming slobbery husks.",
+        "locator": "https://www.kongcompany.com/kong-binkie-pink/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Plus, this pacifier-shaped toy can be stuffed with Easy Treat Puppy, Ziggies Enhanced Puppy, dog-safe peanut butter, or other yummy treats for a fun scavenging challenge that sparks their natural instincts.",
+        "locator": "https://www.kongcompany.com/kong-binkie-pink/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "KONG Puppy Binkie is made with high-quality natural rubber, allowing it to withstand countless hours of chewing—and unlike nylon, hard plastics, sticks, or bones, rubber doesn't splinter and is gentle on puppies' teeth and gums.",
+        "locator": "https://www.kongcompany.com/kong-binkie-pink/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Puppies are just like babies when it comes to teething!",
+        "locator": "https://www.kongcompany.com/kong-binkie-pink/ JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:d032aecc0cfa9ff3",
+    "title": "Kickeroo Swirl",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/kickeroo-swirl/",
+    "productIdentity": "KONG: Kickeroo Swirl",
+    "sourceLocator": "https://www.kongcompany.com/kickeroo-swirl/",
+    "sourceHash": "f7ef11b38c7117e95eaa980465f0cf881e8fb69c7304a6cd40024b18cd651973",
+    "retrievedAt": "2026-10-08T12:18:15.009Z",
+    "familyId": "family-14450e3b7d59fcf143050e83113e3691",
+    "excerpts": [
+      {
+        "text": "KONG Kickeroo’s™ long length encourages your cat to kick with hind paws, promoting tons of healthy, full-body activity.",
+        "locator": "https://www.kongcompany.com/kickeroo-swirl/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Fluffy tail sparks hunting instincts and Kickeroo’s soft material is lovely for snuggling.",
+        "locator": "https://www.kongcompany.com/kickeroo-swirl/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The crinkling sound keeps kitties interested while the KONG Premium North American Catnip boosts the fun.",
+        "locator": "https://www.kongcompany.com/kickeroo-swirl/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:4f8e7878582d1bbe",
+    "title": "Infused™ Catnip Egg 2-pk",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/infused-catnip-egg-2-pk/",
+    "productIdentity": "KONG: Infused™ Catnip Egg 2-pk",
+    "sourceLocator": "https://www.kongcompany.com/infused-catnip-egg-2-pk/",
+    "sourceHash": "99e8c4e3a7c6c99004230c1ad1a0a2aa931be59ae7112cee6df87560ed0df20f",
+    "retrievedAt": "2026-10-08T12:18:15.325Z",
+    "familyId": "family-c52d773b02c399df9331c3f08e8cad28",
+    "excerpts": [
+      {
+        "text": "KONG Infused™ Catnip Eggs are perfect for an egg hunt all year round!",
+        "locator": "https://www.kongcompany.com/infused-catnip-egg-2-pk/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "A burst of real KONG Premium North American Catnip is infused into each egg using a proprietary blending process, enticing exciting play and biting.",
+        "locator": "https://www.kongcompany.com/infused-catnip-egg-2-pk/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Durable, solid material stands up to active solo or multi-cat play sessions.",
+        "locator": "https://www.kongcompany.com/infused-catnip-egg-2-pk/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "These egg-shaped toys wobble and roll erratically when batted, giving them an unpredictable spin on playtime.",
+        "locator": "https://www.kongcompany.com/infused-catnip-egg-2-pk/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:4871272433b899e3",
+    "title": "Tropics Pals 2-pk",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/tropics-pals-2-pk/",
+    "productIdentity": "KONG: Tropics Pals 2-pk",
+    "sourceLocator": "https://www.kongcompany.com/tropics-pals-2-pk/",
+    "sourceHash": "aec75b715d12c2ae8d4d8528b7373b76f713041eac445366ce2852bdf219a4fb",
+    "retrievedAt": "2026-10-08T12:18:15.831Z",
+    "familyId": "family-db82adde33d993971f791185a99ad5f2",
+    "excerpts": [
+      {
+        "text": "KONG Tropics Pals will swim their way into your cat’s paws and stay to play for a while!",
+        "locator": "https://www.kongcompany.com/tropics-pals-2-pk/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Scratchy herringbone shells made with tweed fiber are perfect for kitty claws and biting, while soft-plush material invites cheek nuzzles.",
+        "locator": "https://www.kongcompany.com/tropics-pals-2-pk/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Premium North American catnip sprinkles and crackly inner material inside these saltwater creatures stimulates the senses and invites pouncing & batting.",
+        "locator": "https://www.kongcompany.com/tropics-pals-2-pk/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "This multi-sensory toy will keep your cat’s attention with its various fun features.",
+        "locator": "https://www.kongcompany.com/tropics-pals-2-pk/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:cc7b595bdb7fabfa",
+    "title": "Halloween Cat Snuzzles Ghost",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/",
+    "productIdentity": "KONG: Halloween Cat Snuzzles Ghost",
+    "sourceLocator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/",
+    "sourceHash": "db79306c26bdad762b81b76cbc4c6ead29def0b3b5ae9ea393efad834cd9b24b",
+    "retrievedAt": "2026-10-08T12:18:16.239Z",
+    "familyId": "family-736c59cc9750814030d05c49473be624",
+    "excerpts": [
+      {
+        "text": "KONG Halloween Cat Snuzzles Ghost is plump-full of Spooky fun!",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Full-body crackling sparks cats' natural instincts for wrestling, batting, and cuddling.",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "It's also filled with KONG Premium North American Catnip, making play sessions longer and livelier.",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "And thanks to the ghost's flat shape, it's easy for cats to pick up, play, and bat the day away.",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Halloween Snuzzles makes an ideal gift for curious cats, allowing them to join in on the spooky fun.",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "With a soft and velvety exterior, this cuddly companion is also perfect for snuggles after a long play session.",
+        "locator": "https://www.kongcompany.com/halloween-cat-snuzzles-ghost/ JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:ace76641b1d68b09",
+    "title": "Snacks Peanut Butter",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/snacks-peanut-butter/",
+    "productIdentity": "KONG: Snacks Peanut Butter",
+    "sourceLocator": "https://www.kongcompany.com/snacks-peanut-butter/",
+    "sourceHash": "082a10b099bcb06f0e23b6ce20cbe0acdcb6f738101879c1b8cbe202b2e60818",
+    "retrievedAt": "2026-10-08T12:18:16.853Z",
+    "familyId": "family-6838d6bb30f2e3f838f165bf3364f1ac",
+    "excerpts": [
+      {
+        "text": "KONG Peanut Butter Snacks are made with delicious flavor for a biscuit that is delightful for dogs.",
+        "locator": "https://www.kongcompany.com/snacks-peanut-butter/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA, these high-quality treats are naturally good with an irresistible flavor that is great for any treating moment.",
+        "locator": "https://www.kongcompany.com/snacks-peanut-butter/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "This smaller size is specially shaped and sized to fit your dog's small KONG rubber toy.",
+        "locator": "https://www.kongcompany.com/snacks-peanut-butter/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:e995d2ead511faf3",
+    "title": "Easy Treat Birthday Cake",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/easy-treat-birthday-cake/",
+    "productIdentity": "KONG: Easy Treat Birthday Cake",
+    "sourceLocator": "https://www.kongcompany.com/easy-treat-birthday-cake/",
+    "sourceHash": "93cf09eab9fbbd0d0db50bfeaa6fa12d4bcb14a8e215457d9d5ab4f8fd032095",
+    "retrievedAt": "2026-10-08T12:18:17.366Z",
+    "familyId": "family-afc08d36974acc98710a71ac7064ee70",
+    "excerpts": [
+      {
+        "text": "Celebrate 50 years of your dog's favorite toys and treats with KONG Easy Treat Birthday Recipe!",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Whether you're commemorating 50 years of KONG, rewarding good behavior, or just giving them a little something for being cute, this tasty birthday cake-flavored treat is an easy, no-mess way to celebrate.",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Proudly made in the USA, it's highly digestible and free of trans fats, making it a safe and scrumptious addition to treat-dispensing toys.",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "And thanks to a convenient nozzle, stuffing KONGs or decorating dog-safe 50th anniversary cakes is simple!",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "To make the fun last longer, seal a stuffed KONG with Easy Treat and pop it in the freezer.",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "But Easy Treat itself doesn't require refrigeration, so you can keep your fridge clutter-free!",
+        "locator": "https://www.kongcompany.com/easy-treat-birthday-cake/ JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:a4bb875822ac87a0",
+    "title": "Snacks Liver",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/snacks-liver/",
+    "productIdentity": "KONG: Snacks Liver",
+    "sourceLocator": "https://www.kongcompany.com/snacks-liver/",
+    "sourceHash": "6d2ae099a84eb7cc84670dca1671b400f52d2e538853053dbd3a094d2fd23545",
+    "retrievedAt": "2026-10-08T12:18:17.876Z",
+    "familyId": "family-156beb10478f4348f7c0ed1618373244",
+    "excerpts": [
+      {
+        "text": "KONG Liver Snacks are made with delicious flavor for a biscuit that is delightful for dogs.",
+        "locator": "https://www.kongcompany.com/snacks-liver/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made in the USA, these high-quality treats are all-natural and do not contain wheat, corn or soy giving them an irresistible flavor that is great for any treating moment.",
+        "locator": "https://www.kongcompany.com/snacks-liver/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "This larger size is specially shaped and sized to fit your dog’s large KONG rubber toy.",
+        "locator": "https://www.kongcompany.com/snacks-liver/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:03ba13122e1e6e98",
+    "title": "Cat Nibbies Whitefish",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/cat-nibbies-whitefish/",
+    "productIdentity": "KONG: Cat Nibbies Whitefish",
+    "sourceLocator": "https://www.kongcompany.com/cat-nibbies-whitefish/",
+    "sourceHash": "ebd44d015cb63939394d374d933eefd5f7b0ea8b631d08d798828fcfb7715e92",
+    "retrievedAt": "2026-10-08T12:18:18.289Z",
+    "familyId": "family-ec1ec8da909f8832c4076381d86d4b41",
+    "excerpts": [
+      {
+        "text": "KONG Cat Nibbies Whitefish treats are made with real whitefish, baked into an irresistibly crunchy cat snack, ideal for stuffing into a Kitty KONG or other cat treat-dispensing toys.",
+        "locator": "https://www.kongcompany.com/cat-nibbies-whitefish/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Whether you want to give your cat a long-lasting food puzzle that satisfies natural hunting instincts or reward them with a treat just for being cute, Nibbies Whitefish are perfect for any treating occasion.",
+        "locator": "https://www.kongcompany.com/cat-nibbies-whitefish/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Made in the USA with globally sourced ingredients, each of these tasty, tiny fish is considered \"good eatin'\" by fish-loving cats around the world.",
+        "locator": "https://www.kongcompany.com/cat-nibbies-whitefish/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:kongcompany.com:0ae00d766950ed93",
+    "title": "Snacks Puppy",
+    "brand": "KONG",
+    "canonicalUrl": "https://www.kongcompany.com/snacks-puppy/",
+    "productIdentity": "KONG: Snacks Puppy",
+    "sourceLocator": "https://www.kongcompany.com/snacks-puppy/",
+    "sourceHash": "c42abbe7424a9fbf2fed45225e7aa9749fb28f260242aa03764e396d69dac347",
+    "retrievedAt": "2026-10-08T12:18:18.779Z",
+    "familyId": "family-cb4b7f10ba0c6cf4eedc9ea70fd6489d",
+    "excerpts": [
+      {
+        "text": "KONG Puppy Snacks are baked with real blueberries and salmon making them a scrumptious premium high value reward.",
+        "locator": "https://www.kongcompany.com/snacks-puppy/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Ideal for any treating or training moment, all KONG Snacks are naturally delicious and are proudly made in the USA.",
+        "locator": "https://www.kongcompany.com/snacks-puppy/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "The real ingredients and hefty crunch make them irresistible to any growing puppy.",
+        "locator": "https://www.kongcompany.com/snacks-puppy/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "They are also ideally shaped for stuffing into KONG Puppy Classic shaped toys pairing to make a delightful, mentally enriching experience, helping to get puppies off to the right start.",
+        "locator": "https://www.kongcompany.com/snacks-puppy/ JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:918724cb0a917b82",
+    "title": "Petunia Passion Plastic Hanging Dish Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1",
+    "productIdentity": "Nature's Way: Petunia Passion Plastic Hanging Dish Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1",
+    "sourceHash": "88116f334b6ab4dcfeb1a9c22ba6bdff9c330d0d9416faf0c04ec23bca4d4404",
+    "retrievedAt": "2026-10-08T12:18:21.767Z",
+    "familyId": "family-2f0af74f4274cd8b3886b4ac46f71973",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Decorative dish feeder with beautiful pink and purple floral design, 5 flexible flower shaped feeding ports, 13 oz.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "capacity, dual distance perches for longer feeding time for all sizes of hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "ONLY FEED THE HUMMINGBIRDS: Built-in ant moat stops them from reaching the nectar and feeder's base dish shape and expertly designed flower ports create a naturally bee-resistant design.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE QUALITY MATERIALS: UV-stabilized quality plastic won't rust, flexible feeding ports for maximum hummingbird feeding comfort, and durable powder-coated steel hanger for a long lasting, high quality feeder.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "DESIGNED FOR EASY FEEDING: Hummingbirds’ tongues can extend up to twice the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Dimensions: Feeder 1.88\"H x 7\"W x 7\"D; With Hanger 10\"H x 7\"Wx 7\"D Weight: 0.5 lbs Capacity: up to 13 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Dish design allows for easy filling and cleaning and two-part feeder base with removeable flower ports allow feeder to be completely disassembled for thorough cleaning.",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "EASY CONNECT TO MAKE A FEEDING STATION: Design allows for multiple feeders to be connected from top to bottom to create an expanded feeding station!",
+        "locator": "https://www.natureswaybirds.com/products/petunia-passion-plastic-dish-hummingbird-feeder-13-oz-purple-model-ddhf1 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:ec0a25cfb5c2d816",
+    "title": "Spring Reusable Wood Trays for Mason Bees - 8mm",
+    "brand": "CrownBees",
+    "canonicalUrl": "https://natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm",
+    "productIdentity": "CrownBees: Spring Reusable Wood Trays for Mason Bees - 8mm",
+    "sourceLocator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm",
+    "sourceHash": "32b46aaa80fa9821314fc14358ceb9cb8c7824101dd656e68d153b19f0a885ab",
+    "retrievedAt": "2026-10-08T12:18:22.339Z",
+    "familyId": "family-eb3319e3553acac7c9fbf7b16fe8e371",
+    "excerpts": [
+      {
+        "text": "Why You’ll Love Them Precision-Crafted from Alder: Made in the USA from Pacific Northwest alder, these trays are a safe and natural nesting material for Mason bees.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Key Features Natural Nesting Scents: Wood’s porous nature retains natural scents, attracting Mason bees for the next season.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Pest Protection: Side notches align trays, preventing pests from entering from the sides.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Includes removable cardboard backing and pest-blocker fabric for extra defense.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Specifications Nesting Hole Diameter: 8mm (preferred for Mason bees) Tray Sizes: 48-Hole Tray: 3.25” H x 5.5” W x 6” D – Fits Cabin, Chalet, and Townhouse Bee Houses.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "DIY Tip: Ensure your bee house roof is at least 2” longer than the tray dimensions for proper coverage.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Bee Wayfinders: \"Signposts\" that provide additional visual hints, helping females quickly locate their nesting cavities.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "Please refer to the specifications for accurate details.",
+        "locator": "https://www.natureswaybirds.com/products/spring-reusable-wood-trays-for-mason-bees-8mm JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:235a547cc6a44d76",
+    "title": "Chalet Cedar Bee House",
+    "brand": "CrownBees",
+    "canonicalUrl": "https://natureswaybirds.com/products/chalet-cedar-bee-house",
+    "productIdentity": "CrownBees: Chalet Cedar Bee House",
+    "sourceLocator": "https://www.natureswaybirds.com/products/chalet-cedar-bee-house",
+    "sourceHash": "898774272cc8d0c575eb2cb14375e52cc94608af451b338d2ac378bc94f18e2c",
+    "retrievedAt": "2026-10-08T12:18:22.839Z",
+    "familyId": "family-50d5a1399519d38d7a9464a9959f77c9",
+    "excerpts": [
+      {
+        "text": "Specifications Material: Sustainably sourced Pacific Northwest cedar Design: Peaked roof with 2\" overhang for rain drainage Installation: Keyhole slot in the back for easy mounting and seasonal removal Dimensions: 10\" H x 10\" W x 9\" D Made in the USA Nesting Material Capacity 150 BeeTubes 125 Natural Reeds 48-Hole Count, 8mm Mason Bee Wood Tray 78-Hole Count, 6mm Leafcutter Bee Wood Tray Additional Features Attic Space: Provides a haven for releasing bee cocoons, ensuring their protection and well-being.",
+        "locator": "https://www.natureswaybirds.com/products/chalet-cedar-bee-house JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Weather Protection: A generous 2\" roof overhang shields nesting materials and bees from rain and wind, creating a safe environment for pollinators.",
+        "locator": "https://www.natureswaybirds.com/products/chalet-cedar-bee-house JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Chalet Bee House | Classic Design for Raising Solitary Bees Embrace the art of bee-raising with our Chalet Bee House, a timeless design handcrafted in Western Washington from sustainably sourced Pacific Northwest cedar.",
+        "locator": "https://www.natureswaybirds.com/products/chalet-cedar-bee-house JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Stylish and functional, this house provides a welcoming home for Mason and Summer Leaf Bees while supporting healthier pollination and long-term bee stewardship in your garden.",
+        "locator": "https://www.natureswaybirds.com/products/chalet-cedar-bee-house JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:1a4e9e0c8d3f3232",
+    "title": "Ruby Dreams Antique Hummingbird Gravity Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder",
+    "productIdentity": "Nature's Way: Ruby Dreams Antique Hummingbird Gravity Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder",
+    "sourceHash": "17c58b856dd40febbdacc4795530afc783a2b544b728917c0e0eb90d8f6548f0",
+    "retrievedAt": "2026-10-08T12:18:23.350Z",
+    "familyId": "family-1ea758d962b4ce8b21c0043e13461753",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Antique red glass reservoir with intricate detailing, 4 flexible red anemone ports, 29 oz capacity, and a continuous perch ring for multiple hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "ONLY FEED THE HUMMINGBIRDS: Dish-style base and anemone ports naturally resist bees, keeping nectar safe and feeding exclusive to hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DURABLE MATERIALS: Red glass reservoir, UV-stabilized pewter plastic base that won’t rust, flexible feeding ports, and stainless steel hanger for long-lasting use.",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "GREAT GIFT IDEA: A beautiful holiday or birthday gift for any backyard birdwatcher, gardener, or outdoor enthusiast.",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Dimensions: Feeder 7\"H x 5.5\"W x 5.5\"D Weight: 1.3 lb Capacity: up to 29 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Wide-mouth bottle design allows simple filling; pewter plastic base fully disassembles with removable flower ports for thorough cleaning.",
+        "locator": "https://www.natureswaybirds.com/products/ruby-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:bc9deedda34ed0ae",
+    "title": "Twilight Dreams Antique Hummingbird Gravity Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder",
+    "productIdentity": "Nature's Way: Twilight Dreams Antique Hummingbird Gravity Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder",
+    "sourceHash": "d4a661a1f79a8744c697a9ae8b7a5bbe2aceca60a33ce744a8131b90c98877b8",
+    "retrievedAt": "2026-10-08T12:18:23.899Z",
+    "familyId": "family-1affed980bab96bb5629ce6f958772f0",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Antique purple glass reservoir with intricate detailing, 4 flexible red anemone ports, 29 oz capacity, and a continuous perch ring for multiple hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "ONLY FEED THE HUMMINGBIRDS: Dish-style base and anemone ports naturally resist bees, keeping nectar safe and feeding exclusive to hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DURABLE MATERIALS: Purple glass reservoir, UV-stabilized pewter plastic base that won’t rust, flexible feeding ports, and stainless steel hanger for long-lasting use.",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "GREAT GIFT IDEA: A beautiful holiday or birthday gift for any backyard birdwatcher, gardener, or outdoor enthusiast.",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Dimensions: Feeder 7\"H x 5.5\"W x 5.5\"D Weight: 1.3 lb Capacity: up to 29 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Wide-mouth bottle design allows simple filling; pewter plastic base fully disassembles with removable flower ports for thorough cleaning.",
+        "locator": "https://www.natureswaybirds.com/products/twilight-dreams-antique-hummingbird-gravity-feeder JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:eb3ad72a594bf29a",
+    "title": "Garden Hummingbird Feeder - Molten",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/garden-hummingbird-feeder-molten",
+    "productIdentity": "Nature's Way: Garden Hummingbird Feeder - Molten",
+    "sourceLocator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-molten",
+    "sourceHash": "edd42ddc7755150509bc7dd204d8321517e5274693e6342c0ab2469d34b27be9",
+    "retrievedAt": "2026-10-08T12:18:24.451Z",
+    "familyId": "family-d2245533cf46b93fb28840e3c0d86226",
+    "excerpts": [
+      {
+        "text": "Beautiful, thick hand-blown glass base and lid Decorative perching ring enables hummingbirds to perch while feeding Easy Fill & Clean™ Glass easily lifts out of hanging bracket for filling and cleaning Exclusive 4\" wide lid enables easier filling and cleaning Sufficient distance from feeding port to bottom of base dish ensures hummingbirds of all sizes can easily feed 3 removable flowers for easy cleaning Dishwasher safe Exclusive, innovative gaskets on lid and flowers for tight leak-free fit Perching ring made of metal with a durable, powder-coated 'hammered' finish Includes decorative hanging chain Lifetime warranty Dimensions: Glass 2.5\"Hx5.75\"Wx5.75\"D; With hanger 9\"Hx7\"Wx7\"D Weight: 1.8 lb Capacity: up to 16 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-molten JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:17215f91e1e027f2",
+    "title": "Crimson Comb Recycled Glass Hummingbird Feeder",
+    "brand": "EcoCycle™",
+    "canonicalUrl": "https://natureswaybirds.com/products/crimson-comb-recycled-glass-hummingbird-feeder",
+    "productIdentity": "EcoCycle™: Crimson Comb Recycled Glass Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/crimson-comb-recycled-glass-hummingbird-feeder",
+    "sourceHash": "4b986af1a8c2b8c399e8faec079e924163d047c0aad30b68baabee92c24268bd",
+    "retrievedAt": "2026-10-08T12:18:25.124Z",
+    "familyId": "family-8b7aa695d1f75975c3adb66fdc3a9f8a",
+    "excerpts": [
+      {
+        "text": "RECYCLED MATERIALS: Made from recycled glass and plastic, this EcoCycle™ Crimson Comb hummingbird feeder is a sustainable birding choice, 16 oz capacity EASY-CLEAN GLASS MATERIAL: Honeycomb design glass nectar reservoir design for easy thorough cleaning HUMMINGBIRD PERCHES: Built-in perches allow for increased feeding time from the five ports and prolonged hummingbird viewing BEE RESISTANT: Base design deters bees and wasps while allowing hummingbirds to comfortably reach nectar DURABLE MATERIALS: Constructed with durable materials for a long-lasting feeder DIMENSIONS: 6.25\"Hx5.5\"Wx5.5\"D CAPACITY: up to 16 oz.",
+        "locator": "https://www.natureswaybirds.com/products/crimson-comb-recycled-glass-hummingbird-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "ATTRACT THESE BIRDS: Anna's Hummingbird, Black-Chinned Hummingbird, Rufous Hummingbird, Ruby-Throated Hummingbird, Allen's Hummingbird USE THIS FEED: hummingbird nectar",
+        "locator": "https://www.natureswaybirds.com/products/crimson-comb-recycled-glass-hummingbird-feeder JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:c9b9731a20a9a237",
+    "title": "Planter & Perch Ceramic Fly Through Feeder and Planter",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/planter-perch-ceramic-fly-through-feeder-and-planter",
+    "productIdentity": "Nature's Way: Planter & Perch Ceramic Fly Through Feeder and Planter",
+    "sourceLocator": "https://www.natureswaybirds.com/products/planter-perch-ceramic-fly-through-feeder-and-planter",
+    "sourceHash": "d829a42efec3bf1a19bd6b3b128df4cca7488d21965beeb724eff3ca2440142f",
+    "retrievedAt": "2026-10-08T12:18:26.014Z",
+    "familyId": "family-3ab087f7b841b95923fcc4472da10375",
+    "excerpts": [
+      {
+        "text": "Adaptable Style: Use it as a functional bird feeder or as a decorative planter, bringing charm to your patio, garden, or indoor spaces Rain Drainage: Built-in drainage holes keep seeds dry or soil healthy, preventing water buildup for optimal bird feeding or plant growth Large Bird Spacing: The generously sized fly-through entrance welcomes both small and larger birds, encouraging lively birdwatching Easy Hang Design: A durable macrame hanger allows for quick and secure hanging from hooks or indoor fixtures, offering versatile placement options Dimensions: 8.5\"Hx6.5\"Wx5\"D Weight: 1.8 lb Capacity: 1.5 Cups Seeds to use: sunflower or mixed seed Attracts these birds: cardinals, grosbeaks, titmice, nuthatches, chickadees, finches, jays, juncos, woodpeckers, and more!",
+        "locator": "https://www.natureswaybirds.com/products/planter-perch-ceramic-fly-through-feeder-and-planter JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:7c8db594e70b8bab",
+    "title": "Beloved Bronze Dual-Chamber Metal Mesh Bird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder",
+    "productIdentity": "Nature's Way: Beloved Bronze Dual-Chamber Metal Mesh Bird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder",
+    "sourceHash": "3e1ffb6a3905679456354f9dc3d4d9f6e19fdea11aef05b1fa93df96130ead6c",
+    "retrievedAt": "2026-10-08T12:18:26.723Z",
+    "familyId": "family-6e1db80337c45f02ff5f95e3729c6d6d",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Dual-chamber feeder offers two mesh sizes to serve multiple seed varieties at once, with comfortable perches and a spacious seed tray for enhanced viewing.",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "KEEP THE BIRDS HAPPY: Drain holes in the seed tray help reduce moisture to keep seed fresher and reduce waste while creating additional perching space.",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "VERSATILE FEEDING OPTIONS: Designed to support a variety of seed types and feeding behaviors to encourage a diverse assortment of backyard birds with a large 2.375 quart capacity (OVER 3 lbs).",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE MATERIALS: Powder-coated metal construction provides long-lasting protection against the elements for season-after-season use.",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Dimensions: 12\"Hx9\"Wx9\"D Weight: 2.6 lb Capacity: 2.375 Quarts Seeds to use: black oil sunflower, striped sunflower, hulled sunflower, mixed seed blends, safflower, nuts, suet nuggets, thistle Attracts these birds: woodpecker, chickadee, cardinal, jay, grosbeak, titmouse, finch, nuthatch",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Easy-Clean technology allows all parts to be removed without tools for thorough cleaning and simple maintenance.",
+        "locator": "https://www.natureswaybirds.com/products/beloved-bronze-dual-chamber-metal-mesh-bird-feeder JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:c8fe8cc80e4b0c2a",
+    "title": "Lotus Flower Solar LED Garden Light - Gold",
+    "brand": "Moonelit Creations",
+    "canonicalUrl": "https://natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold",
+    "productIdentity": "Moonelit Creations: Lotus Flower Solar LED Garden Light - Gold",
+    "sourceLocator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold",
+    "sourceHash": "f2b8209a0daf7b99220c83f87ecf78ee14eadcbc0c28d651e0a1c3d627b32c03",
+    "retrievedAt": "2026-10-08T12:18:27.240Z",
+    "familyId": "family-84a43e3fd63066b0ff19f46691f1a7f2",
+    "excerpts": [
+      {
+        "text": "Memorable Gift for Garden Enthusiasts: A delightful present for birthdays, housewarmings, or holidays, this unique décor piece is sure to charm anyone who appreciates natural elegance.",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Dimensions: 4.33\"H x 10.63\"W x 10.63\"D Weight: 1.95 lbs",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Vibrant Gold Lotus Design: The glowing gold lotus flower silhouette delivers a soothing, nature-inspired accent that complements gardens, pathways, and patios alike.",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Enchanting Crackled Glass Globe: The illuminated glass globe casts a warm, subtle glow, creating a serene atmosphere that enhances the beauty of your outdoor space.",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Solar-Powered & Eco-Friendly: Featuring a built-in solar panel, this light charges by day and automatically turns on at dusk—no wiring or electricity required.",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Durable & Weather-Resistant Construction: Made from sturdy metal and designed to withstand the elements, it ensures long-lasting reliability through rain, wind, and sun.",
+        "locator": "https://www.natureswaybirds.com/products/lotus-flower-solar-led-garden-light-gold JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:8221693b3a0e0e8f",
+    "title": "White Daisy Hummingbird Feeder Replacement Flowers w/ Cleaning Brush - 9 ct",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy",
+    "productIdentity": "Nature's Way: White Daisy Hummingbird Feeder Replacement Flowers w/ Cleaning Brush - 9 ct",
+    "sourceLocator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy",
+    "sourceHash": "9fa100182cc092312f57ccd980b9659e08f2f69050fb270318e0c5ec3645c57d",
+    "retrievedAt": "2026-10-08T12:18:27.727Z",
+    "familyId": "family-c2e9c9656e157fe85518a0a6208c9477",
+    "excerpts": [
+      {
+        "text": "CUSTOMIZE YOUR FEEDER: Refresh or personalize your hummingbird feeder with 9 lifelike Daisy flower ports featuring a soft, flexible Leak Free™ fit for comfortable feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "IMPROVED FEEDING COMFORT: Flexible port petals provide a gentle feeding surface that mimics natural blooms and keeps hummingbirds comfortable while feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "UNIVERSAL COMPATIBILITY: Fits all current Nature’s Way hummingbird feeders and any alternative feeder that accepts a standard 1/4\" port opening.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE, LONG-LASTING MATERIALS: High-quality, UV-stabilized materials maintain color, shape, and leak resistance through seasons of nectar feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "GREAT GIFT IDEA: A thoughtful add-on for new or seasoned hummingbird enthusiasts wanting to maintain, customize, or refresh their feeders.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "All parts and products on this site are proprietary designs of Nature's Way Bird Products, LLC.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "EASY TO CLEAN: Included cleaning brush allows thorough cleaning of feeding ports to help maintain healthy nectar conditions and reduce buildup.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "*Replacement parts are intended solely for the convenience of customers who own Nature’s Way feeders that need servicing.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16-copy JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:7476ad3ed21a119b",
+    "title": "Red Impatiens Hummingbird Feeder Replacement Flowers w/ Cleaning Brush, 16 ct",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16",
+    "productIdentity": "Nature's Way: Red Impatiens Hummingbird Feeder Replacement Flowers w/ Cleaning Brush, 16 ct",
+    "sourceLocator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16",
+    "sourceHash": "eda6e673ef2166eaf95e26652a2dafa539730f329cab9781f8bde9866f38f10e",
+    "retrievedAt": "2026-10-08T12:18:28.205Z",
+    "familyId": "family-1b171cba27315c61409c0f3958e23356",
+    "excerpts": [
+      {
+        "text": "CUSTOMIZE YOUR FEEDER: Refresh or personalize your hummingbird feeder with 16 lifelike Impatiens flower ports featuring a soft, flexible Leak Free™ fit for comfortable feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "IMPROVED FEEDING COMFORT: Flexible port petals provide a gentle feeding surface that mimics natural blooms and keeps hummingbirds comfortable while feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "UNIVERSAL COMPATIBILITY: Fits all current Nature’s Way hummingbird feeders and any alternative feeder that accepts a standard 1/4\" port opening.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE, LONG-LASTING MATERIALS: High-quality, UV-stabilized materials maintain color, shape, and leak resistance through seasons of nectar feeding.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "GREAT GIFT IDEA: A thoughtful add-on for new or seasoned hummingbird enthusiasts wanting to maintain, customize, or refresh their feeders.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "All parts and products on this site are proprietary designs of Nature's Way Bird Products, LLC.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "EASY TO CLEAN: Included cleaning brush allows thorough cleaning of feeding ports to help maintain healthy nectar conditions and reduce buildup.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "*Replacement parts are intended solely for the convenience of customers who own Nature’s Way feeders that need servicing.",
+        "locator": "https://www.natureswaybirds.com/products/hummingbird-feeder-replacement-flowers-w-cleaning-brush-impatiens-red-16 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:b28b3feda5de2efe",
+    "title": "Ivy Perch Decorative Wren House",
+    "brand": "Wild Wings",
+    "canonicalUrl": "https://natureswaybirds.com/products/decorative-wren-house-ivy-perch",
+    "productIdentity": "Wild Wings: Ivy Perch Decorative Wren House",
+    "sourceLocator": "https://www.natureswaybirds.com/products/decorative-wren-house-ivy-perch",
+    "sourceHash": "08a92f57dad29055739f360ca6e550ccefeb3fd46b1a246cbdfb7d3f52c611d7",
+    "retrievedAt": "2026-10-08T12:18:28.696Z",
+    "familyId": "family-ebc17d93ba6757c5dc830559401a3b60",
+    "excerpts": [
+      {
+        "text": "IVY PERCH DESIGN: Crisp cream base with swirling green leaves, bringing a serene, garden-inspired touch ADAPTABLE STYLE: Use it as a functional birdhouse or as a decoration, bringing charm to your patio, garden, or indoor spaces DESIGNED FOR WRENS AND CHICKADEES: Attract wrens and chickadees with 1 1/8\" hole sizing to keep out sparrows and larger birds VENTILATION: Air vents allow for maximum air ventilation through wall for bird health EASY CLEAN: Clean-out door allows for easy access and thorough cleaning EASY-HANG DESIGN: Attached loop to hang the feeder over a branch or hook Dimensions: 6”H x 7.7”W x 4.33”D Weight: 0.8 lb Attracts: Wrens, Chickadees Click here for tips on how to hang, mount and care for your wren house.",
+        "locator": "https://www.natureswaybirds.com/products/decorative-wren-house-ivy-perch JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:3e4f94ab2becef1f",
+    "title": "Sunglow Metal Mesh Thistle Bird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/sunglow-metal-mesh-thistle-bird-feeder",
+    "productIdentity": "Nature's Way: Sunglow Metal Mesh Thistle Bird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/sunglow-metal-mesh-thistle-bird-feeder",
+    "sourceHash": "c3a34c7d40a52ff3929e418fb927766a54abe5593e72d01ab08f0070bbff2364",
+    "retrievedAt": "2026-10-08T12:18:29.138Z",
+    "familyId": "family-8958ab3298ba90ba7320a61958faf5a5",
+    "excerpts": [
+      {
+        "text": "CLASSIC TUBE DESIGN: Attract all your favorite finches and siskins to cling to this large metal tube feeder; Easy-Cling 360-degree mesh feeding surface to accommodate multiple birds feeding at a time without competition EASY TO REFILL AND CLEAN: Twist-off lid and large tube opening allow for easy filling with less spill and wasted seed; ALL parts can be removed for cleaning without the use of tools KEEP THE BIRDS HAPPY: Drain holes in seed tray promote rain drainage to keep seed fresh and prevents seed waste DURABLE QUALITY MATERIALS: Constructed from all metal with durable powder-coated materials for a long-lasting feeder LARGE CAPACITY: Holds 2 quarts (OVER 2.65 lbs) of seed, ideal for use with Nyjer or mixed finch seed to attract goldfinches, house finches, siskins, and more!",
+        "locator": "https://www.natureswaybirds.com/products/sunglow-metal-mesh-thistle-bird-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Dimensions: 13.25”H x 6”W x 6”D Weight: 1.5 lb Capacity: 2 Quarts Seed to use: finch blend, thistle Attracts these birds: purple finch, pine siskins, finch, house finch",
+        "locator": "https://www.natureswaybirds.com/products/sunglow-metal-mesh-thistle-bird-feeder JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:5f8a05d4e673b32b",
+    "title": "Combo Café 2-in-1 Recycled Plastic Bird Feeder and Bird Bath",
+    "brand": "EcoCycle™",
+    "canonicalUrl": "https://natureswaybirds.com/products/combo-cafe-2-in-1-recycled-plastic-bird-feeder-and-bird-bath",
+    "productIdentity": "EcoCycle™: Combo Café 2-in-1 Recycled Plastic Bird Feeder and Bird Bath",
+    "sourceLocator": "https://www.natureswaybirds.com/products/combo-cafe-2-in-1-recycled-plastic-bird-feeder-and-bird-bath",
+    "sourceHash": "53e293c5ebad0a82f52a47221cc2a14f1ab1a270d3c4fd11b435c5dd675ee12a",
+    "retrievedAt": "2026-10-08T12:18:29.601Z",
+    "familyId": "family-fc5d05bb549400f7ea488d98c48c6ff3",
+    "excerpts": [
+      {
+        "text": "RECYCLED MATERIALS: Made from recycled materials, this EcoCycle Combo Café 2-in-1 bird feeder & bird bath is a sustainable birding choice to welcome birds small or large to your backyard!",
+        "locator": "https://www.natureswaybirds.com/products/combo-cafe-2-in-1-recycled-plastic-bird-feeder-and-bird-bath JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "MESH SEED TRAY: Hang with the included chains to provide 1.5 quarts of a variety of seeds as well as dried fruit, in-shell peanuts, & whole corn to attract a variety of birds; drainage holes in the tray help keep seed fresh BIRD BATH TRAY: Hang with the included chain and add water for birds to sip or splash, easily clean the durable recycled plastic bath to keep your feathered friends healthy SMALL & LARGE BIRD SPACING: Both the bath and the feeder tray feature extra spacing to accommodate large birds like cardinals and jays IN-USE DIMENSIONS: 16\"Hx12.5\"Wx11\"D CAPACITY: 1.5 Quarts ATTRACT THESE BIRDS: woodpecker, junco, chickadee, cardinal, jay, grosbeak, titmouse, finch, nuthatch, mourning dove USE THESE SEEDS: black oil sunflower, striped sunflower, hulled sunflower, cracked corn, safflower, nuts, mixed seed blends",
+        "locator": "https://www.natureswaybirds.com/products/combo-cafe-2-in-1-recycled-plastic-bird-feeder-and-bird-bath JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:ed7487764325cad7",
+    "title": "Bottoms-Up Metal Thistle Finch Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/bottoms-up-metal-thistle-finch-feeder-model-nmrt-1",
+    "productIdentity": "Nature's Way: Bottoms-Up Metal Thistle Finch Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/bottoms-up-metal-thistle-finch-feeder-model-nmrt-1",
+    "sourceHash": "5dbaecb597bd373327c427d4c5012b19a96044b7dd2623da4f114c6351cc2b84",
+    "retrievedAt": "2026-10-08T12:18:30.025Z",
+    "familyId": "family-34cd19e93b1df101f8622d444259be27",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE CLASSIC DESIGN: Enjoy watching your goldfinches feed bottoms-up on this tube feeder with seed openings both above and below the six perches, classic finch yellow metal roof and base with 1.6 quart capacity EASY TO REFILL AND CLEAN: Easy Clean technology allows all parts to be removed for a thorough cleaning without the use of tools!",
+        "locator": "https://www.natureswaybirds.com/products/bottoms-up-metal-thistle-finch-feeder-model-nmrt-1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "KEEP THE BIRDS HAPPY: Drainage in the base aids in water drainage and promotes air circulation to keep seed fresh longer DURABLE QUALITY MATERIALS: Durable powder-coated aluminum parts and UV-stabilized crack-resistant tube for a long-lasting feeder Dimensions: 19.5”H x 5.75”W x 5.75”D Weight: 1 lbs Capacity: 1.6 qts Seed to use: Thistle/Nyjer and finch blends Attracts these birds: American goldfinches, house finches, pine siskins, and purple finches",
+        "locator": "https://www.natureswaybirds.com/products/bottoms-up-metal-thistle-finch-feeder-model-nmrt-1 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:72172e4f8cfcab40",
+    "title": "2-in-1 Red Plastic Hanging Dish or Window Mount Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder",
+    "productIdentity": "Nature's Way: 2-in-1 Red Plastic Hanging Dish or Window Mount Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder",
+    "sourceHash": "97d43490abd30b7b0192870a0fb6c7eb18f603097533d551daee0a1352504d03",
+    "retrievedAt": "2026-10-08T12:18:30.539Z",
+    "familyId": "family-2be776183c13d2ad4b7511e4e664be63",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE 2-IN-1 DESIGN: Hang in the yard or mount on a window for up close viewing of hummingbirds, 5 flexible feeding ports, 13 oz.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "capacity, dual distance perches for longer feeding time for all sizes of hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "ONLY FEED THE HUMMINGBIRDS: Built-in ant moat stops them from reaching the nectar and feeder's base dish shape and expertly designed flower ports create a naturally bee-resistant design.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE QUALITY MATERIALS: UV-stabilized quality plastic won't rust, flexible feeding ports for maximum hummingbird feeding comfort, and durable powder-coated steel hanger for a long lasting feeder.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "DESIGNED FOR EASY FEEDING: Hummingbirds’ tongues can extend up to twice the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Dimensions: Feeder 1.88\"H x 7\"W x 7\"D; With Hanger 10\"H x 7\"Wx 7\"D Weight: 0.5 lbs Capacity: up to 13 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Dish design allows for easy filling and cleaning and two-part feeder base with removeable flower shaped ports allow feeder to be completely disassembled for thorough cleaning.",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "EASY CONNECT TO MAKE A FEEDING STATION: Design allows for multiple feeders to be connected from top to bottom to create an expanded feeding station!",
+        "locator": "https://www.natureswaybirds.com/products/2-in-1-plastic-dish-hummingbird-feeder JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:0656f34c56b2494a",
+    "title": "Squirrel Shield Advantage Cage Feeder",
+    "brand": "Squirrel Shield™",
+    "canonicalUrl": "https://natureswaybirds.com/products/squirrel-shield-advantage-cage-feeder-model-spcage-1",
+    "productIdentity": "Squirrel Shield™: Squirrel Shield Advantage Cage Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/squirrel-shield-advantage-cage-feeder-model-spcage-1",
+    "sourceHash": "3a8f69ae8122aa4421868f0a6515feef3869af7d3fc4f219a1f0b4e4f90a506a",
+    "retrievedAt": "2026-10-08T12:18:31.191Z",
+    "familyId": "family-e309b1de0aa327f8e2181fdfa76ab80c",
+    "excerpts": [
+      {
+        "text": "SQUIRREL-STOPPING FEATURES: Squirrel resistant weight-sensitive seed shield collapses under squirrel's weight to block seed port access, quick locking roof secures top of feeder with a simple turn EASY TO FILL AND CLEAN: Quick lock roof provides easy access for refilling while hanging, easy clean base design allows for thorough cleaning without needing tools!",
+        "locator": "https://www.natureswaybirds.com/products/squirrel-shield-advantage-cage-feeder-model-spcage-1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "DURABLE MATERIALS: Weather-resistant powder-coated metal roof and cage and UV stabilized quality plastic feeder for a longer lasting feeder LARGE CAPACITY: Holds up to 3.2 quarts of seed with 8 feeding ports!",
+        "locator": "https://www.natureswaybirds.com/products/squirrel-shield-advantage-cage-feeder-model-spcage-1 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Dimensions: 19.25”H x 7”W x 7”D Weight: 2.4 lbs Capacity: 3.2 qts Seed to use: Black oil sunflower, striped sunflower, hulled sunflower, safflower, mixed seed blends Attracts these birds: Cardinals, Grosbeaks, Titmice, Nuthatches, Chickadees, Juncos, Finches",
+        "locator": "https://www.natureswaybirds.com/products/squirrel-shield-advantage-cage-feeder-model-spcage-1 JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:4a66fd45c5a10c17",
+    "title": "Plum Antique Glass Top-Fill Dish Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1",
+    "productIdentity": "Nature's Way: Plum Antique Glass Top-Fill Dish Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1",
+    "sourceHash": "f29834cad6814d372012ef589d9766b8b4d8e525fc8563769e7ea6c021fda274",
+    "retrievedAt": "2026-10-08T12:18:31.628Z",
+    "familyId": "family-5ed1fb9edafda46863925a34bc35525f",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Antique textured glass nectar container with decorative metal basket, 3 flexible flower-shaped ports, and top-fill design for easy use; 14 oz capacity accommodates multiple hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "DESIGNED FOR EASY FEEDING: Hummingbirds’ tongues can extend up to two the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "COMFORTABLE PERCHING: Decorative floral port spacing and dish design allow hummingbirds to naturally perch while feeding, increasing viewing time.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "DURABLE MATERIALS: High-quality textured glass, UV-stabilized plastic flower ports, and rust-resistant metal hardware ensure long-lasting outdoor performance.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Dimensions with hanger: 10\"Hx6.25\"Wx5.6\"D Weight: 1.2 lb Capacity: up to 14 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Wide opening enables simple filling and cleaning; all parts remove easily and are dishwasher safe for thorough maintenance.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "VERSATILE PLACEMENT: Use the included hanging chains or set the decorative basket directly on a flat surface to customize display in your yard or garden.",
+        "locator": "https://www.natureswaybirds.com/products/antique-top-fill-hummingbird-feeder-model-anthf1 JSON-LD Product + product-description#excerpt-6"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:4fe0b8498941f82c",
+    "title": "Decorative Glass Top-Fill Hummingbird Feeder - Gardenia Bouquet",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/decorative-glass-top-fill-hummingbird-feeder-gardenia-bouguet-model-dthf2",
+    "productIdentity": "Nature's Way: Decorative Glass Top-Fill Hummingbird Feeder - Gardenia Bouquet",
+    "sourceLocator": "https://www.natureswaybirds.com/products/decorative-glass-top-fill-hummingbird-feeder-gardenia-bouguet-model-dthf2",
+    "sourceHash": "271cbd82888756c36831867e0f357b071937b3db5c2208f79976cb15e7a9cf12",
+    "retrievedAt": "2026-10-08T12:18:32.472Z",
+    "familyId": "family-f3641900fdad8188ee532604f16aa75d",
+    "excerpts": [
+      {
+        "text": "Bring more blooms to your yard with this decorative floral glass hummingbird feeder!",
+        "locator": "https://www.natureswaybirds.com/products/decorative-glass-top-fill-hummingbird-feeder-gardenia-bouguet-model-dthf2 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Easy Connect – Hanging ring designed with additional loop at the bottom to allow for multiple feeders to be connected from top to bottom Flexible lifelike flower ports with Leak Free™ fit for maximum feeding comfort Decorative floral port design allows hummingbirds to perch for more comfortable feeding Easy Fill & Clean™ Glass easily lifts out of hanging basket for filling and cleaning Wide opening enables easier filling and cleaning 3 removable flowers for easy cleaning Sufficient distance from feeding port to bottom of base dish ensures hummingbirds of all sizes can easily feed Top-rack dishwasher safe Exclusive, innovative gaskets on lid for tight leak-free fit Dimensions with hanger: 9.8\"H x 7\"W x 5.25\"D Weight: 1.1 lb Capacity: up to 13 oz Feed to Use: Nectar Attracts: Hummingbirds CALIFORNIA WARNING",
+        "locator": "https://www.natureswaybirds.com/products/decorative-glass-top-fill-hummingbird-feeder-gardenia-bouguet-model-dthf2 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:55393673d8574c89",
+    "title": "Hopper and Vertical Feeder Plexi Windows",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/hopper-feeder-seed-window",
+    "productIdentity": "Nature's Way: Hopper and Vertical Feeder Plexi Windows",
+    "sourceLocator": "https://www.natureswaybirds.com/products/hopper-feeder-seed-window",
+    "sourceHash": "02af61046b9f26d760dc00a20350c1ca93cac9914feba747ab678f5f741abea6",
+    "retrievedAt": "2026-10-08T12:18:33.004Z",
+    "familyId": "family-3afa4d991b089a158239b02e35678720",
+    "excerpts": [
+      {
+        "text": "Designed for assorted hopper and vertical feeder models Measure product carefully and select appropriate size replacement Feel free to contact us if you are having trouble finding a window with needed measurements *Replacement parts are intended solely for the convenience of customers who own Nature’s Way feeders that need servicing.",
+        "locator": "https://www.natureswaybirds.com/products/hopper-feeder-seed-window JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "All parts and products on this site are proprietary designs of Nature's Way Bird Products, LLC.",
+        "locator": "https://www.natureswaybirds.com/products/hopper-feeder-seed-window JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Use of these items for manufacturing and sale of product without expressed consent is forbidden.",
+        "locator": "https://www.natureswaybirds.com/products/hopper-feeder-seed-window JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:928bd7f6ea2e4a6e",
+    "title": "Sunny Day Artisan Handblown Glass Gravity Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3",
+    "productIdentity": "Nature's Way: Sunny Day Artisan Handblown Glass Gravity Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3",
+    "sourceHash": "386b6e9ada6bea9375cb58cdb4ecd7f4618cbbb34d9d6f52e87f56c3939ec779",
+    "retrievedAt": "2026-10-08T12:18:33.542Z",
+    "familyId": "family-34376c32cd3d6ed67f3d992f00187b09",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Thick, handblown artisan glass in vibrant Sunny Day coloring, 6 flexible flower shaped feeding ports, 28 oz capacity, and a continuous perching ring to accommodate multiple hummingbirds.",
+        "locator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "ONLY FEED THE HUMMINGBIRDS: Feeder's base dish shape and expertly designed flower ports create a naturally bee-resistant design.",
+        "locator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DURABLE MATERIALS: Crafted from high-quality colored glass that won’t fade over time, with UV-stabilized and rust-resistant metal for long-lasting beauty and performance.",
+        "locator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Includes hanging hook Dimensions: 8.25\"Hx6.5\"Wx6.5\"D Weight: 2 lb Capacity: up to 28 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Wide mouth bottle allows easy filling and cleaning, completely disassemble two-part feeder base with removable flower ports for thorough cleaning, durable glass nectar reservoir.",
+        "locator": "https://www.natureswaybirds.com/products/artisan-gravity-hummingbird-feeder-sunny-day-model-agf3 JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:6ebfaf1595829e70",
+    "title": "Wire and Glass Oriole Feeder W/ Protective Baffle",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/wire-oriole-feeder-model-ofm1",
+    "productIdentity": "Nature's Way: Wire and Glass Oriole Feeder W/ Protective Baffle",
+    "sourceLocator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1",
+    "sourceHash": "f8ecddc56587e84048f81a242ba4282f4c87cfda4877b0917a21f219eae683b7",
+    "retrievedAt": "2026-10-08T12:18:34.205Z",
+    "familyId": "family-492951a4da60c1ace508d20992dec6dd",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Wire-frame feeding platform with a continuous perch ring and bright orange accents encourages Orioles and other fruit-loving birds to visit.",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "KEEP THE BIRDS HAPPY: Clear protective weather baffle helps shield feed from rain and debris, keeping treats fresher longer while maintaining visibility.",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DURABLE MATERIALS: Sturdy powder-coated wire and glass components provide long-lasting outdoor performance season after season.",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Dimensions: 9.6\"H x 8.24\"W x 8.24\"D Weight: 0.5 lbs Capacity: 0.75 C Feed to Use: Oranges, Jelly, Fruit Slices Attracts: Orioles, Red-bellied Woodpeckers",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Removable glass jelly dish lifts out for quick refilling and thorough cleaning between feedings.",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "VERSATILE FEEDING OPTIONS: Built-in fruit spikes allow you to offer oranges or other fruit alongside 3/4 cup of jelly for increased feeding variety.",
+        "locator": "https://www.natureswaybirds.com/products/wire-oriole-feeder-model-ofm1 JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:269dc614146f699a",
+    "title": "LED solar unit",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/led-solar-unit",
+    "productIdentity": "Nature's Way: LED solar unit",
+    "sourceLocator": "https://www.natureswaybirds.com/products/led-solar-unit",
+    "sourceHash": "5305fad56afbea4fe8c039f799f0c397487f1bb995f388ac4d0d84b16712b1c9",
+    "retrievedAt": "2026-10-08T12:18:34.834Z",
+    "familyId": "family-6bcc4633a9d8c7db609c00395f448be7",
+    "excerpts": [
+      {
+        "text": "For use in Nature's Way and Wild Wings top-fill hand blown glass Hummingbird Feeders beginning with model numbers ANTHF, GHF, MHF and WWGHF.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "All parts and products on this site are proprietary designs of Nature's Way Bird Products, LLC.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "** Please note: there is currently a (10) unit limit per order.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "We will only ship up to (10) LED units per customer and any orders over (10) will not be fulfilled and you will be refunded.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "*Leak Free gasket to hold unit in feeder lid sold separately *Replacement parts are intended solely for the convenience of customers who own Nature’s Way feeders that need servicing.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Use of these items for manufacturing and sale of product without expressed consent is forbidden.",
+        "locator": "https://www.natureswaybirds.com/products/led-solar-unit JSON-LD Product + product-description#excerpt-5"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:9d559bdd7247b03e",
+    "title": "Country Bluebird House - Weathered",
+    "brand": "Wild Wings",
+    "canonicalUrl": "https://natureswaybirds.com/products/country-bluebird-house-weathered-model-ww15g05-c",
+    "productIdentity": "Wild Wings: Country Bluebird House - Weathered",
+    "sourceLocator": "https://www.natureswaybirds.com/products/country-bluebird-house-weathered-model-ww15g05-c",
+    "sourceHash": "59dcf6faf1b4d5677e753d7c8e635381029070685441273430966c9ab2548d94",
+    "retrievedAt": "2026-10-08T12:18:35.368Z",
+    "familyId": "family-953d30bcdd136ffcb6ccfe02e424bc9d",
+    "excerpts": [
+      {
+        "text": "Bring a decorative rustic feel to your birding experience with this Country Bluebird House Made with insect and rot-resistant premium cedar Air vents allow for maximum air ventilation through wall and floor openings Clean-out door provides easy access for cleaning 1 1/2\" hole keeps out larger unwanted birds Hang or post mount Dimensions: 9.75”H x 6.25”W x 4.75”D Weight: 2lb Attracts: Bluebirds, Tree Swallows, Nuthatches, Titmouse, Chickadees Click here for tips on how to hang, mount and care for your Bluebird house.",
+        "locator": "https://www.natureswaybirds.com/products/country-bluebird-house-weathered-model-ww15g05-c JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:c6b201cc08c69944",
+    "title": "Farmhouse Cedar Bluebird House",
+    "brand": "Wild Wings",
+    "canonicalUrl": "https://natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco",
+    "productIdentity": "Wild Wings: Farmhouse Cedar Bluebird House",
+    "sourceLocator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco",
+    "sourceHash": "65b6972606c395d743d86c4a68057ac22aee12a66b2dcd3f3790dbff4aef343b",
+    "retrievedAt": "2026-10-08T12:18:35.788Z",
+    "familyId": "family-4120dfadd49f7b65f29c67fbd26357b7",
+    "excerpts": [
+      {
+        "text": "HEALTHY NESTING VENTILATION: Wall and floor air vents promote proper airflow and temperature balance, supporting healthier nest conditions for growing chicks.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "EASY CLEAN-OUT ACCESS: Hinged clean-out door provides fast, convenient seasonal maintenance to help reduce parasites and old nesting material.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "PREDATOR-GUARD ENTRANCE: Extended entrance protects young birds from raccoons, cats, and larger intruders while keeping the interior safely recessed.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "SAFE FLEDGLING EXIT: Interior fledgling kerfs add extra grip, helping young birds climb and exit the house successfully when ready to fledge.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "DURABLE MATERIALS: Crafted from premium cedar for long-lasting performance and multiple nesting seasons outdoors.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Pole or flush mount Dimensions: 11”H x 6.75”W x 6”D Weight: 2 lbs Attracts: Bluebirds, Tree Swallows, Chickadees, Nuthatches, Titmice, Wrens Click here for tips on how to hang, mount and care for your Bluebird house.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "FARMHOUSE CHARM: White-washed cedar sides paired with a stained roof bring an elegant, on-trend look to gardens, patios, and backyard landscapes.",
+        "locator": "https://www.natureswaybirds.com/products/farmhouse-bluebird-house-model-wwlh3-deco JSON-LD Product + product-description#excerpt-6"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:fdfc54ad6418a009",
+    "title": "Country Bluebird House - Maple",
+    "brand": "Wild Wings",
+    "canonicalUrl": "https://natureswaybirds.com/products/country-bluebird-house-model-ww15g05",
+    "productIdentity": "Wild Wings: Country Bluebird House - Maple",
+    "sourceLocator": "https://www.natureswaybirds.com/products/country-bluebird-house-model-ww15g05",
+    "sourceHash": "faad2e2217622e6abbd811ae683fae3b9d4b885ed3ac818437aa227d11daa94b",
+    "retrievedAt": "2026-10-08T12:18:36.306Z",
+    "familyId": "family-18317918ae669a4455fd13047f827862",
+    "excerpts": [
+      {
+        "text": "Bring a decorative rustic feel to your birding experience with this Country Bluebird House Made with insect and rot-resistant premium cedar Air vents allow for maximum air ventilation through wall and floor openings Clean-out door provides easy access for cleaning 1 1/2\" hole keeps out larger unwanted birds Hang or post mount Dimensions: 9.75”H x 6.25”W x 4.75”D Weight: 2lb Attracts: Bluebirds, Tree Swallows, Nuthatches, Titmouse, Chickadees Click here for tips on how to hang, mount and care for your Bluebird house.",
+        "locator": "https://www.natureswaybirds.com/products/country-bluebird-house-model-ww15g05 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:28917f61961bda7a",
+    "title": "Bluebird house viewing window",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/bluebird-house-viewing-window",
+    "productIdentity": "Nature's Way: Bluebird house viewing window",
+    "sourceLocator": "https://www.natureswaybirds.com/products/bluebird-house-viewing-window",
+    "sourceHash": "9c056d5a1236bf52612e896826e8ac37567283ac12d19fb795aea6898d347387",
+    "retrievedAt": "2026-10-08T12:18:36.737Z",
+    "familyId": "family-535adae6c28d1ab9964884a237d080cd",
+    "excerpts": [
+      {
+        "text": "Designed for bluebird house model#s CWH4 and DIY-BIRD Measures approximately 4 7/8\" x 6\" (height may vary slightly) *Replacement parts are intended solely for the convenience of customers who own Nature’s Way feeders that need servicing.",
+        "locator": "https://www.natureswaybirds.com/products/bluebird-house-viewing-window JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "All parts and products on this site are proprietary designs of Nature's Way Bird Products, LLC.",
+        "locator": "https://www.natureswaybirds.com/products/bluebird-house-viewing-window JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Use of these items for manufacturing and sale of product without expressed consent is forbidden.",
+        "locator": "https://www.natureswaybirds.com/products/bluebird-house-viewing-window JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:3cc002a8bc7a5bac",
+    "title": "Mason Jar Glass Top-Fill Dish Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1",
+    "productIdentity": "Nature's Way: Mason Jar Glass Top-Fill Dish Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1",
+    "sourceHash": "7fc97e437ea51c35fd9fcb0d56ff7064de7ea5b5c756cfe147a60801659fb06f",
+    "retrievedAt": "2026-10-08T12:18:37.611Z",
+    "familyId": "family-1c2383f1864dd6382184b97038f0e637",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Add farmhouse charm to your garden with this compact mason jar style feeder, 4 flexible red flower shaped feeding ports to feed multiple hummingbirds, 6 oz.",
+        "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "DURABLE MATERIALS: High quality glass nectar reservoir, flexible feeding ports for hummingbird comfort, stainless steel lid and hanger for a long lasting feeder.",
+        "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DESIGNED FOR EASY FEEDING: Hummingbirds’ tongues can extend up to twice the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+        "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Dimensions: Feeder 2.5\"H x 5\"W x 5\"D Weight: 1 lbs Capacity: up to 6 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "capacity with fill line for easy refilling EASY TO REFILL AND CLEAN: Glass dish has a wide opening for easy filling and cleaning, all feeder parts are removable for a more thorough clean and the clear glass jar and flower feeding ports are top-rack dishwasher safe!",
+        "locator": "https://www.natureswaybirds.com/products/mason-jar-hummingbird-feeder-model-mjf1 JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:a22017acd146e0ed",
+    "title": "Mason Jar Blue Handblown Glass Top-Fill Dish Hummingbird Feeder",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9",
+    "productIdentity": "Nature's Way: Mason Jar Blue Handblown Glass Top-Fill Dish Hummingbird Feeder",
+    "sourceLocator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9",
+    "sourceHash": "4fcda432fedad84f91a54833d3abb11424b9a2ed93ce43c8f33c0d4e899cc7ac",
+    "retrievedAt": "2026-10-08T12:18:38.099Z",
+    "familyId": "family-a88f3ac1901fef97cb16aa5c4c2523b2",
+    "excerpts": [
+      {
+        "text": "ATTRACTIVE DESIGN: Beautiful, thick hand-blown glass base and lid with a decorative hanging basket with perching rings and a 16 oz capacity for extended viewing.",
+        "locator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "EASY TO REFILL AND CLEAN: Extra-wide top-fill opening allows simple filling and cleaning; all parts remove easily for thorough cleaning DESIGNED FOR EASY FEEDING: Hummingbirds’ tongues can extend up to two the length of their beak, allowing them to reach nectar in dish feeders, even when nectar levels are low.",
+        "locator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "DURABLE MATERIALS: Die-cast aluminum flower ports resist rust, while silicone gaskets on the lid and flowers provide a tight, leak-free fit for reliable performance.",
+        "locator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Limited lifetime warranty Dimensions: Glass 2.5\"Hx5.75\"Wx5.75\"D; With hanger 9\"Hx7\"Wx7\"D Weight: 1.8 lb Capacity: up to 16 oz Feed to Use: Nectar Attracts: Hummingbirds",
+        "locator": "https://www.natureswaybirds.com/products/garden-hummingbird-feeder-mason-jar-blue-model-ghf9 JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:natureswaybirds.com:147bde60159d3a67",
+    "title": "Cedar Single Chamber Bat House",
+    "brand": "Nature's Way",
+    "canonicalUrl": "https://natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10",
+    "productIdentity": "Nature's Way: Cedar Single Chamber Bat House",
+    "sourceLocator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10",
+    "sourceHash": "95250c16ccaa2e144ea924898435d60d608a8bafaab82d3475a5ecb8b7247310",
+    "retrievedAt": "2026-10-08T12:18:38.549Z",
+    "familyId": "family-a59d7f75bf57bd32339d51ec4e28d3bb",
+    "excerpts": [
+      {
+        "text": "EASY LANDING & CLINGING: Integrated landing kerfs and durable nylon hanging mesh provide secure footing and allow bats to cling comfortably.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "HEALTHY ROOSTING DESIGN: Single-chamber layout supports proper temperature regulation to promote bat health and colony stability.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "SUPPORTS ECOSYSTEM HEALTH: Encourages bats that contribute to balanced ecosystems through pollination and natural seed dispersal.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Bats also provide a natural approach to mosquitoes & other insects with their big appetites!",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Dimensions: 15”H x 10”W x 3.5”D Weight: 3 lb Attracts: Bats Click here for tips on how to hang, mount and care for your bat house.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "PREMIUM CEDAR CONSTRUCTION: Built from thick, durable solid cedar for long-lasting outdoor durability.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "HASSLE-FREE INSTALLATION: Four pre-drilled pilot holes make mounting simple on poles, posts, barns, sheds, or trees.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "HOLDS UP TO 60 BATS: Spacious interior accommodates large colonies, supporting thriving local bat populations.",
+        "locator": "https://www.natureswaybirds.com/products/cedar-single-chamber-bat-house-model-cwh10 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:79f47136b0065c9a",
+    "title": "Back on Track Obsidian Turnout Blanket",
+    "brand": "Back on Track",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866",
+    "productIdentity": "Back on Track: Back on Track Obsidian Turnout Blanket",
+    "sourceLocator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866",
+    "sourceHash": "1a30babb3fca1827c0b179fdba9172fc8db438ff47ff778d724fef6ac2a7e414",
+    "retrievedAt": "2026-10-08T12:19:03.473Z",
+    "familyId": "family-9d7a1c95c6685499b0a5e22de423b0e5",
+    "excerpts": [
+      {
+        "text": "Also didn’t realize it was only 150g, I was expecting more of a heavier weight to it, but that’s on me and I love it anyway, I’ll just add another layer under if I need to.",
+        "locator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "The Back on Track Obsidian turnout blanket in classic black, is extremely elegant and multifunctional with a matching neck piece - designed to maximize freedom of movement and mini...",
+        "locator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I love the extra support around the wither area, and the neck hole is finally not too big of an opening and stay snug to avoid shoulder rubs!",
+        "locator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "My BOT sheets always ride back on the withers since the neck hole is so big - Not this blanket!!",
+        "locator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Comes with a tail strap not individual back leg straps (those would have been nicer).",
+        "locator": "https://www.smartpakequine.com/pt/back-on-track-obsidian-turnout-blanket-26866 JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:e575f5af7e0d79d3",
+    "title": "Haas Amazone Medium Brush",
+    "brand": "Haas",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138",
+    "productIdentity": "Haas: Haas Amazone Medium Brush",
+    "sourceLocator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138",
+    "sourceHash": "15726a6a40994f48655afbf7cde86055567f29cb24ec5c867fd8a0542d137d05",
+    "retrievedAt": "2026-10-08T12:19:04.473Z",
+    "familyId": "family-cb81fb84a828825c0e52432b7c693e9f",
+    "excerpts": [
+      {
+        "text": "The carefully selected mixture of strong and elastic horsehair embedded in a wood look-alike water-proof ...",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "I bought a Haas curry, Amazone and Diva, and my horse has not looked this good in a long time.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "My gelding licks, chews, yawns and signs while I am using the Haas curry and brushes.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "It works so well in getting off caked on mud and leaving the coat shiny.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "The brush is a perfect size for my hand - not too big and not too small.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "I love that the bristles are natural horsehair, as they leave the coat soft and shiny.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "I highly recommend this brush to any horse owner looking for a high-quality brush for everyday grooming.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "My horse was rather cranky when grooming with other generic brushes and they never did a great job anyway.",
+        "locator": "https://www.smartpakequine.com/pt/haas-amazone-medium-brush-14138 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:0ddc23cdf3137789",
+    "title": "Tuff Rider Ladies Ribb Breeches - Knee Patch",
+    "brand": "TuffRider",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453",
+    "productIdentity": "TuffRider: Tuff Rider Ladies Ribb Breeches - Knee Patch",
+    "sourceLocator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453",
+    "sourceHash": "a4da9d95c86007818d7fc493e28e866a98b48d182f22fa4ca5780ae3c763bbe7",
+    "retrievedAt": "2026-10-08T12:19:04.797Z",
+    "familyId": "family-3c13d5d9680cea62a2fb81caf7c992f0",
+    "excerpts": [
+      {
+        "text": "Perfect for dressage rider's schooling days, these breeches fit comfortably on your natural ...",
+        "locator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "The&nbsp;Tuff Rider Ladies Ribb Breeches - Knee Patch&nbsp;are durable and comfortable!",
+        "locator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I have them in multiple colors and they're great for schooling.",
+        "locator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "I like that the waist comes up high enough that I don't have to worry about them sliding down when riding or doing chores, even if I'm not wearing a belt.",
+        "locator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "The front pocket is big enough to fit my keys, which is important to me.",
+        "locator": "https://www.smartpakequine.com/pt/tuff-rider-ladies-ribb-breeches--knee-patch-22453 JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:7e2f172a973c77f3",
+    "title": "Plymouth&amp;reg; Web Reins by SmartPak",
+    "brand": "Plymouth by SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450",
+    "productIdentity": "Plymouth by SmartPak: Plymouth&amp;reg; Web Reins by SmartPak",
+    "sourceLocator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450",
+    "sourceHash": "533ac5630d781887a6944a8cb050787576a512ff7af53a027d4518c5bad78aef",
+    "retrievedAt": "2026-10-08T12:19:05.807Z",
+    "familyId": "family-9d1ce694ff4779cd6b79b3bc3bc3861a",
+    "excerpts": [
+      {
+        "text": "There were a great purchase, and good length for my smaller horse.",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Would kill for them to sell the higher quality rubber web reins that come with the Plymouth Elite dressage bridle, I had to buy three of the whole bridles and resell the headstall just to get the reins which are the best reins ive ever used",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Traditional styling and unprecedented quality in this price range.",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Imported Check out the other pieces in our Plymouth line Here!",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "I was very pleasantly surprised with the quality of these reins for the price!",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "They are not as stiff and hard to 'break in' as some web reins.",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "The only down side to these reins would be that they are hook instead of buckle ends.",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "That being said, I'm still very happy with my purchase!",
+        "locator": "https://www.smartpakequine.com/pt/plymouth-web-reins-by-smartpak-7450 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:4171ff9e4489f0dd",
+    "title": "Mrs. Pastures&amp;reg; Original Cookies",
+    "brand": "Mrs. Pastures Cookies for Horses",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901",
+    "productIdentity": "Mrs. Pastures Cookies for Horses: Mrs. Pastures&amp;reg; Original Cookies",
+    "sourceLocator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901",
+    "sourceHash": "1945d9c9dad772cfb29d4567875364238f31667041d664b1476407f0ed1428f0",
+    "retrievedAt": "2026-10-08T12:19:06.210Z",
+    "familyId": "family-105d1b02683a01d80740efacd64e67d1",
+    "excerpts": [
+      {
+        "text": "Pastures Original cookies for horses are all natural, premium horse treats made with simple ingredients!",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "These no bake horse treats are crunchy and were made to help nou...",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Amazingly enough, this is the one treat that he will actually savor, chewing slowly, instead of just gobbling it down.",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Our other two horses like them plain, no dunks, although the old mare finds them almost too crunchy for her.",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "My horse and his stablemates love them so much, I buy the 15lb box.",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Pastures Cookies have a 100% approval rating at my barn, all of the horses love these cookies!",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "They are a fantastic training reward for my very food-motivated horse.",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "They are a perfect size, stay firm, and do not crumble in the box or my pocket.",
+        "locator": "https://www.smartpakequine.com/pt/mrs-pastures-original-cookies--7901 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:3fa8bef7ebdcd588",
+    "title": "Haas Mustang Stiff Brush",
+    "brand": "Haas",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490",
+    "productIdentity": "Haas: Haas Mustang Stiff Brush",
+    "sourceLocator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490",
+    "sourceHash": "6566578d82235e26b968d0aee2cee90a263fc625ff8782ddd1ec75debb2b64cf",
+    "retrievedAt": "2026-10-08T12:19:06.622Z",
+    "familyId": "family-76520b50e916687af9aef61128349e89",
+    "excerpts": [
+      {
+        "text": "My only very trivial gripe is that some of the material on the back chipped off when I peeled the product sticker off.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "It does a fabulous job of lifting even really deep dirt off my horse.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Nice quality brush, my horse seems to like it.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "I think I will save it as a show brush as it will be great with a short hair coat.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "We are having a terrible mud season here and my horse has fun playing in it!",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "it's super durrable and does a excellent job at cleaning dirty pasture keept horse coats!",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "The brush is well made and works well on short or non-shedding coats to remove mud.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "However, when used on a horse that is shedding out, the hair sticks to the brush instead of flicking off.",
+        "locator": "https://www.smartpakequine.com/pt/haas-mustang-stiff-brush-13490 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:6f501c4e496b6a97",
+    "title": "SmartPak Deluxe Pony Fit Turnout Sheet",
+    "brand": "SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/smartpak-deluxe-pony-fit-turnout-sheet-26923",
+    "productIdentity": "SmartPak: SmartPak Deluxe Pony Fit Turnout Sheet",
+    "sourceLocator": "https://www.smartpakequine.com/pt/smartpak-deluxe-pony-fit-turnout-sheet-26923",
+    "sourceHash": "9fa1751a38e51fd65de9adf6c7de91a9af4fc026c23a885ae536a5720452dc21",
+    "retrievedAt": "2026-10-08T12:19:07.439Z",
+    "familyId": "family-52fa17688edefe1258291d2933d12030",
+    "excerpts": [
+      {
+        "text": "If you&rsquo;re looking for a dependable turnout sheet that has all of the features and reliability your pony could want, reach for the SmartPak Deluxe Pony Fit Turnout Sheet.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-deluxe-pony-fit-turnout-sheet-26923 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:bce4581a8eaa9a95",
+    "title": "WeatherBeeta Prime Air-Tec Jump Saddle Pad",
+    "brand": "WeatherBeeta USA",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/weatherbeeta-prime-airtec-jump-saddle-pad-27374",
+    "productIdentity": "WeatherBeeta USA: WeatherBeeta Prime Air-Tec Jump Saddle Pad",
+    "sourceLocator": "https://www.smartpakequine.com/pt/weatherbeeta-prime-airtec-jump-saddle-pad-27374",
+    "sourceHash": "a91a3f7a6d73dee88c29c525508d321524dbd1fab2c3d9c1cd6c558e603bf295",
+    "retrievedAt": "2026-10-08T12:19:07.957Z",
+    "familyId": "family-4479525da3d1d14f6d0a4d631be70675",
+    "excerpts": [
+      {
+        "text": "The WeatherBeeta Prime Air-Tec Jump Saddle Pad is the perfect blend of comfort, durability, and performance for equestrians who expect the best for their horse.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-prime-airtec-jump-saddle-pad-27374 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:4b4318659f97161e",
+    "title": "E3 Tea Tree Shampoo",
+    "brand": "E3",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/e3-tea-tree-shampoo-27431",
+    "productIdentity": "E3: E3 Tea Tree Shampoo",
+    "sourceLocator": "https://www.smartpakequine.com/pt/e3-tea-tree-shampoo-27431",
+    "sourceHash": "c2711d1966ca05f6d637d333f39560d9579dfb3bd98a8fe565cc71c3ca01fd81",
+    "retrievedAt": "2026-10-08T12:19:08.628Z",
+    "familyId": "family-da46086e4c8fabf765995b9ca3fed74d",
+    "excerpts": [
+      {
+        "text": "E3 Tea Tree Shampoo is a gentle high lathering concentrated horse shampoo.",
+        "locator": "https://www.smartpakequine.com/pt/e3-tea-tree-shampoo-27431 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Fortified with nano-vitamins A, C, E, and F, which are nano-encapsulated in a sustained and controlled de...",
+        "locator": "https://www.smartpakequine.com/pt/e3-tea-tree-shampoo-27431 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:91d210cfab083577",
+    "title": "Equiderma Skin Lotion",
+    "brand": "Equiderma",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998",
+    "productIdentity": "Equiderma: Equiderma Skin Lotion",
+    "sourceLocator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998",
+    "sourceHash": "b251c51130f0f134fb5ea732e094dc4e09fd00ba4267dc766ef61b95fdbf9b70",
+    "retrievedAt": "2026-10-08T12:19:08.976Z",
+    "familyId": "family-c13b8509b51f116c97eda69dac7ae3af",
+    "excerpts": [
+      {
+        "text": "The Equiderma Skin Lotion is sure to be on your favorite must have&rsquo;s and you&rsquo;ll have a new champion by your side.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "This lotion takes care of a lot of common skin problems.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I use on my horse's face rubs and elsewhere.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Hands down the best treatment for cannon bone scurf and summer crud.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "I used this on my horse’s legs as directed and now his legs are having a horrible reaction to it.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "He’s not an especially delicate guy so I’m surprised and just hoping he will heal soon Best thing for cannon crud!",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "He immediately stopped fooling around and you could see him visibly relax the moment the lotion went onto his thin grey skin.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "This lotion has been in my grooming tote for years and I have used it on a few different horses for a variety of skin conditions from scratches to relief of itchy skin from bug bites and have had a lot of success with it.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-skin-lotion-13998 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:8f65de7fc81cd2f7",
+    "title": "Pure Sole Hoof Cleanse&amp;reg;",
+    "brand": "Pure Sole Hoof Products",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058",
+    "productIdentity": "Pure Sole Hoof Products: Pure Sole Hoof Cleanse&amp;reg;",
+    "sourceLocator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058",
+    "sourceHash": "d8f2767750e2e076fc07d39bc1bde140181d0cbdde71817c991af8c33e2a6c69",
+    "retrievedAt": "2026-10-08T12:19:09.897Z",
+    "familyId": "family-fd6270ff81e726a17f42ed561676c918",
+    "excerpts": [
+      {
+        "text": "Pure Sole Hoof Cleanse is a natural hoof spray to promote healthy hooves and frogs.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "I normally spray organic apple cider vinegar with mother on my horse’s feet to ward off white line and it does do the trick.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I decided to try this product because it had other good ingredients and I’m trying new supplements to help my horse grow more sole so I figured I’d enhance my grooming regime.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "I think this is a great natural product to use a couple times a week.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "I have been using this product for about a week now and it has worked great on my horses thrush, (had a bunch of rain recently.) Just spray it on and you're all set, simple and effective.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Contains raw honey, apple cider vinegar, and a blend of essential oils to help eliminate hoof in...",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Sprayed thoroughly with cleanser and applied mud.",
+        "locator": "https://www.smartpakequine.com/pt/pure-sole-hoof-cleanse-23058 JSON-LD Product + product-description#excerpt-6"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:526af71b37949419",
+    "title": "WeatherBeeta Comfitec Luxe Bug Eye Saver w/ Ears &amp; Nose",
+    "brand": "WeatherBeeta USA",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823",
+    "productIdentity": "WeatherBeeta USA: WeatherBeeta Comfitec Luxe Bug Eye Saver w/ Ears &amp; Nose",
+    "sourceLocator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823",
+    "sourceHash": "a5e930fd6733144c9faeddb27db3e3fada1b4fee8d9ac3695a8da83af748f4ba",
+    "retrievedAt": "2026-10-08T12:19:10.605Z",
+    "familyId": "family-05bd38daa919ef9fb0a157f192c4e7eb",
+    "excerpts": [
+      {
+        "text": "Protect your horse in comfort and style with the WeatherBeeta ComFiTec Luxe Stretch Fly Mask With Ears &amp; Nose.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Crafted from soft, flexible stretch fabric, this lightweight mask...",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I bought a full size and he has never been too big for a full, so I believe it was a design flaw.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "However, I ended up sewing a stretchy material on both sides of the zipper, and it fits now and I like it.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "My mare is 16.1 warlander love this mask but too tight on the zipper you need to make a larger size .",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "normally she wears a normal horse size but this is made too small Super bummed about this fly mask as it was too small for my guy.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "It had a great fleece piece where it was tight on the nose and the UV protection was a must for a horse with sensitive eyes.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "Generally my horse fits a full size mask but I think with the design it has limited give.",
+        "locator": "https://www.smartpakequine.com/pt/weatherbeeta-comfitec-luxe-bug-eye-saver-w-ears-and-nose-26823 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:d4e3091b6c582539",
+    "title": "Professional&#39;s Choice Bob Avila Signature Snaffle Bit",
+    "brand": "Professional's Choice",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/professionals-choice-bob-avila-signature-snaffle-bit-14409",
+    "productIdentity": "Professional's Choice: Professional&#39;s Choice Bob Avila Signature Snaffle Bit",
+    "sourceLocator": "https://www.smartpakequine.com/pt/professionals-choice-bob-avila-signature-snaffle-bit-14409",
+    "sourceHash": "0b16a5c043a4970a86e23460bb94207e675e3e5e17bb7d4f9d8c0f6b148d6951",
+    "retrievedAt": "2026-10-08T12:19:11.023Z",
+    "familyId": "family-483802eb2992ba7cd4460343a9025dde",
+    "excerpts": [
+      {
+        "text": "This mild snaffle bit with copper inlay mouthpiece is designed for all disciplines and any level of horse.",
+        "locator": "https://www.smartpakequine.com/pt/professionals-choice-bob-avila-signature-snaffle-bit-14409 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Weighted rings encourage a lower head carriage.",
+        "locator": "https://www.smartpakequine.com/pt/professionals-choice-bob-avila-signature-snaffle-bit-14409 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:7f52aa2ee1b68eca",
+    "title": "Kerrits Affinity Aero Show Coat",
+    "brand": "Kerrits",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/kerrits-affinity-aero-show-coat-21351",
+    "productIdentity": "Kerrits: Kerrits Affinity Aero Show Coat",
+    "sourceLocator": "https://www.smartpakequine.com/pt/kerrits-affinity-aero-show-coat-21351",
+    "sourceHash": "ebcf6bdcdfb03836f87cbafc3899787892131376e96d945fb0aaa84575900133",
+    "retrievedAt": "2026-10-08T12:19:11.681Z",
+    "familyId": "family-9901574330e65762b63dc411ae3b3449",
+    "excerpts": [
+      {
+        "text": "The&nbsp;Kerrits Affinity Aero Show Coat is high-tech fabric meets elegant styling to keep competitors cool and classy.",
+        "locator": "https://www.smartpakequine.com/pt/kerrits-affinity-aero-show-coat-21351 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Super light, soft material and great fit.",
+        "locator": "https://www.smartpakequine.com/pt/kerrits-affinity-aero-show-coat-21351 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Air flows through the open weave to maximize breathability a...",
+        "locator": "https://www.smartpakequine.com/pt/kerrits-affinity-aero-show-coat-21351 JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:fe9eb0898a1be722",
+    "title": "SmartTherapy&amp;reg; LED Light Wand",
+    "brand": "SmartTherapy by SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/smarttherapy-led-light-wand--27077",
+    "productIdentity": "SmartTherapy by SmartPak: SmartTherapy&amp;reg; LED Light Wand",
+    "sourceLocator": "https://www.smartpakequine.com/pt/smarttherapy-led-light-wand--27077",
+    "sourceHash": "559416c6ee2b993746c614193482bf8a983ab1a834041144dd5242a556c16e04",
+    "retrievedAt": "2026-10-08T12:19:12.048Z",
+    "familyId": "family-ad6a5d5cc7092cd97225bca0bdfd6414",
+    "excerpts": [
+      {
+        "text": "Support your horse&rsquo;s health and recovery with the SmartTherapy&reg; LED Light Wand.",
+        "locator": "https://www.smartpakequine.com/pt/smarttherapy-led-light-wand--27077 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "This non-invasive electromagnetic therapy modality may help to improve blood flow and stim...",
+        "locator": "https://www.smartpakequine.com/pt/smarttherapy-led-light-wand--27077 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:4d129f8979fb6bac",
+    "title": "Crypto Aero Liniment Spray",
+    "brand": "Crypto Aero Wholefood Horse Feed",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/crypto-aero-liniment-spray-27234",
+    "productIdentity": "Crypto Aero Wholefood Horse Feed: Crypto Aero Liniment Spray",
+    "sourceLocator": "https://www.smartpakequine.com/pt/crypto-aero-liniment-spray-27234",
+    "sourceHash": "3fc8beba84643bb17d23bf0b3379f7219fa8e3730748c4689304dbcf74ff3073",
+    "retrievedAt": "2026-10-08T12:19:12.663Z",
+    "familyId": "family-7d356b9f9b53f4ed7810a4d3920b6638",
+    "excerpts": [
+      {
+        "text": "The Crypto Aero Liniment Spray&nbsp;is a topical solution to give your horse instant relief of discomfort, soreness, stiffness, as well as promote mobility, functionality and gener...",
+        "locator": "https://www.smartpakequine.com/pt/crypto-aero-liniment-spray-27234 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:e8358196314b5ed0",
+    "title": "The Tailored Sportsman Girl&#39;s Trophy Hunter Jod",
+    "brand": "Tailored Sportsman, LLC",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015",
+    "productIdentity": "Tailored Sportsman, LLC: The Tailored Sportsman Girl&#39;s Trophy Hunter Jod",
+    "sourceLocator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015",
+    "sourceHash": "665164c20c618484fa67c917bc0ede39587c38839bacbaa4fa7847b31f6e923c",
+    "retrievedAt": "2026-10-08T12:19:13.209Z",
+    "familyId": "family-77809eb19614f66b66a58e346767b966",
+    "excerpts": [
+      {
+        "text": "Made in the USA These pants aren't cheap but look great, wash well and hold up horse show after horse show.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "My 12 year old daughter who is average in height and slim just moved into the size 14s.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I did have to exchange for a size up but they look great and she didn't complain about comfort.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "They don't fit skinny girls with long legs.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "love these riding pants for my 9 year old who has long skinny legs and a small bum.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "My 7y.o daughter is still only a size 4.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "The popular Tailored Sportsman Trophy Hunter style now in a Jod!",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "They are slightly big but give her extra room for a thermal layer for winter IEA shows.",
+        "locator": "https://www.smartpakequine.com/pt/the-tailored-sportsman-girls-trophy-hunter-jod-8015 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:0ed24afc9503d8bb",
+    "title": "Nantucket Figure 8 Bridle by SmartPak",
+    "brand": "Nantucket by SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/nantucket-figure-8-bridle-by-smartpak-25076",
+    "productIdentity": "Nantucket by SmartPak: Nantucket Figure 8 Bridle by SmartPak",
+    "sourceLocator": "https://www.smartpakequine.com/pt/nantucket-figure-8-bridle-by-smartpak-25076",
+    "sourceHash": "5824d8273a578926963d4520ed4dd17716ac1c3a5e49fc340842639568687aee",
+    "retrievedAt": "2026-10-08T12:19:14.299Z",
+    "familyId": "family-b6e1b0a5064dc8e633ff4982913e77d4",
+    "excerpts": [
+      {
+        "text": "I was replacing a SmartPak full size bridle that was too loose on the smallest hole on the headstall, and inches too big on the figure eight on the tightest hole.",
+        "locator": "https://www.smartpakequine.com/pt/nantucket-figure-8-bridle-by-smartpak-25076 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Made of high-quality English leather, the Nantucket Figure 8 Bridle is soft and supple with a luxurious feel right out of its included storage bag.",
+        "locator": "https://www.smartpakequine.com/pt/nantucket-figure-8-bridle-by-smartpak-25076 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "This headstall fit perfectly on the middle holes, but the figure eight barely fastened on the last hole and was too tight.",
+        "locator": "https://www.smartpakequine.com/pt/nantucket-figure-8-bridle-by-smartpak-25076 JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:9730fa1d7734d573",
+    "title": "Curicyn&amp;trade; Original Wound &amp; Skin Care Formula",
+    "brand": "Curicyn",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/curicyn-original-wound-and-skin-care-formula-27037",
+    "productIdentity": "Curicyn: Curicyn&amp;trade; Original Wound &amp; Skin Care Formula",
+    "sourceLocator": "https://www.smartpakequine.com/pt/curicyn-original-wound-and-skin-care-formula-27037",
+    "sourceHash": "9201c93d095dc71a6ed262b008e9ace4c554188d99c7ffd8564a6070641bd015",
+    "retrievedAt": "2026-10-08T12:19:15.022Z",
+    "familyId": "family-3da4439aef2b64439ff603a7dd846437",
+    "excerpts": [
+      {
+        "text": "When you need a safe and reliable formula to help heal your pet from a wound or skin issue, go for Curicyn&trade; Original Wound &amp; Skin Care Formula.",
+        "locator": "https://www.smartpakequine.com/pt/curicyn-original-wound-and-skin-care-formula-27037 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:9b6e6216bc5c37dc",
+    "title": "Cashel Blanket Top Performance Felt Pad",
+    "brand": "Cashel Company",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918",
+    "productIdentity": "Cashel Company: Cashel Blanket Top Performance Felt Pad",
+    "sourceLocator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918",
+    "sourceHash": "a83b63654793360811b90beb6d573716f6fc19c07668768177e7ade93ca50b30",
+    "retrievedAt": "2026-10-08T12:19:15.428Z",
+    "familyId": "family-ad36c638c8b95f560f7447264543a76c",
+    "excerpts": [
+      {
+        "text": "Leather can be a bit dry and cracky but honestly I’m not worried about it!",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Ordered this for my trail horse and it's a great pad for a decent price.",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Regardless, it looks great on my buckskin and seems to be made well.",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Looking for a saddle pad that will look great both in the show ring or out on the trail, and last a long time?",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Cashel&rsquo;s Blanket Top Performance Pad is mad...",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "I will never use a wool pad again after this!",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "I feel that my saddle fits better as the pressure is more evenly distributed it seems.",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "The color isn’t super accurate on website so if you were trying to get something to match I would wait till arrival.",
+        "locator": "https://www.smartpakequine.com/pt/cashel-blanket-top-performance-felt-pad-22918 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:91375ab51d7be3f5",
+    "title": "Elemental Equine Tendonel",
+    "brand": "EQ5, LLC/Elemental Equine",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/elemental-equine-tendonel-27899",
+    "productIdentity": "EQ5, LLC/Elemental Equine: Elemental Equine Tendonel",
+    "sourceLocator": "https://www.smartpakequine.com/pt/elemental-equine-tendonel-27899",
+    "sourceHash": "7cc99626749fc1305e8a4b6055746c068874341860dc5179f2c070115f76df23",
+    "retrievedAt": "2026-10-08T12:19:15.775Z",
+    "familyId": "family-42e25a3673d593fd11d59a79a59df3a5",
+    "excerpts": [
+      {
+        "text": "Elemental Equine Tendonel is a&nbsp;rich, cream-based herbal liniment featuring Comfrey Oil to support hardworking muscles and joints before and after exercise.",
+        "locator": "https://www.smartpakequine.com/pt/elemental-equine-tendonel-27899 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:b125393f017a1b2a",
+    "title": "SmartPak Unlined Stirrup Leathers",
+    "brand": "SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760",
+    "productIdentity": "SmartPak: SmartPak Unlined Stirrup Leathers",
+    "sourceLocator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760",
+    "sourceHash": "94a97a5936a8b57f8325f7274e279a00083969e73414dbf9939d064d5f737fae",
+    "retrievedAt": "2026-10-08T12:19:16.248Z",
+    "familyId": "family-de8d4783a683faeb9c7bfc8372f02bc9",
+    "excerpts": [
+      {
+        "text": "Bought these in June, just getting around to putting them on my saddle for training a young horse.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "They’ve been sitting in the tack room for 5 months, shouldn’t be long enough to dry out the leather.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Guess I won’t be riding in these… I’m short 5’3” and should have ordered the shortest size for my jump saddle, instead of regular.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "No jumping, I'm not depending on them to rise out of my seat, I'm not overweight, and I barely even use the stirrups for mounting/dismounting (slide on, slide off).",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Made from 100% leather, the SmartPak Unlined Stirrup Leathers are the classic choice.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "You&rsquo;ll love that the soft leather requires no break-in time.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "I got these for Chistmas and I put them on my saddle and they immediately started cracking.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "I also tried to punch a hole in them and it was so stiff that I had to oil it twice just to put it on the saddle.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-unlined-stirrup-leathers-20760 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:e504beb7ef30538c",
+    "title": "SmartPak Deluxe Stocky Fit Horse Neck Rug",
+    "brand": "SmartPak",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/smartpak-deluxe-stocky-fit-horse-neck-rug-26937",
+    "productIdentity": "SmartPak: SmartPak Deluxe Stocky Fit Horse Neck Rug",
+    "sourceLocator": "https://www.smartpakequine.com/pt/smartpak-deluxe-stocky-fit-horse-neck-rug-26937",
+    "sourceHash": "5379cc1adc8478889b9a491138accfce342b0bcbfa3a33f8690e19d0f0cbd88d",
+    "retrievedAt": "2026-10-08T12:19:17.073Z",
+    "familyId": "family-bed4c73d82e747af780eec0a10826eee",
+    "excerpts": [
+      {
+        "text": "Give your horse more protection from the elements with the SmartPak Deluxe Stocky Fit Horse Neck Rug.",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-deluxe-stocky-fit-horse-neck-rug-26937 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Designed to provide an optimal fit for quarter horses and other stock breeds, ...",
+        "locator": "https://www.smartpakequine.com/pt/smartpak-deluxe-stocky-fit-horse-neck-rug-26937 JSON-LD Product + product-description#excerpt-1"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:57811a4f5989e27d",
+    "title": "Equiderma Sheath Cleanser",
+    "brand": "Equiderma",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817",
+    "productIdentity": "Equiderma: Equiderma Sheath Cleanser",
+    "sourceLocator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817",
+    "sourceHash": "8ce94d0148e3d738b6cd4538ed555133b3bbc9e5a49fa2cb98b1cecd9e5a1de6",
+    "retrievedAt": "2026-10-08T12:19:17.788Z",
+    "familyId": "family-046274814f7b9af776782c4016685105",
+    "excerpts": [
+      {
+        "text": "Equiderma Sheath Cleanser is the only natural, gentle, and effective cleanser of its kind.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Cleaning your horse's sheath is not the most pleasant experience, but it needs to be done.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Many people shy away from it completely, but it is an essential part of being a good caretaker to your horse.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "Removing the smegma and any beans that may be present inside the sheath will not only help your horse feel more comfortable but will give you a chance to check for sores, ticks and anything else that may need addressing.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Equiderma Sheath and Udder Cleanser for Horses is a non-soap cleanser that rinses away easily and reduces inflammation, and it helps soothe the delicate tissue in both geldings and mares.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "The all-natural ingredients make me feel that I am doing the best I can do for my horse without harsh soaps or irritants.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "I applied this, let it sit for 5-10 min, while shampooing her tail.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "She is now perfectly clean, and her skin feels soft, not irritated and scabby.",
+        "locator": "https://www.smartpakequine.com/pt/equiderma-sheath-cleanser-14817 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:0bb362b1713789ae",
+    "title": "Coat Defense&amp;reg; Field Coat",
+    "brand": "Horsepowder Inc.",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642",
+    "productIdentity": "Horsepowder Inc.: Coat Defense&amp;reg; Field Coat",
+    "sourceLocator": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642",
+    "sourceHash": "691fbd8934d50ad2ac1d645f4ebf0fb6a640268baec27c63058fc6513a79ecda",
+    "retrievedAt": "2026-10-08T12:19:18.293Z",
+    "familyId": "family-bbc01d2e3901d60fac7a9c3e9c86c087",
+    "excerpts": [
+      {
+        "text": "Coat Defense Field Coat is a sunblock and multipurpose remedy for horses!",
+        "locator": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "This formula not only protects against the sun but also creates a bacteria and fungus free environment, su...",
+        "locator": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Coat defense is already changing the packaging into a tube, which will be easier to use.",
+        "locator": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "I put it on the top of the tail and already hair started to grow within a week and no more rubbing.",
+        "locator": "https://www.smartpakequine.com/pt/coat-defense-field-coat-27642 JSON-LD Product + product-description#excerpt-3"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:f7ffc309ed866f9d",
+    "title": "One K Defender Jr MIPS Matte Helmet",
+    "brand": "One K",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/one-k-defender-jr-mips-matte-helmet--24779",
+    "productIdentity": "One K: One K Defender Jr MIPS Matte Helmet",
+    "sourceLocator": "https://www.smartpakequine.com/pt/one-k-defender-jr-mips-matte-helmet--24779",
+    "sourceHash": "310c80f90ff4f9c1739fe3d554f9bf7dce42da9e0e5075386f52219bff4c4bb7",
+    "retrievedAt": "2026-10-08T12:19:19.214Z",
+    "familyId": "family-fe93e64e49632e18468e2ae689a7d0b9",
+    "excerpts": [
+      {
+        "text": "offers the same protection, quality and comfort, but sized down for smaller heads and faces.",
+        "locator": "https://www.smartpakequine.com/pt/one-k-defender-jr-mips-matte-helmet--24779 JSON-LD Product + product-description#excerpt-0"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:68c7661d5bbd3dfa",
+    "title": "Carr &amp; Day &amp; Martin DreamCoat&amp;reg;",
+    "brand": "Carr & Day & Martin Ltd",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875",
+    "productIdentity": "Carr & Day & Martin Ltd: Carr &amp; Day &amp; Martin DreamCoat&amp;reg;",
+    "sourceLocator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875",
+    "sourceHash": "f319ac3c22003081298570956592471857fe268697389f2dca1ef0c06b3601e9",
+    "retrievedAt": "2026-10-08T12:19:19.880Z",
+    "familyId": "family-622c18c09c47df7c1f1681a90830a9b2",
+    "excerpts": [
+      {
+        "text": "Dream Coat&reg; conditions the coat to leave the ultimate high gloss shine.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "The fine mist and&nbsp;tiny droplet size give a perfect, even finish, every time.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Perfect to help with winter grooming and to keep your horses coat shining I just finished my first bottle and had to order another one I loved it so much.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "I use it once a week on my horses after currying and then buff it in.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Keeps their coats shiny and soft not to mention the non slip is a mixture have.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "I love my dream coat it works amazingly to get the loose dust or dirt off your horse to leave them super shiny and as a added bonus it smells great too smells great and leaves the coat shiny soft and not greasy.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "The nozzle is really nifty to use, and it doesn’t leave a residue or make your horse slippery.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "Actually helps keep them cleaner and doesn’t make my saddle slip.",
+        "locator": "https://www.smartpakequine.com/pt/carr-and-day-and-martin-dreamcoat-13875 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "sku": "PUBLIC:smartpakequine.com:19ac2153fdc93a92",
+    "title": "Betty&#39;s Best StripHair&amp;reg; Gentle Groomer&amp;trade; Original For Horses",
+    "brand": "Betty's Best",
+    "canonicalUrl": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856",
+    "productIdentity": "Betty's Best: Betty&#39;s Best StripHair&amp;reg; Gentle Groomer&amp;trade; Original For Horses",
+    "sourceLocator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856",
+    "sourceHash": "b7d070cc2ab9cb842e73a37343f9d5dbe43d69f05e65ccf32ab747afae84cb8d",
+    "retrievedAt": "2026-10-08T12:19:20.500Z",
+    "familyId": "family-69b65f1f8a66ecb02f95f599e4c71632",
+    "excerpts": [
+      {
+        "text": "Betty's Best StripHair&reg; Gentle Groomer&trade; Original For Horses is intended for daily grooming all year long!",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "I also used it when I gave her a bath (it was a little slippery when wet) and to remove hair from my saddle pad.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "I’ve had two brother cats for two years.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "My horse is currently going through her third round of ulcer treatment and is not comfortable with my normal grooming tools.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Shedding hair comes off in sheets and it makes quick order of mud, dust and bird poop (he has many bird friends that he takes along for a ride that help to keep the bugs off).",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "Tried on my big horses and mini horses and definitely does not pull shedding hair out easier or more efficiently.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Not only did it pull up the dirt and hair on her coat easily but, she was so relaxed that she kept falling asleep.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "Added bonus: after grooming her the gentle groomer her coat had a nice sheen to it.",
+        "locator": "https://www.smartpakequine.com/pt/bettys-best-striphair-gentle-groomer-original-for-horses-18856 JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "familyId": "family-6703efc3393fe0ccccb59407d66fe36d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:nylabone.com:db0ea3603aa82cc2",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9384f59a0d3d914c54a8cd84774fa4b3",
+    "split": "train",
+    "primarySku": "PUBLIC:nylabone.com:2d5cd034cb1d5591",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-12df3962c02c92f5ef724ea2e7ff72fd",
+    "split": "holdout",
+    "primarySku": "PUBLIC:nylabone.com:ed4302c4ec6690ee",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3bee8f3548bebd3ae8a804c7e33d5068",
+    "split": "train",
+    "primarySku": "PUBLIC:nylabone.com:4bd558d25560dc81",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-db7817bc2507d35b33f7f623af42e479",
+    "split": "train",
+    "primarySku": "PUBLIC:nylabone.com:504433f9c24f2ab0",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c4b78c221e1543ab1a07dc19500dbb5c",
+    "split": "train",
+    "primarySku": "PUBLIC:nylabone.com:2c73f71254f2714a",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  }
+]

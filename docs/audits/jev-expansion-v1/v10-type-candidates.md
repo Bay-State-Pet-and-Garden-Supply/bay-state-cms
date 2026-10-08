@@ -1,76 +1,56 @@
-# v10 product-type candidate proposal (catalog-mined + pilot-adjudicated)
+# Future taxonomy gaps — evidence notes, not release authorization
 
-Status: PROPOSAL ONLY — no taxonomy edited (`taxonomy_frozen` holds on v9).
-Source: full catalog PF24 (93 distinct) / PF25 (332 distinct) over 22,108
-rows, substring-matched against all v9 labels + legacyTypeIds; pilot
-NO-FIT rows as boundary evidence. Counts are raw slot values below;
-case-variants merged where obvious.
+Status: PROPOSAL ONLY. The qualification authority remains frozen `bay-state-v9`.
+A future taxonomy change requires separately approved definitions, boundary rules,
+support, release authoring and a new frozen authority. No provisional types are
+minted by the current corpus expansion.
 
-## Tier 1 — adjudicated pilot rows already banked as support
+## Withdrawn support claims
 
-| candidate | pilot rows | catalog signal |
-| --- | --- | --- |
-| aquarium-equipment (habitat kits) | R1 Aqueon 5.5-gal kit | aquatics stratum 13 banked |
-| aquarium-substrate | R10 clay substrate | same |
-| aquarium-lighting | R13 clip-on LED | same |
-| water-testing (diagnostics) | R17 ammonia strips | same |
-| car-restraint (travel safety) | R20 tether+booster | collars-leashes spill 10 banked |
-| feeder-baffle (squirrel baffle) | R21 baffle | wild-bird 105 banked |
-| apparel-human-merch (falsifier class) | R24 cap | — |
+The prior catalog-slot substring counts and stratum totals are not adjudicated
+product-type support. In particular:
 
-## Tier 2 — catalog-count-backed, zero banked rows (collect first)
+- Perky-Pet feeder glass/reservoirs do not establish aquarium-lighting support.
+- Packaging evidence does not establish human-merchandise support.
+- A claimed 18 baffle rows would not meet a 20-row floor even if independently
+  adjudicated; the old statement that they cleared the bar was incorrect.
+- `bee-supplies` already exists in v9. “Beekeeping” is not automatically a missing
+  type; review each physical product against the existing definition first.
+- A dead sitemap or failed proof attempt is evidence about that collection
+  attempt, not proof that a brand or physical product class is exhausted.
+- No long-tail product may be folded into its nearest category merely to remove
+  a genuine no-fit. Accessory-versus-member and physical identity stay binding.
 
-| candidate | PF24 | PF25 |
-| --- | --- | --- |
-| healthcare (pet health) | — | 345 |
-| candles-home-fragrance (soy candles) | — | 255 |
-| cat-litter-boxes (distinct from litter) | — | 57 + 34 bedding-litter |
-| beekeeping | — | 57 |
-| habitats (small-pet/reptile enclosures) | — | 63 + 20 |
-| hay-forage | — | 48 |
-| pet-first-aid | — | 37 |
-| bowls-feeders (dishes, non-dispenser) | — | 27 |
-| water-treatments-test-kits | — | 22 |
-| footwear (barn boots) | — | 27 |
-| apparel-workwear-human | — | 67 clothing |
-| holiday-seasonal-decor | 84 seasonal | 54 + 30 + 26 |
-| canning-preserving | — | 36 |
-| chicken-poultry-supplies | — | 114 |
-| pet-tags (ID tags) | 90 | 90 |
-| reptile-food-supplies | 206 | — |
-| horse-health-wellness | 177 | — |
-| wildlife-food | 17 | — |
-| hydration (water systems) | 7 | — |
-| knives-tools | 5 | — |
+The old numeric claims are withdrawn rather than re-pinned without evidence.
 
-## Tier 1 support check (2026-10-07)
+## Boundary evidence worth preserving
 
-Banked support falls short of 20-per-class for 4 of 7 Tier 1 types:
-substrate (1), equipment (3), water-testing (9), car-restraint (13).
-Lighting (131, mostly Perky-Pet glass + Aqueon LED spill), baffles (18),
-and merch (315, mostly packaging spill) clear the bar.
-Car-restraint brands probed dead: Kurgo (total sitemap miss), Sleepypod
-(25/25 proof failures). Aquarium depth is exhausted at Aqueon (sitemap
-fully harvested).
+The independent expansion-v2 disposition record contains 218 genuine no-fit
+products under the unchanged authority. Examples of potential future definition
+work include aquarium habitat equipment, aquarium substrate, aquarium lighting,
+aquarium water diagnostics, pet vehicle restraints, feeder accessories, human
+riding apparel, and fungicide-only products. These are physical-product gap
+hypotheses, not seven approved classes or a count-backed release proposal.
 
-Recommendation: mint Tier 1 as **provisional types** (boundary rule +
-pilot gold, collection ongoing) or hold for v11. Owner taxonomy decision;
-do not lower the 20-per-class bar silently.
+Use exact source SKU/locator/quote and the frozen-type exclusion reason from
+`../jev-expansion-v2/development-adjudication.json` when evaluating a candidate.
+Do not count products whose only shared signal is department, intended-use object,
+brand, ingredient, packaging, customer-review text or a catalog merchandising slot.
+A feeder accessory is not a feeder; an aquarium light is not a feeder reservoir;
+a riding glove is not established as a work glove by the word “glove” alone.
 
-## Anti-patterns (do NOT promote to types)
+## Sequence
 
-Case-chaos duplicates (`Household`/`household`, `Lawn & Garden` × 3
-cases — normalize, don't multiply); departments (`Household` 896,
-`Lawn & Garden` 765+210, `Barn Supplies` 308+31); PF25 pseudo-types
-(`food` 3369, `treats` 1892, `toys` 1522 — merchandising buckets, not
-types); pipe-joined multi-values; ops markers (PF1/PF2).
+1. Complete current frozen-authority qualification without laundering gaps into
+   existing types. Preserve no-fit and insufficient-evidence as distinct states.
+2. Ask the taxonomy owner to approve any future physical-product definitions and
+   their accessory/member boundaries. Existing supported types take precedence.
+3. Independently adjudicate source-backed support and neighboring hard negatives
+   for each approved candidate; recompute counts after identity deduplication.
+4. Publish a new taxonomy release and regenerate its own peer-bound corpus.
+   Never rewrite v9 or use a future label in the current generation.
 
-## Recommended v10 sequencing
-
-1. Tier 1 (7): evidence banked (pilot gold + 100+ stratum rows each).
-   Draft definitions +120-row support check, then release authoring.
-2. Tier 2 high-count (healthcare, candles, litter-boxes, beekeeping,
-   habitats, hay, first-aid, bowls, tags, collectibles, reptile):
-   collect 20-per-class official-page rows first (same machine).
-3. Tier 2 long-tail (hydration, knives, wildlife): fold into nearest
-   Tier 1/2 type or hold for v11; do not mint single-digit types.
+The user's relaxed sourcing scope does not require finding examples for all 74
+configured types. At least 20 evaluated classes, each class's support floor, the
+full configured inference candidate pool and the remaining full-spec gates stay
+binding. Taxonomy expansion is not a workaround for those gates.

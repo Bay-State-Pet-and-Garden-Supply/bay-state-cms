@@ -1,0 +1,36 @@
+[
+  {
+    "sku": "PUBLIC:drearth.com:97386c584124762d",
+    "title": "Dr. Earth Premium Organic Fish Bone Meal",
+    "brand": "Dr. Earth",
+    "canonicalUrl": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/",
+    "productIdentity": "Dr. Earth: Dr. Earth Premium Organic Fish Bone Meal",
+    "sourceLocator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/",
+    "sourceHash": "89f500168c62d1f6e741f8ec2f18d52a4ce88f11be5d67eadf880e00a37491cf",
+    "retrievedAt": "2026-10-08T12:09:57.580Z",
+    "familyId": "family-6a942f5317b82fea47286d07b5379eff",
+    "excerpts": [
+      {
+        "text": "Description: Pasteurized Fish Bone Meal is an excellent source of organic phosphorous.",
+        "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "It contains Superactive soil and seed inoculant and 5 strains of beneficial soil microbes.",
+        "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "TruBiotic ensures organic nutrients are thoroughly broken down and then released in the soil for plant roots to absorb them as they are needed, contributing to drought tolerance, enhanced nutrient availability and increased plant performance.",
+        "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "It benefits plants in all stages of growth and is especially beneficial for roots, buds and blooms.",
+        "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "The best retailers across America sell Dr.",
+        "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-4"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]

@@ -1,0 +1,649 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v9",
+  "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+  "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+  "capturedAt": "2026-10-06T16:18:15.514Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "scope": "source-adjudicated-expansion-development-only",
+ "entries": [],
+ "entriesSemantics": "Development gold is the sole entry source, declared and SHA-bound below; no holdout membership is public.",
+ "counts": {
+  "publicSourceRows": 1222,
+  "priorPublicIdentityExclusions": 224,
+  "adjudicatedRows": 998,
+  "nonProductExclusions": 4,
+  "developmentRows": 986,
+  "developmentFamilies": 919,
+  "duplicateCapturesExcluded": 8,
+  "knownRows": 701,
+  "noFitRows": 221,
+  "insufficientRows": 64,
+  "representedKnownTypes": 28,
+  "classesAtTwentyRows": 10,
+  "completePageGoldRows": 849,
+  "partialPageGoldRows": 137,
+  "unknownPageGoldRows": 0,
+  "pageRulesApplied": true,
+  "pageRulePacketVersion": "page-rule-packet-v2",
+  "pageRulePacketSha256": "7d69f58129da9199676fc7b40ad6316aa68880f679afee862699ab929e6d35d4",
+  "enrichmentApplied": true,
+  "enrichmentEvidenceSha256": "5c3acb00032c1b243e98ff31d3bd00b8770bdedc9f2fada13118f71dd19e4c07",
+  "enrichmentRowsOverlaid": 64,
+  "enrichmentExcerptsAppended": 190,
+  "qualificationEligibleRows": 0
+ },
+ "enrichmentOverlay": {
+  "enrichmentEvidenceSha256": "5c3acb00032c1b243e98ff31d3bd00b8770bdedc9f2fada13118f71dd19e4c07",
+  "entries": [
+   {
+    "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description",
+     "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description",
+     "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky#jsonld-primary-product-description",
+     "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+    "bank": "petfood2",
+    "appendedExcerptLocators": [
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+    "bank": "petfood2",
+    "appendedExcerptLocators": [
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description",
+     "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-ball-w-rope/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:1577011117c2bc5d",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0",
+     "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-duck/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/grinz-puffer-fish/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-octopus/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/ballistic-alligator/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/pull-a-partz-sushi/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/pull-a-partz-sushi/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/pull-a-partz-sushi/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/flexball-sport-ball/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-window-boxing/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/dr-noyz-teddy-bear/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0",
+     "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0",
+     "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+    "bank": "kong",
+    "appendedExcerptLocators": [
+     "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description",
+     "https://www.kongcompany.com/connects-punching-bag/#primary-description-0"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/super-strips#jsonld-primary-product-description",
+     "https://mywoof.com/products/super-strips#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/woof-puzzle-treats-beef#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/lickwells-pumpkin#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/hip-joint-pops#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/love-nuggets#jsonld-primary-product-description",
+     "https://mywoof.com/products/love-nuggets#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/chicken-love-nuggets#jsonld-primary-product-description",
+     "https://mywoof.com/products/chicken-love-nuggets#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/pupsicle-pops#jsonld-primary-product-description",
+     "https://mywoof.com/products/pupsicle-pops#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/puzzle-treats#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/allergy-immunity-pops#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/bully-sticks#jsonld-primary-product-description",
+     "https://mywoof.com/products/bully-sticks#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+    "bank": "pilot",
+    "appendedExcerptLocators": [
+     "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description",
+     "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+    "bank": "naturesway",
+    "appendedExcerptLocators": [
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+    "bank": "naturesway",
+    "appendedExcerptLocators": [
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description",
+     "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+    "bank": "oxbow",
+    "appendedExcerptLocators": [
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/#jsonld-primary-product-description",
+     "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:smartpakequine.com:84866e619a6b75f8",
+    "bank": "smartpak",
+    "appendedExcerptLocators": [
+     "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description",
+     "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description",
+     "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description"
+    ]
+   },
+   {
+    "sku": "PUBLIC:smartpakequine.com:9957f401db23876c",
+    "bank": "smartpak",
+    "appendedExcerptLocators": [
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416#jsonld-primary-product-description",
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416#jsonld-primary-product-description"
+    ]
+   }
+  ]
+ },
+ "declaredInputs": {
+  "taxonomy.json": {
+   "path": "taxonomy.json",
+   "sha256": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0"
+  },
+  "source-development.json": {
+   "path": "source-development.json",
+   "sha256": "5fda76a927d7460114a0bb00ec98567287be71f0587aefe33d0c87f98a703483"
+  },
+  "development-gold.json": {
+   "path": "development-gold.json",
+   "sha256": "ed5b196069cf290fdb5d31c5ec9cc748aede911c8e1e9561305a7a71b806515d"
+  },
+  "development-adjudication.json": {
+   "path": "development-adjudication.json",
+   "sha256": "ce33724b32e6a04b016d62bd9674862b304e1b96bfaf6e3ecf22513645768e7c"
+  },
+  "development-support.json": {
+   "path": "development-support.json",
+   "sha256": "77d1743aa7476d29d9815680b9634387cfe1920b38b13ec717ce6a66121c0627"
+  },
+  "excluded-prior-identities.json": {
+   "path": "excluded-prior-identities.json",
+   "sha256": "55ac62b49cb174fad56a60841b0e2818c407f4468b4d4c9a46bb60c213299323"
+  },
+  "duplicate-captures.json": {
+   "path": "duplicate-captures.json",
+   "sha256": "6c72a3cd5c1f96bbeb39c2169abf7fef510fdc542539d5316fb9b67602e4af5f"
+  }
+ }
+}

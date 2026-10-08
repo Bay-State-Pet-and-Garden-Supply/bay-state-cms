@@ -1,0 +1,4729 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "sourceEvidencePolicies": {
+  "p1-public": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "p3-public": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "m2-public": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "m8-public": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "pilot": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "kong": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "petfood2": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "oxbow": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "naturesway": {
+   "source": "official_product_page",
+   "titleReliability": "high",
+   "descriptionReliability": "high",
+   "excludedLocatorsBySku": {}
+  },
+  "smartpak": {
+   "source": "third_party_page",
+   "titleReliability": "medium",
+   "descriptionReliability": "medium",
+   "excludedLocatorsBySku": {
+    "PUBLIC:smartpakequine.com:9957f401db23876c": [
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-0",
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-1",
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-2",
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-3",
+     "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-6"
+    ],
+    "PUBLIC:smartpakequine.com:84866e619a6b75f8": [
+     "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513 JSON-LD Product + product-description#excerpt-1"
+    ]
+   }
+  }
+ },
+ "entries": [
+  {
+   "sku": "PUBLIC:drearth.com:baa5014b3552a50c",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Bone meal organic-phosphorus fertilizer benefiting bulbs, flowers, roses, vegetables, trees and shrubs; plant-food-fertilizer member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Bone Meal is an excellent source of organic phosphorous, providing both long term and short term benefits.",
+     "locator": "https://drearth.com/product/dr-earth-premium-organic-bone-meal/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a bone-meal phosphorus fertilizer for plants"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:19071bbd309960e2",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dry fertilizer designed for exotic plants (palm, hibiscus, ferns, tropical varieties); plant-food-fertilizer member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Exotic Blend® dry fertilizer has been carefully designed for exotic plants such as palm, hibiscus, ferns, and tropical varieties.",
+     "locator": "https://drearth.com/product/exotic-blend-fertilizer/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a dry fertilizer for exotic plants"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:6ed8523872b702a7",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "potting-soil"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Black Label potting soil creating soil conditions for plant health and vegetables/herbs; potting-soil member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Home Grown® Black Label Potting Soil creates the perfect soil conditions to promote plant health and abundant vegetables and herbs.",
+     "locator": "https://drearth.com/product/black-label-home-grown-potting-soil/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a potting soil for growing plants"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:968ff05739dd32e7",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dry fertilizer formulated for tubers, edibles and ornamentals (bulb food); plant-food-fertilizer member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "dry fertilizer is formulated for tubers, edibles, and ornamentals.",
+     "locator": "https://drearth.com/product/spectacular-bulb-food/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a dry fertilizer for tubers, edibles and ornamentals"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:e8cfc946faecaf3d",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "All-purpose liquid plant food with balanced NPK fed mid-season; plant-food-fertilizer member. Liquid/pump application is product form and dosing, not a canonical package value.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "With a balanced NPK of 1-1-1 this is a great fertilizer to feed in the middle of the season.",
+     "locator": "https://drearth.com/product/pure-gold-liquid-fert/ JSON-LD Product + product-description#excerpt-4",
+     "reason": "identifies a balanced-NPK fertilizer fed to plants mid-season"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:73f8105679c5a4f6",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "lawn-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Lawn fertilizer formulated to feed turf for ultra-green lawns; lawn-fertilizer member by explicit lawn/turf scope (not general garden fertilizer). No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Earth® Super Natural® Lawn Fertilizer is specially formulated to feed turf naturally and promote ultra-green and vibrant lawns anytime of the year.",
+     "locator": "https://drearth.com/product/super-natural-liquid-lawn-food/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicitly a lawn fertilizer that feeds turf"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:f01b6888cb5b6186",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "insect-control"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Vegetable-garden insect killer spray killing and controlling listed insects; insect-control member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Final Stop® Vegetable Garden Insect Killer Spray produces remarkable results because all the ingredients are formulated to perform different tasks and functions synergistically.",
+     "locator": "https://drearth.com/product/final-stop-vegetable-garden-insect-killer-black-label/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a vegetable-garden insect-killer spray"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:74be0cbfaf8a6bf2",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dry fertilizer formulated for acid loving plants; plant-food-fertilizer member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Acid Lovers® dry fertilizer is formulated for acid loving plants.",
+     "locator": "https://drearth.com/product/acid-lovers-dry-fert/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a dry fertilizer for acid loving plants"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:f39c68739a808be2",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "potting-soil"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Acid-loving planting mix creating acidic soil conditions; potting-soil member per planting-mix precedent. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Acid Lovers® Azalea, Camellia, Rhododendron &amp; Maple Planting Mix creates the perfect soil conditions for plants that love acidic soil.",
+     "locator": "https://drearth.com/product/acid-lovers-azalea-camellia-rhododendron-maple-planting-mix/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "identifies a planting mix that creates acidic soil conditions"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:a164259eb98e8a71",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pelletized garden lime raising soil pH and supplying calcium/magnesium nutrients; plant-food-fertilizer member per pelletized-amendment precedent. Pelletized describes product form, not package.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Dr, Earth Pelletized Garden Lime helps to raise the pH in soils to aid plants in maximizing nutrient intake.",
+     "locator": "https://drearth.com/product/dr-earth-pelletized-garden-lime/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity amends soil pH to aid nutrient intake; a calcium/magnesium nutrient source per captured excerpt-2"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:drearth.com:97386c584124762d",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "plant-food-fertilizer"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pasteurized fish bone meal phosphorus source benefiting roots, buds and blooms; plant-food-fertilizer member. No package form in captured evidence.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Description: Pasteurized Fish Bone Meal is an excellent source of organic phosphorous.",
+     "locator": "https://drearth.com/product/dr-earth-premium-organic-fish-bone-meal/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a fish bone meal phosphorus fertilizer"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:8ba3b1b8acc832d6",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Plush squeaker play toy (dense fur, floppy shaking shapes, squeakers, cuddling) with no species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable per standing KONG convention.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Wild Low Stuff creatures’ dense fur and realistically floppy bodies satisfy hunting instincts with shapes that invite shaking and squeakers that spark play with North American forest and fowl favorites for year-round fun regardless of season.",
+     "locator": "https://www.kongcompany.com/wild-low-stuff-mallard/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a plush squeaker play toy but carries no species scope; dog-toys vs cat-toys membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:wellnesspetfood.com:80c2b8d375e06c36",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "dog-food-dry"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "flavor",
+     "state": "no-fit"
+    },
+    {
+     "targetId": "food-form",
+     "state": "known",
+     "value": "Dry Food"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Dog"
+    }
+   ],
+   "rationale": "Kibble-plus-freeze-dried-bites mealtime food for dogs; dog-food-dry member with Dog/Dry Food invariants. Title names Turkey plus Chicken: flavor no-fit on single-select. No breed-size signal: insufficient. No life-stage signal: insufficient.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble prepared for mealtime nourishment: dry-food identity, not a reward/treat"
+    },
+    {
+     "targetId": "species",
+     "quote": "At their core, your dog instinctively craves raw animal protein.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit dog scope corroborates frozen invariant species=Dog"
+    },
+    {
+     "targetId": "food-form",
+     "quote": "our CORE+ kibble and freeze dried bites",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble establishes the dry-food form"
+    },
+    {
+     "targetId": "flavor",
+     "quote": "Turkey &amp; Chicken Recipe",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/",
+     "reason": "names two canonical flavors (Turkey plus Chicken); single-select cannot represent the pair"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:wellnesspetfood.com:df586456a8e1bbab",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "dog-food-dry"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "flavor",
+     "state": "known",
+     "value": "Beef"
+    },
+    {
+     "targetId": "food-form",
+     "state": "known",
+     "value": "Dry Food"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Dog"
+    }
+   ],
+   "rationale": "Kibble-plus-freeze-dried-bites mealtime food for dogs; dog-food-dry member with Dog/Dry Food invariants. Title names a Beef recipe with barley grain: flavor known Beef (barley is a grain ingredient, not a second canonical flavor). No breed-size signal: insufficient. No life-stage signal: insufficient.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble prepared for mealtime nourishment: dry-food identity, not a reward/treat"
+    },
+    {
+     "targetId": "species",
+     "quote": "At their core, your dog instinctively craves raw animal protein.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit dog scope corroborates frozen invariant species=Dog"
+    },
+    {
+     "targetId": "food-form",
+     "quote": "our CORE+ kibble and freeze dried bites",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble establishes the dry-food form"
+    },
+    {
+     "targetId": "flavor",
+     "quote": "Beef &amp; Barley Recipe",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/",
+     "reason": "recipe names the single canonical flavor Beef; barley is a grain, not a second flavor value"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:wellnesspetfood.com:8ec14cae358fc3d8",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "dog-food-dry"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "known",
+     "value": "Small"
+    },
+    {
+     "targetId": "flavor",
+     "state": "no-fit"
+    },
+    {
+     "targetId": "food-form",
+     "state": "known",
+     "value": "Dry Food"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Dog"
+    }
+   ],
+   "rationale": "Kibble-plus-freeze-dried-bites mealtime food for dogs; dog-food-dry member with Dog/Dry Food invariants. Title names Turkey plus Chicken: flavor no-fit on single-select. Title states Small Breed: breed-size known Small. No life-stage signal: insufficient.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble prepared for mealtime nourishment: dry-food identity, not a reward/treat"
+    },
+    {
+     "targetId": "species",
+     "quote": "At their core, your dog instinctively craves raw animal protein.",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit dog scope corroborates frozen invariant species=Dog"
+    },
+    {
+     "targetId": "food-form",
+     "quote": "our CORE+ kibble and freeze dried bites",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2",
+     "reason": "kibble establishes the dry-food form"
+    },
+    {
+     "targetId": "breed-size",
+     "quote": "Small Breed",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/",
+     "reason": "explicit small-breed scope; canonical Small"
+    },
+    {
+     "targetId": "flavor",
+     "quote": "Turkey &amp; Chicken Recipe",
+     "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/",
+     "reason": "names two canonical flavors (Turkey plus Chicken); single-select cannot represent the pair"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:nylabone.com:2d5cd034cb1d5591",
+   "productType": {
+    "kind": "no-fit",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dog toothpaste providing essential oral care; genuine frozen-type no-fit: no frozen v9 type covers dental/oral-care goods (grooming is skin and coat care per the frozen definition). Taxonomy gap flagged.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Advanced Oral Care Natural Toothpaste for dogs provides essential oral care.",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a dog toothpaste; oral care has no frozen type (grooming covers skin/coat care only)"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:nylabone.com:4bd558d25560dc81",
+   "productType": {
+    "kind": "no-fit",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Senior-dog dental kit (soft-bristle toothbrush plus toothpaste plus finger brush); genuine frozen-type no-fit: oral-care tools and kits have no frozen v9 type (grooming is skin and coat care per the frozen definition). Taxonomy gap flagged.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Advanced Oral Care Senior Dog Dental Kit with Cushiony Soft-Bristle Toothbrush As the leader in safe, healthy chewing since 1955, Nylabone knows that proper dog dental care is an essential aspect of your furry friend's overall wellness.",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-1",
+     "reason": "sold identity is a senior-dog dental kit; oral-care kits have no frozen type"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:nylabone.com:504433f9c24f2ab0",
+   "productType": {
+    "kind": "no-fit",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Tartar-control dog toothpaste keeping teeth and gums clean; genuine frozen-type no-fit: no frozen v9 type covers dental/oral-care goods (grooming is skin and coat care per the frozen definition). Taxonomy gap flagged.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Advanced Oral Care Tartar-Control Toothpaste for dogs keeps their teeth and gums clean & freshens breath.",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-0",
+     "reason": "sold identity is a dog toothpaste; oral care has no frozen type (grooming covers skin/coat care only)"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:nylabone.com:2c73f71254f2714a",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "dog-treats"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "flavor",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "food-form",
+     "state": "known",
+     "value": "Treat"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "insufficient-evidence"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Dog"
+    }
+   ],
+   "rationale": "Highly digestible dental chew treats for dogs; dog-treats member with Dog/Treat invariants (reward/chew use, not a complete ration, per boundary rule 3). Filet Mignon names no canonical flavor and the bare Small token does not fix breed-size: both insufficient. No life-stage signal: insufficient.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Give your dog triple the treating fun and teeth-cleaning power with these easy-hold dental dog treats.",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-0",
+     "reason": "edible dental treats/chews: treat identity, not a complete ration"
+    },
+    {
+     "targetId": "species",
+     "quote": "Give your dog triple the treating fun and teeth-cleaning power with these easy-hold dental dog treats.",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-0",
+     "reason": "explicit dog wording corroborates frozen invariant species=Dog"
+    },
+    {
+     "targetId": "food-form",
+     "quote": "Nutri Dent Easy Hold Trios Dental Dog Chew Treats Nutri Dent Easy Hold Trios offer triple the treating fun, triple the cleaning action, and triple the freshening power!",
+     "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-1",
+     "reason": "chew-treat wording corroborates frozen invariant food-form=Treat"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treat with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Celebrate the season with Wisdom Holiday Feast Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a jerky treat but carries no species scope; dog-treats vs cat-treats membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treat with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Celebrate the season with Wisdom Pumpkin Spice Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a jerky treat but carries no species scope; dog-treats vs cat-treats membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom From the Soil Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom From the Seed Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom From the Land Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom Chicken Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Skin-benefit herbal relief for dogs and cats, but the two captured excerpts establish only the skin condition scope, not the administration route: neither states topical application nor ingestible dosing, so grooming (topical skin/coat care) vs supplements (ingestible support) membership cannot be resolved without inventing the route. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Bob Goldstein and our Master Herbalist in Vermont to help gently support dogs and cats during times of skin irritation, hot spots, wounds, dryness, and environmental discomfort.",
+     "locator": "https://earthanimal.com/products/skin-herbal-relief JSON-LD Product + product-description#excerpt-0",
+     "reason": "establishes skin-condition scope (irritation, hot spots, wounds, dryness) for dogs and cats but states no route of administration"
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Thoughtfully crafted with soothing botanicals traditionally used to calm, protect, and support the skin's natural healing and renewal.",
+     "locator": "https://earthanimal.com/products/skin-herbal-relief JSON-LD Product + product-description#excerpt-1",
+     "reason": "establishes soothing-botanical skin benefit but states no topical application or ingestible dosing; route gap leaves grooming vs supplements unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "route of administration unstated in captured title/excerpts: no topical-application or ingestible-dosing language, so grooming vs supplements membership unresolvable; dual 'dogs and cats' scope also unrepresentable on single-select species if typed"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom From the Air Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Puzzle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "The perfect match for Woof puzzle toys, these irresistible treats fuel long-lasting fun.",
+     "locator": "https://mywoof.com/products/puzzle-treats JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies irresistible treats for puzzle toys but carries no species scope; dog-treats vs cat-treats membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Training treats for your on-the-go adventures!",
+     "locator": "https://mywoof.com/products/chicken-love-nuggets JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies training treats but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Squeezable pumpkin spread with no species signal in captured title/excerpts; frozen treat/supplement membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "A ready-to-lick squeezable spread made with real pumpkin and wholesome superfoods.",
+     "locator": "https://mywoof.com/products/lickwells-pumpkin JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a ready-to-lick squeezable pumpkin spread but carries no species scope; dog-treats vs cat-treats vs supplements membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Bully-stick chews with no species signal in captured title/excerpts; dog-treats membership unresolvable without choosing an unsupported scope. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Free-range, grass-fed BullySafe Bully Sticks at a great price for extra tasty chew time.",
+     "locator": "https://mywoof.com/products/bully-sticks JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies bully-stick chews but carries no species scope; dog-treats membership requires a species the evidence does not state"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our longest-lasting treats for The Pupsicle.",
+     "locator": "https://mywoof.com/products/pupsicle-pops JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies treats for The Pupsicle but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Functional pops with no species signal in captured title/excerpts; treat-vs-supplement membership and dog-vs-cat scope both unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Long-lasting play boosted with essential nutrients for seasonal allergy relief and natural immune support.",
+     "locator": "https://mywoof.com/products/allergy-immunity-pops JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies nutrient-boosted long-lasting pops for allergy relief but carries no species scope and straddles treat vs supplement membership"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Functional pops with no species signal in captured title/excerpts; treat-vs-supplement membership and dog-vs-cat scope both unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Long-lasting play boosted with the research-backed actives to support joint health, recovery, and mobility.",
+     "locator": "https://mywoof.com/products/hip-joint-pops JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies active-boosted long-lasting pops for joint support but carries no species scope and straddles treat vs supplement membership"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pupsicle treats (beef and chicken Pop flavors) with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our longest-lasting treats for The Pupsicle.",
+     "locator": "https://mywoof.com/products/pops-mix-pack JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies treats for The Pupsicle in beef and chicken flavors but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our longest-lasting treats for The Pupsicle.",
+     "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies treats for The Pupsicle but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Protein-rich MyWoof™️ Super Strips - treats for training, boosting a meal, or just because!",
+     "locator": "https://mywoof.com/products/super-strips JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies protein-rich treats for training but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Turkey jerky treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our Wisdom Turkey Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+     "locator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies turkey jerky treats sharing the food line's core ingredients but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Puzzle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "The perfect match for Forager puzzle toys, these irresistible treats fuel long-lasting fun.",
+     "locator": "https://mywoof.com/products/woof-puzzle-treats-beef JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies irresistible beef treats for Forager puzzle toys but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Training treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Training treats for your on-the-go adventures!",
+     "locator": "https://mywoof.com/products/love-nuggets JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies high-protein training treats but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pupsicle treats with no species signal in captured title/excerpts; frozen dog-treats vs cat-treats membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Our longest-lasting treats for The Pupsicle.",
+     "locator": "https://mywoof.com/products/chicken-pops-2pack JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies treats for The Pupsicle but carries no species scope; dog-treats vs cat-treats membership unresolvable"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Plush squeaker toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "A soft cuddly exterior make this toy great for cuddle time as well.",
+     "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/ JSON-LD Product + product-description#excerpt-3",
+     "reason": "captured evidence identifies a soft cuddly squeaker toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:1577011117c2bc5d",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Tire chew/fetch toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Tires is a durable tire chew designed to provide the ultimate chewing experience.",
+     "locator": "https://www.kongcompany.com/kong-extreme-tires/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a durable tire chew for fetch but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Bouncing/fetching character ball toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Each character’s raised features add a variety of erratic rolling and bouncing action—with fins, tails, hands, and more—that boost the fetching fun.",
+     "locator": "https://www.kongcompany.com/grinz-puffer-fish/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a fetching toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Ball-with-rope fetch/tug toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "The Extreme KONG Ball with Rope adds long-lasting diversity to games of fetch and tug.",
+     "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a fetch/tug ball toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Plush squeaker toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "A soft cuddly exterior make this toy great for cuddle time as well.",
+     "locator": "https://www.kongcompany.com/dr-noyz-duck/ JSON-LD Product + product-description#excerpt-3",
+     "reason": "captured evidence identifies a soft cuddly squeaker toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Squeak-and-shake plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "The KONG Wubba Ballistic Friends are the cutest and toughest interactive squeak and shake toys available.",
+     "locator": "https://www.kongcompany.com/wubba-friends-ballistic/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies an interactive squeak and shake toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Tug/shake/fetch plush toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Ideal for indoor tugging, shaking and fetching fun, this adorable undersea pal’s great for snuggling, too, thanks to his super-soft plush.",
+     "locator": "https://www.kongcompany.com/wubba-octopus/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a tugging/shaking/fetching plush toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+   "productType": {
+    "kind": "known-type",
+    "typeId": "dog-toys"
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "known",
+     "value": "Dog"
+    }
+   ],
+   "rationale": "Knotted-rope plush thrash/tug toy for dogs; dog-toys member with Dog invariant. The single resolving primary excerpt names extra-small dogs; multi-size copy elsewhere in the same capture describes variant siblings, not the sold Hippo item.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+     "locator": "https://www.kongcompany.com/floppy-knots-hippo/ JSON-LD Product + product-description#excerpt-1",
+     "reason": "knotted-rope plush thrash toy identity places it in dog-toys"
+    },
+    {
+     "targetId": "species",
+     "quote": "KONG Floppy Knots XS characters are ready to give extra-small dogs even smaller hugs!",
+     "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0",
+     "reason": "resolving primary excerpt: explicit extra-small dogs wording corroborates frozen invariant species=Dog; enrichment attempt resolved the stated species gap"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Ballistic squeak/plush play toy with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Ballistic Alligator is designed with durable ballistic material and is built for long-lasting play.",
+     "locator": "https://www.kongcompany.com/ballistic-alligator/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a durable play toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Bouncy fetch ball with no species signal in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG FlexBall brings an energetic bounce to fetching fun!",
+     "locator": "https://www.kongcompany.com/flexball-sport-ball/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a fetching ball toy but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no species token in captured title/excerpts; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "5-toys-in-1 crinkly play set with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents alone cannot establish Cat scope. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Pull-A-Partz Sushi’s 5-toys-in-1 deliver an endless feast of multi-sensory fun based on a crinkly sushi board that invites healthy wrestling.",
+     "locator": "https://www.kongcompany.com/pull-a-partz-sushi/ JSON-LD Product + product-description#excerpt-1",
+     "reason": "captured evidence identifies a crinkly play set but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no standalone species token in captured title/excerpts; catnip wording describes toy contents, not species scope; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Connects Window Boxing is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+     "locator": "https://www.kongcompany.com/connects-window-boxing/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a portable play gym but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Portable play gym with no standalone species token in captured title/excerpts; frozen dog-toys vs cat-toys membership unresolvable; catnip contents and Kittyweight wordplay alone cannot establish Cat scope. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "KONG Connects Punching Bag is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+     "locator": "https://www.kongcompany.com/connects-punching-bag/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "captured evidence identifies a portable play gym but carries no species scope; dog-toys vs cat-toys membership unresolvable without choosing an unsupported scope"
+    }
+   ],
+   "identityIssues": [
+    "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Human-grade dog meal with no fridge/freezer needed; captured excerpts never state Dry, Wet, Frozen, or Treat form, so no frozen dry/wet/treat invariant can be applied without relabeling. Form gap: insufficient-evidence. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "100% Human Grade Meal",
+     "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef JSON-LD Product + product-description#excerpt-1",
+     "reason": "meal identity"
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Rich, satisfying flavor dogs crave",
+     "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef JSON-LD Product + product-description#excerpt-1",
+     "reason": "dog meal audience but no Dry/Wet/Treat form stated"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Human-grade dog meal with no fridge/freezer needed; captured excerpts never state Dry, Wet, Frozen, or Treat form. Form gap: insufficient-evidence. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "100% Human Grade Meal",
+     "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken JSON-LD Product + product-description#excerpt-1",
+     "reason": "meal identity"
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Rich, satisfying flavor dogs crave",
+     "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken JSON-LD Product + product-description#excerpt-1",
+     "reason": "dog meal audience but no Dry/Wet/Treat form stated"
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Forage-pot enrichment item; title suggests a forage/hay vessel but captured excerpts state only generic explore/play/hide/chew enrichment; cannot tell feeder hardware, feed, or toy; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Forage Pot",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/#title",
+     "reason": "Names a forage pot whose type membership cannot be fixed from captured evidence alone."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment behaviors; insufficient to place pot as feeder, feed, or toy."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Timothy party-pack enrichment; title suggests timothy-hay content but captured excerpts state only generic enrichment; feed identity/form/packaging unstated; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Timothy Party Pack",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/#title",
+     "reason": "Names a timothy party pack whose consumable vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed membership or form."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Apple-stick dangly hanging item; stick suggests chew but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable chew unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Apple Stick Dangly",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/#title",
+     "reason": "Names an apple-stick dangly whose chew-toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic playing/hiding/chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Timmy-pops enrichment; title suggests a timothy-based pop/treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Timmy Pops",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/#title",
+     "reason": "Names timmy pops whose treat vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish food/treat membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Hanging mulberry chew; chew suggests chew toy/consumable but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Hanging Mulberry Chew",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/#title",
+     "reason": "Names a hanging mulberry chew whose toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Celebration-cone enrichment; title suggests an edible/cone treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Celebration Cone",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/#title",
+     "reason": "Names a celebration cone whose edible-treat vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish treat membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Crunchy-carrot enrichment; title suggests an edible carrot chew/treat but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Crunchy Carrot",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/#title",
+     "reason": "Names a crunchy carrot whose edible vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed/treat membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Treat-house enrichment structure; title suggests a treat-holding hide but captured excerpts state only generic enrichment; feeder/hide/treat roles unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; The Treat House",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/#title",
+     "reason": "Names a treat house whose hide/feeder/treat role cannot be fixed from captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Treasure-barrel enrichment; title suggests a barrel feeder/toy but captured excerpts state only generic enrichment; type unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Treasure Barrel",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/#title",
+     "reason": "Names a treasure barrel whose feeder/toy/feed role is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Timothy-apple-slice enrichment; title suggests an edible timothy/apple slice but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Timothy Apple Slice",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/#title",
+     "reason": "Names a timothy apple slice whose edible vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Ox-blocks enrichment; title suggests a block-form feed/treat but captured excerpts state only generic enrichment; block feed identity unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Ox Blocks",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/#title",
+     "reason": "Names ox blocks whose block-feed vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed form."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Roll-arounds enrichment; title suggests rolling feeder/toy but captured excerpts state only generic enrichment; type unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Roll Arounds",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/#title",
+     "reason": "Names roll arounds whose feeder/toy role is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Nesting-disks enrichment; title suggests nesting/bedding material but captured excerpts state only generic enrichment; bedding vs toy unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Nesting Disks",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/#title",
+     "reason": "Names nesting disks whose bedding vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish bedding membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Timothy-star-dish enrichment; title suggests a hay dish/feeder but captured excerpts state only generic enrichment; feeder vs feed unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Timothy Star Dish",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/#title",
+     "reason": "Names a timothy star dish whose dish/feeder vs feed role is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Hanging sunflower chew; chew suggests chew toy/consumable but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Hanging Sunflower Chew",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/#title",
+     "reason": "Names a hanging sunflower chew whose toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Hideaway hay-barn enrichment; title suggests a hay shelter/feeder but captured excerpts state only generic enrichment; hide/feeder/feed roles unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Hideaway Hay Barn",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/#title",
+     "reason": "Names a hideaway hay barn whose hide/feeder/feed role is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pick-up-stix trio enrichment; sticks suggest chews but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Pick Up Stix Trio",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/#title",
+     "reason": "Names a stix trio whose chew-toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Natural kabob enrichment; title suggests a hanging kabob feeder/chew but captured excerpts state only generic enrichment; feeder/chew/toy unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Natural Kabob",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/#title",
+     "reason": "Names a natural kabob whose feeder/chew/toy role is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Timothy-surprise enrichment; title suggests timothy-hay content but captured excerpts state only generic enrichment; feed identity unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Timothy Surprise",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/#title",
+     "reason": "Names a timothy surprise whose consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Twisty-rings enrichment; title suggests ring chews/toys but captured excerpts state only generic play/chew enrichment; type unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Twisty Rings",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/#title",
+     "reason": "Names twisty rings whose chew-toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Willow-bundle enrichment; willow suggests chew sticks but captured excerpts state only generic play/chew enrichment; chew-toy vs consumable unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Willow Bundle",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/#title",
+     "reason": "Names a willow bundle whose chew-toy vs consumable identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic chewing enrichment; insufficient to fix type."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Celebration-present enrichment; title suggests an edible gift/treat but captured excerpts state only generic enrichment; treat vs toy unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Celebration Present",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/#title",
+     "reason": "Names a celebration present whose edible-treat vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish treat membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Celebration-salad enrichment; title suggests an edible salad/treat but captured excerpts state only generic enrichment; consumable identity unresolved; abstain all eight. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Enriched Life &#8211; Celebration Salad",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/#title",
+     "reason": "Names a celebration salad whose edible vs toy identity is unresolved on captured evidence."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+     "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/ JSON-LD Product + product-description#excerpt-0",
+     "reason": "Captured evidence states only generic enrichment; insufficient to establish feed membership."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dual-use combination bath-or-feeder (title: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Violet Begonia): evidence explicitly establishes BOTH a bird-bath use and a seed-feeder use with no stated primary scope, so a single frozen type (wild-bird-feeders vs bird-houses-baths) cannot be determined from captured evidence. insufficient-evidence; no field can be adjudicated without a type. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "RECYCLED MATERIALS: Made from recycled glass materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+     "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia JSON-LD Product + product-description#excerpt-0",
+     "reason": "Evidence states one use is a bird bath (add water for birds to sip/splash)."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "RECYCLED MATERIALS: Made from recycled glass materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+     "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia JSON-LD Product + product-description#excerpt-0",
+     "reason": "Evidence states the other use is a seed feeder (fill with bird seed)."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Dual-use combination bath-or-feeder (title: 11” Recycled Glass Hanging Combination Bird Feeder and Bath - Turquoise Dahlia): evidence explicitly establishes BOTH a bird-bath use and a seed-feeder use with no stated primary scope, so a single frozen type (wild-bird-feeders vs bird-houses-baths) cannot be determined from captured evidence. insufficient-evidence; no field can be adjudicated without a type. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "RECYCLED MATERIALS: Made from recycled materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+     "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia JSON-LD Product + product-description#excerpt-0",
+     "reason": "Evidence states one use is a bird bath (add water for birds to sip/splash)."
+    },
+    {
+     "targetId": "product-type",
+     "quote": "RECYCLED MATERIALS: Made from recycled materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+     "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia JSON-LD Product + product-description#excerpt-0",
+     "reason": "Evidence states the other use is a seed feeder (fill with bird seed)."
+    }
+   ],
+   "identityIssues": [],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:smartpakequine.com:84866e619a6b75f8",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Fromm Beef Frittata Veg dry-food recipe. Surviving primary retailer text establishes a dry-food recipe but no primary clip or title text states the species, and dog-food membership would require brand knowledge (prohibited). Unresolved dog-vs-cat/other scope after UGC exclusion, not positive absence from every frozen type; all eight slots inapplicable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Like all of the Four-Star Nutrionals&reg;&nbsp;dry food recipes from Fromm, the Fromm&reg; Four-Star Nutritionals&reg; Beef Frittata Veg formula offers the highest inclusion levels...",
+     "locator": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513 JSON-LD Product + product-description#excerpt-0",
+     "reason": "retailer copy places the Beef Frittata Veg formula among Four-Star dry food recipes but states no species; without brand knowledge the frozen dog-food type is unconfirmable"
+    }
+   ],
+   "identityIssues": [
+    "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+    "Species/flavor/food-form positives removed: species had only brand-knowledge grounding and no primary species evidence remains; Beef title flavor and dry-recipe form cannot carry a species-invariant type without species. Unresolved scope, not a positive no-fit."
+   ],
+   "excludeReason": null
+  },
+  {
+   "sku": "PUBLIC:smartpakequine.com:9957f401db23876c",
+   "productType": {
+    "kind": "insufficient-evidence",
+    "typeId": null
+   },
+   "fieldAssignments": [
+    {
+     "targetId": "breed-size",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "flavor",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "food-form",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "fuel-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "hose-length",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "life-stage",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "packaging-type",
+     "state": "inapplicable"
+    },
+    {
+     "targetId": "species",
+     "state": "inapplicable"
+    }
+   ],
+   "rationale": "Pocket Trainer treats framed as training incentive with soft texture. Surviving primary retailer text names treats/training use but no species; Dog membership would rest on UGC and brand knowledge (both prohibited). Unresolved dog-vs-cat/other scope after UGC exclusion, not positive absence from every frozen type; all eight slots inapplicable. Enrichment re-fetch attempted; no new resolving excerpt for the stated gap, so the prior disposition is retained.",
+   "basis": [
+    {
+     "targetId": "product-type",
+     "quote": "Training becomes a whole lot easier when you&rsquo;re armed with a healthy dose of incentive.",
+     "locator": "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416 JSON-LD Product + product-description#excerpt-4",
+     "reason": "retailer copy frames the treats as training incentive but states no species; the frozen dog-treats type is unconfirmable on primary text alone"
+    }
+   ],
+   "identityIssues": [
+    "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+    "Species signal was UGC-only (my dogs / senior dog friends); excluded, leaving no primary species evidence. No flavor value was ever evidenced in primary text. Unresolved scope, not a positive no-fit."
+   ],
+   "excludeReason": null
+  }
+ ]
+}

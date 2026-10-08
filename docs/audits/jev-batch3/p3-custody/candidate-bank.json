@@ -1,0 +1,34 @@
+[
+  {
+    "row": {
+      "sku": "PUBLIC:kongcompany.com:8ba3b1b8acc832d6",
+      "title": "Wild Low Stuff Mallard",
+      "brand": "KONG",
+      "canonicalUrl": "https://www.kongcompany.com/wild-low-stuff-mallard/",
+      "productIdentity": "KONG: Wild Low Stuff Mallard",
+      "sourceLocator": "https://www.kongcompany.com/wild-low-stuff-mallard/",
+      "sourceHash": "57d74a578c1f3c69245382a5aab146ffa26a9ae4440f3cfb8e91458785005c2c",
+      "retrievedAt": "2026-10-08T12:18:11.183Z",
+      "familyId": "family-b8d1d0e7222cfc12d95d49ccffd91c2b",
+      "excerpts": [
+        {
+          "text": "KONG Wild Low Stuff creatures’ dense fur and realistically floppy bodies satisfy hunting instincts with shapes that invite shaking and squeakers that spark play with North American forest and fowl favorites for year-round fun regardless of season.",
+          "locator": "https://www.kongcompany.com/wild-low-stuff-mallard/ JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "Premium, soft plush ideal for cuddling—and dreaming of hunting adventures.",
+          "locator": "https://www.kongcompany.com/wild-low-stuff-mallard/ JSON-LD Product + product-description#excerpt-1"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-b8d1d0e7222cfc12d95d49ccffd91c2b",
+      "split": "train",
+      "primarySku": "PUBLIC:kongcompany.com:8ba3b1b8acc832d6",
+      "supplementalSkus": [],
+      "stratum": "toys",
+      "sourceForm": "manufacturer-page"
+    }
+  }
+]

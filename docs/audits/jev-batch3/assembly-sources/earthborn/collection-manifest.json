@@ -1,0 +1,75 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "earthbornholisticpetfood.com:sitemap-locs": 348,
+      "earthbornholisticpetfood.com:sitemap-children": 9,
+      "earthbornholisticpetfood.com:sitemap-urls": 338,
+      "earthbornholisticpetfood.com:feed-rows": 0,
+      "earthbornholisticpetfood.com:feed-unverified": 0,
+      "earthbornholisticpetfood.com:fetch-queued": 50,
+      "excludedNonProduct": 50,
+      "earthbornholisticpetfood.com:page-rows": 0
+    }
+  },
+  "attempts": {
+    "used": 65,
+    "cap": 400,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 65,
+      "totalSourceAttempts": 1550,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1550,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+  },
+  "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "09a16de90a41f158f0d06b1ec8469f84d7c2019f0a0ddeaeffe59b6e131346c7",
+    "cumulativeHash": "c631205fb5c9149d266cbcd3cedc1969dd681faf4f870135b7358f5c2f4b9dba",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

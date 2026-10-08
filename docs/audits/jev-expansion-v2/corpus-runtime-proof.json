@@ -1,0 +1,25 @@
+{
+  "scope": "actual assembler CLI smoke; private holdout payloads not read",
+  "protectedAncestor": {
+    "exitCode": 1,
+    "blockedProtectedAncestor": true,
+    "destinationCreated": false,
+    "privatePayloadRead": false
+  },
+  "immutableRewrite": {
+    "exitCode": 1,
+    "existingArtifactsRefused": true
+  },
+  "fullLiveReplay": {
+    "command": "bun scripts/typesafe-curation-qualification.ts --manifest docs/audits/jev-expansion-v2/development-manifest.json --gold docs/audits/jev-expansion-v2/development-gold.json --taxonomy docs/audits/jev-expansion-v2/taxonomy.json --live-capture --model=jev-1.13.0 --json",
+    "exitCode": 1,
+    "entryCount": 967,
+    "totalQuestions": 6769,
+    "dispatchBatches": 1934,
+    "plannedHttpAttempts": 3868,
+    "maxHttpAttempts": 600,
+    "reason": "candidate_overbudget",
+    "deniedBeforeDispatch": true
+  },
+  "privateHoldoutRead": false
+}

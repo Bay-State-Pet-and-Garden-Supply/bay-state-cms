@@ -38,6 +38,7 @@ import {
   attachFrozenAuthorityDetails,
   buildQualificationCandidateQuestionSet,
   buildQualificationPredictionsFromCode,
+  captureQualificationPredictionsLive,
   hashDevReplaySourceInputs,
   partitionCandidateQuestionsByPermittedEvidence,
   permittedEvidenceForQualificationTarget,
@@ -1717,5 +1718,121 @@ describe('candidate product-type probability persistence (HTTP mocks, no live ca
     expect(candidate.source).toBe('blocked');
     expect(candidate.abstained).toBe(true);
     expect(candidate.typeProbability ?? null).toBeNull();
+  });
+});
+
+describe('live replay capture provenance/parity (HTTP mocks, no live calls)', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('over-limit with a speaking attribute leg stays live_captured WITHOUT fabricated type identity (over-limit zero-attempt provenance)', async () => {
+    // The type stage abstains over-limit with zero attempts (no dispatch, no
+    // usage); the attribute/page leg speaks to a real model. The side is
+    // `live_captured` from the speaking leg's executed identity — and the
+    // recorded identity must name the model that SPOKE, never the
+    // undispatchable placeholder's carried identity.
+    const speakingModel = NOUL_MODEL;
+    // Answer every dispatched Noul question with high P(yes) so the
+    // attribute/page leg genuinely speaks; the type stage never dispatches
+    // (over-limit placeholder carries zero usage and zero answers).
+    const calls = { count: 0 };
+    stubNoulFetch({ Dog: 0.95, Cat: 0.95 }, calls);
+    const overLimitTypes = Array.from({ length: 254 }, (_, i) => ({ id: `type-${i}`, label: `Type ${i}` }));
+    const taxa: QualificationTaxonomies = {
+      productTypes: overLimitTypes,
+      attributeTargets: [{ targetId: 'species', cardinality: 'multiple', options: REAL_SPECIES_OPTIONS }],
+      pages: [],
+      typeAttributeProfiles: Object.fromEntries(overLimitTypes.map(t => [t.id, null])),
+      attributeProfiles: [],
+      universalAttributeIds: ['species'],
+    };
+    const artifact = await captureGuardedJevForTest(
+      [makeNoulEntry(FOURPAWS_DUAL_EVIDENCE)],
+      { jev: { apiKey: 'fixture-over-limit-speaking-key', model: speakingModel } },
+      taxa,
+    );
+    const candidate = artifact.predictions[0].candidate;
+    expect(candidate.source).toBe('live_captured');
+    expect(candidate.abstained).toBe(true);
+    expect(candidate.abstentionCode).toBe('candidate_limit_exceeded');
+    // Speaking-leg provenance: the recorded model is the model that spoke,
+    // with the speaking leg's summed usage — never the zero-attempt type
+    // stage's fabricated contribution.
+    expect(candidate.resolvedModel).toBe(NOUL_MODEL);
+    expect(candidate.usage).toEqual({ inputTokens: 50, outputTokens: 10 });
+  });
+
+  it('commits source inputs pre-dispatch: caller array mutation during capture cannot move the commitment', async () => {
+    // The source-input commitment describes the loaded inference inputs the
+    // predictions ran against. A caller pushing a second entry mid-flight
+    // must not rewrite the stored commitment or the captured predictions —
+    // the artifact covers exactly the pre-dispatch entry. Compared through
+    // the deterministic builder (same inputs, same commitment) at the
+    // capture/loader boundary — no private helper probes.
+    const calls = { count: 0 };
+    const first = makeNoulEntry(FOURPAWS_DUAL_EVIDENCE);
+    const entries = [first];
+    stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls, { key: 'first', prob: 0.9 });
+    const pending = captureGuardedJevForTest(entries, { jev: { apiKey: 'fixture-commit-key', model: NOUL_MODEL } }, makeNoulTaxa());
+    entries.push(makeNoulEntry(NATURVET_DUAL_EVIDENCE));
+    const artifact = await pending;
+    expect(artifact.entryCount).toBe(1);
+    expect(artifact.predictions.map(p => p.sku)).toEqual([first.sku]);
+    const committed = buildQualificationPredictionsFromCode([first], makeNoulTaxa());
+    expect(artifact.sourceInputsHash).toBe(committed.sourceInputsHash);
+  });
+
+  it('zero-attempt live request keeps the floor mode (credentials alone are not provenance)', async () => {
+    // Credentials present but the bound guard unwired ⇒ zero attempts, all
+    // sides blocked. The aggregate mode describes executed-model outcome,
+    // never the credentials claim — so the artifact stays
+    // `deterministic_floor` with zero fetch calls.
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls += 1;
+      throw new Error('Unwired capture must not dispatch.');
+    }) as unknown as typeof fetch;
+    const artifact = await captureQualificationPredictionsLive(
+      [makeNoulEntry(FOURPAWS_DUAL_EVIDENCE)],
+      { jev: { apiKey: 'test-key-12345678' } },
+      makeNoulTaxa(),
+    );
+    expect(fetchCalls).toBe(0);
+    for (const prediction of artifact.predictions) {
+      expect(prediction.candidate.source).toBe('blocked');
+      expect(prediction.candidate.blockedCode).toBe('jev_runtime_guard_unwired');
+    }
+    expect(artifact.captureMode).toBe('deterministic_floor');
+  });
+
+  it('taxonomy mutation during an await cannot change subsequent inference under the old commitment', async () => {
+    // Legacy (non-frozen) taxonomy input is caller-owned and shared by
+    // reference; mutating its profile mid-flight must not widen the second
+    // entry's applicable pool — the capture deep-freezes the taxonomy
+    // pre-dispatch. Gold relabels still leave the commitment untouched
+    // (gold never enters inference or identity).
+    const taxa = makeNoulTaxa();
+    const first = makeNoulEntry(FOURPAWS_DUAL_EVIDENCE);
+    const second = { ...makeNoulEntry(NATURVET_DUAL_EVIDENCE), sku: 'FAKE:noul:species-2' };
+    const calls = { count: 0 };
+    stubNoulFetch({ Dog: 0.9, Cat: 0.9 }, calls, { key: 'first', prob: 0.9 });
+    const pending = captureGuardedJevForTest([first, second], { jev: { apiKey: 'fixture-taxa-key', model: NOUL_MODEL } }, taxa);
+    taxa.universalAttributeIds = ['species', 'injected-target'];
+    taxa.attributeTargets.push({ targetId: 'injected-target', cardinality: 'single', options: ['X'] });
+    const artifact = await pending;
+    expect(artifact.entryCount).toBe(2);
+    for (const prediction of artifact.predictions) {
+      expect(prediction.candidate.fieldAssignments.map(f => f.targetId)).not.toContain('injected-target');
+    }
+    const relabeled = [
+      { ...first, gold: { ...first.gold, productType: { kind: 'known-type' as const, typeId: 'changed' } } },
+      second,
+    ];
+    const relabeledArtifact = await captureGuardedJevForTest(relabeled, { jev: { apiKey: 'fixture-taxa-key', model: NOUL_MODEL } }, makeNoulTaxa());
+    expect(relabeledArtifact.sourceInputsHash).toBe(
+      (await captureGuardedJevForTest([first, second], { jev: { apiKey: 'fixture-taxa-key', model: NOUL_MODEL } }, makeNoulTaxa())).sourceInputsHash,
+    );
   });
 });

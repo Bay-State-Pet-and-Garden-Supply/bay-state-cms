@@ -1,0 +1,35 @@
+{
+  "artifactKind": "owner-approved-source-and-page-decisions",
+  "approvedBy": "user in current conversation via structured source_allowance and page_scope selections",
+  "sourceWindow": {
+    "scope": "new bounded product-source HTTP attempts only",
+    "maxHttpAttempts": 1200,
+    "immutableLedgerRequired": true,
+    "separateFromHistoricalAccounting": true,
+    "modelCallsAuthorized": false,
+    "doesNotEraseHistoricalBudgetInconsistency": true,
+    "holdsRemainSealed": true
+  },
+  "pageScope": {
+    "selected": "Specific merchandise + exact brand",
+    "maxPagesPerProduct": 4,
+    "mostSpecificMatchingMerchandise": true,
+    "brandMembership": "directly evidenced ordinary brand/brand-line listings",
+    "automaticAssignmentExcludedRoles": [
+      "examples",
+      "directories",
+      "search",
+      "social",
+      "home",
+      "promotions",
+      "transactional/service unless explicitly authorized"
+    ],
+    "compatibleVerifiedHorseFarmWildlifeBeeMerchandiseSupported": true,
+    "conflictingSubjectDefinitionsRequireReview": true,
+    "fullCandidateUniverseRetained": true
+  },
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyArtifactsUnchanged": true,
+  "humanCanaryApproval": false,
+  "fittedStatisticalPolicyPublication": false
+}

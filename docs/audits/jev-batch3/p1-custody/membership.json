@@ -1,0 +1,126 @@
+[
+  {
+    "familyId": "family-6a942f5317b82fea47286d07b5379eff",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:baa5014b3552a50c",
+    "supplementalSkus": [
+      "PUBLIC:drearth.com:97386c584124762d"
+    ],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-874ddeb8ac64054ccfa23cd3e481319c",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:19071bbd309960e2",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-d3f4166f742dbe960f57bc4d188ddc23",
+    "split": "test",
+    "primarySku": "PUBLIC:drearth.com:6ed8523872b702a7",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6ec8c1322abe9a064e8d3b65c5cc68d7",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:968ff05739dd32e7",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3bc03cb7e75cb26b4d631f435f56af9d",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:e8cfc946faecaf3d",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-29f8d1be321019fd06a0118ce2fb3910",
+    "split": "test",
+    "primarySku": "PUBLIC:drearth.com:73f8105679c5a4f6",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-23c73f6f0de11ff558caf511dd994c94",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:f01b6888cb5b6186",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-f11aba0338adafddb6f76cb605fbd1a4",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:74be0cbfaf8a6bf2",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-e6ac0606badb26ea41739140b8e19614",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:f39c68739a808be2",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-05d3ada96d36017984ac8ab817a46f12",
+    "split": "train",
+    "primarySku": "PUBLIC:drearth.com:a164259eb98e8a71",
+    "supplementalSkus": [],
+    "stratum": "garden",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8d6d4b7ee6ceea9ef601d7c7d182b874",
+    "split": "holdout",
+    "primarySku": "PUBLIC:aqueon.com:8341292eb13bc807",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-33e204e3c34b9cc6f1d65647ed48829d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:aqueon.com:88d32825c1b76988",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8e9f8a3c97d4aef6c64aa3e655d0e0aa",
+    "split": "holdout",
+    "primarySku": "PUBLIC:aqueon.com:bdcd518a7a11c7cd",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-4e3e23c536e47a904f3200e089be0eaf",
+    "split": "holdout",
+    "primarySku": "PUBLIC:aqueon.com:3b226407d9f5bb04",
+    "supplementalSkus": [
+      "PUBLIC:aqueon.com:c5e5694aa7640142"
+    ],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c7f3a0030e95ecb20cb21ce4177edcbf",
+    "split": "holdout",
+    "primarySku": "PUBLIC:earthanimal.com:f2e56f63b0356aba",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  }
+]

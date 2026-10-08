@@ -1,0 +1,698 @@
+[
+  {
+    "familyId": "family-8156b1051e525b8c41d9246aa420bd32",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:988bc04fa317aaf6",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-fd7c6dab9f9e459b9cbbfd398f0afe02",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:351dc9d9b890eb7d",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-61418148ed2214f84661404a6cf121bd",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:b4a546f12a9fdbde",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b273b390817cd51a8b491aacfdea9a43",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:7df6784a16175c5a",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6392e2529dc83181c0da105c2a8a105a",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:fdb14591c90d07c9",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-0b65d67b3cafc10b393d10e0d2bd2bac",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:a1253feefd1cd42e",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1707343bfe8ed413e8d0d5f37b6b2db5",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:9aa9471bbfbeeeb0",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c56da6a52dead702d1448602b8fa4f7b",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:159f73629d96f545",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-74d516e20b8241e7fe504bea12768421",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:f5cb1a8ae70b822f",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8511046a9a18da13f65b4add38e34a2d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:5e42937ac23f36b4",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-2ecfbf9e1766daf7d840d8120833e3d5",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:ac35526140dd42da",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b8d1d0e7222cfc12d95d49ccffd91c2b",
+    "split": "train",
+    "primarySku": "PUBLIC:kongcompany.com:8ba3b1b8acc832d6",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-5a502751bf0d9803cecd8399ecd6cd95",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:330281b6f63eee44",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-61df036e19f326a32142fabc2fac89a1",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:ac7014297e1189e9",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b2ec90e32fecd8526485fc42fe3c51ad",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:d3a318b1404deffd",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-4758bb6422c4fb10486200ccd0d5b57f",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:6db93d8eb0018bd7",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-158e641dfee486689ce94f50f8b4be81",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:c83abf282d6d680e",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-4f5923a17ad4681d053634d4e39da71b",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:ec8f2fbc15526803",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b24bd77f49861288714e28de1747dad8",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:42e7deae80cac600",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-14450e3b7d59fcf143050e83113e3691",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:d032aecc0cfa9ff3",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c52d773b02c399df9331c3f08e8cad28",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:4f8e7878582d1bbe",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-db82adde33d993971f791185a99ad5f2",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:4871272433b899e3",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-736c59cc9750814030d05c49473be624",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:cc7b595bdb7fabfa",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6838d6bb30f2e3f838f165bf3364f1ac",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:ace76641b1d68b09",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-afc08d36974acc98710a71ac7064ee70",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:e995d2ead511faf3",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-156beb10478f4348f7c0ed1618373244",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:a4bb875822ac87a0",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ec1ec8da909f8832c4076381d86d4b41",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:03ba13122e1e6e98",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-cb4b7f10ba0c6cf4eedc9ea70fd6489d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:kongcompany.com:0ae00d766950ed93",
+    "supplementalSkus": [],
+    "stratum": "toys",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-2f0af74f4274cd8b3886b4ac46f71973",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:918724cb0a917b82",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-eb3319e3553acac7c9fbf7b16fe8e371",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:ec0a25cfb5c2d816",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-50d5a1399519d38d7a9464a9959f77c9",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:235a547cc6a44d76",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1ea758d962b4ce8b21c0043e13461753",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:1a4e9e0c8d3f3232",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1affed980bab96bb5629ce6f958772f0",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:bc9deedda34ed0ae",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-d2245533cf46b93fb28840e3c0d86226",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:eb3ad72a594bf29a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8b7aa695d1f75975c3adb66fdc3a9f8a",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:17215f91e1e027f2",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3ab087f7b841b95923fcc4472da10375",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:c9b9731a20a9a237",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6e1db80337c45f02ff5f95e3729c6d6d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:7c8db594e70b8bab",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-84a43e3fd63066b0ff19f46691f1a7f2",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:c8fe8cc80e4b0c2a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c2e9c9656e157fe85518a0a6208c9477",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:8221693b3a0e0e8f",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1b171cba27315c61409c0f3958e23356",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:7476ad3ed21a119b",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ebc17d93ba6757c5dc830559401a3b60",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:b28b3feda5de2efe",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8958ab3298ba90ba7320a61958faf5a5",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:3e4f94ab2becef1f",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-fc5d05bb549400f7ea488d98c48c6ff3",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:5f8a05d4e673b32b",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-34cd19e93b1df101f8622d444259be27",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:ed7487764325cad7",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-2be776183c13d2ad4b7511e4e664be63",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:72172e4f8cfcab40",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-e309b1de0aa327f8e2181fdfa76ab80c",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:0656f34c56b2494a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-5ed1fb9edafda46863925a34bc35525f",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:4a66fd45c5a10c17",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-f3641900fdad8188ee532604f16aa75d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:4fe0b8498941f82c",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3afa4d991b089a158239b02e35678720",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:55393673d8574c89",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-34376c32cd3d6ed67f3d992f00187b09",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:928bd7f6ea2e4a6e",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-492951a4da60c1ace508d20992dec6dd",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:6ebfaf1595829e70",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6bcc4633a9d8c7db609c00395f448be7",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:269dc614146f699a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-953d30bcdd136ffcb6ccfe02e424bc9d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:9d559bdd7247b03e",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-4120dfadd49f7b65f29c67fbd26357b7",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:c6b201cc08c69944",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-18317918ae669a4455fd13047f827862",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:fdfc54ad6418a009",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-535adae6c28d1ab9964884a237d080cd",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:28917f61961bda7a",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-1c2383f1864dd6382184b97038f0e637",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:3cc002a8bc7a5bac",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-a88f3ac1901fef97cb16aa5c4c2523b2",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:a22017acd146e0ed",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-a59d7f75bf57bd32339d51ec4e28d3bb",
+    "split": "holdout",
+    "primarySku": "PUBLIC:natureswaybirds.com:147bde60159d3a67",
+    "supplementalSkus": [],
+    "stratum": "neighbors",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9d7a1c95c6685499b0a5e22de423b0e5",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:79f47136b0065c9a",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-cb81fb84a828825c0e52432b7c693e9f",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:e575f5af7e0d79d3",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3c13d5d9680cea62a2fb81caf7c992f0",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:0ddc23cdf3137789",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9d1ce694ff4779cd6b79b3bc3bc3861a",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:7e2f172a973c77f3",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-105d1b02683a01d80740efacd64e67d1",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:4171ff9e4489f0dd",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-76520b50e916687af9aef61128349e89",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:3fa8bef7ebdcd588",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-52fa17688edefe1258291d2933d12030",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:6f501c4e496b6a97",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-4479525da3d1d14f6d0a4d631be70675",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:bce4581a8eaa9a95",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-da46086e4c8fabf765995b9ca3fed74d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:4b4318659f97161e",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-c13b8509b51f116c97eda69dac7ae3af",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:91d210cfab083577",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-fd6270ff81e726a17f42ed561676c918",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:8f65de7fc81cd2f7",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-05bd38daa919ef9fb0a157f192c4e7eb",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:526af71b37949419",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-483802eb2992ba7cd4460343a9025dde",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:d4e3091b6c582539",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9901574330e65762b63dc411ae3b3449",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:7f52aa2ee1b68eca",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ad6a5d5cc7092cd97225bca0bdfd6414",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:fe9eb0898a1be722",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-7d356b9f9b53f4ed7810a4d3920b6638",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:4d129f8979fb6bac",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-77809eb19614f66b66a58e346767b966",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:e8358196314b5ed0",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-b6e1b0a5064dc8e633ff4982913e77d4",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:0ed24afc9503d8bb",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3da4439aef2b64439ff603a7dd846437",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:9730fa1d7734d573",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ad36c638c8b95f560f7447264543a76c",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:9b6e6216bc5c37dc",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-42e25a3673d593fd11d59a79a59df3a5",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:91375ab51d7be3f5",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-de8d4783a683faeb9c7bfc8372f02bc9",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:b125393f017a1b2a",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-bed4c73d82e747af780eec0a10826eee",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:e504beb7ef30538c",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-046274814f7b9af776782c4016685105",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:57811a4f5989e27d",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-bbc01d2e3901d60fac7a9c3e9c86c087",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:0bb362b1713789ae",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-fe93e64e49632e18468e2ae689a7d0b9",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:f7ffc309ed866f9d",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-622c18c09c47df7c1f1681a90830a9b2",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:68c7661d5bbd3dfa",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-69b65f1f8a66ecb02f95f599e4c71632",
+    "split": "holdout",
+    "primarySku": "PUBLIC:smartpakequine.com:19ac2153fdc93a92",
+    "supplementalSkus": [],
+    "stratum": "care",
+    "sourceForm": "manufacturer-page"
+  }
+]

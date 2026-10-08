@@ -1,0 +1,589 @@
+{
+ "allocationUpperBound": 1200,
+ "approvals": {
+  "captureBlockedUntil": [
+   "separate-reviewer-approval-of-this-plan"
+  ],
+  "planner": "Batch3Planner-2026-10-08",
+  "reviewerMustVerify": [
+   "all-seed-domains-official-and-plan-listed",
+   "stage-quotas-sum-to-1200-or-less-shared-window",
+   "enrichment-max-1-new-excerpt-per-row-no-new-support-no-held-candidacy",
+   "exclusion-public-only-plus-chained-batch3-stages-no-private-custody-path",
+   "immutable-append-only-ledger-every-hop-kind-tagged-cumulative-hard-stop-1200",
+   "no-old-holdout-use-toward-any-minimum",
+   "no-verified-endpoint-claims-for-unprobed-seeds",
+   "caller-compatible-CLI-and-seal-guard-clean-dirs"
+  ],
+  "reviewerReverifyAgainst": "this rev4 before ANY M spend"
+ },
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "classTargets": [
+  {
+   "basisPublic": "smartpak-bank 247 page-rows/271 used retailer-medium; 19/19 existing fly rows from smartpakequine.com",
+   "brandReliability": "medium-retailer-per-peer-receipt",
+   "domains": [
+    "smartpakequine.com"
+   ],
+   "have": 19,
+   "need": 1,
+   "typeId": "fly-control-equine"
+  },
+  {
+   "basisPublic": "aqueon-bank 37 page-rows/121 used; 18/18 existing fish-food from aqueon.com; 325 sitemap urls vs 114 queued = headroom",
+   "domains": [
+    "aqueon.com"
+   ],
+   "have": 18,
+   "need": 2,
+   "typeId": "fish-food"
+  },
+  {
+   "basisPublic": "pilot-bank earthanimal.com 40 rows; 12/18 existing supplements from earthanimal.com",
+   "domains": [
+    "earthanimal.com"
+   ],
+   "have": 18,
+   "need": 2,
+   "typeId": "supplements"
+  },
+  {
+   "basisPublic": "kong-bank 149 page-rows/198 used; 17/17 existing cat-toys from kongcompany.com",
+   "domains": [
+    "kongcompany.com"
+   ],
+   "have": 17,
+   "need": 3,
+   "typeId": "cat-toys"
+  },
+  {
+   "basisPublic": "naturesway-bank 219 page-rows/443 used; 16/16 existing from natureswaybirds.com",
+   "domains": [
+    "natureswaybirds.com"
+   ],
+   "have": 16,
+   "need": 4,
+   "typeId": "bird-houses-baths"
+  },
+  {
+   "basisPublic": "tropiclean.com 92 rows (healthcare bank) + earthanimal.com; existing 4+6+1 across tropiclean/earthanimal/drearth",
+   "domains": [
+    "tropiclean.com",
+    "earthanimal.com"
+   ],
+   "have": 11,
+   "need": 9,
+   "typeId": "flea-tick-treatment"
+  },
+  {
+   "basisPublic": "drearth-bank 64 page-rows/82 used best efficiency; 11/11 existing from drearth.com; 326 sitemap vs 73 queued headroom",
+   "domains": [
+    "drearth.com"
+   ],
+   "have": 11,
+   "need": 9,
+   "typeId": "potting-soil"
+  },
+  {
+   "basisPublic": "kong-bank 149 page-rows/198 used; 10/10 existing from kongcompany.com; boundary rule: walking leashes incl retractable = collars-leashes, travel-system-only = car-restraint",
+   "domains": [
+    "kongcompany.com"
+   ],
+   "have": 10,
+   "need": 10,
+   "typeId": "collars-leashes"
+  },
+  {
+   "basisPublic": "petfood2-bank stellaandchewys 157 rows + instinctpetfood 120 rows; existing have=8 is 7 stella rows + 1 smartpakequine row (PUBLIC:smartpakequine.com:391f07608033a5b9 Merrick canned dog food); boundary rule: complete-and-balanced ration = food even in morsel form",
+   "domains": [
+    "stellaandchewys.com",
+    "instinctpetfood.com"
+   ],
+   "have": 8,
+   "need": 12,
+   "typeId": "dog-food-wet"
+  },
+  {
+   "basisPublic": "existing 3 stella + 3 instinct + 1 kong; same petfood2 yields as dog-food-wet",
+   "domains": [
+    "stellaandchewys.com",
+    "instinctpetfood.com",
+    "kongcompany.com"
+   ],
+   "have": 7,
+   "need": 13,
+   "typeId": "cat-treats"
+  }
+ ],
+ "cli": {
+  "discoveryTemplate": "bun scripts/collect-jev-v3-sources.ts --write --custody <NEW-EMPTY-DIR> --public <NEW-EMPTY-DIR> --attempt-cap <REMAINING-WINDOW> --seed-file <plan-seed-file.json> --taxonomy docs/audits/jev-expansion-v2/taxonomy.json --source-window <dir> --owner-decisions [--exclude-bank <public-bank> ...]",
+  "dryRunFirst": true,
+  "landedWindowAPI": "scripts/lib/source-request-window.ts (create/open/reserve/record/usage; one 1200 window; SHA-only public receipts; kinds sitemap|feed|page|enrich). --source-window and --owner-decisions REQUIRED on any fetching run; --prior-custody rejected; --attempt-cap = remaining-window via parseInvocationCap (rejects > remaining); parseSeedFile domains-only preserved; stage chaining = repeatable --exclude-bank <public-bank> (public-only, private-looking/missing fails closed). Private paths windowDir/{allocation.json,reservations/,outcomes/} + custody {attempt-ledger.json,source-window-usage.json,...}; public {source-request-receipts.json (SHA-only),collection-manifest.json,...}.",
+  "enrichmentMode": "Main-owned refetch runner (NOT a collector bypass): collector keeps pre-fetch + post-redirect gates with zero bypass modes. Runner fetches the 64 exact packet URLs, records ledger kind exactly 'enrich', same JSON-LD proof and excerpt rules; cap 96.",
+  "seedFileExampleP1": [
+   {
+    "brand": "Dr. Earth",
+    "domain": "drearth.com",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: potting-soil deficit)",
+    "stratum": "garden"
+   },
+   {
+    "brand": "Aqueon",
+    "domain": "aqueon.com",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: fish-food deficit)",
+    "stratum": "food"
+   },
+   {
+    "brand": "Earth Animal",
+    "domain": "earthanimal.com",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: supplements + flea-tick deficits)",
+    "stratum": "care"
+   }
+  ],
+  "seedFileRules": "domains-only max 24 validated by parseSeedFile (collect-jev-v3-sources.ts:87-111 (DOMAIN_RE :87, parseSeedFile :104-111)); every fetched URL must come from a fetched official sitemap/feed; seed domains must come from this plan's proven-or-probe lists"
+ },
+ "enrichment": {
+  "counts": {
+   "kong": 13,
+   "naturesway": 2,
+   "oxbow": 23,
+   "petfood2": 2,
+   "pilot": 22,
+   "smartpak": 2
+  },
+  "fetchOrder": [
+   "petfood2-2 + naturesway-2 + smartpak-2 (6-row validation set)",
+   "kong-13",
+   "pilot-22",
+   "oxbow-23"
+  ],
+  "gates": [
+   "E1: after 10 fetches, JSON-LD-proof pass rate <50% -> halt enrichment, escalate to reviewer",
+   "E2: hard stop at 96 attempts incl all redirect hops",
+   "domain denial (401/403/429/451) ends that domain's remaining enrichment, no retry; quota returns to reserve"
+  ],
+  "ledgerKind": "enrich",
+  "packetPath": "docs/audits/jev-expansion-v2/insufficient-type-enrichment-targets.json",
+  "quota": 96,
+  "quotaMath": "64 exact-URL page fetches + at most 32 redirect-hop headroom (fetchOnce :256-322 follows max 5 same-site hops, every hop reserve+record spent)",
+  "retentionRule": "at most ONE new retained primary excerpt per row, only if it resolves the row's stated gap: its identityIssues entry where present, else its rationale gap text (27/64 rows \u2014 petfood2 2 + oxbow 23 + naturesway 2 \u2014 carry empty identityIssues but every row has rationale gap text); page must pass single-Product JSON-LD proof and >=80 bodyText chars; locator = finalUrl + #excerpt index; UGC/cross-sell clips excluded per the description-selector allowlist in candidateFromPageHtml (scripts/collect-jev-v3-sources.ts:771-776) plus the development-peer-receipt 840-clip exclusion",
+  "scopeFlagsRequired": {
+   "explicitAlreadyPublic": true,
+   "newIndependentSupport": false
+  },
+  "verifiedReconciliation": "66 adjudicated insufficient-evidence entries minus 2 duplicate-capture exclusions = 64; packet SKUs disjoint from duplicate-captures.json and exactly equal gold insufficient-evidence SKUs"
+ },
+ "exclusion": {
+  "coversAll1203V2Rows": true,
+  "covers": [
+   "docs/audits/jev-representative-{v1,v2,v3,v4,v9} primary+supplemental (PRIOR_PUBLIC_BANKS)",
+   "docs/audits/jev-expansion-v1/*/ primary+supplemental (expansionBanks(); 1070 primary + 133 supplemental = all 1203 v2 source rows)"
+  ],
+  "familyPlusNearDup": "familyId exclusion + same-brand Jaccard>=0.8 title near-dup (main family/near-dup screen)",
+  "forbiddenPrivatePath": "private branch REMOVED: --prior-custody rejected in main before any work (:856-857); Batch3 uses loadPublicExclusion public-only + --exclude-bank stage chaining (:463-496)",
+  "prefetchCost": "canonical pre-fetch gate (collectPage:804, before fetchOnce:805) costs ZERO attempts on exclusion; post-redirect-alias gate (:809, after fetchOnce) burns the hops fetchOnce already reserved+logged (:256-322)",
+  "urlIdentity": "canonicalProductUrlKey apex/www + trailing-slash insensitive (collect-jev-v3-sources.ts:186-204)",
+  "chainedStages": "each later Batch3 stage must additionally exclude earlier Batch3 stage outputs (Main wiring; single-invocation alternative also acceptable)"
+ },
+ "failedSeedPrecedentsDoNotReseed": [
+  {
+   "detail": "53 queued -> 0 rows, all excludedNonProduct",
+   "domain": "becopets.com"
+  },
+  {
+   "detail": "50 queued -> 0 rows, all excludedNonProduct",
+   "domain": "earthbornholisticpetfood.com"
+  },
+  {
+   "detail": "denied host, 164 feed-unverified -> 0 rows",
+   "domain": "nutrisourcepetfoods.com"
+  },
+  {
+   "detail": "82 queued -> 0 rows",
+   "domain": "naturvet.com"
+  },
+  {
+   "detail": "144 queued -> 13 rows, 184 excludedNonProduct",
+   "domain": "ruffwear.com"
+  },
+  {
+   "detail": "62 queued -> 5 rows",
+   "domain": "annamaet.com"
+  }
+ ],
+ "fieldPositiveTargets": {
+  "breed-size-known": {
+   "have": 1,
+   "note": "prioritize excerpts with explicit breed-size wording where legitimately present"
+  },
+  "flavor-known": {
+   "have": 17,
+   "note": "food/treat strata; single-select only, multi-flavor stays no-fit"
+  },
+  "hose-length": {
+   "have": 0,
+   "target": "none: 0 applicable rows in dev; out of scope for planned strata"
+  },
+  "life-stage-known": {
+   "have": 8,
+   "note": "prioritize explicit life-stage wording"
+  },
+  "packaging-type-known": {
+   "have": 6,
+   "note": "448 insufficient-evidence: prioritize explicit packaging wording"
+  },
+  "species-known": {
+   "have": 579,
+   "note": "often invariant; no bulk target"
+  },
+  "fuel-type": {
+   "have": 0,
+   "target": "none: 0 applicable rows in dev; out of scope for planned strata"
+  }
+ },
+ "inclusionExclusion": {
+  "exclude": [
+   "category/listing-shaped nearfits are never product evidence (score floor + JSON-LD proof enforce)",
+   "boundary-rules.md: parts/components NO-FIT even when serving feeding",
+   "boundary-rules.md: car-restraint = travel-system membership only; walking leashes = collars-leashes",
+   "boundary-rules.md: completeness-decides food-over-treats (package language, not shape)",
+   "gift-card/service non-products (4-exclusion precedent)",
+   "page roles examples/directories/search/social/home/promotions/transactional-services unless explicitly authorized (owner pageScope, max 4 pages/product, most-specific merchandise + directly-evidenced ordinary brand/brand-line)",
+   "old 309 declared / 266 families: unparsed unlabeled unqualified; excluded from ALL minimums; cross-publisher exposure uncertifiable"
+  ],
+  "include": [
+   "official-domain product pages only, via fetched official sitemap/feed discovery (seeds carry domains, never URLs)",
+   "selectFetchUrls score>=3 or prequalified listing context (collect-jev-v3-sources.ts:746-754)",
+   "exactly-one-Product JSON-LD proof with name (+ path match when url present) (singleProductIdentity :338-371)",
+   "bodyText>=80 chars and >=1 excerpt (candidateFromPageHtml :777-780)",
+   "verified-feed rows ONLY on official-sitemap canonical match (partitionFeedRows :724-744); unverified feed canonicals become page-fetch leads, never verified evidence"
+  ]
+ },
+ "newSeedProbesYieldUnverified": [
+  {
+   "domain": "espoma.com",
+   "stratum": "garden"
+  },
+  {
+   "domain": "frommfamily.com",
+   "stratum": "food"
+  },
+  {
+   "domain": "wellnesspetfood.com",
+   "stratum": "food"
+  },
+  {
+   "domain": "canidae.com",
+   "stratum": "food"
+  },
+  {
+   "domain": "purina.com",
+   "stratum": "food"
+  },
+  {
+   "domain": "farnam.com",
+   "stratum": "care"
+  },
+  {
+   "domain": "coastalpet.com",
+   "stratum": "neighbors"
+  },
+  {
+   "domain": "nylabone.com",
+   "stratum": "toys"
+  },
+  {
+   "domain": "outwardhound.com",
+   "stratum": "toys"
+  },
+  {
+   "domain": "westpaw.com",
+   "stratum": "toys"
+  }
+ ],
+ "oldCustodyTreatment": "15 sealed banks / 60 hash+mode-only checks (sealed-custody-metadata.json) = custody byte-existence only. Declared 309 rows / 266 families stay UNPARSED, labels/classes/exposure UNVERIFIED: archived and unqualified, never counted toward the 20-class floor, the 400-row literal minimum, or any old-hold reuse. New Batch3 holdout must prove its own >=400 rows, 20 classes >=20 rows each, and family+exposure separation AFTER fitted-policy publication and independent labeling.",
+ "ownerDecisionPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+ "pageScope": "max 4 pages/product; most-specific matching merchandise + directly-evidenced ordinary brand/brand-line; examples/directories/search/social/home/promotions/transactional excluded unless explicitly authorized; compatible verified horse/farm/wildlife/bee merchandise supported; conflicting subject definitions require review; full candidate universe retained",
+ "planId": "batch3-source-plan",
+ "qualifiedKept10": [
+  {
+   "families": 22,
+   "rows": 25,
+   "typeId": "bee-supplies"
+  },
+  {
+   "families": 11,
+   "rows": 20,
+   "typeId": "cat-food-wet"
+  },
+  {
+   "families": 44,
+   "rows": 54,
+   "typeId": "dog-toys"
+  },
+  {
+   "families": 28,
+   "rows": 32,
+   "typeId": "dog-treats"
+  },
+  {
+   "families": 33,
+   "rows": 33,
+   "typeId": "equine-grooming-hoof"
+  },
+  {
+   "families": 25,
+   "rows": 31,
+   "typeId": "grooming"
+  },
+  {
+   "families": 88,
+   "rows": 88,
+   "typeId": "horse-blankets-tack"
+  },
+  {
+   "families": 25,
+   "rows": 26,
+   "typeId": "plant-food-fertilizer"
+  },
+  {
+   "families": 42,
+   "rows": 43,
+   "typeId": "small-animal-feed-bedding"
+  },
+  {
+   "families": 165,
+   "rows": 174,
+   "typeId": "wild-bird-feeders"
+  }
+ ],
+ "risksUnresolved": [
+  "verified-feed bulk is code-supported but empirically 0 rows across all 15 banks: 400-row new holdout NOT promised; page-only projection ~100-180 held rows (20% of ~500-900 raw)",
+  "re-harvest overlap on deep-harvested domains (kong/smartpak/naturesway/oxbow) wastes discovery attempts, though pre-fetch-excluded URLs burn zero attempts",
+  "new probe seeds are code-listed only (SEEDS), yield and endpoints UNVERIFIED; WAF/JS/denial/sitemap-miss precedents (nutrisource denied; kong/smartpak sitemap-miss recovered, nutrisource not)",
+  "clipping gaps may leave some of the 64 unresolved even after refetch (short audience sentences, completeness lexicon, off-selector feeding facts): they stay insufficient-evidence honestly, never forced fits",
+  "complete page gold still 0/967; merchant-intent gaps and conflicting subject definitions require review per owner flag",
+  "historical budget inconsistency (3472 newly-declared per-bank sum / 1485 repeated base / 3200 global cap) untouched; new window keeps a separate ledger and does not reconcile it"
+ ],
+ "sealingAndSplit": {
+  "devImprovement": "enrichment touches only already-public rows (same exact URLs, no new exposure); new-family dev rows publish as new supplemental public banks; expansion-v2 outputs immutable, never rewritten",
+  "holdout": "family-locked 80/20 split (splitForFamily seed 42, HOLDOUT_PERCENT 20); holdout rows private 0600 in 0700 custody; new output dirs only (seal guard findExistingArtifacts refuses overwrites incl prior Batch3 stages); NO holdout parse/inspection until policies fitted+published, then independent labeling + separation proof",
+  "ledger": "single Main-kept immutable append-only attempt ledger across all stages: every hop incl redirects/errors kind-tagged (sitemap/feed/page/enrich); per-invocation --attempt-cap = remaining window; cumulative hard stop 1200",
+  "modelCalls": 0
+ },
+ "stages": [
+  {
+   "gates": [
+    "E1/E2 enrichment gates (exercised)",
+    "domain denial ends domain"
+   ],
+   "purpose": "refetch 64 retained already-public exact URLs; at most 1 new resolving excerpt per row; never new support/held candidacy",
+   "quota": 96,
+   "stage": "E-enrichment-first",
+   "status": "complete: spent 68/96 (seq 1-68, kinds={enrich})"
+  },
+  {
+   "gates": [
+    "per-seed abandon (exercised)",
+    "stage stop as run under rev2 (candidate-counted); superseded for remaining stages by rev3 dev-primary-family gates"
+   ],
+   "purpose": "highest-efficiency proven headroom: potting-soil +9, fish-food +2, supplements +2, flea-tick partial",
+   "quota": 160,
+   "seeds": [
+    "drearth.com",
+    "aqueon.com",
+    "earthanimal.com"
+   ],
+   "stage": "P1-proven-headroom",
+   "status": "complete: spent 160/160 (window 68->228); 10 public dev families recompute train/test via production splitForFamily (8 train, 2 test)"
+  },
+  {
+   "gates": [
+    "rev2 candidate-counted gate RETIRED: counting candidates not dev splits caused the miss; replaced by rev3 dev-primary-family gates for P3/M"
+   ],
+   "purpose": "food strata bulk: dog-food-wet +12, cat-treats +13",
+   "quota": 240,
+   "seeds": [
+    "stellaandchewys.com",
+    "instinctpetfood.com"
+   ],
+   "stage": "P2-food",
+   "status": "complete-resolved: spent 143/240 (window 228->371); 29 raw -> 14 kept, 13/14 ghost recaptures + 1 novel holdout (NOT a tail event); 0 dev; food purpose rescoped into M fresh probes; unspent 97 NOT recycled",
+   "unspentDisposition": "unspent 97 NOT auto-recycled; M ceiling stays 400; any reallocation needs fresh reviewer release (none granted)"
+  },
+  {
+   "gates": [
+    "per-seed abandon (exercised)",
+    "rev3 dev-primary gate as-run: 1 target dev-primary family; collapse explained by ghost mechanism, not gate failure"
+   ],
+   "purpose": "accessory/wildlife/equine: cat-toys +3, collars-leashes +10, bird-houses-baths +4, fly-control-equine +1",
+   "quota": 200,
+   "seeds": [
+    "kongcompany.com",
+    "natureswaybirds.com",
+    "smartpakequine.com"
+   ],
+   "stage": "P3-accessory-wildlife-equine",
+   "status": "complete-collapsed: spent 200/200 (window 371->571); 89 page-rows -> 87 families -> 1 dev + 86 holdout; 86/86 holdouts ghost-recapture Batch1/2 holdout familyIds (metadata-only); sole dev row kong family-b8d1d0e7222cfc12d95d49ccffd91c2b recomputes train via production import"
+  },
+  {
+   "gates": [
+    "per-probe cap as listed; abandon probe at 0 page-rows after 40 page attempts (beco/earthborn precedent)",
+    "food-purpose progress (rev3 carried): checked on DEV-PRIMARY families (post-split, post-exclusion), never raw candidates; raw counts diagnostic-only; report dev-yield rate + novel-family rate per probe",
+    "RE-HARVEST FORBIDDEN except reviewer-approved gap fill with stated ghost-risk justification",
+    "stage hard stop 400; global cumulative hard stop 1200"
+   ],
+   "purpose": "FRESH-FIRST ONLY: (i) food probes for dog-food-wet +12 / cat-treats +13; (ii) remaining deficits via fresh garden/care/neighbor/toy probes; verified-feed bulk only on fresh domains. RE-HARVEST FORBIDDEN except reviewer-approved gap fill with stated ghost-risk justification.",
+   "quota": 400,
+   "seeds": [
+    "frommfamily.com",
+    "wellnesspetfood.com",
+    "canidae.com",
+    "purina.com",
+    "espoma.com",
+    "farnam.com",
+    "coastalpet.com",
+    "nylabone.com",
+    "outwardhound.com"
+   ],
+   "stage": "M-bulk-plus-probes",
+   "notes": "all 9 seeds fresh (never harvested in any prior bank); yields UNVERIFIED \u2014 probes, not sources. Prior M re-harvest candidates (tropiclean/earthbath/mywoof/perkypet/oxbow) REMOVED: re-harvest re-catches invisible sealed holdouts deterministically.",
+   "status": "pending rev4 reviewer approval before ANY M spend",
+   "spendOrder": "food probes (orders 1-4) FIRST, then deficit probes (orders 5-9) in order; Main may reorder within ceiling, never beyond it",
+   "probePlan": [
+    {
+     "domain": "frommfamily.com",
+     "stratum": "food",
+     "deficitTargets": [
+      "dog-food-wet",
+      "cat-treats"
+     ],
+     "probeQuota": 60,
+     "order": 1
+    },
+    {
+     "domain": "wellnesspetfood.com",
+     "stratum": "food",
+     "deficitTargets": [
+      "dog-food-wet",
+      "cat-treats"
+     ],
+     "probeQuota": 60,
+     "order": 2
+    },
+    {
+     "domain": "canidae.com",
+     "stratum": "food",
+     "deficitTargets": [
+      "dog-food-wet",
+      "cat-treats"
+     ],
+     "probeQuota": 60,
+     "order": 3
+    },
+    {
+     "domain": "purina.com",
+     "stratum": "food",
+     "deficitTargets": [
+      "dog-food-wet",
+      "cat-treats"
+     ],
+     "probeQuota": 60,
+     "order": 4
+    },
+    {
+     "domain": "espoma.com",
+     "stratum": "garden",
+     "deficitTargets": [
+      "potting-soil"
+     ],
+     "probeQuota": 40,
+     "order": 5
+    },
+    {
+     "domain": "farnam.com",
+     "stratum": "care",
+     "deficitTargets": [
+      "flea-tick-treatment",
+      "fly-control-equine"
+     ],
+     "probeQuota": 40,
+     "order": 6
+    },
+    {
+     "domain": "coastalpet.com",
+     "stratum": "neighbors",
+     "deficitTargets": [
+      "collars-leashes"
+     ],
+     "probeQuota": 40,
+     "order": 7
+    },
+    {
+     "domain": "nylabone.com",
+     "stratum": "toys",
+     "deficitTargets": [
+      "cat-toys"
+     ],
+     "probeQuota": 20,
+     "order": 8
+    },
+    {
+     "domain": "outwardhound.com",
+     "stratum": "toys",
+     "deficitTargets": [
+      "cat-toys",
+      "collars-leashes"
+     ],
+     "probeQuota": 20,
+     "order": 9
+    }
+   ],
+   "probeQuotaSum": "60+60+60+60+40+40+40+20+20 = 400 exactly; westpaw.com held as substitute within ceiling if a probe denies (Main decides order within ceiling, reviewer ceiling fixed)"
+  },
+  {
+   "gates": [
+    "release requires reviewer approval with stated reallocation"
+   ],
+   "purpose": "unallocated reviewer-gated headroom (denial/abandonment recycling, over-quota hops)",
+   "quota": 104,
+   "stage": "R-reserve",
+   "status": "SEALED: reserve release DENIED at this time (ruling d); re-apply after P3+M with stated reallocation"
+  }
+ ],
+ "status": "rev4-pending-reviewer-NO-M-SPEND",
+ "supportMath": {
+  "adjudicationDecides": "no forced nearest fits; insufficient and no-fit stay first-class; 65 is a minimum not a promise",
+  "deficitClassMinimum": 65,
+  "deficitSum": "1+2+2+3+4+9+9+10+12+13=65",
+  "evaluatedClassPlan": "10 already-qualified + 10 smallest-deficit = 20 classes at >=20 rows (formal predeclared set is Main/owner's to finalize)",
+  "holdoutFloor": "new holdout proves own >=400 rows (literal 20x20 minimum) + 20 classes >=20; old 309 never counts",
+  "planTargetNewKnownInDeficitClasses": ">=100 (65 floor + 35 margin for no-fit/insufficient adjudication outcomes)"
+ },
+ "window": {
+  "cumulativeHardStop": 1200,
+  "historicalAccountingUntouched": true,
+  "ledger": "immutable-append-only-across-stages",
+  "modelCallsAuthorized": false,
+  "quotaArithmetic": "96+160+240+200+400+104 = 1200 exactly",
+  "scope": "new bounded product-source HTTP attempts only; every redirect hop and error consumes one attempt; source HTML/feed/discovery share the cap",
+  "sharedNotPerBank": true,
+  "upperBound": 1200,
+  "spentActual": "E68 + P1-160 + P2-143 + P3-200 = 571 spent; remaining 629; M ceiling 400 fits; R 104 sealed; 125 slack unallocated, unspendable without reviewer release",
+  "p2Unspent97": "NOT auto-recycled into M; any reallocation of P2 unspent or R needs fresh reviewer release (ruling grants none)",
+  "captureAuthorization": "PROCEED M ONLY under rev4 fresh-first scope once reviewer approves rev4. NO M re-harvest spend. NO R spend. NO-CAPTURE on anything else."
+ },
+ "planRevision": "2026-10-08-rev4-ghost-fresh-first",
+ "splitVarianceRule": "for any stage needing K known rows in a class, plan >=5xK raw kept NOVEL in-stratum families before the 80/20 split + adjudication attrition (rev4: NOVEL, given ghosts eat re-harvest yield), quota permitting; report dev-yield rate + novel-family rate per stage/probe.",
+ "sealedRowsStatus": "P2 28 rows + P3 86 rows are sealed Batch3 holdout material subject to ghost-dedupe at unseal (P2 13 ghosts + 1 novel; P3 86/86 ghosts per metadata-only tallies). NOT wasted, NOT dev-usable, NOT inspectable until fitted-policy publication + independent labeling + separation proof + familyId dedupe vs Batch1/2. No re-split, no re-seed, no dev-side reuse \u2014 ever. Ghost rows contribute ZERO to any floor.",
+ "rulingPath": "docs/audits/jev-batch3/batch3-ghost-ruling-rev4-scope.json",
+ "ghostMechanism": {
+  "ruling": "docs/audits/jev-batch3/batch3-ghost-ruling-rev4-scope.json (verdict GHOST-MECHANISM-CONFIRMED-PROCEED-M-FRESH-FIRST-ONLY; supersedes p2-ruling \u00a7c re-harvest retry premise, now VOID)",
+  "chain": "(1) loadPublicExclusion :463-496 loads PUBLIC banks only \u2014 sealed Batch1/2 holdout families/URLs invisible by design (private branch removed, --prior-custody rejected :856-857); (2) re-harvest re-fetches holdout URLs (not in byUrl) \u2014 corroborated: excludedPriorFamily=0 in ALL of P1/P2/P3 while excludedPriorUrl climbs 121->283->347, only dev-side re-exposure caught; (3) identical regroup keys -> identical familyIds (family- + sha256(key)[0:32], :1033); (4) identical familyIds -> identical deterministic holdout splits (splitForFamily FNV, benchmark-exporter.ts:58-69). Survivors enriched for ghosts; dev yield = novel families only.",
+  "tallies": "P3 86/86 holdouts ghost + 1/1 dev novel (kong family-b8d1, train via production import); P2 13/14 ghost + 1 novel; P1 5/5 holdouts ghost + 10/10 devs novel (fresh domains). Metadata-only familyId-set comparisons, no sealed payload reads. Novel dev total 12 rows / 11 families: drearth 11 (P1) + kong 1 (P3).",
+  "dedupeObligation": "at future unseal (after fitted-policy publication + independent labeling), Batch3 sealed counts MUST be deduped by familyId against Batch1/2 holdouts; ghost rows contribute ZERO distinct families/rows to any floor. Record in rev4 + stage record. Distinct-family Batch3 holdout contribution currently bounded above by (34+86 minus ghosts), exact count only at metadata-only unseal dedupe.",
+  "ghostRowStatus": "ghost rows are sealed duplicates \u2014 never inspectable, never dev-usable, never re-split, never re-seeded."
+ },
+ "standingResults": "E 64/64 enrichment unaffected. 12 novel dev rows (11 drearth P1 + 1 kong P3) stand as legitimate novel dev.",
+ "priorRulingPath": "docs/audits/jev-batch3/batch3-p2-anomaly-ruling.json (\u00a7c superseded)"
+}

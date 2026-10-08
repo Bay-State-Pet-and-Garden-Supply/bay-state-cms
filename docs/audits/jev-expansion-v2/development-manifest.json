@@ -1,0 +1,61 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "binding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v9",
+  "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+  "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+  "capturedAt": "2026-10-06T16:18:15.514Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "scope": "source-adjudicated-expansion-development-only",
+ "entries": [],
+ "entriesSemantics": "Development gold is the sole entry source, declared and SHA-bound below; no holdout membership is public.",
+ "counts": {
+  "publicSourceRows": 1203,
+  "priorPublicIdentityExclusions": 224,
+  "adjudicatedRows": 979,
+  "nonProductExclusions": 4,
+  "developmentRows": 967,
+  "developmentFamilies": 901,
+  "duplicateCapturesExcluded": 8,
+  "knownRows": 685,
+  "noFitRows": 218,
+  "insufficientRows": 64,
+  "representedKnownTypes": 27,
+  "classesAtTwentyRows": 10,
+  "completePageGoldRows": 0,
+  "qualificationEligibleRows": 0
+ },
+ "declaredInputs": {
+  "taxonomy.json": {
+   "path": "taxonomy.json",
+   "sha256": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0"
+  },
+  "source-development.json": {
+   "path": "source-development.json",
+   "sha256": "8622b357793e737117de2cca9905bee9efd64a0a0da6335fe22faee2d13df242"
+  },
+  "development-gold.json": {
+   "path": "development-gold.json",
+   "sha256": "8ef4383ba29b4111c1545f9b2106e90bb026b900fb9c0af5abf98af73f03c304"
+  },
+  "development-adjudication.json": {
+   "path": "development-adjudication.json",
+   "sha256": "3395332f00d1c89cb04b6b0f2906a81fdbb0a6194dfc7fe7b7d7c8dc43061de3"
+  },
+  "development-support.json": {
+   "path": "development-support.json",
+   "sha256": "b12ee8ad397ac9a584fa9a82d8375bc5063c6b29c21c5af434f060899cb3033a"
+  },
+  "excluded-prior-identities.json": {
+   "path": "excluded-prior-identities.json",
+   "sha256": "55ac62b49cb174fad56a60841b0e2818c407f4468b4d4c9a46bb60c213299323"
+  },
+  "duplicate-captures.json": {
+   "path": "duplicate-captures.json",
+   "sha256": "6c72a3cd5c1f96bbeb39c2169abf7fef510fdc542539d5316fb9b67602e4af5f"
+  }
+ }
+}

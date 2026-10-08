@@ -1,0 +1,202 @@
+[
+  {
+    "row": {
+      "sku": "PUBLIC:nylabone.com:2d5cd034cb1d5591",
+      "title": "Nylabone Advanced Oral Care Natural Toothpaste Peanut Butter 2.5 Ounce (1 Count)",
+      "brand": "Nylabone",
+      "canonicalUrl": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste",
+      "productIdentity": "Nylabone: Nylabone Advanced Oral Care Natural Toothpaste Peanut Butter 2.5 Ounce (1 Count)",
+      "sourceLocator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste",
+      "sourceHash": "c01de7a12e31e52c509ccb72ad28a00aebd660bc2078cbaddcc54ee4909c5437",
+      "retrievedAt": "2026-10-08T12:33:44.557Z",
+      "familyId": "family-9384f59a0d3d914c54a8cd84774fa4b3",
+      "excerpts": [
+        {
+          "text": "Our Advanced Oral Care Natural Toothpaste for dogs provides essential oral care.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "Formulated with Denta-C, which is proven to reduce bacteria-harboring plaque.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "Advanced Oral Care Natural Toothpaste Our Advanced Oral Care Dog Toothpaste helps keep your dog's teeth clean with natural, allergen-free peanut flavor!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-2"
+        },
+        {
+          "text": "This toothpaste for dogs freshens breath and fights plaque and tartar, cleansing your pup's mouth the way it was meant to be cleaned.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-3"
+        },
+        {
+          "text": "Made with Denta-C, which is scientifically formulated to help reduce plaque that harbors bacteria, our product supports stronger dog oral hygiene.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-4"
+        },
+        {
+          "text": "Preventative dental care lowers the risk of destructive periodontal disease, so make Advanced Oral Care part of your dog teeth cleaning schedule!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-natural-toothpaste JSON-LD Product + product-description#excerpt-5"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-9384f59a0d3d914c54a8cd84774fa4b3",
+      "split": "train",
+      "primarySku": "PUBLIC:nylabone.com:2d5cd034cb1d5591",
+      "supplementalSkus": [],
+      "stratum": "toys",
+      "sourceForm": "manufacturer-page"
+    }
+  },
+  {
+    "row": {
+      "sku": "PUBLIC:nylabone.com:4bd558d25560dc81",
+      "title": "Nylabone Advanced Oral Care Senior Dog Dental Kit with Cushiony Soft-Bristle Toothbrush Bacon 2.5 Ounce (3 Count)",
+      "brand": "Nylabone",
+      "canonicalUrl": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush",
+      "productIdentity": "Nylabone: Nylabone Advanced Oral Care Senior Dog Dental Kit with Cushiony Soft-Bristle Toothbrush Bacon 2.5 Ounce (3 Count)",
+      "sourceLocator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush",
+      "sourceHash": "6ee4cf1c5d2dad39698f37816f13001527047b4931763e598c2f54f3007fd8a5",
+      "retrievedAt": "2026-10-08T12:33:45.007Z",
+      "familyId": "family-3bee8f3548bebd3ae8a804c7e33d5068",
+      "excerpts": [
+        {
+          "text": "Our Senior Dog Dental Kit's innovative soft-bristle dog toothbrush provides your best friend a comfortable brushing experience and is gentle on their gums.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "Advanced Oral Care Senior Dog Dental Kit with Cushiony Soft-Bristle Toothbrush As the leader in safe, healthy chewing since 1955, Nylabone knows that proper dog dental care is an essential aspect of your furry friend's overall wellness.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "That's why it's key to maintain your senior dog's at-home oral care routine with this veterinarian-recommended dental kit!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-2"
+        },
+        {
+          "text": "Designed with advanced technology, the kit's innovative soft-bristle dog toothbrush provides your best friend a comfortable, thorough brushing experience and is gentle on their gums.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-3"
+        },
+        {
+          "text": "Apply the USA-made dog toothpaste, created with a tasty bacon flavor and added calcium to benefit your older dog!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-4"
+        },
+        {
+          "text": "It also includes Denta-C, which is scientifically formulated to help reduce plaque that harbors bacteria.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-5"
+        },
+        {
+          "text": "For added control during cleaning, simply slip on the finger brush to remove plaque and food debris.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-6"
+        },
+        {
+          "text": "It features 10X more ultra-slim bristles for a cushiony soft feel yet effective cleaning power.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-senior-dog-dental-kit-with-soft-bristle-toothbrush JSON-LD Product + product-description#excerpt-7"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-3bee8f3548bebd3ae8a804c7e33d5068",
+      "split": "train",
+      "primarySku": "PUBLIC:nylabone.com:4bd558d25560dc81",
+      "supplementalSkus": [],
+      "stratum": "toys",
+      "sourceForm": "manufacturer-page"
+    }
+  },
+  {
+    "row": {
+      "sku": "PUBLIC:nylabone.com:504433f9c24f2ab0",
+      "title": "Nylabone Advanced Oral Care Tartar Control Dog Toothpaste Original 2.5 Ounce (1 Count)",
+      "brand": "Nylabone",
+      "canonicalUrl": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste",
+      "productIdentity": "Nylabone: Nylabone Advanced Oral Care Tartar Control Dog Toothpaste Original 2.5 Ounce (1 Count)",
+      "sourceLocator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste",
+      "sourceHash": "9878ee821c35170a2e0e8dbb85def980630960db9178da5173ac6a7ce254171b",
+      "retrievedAt": "2026-10-08T12:33:45.220Z",
+      "familyId": "family-db7817bc2507d35b33f7f623af42e479",
+      "excerpts": [
+        {
+          "text": "Our Advanced Oral Care Tartar-Control Toothpaste for dogs keeps their teeth and gums clean & freshens breath.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "Advanced Oral Care Tartar Control Dog Toothpaste Preventative dental care reduces the risk of developing oral disease, which can lead to serious issues for dogs.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "Establishing a daily routine of proper dental care may extend the life of your pet.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-2"
+        },
+        {
+          "text": "Veterinarian-recommended Nylabone Advanced Oral Care Tartar-Control Toothpaste for dogs provides easy oral care, helping your pet maintain fresh breath and healthy teeth and gums.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-3"
+        },
+        {
+          "text": "This toothpaste helps reduce plaque and tartar buildup, freshens breath, and contains Denta-C, which is scientifically formulated to reduce plaque that harbors bacteria.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/advanced-oral-care-tartar-control-dog-toothpaste JSON-LD Product + product-description#excerpt-4"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-db7817bc2507d35b33f7f623af42e479",
+      "split": "train",
+      "primarySku": "PUBLIC:nylabone.com:504433f9c24f2ab0",
+      "supplementalSkus": [],
+      "stratum": "toys",
+      "sourceForm": "manufacturer-page"
+    }
+  },
+  {
+    "row": {
+      "sku": "PUBLIC:nylabone.com:2c73f71254f2714a",
+      "title": "Nylabone Nutri Dent Easy Hold Trios Dental Dog Chew Treats Filet Mignon Small (20 Count)",
+      "brand": "Nylabone",
+      "canonicalUrl": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats",
+      "productIdentity": "Nylabone: Nylabone Nutri Dent Easy Hold Trios Dental Dog Chew Treats Filet Mignon Small (20 Count)",
+      "sourceLocator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats",
+      "sourceHash": "e3cb2df19ede85eee63b68644abf96c52561db354485b525b6ac08ce0af8790e",
+      "retrievedAt": "2026-10-08T12:33:45.444Z",
+      "familyId": "family-c4b78c221e1543ab1a07dc19500dbb5c",
+      "excerpts": [
+        {
+          "text": "Give your dog triple the treating fun and teeth-cleaning power with these easy-hold dental dog treats.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "Nutri Dent Easy Hold Trios Dental Dog Chew Treats Nutri Dent Easy Hold Trios offer triple the treating fun, triple the cleaning action, and triple the freshening power!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "Each delicious dog treat features 3 textured ends with 360-degree scrubbing nubs that help reduce plaque and tartar buildup as your furry friend chews.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-2"
+        },
+        {
+          "text": "Give your dog the full treat for an easy-hold chewing experience or break it apart for multiple treating occasions!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-3"
+        },
+        {
+          "text": "In addition to promoting a healthy smile, these natural, highly digestible dog treats contain limited ingredients—no artificial colors, flavors, or preservatives.",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-4"
+        },
+        {
+          "text": "Reward your best friend with Nylabone's USA-made, veterinarian-recommended dental treats for dogs!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-5"
+        },
+        {
+          "text": "Keeping a healthy smile has never been so easy!",
+          "locator": "https://www.nylabone.com/products/product-type/dental-solutions/nutri-dent-easy-hold-trios-dental-dog-treats JSON-LD Product + product-description#excerpt-6"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-c4b78c221e1543ab1a07dc19500dbb5c",
+      "split": "train",
+      "primarySku": "PUBLIC:nylabone.com:2c73f71254f2714a",
+      "supplementalSkus": [],
+      "stratum": "toys",
+      "sourceForm": "manufacturer-page"
+    }
+  }
+]

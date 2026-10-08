@@ -1,0 +1,21 @@
+{
+  "scope": "actual transport and live repository kill switch, isolated clone and local HTTP529 fault injection; NOT production-canary or real-model quality evidence",
+  "beforeDispatch": {
+    "label": "disabled after cache, before dispatch",
+    "cachedEnabled": true,
+    "storedEnabledAtFinish": false,
+    "actualHttpRequests": 0,
+    "errorCode": "connection_disabled"
+  },
+  "beforeRetry": {
+    "label": "disabled by first local overload response, before retry",
+    "cachedEnabled": true,
+    "storedEnabledAtFinish": false,
+    "actualHttpRequests": 1,
+    "errorCode": "connection_disabled"
+  },
+  "productionMutated": false,
+  "privateHoldoutRead": false,
+  "modelApiRequests": 0,
+  "productSourceRequests": 0
+}

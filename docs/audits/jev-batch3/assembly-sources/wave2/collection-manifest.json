@@ -1,0 +1,82 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "ruffwear.com:sitemap-locs": 327,
+      "ruffwear.com:sitemap-children": 2,
+      "ruffwear.com:sitemap-urls": 322,
+      "ruffwear.com:feed-rows": 0,
+      "ruffwear.com:feed-unverified": 144,
+      "ruffwear.com:fetch-queued": 144,
+      "excludedNonProduct": 184,
+      "ruffwear.com:page-rows": 13,
+      "becopets.com:sitemap-locs": 153,
+      "becopets.com:sitemap-children": 2,
+      "becopets.com:sitemap-urls": 148,
+      "becopets.com:feed-rows": 0,
+      "becopets.com:feed-unverified": 53,
+      "becopets.com:fetch-queued": 53,
+      "becopets.com:page-rows": 0
+    }
+  },
+  "attempts": {
+    "used": 259,
+    "cap": 600,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 259,
+      "totalSourceAttempts": 1744,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1744,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 12,
+    "devPrimary": 9,
+    "devSupplemental": 1,
+    "holdoutFamilies": 3,
+    "holdoutRows": 3
+  },
+  "commitments": {
+    "bankHash": "0141e3fc371403db0b94936f5586de093bf42dfda4f913acb293c8ec74f576fb",
+    "holdoutHash": "d6c0bac754d07f0f690af02c6017f35916f16fcf589066eb179e2655602e3289",
+    "memberHash": "74cd3fd5dc95eebc030ed49339e6109c46fa2cb692531d900a6529c945e64b5a",
+    "ledgerHash": "4dff7a8ceac991296532316bb62b6a3de7088d2ef716344d055bf0a131447887",
+    "cumulativeHash": "00487d3fdaab41ac0e3526b2d0e631448236c09190da2d7e0c76181190ca691e",
+    "devHash": "5dbe576e0493b5f03aed8543d9e894b061e2a00346e69c538fc04c4e56b835d1",
+    "devSuppHash": "dfc8897c318fadcc6776844a2c53c88c3eddb17a94c53c5a3f67ba6f22c7f7bf"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

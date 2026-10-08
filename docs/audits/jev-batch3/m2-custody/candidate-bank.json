@@ -1,0 +1,110 @@
+[
+  {
+    "row": {
+      "sku": "PUBLIC:wellnesspetfood.com:80c2b8d375e06c36",
+      "title": "Wellness CORE+  Original Turkey &amp; Chicken Recipe",
+      "brand": "Wellness Pet Food",
+      "canonicalUrl": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/",
+      "productIdentity": "Wellness Pet Food: Wellness CORE+  Original Turkey &amp; Chicken Recipe",
+      "sourceLocator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/",
+      "sourceHash": "9389d692ab312bf4fe62351690a20f674ba7cf6b6d808dc04b2e79801cf04cc1",
+      "retrievedAt": "2026-10-08T12:32:20.594Z",
+      "familyId": "family-8ed7574b1ae1b5e08d63de0d719301db",
+      "excerpts": [
+        {
+          "text": "At their core, your dog instinctively craves raw animal protein.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "That’s why our revolutionary CORE+ recipes give your dog the pure protein, natural enzymes and full flavor they need to thrive.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-8ed7574b1ae1b5e08d63de0d719301db",
+      "split": "train",
+      "primarySku": "PUBLIC:wellnesspetfood.com:80c2b8d375e06c36",
+      "supplementalSkus": [],
+      "stratum": "food",
+      "sourceForm": "manufacturer-page"
+    }
+  },
+  {
+    "row": {
+      "sku": "PUBLIC:wellnesspetfood.com:df586456a8e1bbab",
+      "title": "Wellness CORE+  Beef &amp; Barley Recipe",
+      "brand": "Wellness Pet Food",
+      "canonicalUrl": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/",
+      "productIdentity": "Wellness Pet Food: Wellness CORE+  Beef &amp; Barley Recipe",
+      "sourceLocator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/",
+      "sourceHash": "7195b100ead7420d817d5a122257f895c9cb845b4b9e471b81094671b5eff70c",
+      "retrievedAt": "2026-10-08T12:32:20.749Z",
+      "familyId": "family-840d1cef0f9cb63b01aec301fdc2c22c",
+      "excerpts": [
+        {
+          "text": "At their core, your dog instinctively craves raw animal protein.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "That’s why our revolutionary CORE+ recipes give your dog the pure protein, natural enzymes and full flavor they need to thrive.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-wholesome-grains-beef-barley/ JSON-LD Product + product-description#excerpt-2"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-840d1cef0f9cb63b01aec301fdc2c22c",
+      "split": "train",
+      "primarySku": "PUBLIC:wellnesspetfood.com:df586456a8e1bbab",
+      "supplementalSkus": [],
+      "stratum": "food",
+      "sourceForm": "manufacturer-page"
+    }
+  },
+  {
+    "row": {
+      "sku": "PUBLIC:wellnesspetfood.com:8ec14cae358fc3d8",
+      "title": "Wellness CORE+  Small Breed Original Turkey &amp; Chicken Recipe",
+      "brand": "Wellness Pet Food",
+      "canonicalUrl": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/",
+      "productIdentity": "Wellness Pet Food: Wellness CORE+  Small Breed Original Turkey &amp; Chicken Recipe",
+      "sourceLocator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/",
+      "sourceHash": "53a112860e15ad9bab743f971e06c99785980dd08ae064016a8c63582cee83af",
+      "retrievedAt": "2026-10-08T12:32:20.812Z",
+      "familyId": "family-9e877667747096eb445067005043fa4f",
+      "excerpts": [
+        {
+          "text": "At their core, your dog instinctively craves raw animal protein.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-0"
+        },
+        {
+          "text": "That’s why our revolutionary CORE+ recipes give your dog the pure protein, natural enzymes and full flavor they need to thrive.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-1"
+        },
+        {
+          "text": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+          "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-small-breed-original-turkey-chicken-with-freeze-dried-turkey/ JSON-LD Product + product-description#excerpt-2"
+        }
+      ],
+      "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+    },
+    "membership": {
+      "familyId": "family-9e877667747096eb445067005043fa4f",
+      "split": "test",
+      "primarySku": "PUBLIC:wellnesspetfood.com:8ec14cae358fc3d8",
+      "supplementalSkus": [],
+      "stratum": "food",
+      "sourceForm": "manufacturer-page"
+    }
+  }
+]

@@ -1,0 +1,696 @@
+{
+ "artifactKind": "sealed-source-custody-metadata",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "status": "sealed-sources-unlabeled-awaiting-policies-and-independent-qualification-review",
+ "checkedAt": "2026-10-08T03:39:38.369Z",
+ "method": "Hash and file-mode verification only; no holdout input/membership parsing, labels, model calls, inference or unseal. Counts are public collection-manifest declarations, not rederived private row counts or class support.",
+ "declaredTotals": {
+  "families": 266,
+  "rows": 309,
+  "verifiedBanks": 15
+ },
+ "qualificationGaps": [
+  "Held sources are not labeled gold",
+  "Cross-bank family/URL separation and prior exposure still require the independently controlled qualifying review",
+  "Per-class support and representative strata are unknown",
+  "Policies must be fitted and published before inspection",
+  "No generation-specific private gold peer receipt exists"
+ ],
+ "banks": [
+  {
+   "bank": "pilot",
+   "manifestPath": "../jev-expansion-v1/pilot/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 90,
+    "devPrimary": 76,
+    "devSupplemental": 5,
+    "holdoutFamilies": 14,
+    "holdoutRows": 14
+   },
+   "commitments": {
+    "bankHash": "5e7350f07542bbc629b1633e841b5ca90f785d80abfa93c2b4ee7d2079dd1b29",
+    "holdoutHash": "709f2f4a0b53953e8a0058038ac925d117304bdcbf6627c66a10bbfe9e594a9f",
+    "memberHash": "16a9a0bbc1924e9fb333a4ec1f769892ac929c06680da3c9a910237b81cd76a1",
+    "ledgerHash": "a81f214c0d5593ed8b504390cb554ed6915319e947e9323747495db1b8759f7e",
+    "cumulativeHash": "2f01437f878a28574799609047006568264fe91dd4cd28e95e9fe5bb9261ea2b",
+    "devHash": "a215b6dcc7f686f50e88e477be1df18a5d61c7ad1e563a0ae097a2bd443c6c2e",
+    "devSuppHash": "cdce4cfc1893a6f9347f61ddf937f37e8ab06e43453e663b19523cd94303e850"
+   },
+   "custodyRoot": "/tmp/pilot-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "709f2f4a0b53953e8a0058038ac925d117304bdcbf6627c66a10bbfe9e594a9f",
+     "mode": "600",
+     "bytes": 15066
+    },
+    "membership.json": {
+     "sha256": "16a9a0bbc1924e9fb333a4ec1f769892ac929c06680da3c9a910237b81cd76a1",
+     "mode": "600",
+     "bytes": 21607
+    },
+    "candidate-bank.json": {
+     "sha256": "5e7350f07542bbc629b1633e841b5ca90f785d80abfa93c2b4ee7d2079dd1b29",
+     "mode": "600",
+     "bytes": 122788
+    },
+    "attempt-ledger.json": {
+     "sha256": "a81f214c0d5593ed8b504390cb554ed6915319e947e9323747495db1b8759f7e",
+     "mode": "600",
+     "bytes": 23232
+    }
+   }
+  },
+  {
+   "bank": "kong",
+   "manifestPath": "../jev-expansion-v1/kong/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 133,
+    "devPrimary": 105,
+    "devSupplemental": 15,
+    "holdoutFamilies": 28,
+    "holdoutRows": 29
+   },
+   "commitments": {
+    "bankHash": "dd314610835d15f2bde8f52e1dd9031714d5821e246c20b15d575a00d1d4b361",
+    "holdoutHash": "afa4a5bea31351acd907f59777a12ecad18b2b0f2e9a06685a07b236171a18b7",
+    "memberHash": "39d8c55a1e21253e2dfd39cd2b645fc52914d3661ba006c59377419cba844250",
+    "ledgerHash": "ea7efab0875002047e44c6971fcb5f6dc47bf064d72f6da898c18c0e77d5313b",
+    "cumulativeHash": "401ea11194633c3c069c13a22542c398f1c4fdd8e17754a45a70e1278c630520",
+    "devHash": "a820d5b518dbe99e64b1dc4eb2c827bee86349f1a0a9508c617f0ea0b21b66b4",
+    "devSuppHash": "f8f2ed63fd626364c97b2b8507d311e54d216868a8914db94b4bbc8653eecb7b"
+   },
+   "custodyRoot": "/tmp/kong-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "afa4a5bea31351acd907f59777a12ecad18b2b0f2e9a06685a07b236171a18b7",
+     "mode": "600",
+     "bytes": 53879
+    },
+    "membership.json": {
+     "sha256": "39d8c55a1e21253e2dfd39cd2b645fc52914d3661ba006c59377419cba844250",
+     "mode": "600",
+     "bytes": 32781
+    },
+    "candidate-bank.json": {
+     "sha256": "dd314610835d15f2bde8f52e1dd9031714d5821e246c20b15d575a00d1d4b361",
+     "mode": "600",
+     "bytes": 260466
+    },
+    "attempt-ledger.json": {
+     "sha256": "ea7efab0875002047e44c6971fcb5f6dc47bf064d72f6da898c18c0e77d5313b",
+     "mode": "600",
+     "bytes": 31989
+    }
+   }
+  },
+  {
+   "bank": "wave2",
+   "manifestPath": "../jev-expansion-v1/wave2/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 12,
+    "devPrimary": 9,
+    "devSupplemental": 1,
+    "holdoutFamilies": 3,
+    "holdoutRows": 3
+   },
+   "commitments": {
+    "bankHash": "0141e3fc371403db0b94936f5586de093bf42dfda4f913acb293c8ec74f576fb",
+    "holdoutHash": "d6c0bac754d07f0f690af02c6017f35916f16fcf589066eb179e2655602e3289",
+    "memberHash": "74cd3fd5dc95eebc030ed49339e6109c46fa2cb692531d900a6529c945e64b5a",
+    "ledgerHash": "4dff7a8ceac991296532316bb62b6a3de7088d2ef716344d055bf0a131447887",
+    "cumulativeHash": "00487d3fdaab41ac0e3526b2d0e631448236c09190da2d7e0c76181190ca691e",
+    "devHash": "5dbe576e0493b5f03aed8543d9e894b061e2a00346e69c538fc04c4e56b835d1",
+    "devSuppHash": "dfc8897c318fadcc6776844a2c53c88c3eddb17a94c53c5a3f67ba6f22c7f7bf"
+   },
+   "custodyRoot": "/tmp/wave2-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "d6c0bac754d07f0f690af02c6017f35916f16fcf589066eb179e2655602e3289",
+     "mode": "600",
+     "bytes": 6732
+    },
+    "membership.json": {
+     "sha256": "74cd3fd5dc95eebc030ed49339e6109c46fa2cb692531d900a6529c945e64b5a",
+     "mode": "600",
+     "bytes": 2899
+    },
+    "candidate-bank.json": {
+     "sha256": "0141e3fc371403db0b94936f5586de093bf42dfda4f913acb293c8ec74f576fb",
+     "mode": "600",
+     "bytes": 26216
+    },
+    "attempt-ledger.json": {
+     "sha256": "4dff7a8ceac991296532316bb62b6a3de7088d2ef716344d055bf0a131447887",
+     "mode": "600",
+     "bytes": 43113
+    }
+   }
+  },
+  {
+   "bank": "beco",
+   "manifestPath": "../jev-expansion-v1/beco/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+   },
+   "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "dbfc49dc9678e9d60561f85e0d27c7706d576e7c7ae4501e64bbfdcd54c3b71c",
+    "cumulativeHash": "dc3d3d5f70f10a87586194dc371bdef5b2e73bc6b20d0f5e2c2a615cc4e63c4e",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "custodyRoot": "/tmp/beco-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "membership.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "candidate-bank.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "attempt-ledger.json": {
+     "sha256": "dbfc49dc9678e9d60561f85e0d27c7706d576e7c7ae4501e64bbfdcd54c3b71c",
+     "mode": "600",
+     "bytes": 18898
+    }
+   }
+  },
+  {
+   "bank": "drearth",
+   "manifestPath": "../jev-expansion-v1/drearth/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 62,
+    "devPrimary": 52,
+    "devSupplemental": 1,
+    "holdoutFamilies": 10,
+    "holdoutRows": 11
+   },
+   "commitments": {
+    "bankHash": "28ee859de8d0e950f02b264e78a89cf8fff1343f49f85477ef481819aa695cd3",
+    "holdoutHash": "8de8e284ccba1f982d548eea42a70b1a6f6babccb6f63c001425978a5b1860f0",
+    "memberHash": "fc59e07bd0ed651b71c31f34320505f7e5274790f9f617f22b7fddb0b332ee60",
+    "ledgerHash": "ed4f59220affaee9d2e6d169cfa36e6d2fd13931ca5362fb26d695400d2c2f3f",
+    "cumulativeHash": "e181690435f6b442b472cfedbd051f82618b35d3aed1d32b8d5241a1c0453934",
+    "devHash": "7ab7bc808af7bc942a02f92987f58c986903106d045523f5f0552503b8c2711b",
+    "devSuppHash": "31a42deac36e94e198e0675a3f68bbbe0669656895678f2632a2402824dce19b"
+   },
+   "custodyRoot": "/tmp/drearth-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "8de8e284ccba1f982d548eea42a70b1a6f6babccb6f63c001425978a5b1860f0",
+     "mode": "600",
+     "bytes": 31028
+    },
+    "membership.json": {
+     "sha256": "fc59e07bd0ed651b71c31f34320505f7e5274790f9f617f22b7fddb0b332ee60",
+     "mode": "600",
+     "bytes": 14863
+    },
+    "candidate-bank.json": {
+     "sha256": "28ee859de8d0e950f02b264e78a89cf8fff1343f49f85477ef481819aa695cd3",
+     "mode": "600",
+     "bytes": 172437
+    },
+    "attempt-ledger.json": {
+     "sha256": "ed4f59220affaee9d2e6d169cfa36e6d2fd13931ca5362fb26d695400d2c2f3f",
+     "mode": "600",
+     "bytes": 13790
+    }
+   }
+  },
+  {
+   "bank": "petfood",
+   "manifestPath": "../jev-expansion-v1/petfood/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 5,
+    "devPrimary": 5,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+   },
+   "commitments": {
+    "bankHash": "71ae259d79930fb02722c8240c79fc851541cac54845fbf9d7ab601a1b08d866",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "ab16011f7cb73384b534c7e02a014a1917c31ea1f80e0e5c0d6ae8c01f1289d2",
+    "ledgerHash": "3da5b31f882acc631703cf82396db40dfbf67948c7ea83e50f93a9ec14d70fd7",
+    "cumulativeHash": "c8a2fc572c0a051e90f84a0213f69ae2ec20f6d61d9280c36c05ef0e9243927b",
+    "devHash": "3c1ad2506ff13ad7dc9182797d7c2b5eb985982c028b12f2b6587000157de561",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "custodyRoot": "/tmp/food-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "membership.json": {
+     "sha256": "ab16011f7cb73384b534c7e02a014a1917c31ea1f80e0e5c0d6ae8c01f1289d2",
+     "mode": "600",
+     "bytes": 1185
+    },
+    "candidate-bank.json": {
+     "sha256": "71ae259d79930fb02722c8240c79fc851541cac54845fbf9d7ab601a1b08d866",
+     "mode": "600",
+     "bytes": 10365
+    },
+    "attempt-ledger.json": {
+     "sha256": "3da5b31f882acc631703cf82396db40dfbf67948c7ea83e50f93a9ec14d70fd7",
+     "mode": "600",
+     "bytes": 55070
+    }
+   }
+  },
+  {
+   "bank": "nutrisource",
+   "manifestPath": "../jev-expansion-v1/nutrisource/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+   },
+   "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "6bbc3b953907330f7e0dc84a275fc397e10a2c78ecb41c8feb92336209b558bd",
+    "cumulativeHash": "10a4e15021720987e1f65631a67b0f9d0a795c03e7e2d971dfe087d878ffae11",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "custodyRoot": "/tmp/ns-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "membership.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "candidate-bank.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "attempt-ledger.json": {
+     "sha256": "6bbc3b953907330f7e0dc84a275fc397e10a2c78ecb41c8feb92336209b558bd",
+     "mode": "600",
+     "bytes": 29987
+    }
+   }
+  },
+  {
+   "bank": "earthborn",
+   "manifestPath": "../jev-expansion-v1/earthborn/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+   },
+   "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "09a16de90a41f158f0d06b1ec8469f84d7c2019f0a0ddeaeffe59b6e131346c7",
+    "cumulativeHash": "c631205fb5c9149d266cbcd3cedc1969dd681faf4f870135b7358f5c2f4b9dba",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "custodyRoot": "/tmp/eb-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "membership.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "candidate-bank.json": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "mode": "600",
+     "bytes": 2
+    },
+    "attempt-ledger.json": {
+     "sha256": "09a16de90a41f158f0d06b1ec8469f84d7c2019f0a0ddeaeffe59b6e131346c7",
+     "mode": "600",
+     "bytes": 12655
+    }
+   }
+  },
+  {
+   "bank": "oxbow",
+   "manifestPath": "../jev-expansion-v1/oxbow/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 198,
+    "devPrimary": 170,
+    "devSupplemental": 2,
+    "holdoutFamilies": 28,
+    "holdoutRows": 28
+   },
+   "commitments": {
+    "bankHash": "f4c0cd815e461ea13971a77e5960e39d3ed257a2afd2695420fa9c1a57b5c690",
+    "holdoutHash": "6f4dc3f9ef5ff7303fbc16bdc83ee83c37e4df02173c98e3840c2df2c66fa3d4",
+    "memberHash": "9530170a18c2a0d5121c1b97f468514b557e65849aa3c850666336f79a6a6462",
+    "ledgerHash": "ac0f22c6c82f98890f2f69cf79e919b636749696d14c26438d4dd4f900be9aa2",
+    "cumulativeHash": "fbc259df53fa7da6d87da7db8b5ed379563e73d871396cbd9d0b9d129160cde2",
+    "devHash": "80799482c86734920bddd6879eae444609a2e2fcccb20f1fa8929cd2549ef28b",
+    "devSuppHash": "a725f2117d67af21273d3ed8aa3454cb2d1b5fe1317a2197cd6a4e3b3841e7df"
+   },
+   "custodyRoot": "/tmp/oxbow-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "6f4dc3f9ef5ff7303fbc16bdc83ee83c37e4df02173c98e3840c2df2c66fa3d4",
+     "mode": "600",
+     "bytes": 44543
+    },
+    "membership.json": {
+     "sha256": "9530170a18c2a0d5121c1b97f468514b557e65849aa3c850666336f79a6a6462",
+     "mode": "600",
+     "bytes": 48836
+    },
+    "candidate-bank.json": {
+     "sha256": "f4c0cd815e461ea13971a77e5960e39d3ed257a2afd2695420fa9c1a57b5c690",
+     "mode": "600",
+     "bytes": 325708
+    },
+    "attempt-ledger.json": {
+     "sha256": "ac0f22c6c82f98890f2f69cf79e919b636749696d14c26438d4dd4f900be9aa2",
+     "mode": "600",
+     "bytes": 39332
+    }
+   }
+  },
+  {
+   "bank": "naturesway",
+   "manifestPath": "../jev-expansion-v1/naturesway/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 208,
+    "devPrimary": 175,
+    "devSupplemental": 11,
+    "holdoutFamilies": 33,
+    "holdoutRows": 33
+   },
+   "commitments": {
+    "bankHash": "ea7f8ce6c9180286450f790afda4090da23dabe372c51096f9270026e732d722",
+    "holdoutHash": "71fc18ddbab2a0648a4197f3875c61f6645db4db27f148192f817aa286f650a5",
+    "memberHash": "c2f48af76db3c33a4c052a8e4833184cce7b771f9756d5c225998aadb369d28e",
+    "ledgerHash": "6c6e7746758f36b039baa4e1ffb69a3e9da632fd6870ef0d229f5f9be3ca9cad",
+    "cumulativeHash": "273ef52674ef920b4c76fdd878dc97cc6b3839772284e97a72756b5b820f4f4e",
+    "devHash": "e44899f5923c224f612fb00e477bd6dc22788790d47b9cb724f01a48aeaf9717",
+    "devSuppHash": "182fffca4c0e20170153fc5e2bff700c9426283c719d61b6ccd2c3b1aa00ddb8"
+   },
+   "custodyRoot": "/tmp/nwb-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "71fc18ddbab2a0648a4197f3875c61f6645db4db27f148192f817aa286f650a5",
+     "mode": "600",
+     "bytes": 86917
+    },
+    "membership.json": {
+     "sha256": "c2f48af76db3c33a4c052a8e4833184cce7b771f9756d5c225998aadb369d28e",
+     "mode": "600",
+     "bytes": 51813
+    },
+    "candidate-bank.json": {
+     "sha256": "ea7f8ce6c9180286450f790afda4090da23dabe372c51096f9270026e732d722",
+     "mode": "600",
+     "bytes": 559538
+    },
+    "attempt-ledger.json": {
+     "sha256": "6c6e7746758f36b039baa4e1ffb69a3e9da632fd6870ef0d229f5f9be3ca9cad",
+     "mode": "600",
+     "bytes": 85785
+    }
+   }
+  },
+  {
+   "bank": "perkypet",
+   "manifestPath": "../jev-expansion-v1/perkypet/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 97,
+    "devPrimary": 78,
+    "devSupplemental": 6,
+    "holdoutFamilies": 19,
+    "holdoutRows": 20
+   },
+   "commitments": {
+    "bankHash": "da9481c59c60b34d56cb6e68fcafbd04a30e482af4b196fddac6459f34ad2d65",
+    "holdoutHash": "f41a3d51537d0ec11cb4df7c626e8549ab7bacc0a645e99a06696d3f604fee9b",
+    "memberHash": "638e3119a2a74c8df3c0aada5f6ef944271b0a2b82c5f7c2f0734ee9d79d559f",
+    "ledgerHash": "f3b58c1a181b97d4fcd4c40d06ad5a142361a7697f9da60be73484fe7c7ee109",
+    "cumulativeHash": "b8c9c555b25fa7156be0cb00cbf5595f4aa3e980931df2cc0e0f935afccf748c",
+    "devHash": "a3292bb959d27537cab8f55b33813ce6608963d26382abcb6a8f8b4fd8e152d0",
+    "devSuppHash": "a731a4fef459ec01a20db87148288c47eb75987eedf85ef25b6f35ba56892eef"
+   },
+   "custodyRoot": "/tmp/ppw-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "f41a3d51537d0ec11cb4df7c626e8549ab7bacc0a645e99a06696d3f604fee9b",
+     "mode": "600",
+     "bytes": 27125
+    },
+    "membership.json": {
+     "sha256": "638e3119a2a74c8df3c0aada5f6ef944271b0a2b82c5f7c2f0734ee9d79d559f",
+     "mode": "600",
+     "bytes": 23562
+    },
+    "candidate-bank.json": {
+     "sha256": "da9481c59c60b34d56cb6e68fcafbd04a30e482af4b196fddac6459f34ad2d65",
+     "mode": "600",
+     "bytes": 139904
+    },
+    "attempt-ledger.json": {
+     "sha256": "f3b58c1a181b97d4fcd4c40d06ad5a142361a7697f9da60be73484fe7c7ee109",
+     "mode": "600",
+     "bytes": 24939
+    }
+   }
+  },
+  {
+   "bank": "smartpak",
+   "manifestPath": "../jev-expansion-v1/smartpak/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 247,
+    "devPrimary": 190,
+    "devSupplemental": 0,
+    "holdoutFamilies": 57,
+    "holdoutRows": 57
+   },
+   "commitments": {
+    "bankHash": "e1401f5337b9368fbe4a14055e78b38d42f180b658bdbadcad29a989f492f415",
+    "holdoutHash": "56a68e553bc1703dae69d7f24f3c5e75253f35591ac286063c305c09af51bad1",
+    "memberHash": "d18eb3e29a8ac42ee098f46a9500e57d045ca15e8cf3ec771b06d8f07f2d694c",
+    "ledgerHash": "32a92b649808a122e67a7c60ccc281d39298d5091e29e5dd70a088acfd497c4f",
+    "cumulativeHash": "3f5620bad68148cf1515689220d0178a2f1581a3f7c9e187466847a2c39facc8",
+    "devHash": "91155bc38cb03ba36a0efe73dab0d39c0aafc238e84c155291e0640e3771f061",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "custodyRoot": "/tmp/spw-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "56a68e553bc1703dae69d7f24f3c5e75253f35591ac286063c305c09af51bad1",
+     "mode": "600",
+     "bytes": 131737
+    },
+    "membership.json": {
+     "sha256": "d18eb3e29a8ac42ee098f46a9500e57d045ca15e8cf3ec771b06d8f07f2d694c",
+     "mode": "600",
+     "bytes": 60088
+    },
+    "candidate-bank.json": {
+     "sha256": "e1401f5337b9368fbe4a14055e78b38d42f180b658bdbadcad29a989f492f415",
+     "mode": "600",
+     "bytes": 530805
+    },
+    "attempt-ledger.json": {
+     "sha256": "32a92b649808a122e67a7c60ccc281d39298d5091e29e5dd70a088acfd497c4f",
+     "mode": "600",
+     "bytes": 50466
+    }
+   }
+  },
+  {
+   "bank": "petfood2",
+   "manifestPath": "../jev-expansion-v1/petfood2/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 147,
+    "devPrimary": 109,
+    "devSupplemental": 70,
+    "holdoutFamilies": 38,
+    "holdoutRows": 74
+   },
+   "commitments": {
+    "bankHash": "ecb58d96655b5d0b243131dbf8d345c3c6be9c321262d0b9c39ee9d11d9c6f63",
+    "holdoutHash": "f7adaa27e6b29878daf547748b083aa02ab3719fae73ca0b03575c874b46f666",
+    "memberHash": "e77ad4cefcfd3efb8bbf8130c93facc28ece87844362f47805f3c7f61b354113",
+    "ledgerHash": "ad0a9c07718a9a6f8ab9b6d45585fe0998258df346ed839cd68cd0b54cd3fa12",
+    "cumulativeHash": "df46b2cf1b2d3f5c069c8f78e7f6709b901037a355053deaf16330e61908a84d",
+    "devHash": "921f8be71d789538463fb0dd4778f588f5a461bc6d5dccfcdbb5931f3aa2b482",
+    "devSuppHash": "073253f16d7845dd10cf2cef5eb7ca084fe0c46df9b8d8403392a2d3f84b19ad"
+   },
+   "custodyRoot": "/tmp/il-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "f7adaa27e6b29878daf547748b083aa02ab3719fae73ca0b03575c874b46f666",
+     "mode": "600",
+     "bytes": 135879
+    },
+    "membership.json": {
+     "sha256": "e77ad4cefcfd3efb8bbf8130c93facc28ece87844362f47805f3c7f61b354113",
+     "mode": "600",
+     "bytes": 41748
+    },
+    "candidate-bank.json": {
+     "sha256": "ecb58d96655b5d0b243131dbf8d345c3c6be9c321262d0b9c39ee9d11d9c6f63",
+     "mode": "600",
+     "bytes": 397027
+    },
+    "attempt-ledger.json": {
+     "sha256": "ad0a9c07718a9a6f8ab9b6d45585fe0998258df346ed839cd68cd0b54cd3fa12",
+     "mode": "600",
+     "bytes": 130692
+    }
+   }
+  },
+  {
+   "bank": "aqueon",
+   "manifestPath": "../jev-expansion-v1/aqueon/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 33,
+    "devPrimary": 29,
+    "devSupplemental": 3,
+    "holdoutFamilies": 4,
+    "holdoutRows": 5
+   },
+   "commitments": {
+    "bankHash": "39028256c57068d671da29d028a6abb1c495b327be250398e0c9f747660fe28b",
+    "holdoutHash": "3d6e67e5e957094acb09e74c825996ee4f1873f83f6edeb818b75c68e425229d",
+    "memberHash": "9d00762d0f09d2dbf4ed653907ad734e2cabb50f534c553b0056f128bc874958",
+    "ledgerHash": "98e6f6e5dc5a2d6aa809d644b090a24481636f431eca75a26630cdf5d5e204ca",
+    "cumulativeHash": "9b9d25ea82c803996401c577c876398843928160ead3ddf8b36594129a95f5c3",
+    "devHash": "f3615840ebfb41347b0ed8ad8dda6ff830b83bfcdcc2acf7ab318283866bbccd",
+    "devSuppHash": "ae6625457bef58db4167424d53f7abfdff727d785af1131a4e605e36a6038724"
+   },
+   "custodyRoot": "/tmp/aq-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "3d6e67e5e957094acb09e74c825996ee4f1873f83f6edeb818b75c68e425229d",
+     "mode": "600",
+     "bytes": 11665
+    },
+    "membership.json": {
+     "sha256": "9d00762d0f09d2dbf4ed653907ad734e2cabb50f534c553b0056f128bc874958",
+     "mode": "600",
+     "bytes": 7952
+    },
+    "candidate-bank.json": {
+     "sha256": "39028256c57068d671da29d028a6abb1c495b327be250398e0c9f747660fe28b",
+     "mode": "600",
+     "bytes": 97060
+    },
+    "attempt-ledger.json": {
+     "sha256": "98e6f6e5dc5a2d6aa809d644b090a24481636f431eca75a26630cdf5d5e204ca",
+     "mode": "600",
+     "bytes": 20836
+    }
+   }
+  },
+  {
+   "bank": "healthcare",
+   "manifestPath": "../jev-expansion-v1/healthcare/collection-manifest.json",
+   "declaredCounts": {
+    "familiesKept": 104,
+    "devPrimary": 72,
+    "devSupplemental": 19,
+    "holdoutFamilies": 32,
+    "holdoutRows": 35
+   },
+   "commitments": {
+    "bankHash": "e5bc023abcb18ec23c7f98e7416eb18d3160ee33177d9bea41b9081b288bf908",
+    "holdoutHash": "90a9ae5893ba5073691274dc1282753e101615484f284aa0ede23bf24798aa68",
+    "memberHash": "da42f7db17f9e5d06d587ed406357e054a89bd379afe5a28b5d779e4e4e78151",
+    "ledgerHash": "8930992411d5a6c23e55e9be84dd38ee69a59f6ae79120b695b827b581eeca14",
+    "cumulativeHash": "5f7c8c6b5d03248b97a6e9749c32f8073b6649cad7364a3ee97646a2a55a1854",
+    "devHash": "5318d57ba7edde35220576d9095f8180131178f41cebaaef277a6d9f68a2da34",
+    "devSuppHash": "9d2ac3940df632bb4b4aa6f4d08b11d1a39adc19ed1fe00e8ba1b98537fbf485"
+   },
+   "custodyRoot": "/tmp/hc-custody",
+   "commitmentsVerified": true,
+   "permissionsVerified": true,
+   "files": {
+    "holdout-inputs.json": {
+     "sha256": "90a9ae5893ba5073691274dc1282753e101615484f284aa0ede23bf24798aa68",
+     "mode": "600",
+     "bytes": 74438
+    },
+    "membership.json": {
+     "sha256": "da42f7db17f9e5d06d587ed406357e054a89bd379afe5a28b5d779e4e4e78151",
+     "mode": "600",
+     "bytes": 25992
+    },
+    "candidate-bank.json": {
+     "sha256": "e5bc023abcb18ec23c7f98e7416eb18d3160ee33177d9bea41b9081b288bf908",
+     "mode": "600",
+     "bytes": 227702
+    },
+    "attempt-ledger.json": {
+     "sha256": "8930992411d5a6c23e55e9be84dd38ee69a59f6ae79120b695b827b581eeca14",
+     "mode": "600",
+     "bytes": 47877
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,58 @@
+{
+  "artifactKind": "compatibility-suite-evidence-worktree",
+  "recordedAt": "2026-10-08T16:52:46.539Z",
+  "note": "WORKTREE receipt, NOT commit-bound: HEAD 69c15f55 with 165 dirty files. Satisfies evidence freshness; the qualification gate still requires owner commit + re-run + commit-bound receipt. Suite→file mapping made explicit here for the first time.",
+  "headCommit": "69c15f551bbfa3f69336f5478407c243719982d4",
+  "worktreeClean": false,
+  "suites": [
+    {
+      "suiteId": "other-providers",
+      "passed": true,
+      "tests": "116 pass / 0 fail (4 files, bun test)",
+      "files": [
+        "src/tests/unit/typesafe-systemone.test.ts",
+        "src/tests/unit/llm-client-task-routing.test.ts",
+        "src/tests/unit/typesafe-product-type-seam.test.ts",
+        "src/tests/unit/typesafe-page-seam.test.ts"
+      ]
+    },
+    {
+      "suiteId": "deterministic-rules",
+      "passed": true,
+      "tests": "100 pass / 1 skip / 0 fail (3 files: 69+1 qualification, 31 evaluator/prep; bun test)",
+      "files": [
+        "src/tests/unit/typesafe-curation-qualification.test.ts",
+        "src/tests/unit/benchmark-evaluator.test.ts",
+        "src/tests/unit/jev-benchmark-preparation.test.ts"
+      ]
+    },
+    {
+      "suiteId": "frozen-snapshots",
+      "passed": true,
+      "tests": "105 pass / 0 fail (3 files, bun test)",
+      "files": [
+        "src/tests/unit/jev-benchmark-replay.test.ts",
+        "src/tests/unit/classification-runtime-snapshot.test.ts",
+        "src/tests/unit/runtime-snapshot-v2.test.ts"
+      ]
+    },
+    {
+      "suiteId": "legacy-reads",
+      "passed": true,
+      "tests": "59 pass / 0 fail (6 files, bun test)",
+      "files": [
+        "src/tests/unit/jev-representative-v9.test.ts",
+        "src/tests/unit/release-v9.test.ts",
+        "src/tests/unit/release-authoring.test.ts",
+        "src/tests/unit/release-v6.test.ts",
+        "src/tests/unit/release-v7.test.ts",
+        "src/tests/unit/release-v8.test.ts"
+      ]
+    }
+  ],
+  "totals": {
+    "pass": 380,
+    "skip": 1,
+    "fail": 0
+  }
+}

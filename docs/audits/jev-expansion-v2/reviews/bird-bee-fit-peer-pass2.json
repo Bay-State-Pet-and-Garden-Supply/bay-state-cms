@@ -1,0 +1,2372 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "inputSha256": "742b54607c5214a80bc1dbf8d3a0aaa92b161128758327952df6567e9378ad30",
+ "reviewedSkus": [
+  "PUBLIC:natureswaybirds.com:7f3be10301bd3e6c",
+  "PUBLIC:natureswaybirds.com:e71478e728d56bfc",
+  "PUBLIC:natureswaybirds.com:5256d3b844de7fae",
+  "PUBLIC:natureswaybirds.com:b8f83be9fa07d197",
+  "PUBLIC:natureswaybirds.com:c442e52aa1edb697",
+  "PUBLIC:natureswaybirds.com:4f65ac4dbf6741bc",
+  "PUBLIC:natureswaybirds.com:8e3a675a4a9b9b0a",
+  "PUBLIC:natureswaybirds.com:edf8b28ec5770827",
+  "PUBLIC:natureswaybirds.com:18f02374c6a69200",
+  "PUBLIC:natureswaybirds.com:41cd4fb37482fcc5",
+  "PUBLIC:natureswaybirds.com:0a10eb646f951c8e",
+  "PUBLIC:natureswaybirds.com:993c763e21792cf8",
+  "PUBLIC:natureswaybirds.com:a7940ed1d9907c89",
+  "PUBLIC:natureswaybirds.com:e75762a3a2a09401",
+  "PUBLIC:natureswaybirds.com:a4041ae6cd93b7e3",
+  "PUBLIC:natureswaybirds.com:737586f919dfd55b",
+  "PUBLIC:natureswaybirds.com:3a4ad5c23e891df7",
+  "PUBLIC:natureswaybirds.com:de7695dcfb5297d5",
+  "PUBLIC:natureswaybirds.com:301c38d43abb85d9",
+  "PUBLIC:natureswaybirds.com:b0964832551371cb",
+  "PUBLIC:natureswaybirds.com:21938a2a1434e312",
+  "PUBLIC:natureswaybirds.com:9b09882934871c88",
+  "PUBLIC:natureswaybirds.com:acf20f44505d5d82",
+  "PUBLIC:natureswaybirds.com:9e171d145950f45f",
+  "PUBLIC:natureswaybirds.com:1e89abfc0389bd81",
+  "PUBLIC:natureswaybirds.com:58c003beac5fcfbe",
+  "PUBLIC:natureswaybirds.com:e6ed1d86d32856d2",
+  "PUBLIC:natureswaybirds.com:32589d81cfd3ad02",
+  "PUBLIC:natureswaybirds.com:9ad07c265695c660",
+  "PUBLIC:natureswaybirds.com:d4cd59ac03d45cd1",
+  "PUBLIC:natureswaybirds.com:3a20812582a23203",
+  "PUBLIC:natureswaybirds.com:95fe723e8e161346",
+  "PUBLIC:natureswaybirds.com:b6a4f30e4de3960c",
+  "PUBLIC:natureswaybirds.com:5b7395499da4c11d",
+  "PUBLIC:natureswaybirds.com:5842b184a58e8091",
+  "PUBLIC:natureswaybirds.com:5a57dd08f1decc23",
+  "PUBLIC:natureswaybirds.com:6cd25e07145ae46a",
+  "PUBLIC:natureswaybirds.com:43fd31cb73cbcd73",
+  "PUBLIC:natureswaybirds.com:33347776f6944b16",
+  "PUBLIC:natureswaybirds.com:81a181762600f480",
+  "PUBLIC:natureswaybirds.com:d585ecb4e0292b41",
+  "PUBLIC:natureswaybirds.com:f7eb028d83d1c648",
+  "PUBLIC:natureswaybirds.com:50e2fee6af885cba",
+  "PUBLIC:natureswaybirds.com:b6964a213e549e58",
+  "PUBLIC:natureswaybirds.com:62c5b7965d7fbcf2",
+  "PUBLIC:natureswaybirds.com:4bcf963c05210130",
+  "PUBLIC:natureswaybirds.com:1f38fd54fed50c75",
+  "PUBLIC:natureswaybirds.com:330a8c795832e3a7",
+  "PUBLIC:natureswaybirds.com:5722c203f34e69da",
+  "PUBLIC:natureswaybirds.com:fc5ded1b9ae742e3",
+  "PUBLIC:natureswaybirds.com:0c41bb6770463f85",
+  "PUBLIC:natureswaybirds.com:2b2963dba416fab3",
+  "PUBLIC:natureswaybirds.com:66467f3ea5049bb9",
+  "PUBLIC:natureswaybirds.com:f7448823d34154dd",
+  "PUBLIC:natureswaybirds.com:d808d6da8f1ce0ef",
+  "PUBLIC:natureswaybirds.com:77aba1cbcfc41cb2",
+  "PUBLIC:natureswaybirds.com:557b8a9e8d64b9e5",
+  "PUBLIC:natureswaybirds.com:e64acd08c78a6dc7",
+  "PUBLIC:natureswaybirds.com:d632bbfd8acd76c5",
+  "PUBLIC:natureswaybirds.com:aca9c480445e4e56",
+  "PUBLIC:natureswaybirds.com:0bd90cbcad1e0f97",
+  "PUBLIC:natureswaybirds.com:b49a7988f8890a0e",
+  "PUBLIC:natureswaybirds.com:f81a00e6720b0719",
+  "PUBLIC:natureswaybirds.com:ac06135c748acbcb",
+  "PUBLIC:natureswaybirds.com:5374a69b95d8d1d2",
+  "PUBLIC:natureswaybirds.com:e7d2175d3b8ba770",
+  "PUBLIC:natureswaybirds.com:f3ae82fa8d6a5bb2",
+  "PUBLIC:natureswaybirds.com:749b5eaef886c797",
+  "PUBLIC:natureswaybirds.com:c041e75dea30af2f",
+  "PUBLIC:natureswaybirds.com:4b15ff97413f448e",
+  "PUBLIC:natureswaybirds.com:3e39838f52f792a7",
+  "PUBLIC:natureswaybirds.com:436c99a371d05ea4",
+  "PUBLIC:natureswaybirds.com:1d727d670bcb545f",
+  "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+  "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+  "PUBLIC:natureswaybirds.com:e408b348289c6cc6",
+  "PUBLIC:natureswaybirds.com:d000cd8b6e6f7588",
+  "PUBLIC:natureswaybirds.com:5eac624e566a24bc",
+  "PUBLIC:natureswaybirds.com:15048249250492e9",
+  "PUBLIC:natureswaybirds.com:cc8ef63124e53a70",
+  "PUBLIC:natureswaybirds.com:9b16e4de24b63346",
+  "PUBLIC:natureswaybirds.com:7a755db2dfee79c6",
+  "PUBLIC:natureswaybirds.com:2dd80a20280c8248",
+  "PUBLIC:natureswaybirds.com:66ad852a068bf9d5",
+  "PUBLIC:natureswaybirds.com:8d5d698a8a4099c4",
+  "PUBLIC:natureswaybirds.com:85a98a6b974bda2b",
+  "PUBLIC:natureswaybirds.com:12d1232696187086",
+  "PUBLIC:natureswaybirds.com:dd2acfc67d65f028",
+  "PUBLIC:natureswaybirds.com:9f2f5723405ab1f9",
+  "PUBLIC:natureswaybirds.com:ecf5b5b0d7c597a6",
+  "PUBLIC:natureswaybirds.com:f884ff990f1f053e",
+  "PUBLIC:natureswaybirds.com:af76c41af6b7ebc5",
+  "PUBLIC:natureswaybirds.com:e897b7e7b031192a",
+  "PUBLIC:natureswaybirds.com:d1024ad83b215be7",
+  "PUBLIC:natureswaybirds.com:3eef0bc63c179761",
+  "PUBLIC:natureswaybirds.com:ff4e06e5ecc7fe40",
+  "PUBLIC:natureswaybirds.com:8f4874c06805a377",
+  "PUBLIC:natureswaybirds.com:5acb61320784492f",
+  "PUBLIC:natureswaybirds.com:6c154ef7a2b7bbd0",
+  "PUBLIC:natureswaybirds.com:614691350063b7a0",
+  "PUBLIC:natureswaybirds.com:05c4ce24d5eabff4",
+  "PUBLIC:natureswaybirds.com:fd402799a080bc74",
+  "PUBLIC:natureswaybirds.com:3192ce9c3883eccb",
+  "PUBLIC:natureswaybirds.com:6dafbde3f59f9299",
+  "PUBLIC:natureswaybirds.com:037f39c3c9d63bbe",
+  "PUBLIC:natureswaybirds.com:398a0493ab63bda4",
+  "PUBLIC:natureswaybirds.com:6b01a49855135993",
+  "PUBLIC:natureswaybirds.com:0db4aebd62f4968a",
+  "PUBLIC:natureswaybirds.com:9552cbd8c438092c",
+  "PUBLIC:natureswaybirds.com:9f3bbc3016b8ba15",
+  "PUBLIC:natureswaybirds.com:2f6ebc96643549da",
+  "PUBLIC:natureswaybirds.com:84c6fa02991c36b0",
+  "PUBLIC:natureswaybirds.com:df7bde0e7fef6205",
+  "PUBLIC:natureswaybirds.com:0d4757c68b0e3b6a",
+  "PUBLIC:natureswaybirds.com:277d456cbd7f51d4",
+  "PUBLIC:natureswaybirds.com:973af8b5e22f911a",
+  "PUBLIC:natureswaybirds.com:1ed8ff8d1730f253",
+  "PUBLIC:natureswaybirds.com:37d85953048373bf",
+  "PUBLIC:natureswaybirds.com:23493d78c453d4d7",
+  "PUBLIC:natureswaybirds.com:013ff8f78c188c06",
+  "PUBLIC:natureswaybirds.com:6628229df972d6a3",
+  "PUBLIC:natureswaybirds.com:b6bd37a43fb14f35",
+  "PUBLIC:natureswaybirds.com:4245c818b12319e0",
+  "PUBLIC:natureswaybirds.com:aeb4fe7349ca79ff",
+  "PUBLIC:natureswaybirds.com:b41916b1ca73949d",
+  "PUBLIC:natureswaybirds.com:e4a6b3cd8bd3c703",
+  "PUBLIC:natureswaybirds.com:56d4e2eee83fdd48",
+  "PUBLIC:natureswaybirds.com:daf1674f54114aeb",
+  "PUBLIC:natureswaybirds.com:23740ee529c02910",
+  "PUBLIC:natureswaybirds.com:f42c3f692d78988c",
+  "PUBLIC:natureswaybirds.com:346879154f090ed6",
+  "PUBLIC:natureswaybirds.com:cad9832ecad45cca",
+  "PUBLIC:natureswaybirds.com:8b06b82cd55378e2",
+  "PUBLIC:natureswaybirds.com:211dc93ba5a7ffe6",
+  "PUBLIC:natureswaybirds.com:cc8a995e642e68d7",
+  "PUBLIC:natureswaybirds.com:48232873e962696a",
+  "PUBLIC:natureswaybirds.com:ae83cf84ca13c08e",
+  "PUBLIC:natureswaybirds.com:70baa69974ef1132",
+  "PUBLIC:natureswaybirds.com:09b0c41b59ff22c8",
+  "PUBLIC:natureswaybirds.com:f62e94c9bd137242",
+  "PUBLIC:natureswaybirds.com:8ddc2c8fe0c723d3",
+  "PUBLIC:natureswaybirds.com:fcea145bddd35cba",
+  "PUBLIC:natureswaybirds.com:331db20e8a9c2c63",
+  "PUBLIC:natureswaybirds.com:de94e7a8124f236d",
+  "PUBLIC:natureswaybirds.com:dd81bc52b0971020",
+  "PUBLIC:natureswaybirds.com:6bbe915b90f5dbc2",
+  "PUBLIC:natureswaybirds.com:daec0dbe2d7fa1bb",
+  "PUBLIC:natureswaybirds.com:8bbe2c294785bf74",
+  "PUBLIC:natureswaybirds.com:c208151161f0df7c",
+  "PUBLIC:natureswaybirds.com:ee0c965e49daf428",
+  "PUBLIC:natureswaybirds.com:dbf63a5778c32bf3",
+  "PUBLIC:natureswaybirds.com:cee20631fd85c40c",
+  "PUBLIC:natureswaybirds.com:73e57def6a72e223",
+  "PUBLIC:natureswaybirds.com:fcb8d78523447106",
+  "PUBLIC:natureswaybirds.com:e45e9d78dd1c28f0",
+  "PUBLIC:natureswaybirds.com:20033cdce3d3f742",
+  "PUBLIC:natureswaybirds.com:c3ce7c69fc128443",
+  "PUBLIC:natureswaybirds.com:c72c1f455b7263fb",
+  "PUBLIC:natureswaybirds.com:b64bcf1599d0f28b",
+  "PUBLIC:natureswaybirds.com:d7970552b82ae447",
+  "PUBLIC:natureswaybirds.com:44164853b8465459",
+  "PUBLIC:natureswaybirds.com:53824df7f605295b",
+  "PUBLIC:natureswaybirds.com:8d1280b653ef76b6",
+  "PUBLIC:natureswaybirds.com:c506b1a1b6973cec",
+  "PUBLIC:natureswaybirds.com:ec428db56e886471",
+  "PUBLIC:natureswaybirds.com:20645c6274536f36",
+  "PUBLIC:natureswaybirds.com:e5b56d7f3b08e08e",
+  "PUBLIC:natureswaybirds.com:5d64ca6aa3ab01a7",
+  "PUBLIC:natureswaybirds.com:36b0011b81cfca4d",
+  "PUBLIC:natureswaybirds.com:ac6db970541eab83",
+  "PUBLIC:natureswaybirds.com:ea2e88d904a2dfe0",
+  "PUBLIC:natureswaybirds.com:bf58c2c32007e189",
+  "PUBLIC:natureswaybirds.com:f8f288a44d152bac",
+  "PUBLIC:natureswaybirds.com:49e6cb464e76be67",
+  "PUBLIC:natureswaybirds.com:1a8d57bc2a35f68e",
+  "PUBLIC:natureswaybirds.com:892065717dc7edb1",
+  "PUBLIC:natureswaybirds.com:aec7710ea1d07b8f",
+  "PUBLIC:natureswaybirds.com:b17ece32d7a3868b",
+  "PUBLIC:natureswaybirds.com:c6de097bc13e88c8",
+  "PUBLIC:natureswaybirds.com:d27be1f633c114e0",
+  "PUBLIC:natureswaybirds.com:1e24ffd6d11def5f",
+  "PUBLIC:natureswaybirds.com:e451c4b52a97f5c5",
+  "PUBLIC:natureswaybirds.com:cb2e388e6b2ff39a",
+  "PUBLIC:natureswaybirds.com:4427781c893eae41",
+  "PUBLIC:natureswaybirds.com:96f4beafa7b45d26",
+  "PUBLIC:natureswaybirds.com:ac78b562233b6e29",
+  "PUBLIC:perkypet.com:f0e41a8d02483ec0",
+  "PUBLIC:perkypet.com:ea2b12cda43eabea",
+  "PUBLIC:perkypet.com:b6a2a9c156d015d9",
+  "PUBLIC:perkypet.com:a0d546c07d4e7e68",
+  "PUBLIC:perkypet.com:6363671ff406bc92",
+  "PUBLIC:perkypet.com:77d1914d3e327b53",
+  "PUBLIC:perkypet.com:92458ee0e12f86f7",
+  "PUBLIC:perkypet.com:f1e65e45d2229415",
+  "PUBLIC:perkypet.com:6077f712de61d694",
+  "PUBLIC:perkypet.com:1958367bf965e549",
+  "PUBLIC:perkypet.com:b333da83a15bfca5",
+  "PUBLIC:perkypet.com:87cf9855b1bb2fb1",
+  "PUBLIC:perkypet.com:e6f6fd82aeb6dc33",
+  "PUBLIC:perkypet.com:59d5ed9208de50c4",
+  "PUBLIC:perkypet.com:f9f0c4f456d8e37f",
+  "PUBLIC:perkypet.com:4b30b6c146f00a0e",
+  "PUBLIC:perkypet.com:33b4d0cd7a174d5b",
+  "PUBLIC:perkypet.com:1c96cc3a8e9eee46",
+  "PUBLIC:perkypet.com:c039e04a5e446a88",
+  "PUBLIC:perkypet.com:9163bf81ad46b36d",
+  "PUBLIC:perkypet.com:02ee548474673c3d",
+  "PUBLIC:perkypet.com:a9c7788ea422ae61",
+  "PUBLIC:perkypet.com:969ffff73e4d7b77",
+  "PUBLIC:perkypet.com:d7f14dcf1cabe5de",
+  "PUBLIC:perkypet.com:3716fc6c7d496e7c",
+  "PUBLIC:perkypet.com:6b6115bf1a0ca224",
+  "PUBLIC:perkypet.com:a1296178ef439397",
+  "PUBLIC:perkypet.com:2553b8d605efcfca",
+  "PUBLIC:perkypet.com:03d7d7045e27677a",
+  "PUBLIC:perkypet.com:ab23856d1fb4e233",
+  "PUBLIC:perkypet.com:ddeb921a8a67648d",
+  "PUBLIC:perkypet.com:65d57c68a25d0691",
+  "PUBLIC:perkypet.com:3c624880f140518b",
+  "PUBLIC:perkypet.com:6ed77eb05e0dfddb",
+  "PUBLIC:perkypet.com:d18ba91801fa5d11",
+  "PUBLIC:perkypet.com:2a0abf6380f2c2df",
+  "PUBLIC:perkypet.com:5dfb0ee21878a835",
+  "PUBLIC:perkypet.com:243cbc23e9915885",
+  "PUBLIC:perkypet.com:880564678dda3364",
+  "PUBLIC:perkypet.com:147d2fd286763371",
+  "PUBLIC:perkypet.com:d3eca1b081beb38a",
+  "PUBLIC:perkypet.com:605962563f5bae2c",
+  "PUBLIC:perkypet.com:d3f448ae43f946cc",
+  "PUBLIC:perkypet.com:ab21c0e739668445",
+  "PUBLIC:perkypet.com:a8f4c3be03977d1d",
+  "PUBLIC:perkypet.com:0082de5617cf63c1",
+  "PUBLIC:perkypet.com:88b26fbbd750dd0d",
+  "PUBLIC:perkypet.com:86d371fb6b351319",
+  "PUBLIC:perkypet.com:f0fcc1b6925a4f2a",
+  "PUBLIC:perkypet.com:acf5bb4b556718d7",
+  "PUBLIC:perkypet.com:5f80e4cf01b9161c",
+  "PUBLIC:perkypet.com:e27e0cb779e54466",
+  "PUBLIC:perkypet.com:2a162d8b541dc0b1",
+  "PUBLIC:perkypet.com:eda4b8c11120e408",
+  "PUBLIC:perkypet.com:da2332a374ab2390",
+  "PUBLIC:perkypet.com:d469fe42e145269e",
+  "PUBLIC:perkypet.com:8a5dbebca8a2a089",
+  "PUBLIC:perkypet.com:20df8c8205e44344",
+  "PUBLIC:perkypet.com:50007f6a35c272d5",
+  "PUBLIC:perkypet.com:bd56461cdba1d486",
+  "PUBLIC:perkypet.com:de19612bd1b20815",
+  "PUBLIC:perkypet.com:4859e60b6acdfb54",
+  "PUBLIC:perkypet.com:db2b8086fa4fd801",
+  "PUBLIC:perkypet.com:2343cdfbb5d4e703",
+  "PUBLIC:perkypet.com:152e31c305b17a3a",
+  "PUBLIC:perkypet.com:7d658d2c8c05de04",
+  "PUBLIC:perkypet.com:9d7a613c5ce416c3",
+  "PUBLIC:perkypet.com:6bbe20f23bc01794",
+  "PUBLIC:perkypet.com:0621d1183185ecf0",
+  "PUBLIC:perkypet.com:961c4125fb364435",
+  "PUBLIC:perkypet.com:4e68e15de550254c",
+  "PUBLIC:perkypet.com:f35037ed087b4fdc",
+  "PUBLIC:perkypet.com:98ccbe384252d6e8",
+  "PUBLIC:perkypet.com:48c3edbc85402f88",
+  "PUBLIC:perkypet.com:42645e722b45cf04",
+  "PUBLIC:perkypet.com:8110f3d2622faff3",
+  "PUBLIC:perkypet.com:3bb734bf80aea80a",
+  "PUBLIC:perkypet.com:b13cda3a59b5b4a7",
+  "PUBLIC:perkypet.com:53458b16b10dcc98",
+  "PUBLIC:perkypet.com:0a9b0b2cbc74b3be",
+  "PUBLIC:perkypet.com:3ddc62fbd1471a66",
+  "PUBLIC:perkypet.com:8cfc6e6f47bd9c8a",
+  "PUBLIC:perkypet.com:e163d5a2cc5f9ad7",
+  "PUBLIC:perkypet.com:41e59572cf24d3b9"
+ ],
+ "rows": [
+  {
+   "sku": "PUBLIC:natureswaybirds.com:7f3be10301bd3e6c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e71478e728d56bfc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5256d3b844de7fae",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b8f83be9fa07d197",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c442e52aa1edb697",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:4f65ac4dbf6741bc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8e3a675a4a9b9b0a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:edf8b28ec5770827",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:18f02374c6a69200",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:41cd4fb37482fcc5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0a10eb646f951c8e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:993c763e21792cf8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:a7940ed1d9907c89",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e75762a3a2a09401",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:a4041ae6cd93b7e3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:737586f919dfd55b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3a4ad5c23e891df7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:de7695dcfb5297d5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:301c38d43abb85d9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b0964832551371cb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:21938a2a1434e312",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9b09882934871c88",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:acf20f44505d5d82",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9e171d145950f45f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1e89abfc0389bd81",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:58c003beac5fcfbe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e6ed1d86d32856d2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:32589d81cfd3ad02",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9ad07c265695c660",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d4cd59ac03d45cd1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3a20812582a23203",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:95fe723e8e161346",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b6a4f30e4de3960c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5b7395499da4c11d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5842b184a58e8091",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5a57dd08f1decc23",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6cd25e07145ae46a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:43fd31cb73cbcd73",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:33347776f6944b16",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:81a181762600f480",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d585ecb4e0292b41",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f7eb028d83d1c648",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:50e2fee6af885cba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b6964a213e549e58",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:62c5b7965d7fbcf2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:4bcf963c05210130",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1f38fd54fed50c75",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:330a8c795832e3a7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5722c203f34e69da",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:fc5ded1b9ae742e3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0c41bb6770463f85",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:2b2963dba416fab3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:66467f3ea5049bb9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f7448823d34154dd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d808d6da8f1ce0ef",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:77aba1cbcfc41cb2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:557b8a9e8d64b9e5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e64acd08c78a6dc7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d632bbfd8acd76c5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:aca9c480445e4e56",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0bd90cbcad1e0f97",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b49a7988f8890a0e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f81a00e6720b0719",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ac06135c748acbcb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5374a69b95d8d1d2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e7d2175d3b8ba770",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f3ae82fa8d6a5bb2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:749b5eaef886c797",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c041e75dea30af2f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:4b15ff97413f448e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3e39838f52f792a7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:436c99a371d05ea4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1d727d670bcb545f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e408b348289c6cc6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d000cd8b6e6f7588",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5eac624e566a24bc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:15048249250492e9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:cc8ef63124e53a70",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9b16e4de24b63346",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:7a755db2dfee79c6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:2dd80a20280c8248",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:66ad852a068bf9d5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8d5d698a8a4099c4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:85a98a6b974bda2b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:12d1232696187086",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:dd2acfc67d65f028",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9f2f5723405ab1f9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ecf5b5b0d7c597a6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f884ff990f1f053e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:af76c41af6b7ebc5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e897b7e7b031192a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d1024ad83b215be7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3eef0bc63c179761",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote names only feeder hardware (glass nectar container, flower ports, capacity) and evidences no bird; the staged manufacturer Dimensions line stating 'Attracts: Hummingbirds' is the positive bird-scope evidence and must anchor the species basis"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:natureswaybirds.com:3eef0bc63c179761",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Bird"
+     }
+    ],
+    "rationale": "Complete hummingbird-nectar feeder hardware (title: Scarlet Swirl Glass Gravity Hummingbird Feeder); member of wild-bird-feeders, not a consumable and not a part. Species Bird per frozen invariant (evidence attracts birds/hummingbirds). food-form no-fit: sold item is empty feeder hardware, not Dry/Wet/Treat/Seed Blend/Block/etc. packaging-type insufficient: evidence gives feeder capacity, never a primary package form (Bag/Can/Box/Tray/Pouch/Bottle/Jar/Pail/Tub/Individual).",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Scarlet Swirl Glass Gravity Hummingbird Feeder",
+      "locator": "https://www.natureswaybirds.com/products/scarlet-swirl-gravity-hummingbird-feeder-20-oz-model-tgf4",
+      "reason": "Title names the sold item as feeder hardware; a complete feeder is a member of wild-bird-feeders."
+     },
+     {
+      "targetId": "species",
+      "quote": "Dimensions: Feeder 7.5\"H x 6.5\"W x 6.5\"D Weight: 1.17 lbs Capacity: up to 20 oz Feed to Use: Nectar Attracts: Hummingbirds",
+      "locator": "https://www.natureswaybirds.com/products/scarlet-swirl-gravity-hummingbird-feeder-20-oz-model-tgf4 JSON-LD Product + product-description#excerpt-4",
+      "reason": "Manufacturer Dimensions line states the feeder attracts hummingbirds (birds), consistent with the Bird invariant; species is from manufacturer description, not UGC or held-feed ingredient analogy."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "ATTRACTIVE CLASSIC DESIGN: High quality glass nectar container with intricate design, 5 flexible flower shaped feeding ports, 20 oz.",
+      "locator": "https://www.natureswaybirds.com/products/scarlet-swirl-gravity-hummingbird-feeder-20-oz-model-tgf4 JSON-LD Product + product-description#excerpt-0",
+      "reason": "Evidence describes the SOLD ITEM as feeder hardware (reservoir/tray/cage), not an ingestible food; held nectar/seed must not supply food-form, so no controlled food-form value applies."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ff4e06e5ecc7fe40",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote names only feeder hardware (glass nectar container, flower ports, capacity) and evidences no bird; the staged manufacturer Dimensions line stating 'Attracts: Hummingbirds' is the positive bird-scope evidence and must anchor the species basis"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:natureswaybirds.com:ff4e06e5ecc7fe40",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Bird"
+     }
+    ],
+    "rationale": "Complete hummingbird-nectar feeder hardware (title: Charming Cherry Glass Gravity Hummingbird Feeder); member of wild-bird-feeders, not a consumable and not a part. Species Bird per frozen invariant (evidence attracts birds/hummingbirds). food-form no-fit: sold item is empty feeder hardware, not Dry/Wet/Treat/Seed Blend/Block/etc. packaging-type insufficient: evidence gives feeder capacity, never a primary package form (Bag/Can/Box/Tray/Pouch/Bottle/Jar/Pail/Tub/Individual).",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Charming Cherry Glass Gravity Hummingbird Feeder",
+      "locator": "https://www.natureswaybirds.com/products/charming-cherry-gravity-hummingbird-feeder-13-oz-model-tgf3",
+      "reason": "Title names the sold item as feeder hardware; a complete feeder is a member of wild-bird-feeders."
+     },
+     {
+      "targetId": "species",
+      "quote": "Dimensions: Feeder 7\"H x 5.5\"W x 5.5\"D Weight: 0.86 lbs Capacity: up to 13 oz Feed to Use: Nectar Attracts: Hummingbirds",
+      "locator": "https://www.natureswaybirds.com/products/charming-cherry-gravity-hummingbird-feeder-13-oz-model-tgf3 JSON-LD Product + product-description#excerpt-5",
+      "reason": "Manufacturer Dimensions line states the feeder attracts hummingbirds (birds), consistent with the Bird invariant; species is from manufacturer description, not UGC or held-feed ingredient analogy."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "ATTRACTIVE CLASSIC DESIGN: High quality glass nectar container with intricate design, 4 flexible flower shaped feeding ports, 13 oz.",
+      "locator": "https://www.natureswaybirds.com/products/charming-cherry-gravity-hummingbird-feeder-13-oz-model-tgf3 JSON-LD Product + product-description#excerpt-0",
+      "reason": "Evidence describes the SOLD ITEM as feeder hardware (reservoir/tray/cage), not an ingestible food; held nectar/seed must not supply food-form, so no controlled food-form value applies."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8f4874c06805a377",
+   "verdict": "revise",
+   "issues": [
+    "species basis quote names only feeder hardware (glass nectar container, flower ports, capacity) and evidences no bird; the staged manufacturer Dimensions line stating 'Attracts: Hummingbirds' is the positive bird-scope evidence and must anchor the species basis"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:natureswaybirds.com:8f4874c06805a377",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "wild-bird-feeders"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Bird"
+     }
+    ],
+    "rationale": "Complete hummingbird-nectar feeder hardware (title: Ribbed Rose Glass Gravity Hummingbird Feeder); member of wild-bird-feeders, not a consumable and not a part. Species Bird per frozen invariant (evidence attracts birds/hummingbirds). food-form no-fit: sold item is empty feeder hardware, not Dry/Wet/Treat/Seed Blend/Block/etc. packaging-type insufficient: evidence gives feeder capacity, never a primary package form (Bag/Can/Box/Tray/Pouch/Bottle/Jar/Pail/Tub/Individual).",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Ribbed Rose Glass Gravity Hummingbird Feeder",
+      "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5",
+      "reason": "Title names the sold item as feeder hardware; a complete feeder is a member of wild-bird-feeders."
+     },
+     {
+      "targetId": "species",
+      "quote": "Dimensions: Feeder 10\"H x 6.5\"W x 6.5\"D Weight: 1.5 lbs Capacity: up to 28 oz Feed to Use: Nectar Attracts: Hummingbirds",
+      "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-4",
+      "reason": "Manufacturer Dimensions line states the feeder attracts hummingbirds (birds), consistent with the Bird invariant; species is from manufacturer description, not UGC or held-feed ingredient analogy."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "ATTRACTIVE CLASSIC DESIGN: High quality glass nectar container with intricate design, 7 flexible flower shaped feeding ports, 28 oz.",
+      "locator": "https://www.natureswaybirds.com/products/ribbed-rose-gravity-hummingbird-feeder-28-oz-model-tgf5 JSON-LD Product + product-description#excerpt-0",
+      "reason": "Evidence describes the SOLD ITEM as feeder hardware (reservoir/tray/cage), not an ingestible food; held nectar/seed must not supply food-form, so no controlled food-form value applies."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5acb61320784492f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6c154ef7a2b7bbd0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:614691350063b7a0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:05c4ce24d5eabff4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:fd402799a080bc74",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:3192ce9c3883eccb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6dafbde3f59f9299",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:037f39c3c9d63bbe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:398a0493ab63bda4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6b01a49855135993",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0db4aebd62f4968a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9552cbd8c438092c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:9f3bbc3016b8ba15",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:2f6ebc96643549da",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:84c6fa02991c36b0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:df7bde0e7fef6205",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:0d4757c68b0e3b6a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:277d456cbd7f51d4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:973af8b5e22f911a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1ed8ff8d1730f253",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:37d85953048373bf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:23493d78c453d4d7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:013ff8f78c188c06",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6628229df972d6a3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b6bd37a43fb14f35",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:4245c818b12319e0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:aeb4fe7349ca79ff",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b41916b1ca73949d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e4a6b3cd8bd3c703",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:56d4e2eee83fdd48",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:daf1674f54114aeb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:23740ee529c02910",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f42c3f692d78988c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:346879154f090ed6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:cad9832ecad45cca",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8b06b82cd55378e2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:211dc93ba5a7ffe6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:cc8a995e642e68d7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:48232873e962696a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ae83cf84ca13c08e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:70baa69974ef1132",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:09b0c41b59ff22c8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f62e94c9bd137242",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8ddc2c8fe0c723d3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:fcea145bddd35cba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:331db20e8a9c2c63",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:de94e7a8124f236d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:dd81bc52b0971020",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:6bbe915b90f5dbc2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:daec0dbe2d7fa1bb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8bbe2c294785bf74",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c208151161f0df7c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ee0c965e49daf428",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:dbf63a5778c32bf3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:cee20631fd85c40c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:73e57def6a72e223",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:fcb8d78523447106",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e45e9d78dd1c28f0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:20033cdce3d3f742",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c3ce7c69fc128443",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c72c1f455b7263fb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b64bcf1599d0f28b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d7970552b82ae447",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:44164853b8465459",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:53824df7f605295b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:8d1280b653ef76b6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c506b1a1b6973cec",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ec428db56e886471",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:20645c6274536f36",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e5b56d7f3b08e08e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:5d64ca6aa3ab01a7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:36b0011b81cfca4d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ac6db970541eab83",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ea2e88d904a2dfe0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:bf58c2c32007e189",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:f8f288a44d152bac",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:49e6cb464e76be67",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1a8d57bc2a35f68e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:892065717dc7edb1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:aec7710ea1d07b8f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:b17ece32d7a3868b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:c6de097bc13e88c8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:d27be1f633c114e0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:1e24ffd6d11def5f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:e451c4b52a97f5c5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:cb2e388e6b2ff39a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:4427781c893eae41",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:96f4beafa7b45d26",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:natureswaybirds.com:ac78b562233b6e29",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:f0e41a8d02483ec0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:ea2b12cda43eabea",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:b6a2a9c156d015d9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:a0d546c07d4e7e68",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:6363671ff406bc92",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:77d1914d3e327b53",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:92458ee0e12f86f7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:f1e65e45d2229415",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:6077f712de61d694",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:1958367bf965e549",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:b333da83a15bfca5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:87cf9855b1bb2fb1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:e6f6fd82aeb6dc33",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:59d5ed9208de50c4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:f9f0c4f456d8e37f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:4b30b6c146f00a0e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:33b4d0cd7a174d5b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:1c96cc3a8e9eee46",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:c039e04a5e446a88",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:9163bf81ad46b36d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:02ee548474673c3d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:a9c7788ea422ae61",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:969ffff73e4d7b77",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:d7f14dcf1cabe5de",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:3716fc6c7d496e7c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:6b6115bf1a0ca224",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:a1296178ef439397",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:2553b8d605efcfca",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:03d7d7045e27677a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:ab23856d1fb4e233",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:ddeb921a8a67648d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:65d57c68a25d0691",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:3c624880f140518b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:6ed77eb05e0dfddb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:d18ba91801fa5d11",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:2a0abf6380f2c2df",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:5dfb0ee21878a835",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:243cbc23e9915885",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:880564678dda3364",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:147d2fd286763371",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:d3eca1b081beb38a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:605962563f5bae2c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:d3f448ae43f946cc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:ab21c0e739668445",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:a8f4c3be03977d1d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:0082de5617cf63c1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:88b26fbbd750dd0d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:86d371fb6b351319",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:f0fcc1b6925a4f2a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:acf5bb4b556718d7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:5f80e4cf01b9161c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:e27e0cb779e54466",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:2a162d8b541dc0b1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:eda4b8c11120e408",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:da2332a374ab2390",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:d469fe42e145269e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:8a5dbebca8a2a089",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:20df8c8205e44344",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:50007f6a35c272d5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:bd56461cdba1d486",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:de19612bd1b20815",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:4859e60b6acdfb54",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:db2b8086fa4fd801",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:2343cdfbb5d4e703",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:152e31c305b17a3a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:7d658d2c8c05de04",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:9d7a613c5ce416c3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:6bbe20f23bc01794",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:0621d1183185ecf0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:961c4125fb364435",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:4e68e15de550254c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:f35037ed087b4fdc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:98ccbe384252d6e8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:48c3edbc85402f88",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:42645e722b45cf04",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:8110f3d2622faff3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:3bb734bf80aea80a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:b13cda3a59b5b4a7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:53458b16b10dcc98",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:0a9b0b2cbc74b3be",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:3ddc62fbd1471a66",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:8cfc6e6f47bd9c8a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:e163d5a2cc5f9ad7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:perkypet.com:41e59572cf24d3b9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  }
+ ],
+ "counts": {
+  "accept": 267,
+  "revise": 3,
+  "total": 270
+ },
+ "openBlockers": []
+}

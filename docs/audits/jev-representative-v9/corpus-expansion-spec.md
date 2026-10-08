@@ -1,6 +1,6 @@
 # Corpus expansion specification — from 23 to qualification scale
 `docs/audits/jev-representative-v9/corpus-expansion-spec.md`
-Status: SPECIFICATION ONLY — no gold written, no labels invented, no existing artifact touched.
+Status: binding specification; the historical measurements below describe the v9 baseline. A new partial development generation now exists at `../jev-expansion-v2/`; v9 artifacts remain untouched. Qualification remains blocked.
 
 ## 1. The structural fact
 All proportions below are measured against `src/classification/releases/bay-state-v9/`
@@ -12,14 +12,11 @@ The qualification gate floors live in `src/classification/benchmark-qualificatio
 ## 2. Deficits by class
 - **Holdout: 5 → 200 (deficit 195).** Existing holdout is 2 known-type / 2 no-fit / 1 insufficient,
   sealed under v8 and ineligible. Expansion needs a *new unexposed* holdout at the same family-separated
-  discipline: ≥20 classes represented, ≥20 per evaluated class where the class exists.
+  discipline: ≥20 classes represented, ≥20 per evaluated class where the class exists. Taken together these require at least 400 held rows; the separate 200-row aggregate gate is not a relaxation of the class floors.
 - **Dev: 23 → ≥230.** The floors bind the holdout, but a 23-row dev set cannot fit per-capability
   policies or support 20-per-class reporting — target ~10× current, family-separated, no SKU/family
   overlap with holdout or exposure in any prior artifact.
-- **Per-class support is effectively zero for 70 of 74 types.** Current corpus covers 4 type-classes
-  (dog-toys 2, dog-waste-bags 6, grooming 8, pet-beds 0 evaluated? — receipts: byType dog-toys 2,
-  no-fit 7, pet-beds 2, dog-waste-bags 4, grooming 8). Every class outside these four needs ≥20
-  adjudicated rows; the three largest store pools are Food (2,736 PF25), Treats (959), leash/collar/harness (~500).
+- **Baseline support covered only four of 74 configured types.** This is a historical coverage observation, not a requirement to source every configured type. Under the user's relaxed sourcing scope, predeclare at least 20 evaluated classes and meet the 20-row floor for every evaluated class. Uncovered/under-supported classes remain unqualified; inference still considers the full configured candidate universe. Catalog Food/Treats/leash pools are sourcing hypotheses, not gold.
 
 ## 3. Sourcing pool (measured, `product_index`, case-insensitive)
 - Total pool 22,108 (8,427 active + 13,619 draft; 94 rows already `synced`).
@@ -56,8 +53,29 @@ The qualification gate floors live in `src/classification/benchmark-qualificatio
   and is re-evaluated there; the expanded corpus measures it, it does not pre-judge it.
 
 ## 5. Acceptance for the expanded corpus
-Same bar the v9 corpus met, restated at scale: authority tripartite agreement + recomputed
+The expansion requires authority tripartite agreement + recomputed
 producer hash; all review-signed entries with explicit field states; 20-per-class support;
-200-row sealed holdout with no family/stratum overlap; pages with known assignments (current
-corpus is 23/23 unknown — not evaluated); fitted per-capability policies published *before*
+at least 400 newly sealed held rows when 20 classes each require 20 examples, with no family/stratum/exposure overlap; pages with known-complete assignments; fitted per-capability policies published *before*
 holdout inspection; Store Manager canary sign-offs recorded. Until then the blocked verdict stands.
+
+## 6. Current expanded-development evidence
+
+Expansion-v2 contains 967 independently reviewed development products in 901 families:
+685 known-type, 218 genuine no-fit and 64 insufficient-evidence. There are 27
+represented known types, but only 10 meet 20-row support. Eight field states are
+explicit on every row. A fresh generation-specific agent peer receipt binds
+the actual bytes and all 147 integrated review corrections; it recommends NO-FREEZE.
+
+All 967 complete page assignments remain unknown. The 212 verified page IDs/names
+are identity evidence, not closed product-membership gold. Public metadata reports
+309 unlabeled held rows in 15 banks; custody hashes/modes are verified without
+payload inspection. That is below the 400-row necessary minimum and does not
+establish exposure or per-class eligibility.
+
+The actual full-population candidate plan is 3,868 HTTP attempts, above the
+600-attempt replay ceiling. The bounded three-row real-provider diagnostic is
+runtime evidence only, not a policy fit or a representative/cohort evaluation.
+Further product-source capture needs reconciled accounting or a new explicit
+bounded allocation. No gate may be cleared by re-splitting public data, inspecting
+sealed payloads early, clipping candidates, truncating evaluated rows, treating
+engineering thresholds as fitted policies, or counting old/synthetic canaries.

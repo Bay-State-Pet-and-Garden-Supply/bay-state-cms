@@ -1,0 +1,244 @@
+{
+ "artifactKind": "generation-development-peer-receipt",
+ "receiptVersion": 3,
+ "generation": "docs/audits/jev-expansion-v3/",
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "authorityBinding": {
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "release": "bay-state-v9",
+  "catalogGitCommit": "6885a6a4a609b4e6dbf86cd840318e60367a0121",
+  "configHash": "288841b06f6cc2b5a0a82ae319dbdf06fd8314ce6f94c677a8dc1c457bf62965",
+  "capturedAt": "2026-10-06T16:18:15.514Z",
+  "pageImportId": "68d699b2-9c47-439e-87e3-110ef688ec0b",
+  "pageImportHash": "60cdb1235506d36b879fd0b95f1d1578434381f0aae9e2b2973d2739556a15fe"
+ },
+ "recommendation": "NO-FREEZE",
+ "recommendationReason": "Zero substantive defects found across all six verification areas, but standing blockers (class floors, sealed holdout unlabeled, fitted policies/live comparison/human canaries outstanding) remain binding; this agent inspection is not a human approval and makes no qualification claim.",
+ "scope": {
+  "assembly": "986 gold entries all split=dev; 1222 public rows (1088 primary + 134 supplemental) across 19 assembly banks; 998 adjudicated = 979 v2 dispositions with 64 batch3 replacements + 19 novel; 8 dup + 4 service exclusions; labels propagate merged -> development-adjudication -> gold with zero drift; 64/64 enriched rows overlaid with 190 excerpts; pages derived per rev2 packet (849 known-complete / 85 partial-partial / 52 unknown-partial); 137 pageReasons; 38 source files + 9 prior files hash-verified",
+  "excluded": [
+   "builds",
+   "formatters",
+   "git mutation",
+   "human canary approval",
+   "image fetch",
+   "inference",
+   "lint",
+   "live catalog mutation",
+   "network calls",
+   "private holdout payload inspection",
+   "production acceptance",
+   "qualification verdict",
+   "runtime smoke",
+   "signing keys",
+   "tests",
+   "sealed custody payload parsing (Batch1/2, Batch3 *-custody)"
+  ],
+  "fields": [
+   "breed-size",
+   "flavor",
+   "food-form",
+   "fuel-type",
+   "hose-length",
+   "life-stage",
+   "packaging-type",
+   "species"
+  ],
+  "paths": [
+   "docs/audits/jev-expansion-v3/development-manifest.json",
+   "docs/audits/jev-expansion-v3/development-gold.json",
+   "docs/audits/jev-expansion-v3/development-adjudication.json",
+   "docs/audits/jev-expansion-v3/development-support.json",
+   "docs/audits/jev-expansion-v3/taxonomy.json",
+   "docs/audits/jev-expansion-v3/source-development.json",
+   "docs/audits/jev-expansion-v3/excluded-prior-identities.json",
+   "docs/audits/jev-expansion-v3/duplicate-captures.json",
+   "docs/audits/jev-batch3/merged-adjudications.json",
+   "docs/audits/jev-batch3/batch3-adjudications.json",
+   "docs/audits/jev-batch3/novel-dev-19.json",
+   "docs/audits/jev-batch3/enrichment/enrichment-evidence.json",
+   "docs/audits/jev-batch3/assembly-sources/<19 banks>/{source-development,source-development-supplemental,collection-manifest}.json",
+   "docs/audits/jev-expansion-v2/page-rule-packet-rev2.json",
+   "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+   "docs/audits/jev-expansion-v2/source-adjudications.json",
+   "docs/audits/jev-expansion-v1/boundary-rules.md"
+  ]
+ },
+ "counts": {
+  "publicSourceRows": 1222,
+  "priorPublicIdentityExclusions": 224,
+  "adjudicatedRows": 998,
+  "nonProductExclusions": 4,
+  "developmentRows": 986,
+  "developmentFamilies": 919,
+  "duplicateCapturesExcluded": 8,
+  "knownRows": 701,
+  "noFitRows": 221,
+  "insufficientRows": 64,
+  "representedKnownTypes": 28,
+  "classesAtTwentyRows": 10,
+  "completePageGoldRows": 849,
+  "partialPageGoldRows": 137,
+  "unknownPageGoldRows": 0,
+  "pageStatePartial": 85,
+  "pageStateUnknown": 52,
+  "pageRulesApplied": true,
+  "pageRulePacketVersion": "page-rule-packet-v2",
+  "pageRulePacketSha256": "7d69f58129da9199676fc7b40ad6316aa68880f679afee862699ab929e6d35d4",
+  "enrichmentApplied": true,
+  "enrichmentEvidenceSha256": "5c3acb00032c1b243e98ff31d3bd00b8770bdedc9f2fada13118f71dd19e4c07",
+  "enrichmentRowsOverlaid": 64,
+  "enrichmentExcerptsAppended": 190,
+  "qualificationEligibleRows": 0,
+  "fieldStatesInsufficient": 756,
+  "fieldStatesKnown": 730,
+  "fieldStatesInapplicable": 6097,
+  "fieldStatesNoFit": 305,
+  "batch3Entries": 83,
+  "batch3ReAdjudications": 64,
+  "batch3Novel": 19,
+  "insufficientToKnownFlips": 1,
+  "excludedLocatorLeaks": 0,
+  "containmentFindings": 0
+ },
+ "hashCommitments": {
+  "v3-development-manifest": "5d8fef2b9a07e01b522d2bc3903dd089aead3409725affefc70b347090ffd911",
+  "v3-taxonomy": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "v3-source-development": "5fda76a927d7460114a0bb00ec98567287be71f0587aefe33d0c87f98a703483",
+  "v3-development-gold": "ed5b196069cf290fdb5d31c5ec9cc748aede911c8e1e9561305a7a71b806515d",
+  "v3-development-adjudication": "ce33724b32e6a04b016d62bd9674862b304e1b96bfaf6e3ecf22513645768e7c",
+  "v3-development-support": "77d1743aa7476d29d9815680b9634387cfe1920b38b13ec717ce6a66121c0627",
+  "v3-excluded-prior-identities": "55ac62b49cb174fad56a60841b0e2818c407f4468b4d4c9a46bb60c213299323",
+  "v3-duplicate-captures": "6c72a3cd5c1f96bbeb39c2169abf7fef510fdc542539d5316fb9b67602e4af5f",
+  "batch3-merged-adjudications": "4447a7ab749449e28040f7715ae06fac0fc8092a5773226f34369f4f61c42a33",
+  "batch3-batch3-adjudications": "64bae0d4b3d34335c45770242956a5a448b9e8fae9c5d391df5a221da07186c8",
+  "batch3-novel-dev-19": "7bcd21d1bc61fc8587a4adc6257f83f7e365446f7b469c9ae3fefc560bcada93",
+  "batch3-enrichment-evidence": "5c3acb00032c1b243e98ff31d3bd00b8770bdedc9f2fada13118f71dd19e4c07",
+  "packet-page-rule-packet-rev2-whole-file": "7d69f58129da9199676fc7b40ad6316aa68880f679afee862699ab929e6d35d4",
+  "packet-page-rule-packet-rev2-self-hash": "b875e8ba87360d9d6abea5edc4c45f9007d74964cdf92384d40364a38d8557bb",
+  "packet-v1-whole-file": "315606bb7a163b86f0a2b5d1c692b675dd5c794cc2692531908d6c72a637ebf2",
+  "owner-approved-decisions": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "v2-development-adjudication": "3395332f00d1c89cb04b6b0f2906a81fdbb0a6194dfc7fe7b7d7c8dc43061de3",
+  "v2-development-gold": "8ef4383ba29b4111c1545f9b2106e90bb026b900fb9c0af5abf98af73f03c304",
+  "v2-development-manifest": "8badff4ebca19499408d1f2d9fd04ac551be68d6de89aa535989ced3b95d2d37",
+  "v2-development-support": "b12ee8ad397ac9a584fa9a82d8375bc5063c6b29c21c5af434f060899cb3033a",
+  "v2-duplicate-captures": "6c72a3cd5c1f96bbeb39c2169abf7fef510fdc542539d5316fb9b67602e4af5f",
+  "v2-excluded-prior-identities": "55ac62b49cb174fad56a60841b0e2818c407f4468b4d4c9a46bb60c213299323",
+  "v2-review-input-adjudications": "b5f57c149f1912eab6ba4e336e9cf7193a8013b2b41d184252a1d5aa581873dd",
+  "v2-reviews-pet-fit-peer-pass2": "d27489ad70197cc8ed3080eb6f8c48bdefcdece87935ba989d004602c023f3c2",
+  "v2-reviews-aquatic-fit-peer-pass2": "6abf385ffa37ee3ae0ab471f257d1eea517b8ccf816b56dc93d7d049ad8336e0",
+  "v2-reviews-bird-bee-fit-peer-pass2": "f8a802df61568b947103adbded0bae2d9d5f7efc730600ce3bee2bcba8ff5d97",
+  "v2-reviews-garden-fit-peer-pass2": "83b3bc0abc7db89f21d6e86f114441f26caa8814d7bcb52e231e839e53da02e2",
+  "v2-reviews-equine-fit-peer-pass2": "18a84b705d63ea737f83982fde0b1f4f09b2624689b8c3ff834d095e8d602cae",
+  "v2-source-adjudications": "70f93bf082ee805a5c313fef416bb95608e10f6745ca4ee8e6b26717f69b6bc5",
+  "v2-source-development": "8622b357793e737117de2cca9905bee9efd64a0a0da6335fe22faee2d13df242",
+  "v2-taxonomy": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0"
+ },
+ "areas": {
+  "assembly": {
+   "verdict": "pass",
+   "detail": "v3 manifest declaredInputs sha256 match all 7 file bytes. Public rows 1222 = 1088 primary + 134 supplemental across 19 banks (beco/earthborn/nutrisource empty as in v1). Adjudicated 998 = 979 v2 + 19 novel with exact SKU-set equality (0 dropped, 0 extra). 64/64 replaced entries equal batch3 versions; 19/19 novel equal batch3; 915/915 carried equal v2. development-adjudication (998) label content equals merged on all 998 (dev adds bank/sourceHash/sourceFamilyId provenance only). Gold 986 = 998 - 8 dup - 4 service; all 8 dup SKUs absent with retainers present; 4 service exclusions (earthbath shipment protection, 2 mywoof + 1 naturesway gift cards) carry explicit non-product excludeReasons. Gold families 919; split 701/221/64; 28 known types; 10 known-type classes >=20 (12 incl. abstention kinds); field states 756/730/6097/305 exact; classSupport rows exact for all 30 classes. Prior exclusions 224, byte-identical to v2, disjoint from adjudicated SKUs. Gold SKUs == source SKUs. Authority hash consistent in all hashing artifacts (novel-dev-19 and enrichment-evidence carry no authorityHash field by construction)."
+  },
+  "overlay": {
+   "verdict": "pass",
+   "detail": "Evidence sha matches commitment; 64/64 rows enriched=true with 190 excerpts; manifest overlay SKU set identical; 190/190 appended locators match v3 row tails in order; bank base bytes preserved exactly (0 base drift, 0 family drift); repeated locators map to distinct excerpt texts (no exact-dupe excerpts); max 18 excerpts per row (schema cap 20 respected); provenance recorded per SKU (sku/bank/locators + evidence sha). Non-enriched rows byte-equal to bank rows (11/11 spot + full count reconciliation 1222-224-8-4=986)."
+  },
+  "pages": {
+   "verdict": "pass",
+   "detail": "Packet rev2: whole-file sha 7d69f581 matches all four artifact commitments; self-hash b875e8ba recomputed per loader trailing-block-excision semantics; decisions sha 3d0263fd verified; 212 rules (139 eligible / 73 excluded / 0 unresolved); 19/19 appliedDecisions, required empty; maxPagesPerProduct 4 bound both sides. Gold distribution recomputed: 849 known-complete / 85 partial-partial / 52 unknown-partial; 22/22 hand derivations match gold (14 known-complete incl. no-fit/insufficient empty, 4 partial cap-clip, 4 unknown species-gated); all 221 no-fit + 64 insufficient known-complete-empty; cap-4 respected; no partial-empty/unknown-nonempty violations. Manifest/support partialPageGoldRows=137/unknownPageGoldRows=0 is assembler-defined completeness bucketing (build-jev-expansion-corpus.ts:290-292: partial=completeness partial; unknown=residual), so 137=85+52 and 0 residual are arithmetically exact under that definition; state-level split documented in this receipt (pageStatePartial 85 / pageStateUnknown 52)."
+  },
+  "citations": {
+   "verdict": "pass",
+   "detail": "All 83 batch3 entries bind under assembler citation semantics (build-jev-expansion-corpus.ts:239-244): 123 basis citations checked; 96 resolve to exact excerpt locator + verbatim quote; 27 use admissible title-locator forms (24 oxbow #title, 3 wellness bare canonical URL) with quotes byte-present in row titles \u2014 all 27 pass the assembler's own titleLocator+matchesTitle predicate, and v2 carried identical #title precedent (e.g. oxbow 83c4e484379d610d) under a verified receipt. Excluded-locator leaks 0 (smartpak v2+batch3 union respected; citations use non-excluded excerpts). Overlay resolution: 1 citation (kong b258b750 species) resolves v3-only via appended enrichment excerpt as designed; all others resolve both pre- and post-overlay with zero drift. 19/19 novel SKUs placed in p1-public (10+1 supplemental) / p3-public / m2-public / m8-public banks."
+  },
+  "labels": {
+   "verdict": "pass",
+   "detail": "All 83 entries adjudicated against frozen v9 taxonomy + boundary-rules.md + leash-clip brief: 82 PASS, 1 NOTE (stale identityIssues annotation on the flip SKU, label unaffected). No boundary-rule triggers in slice; all known values canonical (Dog, Dry Food, Treat, Beef, Small); flavor no-fit on Turkey+Chicken pairs and breed-size/life-stage insufficient follow carried single-select convention; 63 retained abstentions uniformly refuse brand-knowledge/UGC/wordplay/form-without-species inferences. Flip row kong b258b750797a14bd (insufficient -> dog-toys/Dog) verified justified by explicit enrichment species evidence with sound variant-sibling discipline. Forced-fit sweep: none found. Propagation spot-check on 10 carried SKUs: v2=merged=gold label equality (full 8-state on 4, kind-level + merged reads on 6)."
+  },
+  "immutability": {
+   "verdict": "pass",
+   "detail": "All 15 v2 files bound in development-peer-receipt.json recompute to identical sha256; v3 taxonomy/excluded-prior/duplicate-captures byte-identical to v2 (cmp clean); v2 bound-file mtimes (05:09-06:12) predate v3 assembly (12:18); 15/15 v1 bank dirs byte-identical under assembly-sources (45/45 files hash-equal); 38/38 development-adjudication sourceFiles + 9/9 priorFiles hash-verified; sourceAdjudicationSha256 binds merged-adjudications exactly."
+  },
+  "containment": {
+   "verdict": "pass",
+   "detail": "Zero non-PUBLIC SKUs in v3 source/gold/adjudication; zero custody-window markers; all gold splits dev; novel bank rows match stage-record novelDevByStage (P1=11 incl. 1 supplemental, P3=1, M2=3, M8=4); no sealed-custody payload bytes parsed in this review."
+  }
+ },
+ "findings": [
+  {
+   "topic": "page-bucket-semantics",
+   "severity": "observation",
+   "detail": "Manifest/support partialPageGoldRows=137/unknownPageGoldRows=0 follows assembler completeness bucketing (build-jev-expansion-corpus.ts:290-292), not gold state bucketing; 137=85 partial-state + 52 unknown-state rows, 0 residual. Arithmetically exact under that definition; consumers reading state-level unknowns must use this receipt's pageStatePartial=85/pageStateUnknown=52. No gold, packet, or derivation defect."
+  },
+  {
+   "topic": "stale-flip-annotation",
+   "severity": "observation",
+   "detail": "PUBLIC:kongcompany.com:b258b750797a14bd identityIssues still reads ['no species token in captured title/excerpts; primary scope unclear'] in batch3-adjudications, merged-adjudications, and development-adjudication while the entries' own rationale+basis state enrichment resolved the species gap. Human-readable annotation only; labels, citations, and pages unaffected. Expected: clear or convert to a resolved-gap provenance note at next regeneration."
+  },
+  {
+   "topic": "title-citation-methodology",
+   "severity": "observation",
+   "detail": "27 batch3 basis citations (24 oxbow product-type #title, 4 wellness flavor/breed-size bare-URL across 3 rows) bind via the assembler's admissible title-locator path, not excerpt locators; an excerpt-only binding check false-positives on all 27. All pass the assembler's titleLocator+matchesTitle predicate with byte-exact title quotes, and v2 carried identical #title precedent under a verified receipt. No citation defect."
+  },
+  {
+   "topic": "smartpak-evidence-limitations",
+   "severity": "observation",
+   "detail": "Carried from v2 receipt (unchanged, parent-owned): smartpak staged source.evidenceLimitations claims 'official manufacturer product page' for retailer rows; false at source level for both batch3 smartpak rows (84866e619a6b75f8, 9957f401db23876c). Raw text preserved byte-identical to bank capture; gold evidence correctly uses third_party_page/medium. No v3 regression."
+  },
+  {
+   "topic": "coverage-gaps",
+   "severity": "observation",
+   "detail": "D-RAW-SCOPE/D-CAT-RAW raw-form boundary unexercised (zero gold rows carry Frozen Raw or Freeze-Dried Raw food-form); D-BOOTS exact-brand and D-FENCE coassign pages have zero gold assignees; no open-completeness rules exist so the open-reason path is unexercised. Recommend a targeted fixture if those paths need receipt coverage. Not defects."
+  }
+ ],
+ "unresolvedBlockers": [
+  "Class floors unmet: 18 of 28 represented known types below 20 rows; absent/under-supported classes not silently qualified.",
+  "Sealed source custody (Batch1/2 + Batch3 ~104 ghost recaptures requiring distinct-family dedupe at unseal) is unlabeled/uninspected bytes, not qualified holdout gold; held-row minimums unverified by this receipt.",
+  "Fitted per-capability policies, live comparison, and human canaries remain required; this agent receipt is not human approval.",
+  "SmartPak staged evidenceLimitations producer string still false at source level; parent-owned fix outstanding (carried from v2).",
+  "No qualification claims made; qualificationEligibleRows=0."
+ ],
+ "verifiedAssertions": {
+  "allSplitDev": true,
+  "authorityHashConsistent": true,
+  "canonicalValuesAdmissible": true,
+  "citationsBindExactLocatorOrAdmissibleTitleAndVerbatimText": true,
+  "classSupportRowsFamiliesFloorsExact": true,
+  "duplicateRetainersSourceOnlyEarliestRetrieval": true,
+  "eligibilityProfileInvariantUniversalOnly": true,
+  "enrichmentOverlayExact64Rows190Excerpts": true,
+  "excludedClipsAbsentFromGoldEvidence": true,
+  "excludedLocatorLeaksZero": true,
+  "familyIdsPreserved": true,
+  "fieldStateCountsExact": true,
+  "flipRowJustified": true,
+  "goldSourceSkuSetsEqual": true,
+  "knownCountsExact": true,
+  "labelsPropagateWithZeroDrift": true,
+  "manifestDeclaredShasMatch": true,
+  "mergeSkuSetsExactNoDroppedNoExtra": true,
+  "noFitInsufficientPagesCompleteEmpty": true,
+  "novelRowsPlacedInBatch3Banks": true,
+  "packetSelfHashAndBindingsVerified": true,
+  "pageDistributionRecomputed849_85_52": true,
+  "pageHandDerivationsMatch22of22": true,
+  "priorExclusionsDisjointAndMatched": true,
+  "priorFilesShasVerified": true,
+  "rawSourceIdentityByteIdentical": true,
+  "rowFamilyTypeCountsExact": true,
+  "sourceFilesShasVerified38of38": true,
+  "taxonomyByteIdenticalToV2": true,
+  "v15BankDirsUnchanged45of45": true,
+  "v2BytesUnchanged15of15": true,
+  "zeroContainmentFindings": true
+ },
+ "peerPerformed": true,
+ "humanApproval": false,
+ "inspectionIdentity": {
+  "kind": "agent",
+  "agent": "V3PeerReview"
+ },
+ "modelCalls": 0,
+ "networkCalls": 0,
+ "status": "peer-reviewed-development-only-NO-FREEZE"
+}

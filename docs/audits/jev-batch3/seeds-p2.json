@@ -1,0 +1,14 @@
+[
+  {
+    "domain": "stellaandchewys.com",
+    "brand": "Stella & Chewy's",
+    "stratum": "food",
+    "sourceRule": "official sitemap + product pages (Batch3 P2: dog-food-wet + cat-treats deficits)"
+  },
+  {
+    "domain": "instinctpetfood.com",
+    "brand": "Instinct",
+    "stratum": "food",
+    "sourceRule": "official sitemap + product pages (Batch3 P2: dog-food-wet + cat-treats deficits)"
+  }
+]

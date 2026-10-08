@@ -1,0 +1,1740 @@
+{
+  "artifactKind": "already-public-enrichment-evidence",
+  "scope": "same exact public URLs only; never new independent support or held candidacy",
+  "packetPath": "docs/audits/jev-expansion-v2/insufficient-type-enrichment-targets.json",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "rows": [
+    {
+      "sku": "PUBLIC:earthanimal.com:016d0082f8541b23",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried Holiday Feast Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "6e220c8adff0476c4546027c9c3830837472acc2ac57302174cdeb64ca65fe9c",
+      "retrievedAt": "2026-10-08T12:08:09.634Z",
+      "excerpts": [
+        {
+          "text": "Celebrate the season with Wisdom Holiday Feast Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding, or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-holiday-feast-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:cadaae91a3e8ddbf",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried Pumpkin Spice Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "9f2b753d1433b09a64e5dcf2094988de08b944e2ba41e8d4f12ac7a91eac72f1",
+      "retrievedAt": "2026-10-08T12:08:10.030Z",
+      "excerpts": [
+        {
+          "text": "Celebrate the season with Wisdom Pumpkin Spice Jerky, a limited-time treat made with real ingredients and irresistible flavor.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding, or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-pumpkin-spice-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:8b7272b268a3e898",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried From the Soil Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "d434b674deee6c88e833d0f4b47c2d8f649e040ea5c38ece06c5c236d7b15110",
+      "retrievedAt": "2026-10-08T12:08:10.687Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom From the Soil Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-soil-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:b740df811b848a07",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried From the Seed Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "389c8e9408c13776a37c02130e817a41dac575328b83badea1afed7f08190842",
+      "retrievedAt": "2026-10-08T12:08:11.204Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom From the Seed Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-seed-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:dc3698163612a1e0",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried From the Land Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "a46bb5f2ee8945435aab23f45ef19690d144b1f43bb3983cb530a89bbc77aa07",
+      "retrievedAt": "2026-10-08T12:08:11.703Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom From the Land Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-land-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:44ce687ddcb30cd0",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried Chicken Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "fc052e816bd3d5bbeb66781a242ac748a4cc7484c7215eaef99eca1b17bbbcd8",
+      "retrievedAt": "2026-10-08T12:08:12.107Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom Chicken Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-chicken-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:9e4b443662444d99",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/skin-herbal-relief",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Skin Herbal Relief",
+      "brand": "Earth Animal",
+      "sourceHash": "7186fbf63883619d4b157ab3118a1a2d8af898027c14204c4e4b8025548ac915",
+      "retrievedAt": "2026-10-08T12:08:12.468Z",
+      "excerpts": [
+        {
+          "text": "Formulated by Dr.",
+          "locator": "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description"
+        },
+        {
+          "text": "Bob Goldstein and our Master Herbalist in Vermont to help gently support dogs and cats during times of skin irritation, hot spots, wounds, dryness, and environmental discomfort.",
+          "locator": "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description"
+        },
+        {
+          "text": "Thoughtfully crafted with soothing botanicals traditionally used to calm, protect, and support the skin's natural healing and renewal.",
+          "locator": "https://earthanimal.com/products/skin-herbal-relief#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "route of administration unstated in captured title/excerpts: no topical-application or ingestible-dosing language, so grooming vs supplements membership unresolvable; dual 'dogs and cats' scope also unrepresentable on single-select species if typed"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:c0f52f6dfe319cdf",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried From the Air Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "860b44b9c0ea5de6c6495ae773367ec1deb7ec08892c308af7d7bfd79d9c92a6",
+      "retrievedAt": "2026-10-08T12:08:12.976Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom From the Air Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-from-the-air-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:cf237f552509710d",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/puzzle-treats",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Chicken Woof Puzzle Treats",
+      "brand": "Woof",
+      "sourceHash": "f36c8d3bfe37dc093bfdccdb2db71930086536b6d62390bf17523513ff5d34b1",
+      "retrievedAt": "2026-10-08T12:08:13.860Z",
+      "excerpts": [
+        {
+          "text": "The perfect match for Woof puzzle toys, these irresistible treats fuel long-lasting fun.",
+          "locator": "https://mywoof.com/products/puzzle-treats#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:aee00d09d5e6f623",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/chicken-love-nuggets",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Chicken Love Nuggets",
+      "brand": "Woof",
+      "sourceHash": "ef3855e04b189ba1a75c9f625c202867453ba00dcba1327ea02b14c8e2db3417",
+      "retrievedAt": "2026-10-08T12:08:15.314Z",
+      "excerpts": [
+        {
+          "text": "Training treats for your on-the-go adventures!",
+          "locator": "https://mywoof.com/products/chicken-love-nuggets#jsonld-primary-product-description"
+        },
+        {
+          "text": "High in protein, and made in the USA with human-grade ingredients.",
+          "locator": "https://mywoof.com/products/chicken-love-nuggets#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:30e63188938026ab",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/lickwells-pumpkin",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Pumpkin Butter LickWells",
+      "brand": "Woof",
+      "sourceHash": "dc2ff041697cfb795f67f94d17ab96c1d17b6abf3a0e4e3313c50350653d3bb6",
+      "retrievedAt": "2026-10-08T12:08:16.837Z",
+      "excerpts": [
+        {
+          "text": "A ready-to-lick squeezable spread made with real pumpkin and wholesome superfoods.",
+          "locator": "https://mywoof.com/products/lickwells-pumpkin#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:e4d71d655c117314",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/bully-sticks",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Free Range Bully Sticks",
+      "brand": "Woof",
+      "sourceHash": "a2de3fbccd754265c8520983ed4c540191feb15e3dedfc5cea92d75e4e1737ba",
+      "retrievedAt": "2026-10-08T12:08:17.536Z",
+      "excerpts": [
+        {
+          "text": "More chew for your buck!",
+          "locator": "https://mywoof.com/products/bully-sticks#jsonld-primary-product-description"
+        },
+        {
+          "text": "Free-range, grass-fed BullySafe Bully Sticks at a great price for extra tasty chew time.",
+          "locator": "https://mywoof.com/products/bully-sticks#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:cb10e730d4cb8125",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/pupsicle-pops",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Pupsicle Pops",
+      "brand": "Woof",
+      "sourceHash": "dca619f74ec55e4bb5e78ae93f57522c1c717ad4a937c6e84f0bfb0b15ba19b2",
+      "retrievedAt": "2026-10-08T12:08:18.202Z",
+      "excerpts": [
+        {
+          "text": "Our longest-lasting treats for The Pupsicle.",
+          "locator": "https://mywoof.com/products/pupsicle-pops#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made in the USA with high-quality ingredients.",
+          "locator": "https://mywoof.com/products/pupsicle-pops#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:e31179bcbdd141e3",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/allergy-immunity-pops",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Allergy & Immunity Pops",
+      "brand": "Woof",
+      "sourceHash": "7a3f1da382441bde90030bfb1d2cf2119e5f8d033b5c475e71a054c9365a2e52",
+      "retrievedAt": "2026-10-08T12:08:19.598Z",
+      "excerpts": [
+        {
+          "text": "Long-lasting play boosted with essential nutrients for seasonal allergy relief and natural immune support.",
+          "locator": "https://mywoof.com/products/allergy-immunity-pops#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:54834d058d70426f",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/hip-joint-pops",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Hip & Joint Pops",
+      "brand": "Woof",
+      "sourceHash": "3423a51d85d13bb18095b27ef1b082d3b6e1106f4f31e26ce9d5f0db70c90934",
+      "retrievedAt": "2026-10-08T12:08:21.100Z",
+      "excerpts": [
+        {
+          "text": "Long-lasting play boosted with the research-backed actives to support joint health, recovery, and mobility.",
+          "locator": "https://mywoof.com/products/hip-joint-pops#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; treat/supplement primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:f6f62e8ad3a51b19",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/pops-mix-pack",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Pupsicle Pops: Mix Pack",
+      "brand": "Woof",
+      "sourceHash": "4e86fa012fb826ea84690890fba34c75df439bf784e588ab37f3d656d94aff42",
+      "retrievedAt": "2026-10-08T12:08:21.948Z",
+      "excerpts": [
+        {
+          "text": "Our longest-lasting treats for The Pupsicle.",
+          "locator": "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made in the USA with human-grade ingredients.",
+          "locator": "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Save 10% per bag and try out both our beef and chicken Pop flavors with this mixed 2 pack.",
+          "locator": "https://mywoof.com/products/pops-mix-pack#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:1c7b5985537469e4",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/beef-pupsicle-pops-2-pack",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Beef Pops: 2 Pack",
+      "brand": "Woof",
+      "sourceHash": "635879545f6f27e8ad8e627a58e8ab9eed75fdc1dbbe4b2c8474040a2026e7c6",
+      "retrievedAt": "2026-10-08T12:08:22.587Z",
+      "excerpts": [
+        {
+          "text": "Our longest-lasting treats for The Pupsicle.",
+          "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made in the USA with human-grade ingredients.",
+          "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Save 10% per bag with this 2 pack!",
+          "locator": "https://mywoof.com/products/beef-pupsicle-pops-2-pack#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:091cf2b7009cabc2",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/super-strips",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Super Strips",
+      "brand": "Woof",
+      "sourceHash": "f897e3fe36ff87cb78b77b77c1b5c7e5059df01563497f392ec2d6aa1805de1d",
+      "retrievedAt": "2026-10-08T12:08:23.355Z",
+      "excerpts": [
+        {
+          "text": "Protein-rich MyWoof™️ Super Strips - treats for training, boosting a meal, or just because!",
+          "locator": "https://mywoof.com/products/super-strips#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made in the USA by family-owned producers.",
+          "locator": "https://mywoof.com/products/super-strips#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:earthanimal.com:0974b6189bf7c01c",
+      "bank": "pilot",
+      "canonicalUrl": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wisdom Air-Dried Turkey Recipe Jerky",
+      "brand": "Earth Animal",
+      "sourceHash": "ef497051da5ded80c51bab768f85dbd87c17b8fa3d81bbb9f75006588b69762c",
+      "retrievedAt": "2026-10-08T12:08:23.793Z",
+      "excerpts": [
+        {
+          "text": "Our Wisdom Turkey Jerky treats with the same core ingredients as our gut-first Wisdom Air-Dried food.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky#jsonld-primary-product-description"
+        },
+        {
+          "text": "Perfect for training, rewarding or just because.",
+          "locator": "https://earthanimal.com/products/wisdom-air-dried-turkey-recipe-jerky#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:24090d9d0cd56b77",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/woof-puzzle-treats-beef",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Beef Woof Puzzle Treats",
+      "brand": "Woof",
+      "sourceHash": "07886aed10aafa05de43fa3875a1c7a3aa62ab9dc2cd0cc69ab00dda08fdfe40",
+      "retrievedAt": "2026-10-08T12:08:24.523Z",
+      "excerpts": [
+        {
+          "text": "The perfect match for Forager puzzle toys, these irresistible treats fuel long-lasting fun.",
+          "locator": "https://mywoof.com/products/woof-puzzle-treats-beef#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:6f384e1ea6e24426",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/love-nuggets",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Beef Love Nuggets",
+      "brand": "Woof",
+      "sourceHash": "aa252a070f90da2c6e3678fba4d8774ae08b23a64ef73fc03dca845eefd55954",
+      "retrievedAt": "2026-10-08T12:08:25.225Z",
+      "excerpts": [
+        {
+          "text": "Training treats for your on-the-go adventures!",
+          "locator": "https://mywoof.com/products/love-nuggets#jsonld-primary-product-description"
+        },
+        {
+          "text": "High in protein, and made in the USA with human-grade ingredients.",
+          "locator": "https://mywoof.com/products/love-nuggets#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:mywoof.com:a1549e7b54aa6db4",
+      "bank": "pilot",
+      "canonicalUrl": "https://mywoof.com/products/chicken-pops-2pack",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Chicken Pops: 2 Pack",
+      "brand": "Woof",
+      "sourceHash": "42846b0bee09e0dc202f10b485f9c4a20d36d8ad0a8c56ddcf2b7eb464b211eb",
+      "retrievedAt": "2026-10-08T12:08:26.133Z",
+      "excerpts": [
+        {
+          "text": "Our longest-lasting treats for The Pupsicle.",
+          "locator": "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made in the USA with human-grade ingredients.",
+          "locator": "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description"
+        },
+        {
+          "text": "Save 10% per bag with this 2 pack!",
+          "locator": "https://mywoof.com/products/chicken-pops-2pack#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:bf8d0902fec10f64",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/dr-noyz-teddy-bear/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Dr. Noyz Teddy Bear",
+      "brand": "KONG",
+      "sourceHash": "1c8b11f654986c26135f081ea57273c53045925dca9437b57c83528ed3df4f6c",
+      "retrievedAt": "2026-10-08T12:08:26.847Z",
+      "excerpts": [
+        {
+          "text": "The KONG Dr.",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Noyz Teddy Bear is full of playtime fun that can be varied depending on mood with a removable squeaker.",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description"
+        },
+        {
+          "text": "It also has minimal stuffing for less mess make cuddle time or play time a delight for all involved.",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description"
+        },
+        {
+          "text": "It also includes an extra squeaker to make sure those more active play sessions can last longer.",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description"
+        },
+        {
+          "text": "A soft cuddly exterior make this toy great for cuddle time as well.",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Less stuffing for less mess Long shape for shaking and thrashing fun Removable squeaker for quiet play Extra squeaker included to extend the fun Soft plush for cuddle time Fun bear character for play and comfort",
+          "locator": "https://www.kongcompany.com/dr-noyz-teddy-bear/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:1577011117c2bc5d",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/kong-extreme-tires/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "KONG Extreme Tires",
+      "brand": "KONG",
+      "sourceHash": "b5a8b420761d0f8e07c2175257e2a94ee3de1b681de15930cc76aad50662aebc",
+      "retrievedAt": "2026-10-08T12:08:27.357Z",
+      "excerpts": [
+        {
+          "text": "KONG Tires is a durable tire chew designed to provide the ultimate chewing experience.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The uniquely shaped sidewalls and thick outer tread create a super durable, elastic barrier.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The sidewalls are designed to double up and rebound when compressed to provide an active chewing experience, and the Tires are perfect for bouncy games of fetch.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Tire shaped toy made of durable KONG Extreme Rubber for determined chewers Fill inside wall with Snacks or Easy Treat™ to extend playtime Made in the USA.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        },
+        {
+          "text": "Globally Sourced Materials.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        },
+        {
+          "text": "Available in two sizes: S and M/L KONG Tires is a durable tire chew designed to provide the ultimate chewing experience.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        },
+        {
+          "text": "Toy Features: Tire shaped toy made of durable KONG Extreme Rubber for determined chewers Fill inside wall with Snacks™ or Easy Treat™ to extend playtime Made in the USA.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        },
+        {
+          "text": "Available in two sizes: S and M/L KONG Tire is a durable tire chew designed to provide the ultimate chewing experience.",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        },
+        {
+          "text": "Large size",
+          "locator": "https://www.kongcompany.com/kong-extreme-tires/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:391dd0769bb3d3bd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/grinz-puffer-fish/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Grinz Puffer Fish",
+      "brand": "KONG",
+      "sourceHash": "65a8265d05e8c577cbea74072a11cf0dad572733b4a6759d56abc4217f848710",
+      "retrievedAt": "2026-10-08T12:08:28.075Z",
+      "excerpts": [
+        {
+          "text": "KONG Grinz characters are full of smiles, laughs, and fun!",
+          "locator": "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Each ball brings a dynamic bounce and its own style of durable texture.",
+          "locator": "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Each character’s raised features add a variety of erratic rolling and bouncing action—with fins, tails, hands, and more—that boost the fetching fun.",
+          "locator": "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Each toy also has the classic Grinz smile for purely playful entertainment!",
+          "locator": "https://www.kongcompany.com/grinz-puffer-fish/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Fun and smiles from Grinz teeth Squeaks to entice play Erratic bounce for unpredictable play Durable for long-lasting fun Each character’s raised features add a variety of movement",
+          "locator": "https://www.kongcompany.com/grinz-puffer-fish/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:07bc630467fd386a",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/kong-extreme-ball-w-rope/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "KONG Extreme Ball w/Rope",
+      "brand": "KONG",
+      "sourceHash": "baf943867dd4a5fe5c13ca69a5a50e9fce4717c9fcc8d453aec2ae1bdbd93da7",
+      "retrievedAt": "2026-10-08T12:08:28.588Z",
+      "excerpts": [
+        {
+          "text": "The Extreme KONG Ball with Rope adds long-lasting diversity to games of fetch and tug.",
+          "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Made from KONG Extreme rubber, the ball is designed for durability for long-lasting interactive play.",
+          "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The 100% cotton rope also rewards appropriate chewing behavior while massaging teeth and gum.",
+          "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description"
+        },
+        {
+          "text": "All of this adds up to playful bouts of mentally stimulating and enriching engagement.",
+          "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: KONG Extreme Black Rubber ball for durable fetching fun 100% Cotton rope for tugging and chewing satisfaction Ideal for energized interactive play",
+          "locator": "https://www.kongcompany.com/kong-extreme-ball-w-rope/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:2a452b2564d591e3",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/dr-noyz-duck/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Dr. Noyz Duck",
+      "brand": "KONG",
+      "sourceHash": "e7a54a398fda57bd3358e6f4a478b599500bfd628bfa0f780a9a0b0f4fa8527e",
+      "retrievedAt": "2026-10-08T12:08:28.970Z",
+      "excerpts": [
+        {
+          "text": "The KONG Dr.",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Noyz Duck is full of playtime fun that can be varied depending on mood with a removable squeaker.",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description"
+        },
+        {
+          "text": "It also has minimal stuffing for less mess make cuddle time or play time a delight for all involved.",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description"
+        },
+        {
+          "text": "It also includes an extra squeaker to make sure those more active play sessions can last longer.",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description"
+        },
+        {
+          "text": "A soft cuddly exterior make this toy great for cuddle time as well.",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Less stuffing for less mess Long shape for shaking and thrashing fun Removable squeaker for quiet play Extra squeaker included to extend the fun Soft plush for cuddle time Fun duck character for play and comfort",
+          "locator": "https://www.kongcompany.com/dr-noyz-duck/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:d8d30bae2cd37efe",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/wubba-friends-ballistic/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wubba Friends Ballistic",
+      "brand": "KONG",
+      "sourceHash": "41618b527a6bf7e3bce71d3f8f3fe67082aa1d8f0162dd8d0379873bf2af7562",
+      "retrievedAt": "2026-10-08T12:08:29.613Z",
+      "excerpts": [
+        {
+          "text": "The KONG Wubba Ballistic Friends are the cutest and toughest interactive squeak and shake toys available.",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description"
+        },
+        {
+          "text": "These versatile toys are perfect for indoor and outdoor use, and their floppy tails make them easy to pick up and throw.",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Each toy is covered with durable, reinforced nylon for added toughness.",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Covered in durable;",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0"
+        },
+        {
+          "text": "reinforced nylon Perfect for interactive games of tug and fetch Squeak for added enjoyment Not meant to be used for chew sessions The KONG Wubba Ballistic Friends are the cutest and toughest interactive squeak and shake toys available.",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0"
+        },
+        {
+          "text": "reinforced nylon Perfect for interactive games of tug and fetch Squeak for added enjoyment Not meant to be used for chew sessions",
+          "locator": "https://www.kongcompany.com/wubba-friends-ballistic/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:40975cca5f87a21d",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/wubba-octopus/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Wubba Octopus",
+      "brand": "KONG",
+      "sourceHash": "5a5b0dde365b8b43ab570b13f26344fb96423d3fc1b63bfe064e18900b5cbf12",
+      "retrievedAt": "2026-10-08T12:08:30.119Z",
+      "excerpts": [
+        {
+          "text": "KONG Wubba Octopus’ dangling legs and long, floppy body make him ideal for instinct-satisfying shaking.",
+          "locator": "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The squeaker prolongs play.",
+          "locator": "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Ideal for indoor tugging, shaking and fetching fun, this adorable undersea pal’s great for snuggling, too, thanks to his super-soft plush.",
+          "locator": "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Minimal stuffing for less mess.",
+          "locator": "https://www.kongcompany.com/wubba-octopus/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Long, floppy legs invite instinct-satisfying thrashing Squeaker prolongs play Soft plush for snuggling Ideal for indoor tugging, shaking and fetching fun Minimal stuffing for less mess",
+          "locator": "https://www.kongcompany.com/wubba-octopus/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:b258b750797a14bd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/floppy-knots-hippo/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Floppy Knots Hippo",
+      "brand": "KONG",
+      "sourceHash": "618db5ec12a59aa89c87141278ad5a935ccb06b2ffa10b25a21eadd05e5dd4fe",
+      "retrievedAt": "2026-10-08T12:08:30.632Z",
+      "excerpts": [
+        {
+          "text": "KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The realistic feel of the internal knotted rope satisfies natural instincts while the varied textures and squeakers gear up for play.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description"
+        },
+        {
+          "text": "With minimal stuffing for less mess get ready for entertaining games and grins.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#jsonld-primary-product-description"
+        },
+        {
+          "text": "KONG Floppy Knots XS characters are ready to give extra-small dogs even smaller hugs!",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "These low-stuff plush characters are built to endure pulling and light chewing.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "They feature an internal knotted rope that caters to dogs' playful instincts to thrash, tug, and wrestle.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Varied textures and a squeaker keep play sessions going, but these floppy friends are the perfect snuggle buddies when naptime comes.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Our adorable Floppy Knots characters are ideal for extra-small dogs and puppies, making a fantastic addition to their tiny toy collection.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Toy Features: Internal knotted rope and floppy body satisfy natural instincts Designed with minimal stuffing for less mess and more fun Varied textures and squeakers entice livelier play sessions Perfect plush toy for flopping, shaking, and thrashing Long, floppy body ideal for extra-small shaking sprees KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Toy Features: Internal knotted rope and floppy design satisfies natural instincts Varied textures and squeakers to entice play Minimal stuffing for less mess KONG Floppy Knots are the newest arrival in the Knots tribe with a cheerful, floppy design allowing for great thrashing fun.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Toy Features: Internal knotted rope and floppy design satisfies natural instincts Varied textures and squeakers to entice play Minimal stuffing for less mess KONG Floppy Knots Jumbo XL characters are the gigantic version of a KONG favorite!",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "These enormous companions are ideal for dogs of all sizes and bring the same beloved KONG internal knotted rope skeleton as their smaller siblings, with two squeakers to keep the fun going.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "The realistic mouthfeel of the knotted internal rope and various textures invite and satisfy thrashing, flopping, flinging, and tugging instincts, while the soft feel makes for the perfect oversized snuggle buddy.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Minimal stuffing means less mess when the fun takes over.",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        },
+        {
+          "text": "Toy Features: Oversized plush pal for dogs of all sizes Internal knotted rope and floppy design satisfy dogs’ natural instincts Varied textures and squeakers entice play Minimal stuffing for less mess Soft enough to snuggle",
+          "locator": "https://www.kongcompany.com/floppy-knots-hippo/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:6b0dedf126a50803",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/ballistic-alligator/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Ballistic Alligator",
+      "brand": "KONG",
+      "sourceHash": "5e784e11879dedaff8083ce077a3a02421200ddd96aa98bf0f4e9d47ad5c96f6",
+      "retrievedAt": "2026-10-08T12:08:31.044Z",
+      "excerpts": [
+        {
+          "text": "KONG Ballistic Alligator is designed with durable ballistic material and is built for long-lasting play.",
+          "locator": "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description"
+        },
+        {
+          "text": "This alligator’s overstuffed body is lined, stitched and seamed for on-going playtime.",
+          "locator": "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description"
+        },
+        {
+          "text": "A squeaker and rattle entice play while rewarding instinct-satisfying chewing and shaking action.",
+          "locator": "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Soft plush makes him a great nap buddy during cuddle time.",
+          "locator": "https://www.kongcompany.com/ballistic-alligator/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Reinforced and overstuffed for chewing satisfaction Squeaker and rattle entice play Durable ballistic material stands up to tough play Flat, long Alligator shape, rewards shaking instincts Plush body for cuddle time",
+          "locator": "https://www.kongcompany.com/ballistic-alligator/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:9e191a9d68399de2",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/flexball-sport-ball/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Flexball Sport Ball",
+      "brand": "KONG",
+      "sourceHash": "d149449544bc60842887520d7572aae7278263fe1d0bf2bf715023c2671a374e",
+      "retrievedAt": "2026-10-08T12:08:31.560Z",
+      "excerpts": [
+        {
+          "text": "KONG FlexBall brings an energetic bounce to fetching fun!",
+          "locator": "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description"
+        },
+        {
+          "text": "The durable swirled material is the right combination of firm and cushiony, with deep ridges providing an easy grip for hands or teeth.",
+          "locator": "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description"
+        },
+        {
+          "text": "FlexBall’s ideal weight invites the perfect pitch to long outdoor play sessions—it even floats in water!",
+          "locator": "https://www.kongcompany.com/flexball-sport-ball/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Deep ridges easy to grip for throwing and fetching Durable swirled material for energetic play Floats for water fun Dynamic bounce promotes interactive play Perfect weight for fetching games",
+          "locator": "https://www.kongcompany.com/flexball-sport-ball/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no species token in captured title/excerpts; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:980a77006a7911dd",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/pull-a-partz-sushi/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Pull-A-Partz Sushi",
+      "brand": "KONG",
+      "sourceHash": "754707a5fce6cb1e258767d9cea2bf60f2a6439ddefe9209c2d7c2eab36ed383",
+      "retrievedAt": "2026-10-08T12:08:31.962Z",
+      "excerpts": [
+        {
+          "text": "KONG Pull-A-Partz Sushi’s 5-toys-in-1 deliver an endless feast of multi-sensory fun based on a crinkly sushi board that invites healthy wrestling.",
+          "locator": "https://www.kongcompany.com/pull-a-partz-sushi/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Pulling edamame, shrimp and soy sauce from hook-and-closure patches satisfies dismantling instincts while each lightweight, bat-table toy inspires play with KONG Premium North American Catnip inside, extending the action.",
+          "locator": "https://www.kongcompany.com/pull-a-partz-sushi/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: 5-toys-in-1 for endless play variety Crackly sushi board base ideal for wrestling fun Varied pull-a-part toys entice stalk & grab play Lightweight toys spark batting and pouncing instincts Attached toys contain KONG Premium North American Catnip to extend fun",
+          "locator": "https://www.kongcompany.com/pull-a-partz-sushi/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no standalone species token in captured title/excerpts; catnip wording describes toy contents, not species scope; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:b5eeecd54eaf35de",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/connects-window-boxing/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Connects Window Boxing",
+      "brand": "KONG",
+      "sourceHash": "78984bf7e6f81d9dece3eff621c03af3a55da19f427f8f34981e11d0c1f3f37f",
+      "retrievedAt": "2026-10-08T12:08:32.341Z",
+      "excerpts": [
+        {
+          "text": "KONG Connects Window Boxing is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+          "locator": "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Suction cup secures base to any smooth vertical surface.",
+          "locator": "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Dynamic Connects Wand enhances irresistible bobbing motion making dangling boxing gloves dance on elastic lines, attracting the eye of the (small) tiger for batting.",
+          "locator": "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description"
+        },
+        {
+          "text": "KONG Premium North American Catnip in gloves fuels extra rounds of fun, while bells and rattle spark hunting instincts.",
+          "locator": "https://www.kongcompany.com/connects-window-boxing/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Dangling gloves and bobbing punching bag ignite hunting instincts Attaches to most clean, smooth vertical surfaces for varying fun Bells in gloves and rattle in KONG speedbag prolong play Catnip in boxing gloves fuels extra rounds of action Dynamic Connects Wand enhancing bouncing action",
+          "locator": "https://www.kongcompany.com/connects-window-boxing/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:kongcompany.com:e960c71a760de067",
+      "bank": "kong",
+      "canonicalUrl": "https://www.kongcompany.com/connects-punching-bag/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Connects Punching Bag",
+      "brand": "KONG",
+      "sourceHash": "16e1babffac0899fa7c5755cd0ccdfe0c2177a556d499b3d230cfee93b214418",
+      "retrievedAt": "2026-10-08T12:08:32.769Z",
+      "excerpts": [
+        {
+          "text": "KONG Connects Punching Bag is a portable play gym that knocks out boredom with a multi-sensory prize fight of fun for Kittyweight Champions of the World.",
+          "locator": "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Secure the base onto any smooth surface with the locking suction cup and the spring-loaded punching bag bobs an irresistible invitation with dangling boxing gloves that attract the eye of the (small) tiger to bat and grab.",
+          "locator": "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description"
+        },
+        {
+          "text": "KONG Premium North American Catnip in gloves fuels extra rounds of fun, while bells and crinkles spark hunting instincts.",
+          "locator": "https://www.kongcompany.com/connects-punching-bag/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Toy Features: Spring-loaded bobbing action ignites hunting instincts Attaches to most clean, smooth surfaces for varying fun Bells inside gloves and crinkly, rattling bag spark natural instincts KONG Premium North American Catnip in gloves fuels extra rounds of fun Dangling, bouncing gloves entice batting Locking suction cup secures base to smooth surface",
+          "locator": "https://www.kongcompany.com/connects-punching-bag/#primary-description-0"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "no standalone species token in captured title/excerpts; Kittyweight wordplay and catnip contents do not establish species scope; primary scope unclear"
+      ]
+    },
+    {
+      "sku": "PUBLIC:instinctpetfood.com:ff2ada99ffc3cd67",
+      "bank": "petfood2",
+      "canonicalUrl": "https://instinctpetfood.com/products/freshly-crafted-meals-beef",
+      "enriched": true,
+      "attempts": 2,
+      "title": "Freshly Crafted Meals Grass-Fed Beef Recipe",
+      "brand": "Instinct",
+      "sourceHash": "1d49d371353fc4d6cb2caa2effa65f8422178b3d0645daf1fbf2b14af665c2df",
+      "retrievedAt": "2026-10-08T12:08:33.602Z",
+      "excerpts": [
+        {
+          "text": "Instinct® Freshly Crafted Meals are made with real, human-grade ingredients you can see and trust — delivering flavor, nutrition, and health benefits in every bowl.",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description"
+        },
+        {
+          "text": "No fridge, freezer, or prep needed — just open and serve.",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description"
+        },
+        {
+          "text": "Tail wags guaranteed!",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description"
+        },
+        {
+          "text": "100% Human Grade Meal Made with fresh, real ingredients you can see Rich, satisfying flavor dogs crave Ready to serve - no fridge or freezer required Made with responsibly sourced protein and nutrient-rich fruits and vegetables like sweet potato, kale, and brown rice",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-beef#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:instinctpetfood.com:a33cf6299a01a654",
+      "bank": "petfood2",
+      "canonicalUrl": "https://instinctpetfood.com/products/freshly-crafted-meals-chicken",
+      "enriched": true,
+      "attempts": 2,
+      "title": "Freshly Crafted Meals Cage-Free Chicken Recipe",
+      "brand": "Instinct",
+      "sourceHash": "c2a4e5fd40bdab636ef0539f5f451402be77c1582ec51addba040ed4afcdf11b",
+      "retrievedAt": "2026-10-08T12:08:34.052Z",
+      "excerpts": [
+        {
+          "text": "Instinct® Freshly Crafted Meals are made with real, human-grade ingredients you can see and trust — delivering flavor, nutrition, and health benefits in every bowl.",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description"
+        },
+        {
+          "text": "No fridge, freezer, or prep needed — just open and serve.",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description"
+        },
+        {
+          "text": "Tail wags guaranteed!",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description"
+        },
+        {
+          "text": "100% Human Grade Meal Made with fresh, real ingredients you can see Rich, satisfying flavor dogs crave Ready to serve - no fridge or freezer required Made with responsibly sourced protein and nutrient-rich fruits and vegetables like sweet potato, kale, and brown rice",
+          "locator": "https://www.instinctpetfood.com/products/freshly-crafted-meals-chicken#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Forage Pot",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "465db4804c66a07ab5f389aff988464b49bf3f5e2f22906d6950bff1bccae707",
+      "retrievedAt": "2026-10-08T12:08:34.585Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-forage-pot/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Timothy Party Pack",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "3be0b67bdac8343a684efcada7893ce4ca066e8ba8856eea463b650f89e6fb50",
+      "retrievedAt": "2026-10-08T12:08:34.739Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-party-pack/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Apple Stick Dangly",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "56c0168f009a1cf1213bfd3010aa028cae4195176a01740b89000a1d96cc6ff7",
+      "retrievedAt": "2026-10-08T12:08:37.299Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-apple-stick-dangly/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Timmy Pops",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "5c2684e07582e00a9332d875dcc5b86bf9f8a50b98e183b8406225da136cdb52",
+      "retrievedAt": "2026-10-08T12:08:37.452Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timmy-pops/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Hanging Mulberry Chew",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "44a587c23ee50e29c7dbb078e34c665be5bc5e22336f3bd89b1406a603c28aee",
+      "retrievedAt": "2026-10-08T12:08:39.858Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-mulberry-chew/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Celebration Cone",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "19d7bb6a1d851847dd119263db46ef44d2bc1bdc943e6ddb794f5447929fc78c",
+      "retrievedAt": "2026-10-08T12:08:42.321Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-cone/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Crunchy Carrot",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "9ecd81d60a78060af16206609d27ee184ac9fe9389e8cb913acd78b9d61ed8eb",
+      "retrievedAt": "2026-10-08T12:08:44.765Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-crunchy-carrot/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – The Treat House",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "192a1912c3797f32e28c1309bc76a95675940efef7e3172de4e72dc5db3dc8e9",
+      "retrievedAt": "2026-10-08T12:08:44.916Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-the-treat-house/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Treasure Barrel",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "9719a6fa72fa00d576a9d900363837d88362b82b786c7ff2a55b8eed9c3dc570",
+      "retrievedAt": "2026-10-08T12:08:45.082Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-treasure-barrel/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Timothy Apple Slice",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "9d5e821ba7e753d0e7124caaecc238c1dea8426be21089bff0c7938076bf0189",
+      "retrievedAt": "2026-10-08T12:08:47.547Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-apple-slice/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Ox Blocks",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "e58a6c2e36afcf3222709a7d1971eebc3964104432d7df169e7969567baa6e3d",
+      "retrievedAt": "2026-10-08T12:08:49.993Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-ox-blocks/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Roll Arounds",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "a1d078cdb88a88c977909595a4b2d71ae78a0710bf353139a422536167aba557",
+      "retrievedAt": "2026-10-08T12:08:50.152Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-roll-arounds/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Nesting Disks",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "cf461caf864e2c4dd82c77cfe188bbea6b1b84aa328ab942a69206d3268933ea",
+      "retrievedAt": "2026-10-08T12:08:52.636Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-nesting-disks/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Timothy Star Dish",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "59b7e6684a983040d3d0af2110048841cc38dd11ea94ba06bd96befa804d4ae1",
+      "retrievedAt": "2026-10-08T12:08:52.795Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-star-dish/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Hanging Sunflower Chew",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "d3d43e046b3cebda535825546d0edade0232a6ff2f2a7b5c5377667308dd7d2d",
+      "retrievedAt": "2026-10-08T12:08:55.235Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hanging-sunflower-chew/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Hideaway Hay Barn",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "8e5f136ecef08f1f1c383e507a2782c7ed8e78f38da2e8788b51a41e0091a193",
+      "retrievedAt": "2026-10-08T12:08:57.573Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-hideaway-hay-barn/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Pick Up Stix Trio",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "228ab2c065e4f055f5f7847076bf9639253def44b3d104c01bf9de779bf1f526",
+      "retrievedAt": "2026-10-08T12:09:00.027Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-pick-up-stix-trio/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Natural Kabob",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "1fa4a0d9908d992b6aa474077f192017d652fc705e74ca42708b0706124ee29e",
+      "retrievedAt": "2026-10-08T12:09:00.186Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-natural-kabob/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Timothy Surprise",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "b6cd1c0e8355172d1240650041792d8db03ee617756c13f3d9d64e356f7aecf3",
+      "retrievedAt": "2026-10-08T12:09:02.774Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-timothy-surprise/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Twisty Rings",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "84430f2696efe2538e42157ec4e278783600dbcfe35ca3588002a623a1acebc6",
+      "retrievedAt": "2026-10-08T12:09:05.191Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-twisty-rings/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Willow Bundle",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "8411812c7b80a7240189ac130bab2f33c35e629a4752306b6ea588f5cd88cdcf",
+      "retrievedAt": "2026-10-08T12:09:05.352Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-willow-bundle/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Celebration Present",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "f48551dd6e86a26aea42fb8604ec2899f03eb48f0c86fb676484c7a1ea5f0bee",
+      "retrievedAt": "2026-10-08T12:09:05.517Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body is safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-present/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+      "bank": "oxbow",
+      "canonicalUrl": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Enriched Life – Celebration Salad",
+      "brand": "Oxbow Animal Health",
+      "sourceHash": "4047dc6ad5ba78b33577f44f0beb05933d69c5e460926ca7543048f7498ea852",
+      "retrievedAt": "2026-10-08T12:09:08.025Z",
+      "excerpts": [
+        {
+          "text": "Enriching your pet's daily life starts with supporting natural behaviors such as exploring, playing, hiding, and chewing.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/#jsonld-primary-product-description"
+        },
+        {
+          "text": "Oxbow Enriched Life is designed with these natural behaviors in mind and is constructed from 100% pet-safe materials, allowing you to nurture your pet's mind and body in safe and fun ways every day.",
+          "locator": "https://oxbowanimalhealth.com/product/enriched-life-celebration-salad/#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:natureswaybirds.com:6657ec05896acb5b",
+      "bank": "naturesway",
+      "canonicalUrl": "https://natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia",
+      "enriched": true,
+      "attempts": 2,
+      "title": "11” Recycled Glass Hanging Combination Bird Feeder and Bath - Violet Begonia",
+      "brand": "EcoCycle™",
+      "sourceHash": "1f33fe9382557172e415ab6cd8efc03869e28777ba98c9e6136d2f8ab5732f23",
+      "retrievedAt": "2026-10-08T12:09:08.624Z",
+      "excerpts": [
+        {
+          "text": "RECYCLED MATERIALS: Made from recycled glass materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+        },
+        {
+          "text": "DUAL USE - BATH OR UNIVERSAL SEED FEEDER: Add water for birds and butterflies to sip or splash and cool off;",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+        },
+        {
+          "text": "fill with 0.625 qt of your choice of bird seed for a beautiful feeder;",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+        },
+        {
+          "text": "design allows for clear viewing of birds of all sizes!",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+        },
+        {
+          "text": "DESIGNED WITH BIRDS IN MIND: Bright, intricate violet begonia flower design catches the eye while the gently sloped edge aides in bird bathing while three-point attachment and durable metal chain provides secure hanging EASY-CLEAN DESIGN: Smooth inner glass surface easily wipes clean to keep your feathered friends healthy IN-USE DIMENSIONS: 15.75”Hx11.02”Wx11.02”D CAPACITY: 0.625 Quarts ATTRACT THESE BIRDS: woodpecker, junco, chickadee, cardinal, jay, grosbeak, titmouse, finch, nuthatch, wren USE THESE SEEDS: black oil sunflower, striped sunflower, hulled sunflower, cracked corn, safflower, nuts, mixed seed blends",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-violet-begonia#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:natureswaybirds.com:37044e9f0a91c8ef",
+      "bank": "naturesway",
+      "canonicalUrl": "https://natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia",
+      "enriched": true,
+      "attempts": 2,
+      "title": "11” Recycled Glass Hanging Combination Bird Feeder and Bath - Turquoise Dahlia",
+      "brand": "EcoCycle™",
+      "sourceHash": "b22bd1199872f72808fd1c1653f4ca7406f223bebcbbd22272d307b5476c2d92",
+      "retrievedAt": "2026-10-08T12:09:09.088Z",
+      "excerpts": [
+        {
+          "text": "RECYCLED MATERIALS: Made from recycled materials, this EcoCycle combination bird bath and feeder is a sustainable birding choice to welcome birds small and large to your backyard!",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+        },
+        {
+          "text": "DUAL USE - BATH OR UNIVERSAL SEED FEEDER: Add water for birds and butterflies to sip or splash and cool off;",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+        },
+        {
+          "text": "fill with 0.625 qt of your choice of bird seed for a beautiful feeder;",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+        },
+        {
+          "text": "design allows for clear viewing of birds of all sizes!",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+        },
+        {
+          "text": "DESIGNED WITH BIRDS IN MIND: Bright, intricate turquoise dahlia flower design catches the eye while the gently sloped edge aides in bird bathing while three-point attachment and durable metal chain provides secure hanging EASY-CLEAN DESIGN: Smooth inner glass surface easily wipes clean to keep your feathered friends healthy IN-USE DIMENSIONS: 15.75”Hx11.02”Wx11.02”D CAPACITY: 0.625 Quarts ATTRACT THESE BIRDS: woodpecker, junco, chickadee, cardinal, jay, grosbeak, titmouse, finch, nuthatch, wren USE THESE SEEDS: black oil sunflower, striped sunflower, hulled sunflower, cracked corn, safflower, nuts, mixed seed blends",
+          "locator": "https://www.natureswaybirds.com/products/recycled-glass-hanging-combination-bird-feeder-and-bath-turquoise-dahlia#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": []
+    },
+    {
+      "sku": "PUBLIC:smartpakequine.com:84866e619a6b75f8",
+      "bank": "smartpak",
+      "canonicalUrl": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513",
+      "enriched": true,
+      "attempts": 1,
+      "title": "Fromm&reg; Four-Star Nutritionals&reg; Beef Frittata Veg",
+      "brand": "",
+      "sourceHash": "420f6d5ee3c9f10783540371ae2032b34b3e5bc4500e099b404d046fecc676d0",
+      "retrievedAt": "2026-10-08T12:09:09.868Z",
+      "excerpts": [
+        {
+          "text": "Like all of the Four-Star Nutrionals&reg;&nbsp;dry food recipes from Fromm, the Fromm&reg;",
+          "locator": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description"
+        },
+        {
+          "text": "Four-Star Nutritionals&reg;",
+          "locator": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description"
+        },
+        {
+          "text": "Beef Frittata Veg formula offers the highest inclusion levels...",
+          "locator": "https://www.smartpakequine.com/pt/fromm-fourstar-nutritionals-beef-frittata-veg-15513#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+        "Species/flavor/food-form positives removed: species had only brand-knowledge grounding and no primary species evidence remains; Beef title flavor and dry-recipe form cannot carry a species-invariant type without species. Unresolved scope, not a positive no-fit."
+      ]
+    },
+    {
+      "sku": "PUBLIC:smartpakequine.com:9957f401db23876c",
+      "bank": "smartpak",
+      "canonicalUrl": "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416",
+      "enriched": true,
+      "attempts": 1,
+      "title": "BIXBI&reg; Pocket Trainer&reg; Treats",
+      "brand": "BIXBI®",
+      "sourceHash": "6e1057192b3ece64a81f4be61f1457cd7a989ce9708ffa0c6a666cf8f2b5958d",
+      "retrievedAt": "2026-10-08T12:09:10.872Z",
+      "excerpts": [
+        {
+          "text": "Training becomes a whole lot easier when you&rsquo;re armed with a healthy dose of incentive.",
+          "locator": "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416#jsonld-primary-product-description"
+        },
+        {
+          "text": "And nothing brings incentive to the table quite like the soft texture and beg-worthy f...",
+          "locator": "https://www.smartpakequine.com/pt/bixbi-pocket-trainer-treats-24416#jsonld-primary-product-description"
+        }
+      ],
+      "resolvesIdentityIssues": [
+        "SmartPak page is third_party_page retailer text, never an official manufacturer page; staged manufacturer-authority wording corrected.",
+        "Species signal was UGC-only (my dogs / senior dog friends); excluded, leaving no primary species evidence. No flavor value was ever evidenced in primary text. Unresolved scope, not a positive no-fit."
+      ]
+    }
+  ]
+}

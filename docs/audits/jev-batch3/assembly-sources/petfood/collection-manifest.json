@@ -1,0 +1,88 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 2,
+      "annamaet.com:sitemap-locs": 145,
+      "annamaet.com:sitemap-children": 6,
+      "annamaet.com:sitemap-urls": 137,
+      "annamaet.com:feed-rows": 0,
+      "annamaet.com:feed-unverified": 0,
+      "annamaet.com:fetch-queued": 62,
+      "excludedNonProduct": 105,
+      "annamaet.com:page-rows": 5,
+      "nutrisourcepetfoods.com:sitemap-miss": 2,
+      "nutrisourcepetfoods.com:sitemap-urls": 0,
+      "nutrisourcepetfoods.com:feed-rows": 0,
+      "nutrisourcepetfoods.com:feed-unverified": 164,
+      "nutrisourcepetfoods.com:fetch-queued": 164,
+      "nutrisourcepetfoods.com:page-rows": 0,
+      "earthbornholisticpetfood.com:sitemap-locs": 348,
+      "earthbornholisticpetfood.com:sitemap-children": 9,
+      "earthbornholisticpetfood.com:sitemap-urls": 338,
+      "earthbornholisticpetfood.com:feed-rows": 0,
+      "earthbornholisticpetfood.com:feed-unverified": 0,
+      "earthbornholisticpetfood.com:fetch-queued": 50,
+      "earthbornholisticpetfood.com:page-rows": 0
+    }
+  },
+  "attempts": {
+    "used": 304,
+    "cap": 900,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 304,
+      "totalSourceAttempts": 1789,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1789,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 5,
+    "devPrimary": 5,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+  },
+  "commitments": {
+    "bankHash": "71ae259d79930fb02722c8240c79fc851541cac54845fbf9d7ab601a1b08d866",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "ab16011f7cb73384b534c7e02a014a1917c31ea1f80e0e5c0d6ae8c01f1289d2",
+    "ledgerHash": "3da5b31f882acc631703cf82396db40dfbf67948c7ea83e50f93a9ec14d70fd7",
+    "cumulativeHash": "c8a2fc572c0a051e90f84a0213f69ae2ec20f6d61d9280c36c05ef0e9243927b",
+    "devHash": "3c1ad2506ff13ad7dc9182797d7c2b5eb985982c028b12f2b6587000157de561",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

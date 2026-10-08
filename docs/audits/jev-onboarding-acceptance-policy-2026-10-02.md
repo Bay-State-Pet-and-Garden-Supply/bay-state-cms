@@ -6,25 +6,34 @@ It is a release gate, not permission for a model or evaluator to approve product
 ## Pinned implementation
 
 - Model: `jev-1.13.0`, with exact returned-model validation.
-- Choice: selected-outcome probability floor 0.50. Noul: per-value/page P(yes)
-  floor 0.70. Confidence/concentration is not an approval signal.
+- Engineering defaults, not fitted acceptance policies: Choice selected-outcome
+  floor 0.50; Noul per-value/page P(yes) floor 0.70. Publish separately fitted
+  store/capability policies before holdout inspection. Confidence/concentration
+  is never an approval signal.
 - Page membership questions: `page-question-v2`; judgment/provenance contract:
   `jev-page-v2-provenance`. Generic brand directories are not substitutes for a
   missing brand-specific product listing page.
-- Taxonomy: approved `bay-state-v5`; candidate sets and applicable profiles must
-  come from a frozen production snapshot, never from the gold-label union.
+- Taxonomy authority for current expansion: frozen `bay-state-v9`, 74 configured
+  product types, authority `ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026`.
+  Candidate sets and applicable profiles come from the frozen production
+  snapshot, never the gold-label union. Older v5 runs retain their original meaning.
 - Pages: verified live ShopSite import. Never invent Page IDs or page names.
 
-Verification revision, 2026-10-03: qualification predictor `code-executed-v5`
-retains exact semantic abstention codes; `no_match` and `insufficient_evidence`
-only earn correctness against their matching gold state. Low-probability,
-uncoded legacy and service-failure abstentions do not. Unlabeled rows are excluded
+Current qualification predictor `code-executed-v8` binds capture-time source-input
+identity/evidence and owned frozen taxonomies before transport. Requested and
+actual provider-returned model identities follow the last speaking stage;
+fully silent sides remain blocked. It retains exact semantic abstention codes:
+`no_match` and `insufficient_evidence` earn correctness only against matching gold.
+Low-probability, uncoded legacy and service-failure abstentions do not. Unlabeled rows are excluded
 from the Product Type accuracy denominator. The predeclared paired primary metric
 is `productType.rawCorrectness`, bootstrapped over the same labeled fixed population.
-The existing conservative benchmark gate requires 200 labeled holdout examples,
+The conservative benchmark gate requires at least 200 labeled holdout examples,
 20 per evaluated class, coverage 0.80, zero safety violations and a positive lower
-95% paired-delta bound. These are necessary gates, not fitted per-capability or
-representative-assortment evidence. This revision does not reseal prior holdouts.
+95% paired-delta bound. The expansion additionally requires at least 20 represented
+classes, so at least 400 held rows are necessary. Sourcing all 74 configured types
+is not required; every evaluated class's floor remains binding. These are
+necessary gates, not fitted policies or representative-assortment evidence.
+No revision reseals previously inspected holdouts.
 
 ## Required evidence
 
@@ -68,6 +77,45 @@ representative-assortment evidence. This revision does not reseal prior holdouts
 - Old run snapshots and decisions retain their original meanings. New question
   or taxonomy versions require fresh qualifying runs; stored contradictions are
   not retrospectively rewritten by the food-form alias activation.
+
+## Current expanded-development evidence
+
+- Expansion-v2 has 967 independently reviewed development products: 685 known,
+  218 genuine no-fit, 64 insufficient-evidence; 901 families and eight explicit
+  field states per row. A scoped generation peer receipt verifies all hashes,
+  147 integrated corrections and zero admissible-evidence/canonical-value leaks.
+  It recommends NO-FREEZE, not production acceptance.
+- Only 10 of 27 represented known types meet the 20-row floor. Breed-size (1),
+  flavor (17), life-stage (8) and packaging (6) have thin positive support;
+  fuel-type and hose-length have no applicable examples. Unsupported capabilities
+  must remain visible and unqualified.
+- All 967 complete page sets remain unknown. Verified page identities and the
+  existing max-4/specific-over-Shop-All/include-brand guidance do not close
+  eligibility, subject boundaries, conflicting pages or promotional membership.
+- Custody hashes/modes for 60 files in 15 banks are verified without parsing
+  payloads. The 309 publicly declared held rows are unlabeled and below the
+  necessary 400-row minimum; exposure and class separation are not established.
+- The immutable three-public-row live diagnostic uses the actual configured
+  `deepseek-cloud`/`deepseek-v4-flash` incumbent (returned `deepseek-flash`) and
+  pinned Jev (requested and returned `jev-1.13.0`). Both propose `dog-treats`
+  against an insufficient-evidence gold row. No inference about representative
+  accuracy or fitted thresholds is warranted from this non-random sample.
+- Actual transport plus live stored-flag smoke on an isolated clone blocks before
+  dispatch (zero requests) and before retry (one local HTTP529 fault, no second
+  request). This is fault-injection evidence, not a completed production canary.
+- The actual-batch audit identifies 51 provenance-valid distributor-record inputs
+  and a six-member family. They require fresh ordered runs and attributed human
+  decisions; old runs/approvals and the seeded goldset batch do not qualify.
+- Typecheck and focused native Bun suites pass (307 passed, 1 skipped). Real
+  pinned API compatibility passes. The runtime worktree is uncommitted and the
+  required commit-bound compatibility/operations/canary receipts remain absent.
+
+No fitted policy has been published and no qualifying holdout inspected.
+Full-population candidate replay plans 3,868 attempts against the 600 ceiling;
+neither increasing budgets nor truncating populations is implicit authorization.
+Reconcile public source-budget accounting or approve a new bounded allocation
+before additional product-source collection.
+
 
 ## Retirement
 

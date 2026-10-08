@@ -1,0 +1,20 @@
+[
+  {
+    "domain": "kongcompany.com",
+    "brand": "KONG",
+    "stratum": "toys",
+    "sourceRule": "official sitemap + product pages (Batch3 P3: cat-toys + collars-leashes deficits)"
+  },
+  {
+    "domain": "natureswaybirds.com",
+    "brand": "Nature’s Way",
+    "stratum": "neighbors",
+    "sourceRule": "official sitemap + product pages (Batch3 P3: bird-houses-baths deficit)"
+  },
+  {
+    "domain": "smartpakequine.com",
+    "brand": "SmartPak",
+    "stratum": "care",
+    "sourceRule": "official sitemap + product pages (Batch3 P3: fly-control-equine deficit; retailer-medium evidence)"
+  }
+]

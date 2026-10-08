@@ -1,11 +1,21 @@
 /**
- * Bounded public-manufacturer source collector for the Jev representative v3
- * benchmark (fresh holdout recovery).
+ * Bounded public-manufacturer source collector with an explicit immutable
+ * source-request window (fresh prospective capture).
  *
  * Source-only: public manufacturer feeds/sitemaps/pages. No model calls, no
- * labels, no DB, no credentials, no commits. Every HTTP attempt (including
- * redirect hops and retries) is counted against --attempt-cap. At most one
- * in-flight request per domain (fully sequential fetching).
+ * labels, no DB, no credentials, no commits. Every actual HTTP request —
+ * sitemap, feed, page, each redirect hop, each retry, each network error —
+ * reserves a numbered seq from ONE owned window BEFORE transport
+ * (scripts/lib/source-request-window.ts). Reservations are conservatively
+ * spent; the window hard-stops at its allocation (<=1200) with no refund and
+ * no candidate clipping. At most one in-flight request per domain (fully
+ * sequential fetching).
+ *
+ * Exclusion is PUBLIC-ONLY: sealed public banks plus --exclude-bank stage
+ * chaining. Private-custody parsing is removed for prospective capture: old
+ * custody stays sealed and unparsed, and overlap against unparsed private
+ * banks is unverified (see manifest caveats). Historical attempt totals are
+ * unverified and never printed as fact.
  *
  * Feed honesty: rows sourced from batch public catalog feeds record
  * sourceForm "manufacturer-feed" and NEVER claim an individually fetched
@@ -13,10 +23,14 @@
  *
  * Usage:
  *   bun scripts/collect-jev-v3-sources.ts --write \
- *     --custody /var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody \
- *     --public docs/audits/jev-representative-v3 \
- *     [--attempt-cap 1500] [--dry-run] [--seed-file <seeds.json>]
- *     [--prior-custody <dir>] [--taxonomy <taxonomy.json>]
+ *     --custody <NEW-EMPTY-DIR> --public <NEW-EMPTY-DIR> \
+ *     --source-window <WINDOW-DIR> --owner-decisions <owner-approved-decisions.json> \
+ *     [--attempt-cap <n<=remaining>] [--seed-file <seeds.json>] [--exclude-bank <bank.json> ...]
+ *     [--taxonomy <taxonomy.json>] [--worker <name>]
+ *   bun scripts/collect-jev-v3-sources.ts --dry-run [--seed-file <seeds.json>] [--taxonomy <taxonomy.json>]
+ *     [--source-window <WINDOW-DIR> --owner-decisions <file>]  (planning only; no fetch, no spend)
+ * (--prior-custody is rejected; enrichment refetches are Main-runner-scoped
+ * via the shared window kind "enrich", never a collector bypass.)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,26 +41,22 @@ import { familyGroupingIdentityFor } from '../src/onboarding/product-line-groupe
 import { splitForFamily } from '../src/classification/benchmark-exporter';
 import { recomputeTaxonomyAuthorityHash } from '../src/classification/jev-benchmark-replay';
 import { JevSourceCandidateSchema, assertPublicSourceUrl } from '../src/shared/schemas/jev-benchmark';
-import { hashCanonicalJson } from '../src/shared/stable-id';
+import {
+  buildPublicSourceReceipt,
+  computeOwnerDecisionSha256,
+  getSourceWindowUsage,
+  openSourceWindow,
+  parseInvocationCap,
+  recordSourceOutcome,
+  reserveSourceRequest,
+  SOURCE_WINDOW_MAX,
+  SourceWindowExhaustedError,
+  type SourceRequestKind,
+  type SourceWindowHandle,
+} from './lib/source-request-window';
 
 const SPLIT_SEED = 42;
 const HOLDOUT_PERCENT = 20;
-/** Approved per-invocation attempt ceiling for this source worker. */
-export const MAX_ATTEMPT_CAP = 1500;
-
-/** Strict attempt-cap parsing: finite positive integer within the approved allocation. */
-export function parseAttemptCap(raw: string | null): number {
-  if (raw == null) return MAX_ATTEMPT_CAP;
-  const text = raw.trim();
-  if (!/^\d+$/.test(text)) {
-    throw new Error(`invalid_attempt_cap: "${raw}" must be a positive integer`);
-  }
-  const n = Number(text);
-  if (!Number.isSafeInteger(n) || n < 1 || n > MAX_ATTEMPT_CAP) {
-    throw new Error(`invalid_attempt_cap: "${raw}" must be an integer in [1, ${MAX_ATTEMPT_CAP}]`);
-  }
-  return n;
-}
 
 export interface Seed {
   domain: string;
@@ -100,12 +110,14 @@ export function parseSeedFile(raw: unknown): Seed[] {
   return parsed;
 }
 
-/** Default prior-generation private custody (v3 source/membership exclusion). */
-export const PRIOR_CUSTODY_DEFAULT =
-  '/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody';
-
-/** Measured prior source-worker attempts across earlier generations (non-resetting). */
-export const PRIOR_SOURCE_ATTEMPTS = 1485;
+/** Requested additional bank paths for stage chaining (later stages exclude earlier Batch3 outputs). */
+function argsAll(name: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < process.argv.length; i++) {
+    if (process.argv[i] === name && i + 1 < process.argv.length) out.push(process.argv[i + 1]);
+  }
+  return out;
+}
 
 function arg(name: string): string | null {
   const i = process.argv.indexOf(name);
@@ -113,22 +125,23 @@ function arg(name: string): string | null {
 }
 const WRITE = process.argv.includes('--write');
 const DRY_RUN = process.argv.includes('--dry-run');
-const CUSTODY = arg('--custody') ?? '/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody';
-const PUBLIC = arg('--public') ?? 'docs/audits/jev-representative-v3';
-const ATTEMPT_CAP = parseAttemptCap(arg('--attempt-cap'));
+const CUSTODY = arg('--custody') ?? 'private-custody/jev-batch3';
+const PUBLIC = arg('--public') ?? 'docs/audits/jev-batch3';
+const SOURCE_WINDOW_DIR = arg('--source-window');
+const OWNER_DECISIONS_PATH = arg('--owner-decisions');
+const WORKER = arg('--worker') ?? null;
+const ATTEMPT_CAP_RAW = arg('--attempt-cap');
+const PRIOR_CUSTODY_FLAG = arg('--prior-custody');
 
 const UA = 'BayStateCMS-JevBenchmark/1.0 (+research source collection; public pages only)';
 
-interface Attempt { url: string; status: number | string; kind: string; at: string }
-const ledger: Attempt[] = [];
+/** Active owned window for this invocation (opened once in main, never reset). */
+let activeWindow: SourceWindowHandle | null = null;
+/** Seq of every reservation this invocation spends (private ledger linkage). */
+const spentSeqs: number[] = [];
+/** Per-invocation reminder of the remaining-owned-window cap (window refuses past it). */
+let invocationBudget = 0;
 const denied = new Set<string>();
-let attemptCount = 0;
-
-function logAttempt(url: string, status: number | string, kind: string): void {
-  attemptCount += 1;
-  ledger.push({ url, status, kind, at: new Date().toISOString() });
-}
-
 function siteRoot(host: string): string {
   return host.replace(/^www\./i, '').toLowerCase();
 }
@@ -164,8 +177,85 @@ export function sameProductUrl(a: string, b: string): boolean {
     return false;
   }
 }
+/** Canonical prior-URL identity key: apex/www-insensitive host plus path
+ * modulo trailing slash — the sameProductUrl identity as a string, so
+ * admission exclusion stays an O(1) Set lookup. Raw URLs remain on the
+ * prior rows for provenance; admission compares keys only, so a new
+ * spelling (apex/www, trailing slash) or a changed SKU can never re-admit
+ * an exposed product. */
+export function canonicalProductUrlKey(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return `${siteRoot(u.hostname)}${u.pathname.replace(/\/$/, '')}`;
+  } catch {
+    return null;
+  }
+}
 
-async function fetchOnce(url: string, kind: string): Promise<{ status: number; text: string; finalUrl: string } | null> {
+/** Canonical admission check over the sealed identity set: true when the
+ * URL is a known prior-source product identity under any spelling
+ * (apex/www, trailing slash). The null-guard keeps unparseable candidates
+ * fetchable so they fail at the page-proof stage with evidence, not via a
+ * mistaken exclusion. Runs BEFORE any fetch in collectFeedProducts and
+ * collectPage. */
+export function isExcludedProductUrl(url: string, exclusion: { byUrl: Set<string> }): boolean {
+  const key = canonicalProductUrlKey(url);
+  return key !== null && exclusion.byUrl.has(key);
+}
+
+/** Every sealed public source bank a new collection must avoid: primary +
+ * supplemental banks for representative v1/v2/v3/v4/v9. */
+const PRIOR_PUBLIC_BANKS: string[] = [
+  ...['jev-representative-v1', 'jev-representative-v2', 'jev-representative-v3', 'jev-representative-v4', 'jev-representative-v9'].flatMap(v => [
+    path.join('docs/audits', v, 'source-development.json'),
+    path.join('docs/audits', v, 'source-development-supplemental.json'),
+  ]),
+];
+
+/** Ledger ids sealed into the collection manifest exclusion record. */
+const PRIOR_LEDGER_IDS = [
+  'jev-representative-v1',
+  'jev-representative-v2',
+  'jev-representative-v3',
+  'jev-representative-v4',
+  'jev-representative-v9',
+  'jev-expansion-v1',
+];
+
+/** Current expansion banks (per-brand primary + supplemental) a future new
+ * collection must also avoid. A missing root or entry simply yields no
+ * banks; corrupt rows fail closed in loadBank. */
+function expansionBanks(): string[] {
+  const out: string[] = [];
+  const root = path.join('docs/audits', 'jev-expansion-v1');
+  let names: string[];
+  try {
+    names = fs.readdirSync(root);
+  } catch {
+    return out;
+  }
+  for (const name of names) {
+    const dir = path.join(root, name);
+    try {
+      if (!fs.statSync(dir).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    out.push(path.join(dir, 'source-development.json'));
+    out.push(path.join(dir, 'source-development-supplemental.json'));
+  }
+  return out;
+}
+
+/**
+ * Reserve-then-fetch transport: every hop reserves a numbered window seq
+ * BEFORE the HTTP request and records an immutable outcome after. Exhaustion
+ * refuses before transport (no refund, no candidate clipping). Caller passes
+ * only sitemap|feed|page; "enrich" is Main-runner-scoped on the same window.
+ */
+async function fetchOnce(url: string, kind: SourceRequestKind): Promise<{ status: number; text: string; finalUrl: string } | null> {
+  const window = activeWindow;
+  if (!window) throw new Error('source_window_missing: collector runs require an opened --source-window (Main creates it after planner+reviewer)');
   let initialHost: string;
   try {
     initialHost = new URL(url).hostname;
@@ -175,23 +265,32 @@ async function fetchOnce(url: string, kind: string): Promise<{ status: number; t
   if (denied.has(normalizeDeniedHost(initialHost))) return null;
   let current = url;
   for (let hop = 0; hop < 5; hop++) {
-    if (attemptCount >= ATTEMPT_CAP) return null;
+    if (spentSeqs.length >= invocationBudget) return null;
     // Policy gate + denial check on EVERY hop (redirects may move apex<->www).
+    // Gates run BEFORE reservation: refused hops spend nothing.
     if (!isAllowedSourceUrl(current)) return null;
     try {
       if (denied.has(normalizeDeniedHost(new URL(current).hostname))) return null;
     } catch {
       return null;
     }
+    let reservation: { seq: number; urlSha256: string };
+    try {
+      reservation = reserveSourceRequest(window, { url: current, kind, ...(WORKER ? { worker: WORKER } : {}) });
+    } catch (e) {
+      if (e instanceof SourceWindowExhaustedError) return null;
+      throw e;
+    }
+    spentSeqs.push(reservation.seq);
     let res: Response;
     try {
       res = await fetch(current, { headers: { 'User-Agent': UA }, redirect: 'manual', signal: AbortSignal.timeout(30000) });
     } catch (e) {
-      logAttempt(current, `fetch-error:${String(e).slice(0, 80)}`, kind);
+      recordSourceOutcome(window, reservation.seq, { status: `fetch-error:${String(e).slice(0, 80)}`, bytes: 0 });
       return null;
     }
-    logAttempt(current, res.status, kind);
     if ([401, 403, 429, 451].includes(res.status)) {
+      recordSourceOutcome(window, reservation.seq, { status: res.status, bytes: 0, error: 'host-denied' });
       try {
         denied.add(normalizeDeniedHost(new URL(current).hostname));
       } catch { /* unparseable host: stay denied for the initial host */ }
@@ -199,16 +298,24 @@ async function fetchOnce(url: string, kind: string): Promise<{ status: number; t
     }
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location');
-      if (!loc) return null;
+      if (!loc) {
+        recordSourceOutcome(window, reservation.seq, { status: res.status, error: 'redirect-without-location' });
+        return null;
+      }
       const next = new URL(loc, current);
+      recordSourceOutcome(window, reservation.seq, { status: res.status, ...(next.protocol === 'https:' ? { finalUrl: next.toString() } : {}), error: 'redirect-hop' });
       if (next.protocol !== 'https:') return null;
-      // Same-site redirect only (apex <-> www); cross-site refused. Count already logged.
+      // Same-site redirect only (apex <-> www); cross-site refused. Hop spent.
       if (!sameSite(next.toString(), current)) return null;
       current = next.toString();
       continue;
     }
-    if (res.status < 200 || res.status >= 300) return null;
+    if (res.status < 200 || res.status >= 300) {
+      recordSourceOutcome(window, reservation.seq, { status: res.status, bytes: 0 });
+      return null;
+    }
     const text = await res.text();
+    recordSourceOutcome(window, reservation.seq, { status: res.status, finalUrl: current, bytes: text.length });
     return { status: res.status, text, finalUrl: current };
   }
   return null;
@@ -286,54 +393,106 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 }
 
 interface PriorRow { familyId: string; canonicalUrl: string; title: string; brand: string }
-function loadExclusion(priorCustodyDir: string | null): { byFamily: Set<string>; byUrl: Set<string>; prior: PriorRow[]; privateFamilies: number; privateUrls: number } {
+/** Fail-closed public-bank load: missing files are skipped (an optional
+ * supplemental or expansion bank may not exist yet), but a present file
+ * with unparseable JSON or a malformed identity row throws — never a
+ * silent skip that would shrink the exclusion ledger. Reads ONLY
+ * familyId + canonicalUrl identity fields for admission (title/brand ride
+ * along for the near-dup screen); never excerpts, labels, or gold. */
+function loadBank(
+  bankPath: string,
+  byFamily: Set<string>,
+  byUrl: Set<string>,
+  prior: PriorRow[],
+): { families: number; urls: number } {
+  if (!fs.existsSync(bankPath)) return { families: 0, urls: 0 };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(bankPath, 'utf-8'));
+  } catch (e) {
+    throw new Error(`corrupt_exclusion_bank: cannot parse ${bankPath}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`corrupt_exclusion_bank: expected a row array in ${bankPath}`);
+  }
+  let families = 0;
+  let urls = 0;
+  for (const [index, entry] of parsed.entries()) {
+    const r = entry as { familyId?: unknown; canonicalUrl?: unknown; title?: unknown; brand?: unknown };
+    if (typeof r.familyId !== 'string' || !r.familyId || typeof r.canonicalUrl !== 'string') {
+      throw new Error(`corrupt_exclusion_bank: row ${index} in ${bankPath} lacks a string familyId/canonicalUrl`);
+    }
+    const key = canonicalProductUrlKey(r.canonicalUrl);
+    if (key === null) {
+      throw new Error(`corrupt_exclusion_bank: row ${index} in ${bankPath} has an unparseable canonicalUrl`);
+    }
+    if (!byFamily.has(r.familyId)) families++;
+    byFamily.add(r.familyId);
+    if (!byUrl.has(key)) urls++;
+    byUrl.add(key);
+    prior.push({
+      familyId: r.familyId,
+      canonicalUrl: r.canonicalUrl,
+      title: typeof r.title === 'string' ? r.title : '',
+      brand: typeof r.brand === 'string' ? r.brand : '',
+    });
+  }
+  return { families, urls };
+}
+/** Admission identity for public-only exclusion: sealed public family ids plus
+ * canonical product-URL identity keys (apex/www + trailing-slash
+ * insensitive). Raw URLs stay on the prior rows for provenance; the byUrl
+ * set holds keys only, so lookup is an O(1) exact match on identity.
+ * Private custody is NEVER parsed during prospective capture: old custody
+ * stays sealed, and overlap against unparsed private banks is unverified. */
+export interface SourceExclusion {
+  byFamily: Set<string>;
+  byUrl: Set<string>;
+  prior: PriorRow[];
+  publicFamilies: number;
+  publicUrls: number;
+  stagedFamilies: number;
+  stagedUrls: number;
+  stagedBanks: string[];
+}
+/**
+ * Public-only exclusion load: sealed public banks plus explicit --exclude-bank
+ * stage chaining. There is intentionally NO private-custody branch: passing
+ * --prior-custody is rejected in main before any work.
+ */
+export function loadPublicExclusion(extraBanks: string[]): SourceExclusion {
   const byFamily = new Set<string>();
   const byUrl = new Set<string>();
   const prior: PriorRow[] = [];
-  for (const v of ['jev-representative-v1', 'jev-representative-v2']) {
-    const p = path.join('docs/audits', v, 'source-development.json');
-    if (!fs.existsSync(p)) continue;
-    const rows = JSON.parse(fs.readFileSync(p, 'utf-8')) as PriorRow[];
-    for (const r of rows) {
-      byFamily.add(r.familyId);
-      byUrl.add(r.canonicalUrl);
-      prior.push({ familyId: r.familyId, canonicalUrl: r.canonicalUrl, title: r.title, brand: r.brand });
-    }
+  let publicFamilies = 0;
+  let publicUrls = 0;
+  // Every sealed public source bank: primary + supplemental for
+  // representative v1/v2/v3/v4/v9, plus the current expansion banks so a
+  // future new collection cannot re-expose them either.
+  for (const p of [...PRIOR_PUBLIC_BANKS, ...expansionBanks()]) {
+    const added = loadBank(p, byFamily, byUrl, prior);
+    publicFamilies += added.families;
+    publicUrls += added.urls;
   }
-  let privateFamilies = 0;
-  let privateUrls = 0;
-  if (priorCustodyDir) {
-    // Prior-generation private exclusion audit. Reads ONLY familyId +
-    // canonicalUrl identity fields — never excerpts, labels, or gold.
-    let found = false;
-    const membershipPath = path.join(priorCustodyDir, 'membership.json');
-    if (fs.existsSync(membershipPath)) {
-      found = true;
-      const members = JSON.parse(fs.readFileSync(membershipPath, 'utf-8')) as Array<{ familyId?: unknown }>;
-      for (const m of members) {
-        if (typeof m.familyId === 'string' && m.familyId) {
-          if (!byFamily.has(m.familyId)) privateFamilies++;
-          byFamily.add(m.familyId);
-        }
-      }
+  let stagedFamilies = 0;
+  let stagedUrls = 0;
+  const stagedBanks: string[] = [];
+  for (const bankPath of extraBanks) {
+    // Stage chaining reads explicit public stage outputs only; a missing or
+    // private-looking bank path fails closed (never a silent skip).
+    const lowered = bankPath.toLowerCase();
+    if (lowered.includes('custody') || lowered.includes('holdout') || lowered.includes('membership')) {
+      throw new Error(`private_exclusion_rejected: stage banks must be public outputs, not custody: ${bankPath}`);
     }
-    const holdoutPath = path.join(priorCustodyDir, 'holdout-inputs.json');
-    if (fs.existsSync(holdoutPath)) {
-      found = true;
-      const rows = JSON.parse(fs.readFileSync(holdoutPath, 'utf-8')) as Array<{ familyId?: unknown; canonicalUrl?: unknown }>;
-      for (const r of rows) {
-        if (typeof r.familyId === 'string' && r.familyId) byFamily.add(r.familyId);
-        if (typeof r.canonicalUrl === 'string' && r.canonicalUrl.startsWith('https://')) {
-          if (!byUrl.has(r.canonicalUrl)) privateUrls++;
-          byUrl.add(r.canonicalUrl);
-        }
-      }
+    if (!fs.existsSync(bankPath)) {
+      throw new Error(`missing_stage_bank: stage-chained exclusion bank not found: ${bankPath}`);
     }
-    if (!found) {
-      throw new Error(`incomplete_exclusion_ledger: no membership.json or holdout-inputs.json in ${priorCustodyDir}`);
-    }
+    const added = loadBank(bankPath, byFamily, byUrl, prior);
+    stagedFamilies += added.families;
+    stagedUrls += added.urls;
+    stagedBanks.push(bankPath);
   }
-  return { byFamily, byUrl, prior, privateFamilies, privateUrls };
+  return { byFamily, byUrl, prior, publicFamilies, publicUrls, stagedFamilies, stagedUrls, stagedBanks };
 }
 
 export interface Candidate {
@@ -342,7 +501,7 @@ export interface Candidate {
   sourceForm: 'manufacturer-feed' | 'manufacturer-page';
 }
 
-async function collectFeedProducts(seed: Seed, exclusion: ReturnType<typeof loadExclusion>, stats: Record<string, number>): Promise<Candidate[]> {
+async function collectFeedProducts(seed: Seed, exclusion: SourceExclusion, stats: Record<string, number>): Promise<Candidate[]> {
   const out: Candidate[] = [];
   const seenHandles = new Set<string>();
   for (let page = 1; page <= 6; page++) {
@@ -357,7 +516,7 @@ async function collectFeedProducts(seed: Seed, exclusion: ReturnType<typeof load
       if (seenHandles.has(p.handle)) continue;
       seenHandles.add(p.handle);
       const canonicalUrl = `https://${seed.domain}/products/${p.handle}`;
-      if (exclusion.byUrl.has(canonicalUrl)) { stats.excludedPriorUrl = (stats.excludedPriorUrl ?? 0) + 1; continue; }
+      if (isExcludedProductUrl(canonicalUrl, exclusion)) { stats.excludedPriorUrl = (stats.excludedPriorUrl ?? 0) + 1; continue; }
       const title = (p.title ?? '').trim();
       const brand = (p.vendor ?? seed.brand).trim() || seed.brand;
       if (!title) continue;
@@ -455,7 +614,7 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
           continue;
         }
         if (NON_PRODUCT_HINT.test(u) || seen.has(u)) continue;
-        let pathname = '';
+        let pathname: string;
         try { pathname = new URL(u).pathname; } catch { continue; }
         if (/\/sitemap\.php$/.test(u) || !/\/[^./]+\/?$/.test(pathname)) continue;
         if (isSitemapPhp) {
@@ -500,10 +659,10 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
         // first path segment across ALL batches (dense cohorts like /pt/
         // spread over many child files). Evaluated post-crawl.
         for (const u of locs) {
-          let same = false;
+          let same: boolean;
           try { same = sameSite(u, `https://${seed.domain}`); } catch { continue; }
           if (!same || scoreUrl(u) >= 3 || NON_PRODUCT_HINT.test(u)) continue;
-          let seg = '';
+          let seg: string;
           try {
             const parts = new URL(u).pathname.split('/').filter(s => s.length > 0);
             seg = parts[0] ?? '';
@@ -517,7 +676,7 @@ async function collectSitemapUrls(seed: Seed, stats: Record<string, number>): Pr
           stats[id('sitemap-listing-fallback')] = 1;
           for (const u of locs) {
             if (seen.has(u) || NON_PRODUCT_HINT.test(u)) continue;
-            let pathname = '';
+            let pathname: string;
             try { pathname = new URL(u).pathname; } catch { continue; }
             if (!/\/[^./]+\/?$/.test(pathname)) continue;
             try { if (sameSite(u, `https://${seed.domain}`)) queue.push(u); } catch { /* skip */ }
@@ -638,15 +797,21 @@ export function candidateFromPageHtml(
   };
 }
 
-export async function collectPage(seed: Seed, url: string, exclusion: ReturnType<typeof loadExclusion>, stats: Record<string, number>): Promise<Candidate | null> {
-  if (exclusion.byUrl.has(url)) { stats.excludedPriorUrl = (stats.excludedPriorUrl ?? 0) + 1; return null; }
+export async function collectPage(seed: Seed, url: string, exclusion: SourceExclusion, stats: Record<string, number>): Promise<Candidate | null> {
+  // Canonical pre-fetch admission gate: the raw spelling can differ from the
+  // sealed spelling (apex/www, trailing slash), so identity — not the raw
+  // string — decides, BEFORE any network.
+  if (isExcludedProductUrl(url, exclusion)) { stats.excludedPriorUrl = (stats.excludedPriorUrl ?? 0) + 1; return null; }
   const res = await fetchOnce(url, 'page');
   if (!res) return null;
+  // Redirect-alias gate: a live redirect may resolve to a final URL whose
+  // identity is sealed even though the prefetch spelling was unseen.
+  if (isExcludedProductUrl(res.finalUrl, exclusion)) { stats.excludedPriorUrl = (stats.excludedPriorUrl ?? 0) + 1; return null; }
   return candidateFromPageHtml(seed, url, res.finalUrl, res.text, new Date().toISOString(), stats);
 }
 
-export const CUSTODY_ARTIFACTS = ['candidate-bank.json', 'holdout-inputs.json', 'membership.json', 'attempt-ledger.json', 'cumulative-source-ledger.json'];
-export const PUBLIC_ARTIFACTS = ['source-development.json', 'source-development-supplemental.json', 'collection-manifest.json'];
+export const CUSTODY_ARTIFACTS = ['candidate-bank.json', 'holdout-inputs.json', 'membership.json', 'attempt-ledger.json', 'source-window-usage.json'];
+export const PUBLIC_ARTIFACTS = ['source-development.json', 'source-development-supplemental.json', 'collection-manifest.json', 'source-request-receipts.json'];
 
 /**
  * Fail-closed seal guard: report already-sealed artifact paths BEFORE any
@@ -676,8 +841,24 @@ export function deriveAuthorityHash(taxonomy: unknown): string {
   }
 }
 
+function rejectSymlinkedOutputDir(dir: string, what: string): void {
+  try {
+    if (fs.existsSync(dir) && fs.lstatSync(dir).isSymbolicLink()) {
+      throw new Error(`symlink_output_rejected: ${what} must not be a symlink: ${dir}`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('symlink_output_rejected')) throw e;
+    throw e;
+  }
+}
+
 async function main(): Promise<void> {
+  if (PRIOR_CUSTODY_FLAG !== null) {
+    throw new Error('private_exclusion_rejected: --prior-custody is removed for prospective capture; old custody stays sealed (use --exclude-bank <public-bank> for stage chaining)');
+  }
   if (WRITE) {
+    rejectSymlinkedOutputDir(CUSTODY, '--custody');
+    rejectSymlinkedOutputDir(PUBLIC, '--public');
     const clashes = findExistingArtifacts(CUSTODY, PUBLIC, fs.existsSync);
     if (clashes.length > 0) {
       throw new Error(`sealed_artifacts_exist: refusing to overwrite: ${clashes.join(', ')}`);
@@ -710,7 +891,7 @@ async function main(): Promise<void> {
   // for that seed's domain only; same gates (score floor or prequalified
   // context, JSON-LD proof) apply. Never a substitute for fetching.
   const urlFile = arg('--url-file');
-  let cachedUrlsByDomain: Record<string, string[]> = {};
+  const cachedUrlsByDomain: Record<string, string[]> = {};
   if (urlFile) {
     try {
       const rawUrls = JSON.parse(fs.readFileSync(urlFile, 'utf-8'));
@@ -727,19 +908,77 @@ async function main(): Promise<void> {
       throw new Error(`invalid_url_file: cannot load ${urlFile}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
     }
   }
-  const priorCustody = arg('--prior-custody') ?? PRIOR_CUSTODY_DEFAULT;
-  const exclusion = loadExclusion(priorCustody);
+  const stageBanks = argsAll('--exclude-bank');
+  const exclusion = loadPublicExclusion(stageBanks);
   const stats: Record<string, number> = { excludedPriorUrl: 0, excludedPriorFamily: 0, excludedNearDup: 0, excludedThinEvidence: 0 };
   const knownBrands = seeds.map(s => s.brand);
   const raw: Candidate[] = [];
+  if (DRY_RUN || !WRITE) {
+    // Planning only: no fetch, no window spend. Optionally reports the owned
+    // window status when flags are provided (validating, never spending).
+    let windowStatus: Record<string, unknown>;
+    if (SOURCE_WINDOW_DIR === null || OWNER_DECISIONS_PATH === null) {
+      windowStatus = { status: 'not-provided', note: 'Main creates the owned window after planner+reviewer; fetching requires --source-window <dir> + --owner-decisions <file>' };
+    } else if (!fs.existsSync(SOURCE_WINDOW_DIR)) {
+      windowStatus = { status: 'not-created-yet', windowDir: SOURCE_WINDOW_DIR, note: 'no capture authorized until Main creates this window after planner+reviewer' };
+    } else {
+      const planningOwnerSha = computeOwnerDecisionSha256(OWNER_DECISIONS_PATH);
+      const planningWindow = openSourceWindow({
+        windowDir: SOURCE_WINDOW_DIR,
+        expectedOwnerDecisionSha256: planningOwnerSha,
+        expectedAuthorityHash: authorityHash,
+        expectedMaxHttpAttempts: SOURCE_WINDOW_MAX,
+      });
+      const usage = getSourceWindowUsage(planningWindow);
+      windowStatus = { status: 'open', windowId: usage.windowId, maxHttpAttempts: usage.max, spent: usage.spent, remaining: usage.remaining, invocationCap: parseInvocationCap(ATTEMPT_CAP_RAW, usage.remaining) };
+    }
+    console.log(JSON.stringify({
+      artifactKind: 'approved-source-window-collection-plan',
+      mode: DRY_RUN ? 'dry-run' : 'no-write',
+      fetchPlan: { wouldFetch: false, reason: 'planning-only: no HTTP requests, no window spend' },
+      sourceWindow: windowStatus,
+      historicalAccounting: 'unverified: this run prints ONLY its approved window; no prior/global totals are claimed',
+      authorityHash,
+      taxonomyPath,
+      taxonomyFileHash,
+      seeds,
+      seedFile: seedFile ?? null,
+      stageBanks,
+      exclusionLedger: {
+        publicPriorFamilies: exclusion.publicFamilies,
+        publicPriorUrls: exclusion.publicUrls,
+        stagedFamilies: exclusion.stagedFamilies,
+        stagedUrls: exclusion.stagedUrls,
+        priorLedger: PRIOR_LEDGER_IDS,
+        privateCustodyParsed: false,
+        privateOverlapCaveat: 'old sealed banks stay unparsed; overlap against unparsed private banks is unverified and uncertifiable by this run',
+      },
+      sealGuard: { custodyDir: CUSTODY, publicDir: PUBLIC, clashes: WRITE ? [] : findExistingArtifacts(CUSTODY, PUBLIC, fs.existsSync) },
+    }, null, 2));
+    return;
+  }
+  // Any fetching run opens the Main-created shared window BEFORE any fetch and
+  // binds the exact owner-decision bytes + authority. --attempt-cap means
+  // remaining-window: default = all remaining, reject-if-greater, never reset.
+  if (SOURCE_WINDOW_DIR === null || OWNER_DECISIONS_PATH === null) {
+    throw new Error('source_window_required: fetching runs require --source-window <dir> (Main-created) and --owner-decisions <owner-approved-decisions.json>');
+  }
+  const ownerDecisionSha256 = computeOwnerDecisionSha256(OWNER_DECISIONS_PATH);
+  activeWindow = openSourceWindow({
+    windowDir: SOURCE_WINDOW_DIR,
+    expectedOwnerDecisionSha256: ownerDecisionSha256,
+    expectedAuthorityHash: authorityHash,
+    expectedMaxHttpAttempts: SOURCE_WINDOW_MAX,
+  });
+  const windowBefore = getSourceWindowUsage(activeWindow);
+  invocationBudget = parseInvocationCap(ATTEMPT_CAP_RAW, windowBefore.remaining);
 
   for (const seed of seeds) {
-    if (attemptCount >= ATTEMPT_CAP) break;
+    if (spentSeqs.length >= invocationBudget) break;
     // Sitemap first: feed verification requires an actual sitemap match.
     let sitemapUrls: string[] = [];
     let prequalified = new Set<string>();
-    if (attemptCount < ATTEMPT_CAP) ({ urls: sitemapUrls, prequalified } = await collectSitemapUrls(seed, stats));
-    stats[`${seed.domain}:sitemap-urls`] = sitemapUrls.length;
+    if (spentSeqs.length < invocationBudget) ({ urls: sitemapUrls, prequalified } = await collectSitemapUrls(seed, stats));
     const feedRows = await collectFeedProducts(seed, exclusion, stats);
     // Only sitemap-matched feed rows are admitted as verified feed evidence.
     const { verified, unverified } = partitionFeedRows(feedRows, sitemapUrls);
@@ -769,7 +1008,7 @@ async function main(): Promise<void> {
     stats[`${seed.domain}:fetch-queued`] = pageQueue.length;
     let added = 0;
     for (const u of pageQueue) {
-      if (attemptCount >= ATTEMPT_CAP || added >= 250) break;
+      if (spentSeqs.length >= invocationBudget || added >= 250) break;
       const c = await collectPage(seed, u, exclusion, stats);
       if (c) { raw.push(c); added++; }
     }
@@ -833,20 +1072,38 @@ async function main(): Promise<void> {
     }
   }
 
+  const windowAfter = getSourceWindowUsage(activeWindow);
   const summary = {
+    artifactKind: 'approved-source-window-collection-summary',
+    sourceWindow: {
+      windowDir: activeWindow.windowDir,
+      windowId: activeWindow.windowId,
+      maxHttpAttempts: activeWindow.maxHttpAttempts,
+      ownerDecisionSha256,
+      ownerDecisionsPath: OWNER_DECISIONS_PATH,
+      windowSpentBefore: windowBefore.spent,
+      thisInvocationSpent: spentSeqs.length,
+      windowSpentAfter: windowAfter.spent,
+      windowRemaining: windowAfter.remaining,
+      invocationCap: invocationBudget,
+      invocationSeqs: [...spentSeqs],
+    },
+    historicalAccounting: 'unverified: this run prints ONLY its approved window; no prior/global totals are claimed',
     authorityHash,
     taxonomyPath,
     taxonomyFileHash,
     seeds,
     seedFile: seedFile ?? null,
     exclusionLedger: {
-      publicPriorFamilies: 1914,
-      privatePriorFamilies: exclusion.privateFamilies,
-      privatePriorUrls: exclusion.privateUrls,
-      priorCustody,
+      publicPriorFamilies: exclusion.publicFamilies,
+      publicPriorUrls: exclusion.publicUrls,
+      stagedFamilies: exclusion.stagedFamilies,
+      stagedUrls: exclusion.stagedUrls,
+      stagedBanks: exclusion.stagedBanks,
+      priorLedger: PRIOR_LEDGER_IDS,
+      privateCustodyParsed: false,
+      privateOverlapCaveat: 'old sealed banks stay unparsed; overlap against unparsed private banks is unverified and uncertifiable by this run',
     },
-    attempts: attemptCount,
-    attemptCap: ATTEMPT_CAP,
     deniedHosts: [...denied],
     rawCandidates: raw.length,
     familiesKept: kept.length,
@@ -858,16 +1115,29 @@ async function main(): Promise<void> {
     stats,
   };
 
-  if (DRY_RUN || !WRITE) {
-    console.log(JSON.stringify(summary, null, 2));
-    return;
-  }
-
   fs.mkdirSync(CUSTODY, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(PUBLIC, { recursive: true });
+  if (fs.lstatSync(CUSTODY).isSymbolicLink() || fs.lstatSync(PUBLIC).isSymbolicLink()) {
+    throw new Error('symlink_output_rejected: output dirs must not resolve through a symlink');
+  }
   const put = (dir: string, name: string, data: unknown): string => {
     const p = path.join(dir, name);
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), { mode: 0o600 });
+    if (fs.existsSync(p)) {
+      throw new Error(`sealed_artifacts_exist: refusing to overwrite: ${p}`);
+    }
+    fs.writeFileSync(p, JSON.stringify(data, null, 2), { flag: 'wx', mode: 0o600 });
     return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+  };
+  const windowHandle = activeWindow;
+  const publicReceipts = buildPublicSourceReceipt(windowHandle, spentSeqs);
+  // Private capture ledger: raw invocation linkage stays in 0600 custody.
+  const privateLedger = {
+    artifactKind: 'source-capture-ledger-private',
+    windowId: windowHandle.windowId,
+    invocationSeqs: [...spentSeqs],
+    count: spentSeqs.length,
+    deniedHosts: [...denied],
+    at: new Date().toISOString(),
   };
   const memberByFamily = new Map(membership.map(m => [m.familyId, m]));
   const bankRows = [...devPrimary, ...devSupplemental].map(row => ({
@@ -877,37 +1147,59 @@ async function main(): Promise<void> {
   const bankHash = put(CUSTODY, 'candidate-bank.json', bankRows);
   const holdoutHash = put(CUSTODY, 'holdout-inputs.json', holdoutPrivate);
   const memberHash = put(CUSTODY, 'membership.json', membership);
-  const ledgerHash = put(CUSTODY, 'attempt-ledger.json', { attempts: ledger, deniedHosts: [...denied], count: attemptCount, cap: ATTEMPT_CAP });
-  const cumulative = {
-    priorSourceAttempts: PRIOR_SOURCE_ATTEMPTS,
-    thisGenerationAttempts: attemptCount,
-    totalSourceAttempts: PRIOR_SOURCE_ATTEMPTS + attemptCount,
-    globalLedger: {
-      legacy: 1140,
-      pageWorker: 273,
-      source: PRIOR_SOURCE_ATTEMPTS + attemptCount,
-      globalCap: 3200,
-    },
-  };
-  const cumulativeHash = put(CUSTODY, 'cumulative-source-ledger.json', cumulative);
+  const ledgerHash = put(CUSTODY, 'attempt-ledger.json', privateLedger);
+  const usageHash = put(CUSTODY, 'source-window-usage.json', {
+    windowId: windowHandle.windowId,
+    windowDir: windowHandle.windowDir,
+    maxHttpAttempts: windowHandle.maxHttpAttempts,
+    ownerDecisionSha256,
+    authorityHash,
+    windowSpentBefore: windowBefore.spent,
+    thisInvocationSpent: spentSeqs.length,
+    windowSpentAfter: windowAfter.spent,
+    windowRemaining: windowAfter.remaining,
+  });
 
   const devHash = put(PUBLIC, 'source-development.json', devPrimary);
   const devSuppHash = put(PUBLIC, 'source-development-supplemental.json', devSupplemental);
+  const receiptsHash = put(PUBLIC, 'source-request-receipts.json', {
+    artifactKind: 'source-request-receipts-public',
+    windowId: windowHandle.windowId,
+    maxHttpAttempts: windowHandle.maxHttpAttempts,
+    ownerDecisionSha256,
+    authorityHash,
+    urlIdentity: 'sha256-only: public receipts never carry raw held URLs',
+    receipts: publicReceipts,
+  });
   const manifest = {
-    version: 'jev-representative-v3-collection-manifest',
+    version: 'jev-source-window-collection-manifest',
     status: 'source-evidence-only-unlabeled',
     authorityHash,
     taxonomyPath,
     taxonomyFileHash,
+    ownerDecisionsPath: OWNER_DECISIONS_PATH,
+    ownerDecisionSha256,
     splits: { seed: SPLIT_SEED, holdoutPercent: HOLDOUT_PERCENT },
-    exclusion: { priorFamilies: 1914, priorLedger: ['jev-representative-v1', 'jev-representative-v2'], privatePriorFamilies: exclusion.privateFamilies, privatePriorUrls: exclusion.privateUrls, priorCustody, excludedGroups, stats },
-    attempts: { used: attemptCount, cap: ATTEMPT_CAP, deniedHosts: [...denied], cumulative },
+    exclusion: {
+      publicPriorFamilies: exclusion.publicFamilies,
+      publicPriorUrls: exclusion.publicUrls,
+      stagedFamilies: exclusion.stagedFamilies,
+      stagedUrls: exclusion.stagedUrls,
+      stagedBanks: exclusion.stagedBanks,
+      priorLedger: PRIOR_LEDGER_IDS,
+      privateCustodyParsed: false,
+      excludedGroups,
+      stats,
+    },
+    sourceWindow: summary.sourceWindow,
+    historicalAccounting: summary.historicalAccounting,
+    remainingExposureCaveat: 'old sealed banks cannot be certified eligible by this work; prior private overlap is unverified; new captures must not implicitly certify them',
     counts: { familiesKept: kept.length, devPrimary: devPrimary.length, devSupplemental: devSupplemental.length, holdoutFamilies: membership.filter(m => m.split === 'holdout').length, holdoutRows: holdoutPrivate.length },
-    commitments: { bankHash, holdoutHash, memberHash, ledgerHash, cumulativeHash, devHash, devSuppHash },
-    privacy: { noHoldoutRowsInPublic: true, custodyMode: '0600', labelsCollected: 0, modelCalls: 0, dbReads: 0 },
+    commitments: { bankHash, holdoutHash, memberHash, ledgerHash, usageHash, devHash, devSuppHash, receiptsHash },
+    privacy: { noHoldoutRowsInPublic: true, custodyMode: '0600', publicReceiptUrls: 'sha256-only', labelsCollected: 0, modelCalls: 0, dbReads: 0 },
   };
   const manifestHash = put(PUBLIC, 'collection-manifest.json', manifest);
-  console.log(JSON.stringify({ ...summary, files: { devHash, devSuppHash, manifestHash, holdoutHash } }, null, 2));
+  console.log(JSON.stringify({ ...summary, files: { devHash, devSuppHash, manifestHash, holdoutHash, receiptsHash } }, null, 2));
 }
 
 if (import.meta.main) {

@@ -1,0 +1,180 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "counts": {
+  "publicSourceRows": 1203,
+  "priorPublicIdentityExclusions": 224,
+  "adjudicatedRows": 979,
+  "nonProductExclusions": 4,
+  "developmentRows": 967,
+  "developmentFamilies": 901,
+  "duplicateCapturesExcluded": 8,
+  "knownRows": 685,
+  "noFitRows": 218,
+  "insufficientRows": 64,
+  "representedKnownTypes": 27,
+  "classesAtTwentyRows": 10,
+  "completePageGoldRows": 0,
+  "qualificationEligibleRows": 0
+ },
+ "fieldStateCounts": {
+  "insufficient-evidence": 737,
+  "known": 719,
+  "inapplicable": 5977,
+  "no-fit": 303
+ },
+ "classSupport": {
+  "bee-supplies": {
+   "rows": 25,
+   "families": 22,
+   "twentyRowFloorMet": true
+  },
+  "bird-houses-baths": {
+   "rows": 16,
+   "families": 16,
+   "twentyRowFloorMet": false
+  },
+  "cat-food-dry": {
+   "rows": 2,
+   "families": 2,
+   "twentyRowFloorMet": false
+  },
+  "cat-food-wet": {
+   "rows": 20,
+   "families": 11,
+   "twentyRowFloorMet": true
+  },
+  "cat-toys": {
+   "rows": 17,
+   "families": 17,
+   "twentyRowFloorMet": false
+  },
+  "cat-treats": {
+   "rows": 7,
+   "families": 6,
+   "twentyRowFloorMet": false
+  },
+  "collars-leashes": {
+   "rows": 10,
+   "families": 6,
+   "twentyRowFloorMet": false
+  },
+  "dog-food-dry": {
+   "rows": 3,
+   "families": 3,
+   "twentyRowFloorMet": false
+  },
+  "dog-food-wet": {
+   "rows": 8,
+   "families": 3,
+   "twentyRowFloorMet": false
+  },
+  "dog-toys": {
+   "rows": 54,
+   "families": 44,
+   "twentyRowFloorMet": true
+  },
+  "dog-treats": {
+   "rows": 32,
+   "families": 28,
+   "twentyRowFloorMet": true
+  },
+  "equine-grooming-hoof": {
+   "rows": 33,
+   "families": 33,
+   "twentyRowFloorMet": true
+  },
+  "fish-food": {
+   "rows": 18,
+   "families": 17,
+   "twentyRowFloorMet": false
+  },
+  "flea-tick-treatment": {
+   "rows": 11,
+   "families": 11,
+   "twentyRowFloorMet": false
+  },
+  "fly-control-equine": {
+   "rows": 19,
+   "families": 19,
+   "twentyRowFloorMet": false
+  },
+  "grooming": {
+   "rows": 31,
+   "families": 25,
+   "twentyRowFloorMet": true
+  },
+  "horse-blankets-tack": {
+   "rows": 88,
+   "families": 88,
+   "twentyRowFloorMet": true
+  },
+  "horse-treats-supplements": {
+   "rows": 1,
+   "families": 1,
+   "twentyRowFloorMet": false
+  },
+  "insect-control": {
+   "rows": 7,
+   "families": 7,
+   "twentyRowFloorMet": false
+  },
+  "insufficient-evidence": {
+   "rows": 64,
+   "families": 60,
+   "twentyRowFloorMet": false
+  },
+  "livestock-feeders": {
+   "rows": 3,
+   "families": 3,
+   "twentyRowFloorMet": false
+  },
+  "livestock-health-dewormers": {
+   "rows": 7,
+   "families": 7,
+   "twentyRowFloorMet": false
+  },
+  "no-fit": {
+   "rows": 218,
+   "families": 210,
+   "twentyRowFloorMet": false
+  },
+  "plant-food-fertilizer": {
+   "rows": 26,
+   "families": 25,
+   "twentyRowFloorMet": true
+  },
+  "potting-soil": {
+   "rows": 11,
+   "families": 11,
+   "twentyRowFloorMet": false
+  },
+  "small-animal-feed-bedding": {
+   "rows": 43,
+   "families": 42,
+   "twentyRowFloorMet": true
+  },
+  "supplements": {
+   "rows": 18,
+   "families": 18,
+   "twentyRowFloorMet": false
+  },
+  "weed-control": {
+   "rows": 1,
+   "families": 1,
+   "twentyRowFloorMet": false
+  },
+  "wild-bird-feeders": {
+   "rows": 174,
+   "families": 165,
+   "twentyRowFloorMet": true
+  }
+ },
+ "status": "not-qualified",
+ "blockers": [
+  "No independent generation-specific development peer receipt yet",
+  "Page identity is verified but complete assignment scope/gold is not closed",
+  "Class floors apply to every evaluated class; absent/under-supported classes are not silently qualified",
+  "Sealed source custody is not labeled or qualified holdout gold",
+  "Fitted per-capability policies, live comparison and human canaries remain required"
+ ]
+}

@@ -1232,7 +1232,6 @@ import {
   redactTransportText,
   ModelPolicyDeniedError,
   type ModelPolicyView,
-  type ProtectedOperation,
 } from './model-policy-gateway';
 import { getLlmConfigForTask, getLlmCredentialReference, getLlmDispatchIdentityHash, LlmDispatchGuardError, type LlmConfig, type LlmDispatchGuard } from '../onboarding/llm-client';
 import type { LlmTask } from '../db/repositories/llm-task-config-repo';
@@ -1285,7 +1284,7 @@ export const QUALIFICATION_BLOCKED_QUESTION_CONSTRUCTION_FAILED = 'question_cons
 export const QUALIFICATION_BLOCKED_APPLICABILITY_UNRESOLVABLE = 'qualification_applicability_unresolvable' as const;
 
 /** Gold-only entry: adjudicated labels + evidence. Never carries predictions. */
-export interface QualificationGoldOnlyEntry extends QualificationGoldCore {}
+export type QualificationGoldOnlyEntry = QualificationGoldCore;
 
 /**
  * Per-target raw outcome from ACTUAL decision/answer interpretation (never a
@@ -1474,6 +1473,15 @@ export interface QualificationTaxonomies {
   frozenAuthorityDetails?: FrozenAuthorityDetails | null;
 }
 
+/**
+ * Capture owns one deep copy of these data-only pools, profiles, invariants
+ * and authority details; caller mutation cannot move inference under its
+ * predispatch source-input commitment.
+ */
+function freezeQualificationTaxonomies(taxonomies: QualificationTaxonomies): QualificationTaxonomies {
+  return structuredClone(taxonomies);
+}
+
 /** Per-target grounding flags from the frozen bundle (aliases stay canonical). */
 export interface FrozenAuthorityAttributeDetail {
   valueAliases: Array<{ alias: string; mapsTo: string }>;
@@ -1649,10 +1657,12 @@ function readFrozenAuthoritySidecar(snapshot: FrozenTaxonomySnapshot): FrozenAut
 
 /**
  * Capture mode for the whole artifact (additive): `deterministic_floor` when
- * no live model was attempted for either side (CI-safe sync build), else
- * `live_captured` when a live attempt was made (per-side `source` fields
- * carry the per-entry outcome — a live attempt may still record `blocked`
- * sides when credentials or dispatch fail).
+ * no live model spoke for any side (CI-safe sync build AND live attempts
+ * where every per-entry side stayed floor/blocked — per-side `source` fields
+ * carry the per-entry outcome), else `live_captured` when at least one
+ * per-entry side executed a real model judgment. A live attempt whose legs
+ * all stay silent therefore keeps the floor mode — the mode describes
+ * executed-model provenance, never a credentials claim.
  */
 export type QualificationCaptureMode = 'deterministic_floor' | 'live_captured';
 
@@ -2578,14 +2588,7 @@ function buildQualificationTypeState(entry: QualificationGoldOnlyEntry): {
   };
 }
 
-/**
- * Rich Jev state for attribute/page phases (mirrors BoundedAttributeState):
- * name + brand + the FROZEN resolved productType (never run alongside type
- * resolution — callers resolve PT first, freeze the effective type, then build
- * this state). Legacy single-state shape (union snippets); partitioned
- * dispatch supersedes it — each group carries its own target-permitted
- * evidence text (visual-eligibility + attribute isolation applied).
- */
+/** Per-target permitted-evidence state after Product Type is resolved and frozen. */
 export interface QualificationAttributeState {
   sku: string;
   name: string;
@@ -2594,21 +2597,6 @@ export interface QualificationAttributeState {
   evidenceCount: number;
   evidenceText: string;
   snippets: string[];
-}
-function buildQualificationAttributeState(
-  entry: QualificationGoldOnlyEntry,
-  effectiveTypeId: string | null,
-): QualificationAttributeState {
-  const snippets = entry.evidence.map(ev => ev.snippet ?? '').filter(s => s.length > 0).slice(0, 15);
-  return {
-    sku: entry.sku,
-    name: qualificationProductName(entry) || entry.sku,
-    brand: null,
-    productType: effectiveTypeId,
-    evidenceCount: entry.evidence.length,
-    evidenceText: snippets.slice(0, 15).join('; ').slice(0, 4000),
-    snippets,
-  };
 }
 
 /**
@@ -3754,15 +3742,23 @@ function resolveCandidateEffectiveTypeId(
   return type.abstained ? null : type.productType;
 }
 
-/** Merge phase-1 and phase-2 answers (identity follows the attribute leg). */
+/** Merge phase-1 and phase-2 answers (identity follows the last speaking leg). */
 function mergeCandidateLiveAnswers(
   typeMerged: MergedLiveAnswers,
   attrMerged: MergedLiveAnswers,
 ): MergedLiveAnswers {
+  // Identity follows the phase-2 (attribute/page) leg — the last executed
+  // judgment — never the over-limit placeholder. When the phase-2 leg is
+  // silent (zero usage, no questions), fall back to the phase-1 identity so
+  // a genuinely speaking type model is never misattributed to silent
+  // placeholder identity. Zero-usage legs never overwrite executed identity.
+  const attrSpoke = attrMerged.inputTokens !== 0 || attrMerged.outputTokens !== 0;
+  const typeSpoke = typeMerged.inputTokens !== 0 || typeMerged.outputTokens !== 0;
+  const speaking = attrSpoke ? attrMerged : typeSpoke ? typeMerged : attrMerged;
   return {
     answers: { ...typeMerged.answers, ...attrMerged.answers },
-    requestedModel: typeMerged.requestedModel,
-    resolvedModel: attrMerged.resolvedModel ?? typeMerged.resolvedModel,
+    requestedModel: speaking.requestedModel,
+    resolvedModel: speaking.resolvedModel,
     inputTokens: typeMerged.inputTokens + attrMerged.inputTokens,
     outputTokens: typeMerged.outputTokens + attrMerged.outputTokens,
   };
@@ -5063,17 +5059,37 @@ export function buildQualificationPredictionsFromCode(
  * the matcher left unresolved when `options.baselineRoute` is provided (else
  * the deterministic floor). Without credentials the affected side is
  * `blocked` with a coded reason — never simulated. Fail-closed like the
- * deterministic builder; `captureMode` is `live_captured` whenever a live
- * attempt was made for either side (per-side `source` fields carry the
- * per-entry outcome).
+ * deterministic builder; `captureMode` is `live_captured` when at least one
+ * per-entry side executed a real model judgment, else `deterministic_floor`
+ * (a fully silent attempt — candidate limit/guard, missing credentials —
+ * keeps the floor mode; per-side `source` fields carry the per-entry outcome).
  */
 export async function captureQualificationPredictionsLive(
   entries: QualificationGoldOnlyEntry[],
   options: QualificationLiveCaptureOptions = {},
   taxonomies?: QualificationTaxonomyInput,
 ): Promise<QualificationPredictionArtifact> {
-  const resolved = resolveQualificationTaxonomies(taxonomies, entries);
-  const taxa = resolved.taxonomies;
+  // Commit the source inputs PRE-DISPATCH from the caller-supplied loaded
+  // inputs: the commitment must describe the actual inference inputs before
+  // any await, never recomputed post-hoc after model judgments. Synchronous
+  // resolution below cannot interleave with caller mutation of the arrays;
+  // the per-entry loop then runs against the frozen clones. The resolved
+  // taxonomy is deep-frozen (pools, profiles, universals, invariants, and
+  // the shared authority sidecar) so caller mutation of taxonomy/profile
+  // state during an await cannot change subsequent inference under the old
+  // commitment; gold labels stay shared references because they never enter
+  // inference or identity (gold-only changes retain scoring semantics).
+  const capturedEntries = entries.map(entry => ({
+    ...entry,
+    gold: entry.gold,
+    evidence: entry.evidence.map(ev => ({ ...ev })),
+  }));
+  const resolved = resolveQualificationTaxonomies(taxonomies, capturedEntries);
+  const taxa = freezeQualificationTaxonomies(resolved.taxonomies);
+  const frozenResolved = { ...resolved, taxonomies: taxa };
+  const sourceInputsHash = hashQualificationSourceInputs(capturedEntries, frozenResolved,
+    taxa.frozenAuthorityDetails?.authorityHash ?? null,
+    frozenAuthorityDetailsHash(taxa.frozenAuthorityDetails));
   const predictedAt = new Date().toISOString();
   const jev = resolveJevLiveTarget(options.jev);
   const candidateGuardWired = !!options.attemptBudget &&
@@ -5099,16 +5115,6 @@ export async function captureQualificationPredictionsLive(
     baseline: ExecutedQualificationPrediction;
     candidate: ExecutedQualificationPrediction;
   }> = [];
-  // Freeze the capture inputs BEFORE the first await: per-entry captures run
-  // sequential awaits below, and the commitment must describe the loaded
-  // inputs the predictions ran against — never a caller-mutated array. (When
-  // no frozen taxonomy is supplied the candidate pool itself derives from
-  // these entries, so callers must still treat the input as immutable.)
-  const capturedEntries = entries.map(entry => ({
-    ...entry,
-    gold: entry.gold,
-    evidence: entry.evidence.map(ev => ({ ...ev })),
-  }));
   for (const entry of capturedEntries) {
     const evidenceText = qualificationEvidenceText(entry);
     const baseline = await captureBaselineEntryLive(entry, taxa, evidenceText, options.baselineRoute ?? null, view, baselineGuard);
@@ -5122,19 +5128,22 @@ export async function captureQualificationPredictionsLive(
   if (predictions.length !== capturedEntries.length) {
     throw new Error('Qualification prediction artifact incomplete: missing entries.');
   }
-  const sourceInputsHash = hashQualificationSourceInputs(capturedEntries, resolved,
-    resolved.taxonomies.frozenAuthorityDetails?.authorityHash ?? null,
-    frozenAuthorityDetailsHash(resolved.taxonomies.frozenAuthorityDetails));
   return {
     predictorVersion: QUALIFICATION_PREDICTOR_VERSION,
-    artifactHash: hashQualificationPredictions(predictions, resolved, sourceInputsHash),
+    artifactHash: hashQualificationPredictions(predictions, frozenResolved, sourceInputsHash),
     decisionPolicyHash: qualificationDecisionPolicyHash(),
     predictedAt,
     entryCount: capturedEntries.length,
-    captureMode: jev || view ? 'live_captured' : 'deterministic_floor',
+    // Aggregate executed-model outcome (never a credentials claim): floor
+    // when no per-entry side executed a judgment; live_captured when at
+    // least one side spoke. A fully silent attempt (candidate limit/guard,
+    // missing credentials) keeps the floor mode.
+    captureMode: predictions.some(p => p.baseline.source === QUALIFICATION_SOURCE_LIVE_CAPTURED || p.candidate.source === QUALIFICATION_SOURCE_LIVE_CAPTURED)
+      ? 'live_captured'
+      : 'deterministic_floor',
     taxonomySource: resolved.taxonomySource,
     frozenTaxonomyHash: resolved.frozenTaxonomyHash,
-    ...artifactAuthorityBinding(resolved),
+    ...artifactAuthorityBinding(frozenResolved),
     sourceInputsHash,
     predictions,
   };

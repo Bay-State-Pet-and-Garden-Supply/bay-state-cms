@@ -1,0 +1,30 @@
+[
+  {
+    "sku": "PUBLIC:wellnesspetfood.com:979aeea176d5f15f",
+    "title": "Wellness CORE+  Wild Game Duck, Lamb, Wild Boar &amp; Rabbit Recipe",
+    "brand": "Wellness Pet Food",
+    "canonicalUrl": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-wild-game-duck-turkey-boar-rabbit/",
+    "productIdentity": "Wellness Pet Food: Wellness CORE+  Wild Game Duck, Lamb, Wild Boar &amp; Rabbit Recipe",
+    "sourceLocator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-wild-game-duck-turkey-boar-rabbit/",
+    "sourceHash": "3df6517bc4da914e4777d7dcb4ff098b8a5a9d13139bdc7f924da0800a31b880",
+    "retrievedAt": "2026-10-08T12:32:20.680Z",
+    "familyId": "family-17ed43356120ee02bf05ea97bcf48301",
+    "excerpts": [
+      {
+        "text": "At their core, your dog instinctively craves raw animal protein.",
+        "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-wild-game-duck-turkey-boar-rabbit/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "That’s why our revolutionary CORE+ recipes give your dog the pure protein, natural enzymes and full flavor they need to thrive.",
+        "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-wild-game-duck-turkey-boar-rabbit/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "We thoughtfully prepare our CORE+ kibble and freeze dried bites to keep the ingredients in their purest form and ensure every mealtime is packed with nourishment and enjoyment.",
+        "locator": "https://www.wellnesspetfood.com/product-catalog/wellness-core-plus-dog-grain-free-wild-game-duck-turkey-boar-rabbit/ JSON-LD Product + product-description#excerpt-2"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels.",
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  }
+]

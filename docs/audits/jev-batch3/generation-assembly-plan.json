@@ -1,0 +1,18 @@
+{
+  "artifactKind": "batch3-generation-assembly-plan",
+  "target": "docs/audits/jev-expansion-v3/ (NEW superseding generation; v2/v9 immutable, never overwritten)",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "sourcesDir": "NEW assembly input dir containing: (a) 15 expansion-v1 bank dirs UNCHANGED (hash-verified), (b) 4 Batch3 novel bank dirs (p1/p3/m2/m8-public with collection-manifest commitments), each as <bank>/{source-development.json, source-development-supplemental.json, collection-manifest.json}",
+  "expectedEligible": "979 (v2 eligible) + 19 novel = 998, minus any novel rows colliding with PRIOR_RELEASES canonical identities (assembler verifies; fresh domains predict zero)",
+  "adjudicationMerge": "v2 source-adjudications.json 979 entries, REPLACE 64 enriched SKUs with batch3-adjudications.json re-adjudications, APPEND 19 novel. Total 998. Merge script must verify: 64/64 enriched SKUs present in v2 set, 19/19 novel SKUs absent, authorityHash match.",
+  "policyMerge": "v2 15 bank policies UNION batch3 10 policies. Shared banks (pilot/kong/petfood2/oxbow/naturesway): identical official/high/high — either copy governs. smartpak: UNION excludedLocatorsBySku (v2 840-clip coverage + batch3 2-SKU lists; batch3 lists must be subsets — verify). New banks (p1-public/p3-public/m2-public/m8-public): official/high/high as emitted.",
+  "enrichmentOverlay": "NEW assembler --enrich <enrichment-evidence.json> flag: after bank load + hash verification, for each evidence row with enriched=true, match source by SKU + canonicalUrl exact, append excerpts with locator-dedupe (fail closed on SKU/URL mismatch, familyId drift, or excerpt overflow past schema max 20). Record overlay {sku, appendedExcerptLocators, enrichmentEvidenceSha256} in development-manifest. Original bank bytes verified BEFORE overlay (source_hash_drift still enforced). 64 rows qualify (all enriched=true).",
+  "pageRules": "Assemble with --page-rules page-rule-packet-rev2.json + --owner-decisions (rev2 encodes all 19 owner answers; v1 packet never used for v3).",
+  "expectedOutcome": "~986 gold rows (967 v2 base - 0 + 19 novel; dup/service accounting preserved), 64 rows with enriched excerpts, 1 enriched row flipped insufficient→known (per adjudicator), deterministic page derivation per rev2.",
+  "peerReview": "New generation requires fresh independent peer receipt (counts/hashes/containment/citations) before any qualification use. NOT done by assembly.",
+  "blockers": [
+    "page-rule-packet-rev2.json (PageScopeDeriver working)",
+    "--enrich overlay flag (queued to PageScopeDeriver after rev2)",
+    "reviewer acknowledgment of assembly plan (optional; assembly is deterministic, peer review gates use)"
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 8,
+    "stats": {
+      "excludedPriorUrl": 8,
+      "excludedPriorFamily": 21,
+      "excludedNearDup": 3,
+      "excludedThinEvidence": 48,
+      "instinctpetfood.com:sitemap-locs": 65,
+      "instinctpetfood.com:sitemap-children": 2,
+      "instinctpetfood.com:sitemap-listing-fallback": 1,
+      "instinctpetfood.com:sitemap-urls": 60,
+      "instinctpetfood.com:feed-rows": 0,
+      "instinctpetfood.com:feed-unverified": 141,
+      "instinctpetfood.com:cache-leads": 185,
+      "instinctpetfood.com:fetch-queued": 250,
+      "excludedNonProduct": 119,
+      "instinctpetfood.com:page-rows": 120,
+      "stellaandchewys.com:sitemap-locs": 151,
+      "stellaandchewys.com:sitemap-children": 2,
+      "stellaandchewys.com:sitemap-listing-fallback": 1,
+      "stellaandchewys.com:sitemap-urls": 146,
+      "stellaandchewys.com:feed-rows": 0,
+      "stellaandchewys.com:feed-unverified": 200,
+      "stellaandchewys.com:cache-leads": 203,
+      "stellaandchewys.com:fetch-queued": 250,
+      "stellaandchewys.com:page-rows": 157
+    }
+  },
+  "attempts": {
+    "used": 700,
+    "cap": 700,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 700,
+      "totalSourceAttempts": 2185,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 2185,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 147,
+    "devPrimary": 109,
+    "devSupplemental": 70,
+    "holdoutFamilies": 38,
+    "holdoutRows": 74
+  },
+  "commitments": {
+    "bankHash": "ecb58d96655b5d0b243131dbf8d345c3c6be9c321262d0b9c39ee9d11d9c6f63",
+    "holdoutHash": "f7adaa27e6b29878daf547748b083aa02ab3719fae73ca0b03575c874b46f666",
+    "memberHash": "e77ad4cefcfd3efb8bbf8130c93facc28ece87844362f47805f3c7f61b354113",
+    "ledgerHash": "ad0a9c07718a9a6f8ab9b6d45585fe0998258df346ed839cd68cd0b54cd3fa12",
+    "cumulativeHash": "df46b2cf1b2d3f5c069c8f78e7f6709b901037a355053deaf16330e61908a84d",
+    "devHash": "921f8be71d789538463fb0dd4778f588f5a461bc6d5dccfcdbb5931f3aa2b482",
+    "devSuppHash": "073253f16d7845dd10cf2cef5eb7ca084fe0c46df9b8d8403392a2d3f84b19ad"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

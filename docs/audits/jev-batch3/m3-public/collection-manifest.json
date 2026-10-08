@@ -1,0 +1,93 @@
+{
+  "version": "jev-source-window-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-expansion-v2/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "ownerDecisionsPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "publicPriorFamilies": 2913,
+    "publicPriorUrls": 4312,
+    "stagedFamilies": 14,
+    "stagedUrls": 15,
+    "stagedBanks": [
+      "docs/audits/jev-batch3/p1-public/source-development.json",
+      "docs/audits/jev-batch3/p1-public/source-development-supplemental.json",
+      "docs/audits/jev-batch3/p3-public/source-development.json",
+      "docs/audits/jev-batch3/m2-public/source-development.json"
+    ],
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2",
+      "jev-representative-v3",
+      "jev-representative-v4",
+      "jev-representative-v9",
+      "jev-expansion-v1"
+    ],
+    "privateCustodyParsed": false,
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "canidae.com:sitemap-locs": 5,
+      "canidae.com:sitemap-listing-fallback": 1,
+      "canidae.com:feed-miss": 1,
+      "canidae.com:feed-rows": 0,
+      "canidae.com:feed-unverified": 0,
+      "canidae.com:cache-leads": 0,
+      "canidae.com:fetch-queued": 0,
+      "canidae.com:page-rows": 0
+    }
+  },
+  "sourceWindow": {
+    "windowDir": "/tmp/baystate-batch3-window",
+    "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+    "maxHttpAttempts": 1200,
+    "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+    "ownerDecisionsPath": "docs/audits/jev-expansion-v2/owner-approved-decisions.json",
+    "windowSpentBefore": 640,
+    "thisInvocationSpent": 3,
+    "windowSpentAfter": 643,
+    "windowRemaining": 557,
+    "invocationCap": 60,
+    "invocationSeqs": [
+      641,
+      642,
+      643
+    ]
+  },
+  "historicalAccounting": "unverified: this run prints ONLY its approved window; no prior/global totals are claimed",
+  "remainingExposureCaveat": "old sealed banks cannot be certified eligible by this work; prior private overlap is unverified; new captures must not implicitly certify them",
+  "counts": {
+    "familiesKept": 0,
+    "devPrimary": 0,
+    "devSupplemental": 0,
+    "holdoutFamilies": 0,
+    "holdoutRows": 0
+  },
+  "commitments": {
+    "bankHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "holdoutHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "memberHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "ledgerHash": "818c2dea1489595d9c418427b68116dea1331db69773987a89591c4a7f3087a7",
+    "usageHash": "3a50798cbbf418163b268e1f3ad2bebaab7dc71b61e1a166e671b06a81b2f495",
+    "devHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "receiptsHash": "4bb6f437ef9914f5c09fcedc425a18f476800b940ae8176e05f53ba89afb669b"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "publicReceiptUrls": "sha256-only",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "artifactKind": "batch3-capture-stage-record",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "planRevision": "2026-10-08-rev4-ghost-fresh-first",
+  "planSha256": "33d94525f98c794181ef95900de67e891b7f45cdd32641dd9e09a0604273cf0e",
+  "p2Ruling": "docs/audits/jev-batch3/batch3-p2-anomaly-ruling.json (PROCEED-P3-M-WITH-AMENDMENTS; cause then undetermined)",
+  "ghostMechanism": "CONFIRMED 2026-10-08: sealed holdout families invisible to public exclusion; re-harvest re-fetches their URLs, regroups identical keys/familyIds, re-splits identical holdout verdicts. Ghost test metadata-only (familyId sets from membership.json, no payload/SKU reads).",
+  "stages": [
+    {
+      "stage": "E-enrichment-first",
+      "quota": 96,
+      "spent": 68,
+      "result": "64/64 rows enriched, E1 satisfied",
+      "evidence": "docs/audits/jev-batch3/enrichment/enrichment-evidence.json"
+    },
+    {
+      "stage": "P1-proven-headroom",
+      "quota": 160,
+      "spent": 160,
+      "result": "11 dev rows (10 novel families), 6 holdout rows (5 ghost families: aqueon 4, pilot 1)",
+      "public": "docs/audits/jev-batch3/p1-public/",
+      "custody": "docs/audits/jev-batch3/p1-custody/ (sealed)"
+    },
+    {
+      "stage": "P2-food",
+      "quota": 240,
+      "spent": 143,
+      "result": "0 dev; 28 rows sealed (13/14 ghost families from petfood2, 1 novel holdout). Dev purpose failed.",
+      "public": "docs/audits/jev-batch3/p2-public/ (empty dev banks)",
+      "custody": "docs/audits/jev-batch3/p2-custody/ (sealed)"
+    },
+    {
+      "stage": "P3-accessory-wildlife-equine",
+      "quota": 200,
+      "spent": 200,
+      "result": "1 dev row (novel); 86 rows sealed (86/86 ghost families: kong 27, naturesway 31, smartpak 28). Dev purpose failed.",
+      "public": "docs/audits/jev-batch3/p3-public/",
+      "custody": "docs/audits/jev-batch3/p3-custody/ (sealed)"
+    },
+    {
+      "stage": "M-fresh-probes-1-9",
+      "quota": 400,
+      "spent": 166,
+      "result": "2/9 probes hit: M2 wellness 3 dev + 1 held; M8 nylabone 4 dev + 2 held. 7 dry (fromm/canidae/purina/espoma/farnam/coastal/outwardhound — sitemap-miss/empty-queue/proof-fail, all abandoned per probe rule). Novel dev 7 rows; no ghosts (fresh domains scatter normally).",
+      "probes": [
+        "docs/audits/jev-batch3/m1-public/",
+        "docs/audits/jev-batch3/m2-public/",
+        "docs/audits/jev-batch3/m3-public/",
+        "docs/audits/jev-batch3/m4-public/",
+        "docs/audits/jev-batch3/m5-public/",
+        "docs/audits/jev-batch3/m6-public/",
+        "docs/audits/jev-batch3/m7-public/",
+        "docs/audits/jev-batch3/m8-public/",
+        "docs/audits/jev-batch3/m9-public/"
+      ]
+    }
+  ],
+  "windowAfterP3": {
+    "spent": 571,
+    "remaining": 629,
+    "max": 1200
+  },
+  "novelDevRowsBatch3": 19,
+  "sealedBatch3RowsGross": 123,
+  "sealedBatch3Note": "Gross sealed rows include ~104 ghost recaptures of Batch1/2 holdout families; DISTINCT-family dedupe required at future unseal before counting toward any floor.",
+  "captureAuthorization": "Batch3 capture COMPLETE. No further capture without fresh reviewer release (R 104 + 125 slack + M unspent 234 all sealed/unspendable).",
+  "ghostRuling": "docs/audits/jev-batch3/batch3-ghost-ruling-rev4-scope.json (GHOST-MECHANISM-CONFIRMED-PROCEED-M-FRESH-FIRST-ONLY; prior §c food-retry via re-harvest SUPERSEDED)",
+  "p2AnomalyResolved": "P2 14/14 explained as 13 ghost recaptures + 1 novel holdout; not a tail event, no function bias, no tampering.",
+  "ghostDedupeObligation": "At future unseal (after fitted-policy publication + independent labeling), Batch3 sealed counts MUST be deduped by familyId against Batch1/2 holdouts; ghost rows contribute zero distinct families/rows to any floor.",
+  "windowFinal": {
+    "spent": 737,
+    "remaining": 463,
+    "max": 1200,
+    "kinds": {
+      "enrich": 68,
+      "sitemap": 179,
+      "feed": 28,
+      "page": 462
+    },
+    "outcomeMissing": 0,
+    "seqContiguous": true
+  },
+  "novelDevByStage": {
+    "P1": 11,
+    "P2": 0,
+    "P3": 1,
+    "M2": 3,
+    "M8": 4
+  }
+}

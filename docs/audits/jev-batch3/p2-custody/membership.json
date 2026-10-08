@@ -1,0 +1,132 @@
+[
+  {
+    "familyId": "family-4a1bfa775778e8506c05f0d7e89b1de6",
+    "split": "holdout",
+    "primarySku": "PUBLIC:stellaandchewys.com:2610178783b31637",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-0c756bd03dad994b16377da4a7eeb768",
+    "split": "holdout",
+    "primarySku": "PUBLIC:stellaandchewys.com:71b85c8518f1b6bd",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8551393c4a3d270c319ca3aaaade9e65",
+    "split": "holdout",
+    "primarySku": "PUBLIC:stellaandchewys.com:a2c50b257a0bf946",
+    "supplementalSkus": [
+      "PUBLIC:stellaandchewys.com:1dea0ab4187e27b3",
+      "PUBLIC:stellaandchewys.com:d33cce5328bf3991"
+    ],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-ad49266760a43c6ce4462c3f5da1c269",
+    "split": "holdout",
+    "primarySku": "PUBLIC:stellaandchewys.com:c813704d564b5af1",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-62879600deff086f5d6170445b29ddba",
+    "split": "holdout",
+    "primarySku": "PUBLIC:stellaandchewys.com:49eba9505553a5c4",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6e2c71aecc7da5b96a19aa562e81f808",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:b30f1b8c412c4632",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-3c721ce845c2aed87724d918e511f99a",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:086b7818bf144725",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-57263cce35e1861ab4c0a4ebab1c15b6",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:88ad5c2a906c9cdf",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-9f7a1debb9332a06a7fd4a6d4d235904",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:643ee1be1dfd787c",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-5b746d6b7bda6128c5bf9c1441cdf32d",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:e83e4172af3757d9",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-7d58184777f3fa9565e717a051a5591c",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:c93e96dd1fdfba6c",
+    "supplementalSkus": [],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-6035cec97c9bfe103edad9ec60a75ec3",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:1c3fa071d6025113",
+    "supplementalSkus": [
+      "PUBLIC:instinctpetfood.com:cf70a146a31cc779"
+    ],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-8e47bdea115b43a20903408f2b6a6396",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:dca0b6bcbad26bae",
+    "supplementalSkus": [
+      "PUBLIC:instinctpetfood.com:4346cfa2cbaf2d24",
+      "PUBLIC:instinctpetfood.com:dbdcc04b38aff73e",
+      "PUBLIC:instinctpetfood.com:08c43f5a0329e745",
+      "PUBLIC:instinctpetfood.com:ea67224f87e30e62",
+      "PUBLIC:instinctpetfood.com:2e3e0a53da62a92d",
+      "PUBLIC:instinctpetfood.com:9f64c140474ddb39",
+      "PUBLIC:instinctpetfood.com:6a1bcb8031acba79",
+      "PUBLIC:instinctpetfood.com:4e9f223d86041b7a"
+    ],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  },
+  {
+    "familyId": "family-316083a0a6502e3612ff6ffb17ba1ad6",
+    "split": "holdout",
+    "primarySku": "PUBLIC:instinctpetfood.com:0b47cc465dd86e53",
+    "supplementalSkus": [
+      "PUBLIC:instinctpetfood.com:21fd57c6f9c3e70c",
+      "PUBLIC:instinctpetfood.com:be014d3e6744785d",
+      "PUBLIC:instinctpetfood.com:2131a6d5e46226c8"
+    ],
+    "stratum": "food",
+    "sourceForm": "manufacturer-page"
+  }
+]

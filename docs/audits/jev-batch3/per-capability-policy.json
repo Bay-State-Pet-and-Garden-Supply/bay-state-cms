@@ -1,0 +1,46 @@
+{
+  "artifactKind": "per-capability-acceptance-policy",
+  "policyVersion": "acceptance-policy-v1-unfitted",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "publishedAt": "2026-10-08T16:50:54.191Z",
+  "publishedBeforeHoldoutInspection": true,
+  "fittingEvidence": {
+    "artifact": "docs/audits/jev-batch3/stratified-live-24.json",
+    "scope": "24-row stratified live paired development capture (v3 gold, code-executed-v8); development fitting evidence only, NOT holdout qualification",
+    "candidateGuard": {
+      "consumed": 45,
+      "max": 96
+    },
+    "baselineGuard": {
+      "consumed": 53,
+      "max": 240
+    }
+  },
+  "fittingRule": "A capability threshold is FITTED only if some threshold achieves Wilson-95 lower-bound precision >= 0.95 on the fitting evidence with n >= 10 accepted predictions; otherwise the engineering default is retained and marked UNFITTED (never silently fitted, never retroactively picked after holdout inspection).",
+  "capabilities": {
+    "productTypeChoice": {
+      "status": "UNFITTED",
+      "engineeringDefault": 0.5,
+      "evidence": "n=21 proposals, 19 hits; best Wilson LB 0.796 at t=0.95 (15/15); two high-confidence over-proposals on insufficient-evidence gold (P=0.87, 0.92 → dog-treats) poison all thresholds below 0.95",
+      "failureMode": "insufficient-evidence rows over-proposed at high vendor probability on both legs (reproduces the 3-row diagnostic)"
+    },
+    "singleValueAttributes": {
+      "status": "UNFITTED",
+      "engineeringDefault": 0.5,
+      "evidence": "sample positives: species 16 (mostly invariant), food-form 5, life-stage 2; no per-target n>=10 variable-positive support; flavor/breed-size/packaging/fuel/hose zero positives in sample"
+    },
+    "multiValueNoul": {
+      "status": "UNFITTED",
+      "engineeringDefault": 0.7,
+      "evidence": "insufficient per-target variable-positive support in the 24-row sample (see singleValueAttributes)"
+    },
+    "categoryPages": {
+      "status": "UNFITTED",
+      "engineeringDefault": 0.7,
+      "evidence": "n=12 page predictions on known-complete gold, 10 hits, best Wilson LB 0.552 at t=0.5; recall 10/14 = 0.714 at t=0.5; 6 sample rows excluded (non-complete gold)"
+    }
+  },
+  "abstentionSemantics": "UNCHANGED: no_match/insufficient_evidence earn correctness only against matching gold; low-probability/uncoded/service-failure abstentions never credit; code-executed-v8 semantic codes retained.",
+  "deferredTo": "qualifying-scale development evidence (per-capability n>=60 clean accepts for Wilson-0.95 viability) — NOT to holdout inspection; thresholds stay at engineering defaults until then.",
+  "humanApproval": false
+}

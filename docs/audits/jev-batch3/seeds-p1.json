@@ -1,0 +1,20 @@
+[
+  {
+    "domain": "drearth.com",
+    "brand": "Dr. Earth",
+    "stratum": "garden",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: potting-soil deficit)"
+  },
+  {
+    "domain": "aqueon.com",
+    "brand": "Aqueon",
+    "stratum": "food",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: fish-food deficit)"
+  },
+  {
+    "domain": "earthanimal.com",
+    "brand": "Earth Animal",
+    "stratum": "food",
+    "sourceRule": "official sitemap + product pages (Batch3 P1: supplements + flea-tick deficits)"
+  }
+]

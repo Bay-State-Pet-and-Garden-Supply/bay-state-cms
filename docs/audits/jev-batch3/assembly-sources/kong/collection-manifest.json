@@ -1,0 +1,77 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "kongcompany.com:sitemap-miss": 1,
+      "kongcompany.com:sitemap-html": 19,
+      "kongcompany.com:sitemap-html-candidates": 571,
+      "kongcompany.com:sitemap-urls": 174,
+      "kongcompany.com:feed-miss": 1,
+      "kongcompany.com:feed-rows": 0,
+      "kongcompany.com:feed-unverified": 0,
+      "kongcompany.com:fetch-queued": 174,
+      "excludedNonProduct": 25,
+      "kongcompany.com:page-rows": 149
+    }
+  },
+  "attempts": {
+    "used": 198,
+    "cap": 600,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 198,
+      "totalSourceAttempts": 1683,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1683,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 133,
+    "devPrimary": 105,
+    "devSupplemental": 15,
+    "holdoutFamilies": 28,
+    "holdoutRows": 29
+  },
+  "commitments": {
+    "bankHash": "dd314610835d15f2bde8f52e1dd9031714d5821e246c20b15d575a00d1d4b361",
+    "holdoutHash": "afa4a5bea31351acd907f59777a12ecad18b2b0f2e9a06685a07b236171a18b7",
+    "memberHash": "39d8c55a1e21253e2dfd39cd2b645fc52914d3661ba006c59377419cba844250",
+    "ledgerHash": "ea7efab0875002047e44c6971fcb5f6dc47bf064d72f6da898c18c0e77d5313b",
+    "cumulativeHash": "401ea11194633c3c069c13a22542c398f1c4fdd8e17754a45a70e1278c630520",
+    "devHash": "a820d5b518dbe99e64b1dc4eb2c827bee86349f1a0a9508c617f0ea0b21b66b4",
+    "devSuppHash": "f8f2ed63fd626364c97b2b8507d311e54d216868a8914db94b4bbc8653eecb7b"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

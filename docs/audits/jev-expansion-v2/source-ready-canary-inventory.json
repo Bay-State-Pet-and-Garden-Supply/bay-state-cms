@@ -1,0 +1,528 @@
+{
+  "batch": "d8b27131-4ab8-4619-861a-21df85b9cafc",
+  "db": "/tmp/baystate-fit-runtime-eBxxnb/isolated.db",
+  "humanCanarySignoffs": false,
+  "agg": {
+    "total": 125,
+    "unheld": 115,
+    "held": 10,
+    "distT": 57,
+    "distU": 55,
+    "distH": 2,
+    "offT": 68,
+    "offU": {
+      "degraded": 32,
+      "legacyMatch": 20,
+      "legacyMismatch": 8
+    },
+    "offH": 8,
+    "distU_route": {
+      "strat": 7,
+      "v2": 48
+    },
+    "valid": 51,
+    "invalid": 4
+  },
+  "family": {
+    "cohort": "716e4533-ec33-47ad-b0bb-ea0e761287c1",
+    "size": 6,
+    "members": [
+      "e32f7ed1-526c-41dd-a7a0-43a2ad541ad7",
+      "f76ddb87-3c74-45c7-b61b-472ae10571cb",
+      "0b57532a-cbe8-4bda-a2ff-e707a325abf6",
+      "ab4b627f-1649-4e32-b30f-f559e9730aae",
+      "4d0c2f4f-7868-470c-962e-47f73359766c",
+      "89559660-4b23-414d-a3e1-0f489a038b07"
+    ]
+  },
+  "stages": [
+    "ProductType",
+    "Attributes",
+    "CohortPages"
+  ],
+  "stageRule": "PT suitable; Attr requires fresh PT first; Pages singleton for all, coordinated only for 6-member family; all need fresh run on current config 38220f717a62 Oct07 + active page_import 60cdb12 Oct; no scrape/fetch; AmendmentB text-only",
+  "evidence": "decision/row/payload generation equal + hash equal(12ch verified) + accepted-set equal + relational count equal; item+row URL null; row type distributor_record; method v2|strategy; generation completed; all accepted attempts found+observedAt+catalogVersion+connection+identity; cohort+extraction_hash present; strategy rev2 conflict0",
+  "legend": "v2=distributor_record_v2 st=strategy_collection_v1; N=accepted count; CD=create_drafts/completed CF=failed CN=needs_input RP=review/pending RN=review/needs_input; coord=coordinated-6 sing=singleton; RUN=quiesce running Sep29 run; DUAL=explicit cohort choice; all sourceType distributor_record, all AmendmentB no-scrape no-fetch no-official-req",
+  "gaps": [
+    "G_CONFIG_STALE: no fresh run on current 38220f717a62 Oct07",
+    "G_PAGE_STALE: no fresh run on active 60cdb12 Oct",
+    "G_NO_FRESH_SIGNOFF",
+    "G_OLD_NOT_FRESH: Sep operator/pre-owner-review + human_review + catalog_approver not #302",
+    "G_NO_CANARY_TABLE",
+    "CF needs triage before promotion only",
+    "CN/RP/RN blockers open before promotion only",
+    "RUN quiesce",
+    "DUAL cohort choice"
+  ],
+  "excludedDist": [
+    "19af03df held",
+    "364d1682 held",
+    "135cfe5a empty 0-accepted",
+    "f490e197 payload-diverged",
+    "58033b72 payload-diverged",
+    "735311bb payload-diverged"
+  ],
+  "excludedOff": "8 held; 32 degraded(fallback,no source/extraction,0 selected); 20 legacy worker_profile URL-match NULL-decision unverifiable; 8 legacy URL-mismatch source-changed; e.g. 27b13196 match, 8e5d5676 mismatch, bd5d75e1 degraded",
+  "fullIdsNote": "Parent expanded each prefix to exactly one item from the same isolated repository batch; all51 IDs verified unheld distributor_record. No new semantic readiness inference.",
+  "candidates": [
+    {
+      "itemId": "e32f7ed1-526c-41dd-a7a0-43a2ad541ad7",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "f76ddb87-3c74-45c7-b61b-472ae10571cb",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "0b57532a-cbe8-4bda-a2ff-e707a325abf6",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "ab4b627f-1649-4e32-b30f-f559e9730aae",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "4d0c2f4f-7868-470c-962e-47f73359766c",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "89559660-4b23-414d-a3e1-0f489a038b07",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-coord",
+      "coordinatedFamily": true,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "8968ce21-0fb6-4968-8761-86f53bb24de7",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-1-RP-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "792cb689-cd20-4180-a89a-60b127137d69",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-1-RN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "2a3281fb-1741-479b-834a-1391459c93ae",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-1-RN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "1204c7b4-8755-47c2-b68f-0888974fa3a6",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-2-RN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "af081bea-811a-4b8c-b8e7-7faa9e496841",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-2-RN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "6ba8f7b2-4c6c-46e0-b58f-c48f6c6d30a8",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "st-2-RN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "11c306e9-2f11-41af-a34b-b92b30b6a3ac",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "8ce3c3bd-538f-40d3-b4ef-4211b39811ff",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "949aca31-a681-4539-9463-8e945c349fa0",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "758eacc9-1027-447e-b9ba-65dbf5851c16",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "4b56ef31-1fdc-45f4-aba0-09bea88de163",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CF-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "0993e841-24e0-401a-b9b9-5028eb83a919",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "f439a9a9-499d-4612-b401-cc70421c5efc",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing-RUN",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "dd58ecdb-fdf9-43d5-babb-b85b8f4c74a4",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "2dd3549a-2c88-4d73-ab2c-996d3f6bf5c7",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing-DUAL",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "a0e54fd2-98b6-44fc-a4cc-d4866544eca1",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing-DUAL",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "ccf99401-d3b5-4643-b8fb-eeb64353b9af",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing-DUAL",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "a8a60aa7-cb9e-4650-a154-5ca10a238102",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CF-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "0d6c0877-1f1a-4d80-8e68-4aeb1a41ae87",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CF-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "88254da8-f841-465f-99c2-1bd3ddf32006",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "d5b93a8c-56cc-4759-a71d-c108ba502eb7",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "26b23be3-4319-452a-b2e9-545a0cbad8ca",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "de29684c-d9c6-401a-8a90-557ab42ddb69",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "311ca809-7c89-4a05-9b41-103b6c57c1b2",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "67c3594e-027e-4e97-b397-2884209afe42",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "eb2b9a8f-8e28-4446-99c7-aa189cadd5da",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "1e52f57d-f2d6-416a-a4b5-4bc6568cf7c5",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "b27ebea9-c1aa-4e91-9695-5340ba87f9d3",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "5973c985-e765-4644-a7fe-a4b2efd1d302",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "9434cc32-ebed-4cd9-a337-38d1c1146784",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "51e4ee5d-ac8f-4f47-af72-aa0a7c7a4c47",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "51e17b3d-572e-4f25-a22d-340e04550cfb",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "632b7814-2c75-4e0c-a685-8bb4409eedc3",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "b0bf9172-4c6f-4747-ab20-17f4b21c5c03",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "0f9a40d6-0200-4160-b587-237217ba324d",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "363f0cf1-eef9-423b-b265-24e809d50aaa",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "dd4cdfdd-3ee8-4f09-bd27-6502a52a97db",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "c0f30911-9f8a-415b-859a-540a86db3ca2",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "0d5b233d-1f05-4510-bb1a-4f47612ddb08",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "a0c1b3c4-8ea4-4788-826e-1c7c7a23057e",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CN-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "d088f276-c645-4d69-b857-4b410518acfe",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-2-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "74153f02-a516-444a-b894-7f86242083a9",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "a03d02d9-cec0-41fc-a59d-fe64939fd2d6",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "aa719a4c-d2fc-4f2e-b09e-70e18d713c2b",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CD-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    },
+    {
+      "itemId": "c44b12af-14ee-4d8f-9070-5ca0bf318cdd",
+      "sourceType": "distributor_record",
+      "lifecycleConstraints": "v2-1-CF-sing",
+      "coordinatedFamily": false,
+      "sourceBindingsVerifiedBy": "CanarySourceAudit",
+      "freshRun": false,
+      "freshHumanSignoff": false
+    }
+  ]
+}

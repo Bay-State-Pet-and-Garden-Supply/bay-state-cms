@@ -33,7 +33,6 @@ import {
 } from '../../classification/attribute-decision';
 import { coordinateCohortPagesWithJev } from '../../classification/page-decision';
 import {
-  previewClassificationPolicy,
   CLASSIFICATION_POLICY_STAGES,
 } from '../../classification/classification-policy-service';
 import {
@@ -48,12 +47,6 @@ import {
   LEGACY_REVIEWED_OUTCOME_SOURCE,
 } from '../../classification/benchmark-qualification';
 import {
-  computeSetMetrics,
-  parseValueSet,
-  evaluateCohortPipelineEffects,
-  type GoldExampleForEvaluation,
-} from '../../classification/benchmark-evaluator';
-import {
   evaluateJevOfflineComparison,
   assessProductionQualification,
   evaluateJevQualificationGate,
@@ -65,7 +58,6 @@ import {
   type QualificationGoldEntry,
 } from '../../classification/jev-qualification-service';
 import {
-  buildPreReviewPredictionBundle,
   capturePreReviewPrediction,
   PRE_REVIEW_PREDICTION_SOURCE,
   PRE_REVIEW_BUNDLE_VERSION,
@@ -105,8 +97,8 @@ import { runLiveContractCheck } from '../../../scripts/typesafe-live-contract-ch
 import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import { createDevAttemptGuard } from '../../classification/jev-benchmark-replay';
 import { captureGuardedJevForTest } from '../helpers/qualification-capture';
-import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
-import type { ClassificationEvidence, ModelPolicyConfigV2, BenchmarkPredictionEntry, EvalMetrics } from '../../shared/schemas/classification';
+import type { ResolvedTarget } from '../../classification/curation-target-resolver';
+import type { ClassificationEvidence, ModelPolicyConfigV2, EvalMetrics } from '../../shared/schemas/classification';
 
 /**
  * Load the frozen GOLD-ONLY fixture and capture the current baseline +
@@ -1701,7 +1693,10 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
           tinyQualificationTaxonomies(),
         );
         expect(fetchCalls).toBe(0);
-        expect(artifact.captureMode).toBe('live_captured');
+        // Fully silent attempt: no per-entry side executed a model judgment,
+        // so the aggregate mode stays the floor (credentials alone are not
+        // provenance — per-side `source` fields carry the blocked outcome).
+        expect(artifact.captureMode).toBe('deterministic_floor');
         // The evidence-void entry needs the chat leg and has no credentials:
         // blocked with a coded reason. Fully matcher-resolved entries (if
         // any) stay the deterministic floor — never a mixed guess.

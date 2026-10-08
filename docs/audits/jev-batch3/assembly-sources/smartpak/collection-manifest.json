@@ -1,0 +1,82 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 1,
+      "smartpakequine.com:sitemap-locs": 5174,
+      "smartpakequine.com:sitemap-listing-fallback": 1,
+      "smartpakequine.com:sitemap-html": 13,
+      "smartpakequine.com:sitemap-html-candidates": 25,
+      "smartpakequine.com:sitemap-miss": 1,
+      "smartpakequine.com:sitemap-prefix-cohort:pt": 2608,
+      "smartpakequine.com:sitemap-prefix-cohort:ps": 520,
+      "smartpakequine.com:sitemap-prefix-cohorts": 2,
+      "smartpakequine.com:sitemap-urls": 613,
+      "smartpakequine.com:feed-miss": 1,
+      "smartpakequine.com:feed-rows": 0,
+      "smartpakequine.com:feed-unverified": 0,
+      "smartpakequine.com:fetch-queued": 250,
+      "excludedNonProduct": 2,
+      "smartpakequine.com:page-rows": 247
+    }
+  },
+  "attempts": {
+    "used": 271,
+    "cap": 600,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 271,
+      "totalSourceAttempts": 1756,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1756,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 247,
+    "devPrimary": 190,
+    "devSupplemental": 0,
+    "holdoutFamilies": 57,
+    "holdoutRows": 57
+  },
+  "commitments": {
+    "bankHash": "e1401f5337b9368fbe4a14055e78b38d42f180b658bdbadcad29a989f492f415",
+    "holdoutHash": "56a68e553bc1703dae69d7f24f3c5e75253f35591ac286063c305c09af51bad1",
+    "memberHash": "d18eb3e29a8ac42ee098f46a9500e57d045ca15e8cf3ec771b06d8f07f2d694c",
+    "ledgerHash": "32a92b649808a122e67a7c60ccc281d39298d5091e29e5dd70a088acfd497c4f",
+    "cumulativeHash": "3f5620bad68148cf1515689220d0178a2f1581a3f7c9e187466847a2c39facc8",
+    "devHash": "91155bc38cb03ba36a0efe73dab0d39c0aafc238e84c155291e0640e3771f061",
+    "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

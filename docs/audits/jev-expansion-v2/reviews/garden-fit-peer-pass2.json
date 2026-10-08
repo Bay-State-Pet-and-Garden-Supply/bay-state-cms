@@ -1,0 +1,867 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "inputSha256": "1966779bb51c6ef98328b12ced0a283cd952a6e1e32a5f26fa83f8b06c9c182b",
+ "reviewedSkus": [
+  "PUBLIC:drearth.com:87ea25dbc30b7bcf",
+  "PUBLIC:drearth.com:3523080dabd9db48",
+  "PUBLIC:drearth.com:86748ef2d1b6781d",
+  "PUBLIC:drearth.com:1dc5340e9390c998",
+  "PUBLIC:drearth.com:38fe7c1d3918ad6d",
+  "PUBLIC:drearth.com:ba6168f228fe9f42",
+  "PUBLIC:drearth.com:d768dcfc59345f2e",
+  "PUBLIC:drearth.com:d5952e7c5cd854ef",
+  "PUBLIC:drearth.com:30054964c7d92e6f",
+  "PUBLIC:drearth.com:571940dc48f4b6a4",
+  "PUBLIC:drearth.com:d57d7dd884221821",
+  "PUBLIC:drearth.com:ac75ccc44f302be0",
+  "PUBLIC:drearth.com:c9045f85d66fc7b0",
+  "PUBLIC:drearth.com:3cd9c88f832c37c3",
+  "PUBLIC:drearth.com:f97f116edcd360c1",
+  "PUBLIC:drearth.com:f41ba32fa259e0d3",
+  "PUBLIC:drearth.com:1550198625871380",
+  "PUBLIC:drearth.com:3e180a39e960c472",
+  "PUBLIC:drearth.com:69988db50aeb4ed2",
+  "PUBLIC:drearth.com:1c86cc4e765bedb0",
+  "PUBLIC:drearth.com:3eb92a2a2e788389",
+  "PUBLIC:drearth.com:243229fbdc97820e",
+  "PUBLIC:drearth.com:b79c07f7a5658542",
+  "PUBLIC:drearth.com:8f4f5cee6d1086df",
+  "PUBLIC:drearth.com:d9c0d1d6d5d8aa27",
+  "PUBLIC:drearth.com:561404978160329f",
+  "PUBLIC:drearth.com:b1983c5e204e20e6",
+  "PUBLIC:drearth.com:19b66ce7c4ecb591",
+  "PUBLIC:drearth.com:09d677bd9c71e942",
+  "PUBLIC:drearth.com:8a0f84796a58a57c",
+  "PUBLIC:drearth.com:c66a153aa64a37c4",
+  "PUBLIC:drearth.com:ec38bdb69f71a4ed",
+  "PUBLIC:drearth.com:1b7b86e21105899c",
+  "PUBLIC:drearth.com:220a0d05d956dba4",
+  "PUBLIC:drearth.com:452e9abec1e547c0",
+  "PUBLIC:drearth.com:07deecda6fd416f4",
+  "PUBLIC:drearth.com:c628be60145d275a",
+  "PUBLIC:drearth.com:5a4efc4ad3237432",
+  "PUBLIC:drearth.com:6582db52128b5a76",
+  "PUBLIC:drearth.com:51f41a003201df5c",
+  "PUBLIC:drearth.com:e3e20ecf55047fcd",
+  "PUBLIC:drearth.com:1669ebc6e620ded8",
+  "PUBLIC:drearth.com:202766cbd437419e",
+  "PUBLIC:drearth.com:4f4f9e9b14984550",
+  "PUBLIC:drearth.com:b1a2be2d927f5a22",
+  "PUBLIC:drearth.com:4e53cd6d22dcf1b9",
+  "PUBLIC:drearth.com:2328d90eab1ba1bc",
+  "PUBLIC:drearth.com:a70c41755216341c",
+  "PUBLIC:drearth.com:7e138d5638417838",
+  "PUBLIC:drearth.com:86c007cca53c5c49",
+  "PUBLIC:drearth.com:eb22684b8ca71b9f",
+  "PUBLIC:drearth.com:36f080b153812e00",
+  "PUBLIC:drearth.com:59b0a94f69351b0f",
+  "PUBLIC:tropiclean.com:d2d814dc32d74c60",
+  "PUBLIC:tropiclean.com:25feb11be25afbbb",
+  "PUBLIC:tropiclean.com:c7b43ebd600aaf48",
+  "PUBLIC:tropiclean.com:3408350290e05756",
+  "PUBLIC:tropiclean.com:3193b5bae74f9101",
+  "PUBLIC:tropiclean.com:af845fbf0b141351",
+  "PUBLIC:tropiclean.com:d75ca157df0561a6",
+  "PUBLIC:tropiclean.com:1b8cf1dd28d2733a",
+  "PUBLIC:tropiclean.com:c09a7b7d4b04e838",
+  "PUBLIC:tropiclean.com:f83ac4d52209d0f1",
+  "PUBLIC:tropiclean.com:36bf4ad73d3387f0",
+  "PUBLIC:tropiclean.com:780765715d2c3011",
+  "PUBLIC:tropiclean.com:294a2ae96876af1c",
+  "PUBLIC:tropiclean.com:422914c16ec4bc28",
+  "PUBLIC:tropiclean.com:f5e0d2aa8d6fac96",
+  "PUBLIC:tropiclean.com:8702ef871a38f846",
+  "PUBLIC:tropiclean.com:b7984780665aef1b",
+  "PUBLIC:tropiclean.com:a65498cf538ec62b",
+  "PUBLIC:tropiclean.com:52005270a4e1a84d",
+  "PUBLIC:tropiclean.com:c2ec85fa9ec16437",
+  "PUBLIC:tropiclean.com:413ba103f335ee58",
+  "PUBLIC:tropiclean.com:42a43e9c9fd62504",
+  "PUBLIC:earthbath.com:077e5040d3efe315",
+  "PUBLIC:earthbath.com:6bf741c5fc8932ed",
+  "PUBLIC:earthbath.com:591f8202d3531a08",
+  "PUBLIC:earthbath.com:be060af182d54a4b",
+  "PUBLIC:earthbath.com:1b7254a609b2b64e",
+  "PUBLIC:earthbath.com:df9dc2be4f80bee7",
+  "PUBLIC:earthbath.com:a76f861edc34b64a",
+  "PUBLIC:earthbath.com:d0a9f3bb105f98b8",
+  "PUBLIC:earthbath.com:52f3b6ff9d4e1337",
+  "PUBLIC:earthbath.com:9eb529b3ffe5a62f",
+  "PUBLIC:tropiclean.com:bd31ca06e1ac9a51",
+  "PUBLIC:tropiclean.com:fd8aee8ad698d447",
+  "PUBLIC:tropiclean.com:4e8c558984a47b68",
+  "PUBLIC:tropiclean.com:7b5de50009cf6e5a",
+  "PUBLIC:tropiclean.com:fd28ee1467fff72e",
+  "PUBLIC:tropiclean.com:6b436982c2daf54f"
+ ],
+ "rows": [
+  {
+   "sku": "PUBLIC:drearth.com:87ea25dbc30b7bcf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:3523080dabd9db48",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:86748ef2d1b6781d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1dc5340e9390c998",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:38fe7c1d3918ad6d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:ba6168f228fe9f42",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:d768dcfc59345f2e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:d5952e7c5cd854ef",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:30054964c7d92e6f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:571940dc48f4b6a4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:d57d7dd884221821",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:ac75ccc44f302be0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:c9045f85d66fc7b0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:3cd9c88f832c37c3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:f97f116edcd360c1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:f41ba32fa259e0d3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1550198625871380",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:3e180a39e960c472",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:69988db50aeb4ed2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1c86cc4e765bedb0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:3eb92a2a2e788389",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:243229fbdc97820e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:b79c07f7a5658542",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:8f4f5cee6d1086df",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:d9c0d1d6d5d8aa27",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:561404978160329f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:b1983c5e204e20e6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:19b66ce7c4ecb591",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:09d677bd9c71e942",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:8a0f84796a58a57c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:c66a153aa64a37c4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:ec38bdb69f71a4ed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1b7b86e21105899c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:220a0d05d956dba4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:452e9abec1e547c0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:07deecda6fd416f4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:c628be60145d275a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:5a4efc4ad3237432",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:6582db52128b5a76",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:51f41a003201df5c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:e3e20ecf55047fcd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:1669ebc6e620ded8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:202766cbd437419e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:4f4f9e9b14984550",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:b1a2be2d927f5a22",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:4e53cd6d22dcf1b9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:2328d90eab1ba1bc",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:a70c41755216341c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:7e138d5638417838",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:86c007cca53c5c49",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:eb22684b8ca71b9f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:36f080b153812e00",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:drearth.com:59b0a94f69351b0f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:d2d814dc32d74c60",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:25feb11be25afbbb",
+   "verdict": "revise",
+   "issues": [
+    "species understated: captured high-reliability title names Dog Shampoo, so species is known Dog, not insufficient-evidence"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:tropiclean.com:25feb11be25afbbb",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Dog"
+     }
+    ],
+    "rationale": "Shampoo bundle (everyday 2-in-1 plus medicated itch-relief skin shampoo): grooming; medicated skin care is not flea/tick control. Captured high-reliability title names Dog Shampoo, so species is known Dog.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Turn bath time into a complete grooming solution with this dual-shampoo bundle designed to cleanse, comfort, and care for your pet from head to tail.",
+      "locator": "https://tropiclean.com/products/papaya-itch-shampoo-bundle JSON-LD Product + product-description#excerpt-0",
+      "reason": "identifies a dual-shampoo bundle giving a complete grooming solution from head to tail"
+     },
+     {
+      "targetId": "species",
+      "quote": "TropiClean Dog Shampoo and Conditioner & Medicated Shampoo Virtual Bundle, 20oz Each",
+      "locator": "https://tropiclean.com/products/papaya-itch-shampoo-bundle#title",
+      "reason": "captured title names Dog Shampoo; canonical Dog"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:c7b43ebd600aaf48",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:3408350290e05756",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:3193b5bae74f9101",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:af845fbf0b141351",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:d75ca157df0561a6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:1b8cf1dd28d2733a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:c09a7b7d4b04e838",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:f83ac4d52209d0f1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:36bf4ad73d3387f0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:780765715d2c3011",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:294a2ae96876af1c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:422914c16ec4bc28",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:f5e0d2aa8d6fac96",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:8702ef871a38f846",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:b7984780665aef1b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:a65498cf538ec62b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:52005270a4e1a84d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:c2ec85fa9ec16437",
+   "verdict": "revise",
+   "issues": [
+    "cross-sell clip not excluded: excerpt-2 names a different product (PURE Breezy Fresh Dog Shampoo) as a pairing suggestion and must be excluded as cross-sell; staged label otherwise stands"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:tropiclean.com:c2ec85fa9ec16437",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "grooming"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "no-fit"
+     }
+    ],
+    "rationale": "Deodorizing spray explicitly for dogs and cats: grooming. Excerpt explicitly names both dogs and cats; species is single-select, so the combined Dog+Cat value is unrepresentable: field no-fit per standing rule.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "TropiClean PURE Breezy Fresh 2-In-1 Pland-Based Deodorizing Spray for Dogs & Cats keeps your pet smelling fresh and feeling soft between baths.",
+      "locator": "https://tropiclean.com/products/pure-breezy-fresh-deodorizing-spray JSON-LD Product + product-description#excerpt-0",
+      "reason": "identifies a deodorizing spray for Dogs and Cats freshening the pet between baths"
+     },
+     {
+      "targetId": "species",
+      "quote": "TropiClean PURE Breezy Fresh 2-In-1 Pland-Based Deodorizing Spray for Dogs & Cats keeps your pet smelling fresh and feeling soft between baths.",
+      "locator": "https://tropiclean.com/products/pure-breezy-fresh-deodorizing-spray JSON-LD Product + product-description#excerpt-0",
+      "reason": "names both Dogs and Cats"
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": [
+    {
+     "locator": "https://tropiclean.com/products/pure-breezy-fresh-deodorizing-spray JSON-LD Product + product-description#excerpt-2",
+     "reason": "names a different product as a pairing suggestion, not the reviewed spray",
+     "origin": "cross-sell"
+    }
+   ]
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:413ba103f335ee58",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:42a43e9c9fd62504",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:077e5040d3efe315",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:6bf741c5fc8932ed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:591f8202d3531a08",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:be060af182d54a4b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:1b7254a609b2b64e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:df9dc2be4f80bee7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:a76f861edc34b64a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:d0a9f3bb105f98b8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:52f3b6ff9d4e1337",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:earthbath.com:9eb529b3ffe5a62f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:bd31ca06e1ac9a51",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:fd8aee8ad698d447",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:4e8c558984a47b68",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:7b5de50009cf6e5a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:fd28ee1467fff72e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:tropiclean.com:6b436982c2daf54f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  }
+ ],
+ "counts": {
+  "total": 91,
+  "accept": 89,
+  "revise": 2
+ },
+ "openBlockers": []
+}

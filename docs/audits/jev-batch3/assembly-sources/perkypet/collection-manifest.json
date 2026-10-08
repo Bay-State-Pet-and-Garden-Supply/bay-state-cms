@@ -1,0 +1,78 @@
+{
+  "version": "jev-representative-v3-collection-manifest",
+  "status": "source-evidence-only-unlabeled",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "taxonomyPath": "docs/audits/jev-representative-v9/taxonomy.json",
+  "taxonomyFileHash": "ffd09bd0e6c73ab0a84b189c6f2b43b3ef7aaab87e1be863f3d11527ca1df4f0",
+  "splits": {
+    "seed": 42,
+    "holdoutPercent": 20
+  },
+  "exclusion": {
+    "priorFamilies": 1914,
+    "priorLedger": [
+      "jev-representative-v1",
+      "jev-representative-v2"
+    ],
+    "privatePriorFamilies": 394,
+    "privatePriorUrls": 96,
+    "priorCustody": "/var/folders/09/psvh1gl520384nntp58c2lrr0000gn/T/opencode/jev-representative-v3-custody",
+    "excludedGroups": 0,
+    "stats": {
+      "excludedPriorUrl": 0,
+      "excludedPriorFamily": 0,
+      "excludedNearDup": 0,
+      "excludedThinEvidence": 0,
+      "perkypet.com:sitemap-locs": 825,
+      "perkypet.com:sitemap-listing-fallback": 1,
+      "perkypet.com:sitemap-html": 19,
+      "perkypet.com:sitemap-html-candidates": 302,
+      "perkypet.com:sitemap-urls": 605,
+      "perkypet.com:feed-miss": 1,
+      "perkypet.com:feed-rows": 0,
+      "perkypet.com:feed-unverified": 0,
+      "perkypet.com:fetch-queued": 111,
+      "excludedNonProduct": 7,
+      "perkypet.com:page-rows": 104
+    }
+  },
+  "attempts": {
+    "used": 136,
+    "cap": 500,
+    "deniedHosts": [],
+    "cumulative": {
+      "priorSourceAttempts": 1485,
+      "thisGenerationAttempts": 136,
+      "totalSourceAttempts": 1621,
+      "globalLedger": {
+        "legacy": 1140,
+        "pageWorker": 273,
+        "source": 1621,
+        "globalCap": 3200
+      }
+    }
+  },
+  "counts": {
+    "familiesKept": 97,
+    "devPrimary": 78,
+    "devSupplemental": 6,
+    "holdoutFamilies": 19,
+    "holdoutRows": 20
+  },
+  "commitments": {
+    "bankHash": "da9481c59c60b34d56cb6e68fcafbd04a30e482af4b196fddac6459f34ad2d65",
+    "holdoutHash": "f41a3d51537d0ec11cb4df7c626e8549ab7bacc0a645e99a06696d3f604fee9b",
+    "memberHash": "638e3119a2a74c8df3c0aada5f6ef944271b0a2b82c5f7c2f0734ee9d79d559f",
+    "ledgerHash": "f3b58c1a181b97d4fcd4c40d06ad5a142361a7697f9da60be73484fe7c7ee109",
+    "cumulativeHash": "b8c9c555b25fa7156be0cb00cbf5595f4aa3e980931df2cc0e0f935afccf748c",
+    "devHash": "a3292bb959d27537cab8f55b33813ce6608963d26382abcb6a8f8b4fd8e152d0",
+    "devSuppHash": "a731a4fef459ec01a20db87148288c47eb75987eedf85ef25b6f35ba56892eef"
+  },
+  "privacy": {
+    "noHoldoutRowsInPublic": true,
+    "custodyMode": "0600",
+    "labelsCollected": 0,
+    "modelCalls": 0,
+    "dbReads": 0
+  }
+}

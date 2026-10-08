@@ -1,0 +1,48 @@
+[
+  {
+    "sku": "PUBLIC:drearth.com:59b0a94f69351b0f",
+    "title": "Flower Girl® Bud &amp;amp; Bloom Booster",
+    "brand": "Dr Earth",
+    "canonicalUrl": "https://drearth.com/product/flower-girl/",
+    "productIdentity": "Dr Earth: Flower Girl® Bud &amp;amp; Bloom Booster",
+    "sourceLocator": "https://drearth.com/product/flower-girl/",
+    "sourceHash": "a5a584294606ee1f6daedc31000e25ebf1620f2aa00d893acebce2bb1de33642",
+    "retrievedAt": "2026-10-07T04:57:17.392Z",
+    "familyId": "family-07e9dbe38b35f953792f4bc7852c450a",
+    "excerpts": [
+      {
+        "text": "Description: Flower Girl® dry fertilizer produces fantastic results as it releases some nutrients quickly and others may last up to several months.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-0"
+      },
+      {
+        "text": "Ultra-premium scientific formula provides measured and optimal plant nutrients for maximum plant health and growth.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-1"
+      },
+      {
+        "text": "Contains TruBiotic® beneficial soil microbes plus mycorrhizae.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-2"
+      },
+      {
+        "text": "TruBiotic® ensures organic nutrients are thoroughly broken down and then released in the soil for plant roots to absorb them as they are needed, contributing to drought tolerance, enhanced nutrient availability and increased plant performance.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-3"
+      },
+      {
+        "text": "Enriched with organic nutrients found naturally in land plants, ocean plants, fish, fish bones and mined minerals from the earth.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-4"
+      },
+      {
+        "text": "This nutritionally balanced formula promotes very rich and healthy soil equipped to grow the healthiest plants.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-5"
+      },
+      {
+        "text": "Healthy soils are capable of growing the healthiest fruits, vegetables, trees and flowering plants in your home and garden.",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-6"
+      },
+      {
+        "text": "Organic Transparency; OMRI (Organic Material Review Institute), OIM (Organic Input Materials), CCOF (California Certified Organic Farmers) and NOP (National Organic Program).",
+        "locator": "https://drearth.com/product/flower-girl/ JSON-LD Product + product-description#excerpt-7"
+      }
+    ],
+    "evidenceLimitations": "Individually fetched official manufacturer product page. Public description only; no prices, no merchant category labels."
+  }
+]

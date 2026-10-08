@@ -30,12 +30,14 @@ without a separate confidence. Neither measure grants approval authority.
 |---|---|---|
 | Choice selected probability | Probability assigned to the selected option, including an abstention option | A 0.90 insufficient-evidence answer is confidence in abstaining, not confidence in a product value |
 | Choice concentration confidence | How concentrated the answer distribution is | Inspect alongside probability; it is not whole-workflow correctness |
-| Noul P(yes) | Probability that one candidate value/page applies | Evaluate labels independently; current floor is 0.70 |
+| Noul P(yes) | Probability that one candidate value/page applies | Evaluate labels independently; engineering default is 0.70, not a fitted store policy |
 | Legacy chat/keyword support | Generated or heuristic support from the comparison implementation | Keep labeled separately; it is not Jev concentration confidence |
 
-Current Choice floor is 0.50. Store-specific calibration and acceptance must be
-established from development evidence and a separately qualified holdout. Vendor
-probability is not proof of empirical correctness for this store's assortment.
+The engineering Choice default is 0.50. These defaults are not fitted acceptance
+policies. Store-specific calibration and acceptance must be established from
+supported development evidence and a separately qualified holdout; publish the
+fitted policies before inspecting that holdout. Vendor probability does not prove
+empirical correctness for this store's assortment.
 Standing example: on the adjudicated leash-clip hard negative
 (`docs/audits/jev-representative-v9/adjudication-brief-leash-clip.md`) both the
 candidate (0.60) and the baseline (0.85) confidently proposed `dog-waste-bags`
@@ -93,9 +95,51 @@ pages, 74 profiles — sealed by an independent peer re-derivation receipt
 (`development-peer-receipt.json`, authority/config/commitment hashes bound).
 It is append-only by supersession: a new generation supersedes it with a fresh
 peer receipt; rows are never appended to the frozen corpus. Corpus expansion
-toward qualification scale (200-row sealed holdout, 20-per-class support) is
-specified in `corpus-expansion-spec.md`; until its gates clear, blocked
-verdicts stand.
+toward qualification scale is specified in `corpus-expansion-spec.md`. The 200-row
+aggregate holdout gate plus at least 20 represented classes at 20 rows per class
+requires at least 400 held rows. Sourcing all 74 configured types is not required;
+the full inference candidate universe and each evaluated class's floor remain
+binding. Until every gate clears, blocked verdicts stand.
+
+Current expanded development is `docs/audits/jev-expansion-v2/`: 967 products in
+901 families (685 known-type, 218 genuine no-fit, 64 insufficient-evidence).
+The fresh independent generation receipt binds types, eight field states,
+identity/evidence accounting and all 147 peer corrections; it recommends
+**NO-FREEZE**. Only 10 of 27 represented known types meet the 20-row floor and all
+967 complete page sets remain unknown. Verified identities for 212 pages do not
+prove required membership, overlap precedence or promotional eligibility.
+
+Sixty files across 15 sealed banks have hash/mode verification without payload
+inspection. Public metadata declares 309 unlabeled held rows; that neither meets
+the 400-row necessary minimum nor proves class/family/exposure qualification.
+Do not unseal them to repair source-budget accounting.
+
+Actual offline CLI smoke covers all 967 rows and fails closed: candidate blocked,
+no holdout and no page scoring. Actual live preflight plans 3,868 HTTP attempts and
+refuses the 600 ceiling before dispatch. Do not silently increase the ceiling,
+truncate products or substitute a gold-only candidate pool.
+
+`diagnostic-live-public-3.json` retains bounded real Jev and actual-incumbent
+captures for one known/no-fit/insufficient public example each. Both providers
+over-propose `dog-treats` on the insufficient-evidence example. This non-random,
+single-Choice replay is neither a policy fit nor coordinated-cohort qualification.
+The actual incumbent is `deepseek-cloud`/`deepseek-v4-flash` using its existing
+connection credential reference; returned `deepseek-flash` is recorded, not
+silently rewritten. Jev requested and returned `jev-1.13.0`.
+
+`runtime-kill-switch-proof.json` records actual transport plus stored-flag
+disablement on an isolated clone: zero HTTP requests before dispatch; one local
+HTTP529 fault before retry is blocked. It is not a production canary or a
+commit-bound compatibility receipt. The real-batch source audit identifies 51
+valid distributor-record inputs, including a six-member family; fresh ordered
+runs and attributed Store Manager decisions are still required. Distributor
+materialization remains profile-free, URL-null and text-only (Amendment B).
+
+Further source capture requires reconciled public accounting or a new explicitly
+bounded allocation. Defaults, prior approved fixtures, old human decisions and
+the hand-seeded goldset batch cannot mint release receipts. Keep #312 and the
+live comparator gated on actual #302 qualification.
+
 
 ### B. Running the Offline Comparison
 Run the qualification CLI runner (default is CI-safe and offline: the
@@ -212,8 +256,14 @@ Final Store Manager review/approval is retained. Terminal review can replace the
 drawer for proposal decisions, with the same review service and attribution:
 
 ```zsh
-bun scripts/review-canary.ts --batch "Jev Canary — goldset-16" --reviewer nick
+bun scripts/review-canary.ts --batch "NEWFORNICK0090626" --reviewer nick
 ```
+
+Use this real batch only after fresh ordered runs for the source-bound candidate
+IDs recorded in `docs/audits/jev-expansion-v2/source-ready-canary-inventory.json`.
+The old `Jev Canary — goldset-16` batch is a seeded seam fixture, not a qualifying
+source-ready worker canary. Reviewing historical proposals does not create a
+fresh current-config sign-off.
 
 The command shows field names, mapped ShopSite slots, evidence, conflicts and
 existing accepted pages. Corrections preserve identity/cardinality. Type review

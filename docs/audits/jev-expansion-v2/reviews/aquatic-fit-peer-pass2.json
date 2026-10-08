@@ -1,0 +1,3030 @@
+{
+ "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+ "inputSha256": "ae67d0ed0008a3e96ce323cc9b91802e7835279555f8a2b87acad329b5198186",
+ "reviewedSkus": [
+  "PUBLIC:aqueon.com:855fdddac505ed9f",
+  "PUBLIC:aqueon.com:4e24fca20ec1bff1",
+  "PUBLIC:aqueon.com:188cb99b164d7d9d",
+  "PUBLIC:aqueon.com:a511f6c8c441ca6e",
+  "PUBLIC:aqueon.com:b6ea61cb8db78ba1",
+  "PUBLIC:aqueon.com:34225dff498f3625",
+  "PUBLIC:aqueon.com:56800fe522e3b74b",
+  "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
+  "PUBLIC:aqueon.com:877b6b597c910863",
+  "PUBLIC:aqueon.com:10f45937a1644715",
+  "PUBLIC:aqueon.com:c490cad006719821",
+  "PUBLIC:aqueon.com:9acf25d51dcd4b28",
+  "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
+  "PUBLIC:aqueon.com:4349863079f9ee38",
+  "PUBLIC:aqueon.com:f68f7182651dae09",
+  "PUBLIC:aqueon.com:6bdb84598327f1a9",
+  "PUBLIC:aqueon.com:d33867bf83218422",
+  "PUBLIC:aqueon.com:5160127066b93db5",
+  "PUBLIC:aqueon.com:57f8a2e679d296f0",
+  "PUBLIC:aqueon.com:1b060ea8c1b0558e",
+  "PUBLIC:aqueon.com:ed8117f728bea3d0",
+  "PUBLIC:aqueon.com:f88dcaf24fad639f",
+  "PUBLIC:aqueon.com:886ec5e992188065",
+  "PUBLIC:aqueon.com:b1381baec9d04713",
+  "PUBLIC:aqueon.com:4e64798fc1744d60",
+  "PUBLIC:aqueon.com:d981f8dacb00eb64",
+  "PUBLIC:aqueon.com:cced05860ab3cbf5",
+  "PUBLIC:aqueon.com:372a1a501a162d37",
+  "PUBLIC:aqueon.com:e49adbc4f076d638",
+  "PUBLIC:aqueon.com:6d30352ff1fd926b",
+  "PUBLIC:aqueon.com:31937f71a2ed95cf",
+  "PUBLIC:aqueon.com:4637f7e7e5f05f83",
+  "PUBLIC:oxbowanimalhealth.com:65604d65bbce9586",
+  "PUBLIC:oxbowanimalhealth.com:c782180efd27cc51",
+  "PUBLIC:oxbowanimalhealth.com:93bd5780a164f360",
+  "PUBLIC:oxbowanimalhealth.com:8b1e1dc8a472b932",
+  "PUBLIC:oxbowanimalhealth.com:fb791e71a5a6de6d",
+  "PUBLIC:oxbowanimalhealth.com:adf4449a8169becd",
+  "PUBLIC:oxbowanimalhealth.com:ab972b8b8587f65e",
+  "PUBLIC:oxbowanimalhealth.com:a3b24d27f3c296db",
+  "PUBLIC:oxbowanimalhealth.com:70dd87414569ebd1",
+  "PUBLIC:oxbowanimalhealth.com:b6f779aee77b92a0",
+  "PUBLIC:oxbowanimalhealth.com:7c4de352617a8398",
+  "PUBLIC:oxbowanimalhealth.com:ac6a19c1f2b66f09",
+  "PUBLIC:oxbowanimalhealth.com:ef340ebd0a6b4992",
+  "PUBLIC:oxbowanimalhealth.com:e4f54e4868e99732",
+  "PUBLIC:oxbowanimalhealth.com:d2de82996697a22d",
+  "PUBLIC:oxbowanimalhealth.com:f3de92d886744876",
+  "PUBLIC:oxbowanimalhealth.com:c9290fecb24d62eb",
+  "PUBLIC:oxbowanimalhealth.com:fc358d723ca52e46",
+  "PUBLIC:oxbowanimalhealth.com:60f81eaa8a601873",
+  "PUBLIC:oxbowanimalhealth.com:66d91efb7ed0d2ab",
+  "PUBLIC:oxbowanimalhealth.com:7f2314f7313fa2f3",
+  "PUBLIC:oxbowanimalhealth.com:679de9bdb300e27a",
+  "PUBLIC:oxbowanimalhealth.com:8c8d3b6329181007",
+  "PUBLIC:oxbowanimalhealth.com:75f562c633a25a7a",
+  "PUBLIC:oxbowanimalhealth.com:ace97bc4a4c971c1",
+  "PUBLIC:oxbowanimalhealth.com:64050fa5cb0184df",
+  "PUBLIC:oxbowanimalhealth.com:d1531e0d14e4318f",
+  "PUBLIC:oxbowanimalhealth.com:dd2aae6af9570cc7",
+  "PUBLIC:oxbowanimalhealth.com:5c909c5645b7079b",
+  "PUBLIC:oxbowanimalhealth.com:958d9ae23ce098ec",
+  "PUBLIC:oxbowanimalhealth.com:5ec9d0492023ffc2",
+  "PUBLIC:oxbowanimalhealth.com:93c259f941b0e473",
+  "PUBLIC:oxbowanimalhealth.com:9ef380c313e86fa3",
+  "PUBLIC:oxbowanimalhealth.com:eec81597bf81e44c",
+  "PUBLIC:oxbowanimalhealth.com:a09a5fe1f9485261",
+  "PUBLIC:oxbowanimalhealth.com:f46e513be1f0001e",
+  "PUBLIC:oxbowanimalhealth.com:82666ee6cb9b1472",
+  "PUBLIC:oxbowanimalhealth.com:d571de1635da5d43",
+  "PUBLIC:oxbowanimalhealth.com:626d628166eac8bf",
+  "PUBLIC:oxbowanimalhealth.com:c04b6f9b4c2583a7",
+  "PUBLIC:oxbowanimalhealth.com:787f96c160e8ebef",
+  "PUBLIC:oxbowanimalhealth.com:bcea89c6547eb8a8",
+  "PUBLIC:oxbowanimalhealth.com:bc7b657ae9b86369",
+  "PUBLIC:oxbowanimalhealth.com:7a9a20e67f00fc5d",
+  "PUBLIC:oxbowanimalhealth.com:8da77becb2641ca4",
+  "PUBLIC:oxbowanimalhealth.com:4adb031181abb5d4",
+  "PUBLIC:oxbowanimalhealth.com:deeae8eae86b9836",
+  "PUBLIC:oxbowanimalhealth.com:b5671464c54a7940",
+  "PUBLIC:oxbowanimalhealth.com:701f894a24c43782",
+  "PUBLIC:oxbowanimalhealth.com:ba0071b0b87df95f",
+  "PUBLIC:oxbowanimalhealth.com:5bec0fd631d1b1e9",
+  "PUBLIC:oxbowanimalhealth.com:876294056e6efda2",
+  "PUBLIC:oxbowanimalhealth.com:86792c75c13578f2",
+  "PUBLIC:oxbowanimalhealth.com:6b2a56cc8a9aadbf",
+  "PUBLIC:oxbowanimalhealth.com:a1a4135d95f06bde",
+  "PUBLIC:oxbowanimalhealth.com:79e7b617a307a476",
+  "PUBLIC:oxbowanimalhealth.com:5122efe5915739c3",
+  "PUBLIC:oxbowanimalhealth.com:505cc62a7b6bcd96",
+  "PUBLIC:oxbowanimalhealth.com:ba9eb79f1cf0433f",
+  "PUBLIC:oxbowanimalhealth.com:acea34c9c90e81cd",
+  "PUBLIC:oxbowanimalhealth.com:ca8e4f9061be67a0",
+  "PUBLIC:oxbowanimalhealth.com:9e9652426f822508",
+  "PUBLIC:oxbowanimalhealth.com:372daf6b6ed19281",
+  "PUBLIC:oxbowanimalhealth.com:6d0f2a5160335a78",
+  "PUBLIC:oxbowanimalhealth.com:6ffa98082a094ffe",
+  "PUBLIC:oxbowanimalhealth.com:813e1b8df4c240b9",
+  "PUBLIC:oxbowanimalhealth.com:cfdd5d8d71ad0578",
+  "PUBLIC:oxbowanimalhealth.com:b3faa6a712103906",
+  "PUBLIC:oxbowanimalhealth.com:83c4e484379d610d",
+  "PUBLIC:oxbowanimalhealth.com:6f49b55b2fa310a8",
+  "PUBLIC:oxbowanimalhealth.com:937ad81950fd903c",
+  "PUBLIC:oxbowanimalhealth.com:e12149ce58657041",
+  "PUBLIC:oxbowanimalhealth.com:d135aafea894ea6a",
+  "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+  "PUBLIC:oxbowanimalhealth.com:904a2d20f8862589",
+  "PUBLIC:oxbowanimalhealth.com:7c16cfd98d365fa8",
+  "PUBLIC:oxbowanimalhealth.com:bc8899107026121e",
+  "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+  "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+  "PUBLIC:oxbowanimalhealth.com:a54ec7494b93d8b6",
+  "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+  "PUBLIC:oxbowanimalhealth.com:ec7a4fbdc5c97751",
+  "PUBLIC:oxbowanimalhealth.com:4f01d111216d8f8a",
+  "PUBLIC:oxbowanimalhealth.com:adee881c94b5af07",
+  "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+  "PUBLIC:oxbowanimalhealth.com:c328c7ff6cf121ac",
+  "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+  "PUBLIC:oxbowanimalhealth.com:8fd7916e79ec5385",
+  "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+  "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+  "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+  "PUBLIC:oxbowanimalhealth.com:64f550bc0aa0721e",
+  "PUBLIC:oxbowanimalhealth.com:b54476760f0aa774",
+  "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+  "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+  "PUBLIC:oxbowanimalhealth.com:83d747005cc2b7d9",
+  "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+  "PUBLIC:oxbowanimalhealth.com:d600e31c759ed83c",
+  "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+  "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+  "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+  "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+  "PUBLIC:oxbowanimalhealth.com:a4d27d3d21002012",
+  "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+  "PUBLIC:oxbowanimalhealth.com:aef991c8c783b6fa",
+  "PUBLIC:oxbowanimalhealth.com:6ef2e1d610eccb22",
+  "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+  "PUBLIC:oxbowanimalhealth.com:9a20b64fcb7b1d13",
+  "PUBLIC:oxbowanimalhealth.com:624e9e82d1c328e5",
+  "PUBLIC:oxbowanimalhealth.com:d3f71845c9834367",
+  "PUBLIC:oxbowanimalhealth.com:4f35826f7cd1dd52",
+  "PUBLIC:oxbowanimalhealth.com:64361c1b536ad23c",
+  "PUBLIC:oxbowanimalhealth.com:516ef49bf9b05312",
+  "PUBLIC:oxbowanimalhealth.com:7749f374bfa476bb",
+  "PUBLIC:oxbowanimalhealth.com:5e97f7103598624c",
+  "PUBLIC:oxbowanimalhealth.com:bc84a66a9787bb7d",
+  "PUBLIC:oxbowanimalhealth.com:a66dd2e2ed067cae",
+  "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+  "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+  "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+  "PUBLIC:oxbowanimalhealth.com:79ae5ffdcfb06715",
+  "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+  "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+  "PUBLIC:oxbowanimalhealth.com:a411a2873510fe99",
+  "PUBLIC:oxbowanimalhealth.com:bfb6e1c47f55a98e",
+  "PUBLIC:oxbowanimalhealth.com:9e2c55cc8ec86973",
+  "PUBLIC:oxbowanimalhealth.com:d5c856ffce10d2e3",
+  "PUBLIC:oxbowanimalhealth.com:53658f6a8a089f1d",
+  "PUBLIC:oxbowanimalhealth.com:8477603bc664ed0d",
+  "PUBLIC:oxbowanimalhealth.com:a7e9aebc7176ce1e",
+  "PUBLIC:oxbowanimalhealth.com:488aee0f7819f026",
+  "PUBLIC:oxbowanimalhealth.com:4a74f0b8f2f4851c",
+  "PUBLIC:oxbowanimalhealth.com:9738e69a0822e96a"
+ ],
+ "rows": [
+  {
+   "sku": "PUBLIC:aqueon.com:855fdddac505ed9f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4e24fca20ec1bff1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:188cb99b164d7d9d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:a511f6c8c441ca6e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:b6ea61cb8db78ba1",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope), not insufficient-evidence"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:b6ea61cb8db78ba1",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete sinking diet for herbivorous/bottom-dwelling fish, so fish-food membership holds; the sold form is nutrient Rounds, outside the controlled food-form set, hence field no-fit. breed-size is a dog-only field and the evidenced scope is exclusively non-Dog fish, so breed-size is no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Provide balanced nutrition for plecos, algae eaters, and other herbivorous fish with Aqueon PRO Algae Rounds.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-algae-rounds JSON-LD Product + product-description#excerpt-0",
+      "reason": "Complete nutrition ration for herbivorous fish establishes fish-food membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "These nutrient-rich rounds are ideal for plecostomus, loaches, catfish, shrimp, and other bottom feeders that prefer grazing throughout the day.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-algae-rounds JSON-LD Product + product-description#excerpt-2",
+      "reason": "Sold form is Rounds, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Provide balanced nutrition for plecos, algae eaters, and other herbivorous fish with Aqueon PRO Algae Rounds.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-algae-rounds JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Provide balanced nutrition for plecos, algae eaters, and other herbivorous fish with Aqueon PRO Algae Rounds.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-algae-rounds JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:34225dff498f3625",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:34225dff498f3625",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete daily nutrition ration for betta fish, so fish-food membership holds. The form evidence is generic food language (nutritious food ingredients) that states no specific physical form, so food-form abstains as missing specific form. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Formulated with high-quality ingredients to provide complete daily nutrition for active, healthy betta fish.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "Complete daily diet for betta establishes fish-food membership."
+     },
+     {
+      "targetId": "species",
+      "quote": "Formulated with high-quality ingredients to provide complete daily nutrition for active, healthy betta fish.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is betta fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Formulated with high-quality ingredients to provide complete daily nutrition for active, healthy betta fish.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-fish-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:56800fe522e3b74b",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:56800fe522e3b74b",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Freeze-dried bloodworm product explicitly positioned as a supplemental treat alongside daily feeding, so under the completeness rule it is a non-complete reward: food-form Treat known. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Reward your betta with Aqueon PRO Betta Treat.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-0",
+      "reason": "Item is a betta treat ration, a fish-food member."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "These protein-rich freeze-dried snacks provide a tasty supplement to daily feeding and help support overall health and vitality.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-1",
+      "reason": "Supplemental snack positioning makes it a non-complete reward: Treat."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Use them as a treat or mix into daily meals to keep feeding time engaging and encourage healthy eating habits and active behavior, especially for bettas.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-6",
+      "reason": "Explicit treat use confirms Treat over any complete-ration form."
+     },
+     {
+      "targetId": "species",
+      "quote": "Reward your betta with Aqueon PRO Betta Treat.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumer is betta fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Reward your betta with Aqueon PRO Betta Treat.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-treat JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:cfeb0a9b0a09c28d",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete sinking diet for bottom-feeding fish, so fish-food membership holds; the sold form is explicitly Tablets, outside the controlled food-form set, hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Aqueon PRO Bottom Feeder Tablets Support the health and vitality of your bottom-dwelling fish with Aqueon PRO Bottom Feeder Tabs, a complete sinking diet designed to match the natural feeding behavior of species that graze along the substrate.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-2",
+      "reason": "Complete sinking diet for fish establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Enriched to support immune health and enhance natural coloration, Aqueon PRO Bottom Feeder Tabs provide complete daily nutrition in a convenient tablet form.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-6",
+      "reason": "Sold form is Tablet, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Provide targeted nutrition for catfish, loaches, plecos, and other bottom-feeding fish with Aqueon PRO Bottom Feeder Tablets.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are bottom-feeding fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Provide targeted nutrition for catfish, loaches, plecos, and other bottom-feeding fish with Aqueon PRO Bottom Feeder Tablets.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-bottom-feeder-tablets JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:877b6b597c910863",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:877b6b597c910863",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete daily diet explicitly sold as Cichlid Pellets: food-form Pellets known. Named proteins are ingredient content, not a configured product flavor, so flavor abstains. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Aqueon PRO Cichlid Food Color Enhancing Support strong growth, vibrant color, and everyday health with Aqueon PRO Cichlid Pellets, a complete daily diet formulated to bring out the best in your cichlids.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-2",
+      "reason": "Complete daily pellet diet for cichlids establishes membership and form."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Its highly digestible formulation helps reduce excess waste and supports a cleaner, clearer aquarium environment when fed as directed, while maintaining pellet integrity for easy, mess-free feeding.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-6",
+      "reason": "Pellet integrity language confirms Pellets form."
+     },
+     {
+      "targetId": "species",
+      "quote": "Bring out the natural brilliance of your cichlids with Aqueon PRO Color Enhancing Cichlid Food.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are cichlid fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Bring out the natural brilliance of your cichlids with Aqueon PRO Color Enhancing Cichlid Food.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:10f45937a1644715",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:10f45937a1644715",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete daily diet for goldfish, so fish-food membership holds; the sold form is sinking Granules, outside the controlled food-form set, hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Aqueon PRO Goldfish Color Granules Give your goldfish something you can feel good about feeding with Aqueon PRO Goldfish Color Enhancing Granules, a complete daily diet designed to bring out vibrant color while supporting overall health and vitality.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-1",
+      "reason": "Complete daily diet for goldfish establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "This sinking granule formula is ideal for midwater and bottom-feeding fish, allowing for a more natural and comfortable feeding experience throughout the aquarium.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-2",
+      "reason": "Sold form is Granules, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Aqueon PRO Goldfish Color Granules Give your goldfish something you can feel good about feeding with Aqueon PRO Goldfish Color Enhancing Granules, a complete daily diet designed to bring out vibrant color while supporting overall health and vitality.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is goldfish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Aqueon PRO Goldfish Color Granules Give your goldfish something you can feel good about feeding with Aqueon PRO Goldfish Color Enhancing Granules, a complete daily diet designed to bring out vibrant color while supporting overall health and vitality.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-goldfish-color-granules JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:c490cad006719821",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:c490cad006719821",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Protein-rich daily-nutrition blend (river shrimp and mealworms) for large predatory fish, so fish-food membership holds. Captured text establishes ingredient content but not the sold physical form (pellets/flakes/whole mix unstated), so food-form abstains; mixed proteins cannot simplify to a configured flavor. breed-size is dog-only and the evidenced scope is exclusively non-Dog fish, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Feed large predatory fish a nutritious, protein-rich diet with Aqueon PRO Monster Fish Medley.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "Daily-nutrition ration for large fish establishes membership."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Made with natural river shrimp and mealworms, this mix delivers high-quality protein that helps support growth, strength, and overall health while attracting fish to the surface for an engaging feeding experience.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-monster-fish-medley JSON-LD Product + product-description#excerpt-2",
+      "reason": "Ingredient mix confirms food content without defining a canonical form or single flavor."
+     },
+     {
+      "targetId": "species",
+      "quote": "Feed large predatory fish a nutritious, protein-rich diet with Aqueon PRO Monster Fish Medley.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are large predatory fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Feed large predatory fish a nutritious, protein-rich diet with Aqueon PRO Monster Fish Medley.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:9acf25d51dcd4b28",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope: fish plus shrimp, no Dog)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:9acf25d51dcd4b28",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete daily nutrition ration explicitly intended for both freshwater shrimp and bottom-feeding fish, so fish-food membership holds via the stated fish use; shrimp is documented additional (non-exclusive) scope, not a contradiction. The sold form is feeding Rings, outside the controlled food-form set, hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Support the health and vitality of freshwater shrimp and bottom-feeding fish with Aqueon PRO Shrimp Rings.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-0",
+      "reason": "Explicit dual scope includes bottom-feeding fish, establishing fish-food membership with shrimp as additional scope."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Aqueon PRO Shrimp Rings Food Aqueon PRO Shrimp Rings deliver complete daily nutrition for freshwater shrimp in a unique dual-sided feeding ring.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-2",
+      "reason": "Complete daily nutrition ration confirms food (not treat) status."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "The sinking ring format allows shrimp to graze naturally throughout the day while helping reduce food waste in nano aquariums and planted tanks.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-5",
+      "reason": "Sold form is Rings, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Support the health and vitality of freshwater shrimp and bottom-feeding fish with Aqueon PRO Shrimp Rings.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved via explicitly stated fish consumers; shrimp documented as additional scope."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Support the health and vitality of freshwater shrimp and bottom-feeding fish with Aqueon PRO Shrimp Rings.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-shrimp-rings-food JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:fbf251d39d7e0d8b",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Healthy-daily-diet betta ration sold in Pellet form per the captured title; food-form Pellets known. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Betta Food Aqueon Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+      "locator": "https://www.aqueon.com/products/food/betta-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "Healthy daily diet for betta establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Betta Food .95 ounces Pellet",
+      "locator": "https://www.aqueon.com/products/food/betta-food",
+      "reason": "Captured title states the sold form is Pellet."
+     },
+     {
+      "targetId": "species",
+      "quote": "Betta Food Aqueon Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+      "locator": "https://www.aqueon.com/products/food/betta-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is betta fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Betta Food Aqueon Betta Foods provide all the nutritional essentials and is a healthy daily diet for proper growth and vitality that brings out natural colors.",
+      "locator": "https://www.aqueon.com/products/food/betta-food JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4349863079f9ee38",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:4349863079f9ee38",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Treat"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Dehydrated-bloodworm product explicitly framed as a highly nutritious treat alongside (not replacing) a daily diet, so under the completeness rule it is a non-complete reward: food-form Treat. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Betta Treat Aqueon Betta Treat is dehydrated bloodworms, a highly nutritious treat that is a great source of protein for your betta and many other tropical fish.",
+      "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-1",
+      "reason": "Treat ration for betta establishes membership and Treat form."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Be sure to also feed your betta a nutritious diet such as Aqueon PRO Betta formula or Aqueon Betta Pellets.",
+      "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-2",
+      "reason": "Positioned alongside a daily diet, confirming non-complete treat status."
+     },
+     {
+      "targetId": "species",
+      "quote": "Betta Treat Aqueon Betta Treat is dehydrated bloodworms, a highly nutritious treat that is a great source of protein for your betta and many other tropical fish.",
+      "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumers are betta and other tropical fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Betta Treat Aqueon Betta Treat is dehydrated bloodworms, a highly nutritious treat that is a great source of protein for your betta and many other tropical fish.",
+      "locator": "https://www.aqueon.com/products/food/betta-treat JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:f68f7182651dae09",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:f68f7182651dae09",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Healthy-daily-diet ration for bottom feeders, so fish-food membership holds; the sold form is explicitly Tablets, outside the controlled food-form set, hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Bottom Feeder Tablets from Aqueon provides all the nutritional essentials part of a healthy daily diet for your Bottom Feeder.",
+      "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-2",
+      "reason": "Healthy daily diet for bottom feeders establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Bottom Feeder Tablets Ideal for bottom dwelling fish such as plecostomus, loaches, catfish, shrimp and more.",
+      "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-0",
+      "reason": "Sold form is Tablets, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Bottom Feeder Tablets Ideal for bottom dwelling fish such as plecostomus, loaches, catfish, shrimp and more.",
+      "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are bottom-dwelling fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Bottom Feeder Tablets Ideal for bottom dwelling fish such as plecostomus, loaches, catfish, shrimp and more.",
+      "locator": "https://www.aqueon.com/products/food/bottom-feeder-foods JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:6bdb84598327f1a9",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:6bdb84598327f1a9",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Cichlid ration explicitly sold as Cichlid Pellets: food-form Pellets known. Named meals are ingredient content, not a configured flavor, so flavor abstains. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+      "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1",
+      "reason": "Pellet ration for cichlids establishes membership and form."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+      "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1",
+      "reason": "Explicit Cichlid Pellets language establishes Pellets form."
+     },
+     {
+      "targetId": "species",
+      "quote": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+      "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumers are cichlid fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Cichlid Food Color Enhancing Aqueon Cichlid Pellets are made with premium ingredients, like shrimp meal, squid meal, kelp and spirulina, to attract the most finicky cichlids.",
+      "locator": "https://www.aqueon.com/products/food/cichlid-food-color-enhancing JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:d33867bf83218422",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:5160127066b93db5",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:5160127066b93db5",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Quick-and-convenient daily nutrition for large cichlids/catfish/arowana made of river shrimp and mealworms, so fish-food membership holds. Captured text establishes ingredient content but not the sold physical form (pellets/flakes/whole mix unstated), so food-form abstains; mixed proteins cannot simplify to a configured flavor. breed-size is dog-only and the evidenced scope is exclusively non-Dog fish, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Ideal for catfish, arowana, oscars and other large cichlids, Aqueon Monster Fish Medley is quick and convenient daily nutrition in a resealable pouch.",
+      "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "Daily nutrition for large fish establishes membership."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Natural river shrimp and mealworms are high in protein and attract fish while floating at the surface.",
+      "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-3",
+      "reason": "Ingredient content confirms food without defining a canonical form."
+     },
+     {
+      "targetId": "species",
+      "quote": "Ideal for catfish, arowana, oscars and other large cichlids, Aqueon Monster Fish Medley is quick and convenient daily nutrition in a resealable pouch.",
+      "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "Invariant Fish preserved; evidenced consumers are large cichlids/catfish/arowana."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Ideal for catfish, arowana, oscars and other large cichlids, Aqueon Monster Fish Medley is quick and convenient daily nutrition in a resealable pouch.",
+      "locator": "https://www.aqueon.com/products/food/monster-fish-medley JSON-LD Product + product-description#excerpt-0",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:57f8a2e679d296f0",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:57f8a2e679d296f0",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Fish-free insect/plant ration meeting daily nutritional needs, sold as Betta Pellets per the captured title: food-form Pellets known. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The plant- and insect-based formula is designed for optimal palatability and color enhancement while providing your fish with their daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Daily nutritional needs for betta establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Betta Pellets 1.41 oz",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets",
+      "reason": "Captured title states the sold form is Pellets."
+     },
+     {
+      "targetId": "species",
+      "quote": "The plant- and insect-based formula is designed for optimal palatability and color enhancement while providing your fish with their daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is betta fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "The plant- and insect-based formula is designed for optimal palatability and color enhancement while providing your fish with their daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-betta-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:1b060ea8c1b0558e",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:1b060ea8c1b0558e",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Daily-nutrition flake ration for goldfish, so fish-food membership holds; Flakes are outside the controlled food-form set (frozen Flake gap), hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-1",
+      "reason": "Daily nutritional needs for goldfish establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "And flakes that float near the top of the water are sometimes preferred by fish.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-4",
+      "reason": "Sold form is Flakes, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is goldfish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-flakes JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:ed8117f728bea3d0",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:ed8117f728bea3d0",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Daily-nutrition ration sold as Goldfish Pellets per the captured title: food-form Pellets known. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Daily nutritional needs for goldfish establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Goldfish Pellets 1.76 oz",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets",
+      "reason": "Captured title states the sold form is Pellets."
+     },
+     {
+      "targetId": "species",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumer is goldfish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet all your goldfish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-goldfish-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:f88dcaf24fad639f",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:f88dcaf24fad639f",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Pellets"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Daily-nutrition ration sold as Tropical Pellets per the captured title: food-form Pellets known. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet your fish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-tropical-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Daily nutritional needs for tropical fish establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Tropical Pellets 1.76 oz",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-tropical-pellets",
+      "reason": "Captured title states the sold form is Pellets."
+     },
+     {
+      "targetId": "species",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet your fish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-tropical-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "Invariant Fish preserved; evidenced consumers are tropical fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "The plant- and insect-based formula is designed to be tasty, color-enhancing, and meet your fish's daily nutritional needs.",
+      "locator": "https://www.aqueon.com/products/food/nutrinsect-tropical-pellets JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:886ec5e992188065",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:b1381baec9d04713",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4e64798fc1744d60",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:d981f8dacb00eb64",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:cced05860ab3cbf5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:372a1a501a162d37",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:e49adbc4f076d638",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:6d30352ff1fd926b",
+   "verdict": "revise",
+   "issues": [
+    "breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:aqueon.com:6d30352ff1fd926b",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "fish-food"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Fish"
+     }
+    ],
+    "rationale": "Complete daily diet for bettas, so fish-food membership holds; the sold form is explicitly Color Granules, outside the controlled food-form set, hence field no-fit. breed-size is dog-only and the evidenced scope is exclusively non-Dog, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Aqueon PRO Food Betta Granule Color Enhancing Give your betta something you can feel good about feeding with Aqueon PRO Color Enhancing Betta Food, a complete daily diet designed to naturally bring out vibrant colors while supporting overall health.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-granule-color-enhancing JSON-LD Product + product-description#excerpt-2",
+      "reason": "Complete daily diet for betta establishes membership."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Enhance your betta\u2019s natural coloration with Aqueon PRO Betta Color Granules.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-granule-color-enhancing JSON-LD Product + product-description#excerpt-0",
+      "reason": "Sold form is Color Granules, outside the controlled food-form set."
+     },
+     {
+      "targetId": "species",
+      "quote": "Aqueon PRO Food Betta Granule Color Enhancing Give your betta something you can feel good about feeding with Aqueon PRO Color Enhancing Betta Food, a complete daily diet designed to naturally bring out vibrant colors while supporting overall health.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-granule-color-enhancing JSON-LD Product + product-description#excerpt-2",
+      "reason": "Invariant Fish preserved; evidenced consumer is betta fish."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Aqueon PRO Food Betta Granule Color Enhancing Give your betta something you can feel good about feeding with Aqueon PRO Color Enhancing Betta Food, a complete daily diet designed to naturally bring out vibrant colors while supporting overall health.",
+      "locator": "https://www.aqueon.com/products/food/aqueon-pro-betta-granule-color-enhancing JSON-LD Product + product-description#excerpt-2",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:31937f71a2ed95cf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:aqueon.com:4637f7e7e5f05f83",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:65604d65bbce9586",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:c782180efd27cc51",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:93bd5780a164f360",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8b1e1dc8a472b932",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:fb791e71a5a6de6d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:adf4449a8169becd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ab972b8b8587f65e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a3b24d27f3c296db",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:70dd87414569ebd1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b6f779aee77b92a0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:7c4de352617a8398",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ac6a19c1f2b66f09",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ef340ebd0a6b4992",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e4f54e4868e99732",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d2de82996697a22d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:f3de92d886744876",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:c9290fecb24d62eb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:fc358d723ca52e46",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:60f81eaa8a601873",
+   "verdict": "revise",
+   "issues": [
+    "food-form must be known Supplement (ingestible Natural Science digestive-health support; Treat requires treat positioning and this is functional support), not insufficient-evidence"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:60f81eaa8a601873",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Supplement"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "insufficient-evidence"
+     }
+    ],
+    "rationale": "Digestive-health support product with papaya/pineapple enzymes and timothy hay for ingestion, so supplements membership holds. The Natural Science support-line ingestible is a functional Supplement by feeding function (Treat is a feeding function and no treat positioning is evidenced), so food-form is known Supplement. Captured text names only your pet with no explicit consumer scope, so species and breed-size both abstain.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Oxbow's Natural Science Papaya Support is designed to support the digestive health of your pet.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-papaya-support/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Ingestible digestive-health support identity establishes supplements membership."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Premium ingredients include papaya and pineapple (natural sources of the active enzymes, papain and bromelain) and high fiber timothy hay.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-papaya-support/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Ingestible functional ingredients confirm supplement content."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Oxbow's Natural Science Papaya Support is designed to support the digestive health of your pet.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-papaya-support/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Natural Science support-line ingestible for digestive health is a Supplement by function."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:66d91efb7ed0d2ab",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:7f2314f7313fa2f3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:679de9bdb300e27a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8c8d3b6329181007",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:75f562c633a25a7a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ace97bc4a4c971c1",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:64050fa5cb0184df",
+   "verdict": "revise",
+   "issues": [
+    "food-form must be known Supplement (ingestible digestive-health support; no treat positioning evidenced), not insufficient-evidence; breed-size must be no-fit (dog-only field, exclusive non-Dog scope)"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:64050fa5cb0184df",
+    "productType": {
+     "kind": "known-type",
+     "typeId": "supplements"
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "no-fit"
+     },
+     {
+      "targetId": "flavor",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "food-form",
+      "state": "known",
+      "value": "Supplement"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "insufficient-evidence"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "known",
+      "value": "Small Animal"
+     }
+    ],
+    "rationale": "High-fiber ingestible product with timothy hay and herbal ingredients supporting the digestive tract, so supplements membership holds with ingestible identity established. The Natural Science support-line ingestible is a functional Supplement by feeding function, so food-form is known Supplement. All named consumers alias to Small Animal, so species is known; breed-size is dog-only with exclusively non-Dog scope, hence no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Natural Science Digestive Support contains high fiber Timothy hay and various herbal ingredients to support the digestive health of rabbits, guinea pigs, chinchillas, rats, and other small pets.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-digestive-support/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Ingestible digestive-health formula establishes supplements membership and consumer scope."
+     },
+     {
+      "targetId": "food-form",
+      "quote": "Natural Science Digestive Support contains high fiber Timothy hay and various herbal ingredients to support the digestive health of rabbits, guinea pigs, chinchillas, rats, and other small pets.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-digestive-support/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Natural Science digestive-health ingestible is a Supplement by function."
+     },
+     {
+      "targetId": "species",
+      "quote": "Natural Science Digestive Support contains high fiber Timothy hay and various herbal ingredients to support the digestive health of rabbits, guinea pigs, chinchillas, rats, and other small pets.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-digestive-support/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "All named consumers alias to canonical Small Animal, so species is known."
+     },
+     {
+      "targetId": "breed-size",
+      "quote": "Natural Science Digestive Support contains high fiber Timothy hay and various herbal ingredients to support the digestive health of rabbits, guinea pigs, chinchillas, rats, and other small pets.",
+      "locator": "https://oxbowanimalhealth.com/product/natural-science-digestive-support/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "breed-size is a dog-only field and the evidenced consumer scope is exclusively non-Dog, so no-fit."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d1531e0d14e4318f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:dd2aae6af9570cc7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5c909c5645b7079b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:958d9ae23ce098ec",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5ec9d0492023ffc2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:93c259f941b0e473",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9ef380c313e86fa3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:eec81597bf81e44c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a09a5fe1f9485261",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:f46e513be1f0001e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:82666ee6cb9b1472",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d571de1635da5d43",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:626d628166eac8bf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:c04b6f9b4c2583a7",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:787f96c160e8ebef",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:bcea89c6547eb8a8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:bc7b657ae9b86369",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:7a9a20e67f00fc5d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8da77becb2641ca4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4adb031181abb5d4",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:deeae8eae86b9836",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b5671464c54a7940",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:701f894a24c43782",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ba0071b0b87df95f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5bec0fd631d1b1e9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:876294056e6efda2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:86792c75c13578f2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6b2a56cc8a9aadbf",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a1a4135d95f06bde",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:79e7b617a307a476",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5122efe5915739c3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:505cc62a7b6bcd96",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ba9eb79f1cf0433f",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:acea34c9c90e81cd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ca8e4f9061be67a0",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9e9652426f822508",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:372daf6b6ed19281",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6d0f2a5160335a78",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6ffa98082a094ffe",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:813e1b8df4c240b9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:cfdd5d8d71ad0578",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b3faa6a712103906",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:83c4e484379d610d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6f49b55b2fa310a8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:937ad81950fd903c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e12149ce58657041",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d135aafea894ea6a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:96215190e4610163",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:904a2d20f8862589",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:7c16cfd98d365fa8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:bc8899107026121e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9f02f115cec4f142",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:729116de280acb44",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a54ec7494b93d8b6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b72d9e4c495b1d85",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ec7a4fbdc5c97751",
+   "verdict": "revise",
+   "issues": [
+    "primary type must be no-fit, not insufficient-evidence: captured evidence positively establishes a hide shelter / hay-manger accessory (accessory-by-what-it-is), and no frozen small-pet accessory/hide type exists; same disposition as the Timothy Tunnel/Mat rows"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:ec7a4fbdc5c97751",
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Hand-woven hay hideout sold as a hide/burrow/nest shelter that can be stuffed with hay/treats or used as a hay manger. The sold item is a habitat accessory by identity (accessory-by-what-it-is; stuffable/manger use is accessory-for-feed, not a feed ration), and the frozen taxonomy has no small-pet accessory/hide/feeder type, so genuine product no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The 100% hand-woven, 100% hay Timothy Hideout is the ideal size for smaller pets such as hamsters and gerbils to hide, burrow, and nest in.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hideout/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Sold item is a hay hide shelter for hiding/burrowing/nesting, a habitat accessory by identity."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Stuff with hay or healthy treats to encourage hamster and gerbil burrowing, or use as a hay manger for larger pets like rabbits, guinea pigs, and chinchillas.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hideout/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Stuffable/manger use is accessory function (accessory-for-feed), not a feed ration."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4f01d111216d8f8a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:adee881c94b5af07",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:afe0960d3d91303b",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:c328c7ff6cf121ac",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:797b2c413c6c07a3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8fd7916e79ec5385",
+   "verdict": "revise",
+   "issues": [
+    "primary type must be no-fit, not small-animal-feed-bedding: the manufacturer explicitly calls the sold item an accessory placed/hung in the habitat for chewing/interaction (accessory-by-what-it-is); 100% hay content is material composition, not a feed ration; same disposition as the Timothy Tunnel/Mat rows"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:8fd7916e79ec5385",
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Hand-woven 100% timothy-hay carrot explicitly sold as an accessory placed throughout the habitat or hung to encourage chewing and interaction. The sold item is a habitat accessory by identity (accessory-by-what-it-is); hay content is material composition, not a feed ration, and the frozen taxonomy has no small-pet accessory type, so genuine product no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "The Timothy CLUB Carrot is the perfect accessory for any herbivore in your life.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-carrot/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Manufacturer calls the sold item an accessory, fixing identity to accessory-by-what-it-is."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "This versatile accessory can be placed throughout your pet\u2019s habitat or hung in the appropriate location to encourage chewing and interaction.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-carrot/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Placed/hung in the habitat to encourage chewing and interaction: enrichment accessory function."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Every Timothy CLUB Carrot is hand-woven from 100% pure, premium Timothy hay.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-carrot/ JSON-LD Product + product-description#excerpt-2",
+      "reason": "100% hay content is material composition, not a feed ration; edibility alone does not make an accessory a feed member."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9ad704caf017b0ad",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:72cfa5e485894deb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4b5b23cfc922f642",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:64f550bc0aa0721e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:b54476760f0aa774",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6b0f0e8c3e2d5608",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4b26f3e08115107a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:83d747005cc2b7d9",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:484f5b9d3cb306e2",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d600e31c759ed83c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:be951baa7bccc0fd",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e265e6f405f3afed",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9f4efbc96002ced5",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8e2a62e17e748f58",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a4d27d3d21002012",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a59afc7ef9e369d6",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:aef991c8c783b6fa",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:6ef2e1d610eccb22",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:606d41654702e64a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9a20b64fcb7b1d13",
+   "verdict": "revise",
+   "issues": [
+    "primary type must be no-fit, not small-animal-feed-bedding: captured evidence sells environmental enrichment items (accessory-by-what-it-is); completely-edible/no-chemicals is material composition, not a feed ration; same disposition as the Timothy Tunnel/Mat rows"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:9a20b64fcb7b1d13",
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Hand-woven 100% timothy-hay square sold as an environmental enrichment item for inside and outside the habitat. The sold item is a habitat accessory by identity (accessory-by-what-it-is); completely-edible/no-chemicals describes safe material composition, not a feed ration, and the frozen taxonomy has no small-pet accessory type, so genuine product no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Hand-woven, 100% Timothy hay items such as those in our Timothy CLUB line make the perfect environmental enrichment items for inside and outside the habitat.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hay-square/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Sold items are environmental enrichment items for inside/outside the habitat, an accessory by identity."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Timothy CLUB accessories contain no chemicals, wires, or strings and are completely edible.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hay-square/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Completely-edible/no-chemicals describes safe material composition, not a feed ration."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:624e9e82d1c328e5",
+   "verdict": "revise",
+   "issues": [
+    "primary type must be no-fit, not small-animal-feed-bedding: captured evidence sells environmental enrichment items (accessory-by-what-it-is); completely-edible/no-chemicals is material composition, not a feed ration; same disposition as the Timothy Tunnel/Mat rows"
+   ],
+   "replacementLabel": {
+    "sku": "PUBLIC:oxbowanimalhealth.com:624e9e82d1c328e5",
+    "productType": {
+     "kind": "no-fit",
+     "typeId": null
+    },
+    "fieldAssignments": [
+     {
+      "targetId": "breed-size",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "flavor",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "food-form",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "fuel-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "hose-length",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "life-stage",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "packaging-type",
+      "state": "inapplicable"
+     },
+     {
+      "targetId": "species",
+      "state": "inapplicable"
+     }
+    ],
+    "rationale": "Hand-woven 100% timothy-hay barrel sold as an environmental enrichment item for inside and outside the habitat. The sold item is a habitat accessory by identity (accessory-by-what-it-is); completely-edible/no-chemicals describes safe material composition, not a feed ration, and the frozen taxonomy has no small-pet accessory type, so genuine product no-fit.",
+    "basis": [
+     {
+      "targetId": "product-type",
+      "quote": "Hand-woven, 100% Timothy hay items such as those in our Timothy CLUB line make the perfect environmental enrichment items for inside and outside the habitat.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hay-barrel/ JSON-LD Product + product-description#excerpt-0",
+      "reason": "Sold items are environmental enrichment items for inside/outside the habitat, an accessory by identity."
+     },
+     {
+      "targetId": "product-type",
+      "quote": "Timtohy CLUB accessories contain no chemicals, wires, or strings and are completely edible.",
+      "locator": "https://oxbowanimalhealth.com/product/timothy-club-timothy-hay-barrel/ JSON-LD Product + product-description#excerpt-1",
+      "reason": "Completely-edible/no-chemicals describes safe material composition, not a feed ration."
+     }
+    ],
+    "identityIssues": [],
+    "excludeReason": null
+   },
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d3f71845c9834367",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4f35826f7cd1dd52",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:64361c1b536ad23c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:516ef49bf9b05312",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:7749f374bfa476bb",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:5e97f7103598624c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:bc84a66a9787bb7d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a66dd2e2ed067cae",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:be7465754dd1f1a8",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d72b6c00211f9e34",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:ca335d60c2661a3e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:79ae5ffdcfb06715",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e2ec3bd5a98d99ba",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:e0520e2a6b5cfe8a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a411a2873510fe99",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:bfb6e1c47f55a98e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9e2c55cc8ec86973",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:d5c856ffce10d2e3",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:53658f6a8a089f1d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:8477603bc664ed0d",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:a7e9aebc7176ce1e",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:488aee0f7819f026",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:4a74f0b8f2f4851c",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  },
+  {
+   "sku": "PUBLIC:oxbowanimalhealth.com:9738e69a0822e96a",
+   "verdict": "accept",
+   "issues": [],
+   "replacementLabel": null,
+   "excludedLocators": []
+  }
+ ],
+ "counts": {
+  "total": 165,
+  "accept": 141,
+  "revise": 24
+ },
+ "openBlockers": [
+  "Frozen taxonomy has no aquatic-invertebrate-feed type: dedicated shrimp/crayfish feeds (herbivore shrimp discs, omnivore shrimp discs) remain genuine product no-fit with no covering member.",
+  "Frozen taxonomy has no small-pet toy/habitat/accessory/hide/feeder type: Timothy CLUB accessories, Enriched Life shelters, feeders, and waterers remain genuine product no-fit or unresolved.",
+  "Frozen food-form set has no Hay, Flakes, Rounds, Tablets, Granules, Rings, or Discs values: hay feeds, flake/round/tablet/granule/ring/disc rations, and hay-bearing recovery diets remain field no-fit.",
+  "Species alias table lacks chinchilla, rat/mouse, gerbil, guinea-pig-plural, and hamster-plural aliases; species=Small Animal on those rations rests on invariant preservation via small-animal-feed-bedding membership."
+ ]
+}

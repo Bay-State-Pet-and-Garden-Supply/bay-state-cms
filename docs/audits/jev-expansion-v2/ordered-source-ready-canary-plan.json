@@ -1,0 +1,55 @@
+{
+  "artifactKind": "ordered-source-ready-canary-plan",
+  "authority": "current real source bindings audited by CanarySourceAudit; NOT a completed run or human signoff",
+  "batchId": "d8b27131-4ab8-4619-861a-21df85b9cafc",
+  "batchName": "NEWFORNICK0090626",
+  "steps": [
+    {
+      "stage": "ProductType",
+      "candidateItemId": "8968ce21-0fb6-4968-8761-86f53bb24de7",
+      "sourceType": "distributor_record",
+      "requires": [
+        "fresh current-config source-bound classification run",
+        "retain known/no-fit/insufficient proposals",
+        "attributed Store Manager proposal decision before dependent stage"
+      ]
+    },
+    {
+      "stage": "Attributes",
+      "candidateItemId": "8968ce21-0fb6-4968-8761-86f53bb24de7",
+      "requires": [
+        "fresh reviewed Product Type from prior step",
+        "current applicable configured targets including single/multiple values",
+        "attributed Store Manager decisions; no synthesized OCR/profile/image for distributor-record"
+      ]
+    },
+    {
+      "stage": "CohortPages",
+      "cohortId": "716e4533-ec33-47ad-b0bb-ea0e761287c1",
+      "itemIds": [
+        "e32f7ed1-526c-41dd-a7a0-43a2ad541ad7",
+        "f76ddb87-3c74-45c7-b61b-472ae10571cb",
+        "0b57532a-cbe8-4bda-a2ff-e707a325abf6",
+        "ab4b627f-1649-4e32-b30f-f559e9730aae",
+        "4d0c2f4f-7868-470c-962e-47f73359766c",
+        "89559660-4b23-414d-a3e1-0f489a038b07"
+      ],
+      "requires": [
+        "fresh reviewed Product Types and attributes for all six real members",
+        "frozen current verified page import and closed merchant page rules",
+        "actual coordinated multi-item run, not singleton replay",
+        "retain per-member decisions and final Store Manager approval"
+      ]
+    }
+  ],
+  "preconditions": [
+    "development-fitted policies published at correct time",
+    "human merchant page-scope closure",
+    "fresh config and source snapshots",
+    "commit-bound compatibility"
+  ],
+  "syntheticGoldsetExcluded": true,
+  "productionAutoAdvance": false,
+  "humanSignoffs": false,
+  "ran": false
+}

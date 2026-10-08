@@ -1,0 +1,70 @@
+{
+  "artifactKind": "source-request-receipts-public",
+  "windowId": "srcwin-3d0263fdbe73-ff17dc313076",
+  "maxHttpAttempts": 1200,
+  "ownerDecisionSha256": "3d0263fdbe739625557afcd6d0426ce95ecdb8fa3e2e15d771ded97696f2a18d",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "urlIdentity": "sha256-only: public receipts never carry raw held URLs",
+  "receipts": [
+    {
+      "seq": 646,
+      "urlSha256": "0082ca2b81e5daaf2b9a3d1f5b45103b0dc5e1d83b44497d361f4013491def87",
+      "kind": "sitemap",
+      "worker": "main-stage-M5",
+      "at": "2026-10-08T12:32:51.378Z",
+      "status": 301,
+      "finalUrlSha256": "dfeb76581c6df5862f5a7a9971f0a168346e08ce860e79c77a93397866a48eb2",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 647,
+      "urlSha256": "dfeb76581c6df5862f5a7a9971f0a168346e08ce860e79c77a93397866a48eb2",
+      "kind": "sitemap",
+      "worker": "main-stage-M5",
+      "at": "2026-10-08T12:32:51.800Z",
+      "status": 200,
+      "finalUrlSha256": "dfeb76581c6df5862f5a7a9971f0a168346e08ce860e79c77a93397866a48eb2",
+      "error": null,
+      "bytes": 186196,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 648,
+      "urlSha256": "03742eaa4f1b607e5a8fa62be31f6d9390fe09dfa1e3b1801719e410104b38c4",
+      "kind": "feed",
+      "worker": "main-stage-M5",
+      "at": "2026-10-08T12:32:51.959Z",
+      "status": 301,
+      "finalUrlSha256": "f4b5a94095cafc3ddeee785e92d4ee570ed21401d216132ffcf0a4b64c8ef76d",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 649,
+      "urlSha256": "f4b5a94095cafc3ddeee785e92d4ee570ed21401d216132ffcf0a4b64c8ef76d",
+      "kind": "feed",
+      "worker": "main-stage-M5",
+      "at": "2026-10-08T12:32:52.089Z",
+      "status": 301,
+      "finalUrlSha256": "f253adec7382858bad1c801079f3420054ab700c915bd9c7a11d6476831d92b5",
+      "error": "redirect-hop",
+      "bytes": null,
+      "outcomeMissing": false
+    },
+    {
+      "seq": 650,
+      "urlSha256": "f253adec7382858bad1c801079f3420054ab700c915bd9c7a11d6476831d92b5",
+      "kind": "feed",
+      "worker": "main-stage-M5",
+      "at": "2026-10-08T12:32:52.312Z",
+      "status": 200,
+      "finalUrlSha256": "f253adec7382858bad1c801079f3420054ab700c915bd9c7a11d6476831d92b5",
+      "error": null,
+      "bytes": 186206,
+      "outcomeMissing": false
+    }
+  ]
+}
