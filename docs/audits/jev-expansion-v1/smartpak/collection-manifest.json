@@ -69,7 +69,7 @@
     "memberHash": "d18eb3e29a8ac42ee098f46a9500e57d045ca15e8cf3ec771b06d8f07f2d694c",
     "ledgerHash": "32a92b649808a122e67a7c60ccc281d39298d5091e29e5dd70a088acfd497c4f",
     "cumulativeHash": "3f5620bad68148cf1515689220d0178a2f1581a3f7c9e187466847a2c39facc8",
-    "devHash": "91155bc38cb03ba36a0efe73dab0d39c0aafc238e84c155291e0640e3771f061",
+    "devHash": "77f6acb7d143cc43d45898eb3f66515f7102ca2013c361cce186b445303c0b65",
     "devSuppHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
   },
   "privacy": {
@@ -78,5 +78,6 @@
     "labelsCollected": 0,
     "modelCalls": 0,
     "dbReads": 0
-  }
+  },
+  "revisionNote": "2026-10-08 owner-authorized bank revision: evidenceLimitations producer string corrected (official-manufacturer → third-party-retailer SmartPak, medium reliability) in 190/190 rows; no other bytes changed; private custody hashes untouched."
 }

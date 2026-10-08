@@ -1,0 +1,31 @@
+{
+  "artifactKind": "predeclared-evaluated-class-set",
+  "declaredBy": "owner in current conversation (confirmed 10+10 direction)",
+  "declaredAt": "2026-10-08",
+  "authorityHash": "ff17dc313076c4657e87fa557ae7fa182796ddfcb53ce385f7525ebc03a33026",
+  "qualified10": [
+    "bee-supplies",
+    "cat-food-wet",
+    "dog-toys",
+    "dog-treats",
+    "equine-grooming-hoof",
+    "grooming",
+    "horse-blankets-tack",
+    "plant-food-fertilizer",
+    "small-animal-feed-bedding",
+    "wild-bird-feeders"
+  ],
+  "smallestDeficit10": [
+    "fly-control-equine",
+    "fish-food",
+    "supplements",
+    "cat-toys",
+    "bird-houses-baths",
+    "flea-tick-treatment",
+    "potting-soil",
+    "collars-leashes",
+    "dog-food-wet",
+    "cat-treats"
+  ],
+  "note": "Classes outside this set remain unqualified when under-supported; inference still considers the full configured candidate universe. Binding on G1 capture targeting and holdout floor claims."
+}

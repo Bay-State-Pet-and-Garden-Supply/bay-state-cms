@@ -1,0 +1,13 @@
+{
+  "artifactKind": "smartpak-bank-revision-record",
+  "authorizedBy": "owner in current conversation (reversed leave-documented call)",
+  "revisedAt": "2026-10-08",
+  "change": "evidenceLimitations producer string corrected in 190/190 smartpak source-development.json rows (official-manufacturer → third-party-retailer SmartPak medium-reliability); supplemental bank empty (0 rows, unchanged)",
+  "hashes": {
+    "oldDevHash": "91155bc38cb03ba36a0efe73dab0d39c0aafc238e84c155291e0640e3771f061",
+    "newDevHash": "77f6acb7d143cc43d45898eb3f66515f7102ca2013c361cce186b445303c0b65"
+  },
+  "manifestUpdated": "docs/audits/jev-expansion-v1/smartpak/collection-manifest.json commitments.devHash + revisionNote; private custody hashes untouched",
+  "forwardRule": "Sealed generations v2/v3/v4 keep the false string (peer-receipt-bound, never rewritten). Corrected bytes flow into v5+ assembly-sources ONLY. assembly-sources/ and assembly-sources-v4/ copies intentionally NOT synced (v3/v4 reproducibility preserved). Next-generation staging MUST copy from expansion-v1/smartpak (corrected) and record the new devHash in its manifest chain.",
+  "receiptsToUpdate": "v2/v3/v4 peer receipts already document the false string as a known observation — no receipt changes needed; v5 peer review verifies the corrected string lands."
+}
