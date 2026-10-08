@@ -62,5 +62,7 @@
   },
   "novelDevRowsBatch4": 11,
   "foodPattern": "0/5 food probes hit (hillspet/tasteofthewild/orijen/acana/merrick): sitemap-miss + proof-wall pattern holds; food deficits need a different acquisition strategy (distributor-record? manual?) — no further blind food probing recommended",
-  "nextSteps": "adjudicate 11 novel rows → expansion-v4 assembly with rev2 packet + v3 peer-review precedent; canary runs already authorized"
+  "nextSteps": "adjudicate 11 novel rows → expansion-v4 assembly with rev2 packet + v3 peer-review precedent; canary runs already authorized",
+  "g0HoldoutSpec": "docs/audits/jev-batch3/qualifying-holdout-spec.md (APPROVED-WITH-AMENDMENTS, A1/A2/A3 applied by Main 2026-10-08; review docs/audits/jev-batch3/g0-holdout-spec-review.json)",
+  "sealedPathBar": "HoldoutSpecDrafter barred from all future G3/G4 sealed work (accounting, labeling, re-derivation, dispute adjudication) and from any Batch3/Batch4 sealed-file access, per G0 incident ruling. G3/G4 executors must attest no prior sealed exposure. Any second incident voids the affected cohort."
 }
