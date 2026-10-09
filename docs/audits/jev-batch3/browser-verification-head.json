@@ -1,0 +1,18 @@
+{
+  "artifactKind": "live-browser-verification-head",
+  "verifiedAt": "2026-10-09T14:47:45.703Z",
+  "commit": "167b5c4f64b791ba72acfe7e965bcf96b5883f15",
+  "scope": "read-only UI verification at HEAD (no approvals, no edits, no promotions)",
+  "observed": [
+    "Overview: 22,108 SKUs, batch table renders (NEWFORNICK0090626 PAUSED 125 products, goldset-16 RUNNING)",
+    "Settings > AI Routes: TypeSafe Jev connections Online, auth configured, pinned api.typesafe.ai:443; DeepSeek incumbent Online; Ollama local Online",
+    "Classification Stage Providers: Primary Product Type → TypeSafe Jev + pinned jev-1.13.0; Controlled Attributes → TypeSafe Jev",
+    "Onboarding > NEWFORNICK0090626 > Review listings: queue loads, search finds spine UPC 683547121034",
+    "Review drawer: Primary Product Type Accepted Dog Food Dry; Brand open farm; Life Stage/Breed Size insufficient_evidence; Flavor no_fit; abstention guidance text renders; search keywords carry type"
+  ],
+  "proofs": [
+    "docs/audits/jev-batch3/jev-routes-head.png",
+    "docs/audits/jev-batch3/jev-review-head.png"
+  ],
+  "limitations": "Single-item drawer inspection + routes render; not a full workflow traversal. Write paths verified via CLI/API evidence, not clicked in-browser."
+}

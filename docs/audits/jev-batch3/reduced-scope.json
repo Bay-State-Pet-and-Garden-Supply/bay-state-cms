@@ -1,0 +1,22 @@
+{
+  "artifactKind": "reduced-qualification-scope",
+  "decidedBy": "owner in current conversation (scope-reduction to close out)",
+  "decidedAt": "2026-10-09T14:45:34.460Z",
+  "evaluatedClasses": [
+    "bee-supplies",
+    "cat-food-wet",
+    "dog-toys",
+    "dog-treats",
+    "equine-grooming-hoof",
+    "grooming",
+    "horse-blankets-tack",
+    "plant-food-fertilizer",
+    "small-animal-feed-bedding",
+    "wild-bird-feeders"
+  ],
+  "classCount": 10,
+  "holdoutFloor": "10 classes x 20 rows = 200 distinct held rows (reduced from 20x20=400)",
+  "nonEvaluatedClasses": "remain on deterministic/other-provider paths; unqualified for Jev; no silent qualification",
+  "supersedes": "predeclared 10+10 set (docs/audits/jev-batch3/predeclared-class-set.json) for qualification purposes; the 10 smallest-deficit classes are explicitly OUT of this qualification",
+  "g1Impact": "G1 capture plan must be re-scoped to 200-row holdout over the 10 floored classes; deficit math recomputed in the re-scope"
+}
