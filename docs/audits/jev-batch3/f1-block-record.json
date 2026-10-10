@@ -1,0 +1,30 @@
+{
+  "artifactKind": "f1-block-record",
+  "recordedAt": "2026-10-10T14:46:33.136Z",
+  "planRevision": "2026-10-09-g1-rev2",
+  "pilot": {
+    "domain": "nutro.com",
+    "pageAttempts": 15,
+    "proofPass": 15,
+    "kept": 15,
+    "verdict": "PROCEED",
+    "seqs": "896-910"
+  },
+  "fullBlock": {
+    "nutro": "complete 15/15 (DOUBLE-FETCH of pilot seqs 911-925, byte-identical — spend variance, Main-owned waste)",
+    "royalcanin": "complete 21 attempts, 4 kept",
+    "bluebuffalo": "paused-proof-wall 15 attempts, 0 kept — host 403 denial; ABANDONED per ruling (10 leads abandoned)",
+    "victor": "paused-proof-wall 15 attempts, 0 kept — uniform proof-fail on fetched 200s; ABANDONED per ruling (3 leads abandoned)"
+  },
+  "result": {
+    "uniqueKept": 19,
+    "f1Spend": 68,
+    "f1Quota": 120,
+    "unspentSealed": 52,
+    "windowAfter": "963/1200, remaining 237"
+  },
+  "ledger": "seqs 1-963 contiguous, 0 missing, receipts==spent",
+  "ruling": "docs/audits/jev-batch3/f1-execution-ruling.json (ABANDON both, F1 CLOSED)",
+  "candidatesCommitment": "deb97ded7465da4576118aa9a2fae14a9a00f0d4588223b2b39ddc82810c3912 (full-run candidates incl. pilot dupes; unique-kept derivation at G3 accounting)",
+  "outputsPrivate": "/private/tmp/baystate-g1-f1/{pilot,full}/ (candidates + receipts + manifest; NOT committed — raw URLs)"
+}
