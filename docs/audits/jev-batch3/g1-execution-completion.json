@@ -1,0 +1,48 @@
+{
+  "artifactKind": "g1-execution-completion",
+  "recordedAt": "2026-10-10T14:55:11.518Z",
+  "planRevision": "2026-10-09-g1-rev2",
+  "authorization": "g0-completion.json (owner G1 spend authorization, disposition B)",
+  "window": {
+    "before": "895/1200",
+    "after": "1086/1200",
+    "g1Spent": 191,
+    "remaining": 114
+  },
+  "kinds": {
+    "page": 145,
+    "sitemap": 38,
+    "feed": 8
+  },
+  "ledger": "seqs 1-1086 contiguous, 0 missing, receipts==spent (Main-verified)",
+  "f1": "CLOSED at 19 unique kept (15 nutro + 4 RC), 68/120 spend, bluebuffalo + victor ABANDONED — see f1-block-record.json",
+  "blind": {
+    "T1_benebone": "COMPLETE 17/35 spend, 5 page-rows, 1 dev-primary, 4 holdout rows / 3 families sealed",
+    "G1_foxfarm": "ABANDONED at cap 40/40, 0 page-rows (18 excludedNonProduct proof-fails)",
+    "B1_woodlink": "ABANDONED sitemap-miss 7/40, 0 page-rows, 0 queued",
+    "E1_absorbine": "COMPLETE HIT 29/40, 20 page-rows, 14 dev-primary + 1 supp, 4 holdout rows / 4 families sealed (weatherbeeta alternate NOT run)",
+    "S1_kaytee": "COMPLETE HIT 30/30, 12 page-rows, 10 dev-primary, 2 holdout rows / 2 families sealed"
+  },
+  "blindTotals": {
+    "spend": 123,
+    "pageRows": 37,
+    "devPrimary": 25,
+    "holdoutRowsSealed": 10,
+    "holdoutFamiliesSealed": 9
+  },
+  "g1Totals": {
+    "spend": 191,
+    "keptRows": "19 F1 unique + 37 blind = 56",
+    "devPrimary": "25 blind (F1 dev/holdout split derivation at G3 accounting)"
+  },
+  "commitments": {
+    "T1": "manifest 3397ef0a, receipts c8a59997, dev 4acdc33c",
+    "G1": "manifest 6de246f2, receipts 1f5b5f56",
+    "B1": "manifest 7441d52e, receipts 821dbd17",
+    "E1": "manifest f3a1d461, receipts a57481b5, dev da7c6b60, devSupp 8c03aaaa",
+    "S1": "manifest 54e971ff, receipts b6dce0d6, dev fae6d253"
+  },
+  "guards": "collector unedited, no new flags, no sealed reads, no P2/R touch, privateCustodyParsed=false, 43-bank + F1 + G1-chain public-only exclusion",
+  "rawOutputsPrivate": "/private/tmp/baystate-g1-blind/<probe>/{custody,public}/ + /private/tmp/baystate-g1-f1/ (NOT committed)",
+  "nextGate": "G2 ledger acceptance (reviewer verifies from public receipts/manifests) → G3 unseal accounting needs reviewer + owner explicit authorization"
+}
