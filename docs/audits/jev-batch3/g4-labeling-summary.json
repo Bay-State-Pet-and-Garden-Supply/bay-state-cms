@@ -1,0 +1,48 @@
+{
+  "artifactKind": "g4-labeling-summary",
+  "recordedAt": "2026-10-10T16:36:12.373Z",
+  "authorization": "docs/audits/jev-batch3/g4-labeling-authorization.json (G4-AUTHORIZED-CONDITIONAL, sha 49d031e4)",
+  "fullLabelsPrivate": "/private/tmp/baystate-g4-labels/ (NOT committed — sealed-derived; available for reviewer re-derivation)",
+  "fileHashes": {
+    "g4-calibration.json": "db7f29d1f0c0a7a3b7a837a73327defe7026e3904c5acdccb6dcb1490dc87ac9",
+    "g4-labels.json": "c582da4054677e78803bc2560b851682ceb929792919286ef8bee6353f0a7e00",
+    "g4-agreement.json": "f299053757c0566d5a0ec4d828301ba14a78e4d7205ee0a9c1085848a31df546"
+  },
+  "attestations": "L1 + L2 + T recorded 2026-10-10T16:20:00Z BEFORE any sealed read (reads 16:40); non-participation + no dev-gold reads + no prior sealed exposure",
+  "calibration": {
+    "l1": "20/20 PASS",
+    "l2": "19/20 PASS (sole miss CAL-12 flavor; productType matched)",
+    "forcedFits": 0,
+    "set": "20-row disjoint v4 draw, 0 sealed rows"
+  },
+  "eligibility": "37 reconciled exactly (B3 4 + B4 23 + G1 10); ghosts + B1/2 excluded, never labeled, never read",
+  "outcomes": {
+    "knownType": 28,
+    "noFit": 5,
+    "insufficientEvidence": 4
+  },
+  "perClassSupport": {
+    "bird-food": 2,
+    "cat-food-wet": 1,
+    "dog-food-dry": 1,
+    "dog-toys": 2,
+    "equine-grooming-hoof": 1,
+    "fly-control-equine": 2,
+    "goat-sheep-feed": 1,
+    "horse-feed": 1,
+    "horse-treats-supplements": 4,
+    "poultry-coops-equipment": 3,
+    "poultry-feed": 4,
+    "small-animal-feed-bedding": 1,
+    "supplements": 5
+  },
+  "agreement": {
+    "exact": "24/37",
+    "productType": "29/37",
+    "adjudications": 13,
+    "tRecord": "L1 upheld 7, L2 upheld 6, all cited"
+  },
+  "taxonomy": "frozen v9 ff17dc31; 8 attribute targets; pages unknown (no page evidence in sealed excerpts)",
+  "guards": "no floor claims; never-merge-into-dev; sealed reads access-logged (21 membership + 7 payload + 1 projection)",
+  "floorImplication": "max per-class support 5 (supplements) — ZERO classes at 20-row floor; formal floor claim fails at G5 under disposition B (no surprise; pre-registered informative)"
+}
