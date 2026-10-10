@@ -1,0 +1,728 @@
+{
+ "artifactKind": "g3-unseal-accounting-tallies",
+ "specPath": "docs/audits/jev-batch3/qualifying-holdout-spec.md",
+ "specSection": "2.2",
+ "authorization": {
+  "path": "docs/audits/jev-batch3/g3-unseal-authorization.json",
+  "sha256": "d14f34d2369ecd2ed92de3f98a1f4bbf71c7697348e36c330b9fdc830666b6c0",
+  "verdict": "G3-AUTHORIZED-CONDITIONAL",
+  "reviewer": "G3GateReviewer-2026-10-10",
+  "ownerGrant": "granted in current conversation 2026-10-10 (as reported by Main; co-required)"
+ },
+ "attestation": {
+  "agentId": "G3Accounting",
+  "statement": "I attest I am a fresh agent with no prior exposure to any sealed payload field (labels, holdout-inputs, candidate banks, ledgers, or any label-bearing file) in this repository. This is my first sealed-file task in this session; I recorded this attestation BEFORE touching any sealed file.",
+  "timestamp": "2026-10-10T00:00:00Z (pre-sealed-read; accounting completed 2026-10-10T16:10:30Z)"
+ },
+ "method": {
+  "reads": "familyId + split fields ONLY from sealed membership.json files; title+brand projection ONLY from 19 F1 candidate rows for mechanical F1 derivation (no excerpts/descriptions/labels/SKUs/URLs/hashes)",
+  "cohortOrder": "Batch1/2 -> Batch3 -> Batch4 -> G1 (F1-holdout first, then blind T1/G1/B1/E1/S1 in run order = chronological capture + chaining direction)",
+  "rule": "earliest cohort claims each family; later recaptures are ghosts contributing zero; Batch1/2 counts toward nothing ever",
+  "splitParams": "splitForFamily(familyId, seed=42, holdoutPercent=20)"
+ },
+ "f1Derivation": {
+  "source": "/private/tmp/baystate-g1-f1/full/f1-page-candidates.json (19 rows; familyId=pending in chain rows)",
+  "projection": "title+brand ONLY per row",
+  "knownBrands": [
+   "Blue Buffalo",
+   "Nutro",
+   "Royal Canin",
+   "Victor"
+  ],
+  "functions": "familyGroupingIdentityFor (src/onboarding/product-line-grouper.ts, pure, no DB) -> key -> family-<sha256(key)[0:32]> (scripts/collect-jev-v3-sources.ts:1033); splitForFamily (src/onboarding/profile-audit/manifest-builder.ts)",
+  "resultRows": 19,
+  "resultFamilies": 18,
+  "holdoutFamilies": [
+   "family-ed9592f6f01852086efdb94382a258b2"
+  ],
+  "devFamilies": 17,
+  "note": "one grouping key held 2 rows (19 rows -> 18 families); F1-holdout partition reported here, NOT published as floor credit",
+  "groups": [
+   {
+    "key": "nutro::crunchy treats with real peanut butter",
+    "familyId": "family-808cbd2e7f7802918b4d0d8b5606ca85",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::crunchy treats with real berries",
+    "familyId": "family-c7554f7204508620d65d2c9af069baaa",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::crunchy treats with real apple",
+    "familyId": "family-85ac6409180514b0736dd104355f30c0",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::cuts in gravy amp",
+    "familyId": "family-ed9592f6f01852086efdb94382a258b2",
+    "split": "holdout",
+    "n": 1
+   },
+   {
+    "key": "nutro::cuts in gravy",
+    "familyId": "family-dc640152637baa2b3cec59ecac0617a0",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::",
+    "familyId": "family-93c1edd210e334fbeda3aaeaf6578a35",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::nutro perfect portions wet cat food pate amp",
+    "familyId": "family-38dc635955f2857b0267a85abbbc0396",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::nutro perfect portions cuts in gravy amp",
+    "familyId": "family-522985085ca132b12a6cde820f501cbc",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::flavor and and",
+    "familyId": "family-848811251a3ca9442f31b6ca35827302",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::and",
+    "familyId": "family-423c7d9bc9b05ce44c7347fe70215335",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::pat",
+    "familyId": "family-a9148172b4269fbb34d605580a93583c",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::amp pat",
+    "familyId": "family-89015f5fa78cfdb54642e094cefe1a5d",
+    "split": "train",
+    "n": 2
+   },
+   {
+    "key": "nutro::chunky tomato carrot amp pea stew",
+    "familyId": "family-3b5dbe7773a6df7f5fce365ce50148f2",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "nutro::tender sweet potato amp pea bites in gravy",
+    "familyId": "family-067c894425ad50a3d1bf5d45a16c1e4c",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "royalcanin::spayed neutered thin slices in gravy canned cat food",
+    "familyId": "family-27a09d1a95c7370a9bdbd8ce1a2a16dd",
+    "split": "test",
+    "n": 1
+   },
+   {
+    "key": "royalcanin::indoor morsels in gravy canned cat food",
+    "familyId": "family-26d9e1b6b3cf2ab92c8730d478572ec4",
+    "split": "train",
+    "n": 1
+   },
+   {
+    "key": "royalcanin::thin slices in gravy canned cat food",
+    "familyId": "family-4a76eb47cd9d85c012f7ec3cc4dc647f",
+    "split": "test",
+    "n": 1
+   },
+   {
+    "key": "royalcanin::loaf in sauce canned cat food",
+    "familyId": "family-e35e1f9d07a5ce881861b93560ab9ff8",
+    "split": "train",
+    "n": 1
+   }
+  ]
+ },
+ "cohorts": {
+  "Batch1/2": {
+   "status": "archived-unqualified-counts-toward-nothing-ever",
+   "signedGross": {
+    "rows": 309,
+    "families": 266
+   },
+   "membershipHoldout": {
+    "entries": 266,
+    "families": 266
+   },
+   "distinctContribution": 0,
+   "ghostRows": 0,
+   "ghostFamilies": 0
+  },
+  "Batch3": {
+   "signedGrossSealedRows": 123,
+   "membershipHoldout": {
+    "entries": 108,
+    "families": 108
+   },
+   "distinctContribution": 4,
+   "ghostRows": 104,
+   "ghostFamilies": 104,
+   "perStageHoldout": {
+    "p1": {
+     "entries": 5,
+     "ghostRows": 5
+    },
+    "p2": {
+     "entries": 14,
+     "ghostRows": 13
+    },
+    "p3": {
+     "entries": 86,
+     "ghostRows": 86
+    },
+    "m2": {
+     "entries": 1,
+     "ghostRows": 0
+    },
+    "m8": {
+     "entries": 2,
+     "ghostRows": 0
+    }
+   }
+  },
+  "Batch4": {
+   "signedGrossHeldRows": 23,
+   "membershipHoldout": {
+    "entries": 23,
+    "families": 23
+   },
+   "distinctContribution": 23,
+   "ghostRows": 0,
+   "ghostFamilies": 0
+  },
+  "G1": {
+   "F1-holdout": {
+    "grossHoldoutFamilies": 1,
+    "distinctContribution": 1,
+    "ghostRows": 0,
+    "ghostFamilies": 0
+   },
+   "T1": {
+    "grossHoldoutEntries": 3,
+    "grossHoldoutFamilies": 3,
+    "distinctContribution": 3,
+    "ghostRows": 0,
+    "ghostFamilies": 0,
+    "runlog": {
+     "holdoutRows": 4,
+     "holdoutFamilies": 3,
+     "familiesKept": 4
+    }
+   },
+   "G1-blind": {
+    "grossHoldoutEntries": 0,
+    "distinctContribution": 0,
+    "ghostRows": 0
+   },
+   "B1-blind": {
+    "grossHoldoutEntries": 0,
+    "distinctContribution": 0,
+    "ghostRows": 0
+   },
+   "E1": {
+    "grossHoldoutEntries": 4,
+    "grossHoldoutFamilies": 4,
+    "distinctContribution": 4,
+    "ghostRows": 0,
+    "ghostFamilies": 0,
+    "runlog": {
+     "holdoutRows": 4,
+     "holdoutFamilies": 4,
+     "familiesKept": 18
+    }
+   },
+   "S1": {
+    "grossHoldoutEntries": 2,
+    "grossHoldoutFamilies": 2,
+    "distinctContribution": 2,
+    "ghostRows": 0,
+    "ghostFamilies": 0,
+    "runlog": {
+     "holdoutRows": 2,
+     "holdoutFamilies": 2,
+     "familiesKept": 12
+    }
+   },
+   "subtotalDistinct": 10
+  }
+ },
+ "D_total": 303,
+ "D_totalComposition": "266 (Batch1/2, unqualified) + 4 (Batch3 novel) + 23 (Batch4) + 10 (G1: 1 F1 + 3 T1 + 4 E1 + 2 S1); qualifying-eligible subset EXCLUDING Batch1/2 = 37",
+ "splitConfirmation": {
+  "scope": "every credited holdout familyId (407) recomputed via splitForFamily(familyId,42,20)",
+  "mismatches": 0,
+  "verdict": "PASS",
+  "note": "read-only; no patch applied"
+ },
+ "inventory": {
+  "batch12": [
+   {
+    "path": "/tmp/pilot-custody/membership.json",
+    "sha256": "16a9a0bbc1924e9fb333a4ec1f769892ac929c06680da3c9a910237b81cd76a1",
+    "bytes": 21607,
+    "entries": 90,
+    "holdoutEntries": 14,
+    "holdoutFamilies": 14,
+    "splitCounts": {
+     "train": 63,
+     "test": 13,
+     "holdout": 14
+    }
+   },
+   {
+    "path": "/tmp/kong-custody/membership.json",
+    "sha256": "39d8c55a1e21253e2dfd39cd2b645fc52914d3661ba006c59377419cba844250",
+    "bytes": 32781,
+    "entries": 133,
+    "holdoutEntries": 28,
+    "holdoutFamilies": 28,
+    "splitCounts": {
+     "train": 80,
+     "holdout": 28,
+     "test": 25
+    }
+   },
+   {
+    "path": "/tmp/wave2-custody/membership.json",
+    "sha256": "74cd3fd5dc95eebc030ed49339e6109c46fa2cb692531d900a6529c945e64b5a",
+    "bytes": 2899,
+    "entries": 12,
+    "holdoutEntries": 3,
+    "holdoutFamilies": 3,
+    "splitCounts": {
+     "test": 3,
+     "train": 6,
+     "holdout": 3
+    }
+   },
+   {
+    "path": "/tmp/beco-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/tmp/drearth-custody/membership.json",
+    "sha256": "fc59e07bd0ed651b71c31f34320505f7e5274790f9f617f22b7fddb0b332ee60",
+    "bytes": 14863,
+    "entries": 62,
+    "holdoutEntries": 10,
+    "holdoutFamilies": 10,
+    "splitCounts": {
+     "train": 39,
+     "test": 13,
+     "holdout": 10
+    }
+   },
+   {
+    "path": "/tmp/food-custody/membership.json",
+    "sha256": "ab16011f7cb73384b534c7e02a014a1917c31ea1f80e0e5c0d6ae8c01f1289d2",
+    "bytes": 1185,
+    "entries": 5,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {
+     "train": 3,
+     "test": 2
+    }
+   },
+   {
+    "path": "/tmp/ns-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/tmp/eb-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/tmp/oxbow-custody/membership.json",
+    "sha256": "9530170a18c2a0d5121c1b97f468514b557e65849aa3c850666336f79a6a6462",
+    "bytes": 48836,
+    "entries": 198,
+    "holdoutEntries": 28,
+    "holdoutFamilies": 28,
+    "splitCounts": {
+     "train": 122,
+     "test": 48,
+     "holdout": 28
+    }
+   },
+   {
+    "path": "/tmp/nwb-custody/membership.json",
+    "sha256": "c2f48af76db3c33a4c052a8e4833184cce7b771f9756d5c225998aadb369d28e",
+    "bytes": 51813,
+    "entries": 208,
+    "holdoutEntries": 33,
+    "holdoutFamilies": 33,
+    "splitCounts": {
+     "train": 133,
+     "holdout": 33,
+     "test": 42
+    }
+   },
+   {
+    "path": "/tmp/ppw-custody/membership.json",
+    "sha256": "638e3119a2a74c8df3c0aada5f6ef944271b0a2b82c5f7c2f0734ee9d79d559f",
+    "bytes": 23562,
+    "entries": 97,
+    "holdoutEntries": 19,
+    "holdoutFamilies": 19,
+    "splitCounts": {
+     "test": 11,
+     "train": 67,
+     "holdout": 19
+    }
+   },
+   {
+    "path": "/tmp/spw-custody/membership.json",
+    "sha256": "d18eb3e29a8ac42ee098f46a9500e57d045ca15e8cf3ec771b06d8f07f2d694c",
+    "bytes": 60088,
+    "entries": 247,
+    "holdoutEntries": 57,
+    "holdoutFamilies": 57,
+    "splitCounts": {
+     "train": 141,
+     "test": 49,
+     "holdout": 57
+    }
+   },
+   {
+    "path": "/tmp/il-custody/membership.json",
+    "sha256": "e77ad4cefcfd3efb8bbf8130c93facc28ece87844362f47805f3c7f61b354113",
+    "bytes": 41748,
+    "entries": 147,
+    "holdoutEntries": 38,
+    "holdoutFamilies": 38,
+    "splitCounts": {
+     "train": 93,
+     "holdout": 38,
+     "test": 16
+    }
+   },
+   {
+    "path": "/tmp/aq-custody/membership.json",
+    "sha256": "9d00762d0f09d2dbf4ed653907ad734e2cabb50f534c553b0056f128bc874958",
+    "bytes": 7952,
+    "entries": 33,
+    "holdoutEntries": 4,
+    "holdoutFamilies": 4,
+    "splitCounts": {
+     "train": 24,
+     "holdout": 4,
+     "test": 5
+    }
+   },
+   {
+    "path": "/tmp/hc-custody/membership.json",
+    "sha256": "da42f7db17f9e5d06d587ed406357e054a89bd379afe5a28b5d779e4e4e78151",
+    "bytes": 25992,
+    "entries": 104,
+    "holdoutEntries": 32,
+    "holdoutFamilies": 32,
+    "splitCounts": {
+     "train": 48,
+     "holdout": 32,
+     "test": 24
+    }
+   }
+  ],
+  "batch3": [
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/p1-custody/membership.json",
+    "sha256": "ee8806b412c800804adad8f7a059b2feb8495de7782d6a3e0452f261df19a5fd",
+    "bytes": 3667,
+    "entries": 15,
+    "holdoutEntries": 5,
+    "holdoutFamilies": 5,
+    "splitCounts": {
+     "train": 8,
+     "test": 2,
+     "holdout": 5
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/p2-custody/membership.json",
+    "sha256": "11b34a36952948bbec9af94c4f7c066a468e35d6e1c4c9330a67202e819a8d32",
+    "bytes": 4204,
+    "entries": 14,
+    "holdoutEntries": 14,
+    "holdoutFamilies": 14,
+    "splitCounts": {
+     "holdout": 14
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/p3-custody/membership.json",
+    "sha256": "651f9fa58c01bc9498fa6031a1b7b61f3ad55e547bf91837001c1909e88d47f9",
+    "bytes": 21417,
+    "entries": 87,
+    "holdoutEntries": 86,
+    "holdoutFamilies": 86,
+    "splitCounts": {
+     "holdout": 86,
+     "train": 1
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m1-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m2-custody/membership.json",
+    "sha256": "308cb77af3221093823f742d78a3edbf9c84cdc791f15745daec9262c8a686f2",
+    "bytes": 979,
+    "entries": 4,
+    "holdoutEntries": 1,
+    "holdoutFamilies": 1,
+    "splitCounts": {
+     "train": 2,
+     "holdout": 1,
+     "test": 1
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m3-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m4-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m5-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m6-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m7-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m8-custody/membership.json",
+    "sha256": "eb8364fc97b0d48afef5aef8ea22f126e78d3e92ab28dc76f39c950b38c3b823",
+    "bytes": 1428,
+    "entries": 6,
+    "holdoutEntries": 2,
+    "holdoutFamilies": 2,
+    "splitCounts": {
+     "holdout": 2,
+     "train": 4
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/m9-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   }
+  ],
+  "batch4": [
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-1-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-2-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-3-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-4-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-5-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-6-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-7-custody/membership.json",
+    "sha256": "f4d2aea3aa4998635feaeba1b7b00220850f9561cb666f5dccb1965bd87dec80",
+    "bytes": 8274,
+    "entries": 34,
+    "holdoutEntries": 23,
+    "holdoutFamilies": 23,
+    "splitCounts": {
+     "holdout": 23,
+     "train": 9,
+     "test": 2
+    }
+   },
+   {
+    "path": "/Users/nickborrello/Desktop/Projects/bay-state-cms/docs/audits/jev-batch3/b4-8-custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   }
+  ],
+  "g1Blind": [
+   {
+    "path": "/private/tmp/baystate-g1-blind/t1/custody/membership.json",
+    "sha256": "4fdcd14c87b421ce754032b989ef9c7fdcab1da047c99762c27bdf84907b2105",
+    "bytes": 1006,
+    "entries": 4,
+    "holdoutEntries": 3,
+    "holdoutFamilies": 3,
+    "splitCounts": {
+     "holdout": 3,
+     "train": 1
+    }
+   },
+   {
+    "path": "/private/tmp/baystate-g1-blind/g1/custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/private/tmp/baystate-g1-blind/b1/custody/membership.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2,
+    "entries": 0,
+    "holdoutEntries": 0,
+    "holdoutFamilies": 0,
+    "splitCounts": {}
+   },
+   {
+    "path": "/private/tmp/baystate-g1-blind/e1/custody/membership.json",
+    "sha256": "33bd7857259c2f6063363f8be396b3584ebaee1136e93204dd45484da5c97f45",
+    "bytes": 4342,
+    "entries": 18,
+    "holdoutEntries": 4,
+    "holdoutFamilies": 4,
+    "splitCounts": {
+     "train": 11,
+     "holdout": 4,
+     "test": 3
+    }
+   },
+   {
+    "path": "/private/tmp/baystate-g1-blind/s1/custody/membership.json",
+    "sha256": "168b057daa2314c7d913ebf9fa24c6cd46b4500e35f45c7e7d16adc6906eff96",
+    "bytes": 2826,
+    "entries": 12,
+    "holdoutEntries": 2,
+    "holdoutFamilies": 2,
+    "splitCounts": {
+     "train": 10,
+     "holdout": 2
+    }
+   }
+  ]
+ },
+ "reconciliation": [
+  "Batch1/2: 15 membership.json sha256 all match sealed-custody-metadata.json commitments; membership holdout entries 266 == signed 266 holdout families; membership total entries 1336 = full bank families (dev+test+holdout), NOT the 309 signed holdout rows (declaredTotals.rows=309 counts holdout rows incl. multi-row families: 266 families -> 309 rows). No mismatch.",
+  "Batch3: every per-file membership length == public collection-manifest counts.familiesKept AND memberHash matches manifest commitments (12/12 P/M + 8/8 B4 files verified); holdout entries per manifest: P1 6 rows/5 fams, P2 28 rows/14 fams, P3 86 rows/86 fams, M2 1/1, M8 2/2 = 123 rows EXACT vs signed sealedGross 123. Membership holdout entries 108 vs 123 rows: delta = multi-row families (P1 5 fams/6 rows, P2 14 fams/28 rows). No mismatch.",
+  "Batch4: b4-7 membership 34 == manifest familiesKept 34, memberHash match; 23 holdout == signed 23 held. 7/8 probes empty (0-length membership, memberHash of empty list matches). No mismatch.",
+  "G1 blind: T1 runlog holdoutRows 4 vs membership holdout entries 3: delta = one multi-row family (3 fams/4 rows). E1/S1 exact. G1/B1 empty (0 rows, dry). No mismatch.",
+  "F1: 19 candidate rows -> 18 derived families (one shared key), 1 holdout family, novel vs all earlier cohorts. No mismatch."
+ ],
+ "haltLog": [],
+ "forbids": "no labels, no floor claims, no per-class composition; no field beyond familyId+split(+title/brand for F1 derivation) was read"
+}
