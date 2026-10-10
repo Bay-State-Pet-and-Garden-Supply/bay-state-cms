@@ -1,0 +1,16 @@
+{
+  "artifactKind": "g0-completion",
+  "completedAt": "2026-10-10T14:27:49.995Z",
+  "spec": "docs/audits/jev-batch3/qualifying-holdout-spec.md",
+  "specReview": "docs/audits/jev-batch3/g0-holdout-spec-review.json (APPROVED-WITH-AMENDMENTS)",
+  "amendments": {
+    "A1": "VERIFIED applied (spec §1 row 4 line 34: mannapro 0-ghost bound in estate ceiling)",
+    "A2": "VERIFIED applied (spec §5 item 2 line 219: stratified-live-24.json artifact path named)",
+    "A3": "VERIFIED applied (spec §6 G2 line 239: ledger acceptance stated explicitly)"
+  },
+  "incidentRuling": "ACCEPTED: cohort stands sealed-qualifiable with conditions; HoldoutSpecDrafter barred from all future G3/G4 sealed work + any Batch3/Batch4 sealed-file access (bar recorded batch4-stage-record.json sealedPathBar); G3/G4 executors must attest no prior sealed exposure; second incident voids cohort",
+  "ownerCoApproval": "granted in current conversation 2026-10-09 (g0_approval: Approve G0)",
+  "g0Status": "COMPLETE — spec approved, capture/labeling still unauthorized (G1 spend authorized separately below; G3/G4/G5 gates still closed)",
+  "g1SpendAuthorization": "GRANTED in current conversation 2026-10-09: execute G1 rev2 (g1-capture-plan.json sha 48f1c7e9, 305 quota, hard stop 1200) under disposition B (ship-what-qualifies: qualify floored classes reaching 20, named deferrals for the rest, never silently qualified)",
+  "g4LabelerDecision": "qualified independent agents with no prior sealed/payload exposure, non-participation attested on the record before G4, per incident ruling condition (3); roster + calibration bar + sampling rates set at G4 authorization"
+}
