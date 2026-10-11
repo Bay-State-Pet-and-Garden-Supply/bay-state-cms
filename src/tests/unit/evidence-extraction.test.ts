@@ -305,13 +305,12 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
   it('live distributor item emits distributor_record evidence with no copy elevation', async () => {
     const { evidenceExtractionStage } = await import('../../classification/stages/evidence-extraction');
     const { createBatch } = await import('../../db/repositories/onboarding-batch-repo');
-    const { insertItems, updateItemExtractionData, listItemsByBatch } = await import('../../db/repositories/onboarding-item-repo');
-    const { getDb } = await import('../../db/connection');
+    const { insertItems, updateItemExtractionData, listItemsByBatch, updateItemSourceType } = await import('../../db/repositories/onboarding-item-repo');
     const batchId = createBatch({ workspaceId, name: 'Dist Batch', fileName: 'dist.xlsx', totalItems: 1 }).id;
     const [item] = insertItems(batchId, [
       { upc: '300000000002', name: 'Live Distributor Item', brandHint: 'B', rowNumber: 1 },
     ]);
-    getDb().query('UPDATE onboarding_items SET source_type = ? WHERE id = ?').run('distributor_record', item.id);
+    updateItemSourceType(item.id, 'distributor_record');
     updateItemExtractionData(item.id, JSON.stringify({
       title: 'Live Distributor Item',
       brand: 'B',
@@ -356,13 +355,12 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
   it('live distributor item emits spreadsheet identity rows (name/brand) before the early return', async () => {
     const { evidenceExtractionStage } = await import('../../classification/stages/evidence-extraction');
     const { createBatch } = await import('../../db/repositories/onboarding-batch-repo');
-    const { insertItems, updateItemExtractionData, listItemsByBatch } = await import('../../db/repositories/onboarding-item-repo');
-    const { getDb } = await import('../../db/connection');
+    const { insertItems, updateItemExtractionData, listItemsByBatch, updateItemSourceType } = await import('../../db/repositories/onboarding-item-repo');
     const batchId = createBatch({ workspaceId, name: 'Dist Spreadsheet Batch', fileName: 'dist-sheet.xlsx', totalItems: 1 }).id;
     const [item] = insertItems(batchId, [
       { upc: '300000000003', name: 'PURE VITA GF LAMB/PMKN 25LB', brandHint: 'NutriSource', rowNumber: 1 },
     ]);
-    getDb().query('UPDATE onboarding_items SET source_type = ? WHERE id = ?').run('distributor_record', item.id);
+    updateItemSourceType(item.id, 'distributor_record');
     updateItemExtractionData(item.id, JSON.stringify({
       title: 'NutriSource PureVita LID Dry Dog Food',
       brand: 'NutriSource',
@@ -454,13 +452,12 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
   it('live V2 distributor item emits merchandising fields (Amendment B)', async () => {
     const { evidenceExtractionStage } = await import('../../classification/stages/evidence-extraction');
     const { createBatch } = await import('../../db/repositories/onboarding-batch-repo');
-    const { insertItems, updateItemExtractionData, listItemsByBatch } = await import('../../db/repositories/onboarding-item-repo');
-    const { getDb } = await import('../../db/connection');
+    const { insertItems, updateItemExtractionData, listItemsByBatch, updateItemSourceType } = await import('../../db/repositories/onboarding-item-repo');
     const batchId = createBatch({ workspaceId, name: 'Dist Batch V2', fileName: 'dist-v2.xlsx', totalItems: 1 }).id;
     const [item] = insertItems(batchId, [
       { upc: '300000000003', name: 'V2 Live Item', brandHint: 'B2', rowNumber: 1 },
     ]);
-    getDb().query('UPDATE onboarding_items SET source_type = ? WHERE id = ?').run('distributor_record', item.id);
+    updateItemSourceType(item.id, 'distributor_record');
     updateItemExtractionData(item.id, JSON.stringify({
       title: 'V2 Live Item',
       brand: 'B2',

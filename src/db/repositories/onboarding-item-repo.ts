@@ -1517,6 +1517,14 @@ export function updateItemBrandHint(id: string, brandHint: string | null): void 
   ).run(brandHint, now, id);
 }
 
+export function updateItemSourceType(id: string, sourceType: 'official_page' | 'distributor_record'): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.query(
+    'UPDATE onboarding_items SET source_type = ?, updated_at = ? WHERE id = ?',
+  ).run(sourceType, now, id);
+}
+
 export function incrementRetryCount(id: string): number {
   const db = getDb();
   const now = new Date().toISOString();
