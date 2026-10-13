@@ -10,15 +10,16 @@
  * Product Types: the 13 historically committed types plus the approved
  * eight-type expansion (21 total).
  *
- * Reviewed ShopSite field mappings (verified against the live ShopSite
- * Extra Fields configuration):
+ * ShopSite field mappings under review (local `SHOP_SITE_FIELD_LABELS` declarations;
+ * configured Extra Fields labels unverified — see docs/audits/live-storefront-product-fields-2026-10-13.md):
  *   Brand → ProductField16, Pet Type → ProductField17, Lifestage → ProductField18,
  *   Pet Size → ProductField19, Special Diet → ProductField20, Health Feature → ProductField21,
  *   Food Form → ProductField22, Flavor → ProductField23, Category → ProductField24,
  *   Product Type → ProductField25, Product Feature → ProductField26, Size → ProductField27,
  *   Material → ProductField28, Color → ProductField29, Packaging Type → ProductField30,
  *   Product Cross Sell → ProductField32, Ingredients/Nutrition → ProductField8.
- * ProductField31 (Product Category) is intentionally NOT mapped (the store does not use it).
+ * ProductField31 (Product Category) is intentionally NOT mapped — it carries live category
+ * values on 30% of products (2026-10-13 census) and is reserved pending owner verification.
  */
 
 import type { BayStateSeed } from '../config-generator';

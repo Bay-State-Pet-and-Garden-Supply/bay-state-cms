@@ -35,9 +35,10 @@ import type { CatalogEvidence } from '../src/classification/catalog-evidence';
 import { listRegistry, upsertRegistryEntry } from '../src/db/repositories/field-registry-repo';
 
 /**
- * Verified ShopSite Extra Fields names (read from the live ShopSite
- * configuration). Applied to the field registry after activation so every
- * app surface shows the real ShopSite-side names.
+ * ShopSite Extra Fields names under review (local declarations — configured
+ * labels unverified; see docs/audits/live-storefront-product-fields-2026-10-13.md).
+ * Applied to the field registry after activation so app surfaces show the
+ * current working names.
  */
 const SHOP_SITE_FIELD_LABELS: Record<string, string> = {
   ProductField16: 'Facet - Brand',

@@ -39,7 +39,7 @@
       "description": "Test that the skill answers taxonomy questions from PF24/25 authority",
       "prompt": "Where should a new grain-free salmon dry dog food go in our taxonomy, and what fields carry that?",
       "expected_output": [
-        "States PF24/25 (category/subcategory) are required and must be clean values derived from the product, not copied from existing (known-messy) assignments",
+        "States PF24/25 (category/product type) are required on new drafts and must be clean values derived from the product, not copied from existing (known-messy) assignments",
         "Explains ProductOnPages carries the ShopSite page assignment alongside PF24/25",
         "Assigns only pages from the defined ShopSite page list and fails validation on unknown page names",
         "References the validation checklist for the remaining required fields",

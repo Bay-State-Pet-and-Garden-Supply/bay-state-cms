@@ -244,10 +244,10 @@ Complete reference of all documented ShopSite product database fields, sourced f
 
 | Field Name | Likely XML Tag | Type | Default | Allowed Values | Notes |
 |---|---|---|---|---|---|
-| `Product Field 1`–`25` | `ProductField1`–`ProductField25` | Text Entry | Null | Any text including HTML | Only available in ShopSite Pro custom templates |
+| `Product Field 1`–`25` (Bay State live export observes `ProductField1`–`ProductField32`; edition/version limits vary — the Bay State range states only what this store's export contains) | `ProductField1`–`ProductFieldN` | Text Entry | Null | Any text including HTML | Only available in ShopSite Pro custom templates |
 | `Subproducts` | `Subproducts` (block) | List | Null | `\|`-separated product names (or `name~SKU` format) | Grouped child products |
 
-**Codebase handling:** `ProductField1`–`25` → `.customFields[tag]` (fully handled). Any tag starting with `ProductField` (even beyond 25) is captured into `customFields`. Invalid XML tag names in custom fields generate warnings during denormalization.
+**Codebase handling:** `ProductField1`–`N` → `.customFields[tag]` (fully handled). Any tag starting with `ProductField` is captured into `customFields`. Invalid XML tag names in custom fields generate warnings during denormalization.
 
 ---
 

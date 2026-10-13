@@ -115,8 +115,8 @@ describe('classification config generator', () => {
     expect(mappingByAttribute.get('packaging-type')).toBe('ProductField30');
     expect(mappingByAttribute.get('product-cross-sell')).toBe('ProductField32');
     expect(mappingByAttribute.get('nutrition')).toBe('ProductField8');
-    // Retired: Department is not a ShopSite Extra Field; ProductField31
-    // (Product Category) is intentionally unmapped (the store does not use it).
+    // Reserved: ProductField31 (Product Category) is intentionally unmapped
+    // pending owner verification — it carries live category values (2026-10-13 census).
     expect(mappingByAttribute.has('department')).toBe(false);
     expect(candidate.bundle.attributeMappings.some(mapping => mapping.catalogField === 'ProductField31')).toBe(false);
 
