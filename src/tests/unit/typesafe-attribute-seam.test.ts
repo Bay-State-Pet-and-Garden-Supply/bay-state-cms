@@ -499,7 +499,6 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       workspacePath: '/tmp/test-ws',
       configSnapshotRef: emptySnapshot.configSnapshotRef,
       snapshot: emptySnapshot,
-      cohortExecutionType: { id: 'general-item', name: 'General Item', attributeProfileId: null },
     } as any;
 
     const stageInput = {

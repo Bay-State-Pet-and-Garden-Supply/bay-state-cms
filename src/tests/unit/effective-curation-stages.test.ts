@@ -1,13 +1,13 @@
 /**
- * PR5 C2 — the two Curation applicability stages consume the effective
- * curation type (issue #30).
+ * Issue #351 — the two Curation applicability stages consume the SKU-local
+ * effective curation type (the member's own reviewed pair, or none).
  *
  * Direct stage `execute` with a synthetic StageContext: a frozen runtime
- * snapshot (built via `buildRuntimeSnapshot` over a small v1 config) plus
- * `cohortExecutionType` variants. Covers: execution-driven applicability +
- * metadata source, not-in-profile attributes, reviewed override precedence,
- * legacy/flag-OFF byte-identical behavior, universal attributes, conditions
- * staying reviewed-facts-only (DECISION-I), and the fail-closed guard.
+ * snapshot (built via `buildRuntimeSnapshot` over a small v1 config).
+ * Covers: reviewed-driven applicability + metadata source,
+ * not-in-profile attributes, unresolved (none) gating without a reviewed
+ * pair, universal attributes, conditions staying reviewed-facts-only, and
+ * fail-closed profile resolution.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'bun:test';
 import path from 'path';
@@ -189,14 +189,13 @@ function buildSnapshot(config: ClassificationConfig): RuntimeClassificationSnaps
   });
 }
 
-function makeContext(snapshot: RuntimeClassificationSnapshot, cohortExecutionType?: StageContext['cohortExecutionType']): StageContext {
+function makeContext(snapshot: RuntimeClassificationSnapshot): StageContext {
   return {
     workspacePath: path.join(dbDir, 'ws'),
     workspaceId: 'ws',
     configSnapshotRef: snapshot.configSnapshotRef,
     runId: 'run-1',
     snapshot,
-    ...(cohortExecutionType !== undefined ? { cohortExecutionType } : {}),
   };
 }
 
@@ -245,11 +244,11 @@ function withReviewedFacts(snapshot: RuntimeClassificationSnapshot, facts: Revie
   return { ...snapshot, reviewedFacts: facts } as RuntimeClassificationSnapshot;
 }
 
-const EXECUTION_TYPE = { id: 'dry-dog-food', confidence: 0.9, outcome: 'coherent' as const };
+const REVIEWED_DRY_DOG_FOOD = 'dry-dog-food';
 
-const NULL_PROFILE_EXECUTION_TYPE = { id: 'plain-dog-food', confidence: 0.9, outcome: 'coherent' as const };
+const NULL_PROFILE_REVIEWED = 'plain-dog-food';
 
-const MISSING_PROFILE_EXECUTION_TYPE = { id: 'broken-type', confidence: 0.9, outcome: 'coherent' as const };
+const MISSING_PROFILE_REVIEWED = 'broken-type';
 
 function applicabilityFor(result: Awaited<ReturnType<typeof attributeApplicabilityStage.execute>>, attributeId: string) {
   if (result.status !== 'succeeded') throw new Error(`stage not succeeded: ${result.status}`);
@@ -259,19 +258,26 @@ function applicabilityFor(result: Awaited<ReturnType<typeof attributeApplicabili
 }
 
 describe('PR5 effective type — attribute applicability stage', () => {
-  it('execution type unlocks profile attributes (source=execution) and excludes not-in-profile attributes', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
-    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+  it('reviewed type unlocks profile attributes (source=reviewed) and excludes not-in-profile attributes', async () => {
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(REVIEWED_DRY_DOG_FOOD)]);
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
 
     expect(applicabilityFor(result, 'flavor').state).toBe('applicable');
     expect(applicabilityFor(result, 'color').state).toBe('not_applicable');
     expect(metadata.effectiveTypeId).toBe('dry-dog-food');
-    expect(metadata.effectiveTypeSource).toBe('execution');
-    expect((result as { status: 'succeeded'; output: { message: string } }).output.message).toContain(
-      '(driven by cohort execution Product Type.)',
-    );
+    expect(metadata.effectiveTypeSource).toBe('reviewed');
+  });
+
+  it('no reviewed pair leaves type-gated attributes unknown (source=none, never execution-filled)', async () => {
+    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
+    expect(result.status).toBe('succeeded');
+    const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
+    expect(metadata.effectiveTypeId).toBeNull();
+    expect(metadata.effectiveTypeSource).toBe('none');
+    expect(applicabilityFor(result, 'flavor').state).toBe('unknown');
   });
 
   it('universal attribute stays applicable with no type and no execution type', async () => {
@@ -282,9 +288,9 @@ describe('PR5 effective type — attribute applicability stage', () => {
     expect(metadata.effectiveTypeSource).toBe('none');
   });
 
-  it('reviewed override beats the execution type and its own profile wins (source=reviewed)', async () => {
+  it('reviewed type selects its own profile (source=reviewed)', async () => {
     const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact('dog-treats')]);
-    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
 
@@ -296,9 +302,9 @@ describe('PR5 effective type — attribute applicability stage', () => {
     expect(applicabilityFor(result, 'color').state).toBe('applicable');
   });
 
-  it('PR5 hardening P1-2: same-ID reviewed override — reviewed dry-dog-food agrees with the execution type, source stays reviewed', async () => {
+  it('reviewed dry-dog-food resolves with source reviewed', async () => {
     const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact('dry-dog-food')]);
-    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
 
@@ -312,16 +318,16 @@ describe('PR5 effective type — attribute applicability stage', () => {
   });
 
   it('condition-carrying profile entry stays unknown with an unreviewed discriminator (DECISION-I)', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
-    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(REVIEWED_DRY_DOG_FOOD)]);
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     const lifeStage = applicabilityFor(result, 'life-stage');
     expect(lifeStage.state).toBe('unknown');
     expect(lifeStage.reason ?? '').toContain('condition');
   });
 
   it('effective type with attributeProfileId null fails closed to an EMPTY profile (never all fields)', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
-    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, NULL_PROFILE_EXECUTION_TYPE));
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(NULL_PROFILE_REVIEWED)]);
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
 
@@ -333,17 +339,17 @@ describe('PR5 effective type — attribute applicability stage', () => {
     // Universal attributes still proceed without a profile.
     expect(applicabilityFor(result, 'scent').state).toBe('applicable');
     expect(metadata.effectiveTypeId).toBe('plain-dog-food');
-    expect(metadata.effectiveTypeSource).toBe('execution');
+    expect(metadata.effectiveTypeSource).toBe('reviewed');
   });
 
   it('throws when the effective type declares a profile missing from the frozen snapshot (fail closed)', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(MISSING_PROFILE_REVIEWED)]);
     await expect(
-      attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot, MISSING_PROFILE_EXECUTION_TYPE)),
+      attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot)),
     ).rejects.toThrow(/declares Attribute Profile "ghost-profile".*missing from the frozen runtime snapshot/);
   });
 
-  it('legacy/flag-OFF keeps byte-identical old behavior for a reviewed type with attributeProfileId null', async () => {
+  it('reviewed type with attributeProfileId null resolves to the EMPTY profile (unified SKU-local path)', async () => {
     const snapshot = withReviewedFacts(buildSnapshot(BASE_CONFIG), [makeTypeFact('plain-dog-food')]);
     const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
@@ -351,15 +357,14 @@ describe('PR5 effective type — attribute applicability stage', () => {
 
     expect(metadata.effectiveTypeId).toBe('plain-dog-food');
     expect(metadata.effectiveTypeSource).toBe('reviewed');
-    // Legacy semantics are preserved exactly: no cohortExecutionType means the
-    // pre-existing profile lookup (by profile.productTypeId, null when absent)
-    // and its "no profile constraint" fall-through stay as-is.
-    expect(applicabilityFor(result, 'flavor').state).toBe('applicable');
-    expect(applicabilityFor(result, 'color').state).toBe('applicable');
-    expect(applicabilityFor(result, 'life-stage').state).toBe('applicable');
+    // Issue #351 unifies the path: a null attributeProfileId is a
+    // legitimately EMPTY profile (universal-only, never all fields).
+    expect(applicabilityFor(result, 'flavor').state).toBe('not_applicable');
+    expect(applicabilityFor(result, 'color').state).toBe('not_applicable');
+    expect(applicabilityFor(result, 'life-stage').state).toBe('not_applicable');
   });
 
-  it('legacy/flag-OFF (no cohortExecutionType) keeps byte-identical unknown gating', async () => {
+  it('without a reviewed pair keeps unknown gating', async () => {
     const snapshot = buildSnapshot(BASE_CONFIG);
     const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
@@ -369,31 +374,25 @@ describe('PR5 effective type — attribute applicability stage', () => {
     expect(applicabilityFor(result, 'color').state).toBe('unknown');
     expect(applicabilityFor(result, 'life-stage').state).toBe('unknown');
     // Byte-identical: exact legacy message, no execution suffix, source none.
-    expect(output.message).toBe(
-      '0 attributes applicable, 3 blocked (no reviewed Product Type or undecided condition), 0 not applicable for (no reviewed type).',
-    );
+    expect(output.message).toContain('(no reviewed type)');
     expect(output.metadata.effectiveTypeId).toBeNull();
     expect(output.metadata.effectiveTypeSource).toBe('none');
   });
 
-  it('throws when a cohort execution type is present but the frozen snapshot is missing', async () => {
-    const context = {
-      workspacePath: path.join(dbDir, 'ws'),
-      workspaceId: 'ws',
-      configSnapshotRef: { id: 'snap', hash: 'hash', sourceCommit: null, createdAt: NOW },
-      runId: 'run-1',
-      cohortExecutionType: EXECUTION_TYPE,
-    } as StageContext;
-    await expect(attributeApplicabilityStage.execute(STAGE_INPUT, context)).rejects.toThrow(
-      'effective-type path requires the frozen runtime snapshot; live config is never read with an execution type',
-    );
+  it('without a reviewed pair the stage resolves none and gates type-gated attributes unknown', async () => {
+    const snapshot = buildSnapshot(BASE_CONFIG);
+    const result = await attributeApplicabilityStage.execute(STAGE_INPUT, makeContext(snapshot));
+    expect(result.status).toBe('succeeded');
+    const metadata = (result as { status: 'succeeded'; output: { metadata: Record<string, unknown> } }).output.metadata;
+    expect(metadata.effectiveTypeId).toBeNull();
+    expect(metadata.effectiveTypeSource).toBe('none');
   });
 });
 
 describe('PR5 effective type — product attribute proposals stage', () => {
-  it('emits the profile attribute proposal under the execution type and withholds not-in-profile attributes', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
-    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+  it('emits the profile attribute proposal under the reviewed type and withholds not-in-profile attributes', async () => {
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(REVIEWED_DRY_DOG_FOOD)]);
+    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const proposals = (result as { status: 'succeeded'; output: { proposals: Array<{ proposalType: string; targetId: string; status: string; proposedValue: unknown }> } }).output.proposals;
 
@@ -420,8 +419,8 @@ describe('PR5 effective type — product attribute proposals stage', () => {
   });
 
   it('empty-profile effective type emits ZERO non-universal proposals; universal attributes stay eligible', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
-    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot, NULL_PROFILE_EXECUTION_TYPE));
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(NULL_PROFILE_REVIEWED)]);
+    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status === 'succeeded' || result.status === 'abstained').toBe(true);
     const proposals = (result as { status: 'succeeded'; output: { proposals: Array<{ targetId: string }> } }).output?.proposals ?? [];
 
@@ -433,23 +432,10 @@ describe('PR5 effective type — product attribute proposals stage', () => {
   });
 
   it('throws when the effective type declares a profile missing from the frozen snapshot (fail closed)', async () => {
-    const snapshot = buildSnapshot(UNIVERSAL_CONFIG);
+    const snapshot = withReviewedFacts(buildSnapshot(UNIVERSAL_CONFIG), [makeTypeFact(MISSING_PROFILE_REVIEWED)]);
     await expect(
-      productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot, MISSING_PROFILE_EXECUTION_TYPE)),
+      productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot)),
     ).rejects.toThrow(/declares Attribute Profile "ghost-profile".*missing from the frozen runtime snapshot/);
-  });
-
-  it('throws when a cohort execution type is present but the frozen snapshot is missing', async () => {
-    const context = {
-      workspacePath: path.join(dbDir, 'ws'),
-      workspaceId: 'ws',
-      configSnapshotRef: { id: 'snap', hash: 'hash', sourceCommit: null, createdAt: NOW },
-      runId: 'run-1',
-      cohortExecutionType: EXECUTION_TYPE,
-    } as StageContext;
-    await expect(productAttributeProposalsStage.execute(STAGE_INPUT, context)).rejects.toThrow(
-      'effective-type path requires the frozen runtime snapshot; live config is never read with an execution type',
-    );
   });
 
   it('resolves product type invariant proposals deterministically with first-class derivation and zero LLM calls', async () => {
@@ -469,8 +455,8 @@ describe('PR5 effective type — product attribute proposals stage', () => {
       ],
     };
 
-    const snapshot = buildSnapshot(configWithInvariants);
-    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot, EXECUTION_TYPE));
+    const snapshot = withReviewedFacts(buildSnapshot(configWithInvariants), [makeTypeFact(REVIEWED_DRY_DOG_FOOD)]);
+    const result = await productAttributeProposalsStage.execute(STAGE_INPUT, makeContext(snapshot));
     expect(result.status).toBe('succeeded');
     const proposals = (result as { status: 'succeeded'; output: { proposals: Array<any> } }).output.proposals;
 
@@ -482,7 +468,7 @@ describe('PR5 effective type — product attribute proposals stage', () => {
     expect(flavor.derivation).toEqual({
       kind: 'product_type_invariant',
       productTypeId: 'dry-dog-food',
-      productTypeSource: 'execution',
+      productTypeSource: 'reviewed',
     });
   });
 });

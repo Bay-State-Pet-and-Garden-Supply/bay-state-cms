@@ -948,7 +948,7 @@ describe('llmAssignCategoryPages', () => {
 
   // ── Prompt inspection tests ────────────────────────────────────────────
 
-  it('sibling prompt does not contain "assigned to"', async () => {
+  it('sibling products never reach the prompt (issue #351 SKU-local evidence)', async () => {
     asMock(callLlmForTask).mockResolvedValue(
       JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
     );
@@ -966,11 +966,9 @@ describe('llmAssignCategoryPages', () => {
     expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
     // callLlmForTask signature: (taskName, prompt, systemPrompt, options)
     const prompt = asMock(callLlmForTask).mock.calls[0][1] as string;
-    expect(prompt).not.toContain('assigned to');
-    expect(prompt).not.toContain('assigned to []');
-    expect(prompt).toContain('SKU002');
-    expect(prompt).toContain('Honest Kitchen Beef Recipe Chicken');
-    expect(prompt).toContain('SIBLING PRODUCTS');
+    expect(prompt).not.toContain('SKU002');
+    expect(prompt).not.toContain('Honest Kitchen Beef Recipe Chicken');
+    expect(prompt).not.toContain('SIBLING PRODUCTS');
   });
 
   it('includes page IDs ([ID:...]) in the prompt listing', async () => {

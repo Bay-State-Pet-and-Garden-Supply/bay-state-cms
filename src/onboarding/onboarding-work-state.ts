@@ -355,8 +355,6 @@ interface DerivationInput {
 /** Map a semantic finding code to the granular curation sub-activity it blocks. */
 function curationSubActivityForFindingCode(code: string | undefined | null): WorkActivity | null {
   switch (code) {
-    case 'family_product_type':
-      return 'cohort_freezing';
     case 'family_brand':
       return 'semantic_validation';
     case 'coordinated_title':

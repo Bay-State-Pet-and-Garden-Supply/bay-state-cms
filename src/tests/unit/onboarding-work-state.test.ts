@@ -507,7 +507,7 @@ describe('epic #46 review remediation — fix 2: semantic-blocked curation is ne
       payload.semanticValidation = {
         status,
         findings: status === 'blocked'
-          ? [{ code: 'family_product_type', memberSku: 'SKU-1', message: 'Family members disagree on product type.' }]
+          ? [{ code: 'family_brand', memberSku: 'SKU-1', message: 'Brand conflict.' }]
           : [],
       };
     }

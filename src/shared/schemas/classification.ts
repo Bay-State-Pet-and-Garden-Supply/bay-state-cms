@@ -872,7 +872,7 @@ export const ProposalDerivationSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('product_type_invariant'),
     productTypeId: ClassificationSlugSchema,
-    productTypeSource: z.enum(['reviewed', 'execution', 'none']),
+    productTypeSource: z.enum(['reviewed', 'none']),
   }).strict(),
   z.object({
     kind: z.literal('evidence_match'),

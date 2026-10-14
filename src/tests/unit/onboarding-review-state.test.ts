@@ -294,7 +294,7 @@ describe('bulk approval route (epic #46 Phase 7)', () => {
     const batchId = makeBatch();
     const id = createItem(batchId, {
       upc: 'A8', name: 'X', stage: 'review', stageStatus: 'completed',
-      curationDataJson: JSON.stringify({ semanticValidation: { status: 'blocked', findings: [{ code: 'family_product_type', memberSku: 'A8', message: 'Family type conflict' }] } }),
+      curationDataJson: JSON.stringify({ semanticValidation: { status: 'blocked', findings: [{ code: 'family_brand', memberSku: 'A8', message: 'Brand conflict' }] } }),
     });
     markReviewed({ itemId: id, batchId, reviewedBy: 'operator' });
     const { advanced, refused } = advanceReviewedItemsToPromotion([id]);
@@ -567,7 +567,7 @@ describe('epic #46 review remediation — fix 1: approval + advance are atomic',
     const batchId = makeBatch();
     const id = createItem(batchId, { upc: 'R4', name: 'X', stage: 'review', stageStatus: 'completed', curationDataJson: JSON.stringify({
       curatedTitle: 'X',
-      semanticValidation: { status: 'blocked', findings: [{ code: 'family_product_type', memberSku: 'SKU', message: 'Family members disagree on product type.' }] },
+      semanticValidation: { status: 'blocked', findings: [{ code: 'family_brand', memberSku: 'SKU', message: 'Brand conflict.' }] },
     }) });
     markReviewed({ itemId: id, batchId, reviewedBy: 'operator' });
 

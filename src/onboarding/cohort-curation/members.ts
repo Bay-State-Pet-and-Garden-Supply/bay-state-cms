@@ -317,23 +317,12 @@ export async function executePreparedMembers(args: {
         );
       }
       const frozenSnapshot = deepFreeze(memberSnapshot);
-      // PR4 C4b: the cohort Execution Product Type is read from the parent run row
-      // (written once at freeze inside the final CAS). Filled ONLY when the id is
-      // non-null — flag OFF / abstained / conflicted runs leave it absent, so the
-      // member pipeline never sees (or records) an execution-type context.
-      const cohortExecutionType = run.executionProductTypeId !== null
-        ? {
-            id: run.executionProductTypeId,
-            confidence: run.productTypeConfidence,
-            outcome: run.productTypeOutcome,
-          }
-        : undefined;
-      // PR5 (DECISION-H/J): resolve the member's effective Curation Product Type
-      // ONCE here — reviewed facts from the member's frozen snapshot first, the
-      // cohort Execution Product Type as fallback, else none.
+      // Issue #351 (SKU-local evidence): the member's effective Curation
+      // Product Type is the member's OWN reviewed pair from its frozen
+      // snapshot, or none. No execution-type fallback — missing own-SKU
+      // evidence stays unresolved, never a family-level guess.
       const resolvedEffectiveType = getEffectiveCurationTypeForSnapshot(
         frozenSnapshot,
-        run.executionProductTypeId,
       );
       // The executed member is CONSTRUCTED from the frozen projection —
       // identity from the live item, every semantic field from the
@@ -419,7 +408,6 @@ export async function executePreparedMembers(args: {
           memberProjection: memberProjectionV2,
           memberExtractionMethod,
           correctionOverlay: memberCorrectionOverlay,
-          cohortExecutionType,
           effectiveType: {
             id: resolvedEffectiveType.effectiveTypeId,
             source: resolvedEffectiveType.source,
@@ -456,10 +444,6 @@ export async function executePreparedMembers(args: {
         // never pass it.
         hooks?.beforeSemanticValidation?.(curationData);
         const memberSkuForSemantic = memberSku;
-        const executionTypeIdForSemantic = cohortExecutionType?.id ?? null;
-        const executionTypeLabelForSemantic = executionTypeIdForSemantic
-          ? memberSnapshotForSemantic.productTypes.find(candidate => candidate.id === executionTypeIdForSemantic)?.name ?? null
-          : null;
         const effectiveTypeIdForSemantic = resolvedEffectiveType.effectiveTypeId;
         const effectiveProfileForSemantic = effectiveTypeIdForSemantic
           ? resolveEffectiveTypeProfile(
@@ -491,10 +475,6 @@ export async function executePreparedMembers(args: {
           coordinatedPages?.get(memberSkuForSemantic)?.output ?? null;
         const memberSemanticsResult = validateMemberSemantics({
           memberSku: memberSkuForSemantic,
-          parentExecutionType: {
-            id: executionTypeIdForSemantic,
-            label: executionTypeLabelForSemantic,
-          },
           curatedTitle: curationData.curatedTitle,
           titleSource: curationData.titleSource,
           suggestedPages: curationData.suggestedPages ?? [],
@@ -520,8 +500,6 @@ export async function executePreparedMembers(args: {
                 pageName: typeof value?.pageName === 'string' ? value.pageName : '',
               };
             }),
-          suggestedProductType: curationData.suggestedProductType,
-          suggestedCategory: (curationData as { suggestedCategory?: string | null }).suggestedCategory ?? null,
           durableTitleOutput: durableTitleOutputForSemantic,
           durablePageOutput: durablePageOutputForSemantic,
           pageOutputExpectedEmpty: coordinatedPages.size === 0,
@@ -651,74 +629,34 @@ export async function executePreparedMembers(args: {
       };
       // Narrow ownership snapshot for the commit closure below.
       const commitChildRun = childRun;
-      const commitCohortExecutionType = cohortExecutionType;
       const commitEffectiveSource = resolvedEffectiveType.source;
       const commitEffectiveId = resolvedEffectiveType.effectiveTypeId;
       getDb().transaction(() => {
         updateItemCurationData(item.id, JSON.stringify(committedCurationData));
         updateItemStageStatus(item.id, 'completed');
         completeRun(commitChildRun.id, childTerminalStatus);
-        const execType = commitCohortExecutionType;
-        // PR5 hardening (P2): proposal-accurate type dependency stamping with
-        // SEPARATE KINDS. The proposals downstream of the effective Curation
-        // Product Type are:
-        //   - `field_assignment` proposals ALWAYS (the PR5 effective type
-        //     drives `attribute_applicability` /
-        //     `product_attribute_proposals`);
-        //   - `category_page` proposals ONLY under active-cohort mode WITH a
-        //     parent Execution Product Type (PR7 C6 + review R2 F3-1/P1-D):
-        //     the parent Page op consumes the cohort Execution Product Type
-        //     as page context, so the materialized page decision IS
-        //     downstream of the type — REGARDLESS of `effectiveType.source`
-        //     (a member whose compatible reviewed type won the effective
-        //     resolution still has its page decision driven by the parent
-        //     Execution Type).
-        // Under each source:
-        //   - source `execution` -> one `execution_product_type` row per
-        //     field_assignment proposal, target = the execution type id,
-        //     value hash = hashCanonicalJson({executionProductTypeId,
-        //     productTypeConfidence}) (unchanged PR4 tuple — the SAME hash
-        //     shape for both proposal kinds);
-        //   - source `reviewed` -> one `reviewed_product_type` row per
-        //     field_assignment proposal ONLY (target = the reviewed type id =
-        //     the effective id — reviewed-first resolution, so the reviewed
-        //     id wins over the execution id), value hash =
-        //     hashCanonicalJson({reviewedProductTypeId});
-        //   - source `none` -> no field rows.
+        // Issue #351 (SKU-local evidence): type dependency stamping is
+        // reviewed-only. A `reviewed` effective type stamps ONE
+        // `reviewed_product_type` row per non-universal `field_assignment`
+        // proposal (target = the reviewed type id, value hash =
+        // hashCanonicalJson({reviewedProductTypeId})); `none` stamps
+        // nothing. No execution-driven stamping — a parent or sibling
+        // conclusion never becomes a member's factual authority.
         // `primary_product_type` / `configuration_gap` /
-        // `reviewable_abstention` proposals get NO type dependency rows: the
-        // primary-product-type proposal is proposed from member evidence and
-        // is NOT downstream of the cohort Execution Type (a type change must
-        // never stale the type proposal itself). `source === 'execution'`
-        // implies the execution id was non-null and `execType` is defined
-        // (the resolver never emits `execution` for an absent id, and
-        // `cohortExecutionType` is filled exactly when the parent run carries
-        // a non-null execution type id); `source === 'reviewed'` implies
-        // `effectiveType.id` IS the reviewed type id.
-        const executionDriven =
-          commitEffectiveSource === 'execution' && commitEffectiveId !== null && execType !== undefined;
+        // `reviewable_abstention` proposals get NO type dependency rows, and
+        // `category_page` proposals stay UNSTAMPED here — page authority is
+        // title/page coordination (Slice C), never execution inheritance.
         const reviewedDriven = commitEffectiveSource === 'reviewed' && commitEffectiveId !== null;
-        if (executionDriven || reviewedDriven) {
-          // `field_assignment` follows `effectiveType.source` EXACTLY as
-          // today (unchanged PR5 behavior).
-          const dependencyKind: 'execution_product_type' | 'reviewed_product_type' =
-            executionDriven ? 'execution_product_type' : 'reviewed_product_type';
-          const dependencyTargetId = commitEffectiveId!;
-          const dependencyValueHash = executionDriven
-            ? hashCanonicalJson({
-                executionProductTypeId: dependencyTargetId,
-                productTypeConfidence: execType!.confidence,
-              })
-            : hashCanonicalJson({ reviewedProductTypeId: dependencyTargetId });
+        if (reviewedDriven) {
+          const dependencyTargetId = commitEffectiveId as string;
+          const dependencyValueHash = hashCanonicalJson({ reviewedProductTypeId: dependencyTargetId });
           const fieldRows = listChildProposalTargets(commitChildRun.id, 'field_assignment');
           // PR9 C4 (issue #30, DECISION-B): a `field_assignment` proposal
           // whose target attribute is UNIVERSAL (applicability is
           // type-independent) carries NO product-type dependency — the row
-          // would be a false causal claim (the PR11 stale-proposal Promotion
-          // gate depends on this). The attribute config is resolved from the
-          // FROZEN member runtime snapshot (never a live config read);
-          // type-dependent proposals keep the exact same value hash, and
-          // `category_page` stamping (PR7 C6) is unchanged.
+          // would be a false causal claim. The attribute config is resolved
+          // from the FROZEN member runtime snapshot (never a live config
+          // read).
           for (const proposalRow of fieldRows) {
             const targetAttribute = proposalRow.target_id
               ? memberSnapshotForSemantic?.attributes.find(attribute => attribute.id === proposalRow.target_id)
@@ -727,41 +665,9 @@ export async function executePreparedMembers(args: {
             insertProposalDependency({
               workspaceId,
               proposalId: proposalRow.id,
-              dependencyKind,
+              dependencyKind: 'reviewed_product_type',
               dependencyTargetId,
               dependencyValueHash,
-            });
-          }
-        }
-        // PR7 review R2 (F3-1 / P1-D): `category_page` proposals in ACTIVE
-        // COHORT mode carry the `execution_product_type` dependency whenever
-        // the parent Execution Product Type exists (`execType` non-null) AND
-        // the parent page op produced outputs (`prepared.coordinatedPages`
-        // present) — REGARDLESS of `effectiveType.source`. The effective
-        // resolver is reviewed-first; a member with a compatible reviewed
-        // type used to lose the page dependency even though the parent page
-        // decision ALWAYS consumed the Execution Type as page context. The
-        // value hash is the SAME {executionProductTypeId,
-        // productTypeConfidence} tuple field_assignment uses under an
-        // execution source.
-        //
-        // NOTE (Slice 5): the settled page set is ALWAYS present here — the
-        // member phase runs only after both parent decisions settle — so the
-        // `coordinatedPages !== undefined` presence check the old prepared
-        // context carried is trivially true and is not re-tested.
-        if (execType !== undefined && execType.id !== null) {
-          const pageValueHash = hashCanonicalJson({
-            executionProductTypeId: execType.id,
-            productTypeConfidence: execType.confidence,
-          });
-          const pageRows = listChildProposalTargets(commitChildRun.id, 'category_page');
-          for (const proposalRow of pageRows) {
-            insertProposalDependency({
-              workspaceId,
-              proposalId: proposalRow.id,
-              dependencyKind: 'execution_product_type',
-              dependencyTargetId: execType.id,
-              dependencyValueHash: pageValueHash,
             });
           }
         }

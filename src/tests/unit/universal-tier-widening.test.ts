@@ -267,8 +267,8 @@ describe('widened universal tier — stages thread the shared flag', () => {
     const resolved = getEffectiveCurationProductType(input, context);
     expect(resolved.effectiveTypeId).toBeNull();
     expect(resolved.source).toBe('none');
-    // Dependency stamping in the cohort executor fires only for sources
-    // 'execution' | 'reviewed'; source 'none' stamps nothing — so every
+    // Dependency stamping in the cohort executor fires only for source
+    // 'reviewed'; source 'none' stamps nothing — so every
     // proposal produced under widening carries NO product-type dependency row.
   });
 });

@@ -1785,7 +1785,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     expect(dependencyRowCount(workspaceId)).toBe(reviewedFieldAssignments.length + executionFieldAssignments.length);
   });
 
-  it('flag OFF: no cohortExecutionType, no execution dependency rows, flavor unknown, effective source none', async () => {
+  it('flag OFF: no execution authority, no execution dependency rows, flavor unknown, effective source none', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -3262,7 +3262,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     }
   });
 
-  it('conflicting Product Type: the member commits BLOCKED (family_product_type), parent completes with member failures, curationData + proposals preserved', async () => {
+  it('conflicting parent execution conclusion never blocks members (issue #351 SKU-local evidence)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTwoTypesConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -3274,8 +3274,9 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.executionProductTypeId).toBe('dry-dog-food');
 
-    // Force the parent authority to a DIFFERENT type: the members' own
-    // proposals still say dry-dog-food → family_product_type findings.
+    // Force the parent execution conclusion to a DIFFERENT type: the
+    // members' own proposals still say dry-dog-food and no family
+    // Product Type finding may block them (SKU-local evidence).
     getDb().run(
       'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
       ['dog-treats', finalized.id],
@@ -3284,29 +3285,19 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     seedV1TitleOutputs(workspaceId, mutatedRun);
 
     const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed_with_member_failures');
     expect(summary.completedMembers).toBe(2);
-    expect(summary.memberFailures).toHaveLength(2);
 
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      // BLOCKED-NOT-DESTROYED: the member's projection committed (item
-      // completed) with curationData + proposals intact.
       expect(stored.stageStatus).toBe('completed');
       const curationData = stored.curationData!;
       const sv = curationData.semanticValidation!;
-      expect(sv.status).toBe('blocked');
-      const finding = sv.findings.find(f => f.code === 'family_product_type')!;
-      expect(finding.memberSku).toBe(item.upc);
-      expect(finding.message).toContain('dry-dog-food');
-      expect(finding.message).toContain('dog-treats');
+      expect(sv.findings.map(f => String(f.code))).not.toContain('family_product_type');
       // CurationData + proposals preserved for the Review UX (PR10).
       expect(curationData.curatedTitle).not.toBeNull();
       expect(curationData.classificationProposals.length).toBeGreaterThan(0);
       expect(curationData.suggestedProductType).toBe('dry-dog-food');
     }
-    const finalRun = getCohortRunById(finalized.id)!;
-    expect(finalRun.errorMessage).toContain('Semantic validation blocked');
   });
 
   it('post-loop brand coherence: a member whose FROZEN extraction brand conflicts with the canonical cohort Brand is blocked after the loop (family_brand)', async () => {
@@ -3470,8 +3461,9 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    // Force the parent authority to a DIFFERENT type: the members' own
-    // proposals say dry-dog-food → per-member family_product_type findings.
+    // Force the parent execution conclusion to a DIFFERENT type: no family
+    // Product Type finding exists anymore (SKU-local evidence) — only the
+    // post-loop Brand finding blocks member two.
     getDb().run(
       'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
       ['dog-treats', finalized.id],
@@ -3487,25 +3479,23 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     unsubscribe();
 
     expect(summary.parentStatus).toBe('completed_with_member_failures');
-    // Exactly ONE parent member-failure entry per member.
+    // Exactly ONE parent member-failure entry for the brand-conflicted member.
     const skuCounts = new Map<string, number>();
     for (const failure of summary.memberFailures) {
       skuCounts.set(failure.productSku ?? '', (skuCounts.get(failure.productSku ?? '') ?? 0) + 1);
     }
-    expect(skuCounts.get('100000000001')).toBe(1);
     expect(skuCounts.get('100000000002')).toBe(1);
 
-    // BOTH findings survive: the post-loop Brand write MERGED (never
-    // replaced) the member's committed family_product_type finding.
+    // Only the Brand finding survives: no family_product_type finding exists.
     const memberTwo = findItemById(items[1].id)!;
     const sv = memberTwo.curationData!.semanticValidation!;
     expect(sv.status).toBe('blocked');
-    expect(sv.findings.filter(f => f.code === 'family_product_type')).toHaveLength(1);
+    expect(sv.findings.map(f => String(f.code))).not.toContain('family_product_type');
     expect(sv.findings.filter(f => f.code === 'family_brand')).toHaveLength(1);
 
     // SSE: the member-completed event was emitted before the post-loop Brand
     // check — the follow-up event for the affected member carries the FINAL
-    // semanticValidation (both codes), truthfully surfacing the block.
+    // semanticValidation (brand code), truthfully surfacing the block.
     const memberTwoEvents = events.filter(
       e => e.itemId === items[1].id && (e.data as { curationData?: { semanticValidation?: unknown } })?.curationData?.semanticValidation,
     );
@@ -3513,7 +3503,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const finalEvent = memberTwoEvents[memberTwoEvents.length - 1];
     const finalSv = (finalEvent.data as { curationData: { semanticValidation: { status: string; findings: Array<{ code: string }> } } }).curationData.semanticValidation;
     expect(finalSv.status).toBe('blocked');
-    expect(finalSv.findings.map(f => f.code).sort()).toEqual(['family_brand', 'family_product_type']);
+    expect(finalSv.findings.map(f => f.code)).toEqual(['family_brand']);
   });
 });
 

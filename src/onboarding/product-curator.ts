@@ -193,12 +193,7 @@ export interface CuratePreparedMemberInput {
   verifiedPageIds: string[];
   memberProjection: ExecutionEvidenceProjectionMemberV2;
   memberExtractionMethod: string | null;
-  cohortExecutionType?: {
-    id: string | null;
-    confidence: number | null;
-    outcome: 'coherent' | 'coherent_with_abstentions' | 'conflicted' | 'abstained' | null;
-  };
-  effectiveType?: { id: string | null; source: 'reviewed' | 'execution' | 'none' };
+  effectiveType?: { id: string | null; source: 'reviewed' | 'none' };
   productLineGroup: PreparedProductLineGroup | null;
   productLineItems?: ProductLineItemSnapshot[];
   /** Settled MEMBER title input (null = member-local naming path). */
@@ -322,7 +317,6 @@ export async function curatePreparedMember(input: CuratePreparedMemberInput): Pr
     memberExtractionMethod: input.memberExtractionMethod,
     prepared: {
       memberProjection: input.memberProjection,
-      cohortExecutionType: input.cohortExecutionType,
       effectiveType: input.effectiveType,
       productLineGroup: input.productLineGroup,
       productLineItems: input.productLineItems,
@@ -343,7 +337,6 @@ export async function curatePreparedMember(input: CuratePreparedMemberInput): Pr
  */
 interface ResolvedPreparedInputs {
   memberProjection: ExecutionEvidenceProjectionMemberV2;
-  cohortExecutionType: CuratePreparedMemberInput['cohortExecutionType'];
   effectiveType: CuratePreparedMemberInput['effectiveType'];
   productLineGroup: PreparedProductLineGroup | null;
   productLineItems?: ProductLineItemSnapshot[];
@@ -780,14 +773,8 @@ async function executeCurationPipeline(args: {
       cohortFrozenEvidence: cohortMode
         ? prepared!.memberProjection
         : undefined,
-      // PR4 C4b: cohort-level Execution Product Type resolved at freeze.
-      // METADATA ONLY — no gate logic reads it in PR4 (review authority stays
-      // on the member's own reviewed proposals). Present only in
-      // prepared-cohort mode when the parent run carries an execution type;
-      // flag OFF / abstained / conflicted / legacy runs leave it absent. The
-      // cohort executor consumes it AFTER runPipeline to stamp dependency
-      // metadata rows inside the member-projection atomic commit.
-      cohortExecutionType: prepared?.cohortExecutionType,
+      // Issue #351 (SKU-local evidence): no execution-type context is
+      // seeded — stages resolve the member's own reviewed pair (or none).
       productLineContext: productLineGroup
         ? {
             groupId: productLineGroup.groupId,

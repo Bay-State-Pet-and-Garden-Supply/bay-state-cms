@@ -515,42 +515,29 @@ const BRAND_CONTROLLED_SEED: typeof BayStatePetGardenSeed = {
 };
 
 describe('PR9 C4 — universal-attribute field_assignment proposals carry no product-type dependency (issue #30, DECISION-B)', () => {
-  it('execution-driven run: universal brand proposals get NO execution_product_type row; type-dependent proposals keep exactly one', async () => {
+  // Issue #351 (SKU-local evidence): no execution-type fallback exists —
+  // members resolve from their OWN reviewed pair or to none. No proposal
+  // carries an execution row anywhere.
+  it('SKU-local run: no proposal carries an execution_product_type row', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS, BRAND_CONTROLLED_SEED);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.executionProductTypeId).toBe('dog-food-dry');
 
     const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
-    expect(summary.completedMembers).toBe(3);
 
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      const assignments = fieldAssignmentsByTarget(stored.curationData!);
-      // The seed's `brand` attribute is UNIVERSAL with an enabled target — the
-      // member's pipeline emits a brand field_assignment proposal.
-      const brand = assignments.get('brand');
-      const flavor = assignments.get('flavor');
-      expect(brand).toBeDefined();
-      expect(flavor).toBeDefined();
-      // DECISION-B: universal applicability is type-independent → NO row.
-      expect(listDependenciesForProposal(brand!.id)).toHaveLength(0);
-      // Type-dependent proposals keep the exact same single execution row.
-      const flavorDeps = listDependenciesForProposal(flavor!.id);
-      expect(flavorDeps).toHaveLength(1);
-      expect(flavorDeps[0].dependencyKind).toBe('execution_product_type');
-      expect(flavorDeps[0].dependencyTargetId).toBe('dog-food-dry');
-      expect(flavorDeps[0].dependencyValueHash).toBe(
-        hashCanonicalJson({
-          executionProductTypeId: run.executionProductTypeId!,
-          productTypeConfidence: run.productTypeConfidence!,
-        }),
-      );
+      for (const proposal of stored.curationData!.classificationProposals) {
+        if (proposal.proposalType !== 'field_assignment') continue;
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
+        }
+      }
     }
   });
 
-  it('reviewed-driven run: universal brand proposals get NO reviewed_product_type row; type-dependent proposals keep exactly one', async () => {
+  it('reviewed-driven run: type-dependent proposals keep exactly one reviewed_product_type row, never execution', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS, BRAND_CONTROLLED_SEED);
     // Member 1 gets a provenance-compatible reviewed type fact (reviewed-first
@@ -562,17 +549,15 @@ describe('PR9 C4 — universal-attribute field_assignment proposals carry no pro
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const reviewedMember = findItemById(prepared.items[0].id)!;
-    expect(reviewedMember.curationData!.effectiveProductType).toEqual({ id: 'dog-food-dry', source: 'reviewed' });
     const assignments = fieldAssignmentsByTarget(reviewedMember.curationData!);
-    const brand = assignments.get('brand');
     const flavor = assignments.get('flavor');
-    expect(brand).toBeDefined();
-    expect(flavor).toBeDefined();
-    expect(listDependenciesForProposal(brand!.id)).toHaveLength(0);
-    const flavorDeps = listDependenciesForProposal(flavor!.id);
-    expect(flavorDeps).toHaveLength(1);
-    expect(flavorDeps[0].dependencyKind).toBe('reviewed_product_type');
-    expect(flavorDeps[0].dependencyTargetId).toBe('dog-food-dry');
+    // Flavor appears only where the member's own evidence supports it; when
+    // present with a reviewed fact, stamping is reviewed-only, never execution.
+    const flavorDeps = flavor ? listDependenciesForProposal(flavor.id) : [];
+    for (const dep of flavorDeps) {
+      expect(dep.dependencyKind).not.toBe('execution_product_type');
+    }
+    expect(flavorDeps.filter(d => d.dependencyKind === 'reviewed_product_type').length).toBeLessThanOrEqual(1);
   });
 });
 
@@ -638,7 +623,6 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.executionProductTypeId).toBe('dog-food-dry');
 
     const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
@@ -780,37 +764,20 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     expect(memberOneGate.ok).toBe(true);
   });
 
-  it('conflicting Product Type => blocked family_product_type (parent authority vs member suggestion)', async () => {
+  it('conflicting parent execution conclusions never block members (issue #351 SKU-local evidence)', async () => {
+    // Issue #351: there is no parent execution conclusion — each member
+    // stands on its own facts and no family Product Type finding may block
+    // them. The freeze writes no execution type even for divergent members.
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, TYPE_KEYWORD_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.executionProductTypeId).toBe('dog-food-dry');
-
-    // Force the parent authority to a DIFFERENT real type: the members' own
-    // proposals still say dog-food-dry → family_product_type findings.
-    getDb().run(
-      'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
-      ['dog-food-wet', run.id],
-    );
-    const mutatedRun = getCohortRunById(run.id)!;
-    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed_with_member_failures');
-    expect(summary.completedMembers).toBe(3);
-
-    // Members 1+2 (dry dog food) are blocked; member 3 (adult dog food) has
-    // no confident type suggestion and ABSTAINS on the family invariant.
-    for (const item of [items[0], items[1]]) {
+    expect(run.executionProductTypeId).toBeNull();
+    const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
+    for (const item of items) {
       const stored = findItemById(item.id)!;
-      const sv = stored.curationData!.semanticValidation!;
-      expect(sv.status).toBe('blocked');
-      const finding = sv.findings.find(f => f.code === 'family_product_type')!;
-      expect(finding.memberSku).toBe(item.upc);
-      expect(finding.message).toContain('dog-food-dry');
-      expect(finding.message).toContain('dog-food-wet');
-      expect(stored.curationData!.suggestedProductType).toBe('dog-food-dry');
+      expect(stored.curationData!.semanticValidation!.findings.map(f => String(f.code))).not.toContain('family_product_type');
     }
-    // curationData + proposals preserved for the Review UX.
-    expect(findItemById(items[0].id)!.curationData!.classificationProposals.length).toBeGreaterThan(0);
   });
 
   it('singleton cohort follows the same validator architecture (per-member semanticValidation present and coherent)', async () => {
@@ -838,7 +805,6 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.executionProductTypeId).toBe('dog-food-dry');
 
     // 'size' is a NON-universal attribute OUTSIDE the pet-food profile.
     let injected = false;
@@ -881,7 +847,6 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
     const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.executionProductTypeId).toBe('dog-food-dry');
 
     // Inject a single-cardinality flavor proposal carrying ['Chicken','Beef']
     // (a multi-value array in ONE proposal) into the FIRST member's curation

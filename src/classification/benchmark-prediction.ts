@@ -1189,8 +1189,6 @@ import {
 import {
   buildPageChoiceQuestion,
   JEV_PAGE_SINGLE_THRESHOLD,
-  PAGE_CONTEXT_ATTRIBUTE_IDS,
-  PAGE_CONTEXT_SOURCE_FIELDS,
   PAGE_QUESTION_VERSION,
   PAGE_JUDGMENT_VERSION,
   NO_MATCH_CHOICE_KEY as PAGE_NO_MATCH_CHOICE_KEY,
@@ -3476,14 +3474,15 @@ export function partitionCandidateQuestionsByPermittedEvidence(
 ): Array<PartitionedCandidateQuestionGroup> {
   const boundaryEvidence = qualificationEvidenceForBoundary(entry, `qual-candidate-${entry.sku}`);
   const byState = new Map<string, PartitionedCandidateQuestionGroup>();
-  // Page-group evidence permissions: production page evidence permissions
-  // (`buildPageEvidencePacket` with the shipped `PAGE_CONTEXT_*` constants —
-  // source-field branch included, so explicitly-attributed title/description
-  // clips a page permits still reach page judgment).
+  // Page-group evidence permissions (issue #351 SKU-local page evidence):
+  // mirrors production — the member's own boundary evidence minus prior
+  // placements (`page_context` rows stay removal/comparison context, never
+  // proof). The packet builder itself already excludes `page_context`, so
+  // the mirror keeps the shipped allowlist inline in lockstep.
   const permittedEvidenceForPageTarget = (): ClassificationEvidence[] => {
     const packet = buildPageEvidencePacket(boundaryEvidence, {
-      pageContextSourceFields: PAGE_CONTEXT_SOURCE_FIELDS,
-      pageContextAttributeIds: PAGE_CONTEXT_ATTRIBUTE_IDS,
+      pageContextSourceFields: ['name', 'title', 'description', 'page_name', 'category', 'species', 'productForm', 'productType', 'brand', 'resolved_brand'],
+      pageContextAttributeIds: ['species', 'brand'],
       sourceField: null,
     });
     return [...packet.supporting, ...packet.contradicting, ...packet.context];

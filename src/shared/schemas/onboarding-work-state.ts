@@ -75,7 +75,6 @@ export type WorkActivity = z.infer<typeof WorkActivityEnum>;
 // ─── Semantic finding observability (Task 1) ──────────────────────────────────
 
 export const FindingCodeEnum = z.enum([
-  'family_product_type',
   'family_brand',
   'coordinated_title',
   'coordinated_page',

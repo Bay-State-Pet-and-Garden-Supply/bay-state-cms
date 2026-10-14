@@ -5,10 +5,10 @@
  * the curation target scope model (ADR 0013 + `src/shared/schemas/cohorts.ts`
  * `CurationTargetScopeEnum`):
  *
- * - `family_invariant` — canonical Brand + Primary Product Type must resolve
- *   identically across finalized members. A disagreement is a HARD cohort
- *   semantic failure (never normalized away): `family_product_type` /
- *   `family_brand` findings.
+ * - `family_invariant` — canonical Brand must resolve identically across
+ *   finalized members (a disagreement is a HARD `family_brand` finding).
+ *   There is NO Product Type family invariant (issue #351 SKU-local
+ *   evidence): each SKU is classified from its own facts.
  * - `coordinated_variant` — curated title + Category Pages are computed once
  *   per cohort revision; individual member answers legitimately differ.
  *   Validation is CONTRACT CORRESPONDENCE ONLY: the member's title/page
@@ -32,7 +32,6 @@
  * completion gate refuses blocked items (`semantic_validation_blocked`,
  * review-completion-gate.ts), while the curationData carries the findings
  * for the Review UX (PR10).
- *
  * PR9 REVIEW ROUND 2 contracts (issue #30):
  * - `coordinated_title`: EXACT correspondence — the committed curated title
  *   AND its source must equal the durable parent output's title AND source
@@ -71,7 +70,6 @@ import type { ReviewedFact } from './reviewed-facts';
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export type CohortSemanticFindingCode =
-  | 'family_product_type'
   | 'family_brand'
   | 'coordinated_title'
   | 'coordinated_page'
@@ -132,11 +130,6 @@ function sameStringSet(a: string[], b: string[]): boolean {
 
 export interface MemberSemanticsInput {
   memberSku: string;
-  /**
-   * The frozen parent authority: the cohort Execution Product Type
-   * (id + label from the parent run row + frozen snapshot).
-   */
-  parentExecutionType: { id: string | null; label: string | null };
   /** The member's curated title (curationData.curatedTitle). */
   curatedTitle: string | null;
   /** The member's title source (curationData.titleSource). */
@@ -156,10 +149,6 @@ export interface MemberSemanticsInput {
    * ONLY when the set is absent entirely (direct/synthetic callers).
    */
   pageProposals?: Array<{ pageId: string | null; pageName: string }>;
-  /** The member's suggested Primary Product Type (curationData.suggestedProductType). */
-  suggestedProductType: string | null;
-  /** The member's suggested canonical Category (curationData.suggestedCategory, issue #350). */
-  suggestedCategory?: string | null;
   /**
    * The parent durable `curated_title` output for this SKU, or null. Only
    * multi-item group members have entries (singletons are never coordinated —
@@ -185,59 +174,18 @@ export interface MemberSemanticsInput {
 const COORDINATED_TITLE_SOURCES = new Set(['llm_cohort', 'cohort_fallback']);
 
 /**
- * Per-member family_invariant + coordinated_variant checks. NEVER compares
- * siblings to each other: every check is the member's own output against the
- * parent authority / the parent durable output assigned to that SKU.
+ * Per-member coordinated_variant checks (issue #351 SKU-local evidence).
+ * NEVER compares siblings to each other: every check is the member's own
+ * output against the parent durable output assigned to that SKU (title/page
+ * coordination). There is NO family Product Type invariant — each SKU is
+ * classified from its own facts, so a member's suggested type is never
+ * judged against a parent or sibling conclusion.
  */
 export function validateMemberSemantics(
   input: MemberSemanticsInput,
 ): CohortSemanticFindings {
   const findings: CohortSemanticFinding[] = [];
   const { memberSku } = input;
-
-  // ── family_invariant: Primary Product Type vs the parent authority ───────
-  // The cohort Execution Product Type is the family authority; a member whose
-  // suggested type disagrees is a hard semantic failure. When the parent has
-  // no execution type (abstained/conflicted run), there is no family
-  // authority to enforce against. A member with NO suggested type while the
-  // parent authority EXISTS is ALSO a hard failure (PR9 review R1, B1): the
-  // claimed evidence-boundary rationale is false — the frozen member evidence
-  // includes the spreadsheet identity name (evidence-extraction.ts) and the
-  // member target processor runs the same deterministic matching family
-  // (curation-target-processor.ts), so a null suggestion is a missing/
-  // inconsistent proposal, never a distinct, approved abstention.
-  const hasParentAuthority =
-    input.parentExecutionType.id !== null && input.parentExecutionType.id.length > 0;
-  if (hasParentAuthority) {
-    if (input.suggestedProductType === null || input.suggestedProductType.length === 0) {
-      const label = input.parentExecutionType.label
-        ? ` (${input.parentExecutionType.label})`
-        : '';
-      findings.push({
-        code: 'family_product_type',
-        memberSku,
-        message:
-          `Primary Product Type suggestion is missing (abstained) but the cohort ` +
-          `Execution Product Type "${input.parentExecutionType.id}"${label} is the family ` +
-          'authority; every projected member must resolve a matching suggestion.',
-      });
-    } else if (
-      input.suggestedProductType !== input.parentExecutionType.id &&
-      (!input.parentExecutionType.label ||
-        input.suggestedProductType.trim().toLowerCase() !== input.parentExecutionType.label.trim().toLowerCase())
-    ) {
-      const label = input.parentExecutionType.label
-        ? ` (${input.parentExecutionType.label})`
-        : '';
-      findings.push({
-        code: 'family_product_type',
-        memberSku,
-        message:
-          `Primary Product Type "${input.suggestedProductType}" does not match the ` +
-          `family invariant (cohort Execution Product Type "${input.parentExecutionType.id}"${label}).`,
-      });
-    }
-  }
 
   // ── coordinated_variant: title correspondence to the durable output ──────
   // PR9 review R2 (B): EXACT correspondence — the committed projection must

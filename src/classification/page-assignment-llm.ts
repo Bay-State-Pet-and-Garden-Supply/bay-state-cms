@@ -40,7 +40,10 @@ export interface PageAssignmentParams {
   selectionMode: 'single' | 'multiple';
   /** Maximum pages to return (default 5, max 10) */
   maxPages: number;
-  /** Sibling products in the same family — read-only identity hints */
+  // Issue #351: no sibling cross-contamination. The legacy single-SKU path
+  // classifies strictly from this SKU's own facts; cohort questions already
+  // instruct per-SKU judgment. Kept as an ignored optional field so older
+  // callers still typecheck while contributing nothing to the prompt.
   siblingProducts?: Array<{ sku: string; name: string }>;
   /** Frozen classification model-policy view (issue #17 item A). */
   modelPolicy?: import('./model-policy-gateway').ModelPolicyView | null;
@@ -80,10 +83,16 @@ export interface LlmAssignCategoryPagesOptions {
  * row ID; parent metadata comes from the frozen records and is never looked
  * up from mutable store state during a stage.
  */
+/** One frozen verified page row for the assignment prompt (id identity, optional parent). */
+export interface PageHierarchyEntry {
+  id: string;
+  name: string;
+  parentName: string | null;
+}
 export function buildPageHierarchy(
   options: Array<{ value: string; label: string }>,
   records: ReadonlyArray<PageSnapshotRecord> = [],
-): Array<{ id: string; name: string; parentName: string | null }> {
+): PageHierarchyEntry[] {
   const pageMap = new Map(records.map(p => [p.pageId, p]));
 
   return options.map(opt => {
@@ -115,15 +124,17 @@ export function buildPageHierarchy(
  *   4. Spreadsheet brand hint evidence
  *   5. Visual OCR brand evidence
  */
-export function extractProductContext(
-  evidence: ClassificationEvidence[],
-  allProposals: ClassificationProposal[],
-): {
+/** Structured product context extracted from own-SKU evidence for page prompts. */
+export interface ExtractedProductContext {
   productName: string;
   productDescription: string;
   ocrSummary: PageAssignmentParams['ocrSummary'];
   productType: string | null;
-} {
+}
+export function extractProductContext(
+  evidence: ClassificationEvidence[],
+  allProposals: ClassificationProposal[],
+): ExtractedProductContext {
   // ── Safe value extraction helper ──────────────────────────────────────
   const safeString = (v: unknown): string | undefined => {
     if (typeof v === 'string' && v.trim().length > 0) return v.trim();
@@ -283,8 +294,13 @@ export function extractProductContext(
     brand: resolvedBrand,
   };
 
-  // ── Product type from upstream proposals ─────────────────────────────────
+  // ── Product type from upstream proposals (issue #351 SKU-local evidence):
+  // the canonical pair first, then the legacy type kind for historical
+  // in-flight runs. Page assignment consumes the member's OWN reviewed or
+  // proposed pair — never a parent/sibling conclusion, never page-context.
   const typeProposal = allProposals.find(
+    p => p.proposalType === 'product_classification',
+  ) ?? allProposals.find(
     p => p.proposalType === 'primary_product_type',
   );
   const productType = typeProposal?.targetId ?? null;
@@ -640,7 +656,7 @@ export async function llmAssignCategoryPages(
   params: PageAssignmentParams,
   options?: LlmAssignCategoryPagesOptions,
 ): Promise<PageAssignmentResult | null> {
-  const { productName, productDescription, ocrSummary, productType, pages, maxPages, selectionMode, siblingProducts } = params;
+  const { productName, productDescription, ocrSummary, productType, pages, maxPages, selectionMode } = params;
 
   if (pages.length === 0) return null;
 
@@ -683,12 +699,6 @@ export async function llmAssignCategoryPages(
     'You assign products to the most specific relevant store category pages. ' +
     'You must only choose from the provided page list. Never invent pages.';
 
-  const siblingBlock = siblingProducts && siblingProducts.length > 0
-    ? `\nSIBLING PRODUCTS IN THIS FAMILY (same brand and product line, ${
-        siblingProducts.length + 1
-      } total variants):\n${siblingProducts.map((s, i) => `  ${i + 1}. SKU: ${s.sku}, Name: ${s.name}`).join('\n')}\n`
-    : '';
-
   const prompt = `STORE CONTEXT: This is a pet and garden supply store.
 
 PRODUCT IDENTITY:
@@ -705,7 +715,7 @@ PACKAGING OCR DATA (from product packaging image):
 - Packaging Name: ${ocrSummary.productName ?? 'n/a'}
 
 PRODUCT DESCRIPTION:
-${productDescription || 'No description available.'}${siblingBlock}
+${productDescription || 'No description available.'}
 AVAILABLE STORE PAGES (choose from these only):
 ${pageListStr}
 

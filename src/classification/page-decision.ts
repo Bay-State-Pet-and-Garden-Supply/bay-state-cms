@@ -62,13 +62,12 @@ import {
 } from './runtime-snapshot';
 import { HeartbeatLostError } from './heartbeat-errors';
 import {
-  buildPageEvidencePacket,
-} from './evidence-targeting';
-import {
   buildPageHierarchy,
   extractProductContext,
   llmAssignCategoryPages,
   normalizePageAssignments,
+  type ExtractedProductContext,
+  type PageHierarchyEntry,
 } from './page-assignment-llm';
 import { validateCategoryPageAssignment } from './category-page-correctness';
 import { buildCategoryPageProposal } from './curation-target-proposal';
@@ -118,19 +117,11 @@ const JEV_PAGE_MULTI_UNCERTAIN_FLOOR = SYSTEMONE_MULTI_UNCERTAIN_FLOOR; // 0.40
 export const NO_MATCH_CHOICE_KEY = 'abstain_no_match';
 export const INSUFFICIENT_EVIDENCE_CHOICE_KEY = 'abstain_insufficient_evidence';
 
-export const PAGE_CONTEXT_SOURCE_FIELDS = [
-  'name',
-  'title',
-  'description',
-  'page_name',
-  'category',
-  'species',
-  'productForm',
-  'productType',
-  'brand',
-  'resolved_brand',
-];
-export const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
+// Issue #351: the page-evidence packet allowlist is retired. Page prompts use
+// the member's own evidence minus prior placements (see
+// assemblePageDecisionContext); `page_context` rows stay removal/comparison
+// context, never proof. The benchmark page-qual mirror keeps its own
+// retained packet path in evidence-targeting.
 
 const now = () => new Date().toISOString();
 
@@ -205,19 +196,14 @@ export interface ResolvePageDecisionParams {
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
-function reviewedSpeciesValue(evidence: ClassificationEvidence[]): unknown {
-  const speciesRecord = evidence.find(
-    e => (e.attributeId === 'species' || e.sourceField === 'species') && e.value != null,
-  );
-  return speciesRecord?.value ?? undefined;
-}
 
 /**
  * Build bounded state specifically for Category Page decisions.
- * Restricted to page-evidence packet records (never unrelated claims or full runs).
+ * Issue #351: bounded to the member's own evidence minus prior placements
+ * (never unrelated claims, never page_context proof, never the full run).
  */
 /**
- * Map restricted packet evidence to bounded state records (id-ordered).
+ * Map own-SKU page evidence to bounded state records (id-ordered).
  */
 function buildPageEvidenceRecords(evidence: ClassificationEvidence[]): Array<{
   source: string;
@@ -1040,7 +1026,7 @@ function mapPageLegacyResult(input: {
 
 async function executePageLegacyFallback(input: {
   productContext: PageDecisionProductContext;
-  rawHierarchy: ReturnType<typeof buildPageHierarchy>;
+  rawHierarchy: PageHierarchyEntry[];
   selectionMode: 'single' | 'multiple';
   maxPages: number;
   effectivePolicy: ModelPolicyView | null;
@@ -1793,7 +1779,7 @@ function checkPageGatingPrerequisites(input: {
 function buildPageCandidates(input: {
   target: ResolvedTarget;
   verifiedRecords: PageSnapshotRecord[];
-}): { rawHierarchy: ReturnType<typeof buildPageHierarchy>; candidates: PageCandidateItem[] } {
+}): { rawHierarchy: PageHierarchyEntry[]; candidates: PageCandidateItem[] } {
   const { target, verifiedRecords } = input;
   const rawHierarchy = buildPageHierarchy(target.options, verifiedRecords);
   const candidates: PageCandidateItem[] = rawHierarchy.map(p => ({
@@ -1807,33 +1793,19 @@ function buildPageCandidates(input: {
 }
 
 /**
- * Build the restricted page-evidence packet and structured product context.
- */
-/**
- * Build the restricted page-evidence packet for one page decision.
- */
-function buildPageEvidencePacketOnly(evidence: ClassificationEvidence[]): ReturnType<typeof buildPageEvidencePacket> {
-  // Build restricted page-evidence packet
-  const speciesVal = reviewedSpeciesValue(evidence);
-  return buildPageEvidencePacket(evidence, {
-    pageContextSourceFields: PAGE_CONTEXT_SOURCE_FIELDS,
-    pageContextAttributeIds: PAGE_CONTEXT_ATTRIBUTE_IDS,
-    sourceField: null,
-    speciesValue: speciesVal,
-  });
-}
-
-/**
- * Assemble the structured product context, preferring explicit overrides,
- * then reviewed values, then extracted evidence context.
+ * SKU-local page decision context (issue #351): the structured product
+ * context is extracted from the member's OWN evidence minus prior
+ * placements — never through the page-evidence packet funnel. `page_context`
+ * rows stay removal/comparison context (backfill filter), never proof, and
+ * real proposals carry no page-context evidenceIds.
  */
 function assemblePageProductContext(input: {
-  pageContextEvidence: ClassificationEvidence[];
+  ownEvidence: ClassificationEvidence[];
   productContextOverride?: PageDecisionProductContext;
   reviewedProductTypeId?: string | null;
 }): PageDecisionProductContext {
-  const { pageContextEvidence, productContextOverride, reviewedProductTypeId } = input;
-  const extractedContext = extractProductContext(pageContextEvidence, []);
+  const { ownEvidence, productContextOverride, reviewedProductTypeId } = input;
+  const extractedContext = extractProductContext(ownEvidence, []);
   return {
     ...assemblePageIdentityContext({ productContextOverride, extractedContext }),
     ...assemblePageTaxonomyContext({ productContextOverride, reviewedProductTypeId, extractedContext }),
@@ -1845,7 +1817,7 @@ function assemblePageProductContext(input: {
  */
 function assemblePageIdentityContext(input: {
   productContextOverride?: PageDecisionProductContext;
-  extractedContext: ReturnType<typeof extractProductContext>;
+  extractedContext: ExtractedProductContext;
 }): { productName: string; productDescription: string } {
   const { productContextOverride, extractedContext } = input;
   return {
@@ -1860,7 +1832,7 @@ function assemblePageIdentityContext(input: {
 function assemblePageTaxonomyContext(input: {
   productContextOverride?: PageDecisionProductContext;
   reviewedProductTypeId?: string | null;
-  extractedContext: ReturnType<typeof extractProductContext>;
+  extractedContext: ExtractedProductContext;
 }): { productType: string | null; ocrSummary: PageDecisionProductContext['ocrSummary'] } {
   const { productContextOverride, reviewedProductTypeId, extractedContext } = input;
   return {
@@ -1881,25 +1853,19 @@ function assemblePageDecisionContext(input: {
   productContext: PageDecisionProductContext;
 } {
   const { evidence, productContextOverride, reviewedProductTypeId } = input;
-  const packet = buildPageEvidencePacketOnly(evidence);
-  const evidenceIds = packet.evidenceIds;
-  const supportingEvidenceIds = packet.supportingEvidenceIds;
-  const contradictingEvidenceIds = packet.contradictingEvidenceIds;
-
-  // Extract structured product context from restricted packet
-  const pageContextEvidence = [
-    ...packet.supporting,
-    ...packet.contradicting,
-    ...packet.context,
-  ].sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
+  // Own-SKU evidence minus prior placements, deterministically id-ordered.
+  const pageContextEvidence = evidence
+    .filter(e => e.source !== 'page_context')
+    .slice()
+    .sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
 
   const productContext = assemblePageProductContext({
-    pageContextEvidence,
+    ownEvidence: pageContextEvidence,
     productContextOverride,
     reviewedProductTypeId,
   });
 
-  return { evidenceIds, supportingEvidenceIds, contradictingEvidenceIds, pageContextEvidence, productContext };
+  return { evidenceIds: [], supportingEvidenceIds: [], contradictingEvidenceIds: [], pageContextEvidence, productContext };
 }
 
 /**
@@ -2023,7 +1989,7 @@ function preparePageJevExecution(input: {
   runId: string;
   snapshot: RuntimeClassificationSnapshot | null | undefined;
   protectedOperation: ProtectedOperation;
-  rawHierarchy: ReturnType<typeof buildPageHierarchy>;
+  rawHierarchy: PageHierarchyEntry[];
 }): {
   jevConn: unknown;
   state: Record<string, unknown>;
@@ -2038,7 +2004,7 @@ function preparePageJevExecution(input: {
   const connected = resolvePageJevConnection({ conn, route, effectivePolicy, assertHeld });
   const { jevConn, route: jevRoute, effectivePolicy: jevPolicy } = connected;
 
-  // Bounded state from restricted page evidence packet records only
+  // Bounded state from the member's own evidence only (no page_context proof)
   const state = buildPageState(pageContextEvidence, sku, productContext);
 
   const ctx: ModelCallContext = {
@@ -2087,7 +2053,8 @@ export async function resolvePageDecision(
   // Build page hierarchy purely over frozen verified snapshot records
   const { rawHierarchy, candidates } = buildPageCandidates({ target, verifiedRecords });
 
-  // Build restricted page-evidence packet plus structured product context
+  // SKU-local decision context: own evidence minus prior placements, plus
+  // structured product context (real proposals carry no page-context ids)
   const assembled = assemblePageDecisionContext({
     evidence,
     productContextOverride: params.productContext,

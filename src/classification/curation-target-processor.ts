@@ -7,7 +7,7 @@
  * of matching, ranking, or proposal construction logic.
  */
 import type { StageContext, StageInput, CoordinatedPageMemberValue } from './types';
-import type { ClassificationProposal } from '../shared/schemas/classification';
+import type { ClassificationProposal, ProposalDerivation } from '../shared/schemas/classification';
 import { CohortPageOutputSchema } from '../shared/schemas/cohorts';
 import { loadClassificationConfig } from './config-loader';
 import {
@@ -19,7 +19,6 @@ import {
 } from './curation-target-matcher';
 import {
   buildEvidenceTargetPacket,
-  buildPageEvidencePacket,
   evidenceMatchesTarget,
   tokenGroundingSupport,
   type EvidenceTargetPacket,
@@ -44,42 +43,8 @@ import {
   type PageAssignmentResult,
 } from './page-assignment-llm';
 import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
+import { getEffectiveCurationProductType } from './effective-curation-type';
 import { isProtectedTargetId } from './classification-ownership';
-// ─── Shared Target Constants ──────────────────────────────────────────────────
-
-/**
- * Reviewed page-context source fields (issue #17 H): the Page stage uses only
- * identity/species/type/category context. Cross-species evidence is a
- * contradiction/rejection signal, never hidden concatenated text.
- */
-const PAGE_CONTEXT_SOURCE_FIELDS = [
-  'name',
-  'title',
-  'description',
-  'page_name',
-  'category',
-  'species',
-  'productForm',
-  'productType',
-  'brand',
-  'resolved_brand',
-];
-
-/** Reviewed page-context attribute ids (records with explicit attributeId). */
-const PAGE_CONTEXT_ATTRIBUTE_IDS = ['species', 'brand'];
-
-/**
- * Reviewed species value for cross-species page-context detection. Uses a
- * REVIEWED fact (accepted decision carried in the snapshot), never
- * first-evidence order: reversing evidence order must not change which
- * species is labeled contradictory. Without a reviewed fact, no species
- * contradiction can be labeled.
- */
-function reviewedSpeciesValue(context: StageContext): unknown {
-  const facts = context.snapshot?.reviewedFacts ?? [];
-  const speciesFact = facts.find(f => f.targetId === 'species');
-  return speciesFact?.value ?? undefined;
-}
 
 // ─── Shared small helpers (complexity/duplication extraction) ───────────────
 // Each helper is intentionally tiny (<60 lines, <20 cyclomatic) so the Fallow
@@ -424,6 +389,8 @@ async function trySystemOneFieldDecision(input: {
   const isSystemOne = await isSystemOneAttributeRoute(modelPolicy);
   if (!isSystemOne) return null;
   const { resolveAttributeDecision, buildProposalFromAttributeDecision } = await import('./attribute-decision');
+  // SKU-local (issue #351): attribute decisions see ONLY the member's own
+  // reviewed effective type — never a cohort execution conclusion.
   const decision = await resolveAttributeDecision({
     target,
     cardinality: selectionMode,
@@ -433,7 +400,7 @@ async function trySystemOneFieldDecision(input: {
     snapshot: context.snapshot,
     modelPolicy,
     assertHeld: context.assertHeld,
-    productContext: { productType: context.cohortExecutionType?.id ?? null },
+    productContext: { productType: getEffectiveCurationProductType(stageInput, context).effectiveTypeId },
   });
   if (decision.status === 'abstained' || decision.status === 'failed' || !decision.value) {
     const abstentionProposal = buildProposalFromAttributeDecision(decision, stageInput.sku, context.runId, snapshotHash);
@@ -814,6 +781,8 @@ export async function processProductFieldTargetsBatch(
 
   if (controlledItems.length > 0) {
     const { batchResolveAttributeDecisions, buildProposalFromAttributeDecision } = await import('./attribute-decision');
+    // SKU-local (issue #351): batch decisions see ONLY the member's own
+    // reviewed effective type — never a cohort execution conclusion.
     const decisions = await batchResolveAttributeDecisions({
       items: controlledItems,
       evidence: input.evidence,
@@ -823,7 +792,7 @@ export async function processProductFieldTargetsBatch(
       modelPolicy,
       assertHeld: context.assertHeld,
       productContext: {
-        productType: context.cohortExecutionType?.id ?? null,
+        productType: getEffectiveCurationProductType(input, context).effectiveTypeId,
       },
     });
 
@@ -914,30 +883,15 @@ export async function processPageTarget(
     context.snapshot?.pages.state === 'verified' ? context.snapshot.pages.records : [],
   );
 
-  // ── Restricted page-evidence packet built ONCE before assignment: the full
-  // run evidence never leaks into page context. Only identity/species/type/
-  // category records (by source field OR explicit attribute id) enter; the
-  // reviewed species value (never first evidence) drives cross-species
-  // contradiction labeling.
-  const speciesValue = reviewedSpeciesValue(context);
-  const pagePacket = buildPageEvidencePacket(input.evidence, {
-    pageContextSourceFields: PAGE_CONTEXT_SOURCE_FIELDS,
-    pageContextAttributeIds: PAGE_CONTEXT_ATTRIBUTE_IDS,
-    sourceField: null,
-    speciesValue,
-  });
-
-  // ── Extract product context ONLY from the restricted packet records ────
-  // The LLM prompt is built from the frozen packet (supporting/contradicting/
-  // context), deterministically ordered by evidence id so reversing the input
-  // evidence order cannot change the prompt content or species order, and a
-  // row excluded from the page packet (e.g. healthConcern) can never reach
-  // the prompt (issue #17 pass 5c).
-  const pageContextEvidence = [
-    ...pagePacket.supporting,
-    ...pagePacket.contradicting,
-    ...pagePacket.context,
-  ].sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
+  // ── SKU-local prompt evidence (issue #351): the prompt funnel receives the
+  // member's OWN evidence minus prior placements. `page_context` rows are
+  // removal/comparison context (backfill filter below) — never proof — so
+  // they never reach the prompt. Own identity/species/type/category facts
+  // keep their eligibility; claim/composition gating stays downstream.
+  const pageContextEvidence = input.evidence
+    .filter(e => e.source !== 'page_context')
+    .slice()
+    .sort((a, b) => (a.id ?? '').localeCompare(b.id ?? ''));
   const productContext = extractProductContext(pageContextEvidence, input.allProposals);
 
   const groupedSkus = context.productLineContext?.siblingSkus ?? [];
@@ -1095,7 +1049,7 @@ export async function processPageTarget(
   if (!llmResult || llmResult.pages.length === 0) {
     return {
       proposals: [],
-      message: `No page assignment from ${assignmentSource}. Evidence length: ${input.evidence.length} records, ${pagePacket.evidenceIds.length} linked.`,
+      message: `No page assignment from ${assignmentSource}. Evidence length: ${input.evidence.length} records.`,
     };
   }
 
@@ -1123,17 +1077,17 @@ export async function processPageTarget(
       ? context.snapshot.pages.records.map(r => r.pageId)
       : [],
   );
-  const proposals = filteredLlmPages.map((p: any) =>
+  const proposals = filteredLlmPages.map((p: { pageId: string; pageName: string; confidence: number; derivation?: ProposalDerivation; isBrandShortcut?: boolean }) =>
     buildCategoryPageProposal({
       runId: context.runId,
       sku: input.sku,
       pageId: p.pageId,
       pageName: p.pageName,
       confidence: p.confidence,
-      evidenceIds: pagePacket.evidenceIds,
-      ...(pagePacket.contradictingEvidenceIds.length
-        ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
-        : {}),
+      // Issue #351: real proposals carry no page-context evidenceIds. Prior
+      // placements are removal/comparison context (backfill filter above),
+      // never proof — the packet no longer stamps proposal lineage.
+      evidenceIds: [],
       verifiedPageIdentity: verifiedPageIdSet.has(p.pageId),
       derivation: p.derivation ?? (isSystemOne ? undefined : { kind: 'llm' }),
       isBulkAcceptable: (p.isBrandShortcut || p.pageName.startsWith('Brand -') || isSystemOne) ? false : undefined,
@@ -1161,9 +1115,9 @@ export async function processPageTarget(
  * - `assigned` → one `buildCategoryPageProposal` per STORED page
  *   (`pageId`/`pageName`/`confidence` FROM THE STORED ROW, verified identity
  *   only when the pageId is in the frozen verified snapshot records,
- *   `evidenceIds` from the SAME deterministic restricted page-evidence packet
- *   the legacy path builds — pure, no LLM — and `modelCallIds` = the stored
- *   audited parent `model_call_id`);
+ *   `evidenceIds: []` (issue #351 — real proposals carry no page-context
+ *   evidenceIds) and `modelCallIds` = the stored audited parent
+ *   `model_call_id`);
  * - `abstained` → `{proposals: [], message: <stored reason>}` (the stage
  *   abstains — no LLM, no fallback invention);
  * - a missing row for a member that should have one (no `pageCoordinationAbsent`
@@ -1230,17 +1184,10 @@ export async function materializeCoordinatedPages(
     );
   }
 
-  // ── Restricted page-evidence packet (the SAME deterministic packet the
-  // legacy path builds) — pure, no LLM. Only identity/species/type/category
-  // records enter; the reviewed species value (never first evidence) drives
-  // cross-species contradiction labeling.
-  const speciesValue = reviewedSpeciesValue(context);
-  const pagePacket = buildPageEvidencePacket(input.evidence, {
-    pageContextSourceFields: PAGE_CONTEXT_SOURCE_FIELDS,
-    pageContextAttributeIds: PAGE_CONTEXT_ATTRIBUTE_IDS,
-    sourceField: null,
-    speciesValue,
-  });
+  // Issue #351: no page-evidence packet here. The durable parent row carries
+  // pageId/pageName/confidence; proposals carry no page-context evidenceIds.
+  // Prior placements stay removal/comparison context (backfill filter in the
+  // legacy path), never proof.
 
   // Verified identity from the FROZEN verified snapshot records (never a
   // mutable DB read) — the parent only passed verified pages, so every stored
@@ -1259,10 +1206,8 @@ export async function materializeCoordinatedPages(
       pageId: page.pageId,
       pageName: page.pageName,
       confidence: page.confidence,
-      evidenceIds: pagePacket.evidenceIds,
-      ...(pagePacket.contradictingEvidenceIds.length
-        ? { contradictingEvidenceIds: pagePacket.contradictingEvidenceIds }
-        : {}),
+      // Issue #351: coordinated proposals carry no page-context evidenceIds.
+      evidenceIds: [],
       verifiedPageIdentity: verifiedPageIdSet.has(page.pageId),
       derivation: page.derivation ?? (isJev ? undefined : { kind: 'llm' }),
       snapshotHash,

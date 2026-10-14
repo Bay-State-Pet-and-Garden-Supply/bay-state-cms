@@ -36,16 +36,10 @@ export const productDraftProjectionStage: StageDefinition = {
     const accepted = input.acceptedProposals;
     const allProposals = input.allProposals;
 
-    // PR8 C2 (DECISION-D): frozen-only attribute mappings. Active cohort mode
-    // (an execution type present) requires the frozen runtime snapshot — the
-    // live config cache is never read with an execution type. Mirrors the
-    // attribute-applicability guard (attribute-applicability.ts:92). Legacy
-    // (no execution type) keeps the live cache fallback byte-identical.
-    if (context.cohortExecutionType !== undefined && context.snapshot === undefined) {
-      throw new Error(
-        `Member ${input.sku} (run ${context.runId}) draft projection requires the frozen runtime snapshot in active cohort mode; live config is never read`,
-      );
-    }
+    // Issue #351 (SKU-local evidence): no execution-type context exists —
+    // the stage resolves mappings from the frozen snapshot when present,
+    // else the live cache (unchanged fallback).
+
 
     // PR8 C1 (DECISION-A): the coordinated/consolidated title + its source
     // from the `name_consolidation` stage output — the SAME source the

@@ -37,16 +37,15 @@ import type { ModelPolicyView } from '../../classification/model-policy-gateway'
 import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
 import type { ModelExecutionPlan, RuntimeRuleVersions } from '../../classification/model-operation-registry';
 import { getCohortCurationFlags } from '../../classification/flags';
+import { buildExecutionEvidenceProjectionMember } from './frozen-evidence';
 import {
   evidenceFromProjection,
   matchMemberDeterministically,
-  resolveCohortProductType,
 } from '../../classification/cohort-product-type-resolver';
-import type { CohortMemberInput } from '../../classification/cohort-product-type-resolver';
+import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import {
   buildExecutionEvidenceProjectionV3,
-  buildExecutionEvidenceProjectionMember,
 } from './frozen-evidence';
 import { PROJECTION_VERSION_V3 } from '../../shared/schemas/cohorts';
 import type { CohortRun, ExecutionProductTypeOutcome } from '../../shared/schemas/cohorts';
@@ -63,10 +62,7 @@ import {
   persistCohortSnapshot,
   getCohortRunById,
   heartbeatCohortRun,
-  writeExecutionProductType,
   writeFinalMembershipHash,
-  writeProductTypeOutcomeOnly,
-  failFrozenCohortRunForConflict,
   rebindMemberChildSnapshotRefs,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';
@@ -83,22 +79,10 @@ import {
   persistRuntimeSnapshot,
   requireModelCallContext,
   getModelExecutionPlanEntry,
-  buildModelCallContext,
 } from '../../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import type { ModelCallContext } from '../../classification/model-operation-registry';
 import { modelPolicyViewFromConfig } from '../model-policy-snapshot';
-import { mapRankedLabelToOptionExactlyOne } from '../../classification/cohort-product-type-resolver';
-import type {
-  CohortProductTypeResolution,
-  ConfidentMemberProductTypeResult,
-  MemberLlmRankResult,
-} from '../../classification/cohort-product-type-resolver';
-import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
-import { getReviewedTypeFromSnapshot } from '../../classification/effective-curation-type';
-import { buildEvidenceTargetPacket } from '../../classification/evidence-targeting';
-import { llmRankOptions } from '../../classification/curation-target-ranker';
-import { resolveProductTypeDecision } from '../../classification/product-type-decision';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import { CohortLeaseKeeper } from './execution-lease';
 import { getVlmConfig } from '../vlm-client';
@@ -117,21 +101,6 @@ import type { CurationCohortMember } from '../../shared/schemas/cohorts';
 import type { OnboardingItem, PackagingOcrData, OcrAttemptOutcome } from '../../shared/schemas/onboarding';
 
 const now = () => new Date().toISOString();
-
-/**
- * Effective cohort Product Type confidence floor (PR4 architecture-report §7).
- * A member's resolved type contribution must clear this floor to count as a
- * confident cohort contribution (the per-member matcher's own
- * `KEYWORD_MATCH_MIN_CONFIDENCE` gate still applies first). Read per call
- * from the runtime flags so the env override
- * (`BAYSTATE_CMS_COHORT_PRODUCT_TYPE_CONFIDENCE_FLOOR`, default 0.7 — see
- * `src/classification/flags.ts` → `cohortProductTypeConfidenceFloor`) applies
- * without a redeploy; the freeze integration AND the shadow observer both use
- * this effective value.
- */
-export function cohortProductTypeConfidenceFloor(): number {
-  return getCohortCurationFlags().cohortProductTypeConfidenceFloor;
-}
 
 // ─── Shared authority capture (contract D step 2, once per freeze) ────────────
 
@@ -368,7 +337,6 @@ export function observeCohortShadowTypeResolution(
   // same product type options a freeze would freeze.
   const activationContext = createRuntimeActivationContext(workspacePath, workspaceId);
   const authority = loadRuntimeConfigAuthority(workspacePath, activationContext);
-  const confidenceFloor = cohortProductTypeConfidenceFloor();
 
   for (const cohort of readyCohorts) {
     try {
@@ -378,7 +346,7 @@ export function observeCohortShadowTypeResolution(
       const itemsById = new Map(items.map(item => [item.id, item]));
       const extractionSources = getLatestExtractionBindingsByItemIds(members.map(member => member.onboardingItemId));
 
-      const memberInputs: CohortMemberInput[] = [];
+      const memberInputs: Array<{ projection: ReturnType<typeof buildExecutionEvidenceProjectionMember>; memberSnapshot: RuntimeClassificationSnapshot; expectedOcrExecutionDigest?: string | null }> = [];
       for (const member of members) {
         const item = itemsById.get(member.onboardingItemId);
         if (!item) continue;
@@ -425,18 +393,26 @@ export function observeCohortShadowTypeResolution(
         }
       }
 
-      // DECISION-E: deterministic-only — no `memberLlmResults`, so the
-      // run-bound LLM ranker is never invoked in shadow mode.
-      const resolution = resolveCohortProductType({ confidenceFloor, members: memberInputs });
+      // Issue #351 (SKU-local evidence): deterministic per-member matches
+      // only — no cross-member aggregation, no cohort outcome. Each member
+      // is matched from its OWN frozen projection evidence against the
+      // current config authority's options; the observation records per-SKU
+      // results without resolving a family conclusion.
+      const perMember = memberInputs.map(input => {
+        const memberEvidence = evidenceFromProjection(input.projection);
+        const options = resolveTargetsFromSnapshot(input.memberSnapshot).productTypes[0]?.options ?? [];
+        const match = matchMemberDeterministically(memberEvidence, options);
+        return {
+          onboardingItemId: (input.projection as { onboardingItemId: string }).onboardingItemId,
+          productSku: (input.projection as { productSku: string | null }).productSku ?? null,
+          productTypeId: match.productTypeId,
+          source: (match.productTypeId === null ? 'none' : 'keyword') as 'reviewed' | 'keyword' | 'llm' | 'jev' | 'none',
+        };
+      });
       observations.push({
         cohortId: cohort.id,
-        outcome: resolution.outcome,
-        perMember: resolution.perMember.map(member => ({
-          onboardingItemId: member.onboardingItemId,
-          productSku: member.productSku,
-          productTypeId: member.productTypeId,
-          source: member.source,
-        })),
+        outcome: 'abstained' as const,
+        perMember,
       });
     } catch (err) {
       // Shadow observation is best-effort: a cohort that cannot be projected
@@ -684,119 +660,9 @@ export interface FreezeMemberResult {
   memberRunId: string;
 }
 
-/**
- * Deterministic structured conflict reason for a conflicted cohort Product
- * Type resolution (PR4 architecture-report §4 / DECISION-D): per-member ids +
- * SKUs + the distinct confident ids, written into the run's `error_message`
- * when the run completes `failed`. Members are sorted by onboardingItemId so
- * the message is stable across retries. PR5 hardening (P1-2): reviewed ids
- * participate as family-invariant contributions — the per-member detail
- * carries the reviewed type id when present and the header lists every
- * reviewed type involved. Never majority-forced; no type is written on
- * conflict.
- *
- * PR13 (issue #30, DECISION-D): the distinct/reviewed SUMMARIES render the
- * configured LABEL beside the deterministic id (`dry-dog-food (Dry Dog
- * Food)`) — resolved from the FROZEN member snapshot's `productTypes`
- * (`{id, name}`; unknown ids render id-only). The member DETAIL lines keep
- * the RAW ids unchanged (the deterministic machine-readable contract).
- */
-function buildCohortProductTypeConflictReason(
-  resolution: Extract<CohortProductTypeResolution, { outcome: 'conflicted' }>,
-  productTypes: ReadonlyArray<{ id: string; name: string }>,
-): string {
-  const labelFor = (id: string): string => {
-    const name = productTypes.find(pt => pt.id === id)?.name;
-    return name ? `${id} (${name})` : id;
-  };
-  const confident = resolution.perMember.filter(
-    (m): m is ConfidentMemberProductTypeResult => !m.isAbstention,
-  );
-  // PR5 hardening (P1-2): the distinct id set is the union of contribution
-  // ids AND raw confident inferences — a reviewed-first projection must never
-  // hide the inferred side of a reviewed-vs-inference family conflict.
-  const distinctIds = [...new Set([
-    ...confident.map(m => m.productTypeId),
-    ...resolution.perMember.map(m => m.inferredTypeId).filter((id): id is string => id !== null),
-  ])].sort((a, b) => a.localeCompare(b));
-  const reviewedIds = [...new Set(
-    resolution.perMember.map(m => m.reviewedTypeId).filter((id): id is string => id !== null),
-  )].sort((a, b) => a.localeCompare(b));
-  const detail = [...resolution.perMember]
-    .sort((a, b) => a.onboardingItemId.localeCompare(b.onboardingItemId))
-    .map(m => {
-      const inferredNote = m.inferredTypeId && m.inferredTypeId !== m.productTypeId
-        ? ` (inferred:${m.inferredTypeId})`
-        : '';
-      return `${m.onboardingItemId}${m.productSku ? ` (${m.productSku})` : ''} -> ${m.productTypeId ?? 'abstained'}@${(m.confidence ?? 0).toFixed(3)}${m.reviewedTypeId ? ` (reviewed:${m.reviewedTypeId})` : ''}${inferredNote}`;
-    })
-    .join('; ');
-  const reviewedNote = reviewedIds.length > 0
-    ? `; reviewed types: ${reviewedIds.map(labelFor).join(', ')}`
-    : '';
-  return `cohort_product_type_conflict: ${distinctIds.length} distinct confident Product Types (${distinctIds.map(labelFor).join(', ')}); members: ${detail}${reviewedNote}; no execution type written (family conflict, never majority-forced).`;
-}
-
-/**
- * Confidence equality with a tiny epsilon: `product_type_confidence` is a REAL
- * column whose value may be re-derived from the keyword matcher's float
- * arithmetic (`0.45 + score * 0.35`), so a re-stored value can differ from the
- * freshly computed one in the last ulp. Genuinely different confidences are
- * still caught (the epsilon is 1e-9).
- */
-function confidenceCloseTo(a: number | null, b: number | null): boolean {
-  if (a === null || b === null) return a === b;
-  return Math.abs(a - b) <= 1e-9;
-}
-
-/**
- * PR4 review fix (SHOULD-FIX 4): when a write-once shared-semantic write
- * no-ops during freeze finalization, the run must NOT be blessed into
- * `running` with a mismatched tuple. Reload the stored tuple and require it
- * to equal the freshly resolved `{id, confidence, outcome}`; when
- * `final_membership_hash` is already set it must equal the candidate
- * membership hash (and for a conflicted outcome — which finalizes nothing —
- * the hash slot must stay NULL). Any mismatch throws `CohortFreezeCasError`:
- * the caller supersedes the run (fail-closed, no execution from an incoherent
- * run; the cohort stays ready for a fresh claim).
- */
-function assertStoredExecutionTypeMatches(
-  runId: string,
-  expected: { id: string | null; confidence: number | null; outcome: ExecutionProductTypeOutcome },
-  expectedFinalMembershipHash: string | null,
-): void {
-  const stored = getCohortRunById(runId);
-  if (!stored) {
-    throw new CohortFreezeCasError(`run ${runId} disappeared during the shared semantic commit.`);
-  }
-  if (stored.productTypeOutcome !== expected.outcome) {
-    throw new CohortFreezeCasError(
-      `run ${runId} already carries product_type_outcome '${stored.productTypeOutcome}' but the fresh resolution is '${expected.outcome}' — refusing to finalize an incoherent run.`,
-    );
-  }
-  if (stored.executionProductTypeId !== expected.id) {
-    throw new CohortFreezeCasError(
-      `run ${runId} already carries execution_product_type_id '${stored.executionProductTypeId}' but the fresh resolution is '${expected.id}' — refusing to finalize an incoherent run.`,
-    );
-  }
-  if (!confidenceCloseTo(stored.productTypeConfidence, expected.confidence)) {
-    throw new CohortFreezeCasError(
-      `run ${runId} already carries product_type_confidence ${stored.productTypeConfidence} but the fresh resolution is ${expected.confidence} — refusing to finalize an incoherent run.`,
-    );
-  }
-  const storedHash = stored.finalMembershipHash;
-  if (expectedFinalMembershipHash === null) {
-    if (storedHash !== null) {
-      throw new CohortFreezeCasError(
-        `run ${runId} already carries final_membership_hash ${storedHash} but the fresh resolution is conflicted — nothing may be finalized.`,
-      );
-    }
-  } else if (storedHash !== null && storedHash !== expectedFinalMembershipHash) {
-    throw new CohortFreezeCasError(
-      `run ${runId} already carries final_membership_hash ${storedHash} but the candidate membership hash is ${expectedFinalMembershipHash} — refusing to finalize an incoherent run.`,
-    );
-  }
-}
+// Issue #351 (SKU-local evidence): cohort Product Type conflict reason,
+// confidence-epsilon comparison, and stored-tuple coherence check removed
+// with the aggregation — a family disagreement is never a freeze failure.
 
 /**
  * Freeze a claimed cohort for execution (the ONLY path to `freezing →
@@ -845,13 +711,8 @@ export async function freezeCohortForExecution(
     throw new Error(`Freeze aborted: run ${run.id} is not in 'freezing' state (status=${run.status}).`);
   }
 
-  // PR4 C4a gate: the Execution Product Type resolver + LLM ranker fallback
-  // run ONLY in active mode (`cohortCurationV2Enabled && !cohortShadowOnly`).
-  // Flag OFF / shadow: freeze is byte-identical to PR3 — zero resolver
-  // invocations, zero model calls, zero writes to the PR4 columns.
-  const cohortCurationFlags = getCohortCurationFlags();
-  const cohortTypeResolutionActive = cohortCurationFlags.cohortCurationV2Enabled
-    && !cohortCurationFlags.cohortShadowOnly;
+  // Issue #351 (SKU-local evidence): the freeze performs no Product Type
+  // resolution in any mode — members classify from their own evidence.
 
   // 1. Load the candidate cohort + members + items + extraction sources.
   const cohort = getCohortById(run.cohortId);
@@ -888,7 +749,7 @@ export async function freezeCohortForExecution(
   // with `frozenMembers` — null when the member's deterministic keyword match
   // was confident, or the LLM fallback was skipped / unavailable (fail-closed
   // abstention). Empty (never populated) when the resolver is inactive.
-  const memberTypeLlmResults: Array<MemberLlmRankResult | null> = [];
+  const memberTypeLlmResults: Array<null> = [];
   let lastHeartbeatAt = 0;
   // P1-T3 stampede guard: per-cohort-freeze cap on digest-staleness OCR
   // re-runs. Only members actually re-run count; members beyond the cap keep
@@ -997,12 +858,12 @@ export async function freezeCohortForExecution(
       currentOcrExecutionDigest !== null &&
       storedExecutionDigest !== currentOcrExecutionDigest;
     let frozenItem = item;
-    if (ocrDigestStale && !cohortCurationFlags.cohortShadowOnly) {
+    if (ocrDigestStale && !getCohortCurationFlags().cohortShadowOnly) {
       frozenItem = invalidateStaleStoredOcr(item);
     }
     if (
       ocrNeedsRun
-      && !cohortCurationFlags.cohortShadowOnly
+      && !getCohortCurationFlags().cohortShadowOnly
       && (!ocrDigestStale || ocrStalenessReruns < freezeOcrRerunCap)
     ) {
       if (ocrDigestStale) ocrStalenessReruns += 1;
@@ -1063,85 +924,14 @@ export async function freezeCohortForExecution(
       throw new Error(`Freeze aborted: member ${item.id} has no extraction hash after OCR pull-forward.`);
     }
 
-    // PR4 C4a per-member Execution Product Type resolution (active flags
-    // only — flag OFF / shadow skips this block entirely): frozen evidence →
-    // deterministic keyword match → run-bound LLM ranker fallback (DECISION-A:
-    // `product_type_ranking` on the member child run, exactly like the member
-    // SKU stage's `processTargetInternal`) when the deterministic match is
-    // below the cohort confidence floor. A failing/unavailable LLM path
-    // abstains (fail-closed — no silent type from a failed model path). NO
-    // writes here; the per-member results feed the final CAS aggregation.
-    let memberTypeLlmResult: MemberLlmRankResult | null = null;
-    if (cohortTypeResolutionActive) {
-      const memberProjection = buildExecutionEvidenceProjectionMember(member, frozenItem, extractionSources.get(item.id));
-      const typeEvidence = evidenceFromProjection(memberProjection);
-      const resolvedTypeTarget = resolveTargetsFromSnapshot(snapshot).productTypes[0] ?? null;
-      const typeOptions = resolvedTypeTarget?.options ?? [];
-      const deterministicTypeMatch = matchMemberDeterministically(typeEvidence, typeOptions);
-      const belowFloor =
-        deterministicTypeMatch.productTypeId === null ||
-        deterministicTypeMatch.confidence === null ||
-        deterministicTypeMatch.confidence < cohortProductTypeConfidenceFloor();
-      if (belowFloor && resolvedTypeTarget !== null && typeOptions.length > 0) {
-        const typePacket = buildEvidenceTargetPacket(typeEvidence, {
-          attributeId: null,
-          sourceField: null,
-          selectionMode: 'single',
-        });
-        if (typePacket.promptText.trim().length >= 8) {
-          // The freeze-time Product Type resolution fallback runs under a scoped
-          // CohortLeaseKeeper EXACTLY like the OCR pull-forward above — the parent
-          // lease is renewed while the ranking/judgment transport is in flight,
-          // and the continuation asserts ownership before any further work.
-          // A sibling reclaim mid-call aborts the freeze with NO post-loss side effect.
-          const rankerKeeper = new CohortLeaseKeeper(run.id, workerId, COHORT_LEASE_TTL_MS).start();
-          try {
-            const decisionPromise = resolveProductTypeDecision({
-              target: resolvedTypeTarget,
-              evidence: typeEvidence,
-              sku: member.productSku ?? '',
-              runId: memberRun.id,
-              snapshot,
-              modelPolicy: snapshot.modelPolicy
-                ? modelPolicyViewFromConfig(snapshot.modelPolicy as never, snapshot.snapshotHash)
-                : null,
-              deterministicMatch: deterministicTypeMatch.productTypeId
-                ? {
-                    productTypeId: deterministicTypeMatch.productTypeId,
-                    confidence: deterministicTypeMatch.confidence ?? 0,
-                    source: 'keyword',
-                  }
-                : null,
-              confidenceFloor: cohortProductTypeConfidenceFloor(),
-              assertHeld: () => rankerKeeper.assertHeld(),
-            });
-            await hooks?.onTypeRankerInFlight?.();
-            const decision = await decisionPromise;
-            rankerKeeper.assertHeld();
-
-            if (decision.status === 'resolved' && decision.productTypeId) {
-              memberTypeLlmResult = {
-                productTypeId: decision.productTypeId,
-                confidence: decision.confidence,
-                source: decision.source === 'jev' ? 'jev' : 'llm',
-                selectedProbability: decision.selectedProbability,
-                vendorConfidence: decision.vendorConfidence,
-              };
-            } else {
-              memberTypeLlmResult = null;
-            }
-          } catch (err) {
-            // Ownership-loss exceptions are NEVER converted into an abstain outcome:
-            // the stale owner must abort the freeze deterministically with no side effects.
-            if (err instanceof HeartbeatLostError) throw err;
-            // Policy denial / transport failure → abstain, never a silent type.
-            memberTypeLlmResult = null;
-          } finally {
-            rankerKeeper.stop();
-          }
-        }
-      }
-    }
+    // Issue #351 (SKU-local evidence): no freeze-time member type resolution.
+    // Each SKU is classified from its own evidence in its own member
+    // pipeline run — the freeze never aggregates, ranks, or resolves a
+    // cohort/family Product Type, and no parent or sibling conclusion may
+    // fill an unsupported member result. The per-member results array stays
+    // (all-null) only to preserve the aggregation call shape below until
+    // the aggregation itself is removed in the next edit.
+    const memberTypeLlmResult: null = null;
     memberTypeLlmResults.push(memberTypeLlmResult);
 
     frozenMembers.push({
@@ -1239,120 +1029,32 @@ export async function freezeCohortForExecution(
         throw new CohortFreezeOwnershipError(`Freeze CAS lost ownership of run ${run.id} (not freezing / claimed by ${workerId}).`);
       }
 
-      // PR4 C4a: freeze-time Execution Product Type resolution + write-once
-      // final-membership hash — the shared semantic commit (DECISION-B, inside
-      // the final CAS transaction). Only in active mode; flag OFF / shadow
-      // never invokes the resolver (zero new writes, byte-identical PR3).
-      let typeResolution: CohortProductTypeResolution | null = null;
-      if (cohortTypeResolutionActive) {
-        const memberProjectionByItemId = new Map(projection.members.map(m => [m.onboardingItemId, m]));
-        typeResolution = resolveCohortProductType({
-          confidenceFloor: cohortProductTypeConfidenceFloor(),
-          members: frozenMembers.map(fm => {
-            const memberProjection = memberProjectionByItemId.get(fm.member.onboardingItemId);
-            if (!memberProjection) {
-              throw new CohortFreezeCasError(`member ${fm.member.onboardingItemId} missing from the frozen execution-evidence projection.`);
-            }
-            return {
-              projection: memberProjection,
-              memberSnapshot: fm.snapshot,
-              // PR5 hardening (P1-2): the member's compatible reviewed
-              // Primary Product Type from its frozen snapshot's
-              // provenance-compatible reviewed facts participates in the
-              // cohort coherence rules at freeze time (a reviewed type that
-              // differs from a confident inference — or another member's
-              // reviewed type — conflicts; an agreeing reviewed type
-              // contributes with source 'reviewed'; a reviewed type may
-              // resolve an otherwise-abstaining member).
-              reviewedTypeId: getReviewedTypeFromSnapshot(fm.snapshot),
-            };
-          }),
-          memberLlmResults: memberTypeLlmResults,
-        });
-        if (typeResolution.outcome === 'coherent' || typeResolution.outcome === 'coherent_with_abstentions') {
-          // Write-once CAS: a second write (re-entrant freeze / pre-written
-          // run) is a no-op — an existing execution type is never overwritten.
-          const typeWritten = writeExecutionProductType(run.id, workerId, {
-            executionProductTypeId: typeResolution.productTypeId,
-            productTypeConfidence: typeResolution.confidence,
-            productTypeOutcome: typeResolution.outcome,
-          });
-          const hashWritten = writeFinalMembershipHash(run.id, workerId, run.candidateMembershipHash);
-          // PR4 review fix (SHOULD-FIX 4): a no-op write must not bless a
-          // mismatched prewritten tuple as finalized. Reload the stored tuple
-          // and require it to equal the fresh resolution (+ the candidate
-          // membership hash when the hash slot is already taken); any
-          // mismatch throws CohortFreezeCasError and the run is superseded —
-          // it never transitions to `running` from an incoherent state.
-          if (!typeWritten || !hashWritten) {
-            assertStoredExecutionTypeMatches(
-              run.id,
-              {
-                id: typeResolution.productTypeId,
-                confidence: typeResolution.confidence,
-                outcome: typeResolution.outcome,
-              },
-              run.candidateMembershipHash,
+      // Issue #351 (SKU-local evidence): no cohort/family Product Type
+      // aggregation at freeze. The freeze persists authorities, the
+      // execution-evidence projection, and the final membership hash — it
+      // never resolves or writes a cohort Execution Product Type, outcome,
+      // or conflict terminal. Each member SKU is classified from its own
+      // evidence in its own pipeline run; a family disagreement is not a
+      // freeze failure and never blocks member execution. Sibling
+      // consistency remains a read-only advisory (consistency-validator),
+      // never a factual authority or a readiness veto.
+      {
+        const hashWritten = writeFinalMembershipHash(run.id, workerId, run.candidateMembershipHash);
+        if (!hashWritten) {
+          const stored = getCohortRunById(run.id);
+          const storedHash = stored?.finalMembershipHash ?? null;
+          if (storedHash !== null && storedHash !== run.candidateMembershipHash) {
+            throw new CohortFreezeCasError(
+              `run ${run.id} already carries final_membership_hash ${storedHash} but the candidate membership hash is ${run.candidateMembershipHash} — refusing to finalize an incoherent run.`,
             );
-          }
-        } else if (typeResolution.outcome === 'abstained') {
-          const outcomeWritten = writeProductTypeOutcomeOnly(run.id, workerId, 'abstained');
-          // Abstention still finalizes membership (no family invariant to
-          // violate) — final membership = candidate membership.
-          const hashWritten = writeFinalMembershipHash(run.id, workerId, run.candidateMembershipHash);
-          if (!outcomeWritten || !hashWritten) {
-            assertStoredExecutionTypeMatches(
-              run.id,
-              { id: null, confidence: null, outcome: 'abstained' },
-              run.candidateMembershipHash,
-            );
-          }
-        } else {
-          // Conflicted: record the outcome ONLY. The execution type id stays
-          // NULL (never majority-forced) and final_membership_hash is NOT
-          // written (nothing is finalized); the run completes `failed` below.
-          const outcomeWritten = writeProductTypeOutcomeOnly(run.id, workerId, 'conflicted');
-          if (!outcomeWritten) {
-            assertStoredExecutionTypeMatches(run.id, { id: null, confidence: null, outcome: 'conflicted' }, null);
           }
         }
       }
 
-      // PR4 re-review fix (P1-2): a conflicted family NEVER passes through
-      // `running` — the parent transitions freezing → failed DIRECTLY via the
-      // owner-guarded helper (started_at stays NULL; no transition to running
-      // ever happens), which atomically terminalizes every freeze-created
-      // child run of this parent in the same transaction. The run stays the
-      // current historical decision, the cohort stays ready, and the operator
-      // resolves the family later (no UI in PR4). If the helper's CAS fails
-      // (ownership lost / no longer freezing), the run belongs to a fresh
-      // owner — throw; nothing may be written.
-      if (typeResolution?.outcome === 'conflicted') {
-        // Test seam (PR4 re-review P1-2): fires inside the final CAS
-        // immediately before the owner-guarded conflict terminal write so
-        // tests can deterministically simulate a sibling reclaim between
-        // conflict detection and the helper.
-        hooks?.beforeConflictTerminal?.();
-        const conflicted = failFrozenCohortRunForConflict(
-          run.id,
-          workerId,
-          // PR13 (issue #30, DECISION-D): the conflict reason renders the
-          // configured LABELS beside the deterministic ids in its distinct/
-          // reviewed SUMMARIES — resolved from the ordinal-0 member's FROZEN
-          // snapshot `productTypes` (all members froze under the same config
-          // authority; unknown ids render id-only; member detail lines keep
-          // the raw ids).
-          buildCohortProductTypeConflictReason(
-            typeResolution,
-            frozenMembers[0]?.snapshot.productTypes ?? [],
-          ),
-        );
-        if (!conflicted) {
-          throw new CohortFreezeOwnershipError(
-            `Freeze CAS lost ownership of run ${run.id} before the conflict terminal write (not freezing / claimed by ${workerId}).`,
-          );
-        }
-      } else if (!transitionCohortRunToRunning(run.id, workerId)) {
+      // Issue #351 (SKU-local evidence): no conflict terminal. A family
+      // disagreement is not a freeze failure — members execute from their
+      // own evidence and sibling divergence stays a read-only advisory.
+      if (!transitionCohortRunToRunning(run.id, workerId)) {
         throw new CohortFreezeOwnershipError(`Freeze CAS could not transition run ${run.id} to running (ownership lost).`);
       }
 

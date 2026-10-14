@@ -2,8 +2,9 @@
  * PR9 C1 (issue #30): pure cohort semantic validator — unit tests.
  *
  * Covers every check family of `cohort-semantic-validator.ts`:
- *   - family_invariant: coherent pass; Product Type mismatch blocked; Brand
- *     mismatch blocked; tie-brand blocked;
+ *   - SKU-local (issue #351): NO family Product Type invariant — the
+ *     suggested type is never judged against a parent conclusion;
+ *   - family_invariant: Brand mismatch blocked; tie-brand blocked;
  *   - coordinated_variant: title correspondence pass/mismatch; page
  *     correspondence (assigned exact, abstained none, missing row); sibling
  *     title/page VARIANT differences always pass (never sibling equality);
@@ -18,14 +19,11 @@ import {
   validateCohortBrandCoherence,
 } from '../../classification/cohort-semantic-validator';
 
-const PARENT_TYPE = { id: 'dry-dog-food', label: 'Dry Dog Food' };
-
 /** A fully coherent member semantics input (group member with durable title
  *  + assigned durable pages). */
 function coherentMember(overrides: Record<string, unknown> = {}) {
   return {
     memberSku: '100000000001',
-    parentExecutionType: PARENT_TYPE,
     curatedTitle: 'Purina Pro Plan Dry Dog Food Chicken 5 lb',
     titleSource: 'cohort_fallback',
     suggestedPages: ['Dog Food Dry'],
@@ -37,54 +35,20 @@ function coherentMember(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// ─── family_invariant: Primary Product Type ───────────────────────────────────
+// ─── SKU-local evidence (issue #351): no family Product Type invariant ────────
 
-describe('validateMemberSemantics — family_invariant Product Type', () => {
-  it('passes when the member PT matches the parent authority', () => {
+describe('validateMemberSemantics — no family Product Type invariant', () => {
+  it('passes regardless of the suggested type — siblings are never judged against a parent conclusion', () => {
+    for (const suggestedProductType of ['dry-dog-food', 'Dry Dog Food', 'dog-treats', null, '']) {
+      const result = validateMemberSemantics(coherentMember({ suggestedProductType }));
+      expect(result.findings.map(f => String(f.code))).not.toContain('family_product_type');
+    }
+  });
+
+  it('a fully coherent member still passes with no family findings', () => {
     const result = validateMemberSemantics(coherentMember());
     expect(result.status).toBe('passed');
     expect(result.findings).toEqual([]);
-  });
-
-  it('passes when the member PT matches the parent authority label', () => {
-    const result = validateMemberSemantics(coherentMember({ suggestedProductType: 'Dry Dog Food' }));
-    expect(result.status).toBe('passed');
-    expect(result.findings).toEqual([]);
-  });
-
-  it('blocks a member whose PT mismatches the parent authority', () => {
-    const result = validateMemberSemantics(coherentMember({ suggestedProductType: 'dog-treats' }));
-    expect(result.status).toBe('blocked');
-    const finding = result.findings.find(f => f.code === 'family_product_type')!;
-    expect(finding.memberSku).toBe('100000000001');
-    expect(finding.message).toContain('dry-dog-food');
-    expect(finding.message).toContain('dog-treats');
-  });
-
-  it('blocks a member with no suggested PT when the parent authority exists — a null/empty abstention is a HARD family_product_type finding (PR9 review R1, B1)', () => {
-    // The claimed evidence-boundary rationale is false: the frozen member
-    // evidence includes the spreadsheet identity name and the member target
-    // processor runs the same deterministic matching family — a null
-    // suggestion is a missing/inconsistent proposal, never a distinct,
-    // approved abstention.
-    const nullResult = validateMemberSemantics(coherentMember({ suggestedProductType: null }));
-    expect(nullResult.status).toBe('blocked');
-    const nullFinding = nullResult.findings.find(f => f.code === 'family_product_type')!;
-    expect(nullFinding.memberSku).toBe('100000000001');
-    expect(nullFinding.message).toContain('missing (abstained)');
-    expect(nullFinding.message).toContain('dry-dog-food');
-
-    const emptyResult = validateMemberSemantics(coherentMember({ suggestedProductType: '' }));
-    expect(emptyResult.status).toBe('blocked');
-    expect(emptyResult.findings.some(f => f.code === 'family_product_type')).toBe(true);
-  });
-
-  it('enforces nothing when the parent has no execution type (abstained/conflicted)', () => {
-    const result = validateMemberSemantics(coherentMember({
-      parentExecutionType: { id: null, label: null },
-      suggestedProductType: 'dog-treats',
-    }));
-    expect(result.status).toBe('passed');
   });
 });
 

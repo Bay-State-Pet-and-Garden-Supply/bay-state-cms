@@ -901,7 +901,6 @@ export const CohortSemanticValidationSchema = z.object({
   status: z.enum(['passed', 'blocked']),
   findings: z.array(z.object({
     code: z.enum([
-      'family_product_type',
       'family_brand',
       'coordinated_title',
       'coordinated_page',
@@ -1058,21 +1057,20 @@ export const CurationDataSchema = z.object({
   classificationDecisions: z.array(ClassificationProposalDecisionSchema).default(() => []),
   classificationHistory: z.array(ClassificationHistoryEventSchema).default(() => []),
   /**
-   * PR5 (issue #30, DECISION-J): the member's effective Curation Product Type
-   * in prepared-cohort mode — the reviewed (accepted) Primary Product Type
-   * first, the frozen cohort Execution Product Type as fallback, else none.
-   * Read-only observability: the Review UI ignores unknown keys, Promotion
-   * never consumes it (the Execution Type is never reviewed truth), and
-   * legacy (non-cohort) runs never carry the key.
+   * Issue #351 (SKU-local evidence): the member's effective Curation Product
+   * Type in prepared-cohort mode — the member's OWN reviewed (accepted)
+   * canonical pair's type, or none. No execution fallback. Read-only
+   * observability: the Review UI ignores unknown keys, Promotion never
+   * consumes it, and legacy (non-cohort) runs never carry the key.
    */
   effectiveProductType: z.object({
     id: z.string().nullable(),
-    source: z.enum(['reviewed', 'execution', 'none']),
+    source: z.enum(['reviewed', 'none']),
   }).nullable().optional(),
   /**
    * PR9 (issue #30, DECISION-A): the member's cohort semantic validation
    * result — computed from FROZEN authority at the member-projection commit
-   * (family_invariant Product Type/Brand, coordinated_variant title/page
+   * (family_invariant Brand, coordinated_variant title/page
    * correspondence to the parent durable outputs, member_local profile
    * applicability) and re-evaluated for mutual Brand coherence after the
    * member loop. Additive key: absent in legacy/shadow runs (byte-identical).

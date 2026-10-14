@@ -1001,7 +1001,7 @@ describe('Classification Pipeline Integration', () => {
       semanticValidation: {
         status: 'blocked',
         findings: [
-          { code: 'family_product_type', memberSku: item.upc, message: 'Primary Product Type "dog-treats" does not match the family invariant.' },
+          { code: 'family_brand', memberSku: item.upc, message: 'Brand conflict.' },
           { code: 'family_brand', memberSku: item.upc, message: 'Brand conflict.' },
         ],
       },

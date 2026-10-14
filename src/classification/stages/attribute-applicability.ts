@@ -1,5 +1,5 @@
 /**
- * Attribute Applicability Stage
+ * Attribute Applicability Stage (issue #351 SKU-local evidence).
  *
  * Determines which Product Attributes from the attribute profile apply to the
  * current product, given the enabled curation target configuration.
@@ -9,26 +9,24 @@
  *
  * - `applicable` — the attribute may produce decision-eligible proposals.
  * - `not_applicable` — the attribute is not part of the effective type's profile.
- * - `unknown` — the attribute is type-gated but neither a reviewed (accepted)
- *   Primary Product Type nor a cohort Execution Product Type exists yet.
- *   Pending guesses never unlock gating.
+ * - `unknown` — the attribute is type-gated but the member has no reviewed
+ *   (accepted) canonical classification yet. Pending guesses and cohort
+ *   execution conclusions never unlock gating — missing own-SKU evidence
+ *   stays unresolved.
  *
- * Rules (PR5 effective type):
+ * Rules (SKU-local effective type):
  * - Universal attributes are applicable without any Product Type.
- * - Profile attributes are gated by the EFFECTIVE Curation Product Type
- *   (`getEffectiveCurationProductType`): the reviewed (accepted) Primary
- *   Product Type first, the frozen cohort Execution Product Type as fallback
- *   (reviewed override precedence; the execution type never beats a reviewed
- *   fact). The profile is resolved from the frozen runtime snapshot only —
- *   never from the live config cache when an execution type is present. A
- *   Product Type with `attributeProfileId: null` is a legitimately EMPTY
+ * - Profile attributes are gated by the member's OWN reviewed canonical
+ *   classification (`getEffectiveCurationProductType`) or `none`. There is
+ *   no execution-type fallback: the profile resolves from the frozen
+ *   runtime snapshot in the authoritative direction (frozen Product Type ->
+ *   attributeProfileId -> profile.id) and fails closed on inconsistency.
+ *   A Product Type with `attributeProfileId: null` is a legitimately EMPTY
  *   profile: universal attributes may proceed, every non-universal
- *   type-gated attribute is `not_applicable` — never "all fields" (PR5 P1-1).
+ *   type-gated attribute is `not_applicable` — never "all fields".
  * - Conditions are evaluated only against accepted/reviewed facts; a
  *   condition whose fact is missing or whose shape is unrecognized evaluates
  *   to `unknown` (fail closed).
- * - Flag OFF / legacy runs never carry a `cohortExecutionType`, so this stage
- *   gates exactly as today (reviewed type or none).
  *
  * Dependencies: primary_product_type_proposal stage.
  */
@@ -89,16 +87,6 @@ export const attributeApplicabilityStage: StageDefinition = {
   requires: ['primary_product_type_proposal'],
   evidenceFrom: [],
   execute: async (input: StageInput, context: StageContext): Promise<StageResult> => {
-    // PR5 fail-closed guard (architecture pillar 2): the effective-type path
-    // resolves profiles/targets EXCLUSIVELY from the frozen runtime snapshot.
-    // An execution type with a missing snapshot would silently fall back to
-    // the live config cache — never allowed.
-    if (context.cohortExecutionType !== undefined && context.snapshot === undefined) {
-      throw new Error(
-        'effective-type path requires the frozen runtime snapshot; live config is never read with an execution type',
-      );
-    }
-
     const resolved = context.snapshot
       ? resolveTargetsFromSnapshot(context.snapshot)
       : resolveEnabledTargets(loadClassificationConfig(context.workspacePath), context.workspaceId);
@@ -123,15 +111,14 @@ export const attributeApplicabilityStage: StageDefinition = {
     const profiles = context.snapshot
       ? context.snapshot.attributeProfiles
       : getCachedAttributeProfiles(context.workspaceId);
-    // PR5 P1-1: the effective path resolves the profile in the AUTHORITATIVE
+    // SKU-local path (issue #351): the profile resolves in the AUTHORITATIVE
     // direction (frozen Product Type -> attributeProfileId -> profile.id) and
     // fails closed on a missing declared profile; attributeProfileId: null is
-    // a legitimately EMPTY profile (universal-only, never 'all fields'). The
-    // legacy path (no cohort execution type) stays byte-identical.
+    // a legitimately EMPTY profile (universal-only, never 'all fields').
     const profile = resolveEffectiveTypeProfile(
       effectiveTypeId,
       profiles,
-      context.cohortExecutionType !== undefined,
+      context.snapshot !== undefined,
       context.snapshot,
     );
 
@@ -152,12 +139,6 @@ export const attributeApplicabilityStage: StageDefinition = {
     const unknownCount = evaluations.filter(evaluation => evaluation.state === 'unknown').length;
     const notApplicableCount = evaluations.filter(evaluation => evaluation.state === 'not_applicable').length;
 
-    // Byte-identical legacy message for `none`/reviewed sources; a source-aware
-    // suffix is appended ONLY when the effective type came from the cohort
-    // execution type (additive, flag-OFF runs never see it).
-    const sourceSuffix =
-      source === 'execution' ? ' (driven by cohort execution Product Type.)' : '';
-
     return {
       status: 'succeeded',
       output: {
@@ -166,8 +147,7 @@ export const attributeApplicabilityStage: StageDefinition = {
         abstained: false,
         message:
           `${applicableCount} attributes applicable, ${unknownCount} blocked (no reviewed Product Type or undecided condition), ` +
-          `${notApplicableCount} not applicable for ${effectiveTypeId ?? '(no reviewed type)'}.` +
-          sourceSuffix,
+          `${notApplicableCount} not applicable for ${effectiveTypeId ?? '(no reviewed type)'}.`,
         metadata: {
           applicability: evaluations,
           acceptedTypeId: effectiveTypeId,

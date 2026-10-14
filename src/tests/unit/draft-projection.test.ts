@@ -9,10 +9,8 @@
  * - `resolveStageOrder` over the member stage list proves `name_consolidation`
  *   runs before `product_draft_projection`.
  *
- * PR8 C2 (DECISION-D): the frozen-runtime-snapshot fail-closed guard — a
- * `cohortExecutionType` without a frozen snapshot throws (live config is never
- * read in active cohort mode); legacy (no execution type) keeps the live cache
- * fallback byte-identical.
+ * Snapshot mappings (issue #351 SKU-local): the stage resolves mappings from
+ * the frozen snapshot when present, else the live cache fallback.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'bun:test';
 import { initDb, closeDb } from '../../db/connection';
@@ -134,20 +132,18 @@ describe('PR8 C1 — stage ordering (name_consolidation precedes product_draft_p
   });
 });
 
-describe('PR8 C2 — frozen-only attribute mappings (DECISION-D)', () => {
-  it('active cohort mode (cohortExecutionType present) with NO frozen snapshot => THROW (live config is never read)', async () => {
+describe('frozen snapshot attribute mappings (issue #351 SKU-local)', () => {
+  it('with a snapshot => snapshot attribute mappings used', async () => {
+    const result = await productDraftProjectionStage.execute(baseInput, baseContext);
+    expect(result.status).toBe('succeeded');
+  });
+
+  it('without a snapshot => live cache fallback (no execution context exists)', async () => {
     const context: StageContext = {
       ...baseContext,
       snapshot: undefined,
-      cohortExecutionType: { id: 'dog-food-dry', confidence: 0.95, outcome: 'coherent' },
     };
-    await expect(productDraftProjectionStage.execute(baseInput, context)).rejects.toThrow(
-      /frozen runtime snapshot/,
-    );
-  });
-
-  it('legacy mode (no cohortExecutionType) with a snapshot => snapshot attribute mappings used', async () => {
-    const result = await productDraftProjectionStage.execute(baseInput, baseContext);
+    const result = await productDraftProjectionStage.execute(baseInput, context);
     expect(result.status).toBe('succeeded');
   });
 });
