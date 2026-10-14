@@ -776,7 +776,7 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      expect(stored.curationData!.semanticValidation!.findings.map(f => String(f.code))).not.toContain('family_product_type');
+      expect(stored.curationData!.semanticValidation!.findings.map(f => String((f as { code: string }).code))).not.toContain('family_product_type');
     }
   });
 
@@ -954,21 +954,17 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
     // OWN durable output, sibling equality is never required.
     const siblingA = validateMemberSemantics({
       memberSku: '900000000001',
-      parentExecutionType: { id: 'dog-food-dry', label: 'Dry Dog Food' },
       curatedTitle: 'Acme Dog Food Chicken 5 lb',
       titleSource: 'cohort_fallback',
       suggestedPages: ['Dog Food'],
-      suggestedProductType: 'dog-food-dry',
       durableTitleOutput: { title: 'Acme Dog Food Chicken 5 lb', source: 'cohort_fallback' },
       durablePageOutput: { status: 'assigned', pages: [{ pageId: 'p1', pageName: 'Dog Food', confidence: 0.9 }] },
     });
     const siblingB = validateMemberSemantics({
       memberSku: '900000000002',
-      parentExecutionType: { id: 'dog-food-dry', label: 'Dry Dog Food' },
       curatedTitle: 'Acme Dog Food Beef 10 lb',
       titleSource: 'cohort_fallback',
       suggestedPages: ['Dog Food', 'Brand - Acme'],
-      suggestedProductType: 'dog-food-dry',
       durableTitleOutput: { title: 'Acme Dog Food Beef 10 lb', source: 'cohort_fallback' },
       durablePageOutput: { status: 'assigned', pages: [
         { pageId: 'p1', pageName: 'Dog Food', confidence: 0.9 },
@@ -1107,11 +1103,9 @@ describe('PR9 C5 — acceptance: family invariants, coordinated-variant contract
 function r2CoherentMember(overrides: Record<string, unknown> = {}) {
   return {
     memberSku: '100000000001',
-    parentExecutionType: { id: 'dry-dog-food', label: 'Dry Dog Food' },
     curatedTitle: 'Acme Dry Dog Food Chicken 5 lb',
     titleSource: 'cohort_fallback',
     suggestedPages: ['Dog Food Dry'],
-    suggestedProductType: 'dry-dog-food',
     durableTitleOutput: { title: 'Acme Dry Dog Food Chicken 5 lb', source: 'cohort_fallback' as const },
     durablePageOutput: { status: 'assigned' as const, pages: [{ pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.9 }] },
     pageOutputExpectedEmpty: false,

@@ -35,20 +35,17 @@ import { hashCanonicalJson } from '../shared/stable-id';
 import { sourceProvenanceFromMember } from './cohort-decision-authority';
 import type {
   ClassificationEvidence,
-  BrandConfig,
 } from '../shared/schemas/classification';
 import type {
   ExecutionEvidenceProjectionMemberV1,
   ExecutionEvidenceProjectionMemberV2,
-  ExecutionEvidenceProjection,
 } from '../shared/schemas/cohorts';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { matchKeywordOptions } from './curation-target-matcher';
 import { buildEvidenceTargetPacket } from './evidence-targeting';
-import { resolveTargetsFromSnapshot, type ResolvedTargetOption } from './curation-target-resolver';
-import { resolveBrand } from './brand-resolution';
+import { type ResolvedTargetOption } from './curation-target-resolver';
 import { packagingOcrDataToEvidence } from './ocr-evidence';
-import { getReviewedTypeFromSnapshot } from './effective-curation-type';
+import { collectTypeVetoSignals, titleTextFromEvidence, vetoMetaFromTypeNode, vetoTypeCandidate } from './product-type-veto';
 
 const now = () => new Date().toISOString();
 
@@ -427,6 +424,32 @@ function scoreTypeMatch(evidence: ClassificationEvidence[], options: ResolvedTar
   }
   return { match: { productTypeId: null, confidence: null, source: null }, packet };
 }
+/**
+ * P1 #7: final candidate veto for one cohort member's raw inferred match.
+ * Runs AFTER keyword/LLM selection: a contradicted winner abstains (null
+ * match), never promotes the runner-up. Type nodes come from the member's
+ * own frozen snapshot productTypes (generic v9/v10 node shapes).
+ */
+export function vetoMemberTypeMatch(input: {
+  match: { productTypeId: string | null; confidence: number | null; source: 'keyword' | 'llm' | 'jev' | null };
+  memberEvidence: ClassificationEvidence[];
+  memberSnapshot: RuntimeClassificationSnapshot;
+}): { productTypeId: string | null; confidence: number | null; source: 'keyword' | 'llm' | 'jev' | null } {
+  const { match, memberEvidence, memberSnapshot } = input;
+  if (!match.productTypeId) return match;
+  const signals = collectTypeVetoSignals(titleTextFromEvidence(memberEvidence));
+  const nodes = (memberSnapshot.productTypes ?? []) as Array<{
+    id: string;
+    scope?: { animalDomain?: string } | null;
+    invariantAttributes?: Record<string, string | string[]>;
+  }>;
+  const node = nodes.find(n => n.id === match.productTypeId);
+  const meta = node ? vetoMetaFromTypeNode(node) : { id: match.productTypeId };
+  const veto = vetoTypeCandidate(meta, signals);
+  if (!veto.vetoed) return match;
+  return { productTypeId: null, confidence: null, source: null };
+}
+
 
 /**
  * Deterministically match one member's evidence to the resolved product type
@@ -443,493 +466,16 @@ export function matchMemberDeterministically(
   return scoreTypeMatch(memberEvidence, options).match;
 }
 
-// ─── C3b: aggregation ────────────────────────────────────────────────────────
+// ─── C3b: aggregation REMOVED (issue #351 SKU-local evidence) ─────────────────
+// `resolveCohortProductType` + reviewed-coherence aggregation +
+// `REVIEWED_CONTRIBUTION_CONFIDENCE` lived here. Cross-member aggregation
+// to a cohort/family Product Type conclusion is removed as factual
+// authority — each SKU is classified from its own evidence. Per-member
+// deterministic matching (`matchMemberDeterministically`, `scoreTypeMatch`)
+// stays above for SKU-local reuse; label mapping stays below. Sibling
+// divergence remains a read-only advisory (consistency-validator), never a
+// freeze failure or readiness veto.
 
-export interface CohortMemberInput {
-  /** Frozen per-member execution-evidence projection (`execution-evidence-v1`). */
-  projection: ExecutionEvidenceProjectionMemberV1;
-  /** The member's immutable runtime snapshot (carries productTypes/curationTargets). */
-  memberSnapshot: RuntimeClassificationSnapshot;
-  /**
-   * PR5 hardening (P1-2): the member's compatible reviewed Primary Product
-   * Type id, derived from `memberSnapshot.reviewedFacts` (the freeze extracts
-   * it via `getReviewedTypeFromSnapshot`; the resolver falls back to deriving
-   * it from the snapshot when the caller omits it). Null/absent when the
-   * member carries no reviewed type. Reviewed facts are provenance-compatible
-   * BY CONSTRUCTION of the runtime snapshot, so no live-config re-check is
-   * needed here.
-   */
-  reviewedTypeId?: string | null;
-  /**
-   * PR12 review R1: the CURRENT OCR execution-authority digest for the
-   * member's snapshot, supplied by READ-ONLY callers (the shadow observer)
-   * so persisted OCR is materialized ONLY when its stored
-   * `ocrExecutionDigest` exactly equals the current authority — stale OCR is
-   * rejected read-only, never re-run, never written. Absent for the freeze
-   * (whose pull-forward already re-ran OCR under the current authority).
-   */
-  expectedOcrExecutionDigest?: string | null;
-}
-
-/**
- * A run-bound LLM ranker result for ONE member (PR4 C4a freeze integration,
- * DECISION-A: the model call is attached to the member child run via
- * `buildModelCallContext(memberSnapshot, childRunId, 'product_type_ranking', 1)`
- * — provenance identical to the member SKU stage). The LLM is a FALLBACK: it
- * is applied only when the deterministic keyword match is absent or below the
- * caller's confidence floor, and a failing/unavailable LLM path abstains
- * (fail-closed — no silent type from a failed model path).
- */
-export interface MemberLlmRankResult {
-  /** The LLM/Jev-chosen product type id (one of the member's resolved options). */
-  productTypeId: string;
-  /** The ranker confidence (0..1) or selected probability. */
-  confidence: number;
-  /** Result source: 'llm' or 'jev' */
-  source?: 'llm' | 'jev';
-  /** Selected probability when from Jev */
-  selectedProbability?: number | null;
-  /** Vendor confidence when from Jev */
-  vendorConfidence?: number | null;
-}
-
-export interface ResolveCohortProductTypeInput {
-  /** One entry per finalized cohort member, any order. */
-  members: CohortMemberInput[];
-  /**
-   * Confidence floor (0..1) — a member result below it counts as an
-   * abstention (architecture-report §2.2; env-tunable in C5). The matcher's
-   * own `KEYWORD_MATCH_MIN_CONFIDENCE` gate still applies per member.
-   */
-  confidenceFloor: number;
-  /**
-   * Optional per-member LLM ranker results (PR4 C4a freeze integration): the
-   * freeze runs the run-bound `product_type_ranking` fallback for members
-   * whose deterministic keyword match is absent or below the floor, then
-   * passes the results here. Aligned with `members` (same length + order;
-   * null entry = no LLM result for that member). The aggregation applies an
-   * LLM result ONLY when the member's deterministic match is absent or below
-   * the floor — a confident keyword match always wins (deterministic-first,
-   * exactly like the per-SKU `processTargetInternal`). Pure input: the caller
-   * already made the run-bound model call; this module never invokes a model.
-   */
-  memberLlmResults?: Array<MemberLlmRankResult | null>;
-}
-
-/**
- * Per-member resolution result. `productTypeId`/`confidence`/`source` carry
- * the RAW deterministic match (null when the keyword matcher produced no
- * confident match); `isAbstention` is the floor-normalized view used by the
- * aggregation — a raw match below `confidenceFloor` counts as an abstention
- * while its values stay visible for diagnostics.
- */
-export interface PerMemberProductTypeResult {
-  onboardingItemId: string;
-  productSku: string | null;
-  /**
-   * The member's contribution id: the compatible reviewed Product Type when
-   * present, else the raw inferred match, else null. A below-floor raw match
-   * stays visible here (its values are diagnostics; `isAbstention` is the
-   * floor-normalized view the aggregation uses).
-   */
-  productTypeId: string | null;
-  /**
-   * Contribution confidence: 1.0 for a reviewed contribution (an accepted
-   * decision carries maximum certainty — the min-aggregation is unaffected
-   * whenever any inferred sibling exists), else the raw inferred confidence.
-   */
-  confidence: number | null;
-  /**
-   * 'reviewed' when a compatible reviewed type drives the contribution,
-   * 'keyword' when the deterministic matcher produced the match, 'llm' when
-   * the freeze-time run-bound ranker did, 'none' when the member has no
-   * contribution at all (no match and no reviewed type).
-   */
-  source: 'reviewed' | 'keyword' | 'llm' | 'jev' | 'none';
-  /** Selected probability when Jev produced the match */
-  selectedProbability?: number | null;
-  /** Vendor confidence when Jev produced the match */
-  vendorConfidence?: number | null;
-  /**
-   * PR5 hardening (P1-2): the member's compatible reviewed Primary Product
-   * Type id from the snapshot's provenance-compatible reviewed facts, or
-   * null. The family_invariant coherence rules (reviewed-vs-reviewed,
-   * reviewed-vs-inferred) aggregate over this field.
-   */
-  reviewedTypeId: string | null;
-  /**
-   * PR5 hardening: the member's RAW confident inferred type id (keyword/LLM
-   * match), retained for conflict diagnostics when a reviewed contribution
-   * overrides it. Null for reviewed-driven contributions that had no
-   * inference and for members without any confident inference. Never drives
-   * aggregation — `productTypeId` is the contribution.
-   */
-  inferredTypeId: string | null;
-  /** True when the member contributes no id (no reviewed type AND no
-   *  confident inference). */
-  isAbstention: boolean;
-  /**
-   * Evidence ids that drove the member's raw inferred match (the bounded
-   * packet the keyword score was computed over). Empty for abstentions and
-   * for reviewed contributions (a reviewed fact carries its own decision
-   * provenance, not the evidence packet) — the pure keyword matcher has no
-   * contradiction signal, so member-level `contradictingEvidenceIds` is
-   * always [].
-   */
-  supportingEvidenceIds: string[];
-  contradictingEvidenceIds: string[];
-}
-
-/** Non-abstention refinement used by the aggregation (id + confidence non-null). */
-export type ConfidentMemberProductTypeResult = PerMemberProductTypeResult & {
-  productTypeId: string;
-  confidence: number;
-  source: 'reviewed' | 'keyword' | 'llm' | 'jev';
-};
-
-/** Member support for the resolved type: confident members vs total members. */
-export interface CohortTypeMemberSupport {
-  confidentCount: number;
-  memberCount: number;
-}
-
-interface CohortProductTypeResolutionBase {
-  /** The cohort-level outcome (architecture-report §2.4). */
-  outcome: 'coherent' | 'coherent_with_abstentions' | 'conflicted' | 'abstained';
-  /** The resolved Product Type id — ONLY set for coherent outcomes (never majority-forced). */
-  productTypeId: string | null;
-  /** min(confident member confidences) — only set for coherent outcomes. */
-  confidence: number | null;
-  memberSupport: CohortTypeMemberSupport;
-  /** Evidence ids supporting the resolved type (union over confident members). */
-  supportingEvidenceIds: string[];
-  /**
-   * Evidence ids contradicting the resolved type: always [] for coherent
-   * outcomes; for `conflicted`, the union of every confident member's
-   * supporting ids (each side's evidence contradicts the other's — never
-   * resolved by source order or majority).
-   */
-  contradictingEvidenceIds: string[];
-  /** Per-member raw results, in input order. */
-  perMember: PerMemberProductTypeResult[];
-  /** The floor the aggregation applied. */
-  confidenceFloor: number;
-}
-
-export type CohortProductTypeResolution =
-  | (CohortProductTypeResolutionBase & { outcome: 'coherent'; productTypeId: string; confidence: number })
-  | (CohortProductTypeResolutionBase & { outcome: 'coherent_with_abstentions'; productTypeId: string; confidence: number })
-  | (CohortProductTypeResolutionBase & { outcome: 'conflicted'; productTypeId: null; confidence: null })
-  | (CohortProductTypeResolutionBase & { outcome: 'abstained'; productTypeId: null; confidence: null });
-
-/** Confidence assigned to a reviewed contribution: an accepted (reviewed)
- *  decision carries maximum certainty. The cohort min-aggregation is
- *  unaffected whenever any inferred sibling exists, and a fully-reviewed
- *  coherent cohort reports 1.0. */
-const REVIEWED_CONTRIBUTION_CONFIDENCE = 1;
-
-/** Normalize a reviewed type id: null/undefined and empty strings are absent
- *  (fail closed, never a lookup key — mirrors `getReviewedTypeFromSnapshot`). */
-function normalizeReviewedTypeId(id: string | null | undefined): string | null {
-  if (id === null || id === undefined || id.length === 0) return null;
-  return id;
-}
-
-/**
- * Per-member internal resolution: the compatible reviewed type AND the raw
- * floor-gated inferred match, kept separate so the aggregation can apply the
- * PR5 hardening (P1-2) reviewed-fact coherence rules (a reviewed type and a
- * differing confident inference must conflict, never silently coexist).
- */
-interface MemberResolution {
-  onboardingItemId: string;
-  productSku: string | null;
-  /** Compatible reviewed Primary Product Type id (normalized), or null. */
-  reviewedTypeId: string | null;
-  /** Raw inferred id (keyword/LLM), or null when no match at all. */
-  inferredTypeId: string | null;
-  /** Raw inferred confidence, or null when no match at all. */
-  inferredConfidence: number | null;
-  /** Raw inferred source — 'keyword'/'llm'/'jev', 'none' when no match at all. */
-  inferredSource: 'keyword' | 'llm' | 'jev' | 'none';
-  /** True when the raw inference contributes no confident id (no match, or confidence < floor). */
-  inferredAbstention: boolean;
-  /** Selected probability when Jev produced the match */
-  selectedProbability?: number | null;
-  /** Vendor confidence when Jev produced the match */
-  vendorConfidence?: number | null;
-  /** Evidence packet ids behind the raw match ([] when no confident match). */
-  supportingEvidenceIds: string[];
-}
-
-/**
- * Resolve the cohort-level Execution Product Type from frozen member evidence.
- * Pure aggregation with NO majority forcing:
- *
- * - every confident member agrees on one id            -> `coherent`
- * - >=1 confident match, >=1 abstainer, no contradiction -> `coherent_with_abstentions`
- *   (DECISION-C: an abstainer carries no counter-evidence)
- * - >=2 confident DISTINCT ids                         -> `conflicted` (id stays null)
- * - no confident match                                 -> `abstained` (incl. empty input)
- *
- * PR5 hardening (P1-2) — reviewed-fact coherence rules (Primary Product Type
- * is a family_invariant: it must resolve identically across finalized
- * members). The member's compatible reviewed type (from its snapshot's
- * provenance-compatible reviewed facts) participates at coherence time:
- *
- * - any two members' compatible reviewed types DIFFER          -> `conflicted`
- * - a member's reviewed type differs from the cohort's confident
- *   inferred type                                             -> `conflicted`
- *   (never silently coexist: the member would curate under one profile while
- *   the cohort execution type drives the siblings' profiles)
- * - a reviewed type agrees with the inferred type             -> `coherent`
- *   (the member's contribution source is 'reviewed')
- * - a reviewed type RESOLVES an otherwise-abstaining member   -> the member
- *   contributes that type; all members resolving to the same id (reviewed
- *   and/or inferred) -> `coherent` with that id.
- *
- * Product type options resolve per member from its frozen runtime snapshot
- * (`resolveTargetsFromSnapshot`); members with no enabled product-type target
- * or no options abstain. An empty members array resolves to `abstained`.
- */
-export function resolveCohortProductType(input: ResolveCohortProductTypeInput): CohortProductTypeResolution {
-  const { members, confidenceFloor, memberLlmResults } = input;
-  const resolutions = members.map((member, index) =>
-    resolveMemberResolution(member, confidenceFloor, memberLlmResults?.[index] ?? null),
-  );
-  const memberCount = resolutions.length;
-
-  // Effective contribution view (reviewed-first — exactly like the PR5
-  // effective curation type: a member with a compatible reviewed type
-  // contributes that type with source 'reviewed').
-  const perMember: PerMemberProductTypeResult[] = resolutions.map(res => ({
-    onboardingItemId: res.onboardingItemId,
-    productSku: res.productSku,
-    productTypeId: res.reviewedTypeId ?? res.inferredTypeId,
-    confidence: res.reviewedTypeId !== null ? REVIEWED_CONTRIBUTION_CONFIDENCE : res.inferredConfidence,
-    source: res.reviewedTypeId !== null ? 'reviewed' : res.inferredSource,
-    reviewedTypeId: res.reviewedTypeId,
-    // PR5 hardening: the RAW confident inference stays visible for conflict
-    // diagnostics even when a reviewed contribution overrides it (the
-    // reviewed-first projection must never hide the inferred side of a
-    // reviewed-vs-inference family conflict).
-    inferredTypeId: res.reviewedTypeId !== null ? res.inferredTypeId : null,
-    isAbstention: res.reviewedTypeId === null && res.inferredAbstention,
-    supportingEvidenceIds: res.reviewedTypeId !== null ? [] : res.supportingEvidenceIds,
-    contradictingEvidenceIds: [],
-  }));
-
-  const confident = perMember.filter(
-    (member): member is ConfidentMemberProductTypeResult => !member.isAbstention,
-  );
-  const memberSupport: CohortTypeMemberSupport = { confidentCount: confident.length, memberCount };
-
-  // ── PR5 hardening (P1-2): reviewed-fact coherence ──────────────────────────
-  const reviewedIds = [...new Set(
-    resolutions.map(res => res.reviewedTypeId).filter((id): id is string => id !== null),
-  )];
-  const confidentInferred = resolutions.filter(res => !res.inferredAbstention && res.inferredTypeId !== null);
-  const unreviewedConfident = resolutions.filter(res => res.reviewedTypeId === null && !res.inferredAbstention && res.inferredTypeId !== null);
-  const unreviewedInferredIds = [...new Set(unreviewedConfident.map(res => res.inferredTypeId as string))];
-
-  // Rule 1: any two members' compatible reviewed types DIFFER -> conflicted.
-  if (reviewedIds.length >= 2) {
-    return {
-      outcome: 'conflicted',
-      productTypeId: null,
-      confidence: null,
-      memberSupport,
-      supportingEvidenceIds: [],
-      // The contradicted side's evidence: every confident raw inference
-      // (reviewed-first members keep their raw inferred packet on `res`).
-      contradictingEvidenceIds: confidentInferred.flatMap(res => res.supportingEvidenceIds),
-      perMember,
-      confidenceFloor,
-    };
-  }
-  // Rule 2: any member's confident inferred type differs from the cohort's reviewed type -> conflicted
-  // (never silently coexist: a reviewed decision and a differing confident inference on any member must conflict).
-  if (reviewedIds.length === 1 && confidentInferred.some(res => res.inferredTypeId !== reviewedIds[0])) {
-    return {
-      outcome: 'conflicted',
-      productTypeId: null,
-      confidence: null,
-      memberSupport,
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: confidentInferred.flatMap(res => res.supportingEvidenceIds),
-      perMember,
-      confidenceFloor,
-    };
-  }
-  // Legacy rule (when no reviewed facts are present): >=2 confident DISTINCT inferred ids -> conflicted (id stays
-  // null; each side's evidence contradicts the other's — never resolved by
-  // source order or majority).
-  if (reviewedIds.length === 0 && unreviewedInferredIds.length >= 2) {
-    return {
-      outcome: 'conflicted',
-      productTypeId: null,
-      confidence: null,
-      memberSupport,
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: confident.flatMap(member => member.supportingEvidenceIds),
-      perMember,
-      confidenceFloor,
-    };
-  }
-
-  // Contribution ids after reviewed coherence: all reviewed ids agree with
-  // each other and with every confident inference (a reviewed type may also
-  // RESOLVE an otherwise-abstaining member). Only NON-abstaining members
-  // contribute — a below-floor raw match stays visible on its result as a
-  // diagnostic but never counts as a contribution.
-  const contributionIds = [...new Set(
-    confident.map(member => member.productTypeId).filter((id): id is string => id !== null),
-  )];
-  if (contributionIds.length === 0) {
-    return {
-      outcome: 'abstained',
-      productTypeId: null,
-      confidence: null,
-      memberSupport,
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: [],
-      perMember,
-      confidenceFloor,
-    };
-  }
-  // Defensive: the reviewed rules above guarantee a single contribution id
-  // here (any disagreement is a conflict); the >=2 case is never forced.
-  if (contributionIds.length >= 2) {
-    return {
-      outcome: 'conflicted',
-      productTypeId: null,
-      confidence: null,
-      memberSupport,
-      supportingEvidenceIds: [],
-      contradictingEvidenceIds: confident.flatMap(member => member.supportingEvidenceIds),
-      perMember,
-      confidenceFloor,
-    };
-  }
-
-  const productTypeId = contributionIds[0];
-  const confidence = Math.min(...confident.map(member => member.confidence));
-  const outcome = memberCount > confident.length ? 'coherent_with_abstentions' : 'coherent';
-
-  return {
-    outcome,
-    productTypeId,
-    confidence,
-    memberSupport,
-    supportingEvidenceIds: confident.flatMap(member => member.supportingEvidenceIds),
-    contradictingEvidenceIds: [],
-    perMember,
-    confidenceFloor,
-  };
-}
-
-function resolveMemberResolution(
-  member: CohortMemberInput,
-  confidenceFloor: number,
-  llmResult?: MemberLlmRankResult | null,
-): MemberResolution {
-  const evidence = evidenceFromProjection(member.projection, {
-    expectedOcrExecutionDigest: member.expectedOcrExecutionDigest,
-  });
-  const options = resolveProductTypeOptions(member.memberSnapshot);
-  const { match, packet } = scoreTypeMatch(evidence, options);
-  // LLM ranker fallback (PR4 C4a freeze integration, DECISION-A): applied ONLY
-  // when the deterministic keyword match is absent or below the caller's
-  // confidence floor — a confident deterministic match always wins, exactly
-  // like the per-SKU stage (`processTargetInternal`: deterministic first, LLM
-  // fallback). The LLM result's own confidence still passes through the floor
-  // gate below (a sub-floor LLM match counts as an abstention).
-  const belowFloor = match.productTypeId === null || match.confidence === null || match.confidence < confidenceFloor;
-  // PR4 review fix (BLOCKER): `llmRankOptions` returns option LABELS, but the
-  // persisted execution Product Type id must be the option's canonical VALUE
-  // (pt.id). Map the LLM label back through the member's frozen options; no
-  // exact match ⇒ the member abstains (fail closed — never an id guessed from
-  // a display label). The freeze integration already canonicalizes, so an
-  // already-canonical id passes through unchanged.
-  const effective = belowFloor && llmResult
-    ? mapLlmRankResultToMemberOption(llmResult, options)
-    : match;
-  // A null effective result (unmappable LLM label) is an abstention; a
-  // below-floor match/LLM confidence also counts as an abstention (the raw
-  // values stay visible for diagnostics). Jev member eligibility uses evaluated
-  // frozen policy (already gated at JEV_PRODUCT_TYPE_MIN_PROBABILITY 0.50); no artificial
-  // clamps or probability boosts to pass cohort floor.
-  const isAbstention = effective === null
-    || effective.productTypeId === null
-    || effective.confidence === null
-    || (effective.source === 'jev' ? false : effective.confidence < confidenceFloor);
-
-  // PR5 hardening (P1-2): the member's compatible reviewed Primary Product
-  // Type. The freeze passes it explicitly (extracted from the snapshot's
-  // provenance-compatible reviewed facts via `getReviewedTypeFromSnapshot`);
-  // when omitted the resolver derives it from the snapshot itself so every
-  // caller (shadow observer, tests) behaves identically.
-  const reviewedTypeId = normalizeReviewedTypeId(
-    member.reviewedTypeId ?? getReviewedTypeFromSnapshot(member.memberSnapshot),
-  );
-
-  return {
-    onboardingItemId: member.projection.onboardingItemId,
-    productSku: member.projection.productSku,
-    reviewedTypeId,
-    inferredTypeId: effective?.productTypeId ?? null,
-    inferredConfidence: effective?.confidence ?? null,
-    inferredSource: effective?.source ?? 'none',
-    inferredAbstention: isAbstention,
-    selectedProbability: (effective as any)?.selectedProbability ?? null,
-    vendorConfidence: (effective as any)?.vendorConfidence ?? null,
-    supportingEvidenceIds: isAbstention ? [] : packet.evidenceIds,
-  };
-}
-
-/**
- * Map a run-bound LLM ranker result back to the member's frozen Product Type
- * option VALUE (pt.id). `llmRankOptions` prompts and normalizes exclusively
- * against `option.label` (`curation-target-ranker.ts`); the stored
- * `execution_product_type_id` must be the canonical `option.value`. An exact
- * value match passes through (the freeze integration already canonicalizes);
- * an exact label match maps to its value. A label matching NO frozen option,
- * or more than one (duplicate display labels are permitted by config
- * validation), is ambiguous → null: the member abstains (fail closed — a
- * label outside the frozen options is never turned into an id, and a
- * duplicate label never silently selects the first match).
- */
-function mapLlmRankResultToMemberOption(
-  llmResult: MemberLlmRankResult,
-  options: ResolvedTargetOption[],
-): {
-  productTypeId: string;
-  confidence: number;
-  source: 'llm' | 'jev';
-  selectedProbability?: number | null;
-  vendorConfidence?: number | null;
-} | null {
-  const productTypeId = mapRankedLabelToOptionExactlyOne(llmResult.productTypeId, options);
-  if (productTypeId === null) return null;
-  return {
-    productTypeId,
-    confidence: llmResult.confidence,
-    source: llmResult.source === 'jev' ? 'jev' : 'llm',
-    selectedProbability: llmResult.selectedProbability,
-    vendorConfidence: llmResult.vendorConfidence,
-  };
-}
-
-/**
- * PR4 review fix (SHOULD-FIX): resolve a ranker-returned LABEL to the frozen
- * Product Type option VALUE, requiring EXACTLY ONE matching option. Duplicate
- * display labels are permitted by config validation (warning, not rejection),
- * so a label matching two options is ambiguous — return null and let the
- * member abstain, never pick the first. An exact canonical VALUE match passes
- * through unchanged (ids are unique by config validation; the exact-one guard
- * is defensive). Shared by the resolver and the freeze integration so both
- * label-mapping sites behave identically.
- */
 export function mapRankedLabelToOptionExactlyOne(
   label: string,
   options: ResolvedTargetOption[],
@@ -942,118 +488,8 @@ export function mapRankedLabelToOptionExactlyOne(
   return null;
 }
 
-/**
- * Resolve the member's product type options purely from its frozen runtime
- * snapshot (mirrors `primaryProductTypeStage`: the FIRST enabled product type
- * curation target, `curation-target-processor`/`primary-product-type.ts`).
- * Returns [] when no product type target is enabled or it has no options.
- */
-function resolveProductTypeOptions(snapshot: RuntimeClassificationSnapshot): ResolvedTargetOption[] {
-  const resolved = resolveTargetsFromSnapshot(snapshot);
-  if (resolved.productTypes.length === 0) return [];
-  return resolved.productTypes[0].options;
-}
-
-// ─── C3b: family invariant validator ─────────────────────────────────────────
-
-export interface FamilyInvariantFinding {
-  /** The family invariant target (ADR: Brand + Primary Product Type). */
-  invariant: 'product_type' | 'brand';
-  /**
-   * 'error' = family-invariant violation (Product Type conflict); 'warning' =
-   * visible finding only — PR4 never fails the cohort on Brand (Brand
-   * coherence is not yet a resolver product; the finding is the PR9 seed).
-   */
-  severity: 'error' | 'warning';
-  /** Machine-readable finding kind. */
-  kind: 'disagreement';
-  /** Human-readable summary. */
-  message: string;
-  /** Onboarding item ids of the members contributing to the finding. */
-  memberIds: string[];
-  /** The disagreeing values (product type ids / canonical brand identities). */
-  values: string[];
-}
-
-/**
- * Post-hoc PURE family-invariant validator (architecture-report §4): asserts
- * (a) every member's execution type contribution agrees (or is a recorded
- * abstention) and (b) canonical Brand agreement across members via the shared
- * brand canonicalization (`resolveBrand`). Returns findings; NEVER mutates the
- * run/projection. Run in tests and shadow mode (C5); PR4 does not fail the
- * cohort on Brand.
- *
- * @param projection - The frozen `execution-evidence-v1` projection (member
- *   brand inputs come from `extraction.brand ?? spreadsheetIdentity.brandHint`,
- *   mirroring the frozen evidence stage).
- * @param memberResults - The `resolveCohortProductType` per-member results.
- * @param brands - The configured canonical brands (frozen in the member
- *   snapshots). Empty when none are configured: brand resolution yields no
- *   canonical ids and members are compared by their raw normalized brand
- *   strings, so a family mismatch stays visible.
- */
-export function validateCohortFamilyInvariants(
-  projection: ExecutionEvidenceProjection,
-  memberResults: PerMemberProductTypeResult[],
-  brands: BrandConfig[] = [],
-): FamilyInvariantFinding[] {
-  const findings: FamilyInvariantFinding[] = [];
-
-  // (a) Product Type agreement finding — distinct confident ids = violation.
-  const confident = memberResults.filter(
-    (member): member is ConfidentMemberProductTypeResult => !member.isAbstention,
-  );
-  const distinctTypeIds = [...new Set(confident.map(member => member.productTypeId))];
-  if (distinctTypeIds.length >= 2) {
-    findings.push({
-      invariant: 'product_type',
-      severity: 'error',
-      kind: 'disagreement',
-      message: `Product Type family invariant violated: members resolved ${distinctTypeIds.length} distinct Product Types (${distinctTypeIds.join(', ')}).`,
-      memberIds: confident.map(member => member.onboardingItemId),
-      values: distinctTypeIds,
-    });
-  }
-
-  // (b) Canonical Brand disagreement finding (shared brand canonicalization).
-  const identityByMember = new Map<string, string>();
-  for (const member of projection.members) {
-    const brandInput = member.extraction.brand ?? member.spreadsheetIdentity.brandHint ?? null;
-    const identity = canonicalBrandIdentity(brandInput, brands);
-    if (identity === null) continue;
-    identityByMember.set(member.onboardingItemId, identity);
-  }
-  const membersByIdentity = new Map<string, string[]>();
-  for (const [memberId, identity] of identityByMember) {
-    const ids = membersByIdentity.get(identity) ?? [];
-    ids.push(memberId);
-    membersByIdentity.set(identity, ids);
-  }
-  if (membersByIdentity.size >= 2) {
-    const values = [...membersByIdentity.keys()].sort((a, b) => a.localeCompare(b));
-    findings.push({
-      invariant: 'brand',
-      severity: 'warning',
-      kind: 'disagreement',
-      message: `Brand family invariant violated: members resolve to ${membersByIdentity.size} distinct canonical brands (${values.join(', ')}).`,
-      memberIds: [...identityByMember.keys()],
-      values,
-    });
-  }
-
-  return findings;
-}
-
-/**
- * Canonical brand identity for one member: the shared `resolveBrand` result's
- * brandId when a configured canonical brand matches; otherwise a deterministic
- * raw identity (`unresolved:<normalized>`), so a family mismatch is visible
- * even before canonical brands are configured. Members with no brand input at
- * all contribute no identity (never a finding on their own).
- */
-function canonicalBrandIdentity(brandInput: string | null, brands: BrandConfig[]): string | null {
-  if (!brandInput || brandInput.trim().length === 0) return null;
-  const resolved = resolveBrand(brandInput, brands);
-  if (resolved) return resolved.brandId;
-  return `unresolved:${brandInput.trim().toLowerCase()}`;
-}
+// ─── C3b: family invariant validator REMOVED (issue #351 SKU-local evidence) ───
+// `validateCohortFamilyInvariants` + `canonicalBrandIdentity` lived here.
+// Cross-member Brand/type agreement is never a freeze failure — Brand
+// coherence stays in `cohort-semantic-validator.validateCohortBrandCoherence`
+// (post-loop, member-scoped) and type divergence stays a read-only advisory.

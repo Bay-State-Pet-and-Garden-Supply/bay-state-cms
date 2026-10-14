@@ -40,11 +40,8 @@ export interface PageAssignmentParams {
   selectionMode: 'single' | 'multiple';
   /** Maximum pages to return (default 5, max 10) */
   maxPages: number;
-  // Issue #351: no sibling cross-contamination. The legacy single-SKU path
-  // classifies strictly from this SKU's own facts; cohort questions already
-  // instruct per-SKU judgment. Kept as an ignored optional field so older
-  // callers still typecheck while contributing nothing to the prompt.
-  siblingProducts?: Array<{ sku: string; name: string }>;
+  // Issue #351: `siblingProducts` removed — sibling context must go
+  // through title/page coordination, never classification prompts.
   /** Frozen classification model-policy view (issue #17 item A). */
   modelPolicy?: import('./model-policy-gateway').ModelPolicyView | null;
   /** Durable model-call audit context (issue #17 work item E). */

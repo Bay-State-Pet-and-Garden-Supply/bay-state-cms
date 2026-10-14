@@ -675,17 +675,10 @@ export interface FreezeMemberResult {
  * transaction so tests can deterministically simulate a freeze-window
  * mutation; `hooks.onOcrInFlight` (test seam, PR3 hardening A2) fires while a
  * member's OCR pull-forward transport is actually in flight so tests can
- * deterministically simulate a sibling reclaim mid-call; `hooks.onTypeRankerInFlight`
- * (test seam, PR4 re-review fix) fires while a member's `product_type_ranking`
- * LLM transport is genuinely in flight so tests can deterministically simulate
- * a sibling reclaim mid-ranking-call; `hooks.beforeCasSupersede`
+ * deterministically simulate a sibling reclaim mid-call; `hooks.beforeCasSupersede`
  * (test seam, PR4 review fix) fires in the CAS-drift handler immediately
  * before the owner-guarded supersede attempt so tests can deterministically
- * simulate a sibling reclaim between the failed CAS and the supersede;
- * `hooks.beforeConflictTerminal` (test seam, PR4 re-review fix P1-2) fires
- * inside the final CAS immediately before the owner-guarded conflict terminal
- * write so tests can deterministically simulate a sibling reclaim between
- * conflict detection and the helper (the helper must no-op).
+ * simulate a sibling reclaim between the failed CAS and the supersede.
  * Production callers never pass any.
  */
 export async function freezeCohortForExecution(
@@ -695,9 +688,7 @@ export async function freezeCohortForExecution(
   hooks?: {
     beforeFinalCas?: () => void;
     onOcrInFlight?: () => void | Promise<void>;
-    onTypeRankerInFlight?: () => void | Promise<void>;
     beforeCasSupersede?: () => void;
-    beforeConflictTerminal?: () => void;
   },
 ): Promise<CohortRun> {
   const workerId = run.claimedBy ?? '';
@@ -745,11 +736,6 @@ export async function freezeCohortForExecution(
   //      long OCR calls stays inside the TTL; a rejected heartbeat aborts the
   //      freeze (a sibling owns the run now — no further side effects).
   const frozenMembers: FreezeMemberResult[] = [];
-  // PR4 C4a: per-member run-bound LLM ranker results (DECISION-A), aligned
-  // with `frozenMembers` — null when the member's deterministic keyword match
-  // was confident, or the LLM fallback was skipped / unavailable (fail-closed
-  // abstention). Empty (never populated) when the resolver is inactive.
-  const memberTypeLlmResults: Array<null> = [];
   let lastHeartbeatAt = 0;
   // P1-T3 stampede guard: per-cohort-freeze cap on digest-staleness OCR
   // re-runs. Only members actually re-run count; members beyond the cap keep
@@ -924,15 +910,10 @@ export async function freezeCohortForExecution(
       throw new Error(`Freeze aborted: member ${item.id} has no extraction hash after OCR pull-forward.`);
     }
 
-    // Issue #351 (SKU-local evidence): no freeze-time member type resolution.
-    // Each SKU is classified from its own evidence in its own member
-    // pipeline run — the freeze never aggregates, ranks, or resolves a
-    // cohort/family Product Type, and no parent or sibling conclusion may
-    // fill an unsupported member result. The per-member results array stays
-    // (all-null) only to preserve the aggregation call shape below until
-    // the aggregation itself is removed in the next edit.
-    const memberTypeLlmResult: null = null;
-    memberTypeLlmResults.push(memberTypeLlmResult);
+    // Issue #351 (SKU-local evidence): no freeze-time member type
+    // resolution. Each SKU is classified from its own evidence in its own
+    // member pipeline run — the freeze never aggregates, ranks, or resolves
+    // a cohort/family Product Type.
 
     frozenMembers.push({
       member,

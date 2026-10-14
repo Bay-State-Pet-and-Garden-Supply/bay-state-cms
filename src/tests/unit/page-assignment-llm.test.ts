@@ -948,20 +948,26 @@ describe('llmAssignCategoryPages', () => {
 
   // ── Prompt inspection tests ────────────────────────────────────────────
 
-  it('sibling products never reach the prompt (issue #351 SKU-local evidence)', async () => {
+  // Issue #351: `siblingProducts` was REMOVED from PageAssignmentParams —
+  // there is no sibling channel to leak into the prompt. This test passes
+  // an unknown sibling key (type error suppressed) and asserts the prompt
+  // carries no sibling content.
+  it('no sibling channel exists on the prompt (issue #351 SKU-local evidence)', async () => {
     asMock(callLlmForTask).mockResolvedValue(
       JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
     );
 
     const paramsWithSiblings: PageAssignmentParams = {
       ...defaultParams,
+      // @ts-expect-error deliberate: sibling channel removed from the type;
+      // an unknown key must not typecheck.
       siblingProducts: [
         { sku: 'SKU002', name: 'Honest Kitchen Beef Recipe Chicken' },
         { sku: 'SKU003', name: 'Honest Kitchen Beef Recipe Lamb' },
       ],
     };
 
-    await llmAssignCategoryPages(paramsWithSiblings);
+    await llmAssignCategoryPages(paramsWithSiblings as PageAssignmentParams);
 
     expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
     // callLlmForTask signature: (taskName, prompt, systemPrompt, options)
@@ -969,6 +975,7 @@ describe('llmAssignCategoryPages', () => {
     expect(prompt).not.toContain('SKU002');
     expect(prompt).not.toContain('Honest Kitchen Beef Recipe Chicken');
     expect(prompt).not.toContain('SIBLING PRODUCTS');
+    expect('siblingProducts' in defaultParams).toBe(false);
   });
 
   it('includes page IDs ([ID:...]) in the prompt listing', async () => {
